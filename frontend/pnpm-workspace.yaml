@@ -1,0 +1,2 @@
+patchedDependencies:
+  metro@0.81.5: patches/metro@0.81.5.patch

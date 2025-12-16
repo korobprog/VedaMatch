@@ -1,0 +1,323 @@
+{
+  "name": "38 - YT - Google Gemini RAG",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "register",
+        "authentication": "none",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "name": "Register Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "users",
+          "mode": "list",
+          "cachedResultName": "users"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "karmic_name": "={{ $json.body.karmicName }}",
+            "spiritual_name": "={{ $json.body.spiritualName }}",
+            "email": "={{ $json.body.email }}",
+            "gender": "={{ $json.body.gender }}",
+            "country": "={{ $json.body.country }}",
+            "city": "={{ $json.body.city }}",
+            "identity": "={{ $json.body.identity }}",
+            "diet": "={{ $json.body.diet }}",
+            "madh": "={{ $json.body.madh }}",
+            "mentor": "={{ $json.body.mentor }}",
+            "dob": "={{ $json.body.dob }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "karmic_name",
+              "displayName": "karmic_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "name": "Save to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgresCredentials",
+          "name": "Postgres Connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.all()[0].json.body;\n\n// Форматируем данные профиля для RAG системы\nconst profileText = `Профиль пользователя:\nИмя (кармическое): ${body.karmicName || 'не указано'}\nДуховное имя: ${body.spiritualName || 'не указано'}\nEmail: ${body.email || 'не указано'}\nПол: ${body.gender || 'не указано'}\nСтрана: ${body.country || 'не указано'}\nГород: ${body.city || 'не указано'}\nДата рождения: ${body.dob || 'не указано'}\nИдентичность: ${body.identity || 'не указано'}\nДиета: ${body.diet || 'не указано'}\nТрадиция (мадх): ${body.madh || 'не указано'}\nНаставник: ${body.mentor || 'не указано'}`;\n\nreturn [\n  {\n    json: {\n      profileData: profileText,\n      karmicName: body.karmicName,\n      email: body.email,\n      country: body.country,\n      city: body.city,\n      gender: body.gender,\n      identity: body.identity,\n      diet: body.diet,\n      madh: body.madh,\n      mentor: body.mentor,\n      dob: body.dob,\n      spiritualName: body.spiritualName\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ],
+      "id": "b1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "name": "Format Profile for RAG"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/upload/v1beta/files",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "AIzaSyC2ObRpfHRwbA00PTZPS6WdZ8tYHW2KFqE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/plain",
+        "body": "={{ $json.profileData }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        660,
+        0
+      ],
+      "id": "c1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "name": "Upload Profile to RAG"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/fileSearchStores/my-store-tva5a8g0mgj3:importFile",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "AIzaSyC2ObRpfHRwbA00PTZPS6WdZ8tYHW2KFqE"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fileName\": \"{{ $json.file?.name || $json.name || 'profile_' + (Date.now()) + '.txt' }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        880,
+        0
+      ],
+      "id": "d0fc1105-1a49-4800-9c3b-98c525660c73",
+      "name": "Import Profile to RAG Store"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        300
+      ],
+      "id": "c9eacc5c-1ebb-49cd-8b07-8f33c6f3a6ae",
+      "name": "When chat message received",
+      "webhookId": "2a4686cc-9b92-4257-82f5-501d0761b327"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "AIzaSyC2ObRpfHRwbA00PTZPS6WdZ8tYHW2KFqE"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"contents\": [{\n        \"parts\":[{\"text\": \"{{ $json.chatInput }}\"}]          \n    }],\n    \"tools\": [{\n        \"file_search\": { \n            \"file_search_store_names\":[\"fileSearchStores/my-store-tva5a8g0mgj3\"]\n        }\n    }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        224,
+        300
+      ],
+      "id": "e3e99897-9992-4e0d-b752-4b88198bacf3",
+      "name": "Chat with RAG"
+    },
+    {
+      "parameters": {
+        "content": "### Register Profile and Save to RAG",
+        "height": 288,
+        "width": 912
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -80,
+        -96
+      ],
+      "typeVersion": 1,
+      "id": "6002a9d1-40ee-4971-95d4-1b9bd13dcbb9",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "### Chat with Profiles RAG",
+        "height": 288,
+        "width": 912
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -80,
+        204
+      ],
+      "typeVersion": 1,
+      "id": "af4ca92d-38c0-4d06-9ac0-0ff8a51c8882",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Register Webhook": {
+      "main": [
+        [
+          {
+            "node": "Save to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to DB": {
+      "main": [
+        [
+          {
+            "node": "Format Profile for RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Profile for RAG": {
+      "main": [
+        [
+          {
+            "node": "Upload Profile to RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Profile to RAG": {
+      "main": [
+        [
+          {
+            "node": "Import Profile to RAG Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Chat with RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ca0232a1-9e03-4878-bcb3-9585f0bd2600",
+  "meta": {
+    "instanceId": "1a57cb06e1912e605090a191874e37adc77118b99d1119a7dd626ec4652e6c4a"
+  },
+  "id": "fmqfKdyJBXPdv2aA",
+  "tags": []
+}
