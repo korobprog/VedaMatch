@@ -25,6 +25,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // Настройка порта Metro bundler (8081 занят Go сервером)
+        resValue "string", "react_native_packager_port", project.findProperty("REACT_NATIVE_PACKAGER_PORT") ?: "8082"
     }
     signingConfigs {
         debug {
@@ -37,6 +39,8 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Настройка адреса Metro bundler для debug режима
+            buildConfigField "String", "REACT_NATIVE_PACKAGER_PORT", "\"8082\""
         }
         release {
             signingConfig signingConfigs.debug

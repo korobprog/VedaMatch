@@ -8,9 +8,15 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found")
+	}
+
 	// Initialize Database
 	database.Connect()
 
@@ -29,7 +35,13 @@ func main() {
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
 
+	chatHandler := handlers.NewChatHandler()
+	// Use /v1 prefix to match frontend expectation
+	api.Post("/v1/chat/completions", chatHandler.HandleChat)
+	api.Get("/v1/models", chatHandler.HandleModels)
+
 	// Start Server
-	log.Println("Server starting on port 8080")
-	log.Fatal(app.Listen(":8080"))
+	port := ":8081"
+	log.Printf("Server starting on port %s", port)
+	log.Fatal(app.Listen(port))
 }
