@@ -15,7 +15,10 @@ import {
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import axios from 'axios';
-import { submitProfileToN8n } from './services/n8nService';
+
+// Базовый URL твоего Go-сервера (Fiber). ЗАМЕНИ на реальный адрес сервера.
+// Например: http://10.0.2.2:8080/api (Android эмулятор) или https://api.vedamatch.com/api
+const API_BASE_URL = 'http://localhost:8080/api';
 
 // Reusing the theme from App.tsx for consistency
 const COLORS = {
@@ -242,7 +245,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
         setLoading(true);
 
         try {
-            // Подготавливаем данные профиля для отправки в n8n
+            // Подготавливаем данные профиля для отправки на сервер
             const profileData = {
                 email: email || undefined,
                 country,
@@ -257,19 +260,24 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 diet,
             };
 
-            // Отправляем данные в n8n webhook
-            // n8n workflow сохранит данные в PostgreSQL и обработает их для RAG системы
-            await submitProfileToN8n(profileData);
-            
+            // Отправляем данные на Go-сервер
+            // Сервер (эндпоинт /api/register) сохранит данные в PostgreSQL и отправит их в RAG систему (Gemini)
+            await axios.post(`${API_BASE_URL}/register`, profileData, {
+                timeout: 30000,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
             Alert.alert(
-                'Success', 
+                'Success',
                 'Профиль успешно зарегистрирован! Данные сохранены в базе данных и будут обработаны ИИ системой.'
             );
             onBack();
         } catch (error: any) {
             console.error('Registration error:', error);
             Alert.alert(
-                'Error', 
+                'Error',
                 error.message || 'Ошибка при регистрации профиля. Попробуйте позже.'
             );
         } finally {

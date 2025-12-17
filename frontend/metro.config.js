@@ -6,5 +6,13 @@ const {getDefaultConfig} = require('@react-native/metro-config');
  *
  * @type {import('metro-config').MetroConfig}
  */
-module.exports = getDefaultConfig(__dirname);
+const config = getDefaultConfig(__dirname);
+
+// Используем порт 8082 для Metro bundler (8081 занят Go сервером)
+config.server = {
+  ...config.server,
+  port: 8082,
+};
+
+module.exports = config;
 

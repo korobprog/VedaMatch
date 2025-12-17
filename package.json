@@ -1,0 +1,29 @@
+{
+  "name": "rag-agent-proxy",
+  "version": "1.0.0",
+  "description": "Прокси-сервер для добавления параметра provider в запросы Roo Code Nightly",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "proxy": "node proxy-server.js",
+    "backend": "cd server && go run cmd/api/main.go",
+    "frontend": "cd frontend && PORT=8082 pnpm start",
+    "dev": "concurrently \"pnpm run backend\" \"pnpm run frontend\" --names \"backend,frontend\" --prefix-colors \"blue,green\"",
+    "server": "cd server && ./START.sh"
+  },
+  "dependencies": {
+    "express": "^4.22.1",
+    "http-proxy-middleware": "^2.0.9"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "proxy",
+    "openai",
+    "roo-code"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

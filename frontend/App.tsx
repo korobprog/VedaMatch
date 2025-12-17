@@ -14,12 +14,19 @@ import {
   Keyboard,
   ImageBackground,
   ActivityIndicator,
+  Image,
+  Alert,
+  Linking,
+  PermissionsAndroid,
 } from 'react-native';
+import Markdown from 'react-native-markdown-display';
+import RNFS from 'react-native-fs';
 import RegistrationScreen from './RegistrationScreen';
 import { sendMessage, ChatMessage } from './services/openaiService';
 import { SettingsDrawer } from './SettingsDrawer';
 // import { modelsConfig } from './config/models.config'; // Removed as it is used in context now
 import { SettingsProvider, useSettings } from './context/SettingsContext';
+import { ChatImage } from './ChatImage';
 
 // Premium Yogic Palette: "Solid, Grounded, Earthy & Noble"
 const COLORS = {
@@ -95,6 +102,73 @@ function AppContent(): React.JSX.Element {
   ]);
 
   const flatListRef = useRef<FlatList>(null);
+
+  // Функция для скачивания изображения
+  const downloadImage = async (imageUrl: string, imageName?: string) => {
+    try {
+      // Запрашиваем разрешение на Android (для старых версий)
+      if (Platform.OS === 'android' && Platform.Version < 29) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Разрешение на сохранение файлов',
+            message: 'Приложению нужно разрешение на сохранение изображений',
+            buttonNeutral: 'Спросить позже',
+            buttonNegative: 'Отмена',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Ошибка', 'Необходимо разрешение на сохранение файлов');
+          return;
+        }
+      }
+
+      // Определяем имя файла
+      const fileName = imageName || `image_${Date.now()}.jpg`;
+      const fileExtension = fileName.split('.').pop() || 'jpg';
+      const finalFileName = fileName.includes('.') ? fileName : `${fileName}.${fileExtension}`;
+
+      // Путь для сохранения
+      const downloadPath = Platform.OS === 'ios'
+        ? `${RNFS.DocumentDirectoryPath}/${finalFileName}`
+        : Platform.Version >= 29
+          ? `${RNFS.DownloadDirectoryPath}/${finalFileName}`
+          : `${RNFS.PicturesDirectoryPath}/${finalFileName}`;
+
+      // Скачиваем файл
+      const downloadResult = await RNFS.downloadFile({
+        fromUrl: imageUrl,
+        toFile: downloadPath,
+      }).promise;
+
+      if (downloadResult.statusCode === 200) {
+        Alert.alert(
+          'Успешно',
+          `Изображение сохранено`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        throw new Error(`Ошибка скачивания: ${downloadResult.statusCode}`);
+      }
+    } catch (error: any) {
+      console.error('Ошибка при скачивании изображения:', error);
+      // Если не удалось скачать, предлагаем открыть в браузере
+      Alert.alert(
+        'Ошибка скачивания',
+        'Не удалось скачать изображение. Открыть в браузере?',
+        [
+          { text: 'Отмена', style: 'cancel' },
+          {
+            text: 'Открыть',
+            onPress: () => Linking.openURL(imageUrl).catch(() => {
+              Alert.alert('Ошибка', 'Не удалось открыть изображение');
+            }),
+          },
+        ]
+      );
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -185,6 +259,58 @@ function AppContent(): React.JSX.Element {
     setShowMenu(false);
   };
 
+  // Стили для Markdown
+  const markdownStyles = {
+    body: {
+      color: theme.text,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    paragraph: {
+      marginTop: 0,
+      marginBottom: 8,
+    },
+    imageContainer: {
+      marginVertical: 8,
+      alignItems: 'center' as const,
+    },
+    markdownImage: {
+      width: '100%',
+      maxWidth: 300,
+      height: 200,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    downloadButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    downloadButtonText: {
+      color: '#FFF',
+      fontSize: 14,
+      fontWeight: '600' as const,
+    },
+  };
+
+  // Кастомные правила рендеринга для Markdown
+  const markdownRules = {
+    image: (node: any, children: any, parent: any, styles: any) => {
+      const imageUrl = node.attributes?.src || '';
+      const altText = node.attributes?.alt || 'Изображение';
+
+      return (
+        <ChatImage
+          key={node.key}
+          imageUrl={imageUrl}
+          altText={altText}
+          onDownload={downloadImage}
+          theme={theme}
+        />
+      );
+    },
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.sender === 'user';
     return (
@@ -205,7 +331,12 @@ function AppContent(): React.JSX.Element {
               <Text style={{ color: theme.iconColor, fontWeight: 'bold', fontSize: 18 }}>ॐ</Text>
             </View>
             <View style={[styles.bubble, { backgroundColor: theme.botBubble, marginLeft: 8, borderColor: theme.borderColor, borderWidth: isDarkMode ? 0 : 1 }]}>
-              <Text style={[styles.messageText, { color: theme.text }]}>{item.text}</Text>
+              <Markdown
+                style={markdownStyles}
+                rules={markdownRules}
+              >
+                {item.text}
+              </Markdown>
             </View>
           </View>
         )}

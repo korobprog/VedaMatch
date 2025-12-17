@@ -11,7 +11,8 @@ import { getModelConfig, ModelConfig } from '../config/models.config';
 // Base URL для RVFreeLLM API
 // OpenAI SDK требует явного указания /v1 в baseURL, если он переопределен
 // API_BASE_URL указывает на корень вебхука
-const API_BASE_URL = 'https://rvlautoai.ru/webhook';
+// API_BASE_URL указывает на локальный бекенд (Android Emulator loopback)
+const API_BASE_URL = 'http://10.0.2.2:8081/api';
 // #region agent log
 console.log('DEBUG: API_BASE_URL configured:', API_BASE_URL);
 // #endregion
@@ -311,10 +312,17 @@ export const sendMessage = async (
  * @returns Список доступных моделей
  */
 export const getAvailableModels = async (provider?: string): Promise<any> => {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/83b895de-46c0-4a18-802e-4e3a6af9118c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'openaiService.ts:314', message: 'getAvailableModels called', data: { provider: provider || 'none', apiBaseUrl: API_BASE_URL }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
+  // #endregion
   try {
     const url = provider
       ? `${API_BASE_URL}/v1/models?provider=${provider}`
       : `${API_BASE_URL}/v1/models`;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/83b895de-46c0-4a18-802e-4e3a6af9118c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'openaiService.ts:320', message: 'Before fetch request', data: { url: url, method: 'GET', hasApiKey: !!(Config.API_OPEN_AI || API_KEY), apiKeyLength: (Config.API_OPEN_AI || API_KEY || '').length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
+    // #endregion
 
     const response = await fetch(url, {
       method: 'GET',
@@ -324,12 +332,28 @@ export const getAvailableModels = async (provider?: string): Promise<any> => {
       },
     });
 
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/83b895de-46c0-4a18-802e-4e3a6af9118c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'openaiService.ts:332', message: 'After fetch response', data: { status: response.status, statusText: response.statusText, ok: response.ok, url: response.url }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
+    // #endregion
+
     if (!response.ok) {
+      // #region agent log
+      const errorText = await response.text().catch(() => '');
+      fetch('http://127.0.0.1:7245/ingest/83b895de-46c0-4a18-802e-4e3a6af9118c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'openaiService.ts:337', message: 'Response not OK', data: { status: response.status, statusText: response.statusText, errorText: errorText.substring(0, 200) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
+      // #endregion
       throw new Error(`Ошибка получения моделей: ${response.status}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/83b895de-46c0-4a18-802e-4e3a6af9118c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'openaiService.ts:345', message: 'Successfully parsed response', data: { hasData: !!data, dataKeys: data ? Object.keys(data) : [], modelsCount: data?.data?.length || 0 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
+    // #endregion
+
+    return data;
   } catch (error: any) {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/83b895de-46c0-4a18-802e-4e3a6af9118c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'openaiService.ts:350', message: 'Error in getAvailableModels', data: { errorType: error?.constructor?.name, errorMessage: error?.message, errorStack: error?.stack?.substring(0, 200) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
+    // #endregion
     console.error('Ошибка при получении списка моделей:', error);
     throw new Error(error.message || 'Не удалось получить список моделей');
   }
