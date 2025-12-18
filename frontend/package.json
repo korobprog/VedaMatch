@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools && export REACT_NATIVE_PACKAGER_PORT=8082 && export PORT=8082 && node fix-metro-port.js && ./ensure-emulator.sh && react-native run-android",
+    "android": "source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools && export REACT_NATIVE_PACKAGER_PORT=8082 && export PORT=8082 && node fix-metro-port.js && ./ensure-emulator.sh && react-native run-android --port 8082",
     "emulator": "./start-emulator.sh",
     "ios": "react-native run-ios",
     "lint": "eslint .",

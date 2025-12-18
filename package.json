@@ -7,9 +7,10 @@
     "start": "node proxy-server.js",
     "proxy": "node proxy-server.js",
     "backend": "cd server && go run cmd/api/main.go",
-    "frontend": "cd frontend && PORT=8082 pnpm start",
-    "dev": "concurrently \"pnpm run backend\" \"pnpm run frontend\" --names \"backend,frontend\" --prefix-colors \"blue,green\"",
-    "server": "cd server && ./START.sh"
+    "frontend": "cd frontend && pnpm run start",
+    "android": "cd frontend && pnpm run android",
+    "server": "cd server && ./START.sh",
+    "dev": "concurrently \"pnpm run server\" \"pnpm run android\" --names \"SERVER,ANDROID\" --prefix-colors \"blue,green\""
   },
   "dependencies": {
     "express": "^4.22.1",
@@ -26,4 +27,3 @@
   "author": "",
   "license": "MIT"
 }
-
