@@ -15,7 +15,7 @@ type AuthHandler struct {
 
 func NewAuthHandler() *AuthHandler {
 	return &AuthHandler{
-		ragService: &services.RAGService{},
+		ragService: services.NewRAGService(),
 	}
 }
 
@@ -39,13 +39,18 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	// Requirement: "data registration must fall into DB and from there into RAG"
 	// I'll do it synchronously for now to ensure it works and return error if RAG fails (or just log it).
 	// If it fails, we might still want to return success for registration but log warning.
-	
+
 	go func(u models.User) {
-		err := h.ragService.UploadProfile(u)
+		fileID, err := h.ragService.UploadProfile(u)
 		if err != nil {
 			log.Printf("Error uploading profile to RAG for user %d: %v", u.ID, err)
 		} else {
-			log.Printf("Successfully uploaded profile to RAG for user %d", u.ID)
+			log.Printf("Successfully uploaded profile to RAG for user %d. FileID: %s", u.ID, fileID)
+			// Update user with RagFileID
+			u.RagFileID = fileID
+			if err := database.DB.Model(&u).Update("rag_file_id", fileID).Error; err != nil {
+				log.Printf("Failed to update user %d with RagFileID: %v", u.ID, err)
+			}
 		}
 	}(user)
 

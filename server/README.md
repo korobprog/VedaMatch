@@ -92,3 +92,7 @@ docker run -p 8080:8080 \
   -e DB_NAME=ragdb \
   rag-agent-server
 ```
+curl https://generativelanguage.googleapis.com/v1beta/corpora?key=AIzaSyAe4RDAkcIgPmMi1EA-LDUuqEQIsz7YPCI
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d '{ "display_name": "User Profiles Store" }'

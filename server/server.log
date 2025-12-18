@@ -1,0 +1,22 @@
+2025/12/18 19:26:54 Connected to Database
+2025/12/18 19:26:54 Database Migrated
+2025/12/18 19:26:54 Server starting on port :8081
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                   Fiber v2.52.0                   │ 
+ │               http://127.0.0.1:8081               │ 
+ │       (bound on host 0.0.0.0 and port 8081)       │ 
+ │                                                   │ 
+ │ Handlers ............. 7  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............ 300169 │ 
+ └───────────────────────────────────────────────────┘ 
+
+19:26:56 | 201 |   33.019465ms | 127.0.0.1 | POST | /api/register | -
+2025/12/18 19:26:56 Error uploading profile to RAG for user 3: rag upload failed with status 400: {
+  "error": {
+    "code": 400,
+    "message": "User location is not supported for the API use.",
+    "status": "FAILED_PRECONDITION"
+  }
+}
+signal: terminated

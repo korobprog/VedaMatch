@@ -202,10 +202,12 @@ type User struct {
 Frontend (RegistrationScreen)
   → POST /api/register
     → Go Backend (auth_handler.go)
-      → PostgreSQL (сохранение)
-      → Google Gemini RAG (асинхронно)
-        → Upload File
-        → Import to Store
+      → PostgreSQL (save initial user)
+      → Google Gemini RAG (rag_service.go)
+        → Upload Profile (native Go HTTP request)
+        → Import to Store (native Go HTTP request)
+        → Return RagFileID
+      → PostgreSQL (update user with RagFileID)
 ```
 
 ### Чат с AI
@@ -282,4 +284,17 @@ pnpm run dev  # Backend + Frontend одновременно
    - Логирование (структурированные логи)
    - Мониторинг и метрики
    - CI/CD pipeline
+
+## Рекомендации по работе с RAG (API Restrictions)
+
+### 1. Региональные ограничения Google
+Google Gemini API (особенно Semantic Retrieval / Corpora) имеет жесткие географические ограничения. Если сервер находится в неподдерживаемом регионе (например, РФ), прямые запросы из Go-бэкенда к `generativelanguage.googleapis.com` будут возвращать ошибку `400 Bad Request: User location is not supported`.
+
+### 2. Способы решения
+*   **Использование VDS в поддерживаемом регионе**: Бэкенд должен быть развернут на сервере (например, в США или Европе), где API доступно без ограничений.
+*   **Использование HTTP-прокси**: В `rag_service.go` можно внедрить поддержку проксирования через переменную `PROXY_URL` в `.env`, чтобы запросы к Google шли через разрешенный IP.
+*   **Предварительное создание Corpus**: Создание хранилища (Corpus) рекомендуется выполнять один раз через VPN или удаленный сервер, после чего прописывать полученный `GEMINI_CORPUS_ID` в конфиг.
+
+### 3. Резервный вариант (File API)
+Если работа с `corpora` остается нестабильной из-за блокировок, архитектура предусматривает переход на **Gemini File API**. В этом случае профиль пользователя загружается как обычный файл, который передается в контекст модели (`generateContent`) при каждом запросе, что менее чувствительно к региональным проверкам на этапе поиска.
 
