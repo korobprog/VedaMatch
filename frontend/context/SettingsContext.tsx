@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAvailableModels } from '../services/openaiService';
 import { modelsConfig } from '../config/models.config';
 import { Alert } from 'react-native';
@@ -17,8 +18,14 @@ interface SettingsContextType {
     currentModel: string;
     currentProvider: string;
     loadingModels: boolean;
+    imageSize: number;
+    imagePosition: 'left' | 'center' | 'right';
     fetchModels: (force?: boolean) => Promise<void>;
     selectModel: (modelId: string, provider: string) => void;
+    setImageSize: (size: number) => void;
+    setImagePosition: (position: 'left' | 'center' | 'right') => void;
+    defaultMenuTab: 'portal' | 'history';
+    setDefaultMenuTab: (tab: 'portal' | 'history') => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -29,6 +36,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [currentProvider, setCurrentProvider] = useState<string>(modelsConfig.text.provider || '');
     const [loadingModels, setLoadingModels] = useState<boolean>(false);
     const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+    const [imageSize, setImageSize] = useState<number>(280);
+    const [imagePosition, setImagePosition] = useState<'left' | 'center' | 'right'>('left');
+    const [defaultMenuTab, setDefaultMenuTabState] = useState<'portal' | 'history'>('portal');
 
     const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 
@@ -64,8 +74,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             // Validate current model exists in new list, if not, fallback or warn
             // (Optional: logic to reset if current model disappears)
         } catch (error: any) {
-            console.error('Failed to fetch models:', error);
-            Alert.alert('Error', 'Failed to load AI models. Using default configuration.');
+            console.warn('Failed to fetch models:', error?.message || 'Unknown error');
+            // Silent failure, UI will show empty list or use defaults
         } finally {
             setLoadingModels(false);
         }
@@ -81,8 +91,28 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     // Maybe better to lazy load when drawer opens, but user asked for "cached list".
     // We can fetch on app start silently.
     useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                const tab = await AsyncStorage.getItem('default_menu_tab');
+                if (tab === 'history' || tab === 'portal') {
+                    setDefaultMenuTabState(tab);
+                }
+            } catch (e) {
+                console.error('Failed to load menu settings', e);
+            }
+        };
+        loadSettings();
         fetchModels();
     }, []);
+
+    const setDefaultMenuTab = async (tab: 'portal' | 'history') => {
+        setDefaultMenuTabState(tab);
+        try {
+            await AsyncStorage.setItem('default_menu_tab', tab);
+        } catch (e) {
+            console.error('Failed to save menu settings', e);
+        }
+    };
 
     return (
         <SettingsContext.Provider value={{
@@ -91,7 +121,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             currentProvider,
             loadingModels,
             fetchModels,
-            selectModel
+            selectModel,
+            imageSize,
+            imagePosition,
+            setImageSize,
+            setImagePosition,
+            defaultMenuTab,
+            setDefaultMenuTab
         }}>
             {children}
         </SettingsContext.Provider>

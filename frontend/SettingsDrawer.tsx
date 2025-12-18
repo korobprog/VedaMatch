@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     View,
     Text,
@@ -9,9 +10,13 @@ import {
     Modal,
     ActivityIndicator,
     FlatList,
-    Alert
+    Alert,
+    Image,
+    Platform
 } from 'react-native';
 import { useSettings } from './context/SettingsContext';
+import { useUser } from './context/UserContext';
+import { useChat } from './context/ChatContext';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.8;
@@ -22,6 +27,9 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onSelectModel: (model: any) => void;
     currentModel: string;
+    onNavigateToPortal: (tab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news') => void;
+    onNavigateToSettings: () => void;
+    onNavigateToRegistration: () => void;
 }
 
 export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
@@ -29,37 +37,24 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     onClose,
     isDarkMode,
     onSelectModel,
-    currentModel
+    currentModel,
+    onNavigateToPortal,
+    onNavigateToSettings,
+    onNavigateToRegistration
 }) => {
-    const { models, loadingModels, fetchModels } = useSettings();
+    const { fetchModels, defaultMenuTab } = useSettings();
+    const { user, isLoggedIn } = useUser();
+    const { history, loadChat, deleteChat, handleNewChat, currentChatId } = useChat();
+    const { t } = useTranslation();
+    const [activeTab, setActiveTab] = useState<'portal' | 'history'>(defaultMenuTab);
+
+    useEffect(() => {
+        if (isVisible) {
+            setActiveTab(defaultMenuTab);
+        }
+    }, [isVisible, defaultMenuTab]);
     const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
     const overlayAnim = useRef(new Animated.Value(0)).current;
-
-    const [currentView, setCurrentView] = useState<'main' | 'ai_settings'>('main');
-
-    const [activeFilters, setActiveFilters] = useState({
-        text: false,
-        image: false,
-        audio: false,
-        video: false
-    });
-
-    const toggleFilter = (type: keyof typeof activeFilters) => {
-        setActiveFilters(prev => ({
-            ...prev,
-            [type]: !prev[type]
-        }));
-    };
-
-    // Manage expanded sections independently
-    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-
-    const toggleSection = (section: string) => {
-        setExpandedSections(prev => ({
-            ...prev,
-            [section]: !prev[section]
-        }));
-    };
 
     const theme = isDarkMode ? {
         background: '#1E1E1E',
@@ -67,8 +62,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         border: '#333333',
         overlay: 'rgba(0,0,0,0.5)',
         sectionBg: '#2C2C2C',
-        activeFilterBg: '#444444',
-        inactiveFilterBg: '#2C2C2C',
         menuItemBg: '#2C2C2C'
     } : {
         background: '#FFFFFF',
@@ -76,14 +69,11 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         border: '#E0E0E0',
         overlay: 'rgba(0,0,0,0.5)',
         sectionBg: '#F5F5F0',
-        activeFilterBg: '#E0E0E0',
-        inactiveFilterBg: '#F5F5F0',
         menuItemBg: '#F9F9F9'
     };
 
     useEffect(() => {
         if (isVisible) {
-            setCurrentView('main'); // Reset to main view on open
             Animated.parallel([
                 Animated.timing(slideAnim, {
                     toValue: 0,
@@ -96,7 +86,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     useNativeDriver: true,
                 }),
             ]).start();
-            // Models are fetched by Context on mount, but we can trigger refresh if needed or just rely on cache
             fetchModels();
         } else {
             Animated.parallel([
@@ -114,9 +103,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         }
     }, [isVisible]);
 
-    // Local fetch removed, using Context
-    const loading = loadingModels;
-
     const handleClose = () => {
         Animated.parallel([
             Animated.timing(slideAnim, {
@@ -132,143 +118,146 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         ]).start(() => onClose());
     };
 
-    const handleBack = () => {
-        setCurrentView('main');
-    };
-
-    const renderModelItem = ({ item }: { item: any }) => (
-        <TouchableOpacity
-            style={[
-                styles.modelItem,
-                { borderBottomColor: theme.border },
-                currentModel === item.id && styles.selectedModel
-            ]}
-            onPress={() => onSelectModel(item)}
-        >
-            <View>
-                <Text style={[styles.modelName, { color: theme.text }]}>{item.id}</Text>
-                <Text style={[styles.modelProvider, { color: theme.text, opacity: 0.6 }]}>{item.provider}</Text>
-            </View>
-            {currentModel === item.id && <Text style={{ color: theme.text, fontWeight: 'bold' }}>✓</Text>}
-        </TouchableOpacity>
-    );
-
-    const renderMainContent = () => (
+    const renderPortalMenu = () => (
         <View style={styles.menuContainer}>
+            {/* Contacts */}
             <TouchableOpacity
                 style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
-                onPress={() => setCurrentView('ai_settings')}
+                onPress={() => onNavigateToPortal('contacts')}
             >
-                <Text style={[styles.menuItemText, { color: theme.text }]}>AI Models</Text>
+                <View style={styles.menuItemLeft}>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>👥</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.contacts')}</Text>
+                </View>
                 <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
             </TouchableOpacity>
-            {/* Add more settings options here in the future */}
+
+            {/* Portal Chat */}
+            <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                onPress={() => onNavigateToPortal('chat')}
+            >
+                <View style={styles.menuItemLeft}>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>💬</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.chat')}</Text>
+                </View>
+                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+            </TouchableOpacity>
+
+            {/* Dating */}
+            <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                onPress={() => onNavigateToPortal('dating')}
+            >
+                <View style={styles.menuItemLeft}>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>💖</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.dating')}</Text>
+                </View>
+                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+            </TouchableOpacity>
+
+            {/* Shops */}
+            <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                onPress={() => onNavigateToPortal('shops')}
+            >
+                <View style={styles.menuItemLeft}>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>🛍️</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.shops')}</Text>
+                </View>
+                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+            </TouchableOpacity>
+
+            {/* Ads */}
+            <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                onPress={() => onNavigateToPortal('ads')}
+            >
+                <View style={styles.menuItemLeft}>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>📢</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.ads')}</Text>
+                </View>
+                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+            </TouchableOpacity>
+
+            {/* News */}
+            <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                onPress={() => onNavigateToPortal('news')}
+            >
+                <View style={styles.menuItemLeft}>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>📰</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.news')}</Text>
+                </View>
+                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+            </TouchableOpacity>
         </View>
     );
 
-    const renderAISettingsContent = () => (
-        <View style={styles.content}>
-            <View style={[styles.sectionHeader, { borderBottomColor: theme.border, backgroundColor: theme.sectionBg, paddingLeft: 36 }]}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Select Model</Text>
-            </View>
+    const renderChatHistory = () => (
+        <View style={styles.historyContainer}>
+            <TouchableOpacity
+                style={[styles.newChatButton, { backgroundColor: theme.sectionBg }]}
+                onPress={() => {
+                    handleNewChat();
+                    handleClose();
+                }}
+            >
+                <Text style={{ fontSize: 20, marginRight: 10 }}>➕</Text>
+                <Text style={[styles.newChatButtonText, { color: theme.text }]}>{t('chat.newChatBtn')}</Text>
+            </TouchableOpacity>
 
-            {/* Filters */}
-            <View style={{ flexDirection: 'row', padding: 10, paddingLeft: 36, gap: 8, flexWrap: 'wrap' }}>
-                {Object.keys(activeFilters).map((key) => {
-                    const filterKey = key as keyof typeof activeFilters;
-                    const isActive = activeFilters[filterKey];
-                    return (
+            <FlatList
+                data={history}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                    <View style={[styles.historyItem, { borderBottomColor: theme.border }]}>
                         <TouchableOpacity
-                            key={key}
-                            style={{
-                                paddingVertical: 6,
-                                paddingHorizontal: 12,
-                                backgroundColor: isActive ? theme.activeFilterBg : theme.inactiveFilterBg,
-                                borderRadius: 16,
-                                borderWidth: 1,
-                                borderColor: isActive ? theme.text : theme.border,
-                                marginRight: 8,
-                                marginBottom: 8
+                            style={styles.historyItemMain}
+                            onPress={() => {
+                                loadChat(item.id);
+                                handleClose();
                             }}
-                            onPress={() => toggleFilter(filterKey)}
                         >
-                            <Text style={{
-                                color: theme.text,
-                                fontSize: 12,
-                                fontWeight: isActive ? 'bold' : 'normal'
-                            }}>
-                                {key.charAt(0).toUpperCase() + key.slice(1)}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
-
-            {loadingModels ? (
-                <ActivityIndicator color={theme.text} style={{ marginTop: 20 }} />
-            ) : (
-                <FlatList
-                    data={['text', 'image', 'audio', 'video', 'other']}
-                    keyExtractor={(item) => item}
-                    renderItem={({ item: category }) => {
-                        // Filter logic relies on active filters
-                        const anyFilterActive = Object.values(activeFilters).some(v => v);
-
-                        // If filters are active, skip categories that are not selected
-                        if (anyFilterActive) {
-                            if (category !== 'other' && !activeFilters[category as keyof typeof activeFilters]) {
-                                return null;
-                            }
-                            if (category === 'other') return null;
-                        }
-
-                        // Filter models for this category
-                        const categoryModels = models.filter((m: any) => {
-                            if (m.capabilities) {
-                                if (category === 'text') return m.capabilities.text;
-                                if (category === 'image') return m.capabilities.image;
-                                if (category === 'audio') return m.capabilities.audio;
-                                if (category === 'video') return m.capabilities.video;
-                            }
-
-                            // Fallback logic
-                            if (category === 'text') return !m.category || m.category === 'text' || m.id.includes('gpt') || m.id.includes('llama') || m.id.includes('claude');
-                            if (category === 'image') return m.category === 'image' || m.id.includes('dall') || m.id.includes('midjourney') || m.id.includes('stable');
-                            if (category === 'audio') return m.category === 'audio' || m.id.includes('whisper') || m.id.includes('tts');
-                            if (category === 'video') return m.category === 'video';
-                            return m.category === category;
-                        });
-
-                        if (categoryModels.length === 0) return null;
-
-                        const isExpanded = !!expandedSections[category];
-                        const title = category.charAt(0).toUpperCase() + category.slice(1) + ' Models';
-
-                        return (
-                            <View>
-                                <TouchableOpacity
-                                    style={[styles.categoryHeader, { borderBottomColor: theme.border, paddingLeft: 36 }]}
-                                    onPress={() => toggleSection(category)}
+                            <Text style={{ fontSize: 20, marginRight: 15 }}>💬</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text
+                                    style={[
+                                        styles.historyItemTitle,
+                                        { color: theme.text, fontWeight: currentChatId === item.id ? 'bold' : 'normal' }
+                                    ]}
+                                    numberOfLines={1}
                                 >
-                                    <Text style={[styles.categoryTitle, { color: theme.text }]}>{title} ({categoryModels.length})</Text>
-                                    <Text style={{ color: theme.text, fontSize: 12 }}>{isExpanded ? '▼' : '▶'}</Text>
-                                </TouchableOpacity>
-
-                                {isExpanded && (
-                                    <View>
-                                        {categoryModels.map((model) => (
-                                            <View key={model.id}>
-                                                {renderModelItem({ item: model })}
-                                            </View>
-                                        ))}
-                                    </View>
-                                )}
+                                    {item.title}
+                                </Text>
+                                <Text style={[styles.historyItemDate, { color: theme.text, opacity: 0.5 }]}>
+                                    {new Date(item.timestamp).toLocaleDateString()}
+                                </Text>
                             </View>
-                        );
-                    }}
-                    style={styles.list}
-                />
-            )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => {
+                                Alert.alert(
+                                    t('common.confirm'),
+                                    t('chat.deleteConfirm'),
+                                    [
+                                        { text: t('common.cancel'), style: 'cancel' },
+                                        { text: t('common.delete'), style: 'destructive', onPress: () => deleteChat(item.id) }
+                                    ]
+                                );
+                            }}
+                            style={styles.deleteBtn}
+                        >
+                            <Text style={{ color: '#FF4444', fontSize: 18 }}>🗑️</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Text style={{ color: theme.text, opacity: 0.5 }}>{t('chat.noHistory')}</Text>
+                    </View>
+                }
+            />
         </View>
     );
 
@@ -302,23 +291,72 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                         }
                     ]}
                 >
-                    <View style={[styles.header, { borderBottomColor: theme.border, paddingLeft: 20 }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            {currentView === 'ai_settings' && (
-                                <TouchableOpacity onPress={handleBack} style={{ marginRight: 15, padding: 5 }}>
-                                    <Text style={[styles.backBtn, { color: theme.text }]}>←</Text>
-                                </TouchableOpacity>
-                            )}
-                            <Text style={[styles.title, { color: theme.text }]}>
-                                {currentView === 'main' ? 'Settings' : 'AI Models'}
+                    <View style={styles.tabBar}>
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'history' && { borderBottomColor: theme.text, borderBottomWidth: 2 }]}
+                            onPress={() => setActiveTab('history')}
+                        >
+                            <Text style={[styles.tabText, { color: theme.text, opacity: activeTab === 'history' ? 1 : 0.5 }]}>
+                                {t('chat.history')}
                             </Text>
-                        </View>
-                        <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                            <Text style={[styles.closeBtn, { color: theme.text }]}>✕</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'portal' && { borderBottomColor: theme.text, borderBottomWidth: 2 }]}
+                            onPress={() => setActiveTab('portal')}
+                        >
+                            <Text style={[styles.tabText, { color: theme.text, opacity: activeTab === 'portal' ? 1 : 0.5 }]}>
+                                {t('settings.title')}
+                            </Text>
                         </TouchableOpacity>
                     </View>
 
-                    {currentView === 'main' ? renderMainContent() : renderAISettingsContent()}
+                    <View style={styles.content}>
+                        {activeTab === 'history' ? renderChatHistory() : renderPortalMenu()}
+                    </View>
+
+                    {/* Footer Section */}
+                    <View style={[styles.footer, { borderTopColor: theme.border }]}>
+                        {isLoggedIn ? (
+                            <View style={styles.profileSection}>
+                                <View style={[styles.avatarCircle, { backgroundColor: theme.sectionBg }]}>
+                                    {user?.avatar ? (
+                                        <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+                                    ) : (
+                                        <Text style={{ fontSize: 20 }}>👤</Text>
+                                    )}
+                                </View>
+                                <View style={styles.userInfo}>
+                                    <Text style={[styles.userName, { color: theme.text }]} numberOfLines={1}>
+                                        {user?.spiritualName || user?.karmicName}
+                                    </Text>
+                                    <Text style={[styles.userStatus, { color: theme.text, opacity: 0.6 }]}>
+                                        {t('auth.profile')}
+                                    </Text>
+                                </View>
+                            </View>
+                        ) : (
+                            <TouchableOpacity
+                                style={[styles.footerButton, { backgroundColor: theme.sectionBg }]}
+                                onPress={() => {
+                                    handleClose();
+                                    onNavigateToRegistration();
+                                }}
+                            >
+                                <Text style={{ fontSize: 20, marginRight: 10 }}>🔑</Text>
+                                <Text style={[styles.footerButtonText, { color: theme.text }]}>{t('auth.login')}</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                            style={[styles.settingsIconBtn, { backgroundColor: theme.sectionBg }]}
+                            onPress={() => {
+                                handleClose();
+                                onNavigateToSettings();
+                            }}
+                        >
+                            <Text style={{ fontSize: 24 }}>⚙️</Text>
+                        </TouchableOpacity>
+                    </View>
 
                 </Animated.View>
             </View>
@@ -352,14 +390,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: 40, // Status bar spacer
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
     },
     title: {
         fontSize: 22,
-        fontWeight: 'bold',
-    },
-    backBtn: {
-        fontSize: 24,
         fontWeight: 'bold',
     },
     closeBtn: {
@@ -372,78 +406,135 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 16,
     },
+    historyContainer: {
+        flex: 1,
+        padding: 16,
+    },
+    tabBar: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.1)',
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    },
+    tab: {
+        flex: 1,
+        paddingVertical: 15,
+        alignItems: 'center',
+    },
+    tabText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    newChatButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.1)',
+    },
+    newChatButtonText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    historyItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+    },
+    historyItemMain: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    historyItemTitle: {
+        fontSize: 16,
+        marginBottom: 4,
+    },
+    historyItemDate: {
+        fontSize: 12,
+    },
+    deleteBtn: {
+        padding: 10,
+    },
+    emptyContainer: {
+        padding: 40,
+        alignItems: 'center',
+    },
     menuItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
         borderRadius: 12,
-        marginBottom: 10,
+        marginBottom: 8,
         borderBottomWidth: 1,
+    },
+    menuItemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     menuItemText: {
         fontSize: 16,
         fontWeight: '500',
     },
-    sectionHeader: {
+    footer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         padding: 16,
-        borderBottomWidth: 1,
+        borderTopWidth: 1,
         alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    sectionContent: {
+    profileSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
         flex: 1,
-        padding: 16,
     },
-    categoryHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    avatarCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderBottomWidth: 0.5,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.1)',
     },
-    categoryTitle: {
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+    },
+    userInfo: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    userName: {
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    userStatus: {
+        fontSize: 11,
+    },
+    footerButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 10,
+        borderRadius: 12,
+        flex: 1,
+        marginRight: 10,
+    },
+    footerButtonText: {
         fontSize: 16,
         fontWeight: '600',
     },
-    subLabel: {
-        marginBottom: 8,
-        fontSize: 14,
-        opacity: 0.7,
-    },
-    selectedDisplay: {
-        padding: 12,
-        borderWidth: 1,
-        borderRadius: 8,
-        marginBottom: 5,
-    },
-    list: {
-        flex: 1,
-    },
-    modelItem: {
-        paddingVertical: 12,
-        paddingLeft: 44, // Added padding to fix clipping
-        paddingRight: 16,
-        borderBottomWidth: 0.5,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    settingsIconBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
         alignItems: 'center',
-    },
-    selectedModel: {
-        backgroundColor: 'rgba(128,128,128,0.1)',
-    },
-    modelName: {
-        fontWeight: 'medium',
-        marginBottom: 2,
-        fontSize: 15,
-    },
-    modelProvider: {
-        fontSize: 12,
     }
 });

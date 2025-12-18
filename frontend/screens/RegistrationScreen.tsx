@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     View,
     Text,
@@ -11,42 +12,20 @@ import {
     ActivityIndicator,
     Platform,
     Switch,
+    StatusBar,
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import axios from 'axios';
+import { useUser } from '../context/UserContext';
+import { COLORS } from '../components/chat/ChatConstants';
 
-// Базовый URL твоего Go-сервера (Fiber). ЗАМЕНИ на реальный адрес сервера.
-// Например: http://10.0.2.2:8080/api (Android эмулятор) или https://api.vedamatch.com/api
-const API_BASE_URL = 'http://localhost:8080/api';
+// Базовый URL твоего Go-сервера (Fiber).
+// Для Android эмулятора используем 10.0.2.2, для iOS/Web - localhost.
+const API_BASE_URL = Platform.OS === 'android'
+    ? 'http://10.0.2.2:8081/api'
+    : 'http://localhost:8081/api';
 
-// Reusing the theme from App.tsx for consistency
-const COLORS = {
-    dark: {
-        background: '#121212',
-        header: '#1E1E1E',
-        inputBackground: '#2C2C2C',
-        inputText: '#E0E0E0',
-        text: '#E0E0E0',
-        subText: '#9E9E9E',
-        borderColor: '#333333',
-        accent: '#FFB74D',
-        button: '#5D4037',
-        buttonText: '#D7CCC8',
-    },
-    light: {
-        background: '#F5F5F0',
-        header: '#FFFFFF',
-        inputBackground: '#FFFFFF',
-        inputText: '#212121',
-        text: '#212121',
-        subText: '#757575',
-        borderColor: '#E0E0E0',
-        accent: '#A1887F',
-        button: '#8D6E63',
-        buttonText: '#FFFFFF',
-    },
-};
 
 const MADH_OPTIONS = [
     'Gaudiya Vaishnava (ISKCON)',
@@ -61,12 +40,15 @@ const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
 const IDENTITY_OPTIONS = ['Yogi', 'In Goodness'];
 const GENDER_OPTIONS = ['Male', 'Female'];
 
-interface RegistrationScreenProps {
-    isDarkMode: boolean;
-    onBack: () => void;
-}
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
-const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onBack }) => {
+type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
+
+const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
+    const { t } = useTranslation();
+    const { login } = useUser();
+    const { isDarkMode } = route.params;
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const [avatar, setAvatar] = useState<any>(null);
@@ -104,14 +86,30 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
     const fetchCountries = async () => {
         setLoadingCountries(true);
         try {
-            const response = await axios.get('https://restcountries.com/v3.1/all?fields=name,capital', {
-                timeout: 10000,
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+            const response = await fetch('https://restcountries.com/v3.1/all?fields=name,capital', {
+                signal: controller.signal
             });
-            const data = response.data.sort((a: any, b: any) => a.name.common.localeCompare(b.name.common));
-            setCountriesData(data);
-            console.log('Countries loaded:', data.length);
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (Array.isArray(data)) {
+                const sortedData = data.sort((a: any, b: any) =>
+                    (a.name?.common || '').localeCompare(b.name?.common || '')
+                );
+                setCountriesData(sortedData);
+                console.log('Countries loaded:', sortedData.length);
+            } else {
+                throw new Error('Invalid data format from countries API');
+            }
         } catch (error: any) {
-            console.error('Error fetching countries:', error);
+            console.warn('Error fetching countries (using fallback):', error?.message || 'Unknown error');
             // Fallback: use a basic list of popular countries
             const fallbackCountries = [
                 { name: { common: 'Russia' }, capital: ['Moscow'] },
@@ -131,7 +129,6 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 { name: { common: 'Argentina' }, capital: ['Buenos Aires'] },
             ];
             setCountriesData(fallbackCountries);
-            Alert.alert('Network Error', 'Could not load full country list. Showing popular countries only.');
         } finally {
             setLoadingCountries(false);
         }
@@ -151,36 +148,34 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
     const fetchCities = async (countryName: string) => {
         try {
             // Using GeoNames API to get cities
-            // First, get country code
-            const countryResponse = await axios.get(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fields=cca2`);
-            if (countryResponse.data && countryResponse.data.length > 0) {
-                const countryCode = countryResponse.data[0].cca2;
-                // Get cities from GeoNames (free tier: 1000 requests/hour)
-                const citiesResponse = await axios.get(
-                    `https://secure.geonames.org/searchJSON?country=${countryCode}&featureClass=P&maxRows=100&username=demo`
-                );
-                if (citiesResponse.data && citiesResponse.data.geonames) {
-                    const cities = citiesResponse.data.geonames
-                        .map((city: any) => city.name)
-                        .filter((name: string, index: number, self: string[]) => self.indexOf(name) === index)
-                        .sort();
-                    setCitiesData(cities);
-                } else {
-                    // Fallback: use capital and major cities
-                    const countryData = countriesData.find(c => c.name.common === countryName);
-                    if (countryData && countryData.capital) {
-                        setCitiesData([countryData.capital[0], ...getMajorCities(countryName)]);
-                    } else {
-                        setCitiesData(getMajorCities(countryName));
+            const countryUrl = `https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fields=cca2`;
+            const countryResponse = await fetch(countryUrl);
+
+            if (countryResponse.ok) {
+                const countryData = await countryResponse.json();
+                if (countryData && countryData.length > 0) {
+                    const countryCode = countryData[0].cca2;
+                    const citiesUrl = `https://secure.geonames.org/searchJSON?country=${countryCode}&featureClass=P&maxRows=100&username=demo`;
+                    const citiesResponse = await fetch(citiesUrl);
+
+                    if (citiesResponse.ok) {
+                        const citiesData = await citiesResponse.json();
+                        if (citiesData && citiesData.geonames) {
+                            const cities = citiesData.geonames
+                                .map((city: any) => city.name)
+                                .filter((name: string, index: number, self: string[]) => self.indexOf(name) === index)
+                                .sort();
+                            setCitiesData(cities);
+                            return;
+                        }
                     }
                 }
-            } else {
-                // Fallback to major cities
-                setCitiesData(getMajorCities(countryName));
             }
-        } catch (error) {
-            console.error('Error fetching cities:', error);
+
             // Fallback to major cities
+            setCitiesData(getMajorCities(countryName));
+        } catch (error: any) {
+            console.warn('Error fetching cities (using fallback):', error?.message || 'Unknown error');
             setCitiesData(getMajorCities(countryName));
         }
     };
@@ -234,11 +229,11 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
 
     const handleSubmit = async () => {
         if (!karmicName) {
-            Alert.alert('Required', 'Karmic Name is required.');
+            Alert.alert(t('registration.required'), t('registration.karmicNameRequired'));
             return;
         }
         if (!agreement) {
-            Alert.alert('Required', 'You must agree to the data processing policy.');
+            Alert.alert(t('registration.required'), t('registration.agreementRequired'));
             return;
         }
 
@@ -269,11 +264,19 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 },
             });
 
+            // Login locally after successful server registration
+            await login({
+                karmicName,
+                spiritualName: spiritualName || undefined,
+                email: email || undefined,
+                avatar: avatar?.uri
+            });
+
             Alert.alert(
-                'Success',
-                'Профиль успешно зарегистрирован! Данные сохранены в базе данных и будут обработаны ИИ системой.'
+                t('common.success'),
+                t('registration.successMsg')
             );
-            onBack();
+            navigation.goBack();
         } catch (error: any) {
             console.error('Registration error:', error);
             Alert.alert(
@@ -288,10 +291,10 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backText, { color: theme.text }]}>← Back</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <Text style={[styles.backText, { color: theme.text }]}>← {t('registration.back')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>Profile Registration</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>{t('registration.title')}</Text>
                 <View style={{ width: 60 }} />
             </View>
 
@@ -307,7 +310,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 </TouchableOpacity>
 
                 {/* Gender */}
-                <Text style={[styles.label, { color: theme.text }]}>Gender</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.gender')}</Text>
                 <View style={{ flexDirection: 'row', marginBottom: 10 }}>
                     {GENDER_OPTIONS.map((g) => (
                         <TouchableOpacity
@@ -324,7 +327,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 </View>
 
                 {/* Name Fields */}
-                <Text style={[styles.label, { color: theme.text }]}>Karmic Name (Required)</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.karmicName')}</Text>
                 <TextInput
                     style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
                     value={karmicName}
@@ -333,7 +336,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                     placeholderTextColor={theme.subText}
                 />
 
-                <Text style={[styles.label, { color: theme.text }]}>Spiritual Name (Optional)</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.spiritualName')}</Text>
                 <TextInput
                     style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
                     value={spiritualName}
@@ -355,7 +358,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 />
 
                 {/* Date of Birth */}
-                <Text style={[styles.label, { color: theme.text }]}>Date of Birth</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.dob')}</Text>
                 <TouchableOpacity
                     style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                     onPress={() => setOpenDatePicker(true)}
@@ -377,7 +380,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 />
 
                 {/* Country */}
-                <Text style={[styles.label, { color: theme.text }]}>Country</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.country')}</Text>
                 <TouchableOpacity
                     style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                     onPress={() => {
@@ -395,16 +398,16 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                     disabled={loadingCountries}
                 >
                     <Text style={{ color: country ? theme.inputText : theme.subText }}>
-                        {loadingCountries ? 'Loading countries...' : (country || 'Select Country')}
+                        {loadingCountries ? t('registration.loadingCountries') : (country || t('registration.selectCountry'))}
                     </Text>
                 </TouchableOpacity>
                 {showCountryPicker && countriesData.length > 0 && (
                     <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, zIndex: 1000 }]}>
                         <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                             {countriesData.map((c: any) => (
-                                <TouchableOpacity 
-                                    key={c.name.common} 
-                                    style={styles.pickerItem} 
+                                <TouchableOpacity
+                                    key={c.name.common}
+                                    style={styles.pickerItem}
                                     onPress={() => handleCountrySelect(c)}
                                 >
                                     <Text style={{ color: theme.inputText }}>{c.name.common}</Text>
@@ -420,7 +423,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 )}
 
                 {/* City */}
-                <Text style={[styles.label, { color: theme.text }]}>City</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.city')}</Text>
                 {!cityInputMode ? (
                     <>
                         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -435,7 +438,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                                 }}
                                 disabled={!country}
                             >
-                                <Text style={{ color: city ? theme.inputText : theme.subText }}>{city || (country ? 'Select City' : 'Select Country First')}</Text>
+                                <Text style={{ color: city ? theme.inputText : theme.subText }}>{city || (country ? t('registration.selectCity') : t('registration.selectCountry'))}</Text>
                             </TouchableOpacity>
                             {country && (
                                 <TouchableOpacity
@@ -486,7 +489,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 )}
 
                 {/* Madh */}
-                <Text style={[styles.label, { color: theme.text }]}>Madh (Optional)</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.madh')}</Text>
                 <TouchableOpacity
                     style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                     onPress={() => setShowMadhPicker(!showMadhPicker)}
@@ -507,7 +510,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 )}
 
                 {/* Mentor */}
-                <Text style={[styles.label, { color: theme.text }]}>Mentor</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.mentor')}</Text>
                 <TextInput
                     style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
                     value={mentor}
@@ -517,7 +520,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 />
 
                 {/* Identity */}
-                <Text style={[styles.label, { color: theme.text }]}>Self Identity</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.identity')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                     {IDENTITY_OPTIONS.map((opt) => (
                         <TouchableOpacity
@@ -531,7 +534,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                 </View>
 
                 {/* Diet */}
-                <Text style={[styles.label, { color: theme.text }]}>Diet Principles</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('registration.diet')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                     {DIET_OPTIONS.map((opt) => (
                         <TouchableOpacity
@@ -553,7 +556,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                         thumbColor={agreement ? theme.button : '#f4f3f4'}
                     />
                     <Text style={[styles.checkboxLabel, { color: theme.text }]}>
-                        I agree that my data will be stored in the database and accessible to users and administration.
+                        {t('registration.agreement')}
                     </Text>
                 </View>
 
@@ -563,7 +566,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ isDarkMode, onB
                     onPress={handleSubmit}
                     disabled={loading}
                 >
-                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>Register Profile</Text>}
+                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>{t('registration.submit')}</Text>}
                 </TouchableOpacity>
 
             </ScrollView>
@@ -576,11 +579,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        height: 60,
+        height: Platform.OS === 'android' ? 60 + (StatusBar.currentHeight || 0) : 80,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
         borderBottomWidth: 1,
+        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 20,
     },
     backButton: {
         padding: 10,
