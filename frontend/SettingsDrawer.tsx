@@ -17,6 +17,7 @@ import {
 import { useSettings } from './context/SettingsContext';
 import { useUser } from './context/UserContext';
 import { useChat } from './context/ChatContext';
+import { API_BASE_URL } from './config/api.config';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.8;
@@ -27,7 +28,7 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onSelectModel: (model: any) => void;
     currentModel: string;
-    onNavigateToPortal: (tab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news') => void;
+    onNavigateToPortal: (tab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base') => void;
     onNavigateToSettings: () => void;
     onNavigateToRegistration: () => void;
 }
@@ -191,6 +192,18 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 </View>
                 <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
             </TouchableOpacity>
+
+            {/* Knowledge Base */}
+            <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                onPress={() => onNavigateToPortal('knowledge_base')}
+            >
+                <View style={styles.menuItemLeft}>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>📖</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.knowledge_base')}</Text>
+                </View>
+                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+            </TouchableOpacity>
         </View>
     );
 
@@ -320,7 +333,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             <View style={styles.profileSection}>
                                 <View style={[styles.avatarCircle, { backgroundColor: theme.sectionBg }]}>
                                     {user?.avatar ? (
-                                        <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+                                        <Image source={{ uri: `${API_BASE_URL}${user.avatar}` }} style={styles.avatarImage} />
                                     ) : (
                                         <Text style={{ fontSize: 20 }}>👤</Text>
                                     )}

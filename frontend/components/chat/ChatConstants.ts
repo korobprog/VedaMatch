@@ -38,8 +38,29 @@ export const COLORS = {
 export type Message = {
     id: string;
     text: string;
-    sender: 'user' | 'bot';
-    navTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news';
+    sender: 'user' | 'bot' | 'other';
+    createdAt?: string;
+    navTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base';
 };
 
-export const MENU_OPTIONS = ['chat.searchTabs.contacts', 'chat.searchTabs.chat', 'chat.searchTabs.dating', 'chat.searchTabs.shops', 'chat.searchTabs.ads', 'chat.searchTabs.news'];
+export const MENU_OPTIONS = [
+    'chat.searchTabs.contacts',
+    'chat.searchTabs.chat',
+    'chat.searchTabs.dating',
+    'chat.searchTabs.shops',
+    'chat.searchTabs.ads',
+    'chat.searchTabs.news',
+    'chat.searchTabs.knowledge_base'
+];
+
+export const FRIEND_MENU_OPTIONS = [
+    'contacts.viewProfile',
+    'contacts.media',
+    'contacts.search',
+    'contacts.mute',
+    'contacts.pin',
+    'contacts.share',
+    'contacts.clearHistory',
+    'contacts.block',
+    'contacts.report',
+];

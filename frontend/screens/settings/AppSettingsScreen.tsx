@@ -38,9 +38,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         video: false
     });
 
-    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-        text: true // Default expand text models
-    });
+    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
     const toggleFilter = (type: keyof typeof activeFilters) => {
         setActiveFilters(prev => ({
@@ -76,6 +74,8 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
 
     const sizes = [200, 240, 280, 320, 360];
 
+    const anyFilterActive = Object.values(activeFilters).some(v => v);
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
@@ -87,7 +87,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
 
             <ScrollView style={styles.content}>
                 {/* Image Settings Section */}
-                <View style={styles.section}>
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.imageSettings')}</Text>
                     <Text style={[styles.subLabel, { color: theme.subText }]}>{t('settings.imageSize')} ({imageSize}px)</Text>
                     <View style={styles.sizeOptions}>
@@ -110,7 +110,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 </View>
 
                 {/* Menu Settings Section */}
-                <View style={styles.section}>
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.menuSettings')}</Text>
                     <Text style={[styles.subLabel, { color: theme.subText }]}>{t('settings.defaultTab')}</Text>
                     <View style={styles.sizeOptions}>
@@ -145,6 +145,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.aiModels')}</Text>
 
+
                     {/* Filters */}
                     <View style={styles.filtersContainer}>
                         {Object.keys(activeFilters).map((key) => {
@@ -172,13 +173,19 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
 
                     {loadingModels ? (
                         <ActivityIndicator color={theme.accent} style={{ marginTop: 20 }} />
+                    ) : !anyFilterActive ? (
+                        <View style={styles.summaryContainer}>
+                            <Text style={[styles.summaryText, { color: theme.text }]}>
+                                {t('settings.availableModels')}: {models.length}
+                            </Text>
+                            <Text style={[styles.hintText, { color: theme.subText }]}>
+                                {t('settings.selectCategoryHint')}
+                            </Text>
+                        </View>
                     ) : (
                         ['text', 'image', 'audio', 'video', 'other'].map(category => {
-                            const anyFilterActive = Object.values(activeFilters).some(v => v);
-                            if (anyFilterActive) {
-                                if (category !== 'other' && !activeFilters[category as keyof typeof activeFilters]) return null;
-                                if (category === 'other') return null;
-                            }
+                            if (category !== 'other' && !activeFilters[category as keyof typeof activeFilters]) return null;
+                            if (category === 'other') return null;
 
                             const categoryModels = models.filter((m: any) => {
                                 if (m.capabilities) {
@@ -200,15 +207,28 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             return (
                                 <View key={category} style={styles.categoryContainer}>
                                     <TouchableOpacity
-                                        style={[styles.categoryHeader, { borderBottomColor: theme.borderColor }]}
+                                        style={[
+                                            styles.categoryHeader,
+                                            {
+                                                borderBottomColor: theme.borderColor,
+                                                backgroundColor: isExpanded ? theme.inputBackground + '40' : 'transparent'
+                                            }
+                                        ]}
                                         onPress={() => toggleSection(category)}
+                                        activeOpacity={0.7}
                                     >
                                         <Text style={[styles.categoryTitle, { color: theme.text }]}>
                                             {t(`settings.${category}` as any)} ({categoryModels.length})
                                         </Text>
-                                        <Text style={{ color: theme.text }}>{isExpanded ? '▼' : '▶'}</Text>
+                                        <Text style={{ color: theme.text, fontSize: 14 }}>
+                                            {isExpanded ? '▼' : '▶'}
+                                        </Text>
                                     </TouchableOpacity>
-                                    {isExpanded && categoryModels.map(renderModelItem)}
+                                    {isExpanded && (
+                                        <View style={styles.modelList}>
+                                            {categoryModels.map(renderModelItem)}
+                                        </View>
+                                    )}
                                 </View>
                             );
                         })
@@ -275,12 +295,18 @@ const styles = StyleSheet.create({
     categoryHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingVertical: 12,
+        alignItems: 'center',
+        paddingVertical: 15,
+        paddingHorizontal: 12,
+        borderRadius: 8,
         borderBottomWidth: 0.5,
     },
     categoryTitle: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 17,
+        fontWeight: 'bold',
+    },
+    modelList: {
+        paddingLeft: 10,
     },
     modelItem: {
         flexDirection: 'row',
@@ -296,5 +322,23 @@ const styles = StyleSheet.create({
     },
     modelProvider: {
         fontSize: 12,
+    },
+    summaryContainer: {
+        paddingVertical: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.02)',
+        borderRadius: 12,
+        marginTop: 10,
+    },
+    summaryText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 8,
+    },
+    hintText: {
+        fontSize: 14,
+        textAlign: 'center',
+        paddingHorizontal: 20,
     }
 });

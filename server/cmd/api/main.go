@@ -29,11 +29,29 @@ func main() {
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler()
+	messageHandler := handlers.NewMessageHandler()
 
 	// Routes
 	api := app.Group("/api")
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
+	api.Put("/update-profile/:id", authHandler.UpdateProfile)
+	api.Get("/contacts", authHandler.GetContacts)
+	api.Post("/heartbeat/:id", authHandler.Heartbeat)
+	api.Post("/upload-avatar/:id", authHandler.UploadAvatar)
+	api.Post("/friends/add", authHandler.AddFriend)
+	api.Post("/friends/remove", authHandler.RemoveFriend)
+	api.Get("/friends/:id", authHandler.GetFriends)
+	api.Post("/blocks/add", authHandler.BlockUser)
+	api.Post("/blocks/remove", authHandler.UnblockUser)
+	api.Get("/blocks/:id", authHandler.GetBlockedUsers)
+	log.Println("Registering /api/messages routes...")
+	api.Post("/messages", messageHandler.SendMessage)
+	api.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
+	log.Println("Routes registered.")
+
+	// Static files for avatars
+	app.Static("/uploads", "./uploads")
 
 	chatHandler := handlers.NewChatHandler()
 	// Use /v1 prefix to match frontend expectation

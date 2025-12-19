@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Message } from '../components/chat/ChatConstants';
 import { sendMessage, ChatMessage } from '../services/openaiService';
 import { useSettings } from './SettingsContext';
+import { messageService } from '../services/messageService';
+import { UserContact } from '../services/contactService';
+import { useUser } from './UserContext';
 
 export interface ChatHistory {
     id: string;
@@ -27,6 +30,9 @@ interface ChatContextType {
     currentChatId: string | null;
     loadChat: (id: string) => void;
     deleteChat: (id: string) => void;
+    recipientId: number | null;
+    recipientUser: UserContact | null;
+    setChatRecipient: (user: UserContact | null) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -46,6 +52,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     ]);
     const [history, setHistory] = useState<ChatHistory[]>([]);
     const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+    const [recipientId, setRecipientId] = useState<number | null>(null);
+    const [recipientUser, setRecipientUser] = useState<UserContact | null>(null);
+    const { user: currentUser } = useUser();
 
     const isFirstRun = useRef(true);
 
@@ -54,7 +63,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         const init = async () => {
             try {
                 const savedHistory = await AsyncStorage.getItem('chat_history');
-                if (savedHistory) {
+                if (savedHistory && savedHistory !== 'undefined') {
                     const parsed = JSON.parse(savedHistory);
                     setHistory(parsed);
                 }
@@ -67,9 +76,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         init();
     }, []);
 
-    // Auto-save messages to current chat or create new one
+    // Auto-save messages to current chat or create new one (only for AI chats)
     useEffect(() => {
-        if (isFirstRun.current) return;
+        if (isFirstRun.current || recipientId) return;
         if (messages.length <= 1 && !currentChatId) return;
 
         const saveMessages = async () => {
@@ -115,6 +124,45 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         return () => clearTimeout(timer);
     }, [messages]);
 
+    // Load P2P messages when recipient changes
+    useEffect(() => {
+        if (recipientId && currentUser?.ID) {
+            const loadP2PMessages = async () => {
+                try {
+                    setIsLoading(true);
+                    const currentRecipientId = recipientId;
+                    const currentUserId = currentUser?.ID;
+                    if (!currentRecipientId || !currentUserId) return;
+                    const p2pMessages = await messageService.getMessages(currentUserId, currentRecipientId);
+                    const formattedMessages: Message[] = p2pMessages.map(m => ({
+                        id: m.ID.toString(),
+                        text: m.content,
+                        sender: m.senderId === currentUser.ID ? 'user' : ('other' as any),
+                        createdAt: m.CreatedAt
+                    }));
+                    setMessages(formattedMessages);
+                } catch (e) {
+                    console.error('Failed to load P2P messages', e);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            loadP2PMessages();
+        }
+    }, [recipientId, currentUser?.ID]);
+
+    const setChatRecipient = (user: UserContact | null) => {
+        if (!user) {
+            setRecipientId(null);
+            setRecipientUser(null);
+            handleNewChat();
+            return;
+        }
+        setRecipientId(user.ID);
+        setRecipientUser(user);
+        setCurrentChatId(null); // Clear AI chat context
+    };
+
     const abortControllerRef = useRef<AbortController | null>(null);
 
     const handleStopRequest = () => {
@@ -125,21 +173,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const handleSendMessage = async () => {
-        if (!inputText.trim() || isLoading) return;
-
+    const handleSendToAI = async (text: string) => {
         const controller = new AbortController();
         abortControllerRef.current = controller;
-
-        const userMessageText = inputText.trim();
-        const newUserMessage: Message = {
-            id: Date.now().toString(),
-            text: userMessageText,
-            sender: 'user',
-        };
-
-        setMessages((prev) => [...prev, newUserMessage]);
-        setInputText('');
         setIsLoading(true);
 
         try {
@@ -158,7 +194,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 ...chatMessages,
                 {
                     role: 'user',
-                    content: userMessageText,
+                    content: text,
                 },
             ];
 
@@ -193,10 +229,65 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const handleSendP2PMessage = async (text: string) => {
+        if (!recipientId || !currentUser?.ID) return;
+
+        try {
+            setIsLoading(true);
+            const savedMsg = await messageService.sendMessage(currentUser.ID, recipientId, text);
+            const newMessage: Message = {
+                id: savedMsg.ID.toString(),
+                text: savedMsg.content,
+                sender: 'user',
+                createdAt: savedMsg.CreatedAt
+            };
+            setMessages((prev) => [...prev, newMessage]);
+            setInputText('');
+        } catch (error) {
+            console.error('Failed to send P2P message', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSendMessage = async () => {
+        if (!inputText.trim() || isLoading) return;
+
+        // Check if AI prompt or P2P
+        if (inputText.startsWith('/') || !recipientId) {
+            const textToBot = inputText.startsWith('/') ? inputText.substring(1).trim() : inputText.trim();
+            if (!textToBot) return;
+
+            // Add user message to UI
+            const newUserMessage: Message = {
+                id: Date.now().toString(),
+                text: inputText.trim(),
+                sender: 'user',
+            };
+            setMessages((prev) => [...prev, newUserMessage]);
+            setInputText('');
+
+            await handleSendToAI(textToBot);
+        } else {
+            // P2P Mode
+            await handleSendP2PMessage(inputText.trim());
+        }
+    };
+
     const handleMenuOption = (option: string, onNavigateToPortal: (tab: any) => void) => {
         setShowMenu(false);
 
-        // Extract tab name from key 'settings.tabs.xxx'
+        if (option === 'contacts.viewProfile') {
+            // Handled by the screen to navigate to ContactProfile
+            return;
+        }
+
+        // If it's another friend option, do nothing (they are disabled in UI anyway)
+        if (option.startsWith('contacts.')) {
+            return;
+        }
+
+        // Extract tab name from key 'chat.searchTabs.xxx'
         const tab = option.split('.').pop() as any;
 
         const systemMsg: Message = {
@@ -207,6 +298,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         };
         // Reset and start new search chat
         setMessages([systemMsg]);
+        setRecipientId(null);
+        setRecipientUser(null);
     };
 
     const handleNewChat = () => {
@@ -218,6 +311,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             }
         ]);
         setCurrentChatId(null);
+        setRecipientId(null);
+        setRecipientUser(null);
         setShowMenu(false);
     };
 
@@ -226,6 +321,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         if (chat) {
             setMessages(chat.messages);
             setCurrentChatId(chat.id);
+            setRecipientId(null);
+            setRecipientUser(null);
         }
     };
 
@@ -257,7 +354,10 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             history,
             currentChatId,
             loadChat,
-            deleteChat
+            deleteChat,
+            recipientId,
+            recipientUser,
+            setChatRecipient
         }}>
             {children}
         </ChatContext.Provider>

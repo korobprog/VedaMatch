@@ -4,73 +4,97 @@ import {
     Text,
     TouchableOpacity,
     StyleSheet,
+    useColorScheme,
     Platform,
     StatusBar,
-    useColorScheme,
 } from 'react-native';
 import { COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
 
 interface ChatHeaderProps {
-    onSettingsPress: () => void;
     title: string;
+    onSettingsPress: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
-    onSettingsPress,
     title,
+    onSettingsPress,
 }) => {
-    const { handleNewChat } = useChat();
+    const { recipientUser } = useChat();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
+    const displayTitle = recipientUser
+        ? (recipientUser.spiritualName || recipientUser.karmicName)
+        : title;
+    const subTitle = recipientUser ? (recipientUser.identity || 'Devotee') : null;
+
     return (
-        <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
-            <TouchableOpacity
-                style={styles.settingsButton}
-                onPress={onSettingsPress}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            >
-                <Text style={{ fontSize: 24, color: theme.text }}>☰</Text>
+        <View style={[styles.header, {
+            backgroundColor: theme.header,
+            borderBottomColor: theme.borderColor,
+            height: Platform.OS === 'android' ? 60 + (StatusBar.currentHeight || 0) : 60,
+            paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
+        }]}>
+            <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton}>
+                {/* 3 Vertical Sticks */}
+                <View style={styles.sticksContainer}>
+                    <View style={[styles.stick, { backgroundColor: theme.text }]} />
+                    <View style={[styles.stick, { backgroundColor: theme.text }]} />
+                    <View style={[styles.stick, { backgroundColor: theme.text }]} />
+                </View>
             </TouchableOpacity>
 
-            <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
+            <View style={styles.titleContainer}>
+                {recipientUser ? (
+                    <>
+                        <Text style={[styles.title, { color: theme.text }]}>{displayTitle}</Text>
+                        {subTitle && (
+                            <Text style={[styles.subTitle, { color: theme.subText }]}>{subTitle}</Text>
+                        )}
+                    </>
+                ) : null}
+            </View>
 
-            <TouchableOpacity
-                style={styles.newChatButton}
-                onPress={handleNewChat}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            >
-                <Text style={{ fontSize: 28, fontWeight: '300', color: theme.text }}>+</Text>
-            </TouchableOpacity>
+            {/* Gear removed as requested */}
+            <View style={{ width: 40 }} />
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     header: {
-        height: Platform.OS === 'android' ? 60 + (StatusBar.currentHeight || 0) : 60,
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         borderBottomWidth: 0.5,
-        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        zIndex: 5,
     },
-    headerTitle: {
+    titleContainer: {
+        flex: 1,
+    },
+    title: {
         fontSize: 18,
-        fontWeight: '600',
-        letterSpacing: 0.5,
+        fontWeight: 'bold',
+    },
+    subTitle: {
+        fontSize: 12,
+        marginTop: 1,
     },
     settingsButton: {
-        padding: 10,
+        padding: 8,
     },
-    newChatButton: {
-        padding: 10,
+    menuButton: {
+        padding: 8,
+        marginRight: 8,
+    },
+    sticksContainer: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 4,
+    },
+    stick: {
+        width: 22,
+        height: 3,
+        borderRadius: 1.5,
     },
 });

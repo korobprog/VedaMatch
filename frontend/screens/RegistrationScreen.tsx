@@ -17,14 +17,10 @@ import {
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../context/UserContext';
 import { COLORS } from '../components/chat/ChatConstants';
 
-// Базовый URL твоего Go-сервера (Fiber).
-// Для Android эмулятора используем 10.0.2.2, для iOS/Web - localhost.
-const API_BASE_URL = Platform.OS === 'android'
-    ? 'http://10.0.2.2:8081/api'
-    : 'http://localhost:8081/api';
 
 
 const MADH_OPTIONS = [
@@ -42,17 +38,20 @@ const GENDER_OPTIONS = ['Male', 'Female'];
 
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import { API_PATH } from '../config/api.config';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 
 const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { login } = useUser();
-    const { isDarkMode } = route.params;
+    const { isDarkMode, phase = 'initial' } = route.params;
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const [avatar, setAvatar] = useState<any>(null);
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [country, setCountry] = useState('');
     const [city, setCity] = useState('');
     const [karmicName, setKarmicName] = useState('');
@@ -228,11 +227,23 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     const handleSubmit = async () => {
-        if (!karmicName) {
-            Alert.alert(t('registration.required'), t('registration.karmicNameRequired'));
-            return;
+        if (phase === 'initial') {
+            if (!email || !password) {
+                Alert.alert(t('error'), 'Email and password are required');
+                return;
+            }
+            if (password !== confirmPassword) {
+                Alert.alert(t('error'), 'Passwords do not match');
+                return;
+            }
+        } else {
+            if (!karmicName) {
+                Alert.alert(t('registration.required'), t('registration.karmicNameRequired'));
+                return;
+            }
         }
-        if (!agreement) {
+
+        if (!agreement && phase === 'initial') {
             Alert.alert(t('registration.required'), t('registration.agreementRequired'));
             return;
         }
@@ -240,312 +251,384 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         setLoading(true);
 
         try {
-            // Подготавливаем данные профиля для отправки на сервер
-            const profileData = {
-                email: email || undefined,
-                country,
-                city,
-                karmicName,
-                spiritualName: spiritualName || undefined,
-                dob: dob.toISOString(),
-                madh: madh || undefined,
-                mentor: mentor || undefined,
-                gender,
-                identity,
-                diet,
-            };
+            if (phase === 'initial') {
+                // Phase 1: Registration
+                const response = await axios.post(`${API_PATH}/register`, {
+                    email,
+                    password,
+                });
+                const user = response.data.user;
+                await AsyncStorage.setItem('user', JSON.stringify(user));
+                // Move to phase 2
+                navigation.setParams({ phase: 'profile' });
+            } else {
+                // Phase 2: Profile Update
+                const userStr = await AsyncStorage.getItem('user');
+                const user = (userStr && userStr !== 'undefined') ? JSON.parse(userStr) : null;
 
-            // Отправляем данные на Go-сервер
-            // Сервер (эндпоинт /api/register) сохранит данные в PostgreSQL и отправит их в RAG систему (Gemini)
-            await axios.post(`${API_BASE_URL}/register`, profileData, {
-                timeout: 30000,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
+                const profileData = {
+                    country,
+                    city,
+                    karmicName,
+                    spiritualName,
+                    dob: dob.toISOString(),
+                    madh,
+                    mentor,
+                    gender,
+                    identity,
+                    diet,
+                };
 
-            // Login locally after successful server registration
-            await login({
-                karmicName,
-                spiritualName: spiritualName || undefined,
-                email: email || undefined,
-                avatar: avatar?.uri
-            });
+                const response = await axios.put(`${API_PATH}/update-profile/${user.ID}`, profileData);
+                const updatedUser = response.data.user;
 
-            Alert.alert(
-                t('common.success'),
-                t('registration.successMsg')
-            );
-            navigation.goBack();
+                // Upload avatar if selected
+                if (avatar) {
+                    const formData = new FormData();
+                    formData.append('avatar', {
+                        uri: Platform.OS === 'android' ? avatar.uri : avatar.uri.replace('file://', ''),
+                        type: avatar.type || 'image/jpeg',
+                        name: avatar.fileName || `avatar_${user.ID}.jpg`,
+                    } as any);
+
+                    try {
+                        const avatarRes = await contactService.uploadAvatar(user.ID, formData);
+                        updatedUser.avatarUrl = avatarRes.avatarUrl;
+                    } catch (avatarErr) {
+                        console.error('Avatar upload failed:', avatarErr);
+                        // Don't block registration if only avatar fails
+                    }
+                }
+
+                await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+                await login(updatedUser);
+
+                navigation.replace('Plans');
+            }
         } catch (error: any) {
-            console.error('Registration error:', error);
+            console.error('Registration/Update error:', error);
             Alert.alert(
                 'Error',
-                error.message || 'Ошибка при регистрации профиля. Попробуйте позже.'
+                error.response?.data?.error || 'Operation failed. Please try again.'
             );
         } finally {
             setLoading(false);
         }
     };
 
+    const handleSkip = () => {
+        Alert.alert(
+            'Incomplete Profile',
+            'If you skip this, some Portal services will be locked until you complete your profile. Continue?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Skip',
+                    onPress: async () => {
+                        const userStr = await AsyncStorage.getItem('user');
+                        if (userStr && userStr !== 'undefined') {
+                            await login(JSON.parse(userStr));
+                        }
+                        navigation.replace('Portal', {});
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}
+                    style={styles.backButton}
+                >
                     <Text style={[styles.backText, { color: theme.text }]}>← {t('registration.back')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>{t('registration.title')}</Text>
-                <View style={{ width: 60 }} />
+                <Text style={[styles.headerTitle, { color: theme.text }]}>
+                    {phase === 'initial' ? 'Sign Up' : t('registration.title')}
+                </Text>
+                {phase === 'profile' ? (
+                    <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+                        <Text style={[styles.skipText, { color: theme.accent }]}>Skip</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ width: 60 }} />
+                )}
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
+                {phase === 'initial' ? (
+                    <>
+                        <Text style={[styles.label, { color: theme.text }]}>Email</Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            placeholder="email@example.com"
+                            placeholderTextColor={theme.subText}
+                        />
+                        <Text style={[styles.label, { color: theme.text }]}>Password</Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry
+                            placeholder="••••••••"
+                            placeholderTextColor={theme.subText}
+                        />
+                        <Text style={[styles.label, { color: theme.text }]}>Confirm Password</Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry
+                            placeholder="••••••••"
+                            placeholderTextColor={theme.subText}
+                        />
+                    </>
+                ) : (
+                    <>
 
-                {/* Avatar */}
-                <TouchableOpacity onPress={handleChooseAvatar} style={[styles.avatarContainer, { borderColor: theme.accent }]}>
-                    {avatar ? (
-                        <Image source={{ uri: avatar.uri }} style={styles.avatarImage} />
-                    ) : (
-                        <Text style={{ color: theme.subText }}>Add Photo</Text>
-                    )}
-                </TouchableOpacity>
-
-                {/* Gender */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.gender')}</Text>
-                <View style={{ flexDirection: 'row', marginBottom: 10 }}>
-                    {GENDER_OPTIONS.map((g) => (
-                        <TouchableOpacity
-                            key={g}
-                            style={[
-                                styles.radioBtn,
-                                { borderColor: theme.borderColor, backgroundColor: gender === g ? theme.button : 'transparent' }
-                            ]}
-                            onPress={() => setGender(g)}
-                        >
-                            <Text style={{ color: gender === g ? theme.buttonText : theme.text }}>{g}</Text>
+                        {/* Avatar */}
+                        <TouchableOpacity onPress={handleChooseAvatar} style={[styles.avatarContainer, { borderColor: theme.accent }]}>
+                            {avatar ? (
+                                <Image source={{ uri: avatar.uri }} style={styles.avatarImage} />
+                            ) : (
+                                <Text style={{ color: theme.subText }}>Add Photo</Text>
+                            )}
                         </TouchableOpacity>
-                    ))}
-                </View>
 
-                {/* Name Fields */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.karmicName')}</Text>
-                <TextInput
-                    style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
-                    value={karmicName}
-                    onChangeText={setKarmicName}
-                    placeholder="e.g., Ivan Ivanov"
-                    placeholderTextColor={theme.subText}
-                />
-
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.spiritualName')}</Text>
-                <TextInput
-                    style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
-                    value={spiritualName}
-                    onChangeText={setSpiritualName}
-                    placeholder="e.g., Das Anu Das"
-                    placeholderTextColor={theme.subText}
-                />
-
-                {/* Email */}
-                <Text style={[styles.label, { color: theme.text }]}>Email</Text>
-                <TextInput
-                    style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    placeholder="email@example.com"
-                    placeholderTextColor={theme.subText}
-                />
-
-                {/* Date of Birth */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.dob')}</Text>
-                <TouchableOpacity
-                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                    onPress={() => setOpenDatePicker(true)}
-                >
-                    <Text style={{ color: theme.inputText }}>{dob.toLocaleString()}</Text>
-                </TouchableOpacity>
-                <DatePicker
-                    modal
-                    open={openDatePicker}
-                    date={dob}
-                    mode="date"
-                    onConfirm={(date) => {
-                        setOpenDatePicker(false);
-                        setDob(date);
-                    }}
-                    onCancel={() => {
-                        setOpenDatePicker(false);
-                    }}
-                />
-
-                {/* Country */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.country')}</Text>
-                <TouchableOpacity
-                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                    onPress={() => {
-                        if (loadingCountries) {
-                            Alert.alert('Loading', 'Please wait, countries are being loaded...');
-                            return;
-                        }
-                        if (countriesData.length === 0) {
-                            Alert.alert('Error', 'No countries available. Please check your internet connection.');
-                            fetchCountries(); // Retry
-                            return;
-                        }
-                        setShowCountryPicker(!showCountryPicker);
-                    }}
-                    disabled={loadingCountries}
-                >
-                    <Text style={{ color: country ? theme.inputText : theme.subText }}>
-                        {loadingCountries ? t('registration.loadingCountries') : (country || t('registration.selectCountry'))}
-                    </Text>
-                </TouchableOpacity>
-                {showCountryPicker && countriesData.length > 0 && (
-                    <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, zIndex: 1000 }]}>
-                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                            {countriesData.map((c: any) => (
+                        {/* Gender */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.gender')}</Text>
+                        <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+                            {GENDER_OPTIONS.map((g) => (
                                 <TouchableOpacity
-                                    key={c.name.common}
-                                    style={styles.pickerItem}
-                                    onPress={() => handleCountrySelect(c)}
+                                    key={g}
+                                    style={[
+                                        styles.radioBtn,
+                                        { borderColor: theme.borderColor, backgroundColor: gender === g ? theme.button : 'transparent' }
+                                    ]}
+                                    onPress={() => setGender(g)}
                                 >
-                                    <Text style={{ color: theme.inputText }}>{c.name.common}</Text>
+                                    <Text style={{ color: gender === g ? theme.buttonText : theme.text }}>{g}</Text>
                                 </TouchableOpacity>
                             ))}
-                        </ScrollView>
-                    </View>
-                )}
-                {showCountryPicker && countriesData.length === 0 && !loadingCountries && (
-                    <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
-                        <Text style={{ color: theme.subText, padding: 12 }}>No countries available. Tap to retry.</Text>
-                    </View>
-                )}
-
-                {/* City */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.city')}</Text>
-                {!cityInputMode ? (
-                    <>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity
-                                style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                                onPress={() => {
-                                    if (country) {
-                                        setShowCityPicker(!showCityPicker);
-                                    } else {
-                                        Alert.alert('Select Country First', 'Please select a country before choosing a city.');
-                                    }
-                                }}
-                                disabled={!country}
-                            >
-                                <Text style={{ color: city ? theme.inputText : theme.subText }}>{city || (country ? t('registration.selectCity') : t('registration.selectCountry'))}</Text>
-                            </TouchableOpacity>
-                            {country && (
-                                <TouchableOpacity
-                                    style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
-                                    onPress={() => setCityInputMode(true)}
-                                >
-                                    <Text style={{ color: theme.accent, fontSize: 18 }}>✎</Text>
-                                </TouchableOpacity>
-                            )}
                         </View>
-                        {showCityPicker && citiesData.length > 0 && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
-                                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                                    <TouchableOpacity style={styles.pickerItem} onPress={() => { setCity(''); setShowCityPicker(false); }}>
-                                        <Text style={{ color: theme.subText }}>Clear</Text>
-                                    </TouchableOpacity>
-                                    {citiesData.map((cityName: string) => (
-                                        <TouchableOpacity key={cityName} style={styles.pickerItem} onPress={() => { setCity(cityName); setShowCityPicker(false); }}>
-                                            <Text style={{ color: theme.inputText }}>{cityName}</Text>
+
+                        {/* Name Fields */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.karmicName')}</Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                            value={karmicName}
+                            onChangeText={setKarmicName}
+                            placeholder="e.g., Ivan Ivanov"
+                            placeholderTextColor={theme.subText}
+                        />
+
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.spiritualName')}</Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                            value={spiritualName}
+                            onChangeText={setSpiritualName}
+                            placeholder="e.g., Das Anu Das"
+                            placeholderTextColor={theme.subText}
+                        />
+
+
+                        {/* Date of Birth */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.dob')}</Text>
+                        <TouchableOpacity
+                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                            onPress={() => setOpenDatePicker(true)}
+                        >
+                            <Text style={{ color: theme.inputText }}>{dob.toLocaleString()}</Text>
+                        </TouchableOpacity>
+                        <DatePicker
+                            modal
+                            open={openDatePicker}
+                            date={dob}
+                            mode="date"
+                            onConfirm={(date) => {
+                                setOpenDatePicker(false);
+                                setDob(date);
+                            }}
+                            onCancel={() => {
+                                setOpenDatePicker(false);
+                            }}
+                        />
+
+                        {/* Country */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.country')}</Text>
+                        <TouchableOpacity
+                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                            onPress={() => {
+                                if (loadingCountries) {
+                                    Alert.alert('Loading', 'Please wait, countries are being loaded...');
+                                    return;
+                                }
+                                if (countriesData.length === 0) {
+                                    Alert.alert('Error', 'No countries available. Please check your internet connection.');
+                                    fetchCountries(); // Retry
+                                    return;
+                                }
+                                setShowCountryPicker(!showCountryPicker);
+                            }}
+                            disabled={loadingCountries}
+                        >
+                            <Text style={{ color: country ? theme.inputText : theme.subText }}>
+                                {loadingCountries ? t('registration.loadingCountries') : (country || t('registration.selectCountry'))}
+                            </Text>
+                        </TouchableOpacity>
+                        {showCountryPicker && countriesData.length > 0 && (
+                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, zIndex: 1000 }]}>
+                                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                    {countriesData.map((c: any) => (
+                                        <TouchableOpacity
+                                            key={c.name.common}
+                                            style={styles.pickerItem}
+                                            onPress={() => handleCountrySelect(c)}
+                                        >
+                                            <Text style={{ color: theme.inputText }}>{c.name.common}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
                             </View>
                         )}
-                        {showCityPicker && citiesData.length === 0 && country && (
+                        {showCountryPicker && countriesData.length === 0 && !loadingCountries && (
                             <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
-                                <Text style={{ color: theme.subText, padding: 12 }}>Loading cities...</Text>
+                                <Text style={{ color: theme.subText, padding: 12 }}>No countries available. Tap to retry.</Text>
                             </View>
                         )}
-                    </>
-                ) : (
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
+
+                        {/* City */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.city')}</Text>
+                        {!cityInputMode ? (
+                            <>
+                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <TouchableOpacity
+                                        style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                        onPress={() => {
+                                            if (country) {
+                                                setShowCityPicker(!showCityPicker);
+                                            } else {
+                                                Alert.alert('Select Country First', 'Please select a country before choosing a city.');
+                                            }
+                                        }}
+                                        disabled={!country}
+                                    >
+                                        <Text style={{ color: city ? theme.inputText : theme.subText }}>{city || (country ? t('registration.selectCity') : t('registration.selectCountry'))}</Text>
+                                    </TouchableOpacity>
+                                    {country && (
+                                        <TouchableOpacity
+                                            style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
+                                            onPress={() => setCityInputMode(true)}
+                                        >
+                                            <Text style={{ color: theme.accent, fontSize: 18 }}>✎</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                                {showCityPicker && citiesData.length > 0 && (
+                                    <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                                            <TouchableOpacity style={styles.pickerItem} onPress={() => { setCity(''); setShowCityPicker(false); }}>
+                                                <Text style={{ color: theme.subText }}>Clear</Text>
+                                            </TouchableOpacity>
+                                            {citiesData.map((cityName: string) => (
+                                                <TouchableOpacity key={cityName} style={styles.pickerItem} onPress={() => { setCity(cityName); setShowCityPicker(false); }}>
+                                                    <Text style={{ color: theme.inputText }}>{cityName}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                )}
+                                {showCityPicker && citiesData.length === 0 && country && (
+                                    <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                        <Text style={{ color: theme.subText, padding: 12 }}>Loading cities...</Text>
+                                    </View>
+                                )}
+                            </>
+                        ) : (
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <TextInput
+                                    style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                                    value={city}
+                                    onChangeText={setCity}
+                                    placeholder="Enter City Name"
+                                    placeholderTextColor={theme.subText}
+                                    autoFocus
+                                />
+                                <TouchableOpacity
+                                    style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
+                                    onPress={() => setCityInputMode(false)}
+                                >
+                                    <Text style={{ color: theme.accent, fontSize: 18 }}>✓</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {/* Madh */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.madh')}</Text>
+                        <TouchableOpacity
+                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                            onPress={() => setShowMadhPicker(!showMadhPicker)}
+                        >
+                            <Text style={{ color: madh ? theme.inputText : theme.subText }}>{madh || 'Select Tradition'}</Text>
+                        </TouchableOpacity>
+                        {showMadhPicker && (
+                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                <TouchableOpacity style={styles.pickerItem} onPress={() => { setMadh(''); setShowMadhPicker(false); }}>
+                                    <Text style={{ color: theme.subText }}>None</Text>
+                                </TouchableOpacity>
+                                {MADH_OPTIONS.map((m) => (
+                                    <TouchableOpacity key={m} style={styles.pickerItem} onPress={() => { setMadh(m); setShowMadhPicker(false); }}>
+                                        <Text style={{ color: theme.inputText }}>{m}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+
+                        {/* Mentor */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.mentor')}</Text>
                         <TextInput
-                            style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
-                            value={city}
-                            onChangeText={setCity}
-                            placeholder="Enter City Name"
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                            value={mentor}
+                            onChangeText={setMentor}
+                            placeholder="Current Shiksha/Diksha Guru"
                             placeholderTextColor={theme.subText}
-                            autoFocus
                         />
-                        <TouchableOpacity
-                            style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
-                            onPress={() => setCityInputMode(false)}
-                        >
-                            <Text style={{ color: theme.accent, fontSize: 18 }}>✓</Text>
-                        </TouchableOpacity>
-                    </View>
+
+                        {/* Identity */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.identity')}</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                            {IDENTITY_OPTIONS.map((opt) => (
+                                <TouchableOpacity
+                                    key={opt}
+                                    style={[styles.radioBtn, { borderColor: theme.borderColor, backgroundColor: identity === opt ? theme.button : 'transparent' }]}
+                                    onPress={() => setIdentity(opt)}
+                                >
+                                    <Text style={{ color: identity === opt ? theme.buttonText : theme.text }}>{opt}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* Diet */}
+                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.diet')}</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                            {DIET_OPTIONS.map((opt) => (
+                                <TouchableOpacity
+                                    key={opt}
+                                    style={[styles.radioBtn, { borderColor: theme.borderColor, backgroundColor: diet === opt ? theme.button : 'transparent' }]}
+                                    onPress={() => setDiet(opt)}
+                                >
+                                    <Text style={{ color: diet === opt ? theme.buttonText : theme.text }}>{opt}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </>
                 )}
-
-                {/* Madh */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.madh')}</Text>
-                <TouchableOpacity
-                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                    onPress={() => setShowMadhPicker(!showMadhPicker)}
-                >
-                    <Text style={{ color: madh ? theme.inputText : theme.subText }}>{madh || 'Select Tradition'}</Text>
-                </TouchableOpacity>
-                {showMadhPicker && (
-                    <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
-                        <TouchableOpacity style={styles.pickerItem} onPress={() => { setMadh(''); setShowMadhPicker(false); }}>
-                            <Text style={{ color: theme.subText }}>None</Text>
-                        </TouchableOpacity>
-                        {MADH_OPTIONS.map((m) => (
-                            <TouchableOpacity key={m} style={styles.pickerItem} onPress={() => { setMadh(m); setShowMadhPicker(false); }}>
-                                <Text style={{ color: theme.inputText }}>{m}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                )}
-
-                {/* Mentor */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.mentor')}</Text>
-                <TextInput
-                    style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
-                    value={mentor}
-                    onChangeText={setMentor}
-                    placeholder="Current Shiksha/Diksha Guru"
-                    placeholderTextColor={theme.subText}
-                />
-
-                {/* Identity */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.identity')}</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                    {IDENTITY_OPTIONS.map((opt) => (
-                        <TouchableOpacity
-                            key={opt}
-                            style={[styles.radioBtn, { borderColor: theme.borderColor, backgroundColor: identity === opt ? theme.button : 'transparent' }]}
-                            onPress={() => setIdentity(opt)}
-                        >
-                            <Text style={{ color: identity === opt ? theme.buttonText : theme.text }}>{opt}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                {/* Diet */}
-                <Text style={[styles.label, { color: theme.text }]}>{t('registration.diet')}</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                    {DIET_OPTIONS.map((opt) => (
-                        <TouchableOpacity
-                            key={opt}
-                            style={[styles.radioBtn, { borderColor: theme.borderColor, backgroundColor: diet === opt ? theme.button : 'transparent' }]}
-                            onPress={() => setDiet(opt)}
-                        >
-                            <Text style={{ color: diet === opt ? theme.buttonText : theme.text }}>{opt}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
 
                 {/* Terms */}
                 <View style={styles.checkboxContainer}>
@@ -566,8 +649,19 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     onPress={handleSubmit}
                     disabled={loading}
                 >
-                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>{t('registration.submit')}</Text>}
+                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>{phase === 'initial' ? 'Next' : t('registration.submit')}</Text>}
                 </TouchableOpacity>
+
+                {phase === 'initial' && (
+                    <TouchableOpacity
+                        style={{ marginTop: 20, alignItems: 'center' }}
+                        onPress={() => navigation.navigate('Login')}
+                    >
+                        <Text style={{ color: theme.subText }}>
+                            Already have an account? <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Login</Text>
+                        </Text>
+                    </TouchableOpacity>
+                )}
 
             </ScrollView>
         </View>
@@ -670,6 +764,15 @@ const styles = StyleSheet.create({
     },
     submitButtonText: {
         fontSize: 18,
+        fontWeight: 'bold',
+    },
+    skipButton: {
+        padding: 5,
+        width: 60,
+        alignItems: 'flex-end',
+    },
+    skipText: {
+        fontSize: 14,
         fontWeight: 'bold',
     },
 });

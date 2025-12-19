@@ -4,17 +4,21 @@ import {
     StatusBar,
     StyleSheet,
     useColorScheme,
+    Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { SettingsDrawer } from '../SettingsDrawer';
 import { useSettings } from '../context/SettingsContext';
 import { ChatProvider, useChat } from '../context/ChatContext';
+import { useUser } from '../context/UserContext';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../components/chat/ChatConstants';
 import { ChatHeader } from '../components/chat/ChatHeader';
 import { MessageList } from '../components/chat/MessageList';
 import { ChatInput } from '../components/chat/ChatInput';
 import { shareImage, downloadImage } from '../services/fileService';
+import { contactService } from '../services/contactService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
@@ -22,9 +26,36 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { currentModel, currentProvider, selectModel } = useSettings();
-    const { handleMenuOption } = useChat();
+    const { handleMenuOption, recipientUser, setShowMenu } = useChat();
+    const { user: currentUser } = useUser();
+    const { t } = useTranslation();
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    const handleBlockUser = () => {
+        if (!currentUser?.ID || !recipientUser?.ID) return;
+
+        Alert.alert(
+            t('contacts.blockConfirmTitle'),
+            t('contacts.blockConfirmMsg'),
+            [
+                { text: t('common.cancel'), style: 'cancel' },
+                {
+                    text: t('contacts.block'),
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await contactService.blockUser(currentUser.ID!, recipientUser.ID);
+                            setShowMenu(false);
+                            navigation.goBack(); // Close chat after blocking
+                        } catch (error) {
+                            Alert.alert(t('error'), 'Failed to block user');
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -41,15 +72,26 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
             <MessageList
                 onDownloadImage={downloadImage}
                 onShareImage={shareImage}
-                onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab })}
+                onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
             />
 
             <ChatInput
-                onMenuOption={(option) =>
+                onMenuOption={(option) => {
+                    if (option === 'contacts.viewProfile') {
+                        if (recipientUser) {
+                            navigation.navigate('ContactProfile', { userId: recipientUser.ID });
+                        }
+                        setShowMenu(false);
+                        return;
+                    }
+                    if (option === 'contacts.block') {
+                        handleBlockUser();
+                        return;
+                    }
                     handleMenuOption(option,
-                        (tab) => navigation.navigate('Portal', { initialTab: tab })
+                        (tab) => navigation.navigate('Portal', { initialTab: tab as any })
                     )
-                }
+                }}
             />
 
             <SettingsDrawer
@@ -62,7 +104,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                 }}
                 onNavigateToPortal={(tab) => {
                     setIsSettingsOpen(false);
-                    navigation.navigate('Portal', { initialTab: tab });
+                    navigation.navigate('Portal', { initialTab: tab as any });
                 }}
                 onNavigateToSettings={() => {
                     setIsSettingsOpen(false);

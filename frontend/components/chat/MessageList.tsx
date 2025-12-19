@@ -4,6 +4,7 @@ import {
     FlatList,
     ActivityIndicator,
     Text,
+    Image,
     ImageBackground,
     Keyboard,
     StyleSheet,
@@ -103,14 +104,19 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <View style={[
                             styles.avatar,
                             {
-                                backgroundColor: theme.botBubble,
+                                backgroundColor: isDarkMode ? 'transparent' : '#FFF', // Белый или прозрачный фон для картинки
                                 borderColor: theme.borderColor,
-                                borderWidth: 1,
+                                borderWidth: 0, // Убираем границу для лучшего вида с фото
                                 marginBottom: isImageOnly ? 6 : 0,
                                 marginRight: isImageOnly ? 0 : 8,
+                                overflow: 'hidden', // Чтобы скругление работало для Image
                             }
                         ]}>
-                            <Text style={{ color: theme.iconColor, fontWeight: 'bold', fontSize: 18 }}>ॐ</Text>
+                            <Image
+                                source={require('../../assets/krishnaAssistant.png')}
+                                style={{ width: '100%', height: '100%' }}
+                                resizeMode="cover"
+                            />
                         </View>
                         <View style={[
                             styles.bubble,

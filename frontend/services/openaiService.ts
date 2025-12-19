@@ -9,8 +9,7 @@ try {
 }
 import { getModelConfig, ModelConfig } from '../config/models.config';
 
-// Base URL для RVFreeLLM API
-const API_BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8081/api' : 'http://localhost:8081/api';
+import { API_PATH } from '../config/api.config';
 
 const API_KEY = Config?.API_OPEN_AI || '';
 
@@ -21,7 +20,7 @@ if (!API_KEY) {
 // Инициализация OpenAI клиента с кастомным baseURL
 const openaiClient = new OpenAI({
   apiKey: API_KEY,
-  baseURL: `${API_BASE_URL}/v1`,
+  baseURL: `${API_PATH}/v1`,
   timeout: 180000,
   maxRetries: 2,
 });
@@ -108,7 +107,7 @@ export const sendMessage = async (
 
     // Попробуем прямой fetch
     try {
-      const response = await fetch(`${API_BASE_URL}/v1/chat/completions`, {
+      const response = await fetch(`${API_PATH}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -183,8 +182,8 @@ export const sendMessage = async (
 export const getAvailableModels = async (provider?: string): Promise<any> => {
   try {
     const url = provider
-      ? `${API_BASE_URL}/v1/models?provider=${provider}`
-      : `${API_BASE_URL}/v1/models`;
+      ? `${API_PATH}/v1/models?provider=${provider}`
+      : `${API_PATH}/v1/models`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -204,7 +203,7 @@ export const getAvailableModels = async (provider?: string): Promise<any> => {
     }
 
     const text = await response.text();
-    if (!text) throw new Error('Пустой ответ');
+    if (!text || text === 'undefined') throw new Error('Пустой или некорректный ответ');
 
     return JSON.parse(text);
   } catch (error: any) {

@@ -3,18 +3,19 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools && export REACT_NATIVE_PACKAGER_PORT=8082 && export PORT=8082 && node fix-metro-port.js && ./ensure-emulator.sh && react-native run-android --port 8082",
+    "android": "source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools && export REACT_NATIVE_PACKAGER_PORT=8082 && export PORT=8082 && node fix-metro-port.js && ./ensure-emulator.sh && react-native run-android --port 8082 --no-packager",
     "emulator": "./start-emulator.sh",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "node fix-metro-port.js && PORT=8082 REACT_NATIVE_PACKAGER_PORT=8082 RCT_METRO_PORT=8082 react-native start",
     "test": "jest",
+    "clean": "react-native start --reset-cache",
     "postinstall": "node fix-metro-port.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-navigation/native": "^7.1.26",
-    "@react-navigation/native-stack": "^7.9.0",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/native-stack": "^6.11.0",
     "axios": "^1.13.2",
     "connect": "^3.7.0",
     "i18next": "^25.7.3",
@@ -26,10 +27,15 @@
     "react-native-config": "^1.6.1",
     "react-native-date-picker": "^5.0.13",
     "react-native-fs": "^2.20.0",
+    "react-native-gesture-handler": "^2.20.2",
     "react-native-image-picker": "^8.2.1",
+    "react-native-linear-gradient": "^2.8.3",
     "react-native-markdown-display": "^7.0.2",
-    "react-native-safe-area-context": "^5.6.2",
-    "react-native-screens": "^4.10.0"
+    "react-native-reanimated": "3.16.2",
+    "react-native-safe-area-context": "^4.14.1",
+    "react-native-screens": "^3.35.0",
+    "react-native-svg": "^15.15.1",
+    "react-native-webview": "^13.16.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

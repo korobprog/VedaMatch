@@ -6,9 +6,13 @@ import { ChatProvider } from './context/ChatContext';
 import { UserProvider } from './context/UserContext';
 import { ChatScreen } from './screens/ChatScreen';
 import RegistrationScreen from './screens/RegistrationScreen';
+import LoginScreen from './screens/LoginScreen';
+import PlansScreen from './screens/PlansScreen';
 import { RootStackParamList } from './types/navigation';
 import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
+import { KrishnaAssistant } from './components/KrishnaAssistant';
+import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -19,17 +23,21 @@ function App(): React.JSX.Element {
         <ChatProvider>
           <NavigationContainer>
             <Stack.Navigator
-              initialRouteName="Chat"
+              initialRouteName="Login"
               screenOptions={{
                 headerShown: false,
                 animation: 'slide_from_right',
               }}
             >
+              <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="Chat" component={ChatScreen} />
               <Stack.Screen name="Registration" component={RegistrationScreen} />
+              <Stack.Screen name="Plans" component={PlansScreen} />
               <Stack.Screen name="Portal" component={PortalMainScreen} />
               <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+              <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
             </Stack.Navigator>
+            <KrishnaAssistant />
           </NavigationContainer>
         </ChatProvider>
       </UserProvider>

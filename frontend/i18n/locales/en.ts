@@ -24,6 +24,7 @@ export default {
             shops: 'You can find goods and services in our shops. Enter a product name to search...',
             ads: 'Private ads are collected here. What are you looking for: services, housing, or things?',
             news: 'Stay up to date with the latest events. What news topic do you want to know about?',
+            knowledge_base: 'Explore spiritual wisdom. Enter a topic and we will find information from sacred scriptures...',
         },
         searchTabs: {
             contacts: 'Contacts',
@@ -32,6 +33,7 @@ export default {
             shops: 'Shops',
             ads: 'Ads',
             news: 'News',
+            knowledge_base: 'Knowledge Base',
         },
         goToSection: 'Go to section',
     },
@@ -90,17 +92,38 @@ export default {
         posLeft: 'Left',
         posCenter: 'Center',
         posRight: 'Right',
+        availableModels: 'Available models',
+        selectCategoryHint: 'Click on a category button above to see and select a model',
         tabs: {
             contacts: 'Contacts',
             chat: 'Chat',
             dating: 'Dating',
             shops: 'Shops',
             ads: 'Ads',
-            news: 'News'
+            news: 'News',
+            knowledge_base: 'Knowledge Base'
         }
     },
     auth: {
         login: 'Login',
         profile: 'Profile',
+    },
+    contacts: {
+        sendMessage: 'Send Message',
+        friendsOnly: 'Friends only',
+        viewProfile: 'View Profile',
+        media: 'Media & Files',
+        search: 'Search in Chat',
+        mute: 'Mute Notifications',
+        pin: 'Pin Chat',
+        block: 'Block User',
+        share: 'Share Contact',
+        clearHistory: 'Clear History',
+        report: 'Report User',
+        searchPlaceholder: 'Search contacts...',
+        blocked: 'Blocked',
+        unblock: 'Unblock',
+        blockConfirmTitle: 'Block user?',
+        blockConfirmMsg: 'You will no longer be able to receive messages from this contact.',
     }
 };

@@ -10,8 +10,10 @@ import {
     useColorScheme,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { COLORS, MENU_OPTIONS } from './ChatConstants';
+import { COLORS, MENU_OPTIONS, FRIEND_MENU_OPTIONS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
+import { Image } from 'react-native';
+import { API_BASE_URL } from '../../config/api.config';
 
 interface ChatInputProps {
     onMenuOption: (option: string) => void;
@@ -30,9 +32,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         showMenu,
         setShowMenu,
         handleNewChat,
+        recipientUser,
     } = useChat();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+
+    const avatarUrl = recipientUser?.avatarUrl ? `${API_BASE_URL}${recipientUser.avatarUrl}` : null;
 
     return (
         <KeyboardAvoidingView
@@ -49,20 +54,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             { borderBottomWidth: 1, borderBottomColor: theme.borderColor }
                         ]}
                     >
-                        <Text style={{ color: theme.text, fontSize: 16, fontWeight: '700' }}>{t('chat.newChat')}</Text>
+                        <Text style={{ color: theme.text, fontSize: 16, fontWeight: '700' }}>
+                            {recipientUser ? (recipientUser.spiritualName || recipientUser.karmicName) : t('chat.newChat')}
+                        </Text>
                     </View>
-                    {MENU_OPTIONS.map((option, index) => (
-                        <TouchableOpacity
-                            key={option}
-                            style={[
-                                styles.menuItem,
-                                index < MENU_OPTIONS.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.borderColor }
-                            ]}
-                            onPress={() => onMenuOption(option)}
-                        >
-                            <Text style={{ color: theme.text, fontSize: 16 }}>{t(option)}</Text>
-                        </TouchableOpacity>
-                    ))}
+                    {(recipientUser ? FRIEND_MENU_OPTIONS : MENU_OPTIONS).map((option, index, array) => {
+                        const isImplemented = !recipientUser || option === 'contacts.viewProfile' || option === 'contacts.block';
+                        return (
+                            <TouchableOpacity
+                                key={option}
+                                style={[
+                                    styles.menuItem,
+                                    index < array.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.borderColor },
+                                    !isImplemented && { opacity: 0.3 }
+                                ]}
+                                onPress={() => isImplemented && onMenuOption(option)}
+                                disabled={!isImplemented}
+                            >
+                                <Text style={{
+                                    color: option.includes('block') ? '#FF4444' : theme.text,
+                                    fontSize: 16
+                                }}>
+                                    {t(option)}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
             )}
 
@@ -71,7 +88,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     style={styles.plusButton}
                     onPress={() => setShowMenu(!showMenu)}
                 >
-                    <Text style={[styles.plusText, { color: theme.subText }]}>•••</Text>
+                    {recipientUser ? (
+                        avatarUrl ? (
+                            <Image source={{ uri: avatarUrl }} style={styles.miniAvatar} />
+                        ) : (
+                            <View style={[styles.miniAvatar, { backgroundColor: theme.button, justifyContent: 'center', alignItems: 'center' }]}>
+                                <Text style={{ color: theme.buttonText, fontSize: 12, fontWeight: 'bold' }}>
+                                    {(recipientUser.spiritualName || recipientUser.karmicName || '?')[0]}
+                                </Text>
+                            </View>
+                        )
+                    ) : (
+                        <Text style={[styles.plusText, { color: theme.subText }]}>•••</Text>
+                    )}
                 </TouchableOpacity>
 
                 <TextInput
@@ -158,5 +187,10 @@ const styles = StyleSheet.create({
     sendButtonText: {
         fontSize: 24,
         fontWeight: 'bold',
+    },
+    miniAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
     },
 });

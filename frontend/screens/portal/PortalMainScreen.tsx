@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     Dimensions,
     Platform,
     StatusBar,
+    ScrollView,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/chat/ChatConstants';
@@ -19,16 +20,23 @@ import { ShopsScreen } from './shops/ShopsScreen';
 import { AdsScreen } from './ads/AdsScreen';
 import { NewsScreen } from './news/NewsScreen';
 import { DatingScreen } from './dating/DatingScreen';
+import { KnowledgeBaseScreen } from './knowledge_base/KnowledgeBaseScreen';
+import { useUser } from '../../context/UserContext';
+import { Alert } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
 export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const { t } = useTranslation();
+    const { user } = useUser();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news'>(route.params?.initialTab || 'contacts');
+    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base'>(route.params?.initialTab || 'contacts');
 
-    React.useEffect(() => {
+    const scrollViewRef = useRef<ScrollView>(null);
+    // itemWidth moved below for consistency
+
+    useEffect(() => {
         if (route.params?.initialTab) {
             setActiveTab(route.params.initialTab);
         }
@@ -41,7 +49,16 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         { id: 'shops', label: t('settings.tabs.shops'), icon: '🛍️' },
         { id: 'ads', label: t('settings.tabs.ads'), icon: '📢' },
         { id: 'news', label: t('settings.tabs.news'), icon: '📰' },
+        { id: 'knowledge_base', label: t('settings.tabs.knowledge_base'), icon: '📖' },
     ];
+
+    // Static tabs
+    const displayTabs = tabs;
+    const itemWidth = 80; // Reduced width for closer icons
+
+    const handleScroll = (event: any) => {
+        // No circular logic needed for static tabs
+    };
 
     const renderContent = () => {
         switch (activeTab) {
@@ -51,6 +68,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             case 'shops': return <ShopsScreen />;
             case 'ads': return <AdsScreen />;
             case 'news': return <NewsScreen />;
+            case 'knowledge_base': return <KnowledgeBaseScreen />;
             default: return <ContactsScreen />;
         }
     };
@@ -64,36 +82,72 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
                     backgroundColor="transparent"
                     barStyle={isDarkMode ? 'light-content' : 'dark-content'}
                 />
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Text style={[styles.backText, { color: theme.text }]}>← {t('settings.title')}</Text>
+                <TouchableOpacity
+                    onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.replace('Chat')}
+                    style={styles.backButton}
+                >
+                    <Text style={[styles.backText, { color: theme.text }]}>← {t('chat.history')}</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Horizontal Menu Tabs - Multi-tab layout */}
-            <View style={[styles.tabBar, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
-                {tabs.map((tab) => (
-                    <TouchableOpacity
-                        key={tab.id}
-                        onPress={() => setActiveTab(tab.id as any)}
-                        style={[
-                            styles.tabItem,
-                            activeTab === tab.id && { borderBottomColor: theme.accent, borderBottomWidth: 2 }
-                        ]}
-                    >
-                        <Text style={{ fontSize: 18, marginBottom: 2 }}>{tab.icon}</Text>
-                        <Text
+            {/* Horizontal Menu Tabs - Static layout */}
+            <View style={[styles.tabBarControl, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
+                {/* Left indicators */}
+                <View style={[styles.arrowContainer, { left: 0 }]} pointerEvents="none">
+                    <Text style={[styles.arrow, { color: theme.accent, opacity: 0.6 }]}>‹</Text>
+                </View>
+
+                <ScrollView
+                    ref={scrollViewRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.tabBarScroll}
+                    scrollEventThrottle={16}
+                >
+                    {displayTabs.map((tab) => (
+                        <TouchableOpacity
+                            key={tab.id}
+                            onPress={() => {
+                                if (!user?.isProfileComplete) {
+                                    Alert.alert(
+                                        'Profile Incomplete',
+                                        'Please complete your registration to access this service.',
+                                        [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            {
+                                                text: 'Complete Profile',
+                                                onPress: () => navigation.navigate('Registration', { isDarkMode, phase: 'profile' })
+                                            }
+                                        ]
+                                    );
+                                    return;
+                                }
+                                setActiveTab(tab.id as any);
+                            }}
                             style={[
-                                styles.tabLabel,
-                                { color: activeTab === tab.id ? theme.accent : theme.subText }
+                                styles.tabItem,
+                                { width: itemWidth },
+                                activeTab === tab.id && { borderBottomColor: theme.accent, borderBottomWidth: 2 }
                             ]}
-                            numberOfLines={1}
-                            adjustsFontSizeToFit={true}
-                            minimumFontScale={0.7}
                         >
-                            {tab.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
+                            <Text style={{ fontSize: 24, marginBottom: 2 }}>{tab.icon}</Text>
+                            <Text
+                                style={[
+                                    styles.tabLabel,
+                                    { color: activeTab === tab.id ? theme.accent : theme.subText }
+                                ]}
+                                numberOfLines={1}
+                            >
+                                {tab.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+
+                {/* Right indicator */}
+                <View style={[styles.arrowContainer, { right: 0 }]} pointerEvents="none">
+                    <Text style={[styles.arrow, { color: theme.accent, opacity: 0.6 }]}>›</Text>
+                </View>
             </View>
 
             {/* Content Area */}
@@ -124,23 +178,41 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
-    tabBar: {
-        flexDirection: 'row',
+    tabBarControl: {
         borderBottomWidth: 1,
-        height: 65,
-        paddingHorizontal: 4,
+        height: 70,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    tabBarScroll: {
+        paddingHorizontal: 0,
+        alignItems: 'center',
+    },
+    arrowContainer: {
+        position: 'absolute',
+        zIndex: 10,
+        width: 30,
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.01)', // Almost invisible but catches nothing thanks to pointerEvents none
+    },
+    arrow: {
+        fontSize: 30,
+        fontWeight: '300',
     },
     tabItem: {
-        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 8,
+        paddingVertical: 10,
+        marginHorizontal: 0,
     },
     tabLabel: {
-        fontSize: 9,
+        fontSize: 10,
         fontWeight: 'bold',
         textAlign: 'center',
         width: '100%',
+        marginTop: 4,
     },
     content: {
         flex: 1,
