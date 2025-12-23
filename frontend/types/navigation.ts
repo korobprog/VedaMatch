@@ -6,4 +6,5 @@ export type RootStackParamList = {
     Portal: { initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' };
     ContactProfile: { userId: number };
     AppSettings: undefined;
+    RoomChat: { roomId: number, roomName: string };
 };

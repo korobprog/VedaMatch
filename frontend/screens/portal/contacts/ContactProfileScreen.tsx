@@ -88,61 +88,71 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
         : null;
 
     return (
-        <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
-            <View style={styles.header}>
-                <View style={[styles.avatarContainer, { borderColor: theme.borderColor }]}>
-                    {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-                    ) : (
-                        <View style={[styles.avatarPlaceholder, { backgroundColor: theme.button }]}>
-                            <Text style={[styles.avatarInitial, { color: theme.buttonText }]}>
-                                {(contact.spiritualName || contact.karmicName)[0]}
-                            </Text>
-                        </View>
-                    )}
-                </View>
-                <Text style={[styles.name, { color: theme.text }]}>
-                    {contact.spiritualName || contact.karmicName}
-                </Text>
-                {contact.spiritualName && (
-                    <Text style={[styles.karmicName, { color: theme.subText }]}>
-                        ({contact.karmicName})
-                    </Text>
-                )}
-            </View>
-
-            <View style={styles.infoSection}>
-                <InfoItem label="Identity" value={contact.identity || 'Devotee'} theme={theme} />
-                <InfoItem label="Location" value={`${contact.city}, ${contact.country}`} theme={theme} />
-                <InfoItem label="Email" value={contact.email} theme={theme} />
-            </View>
-
-            <View style={styles.actions}>
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+            <View style={[styles.topBar, { borderBottomColor: theme.borderColor }, { top: 15 }]}>
                 <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: isFriend ? theme.borderColor : theme.accent }]}
-                    onPress={toggleFriend}
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
                 >
-                    <Text style={[styles.actionButtonText, { color: isFriend ? theme.text : '#FFF' }]}>
-                        {isFriend ? 'Remove Friend' : 'Add Friend'}
-                    </Text>
+                    <Text style={{ color: theme.accent, fontSize: 16 }}>← {t('contacts.backToContacts')}</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: isFriend ? theme.button : theme.borderColor, marginTop: 12 }]}
-                    onPress={handleSendMessage}
-                    disabled={!isFriend}
-                >
-                    <Text style={[styles.actionButtonText, { color: isFriend ? theme.buttonText : theme.subText, opacity: isFriend ? 1 : 0.5 }]}>
-                        {t('contacts.sendMessage')}
+            </View>
+            <ScrollView>
+                <View style={styles.header}>
+                    <View style={[styles.avatarContainer, { borderColor: theme.borderColor }]}>
+                        {avatarUrl ? (
+                            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                        ) : (
+                            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.button }]}>
+                                <Text style={[styles.avatarInitial, { color: theme.buttonText }]}>
+                                    {(contact.spiritualName || contact.karmicName)[0]}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                    <Text style={[styles.name, { color: theme.text }]}>
+                        {contact.spiritualName || contact.karmicName}
                     </Text>
-                    {!isFriend && (
-                        <Text style={{ fontSize: 10, color: theme.subText, marginTop: 2 }}>
-                            {t('contacts.friendsOnly')}
+                    {contact.spiritualName && (
+                        <Text style={[styles.karmicName, { color: theme.subText }]}>
+                            ({contact.karmicName})
                         </Text>
                     )}
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
+                </View>
+
+                <View style={styles.infoSection}>
+                    <InfoItem label="Identity" value={contact.identity || 'Devotee'} theme={theme} />
+                    <InfoItem label="Location" value={`${contact.city}, ${contact.country}`} theme={theme} />
+                    <InfoItem label="Email" value={contact.email} theme={theme} />
+                </View>
+
+                <View style={styles.actions}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: isFriend ? theme.borderColor : theme.accent }]}
+                        onPress={toggleFriend}
+                    >
+                        <Text style={[styles.actionButtonText, { color: isFriend ? theme.text : '#FFF' }]}>
+                            {isFriend ? 'Remove Friend' : 'Add Friend'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: isFriend ? theme.button : theme.borderColor, marginTop: 12 }]}
+                        onPress={handleSendMessage}
+                        disabled={!isFriend}
+                    >
+                        <Text style={[styles.actionButtonText, { color: isFriend ? theme.buttonText : theme.subText, opacity: isFriend ? 1 : 0.5 }]}>
+                            {t('contacts.sendMessage')}
+                        </Text>
+                        {!isFriend && (
+                            <Text style={{ fontSize: 10, color: theme.subText, marginTop: 2 }}>
+                                {t('contacts.friendsOnly')}
+                            </Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </ScrollView>
+        </View>
     );
 };
 
@@ -157,8 +167,18 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     header: {
         alignItems: 'center',
-        paddingVertical: 40,
+        paddingVertical: 20,
         paddingHorizontal: 20,
+    },
+    topBar: {
+        height: 56,
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        borderBottomWidth: 0.5,
+    },
+    backButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     avatarContainer: {
         width: 120,

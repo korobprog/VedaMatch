@@ -1,35 +1,7 @@
-2025/12/19 14:31:33 Connected to Database
-2025/12/19 14:31:33 Database Migrated
-2025/12/19 14:31:33 Route registered: GET /
-2025/12/19 14:31:33 Route registered: GET /api/contacts
-2025/12/19 14:31:33 Route registered: GET /api/friends/:id
-2025/12/19 14:31:33 Route registered: GET /api/messages/:userId/:recipientId
-2025/12/19 14:31:33 Route registered: GET /api/test
-2025/12/19 14:31:33 Route registered: HEAD /uploads
-2025/12/19 14:31:33 Route registered: GET /api/v1/models
-2025/12/19 14:31:33 Route registered: HEAD /
-2025/12/19 14:31:33 Route registered: HEAD /api/contacts
-2025/12/19 14:31:33 Route registered: HEAD /api/friends/:id
-2025/12/19 14:31:33 Route registered: HEAD /api/messages/:userId/:recipientId
-2025/12/19 14:31:33 Route registered: HEAD /api/test
-2025/12/19 14:31:33 Route registered: HEAD /uploads
-2025/12/19 14:31:33 Route registered: HEAD /api/v1/models
-2025/12/19 14:31:33 Route registered: POST /
-2025/12/19 14:31:33 Route registered: POST /api/register
-2025/12/19 14:31:33 Route registered: POST /api/login
-2025/12/19 14:31:33 Route registered: POST /api/heartbeat/:id
-2025/12/19 14:31:33 Route registered: POST /api/upload-avatar/:id
-2025/12/19 14:31:33 Route registered: POST /api/friends/add
-2025/12/19 14:31:33 Route registered: POST /api/friends/remove
-2025/12/19 14:31:33 Route registered: POST /api/messages
-2025/12/19 14:31:33 Route registered: POST /api/debug-messages
-2025/12/19 14:31:33 Route registered: POST /api/v1/chat/completions
-2025/12/19 14:31:33 Route registered: PUT /
-2025/12/19 14:31:33 Route registered: PUT /api/update-profile/:id
-2025/12/19 14:31:33 Route registered: DELETE /
-2025/12/19 14:31:33 Route registered: CONNECT /
-2025/12/19 14:31:33 Route registered: OPTIONS /
-2025/12/19 14:31:33 Route registered: TRACE /
-2025/12/19 14:31:33 Route registered: PATCH /
-2025/12/19 14:31:33 Server starting on port :8081
-2025/12/19 14:31:33 failed to listen: listen tcp4 :8081: bind: address already in use
+2025/12/23 14:33:50 Connected to Database
+2025/12/23 14:33:50 Database Migrated
+2025/12/23 14:33:50 Registering /api/messages routes...
+2025/12/23 14:33:50 Routes registered.
+2025/12/23 14:33:50 Server starting on port :8081
+2025/12/23 14:33:50 failed to listen: listen tcp4 :8081: bind: address already in use
+exit status 1

@@ -13,6 +13,7 @@
     "dev": "concurrently \"pnpm run server\" \"pnpm run frontend\" \"pnpm run android\" --names \"SERVER,METRO,ANDROID\" --prefix-colors \"blue,magenta,green\" --kill-others-on-fail"
   },
   "dependencies": {
+    "expo-image-picker": "^17.0.10",
     "express": "^4.22.1",
     "http-proxy-middleware": "^2.0.9"
   },

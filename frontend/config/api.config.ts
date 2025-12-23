@@ -10,9 +10,12 @@ export const API_BASE_URL = Config.API_BASE_URL || DEFAULT_URL;
 // Базовый путь для API запросов
 export const API_PATH = `${API_BASE_URL}/api`;
 
+export const APP_ENV = Config.APP_ENV || 'development';
+
 console.log('DEBUG: API Configuration initialized:', {
     API_BASE_URL,
     API_PATH,
+    APP_ENV,
     Platform: Platform.OS,
     fromConfig: !!Config.API_BASE_URL
 });

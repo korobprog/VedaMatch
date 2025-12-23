@@ -57,6 +57,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
+	user.Password = ""
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "User registered successfully",
 		"user":    user,
@@ -102,6 +103,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
+	user.Password = ""
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Login successful",
 		"user":    user,
@@ -154,6 +156,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		}
 	}(user)
 
+	user.Password = ""
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Profile updated successfully",
 		"user":    user,

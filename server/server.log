@@ -1,0 +1,6 @@
+# rag-agent-server/internal/handlers
+internal/handlers/room_handler.go:191:12: undefined: os
+internal/handlers/room_handler.go:198:9: undefined: filepath
+internal/handlers/room_handler.go:199:14: undefined: fmt
+internal/handlers/room_handler.go:199:50: undefined: time
+internal/handlers/room_handler.go:200:14: undefined: filepath

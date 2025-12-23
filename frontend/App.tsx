@@ -14,6 +14,8 @@ import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { KrishnaAssistant } from './components/KrishnaAssistant';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 
+import { RoomChatScreen } from './screens/portal/chat/RoomChatScreen';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function App(): React.JSX.Element {
@@ -36,6 +38,11 @@ function App(): React.JSX.Element {
               <Stack.Screen name="Portal" component={PortalMainScreen} />
               <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
               <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
+              <Stack.Screen
+                name="RoomChat"
+                component={RoomChatScreen}
+                options={{ headerShown: true }}
+              />
             </Stack.Navigator>
             <KrishnaAssistant />
           </NavigationContainer>

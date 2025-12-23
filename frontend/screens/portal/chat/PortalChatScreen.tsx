@@ -1,50 +1,182 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../components/chat/ChatConstants';
+import { API_PATH } from '../../../config/api.config';
+import { useUser } from '../../../context/UserContext';
 
-const MOCK_CHATS = [
-    { id: '1', name: 'General Community', lastMsg: 'Namaste everyone!', time: '12:45' },
-    { id: '2', name: 'Yoga Enthusiasts', lastMsg: 'Next session at 6 AM', time: '11:20' },
-    { id: '3', name: 'Ayurveda Tips', lastMsg: 'Drink warm water with lemon', time: 'Yesterday' },
-];
+import { CreateRoomModal } from './CreateRoomModal';
+import { InviteFriendModal } from './InviteFriendModal';
+import { EditRoomImageModal } from './EditRoomImageModal';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../../types/navigation';
+
+const EMOJI_MAP: any = {
+    'om': '🕉️',
+    'japa': '📿',
+    'kirtan': '🪈',
+    'scriptures': '📖',
+    'lotus': '🌺',
+    'tulasi': '🌿',
+    'deity': '🙏',
+    'peacock': '🦚',
+    // Fallback для старых комнат
+    'general': '🕉️',
+};
 
 export const PortalChatScreen: React.FC = () => {
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { t } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { user } = useUser();
 
-    const renderItem = ({ item }: any) => (
-        <TouchableOpacity style={[styles.chatItem, { borderBottomColor: theme.borderColor }]}>
-            <View style={[styles.chatIcon, { backgroundColor: theme.accent }]}>
-                <Text style={{ fontSize: 20 }}>#</Text>
-            </View>
-            <View style={styles.chatInfo}>
-                <View style={styles.chatHeaderRow}>
-                    <Text style={[styles.chatName, { color: theme.text }]}>{item.name}</Text>
-                    <Text style={[styles.chatTime, { color: theme.subText }]}>{item.time}</Text>
+    const [rooms, setRooms] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [inviteVisible, setInviteVisible] = useState(false);
+    const [editImageVisible, setEditImageVisible] = useState(false);
+    const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+    const [selectedRoomImageUrl, setSelectedRoomImageUrl] = useState<string>('');
+
+    const fetchRooms = async () => {
+        try {
+            const response = await fetch(`${API_PATH}/rooms`);
+            if (response.ok) {
+                const data = await response.json();
+                setRooms(data);
+            }
+        } catch (error) {
+            console.error('Error fetching rooms:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchRooms();
+    }, []);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchRooms();
+    };
+
+    const renderItem = ({ item }: any) => {
+        const emoji = EMOJI_MAP[item.imageUrl] || EMOJI_MAP['general'];
+
+        return (
+            <TouchableOpacity
+                style={[styles.chatItem, { borderBottomColor: theme.borderColor }]}
+                onPress={() => {
+                    navigation.navigate('RoomChat', { roomId: item.ID, roomName: item.name });
+                }}
+                onLongPress={() => {
+                    setSelectedRoomId(item.ID);
+                    setSelectedRoomImageUrl(item.imageUrl || 'general');
+                    // Show menu with options
+                    Alert.alert(
+                        item.name,
+                        t('chat.chooseAction'),
+                        [
+                            {
+                                text: t('chat.editRoomImage'),
+                                onPress: () => setEditImageVisible(true),
+                            },
+                            {
+                                text: t('chat.inviteFriends'),
+                                onPress: () => setInviteVisible(true),
+                            },
+                            {
+                                text: t('common.cancel'),
+                                style: 'cancel',
+                            },
+                        ]
+                    );
+                }}
+            >
+                <View style={[styles.chatIcon, { backgroundColor: theme.accent }]}>
+                    <Text style={{ fontSize: 20 }}>{emoji}</Text>
                 </View>
-                <Text style={[styles.lastMsg, { color: theme.subText }]} numberOfLines={1}>
-                    {item.lastMsg}
-                </Text>
+                <View style={styles.chatInfo}>
+                    <View style={styles.chatHeaderRow}>
+                        <Text style={[styles.chatName, { color: theme.text }]}>{item.name}</Text>
+                        <Text style={[styles.chatTime, { color: theme.subText }]}>
+                            {new Date(item.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                    </View>
+                    <Text style={[styles.lastMsg, { color: theme.subText }]} numberOfLines={1}>
+                        {item.description || t('chat.noDescription')}
+                    </Text>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
+    if (loading && !refreshing) {
+        return (
+            <View style={[styles.container, styles.center]}>
+                <ActivityIndicator size="large" color={theme.accent} />
             </View>
-        </TouchableOpacity>
-    );
+        );
+    }
 
     return (
         <View style={styles.container}>
             <FlatList
-                data={MOCK_CHATS}
-                keyExtractor={item => item.id}
+                data={rooms}
+                keyExtractor={item => item.ID.toString()}
                 renderItem={renderItem}
                 contentContainerStyle={styles.list}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.accent]} />
+                }
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Text style={{ color: theme.subText }}>{t('chat.noRooms')}</Text>
+                    </View>
+                }
             />
+            {/* Create Room Button (FAB) */}
+            <TouchableOpacity
+                style={[styles.fab, { backgroundColor: theme.accent }]}
+                onPress={() => setModalVisible(true)}
+            >
+                <Text style={styles.fabText}>+</Text>
+            </TouchableOpacity>
+
+            <CreateRoomModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                onRoomCreated={fetchRooms}
+            />
+
+            {selectedRoomId && (
+                <>
+                    <InviteFriendModal
+                        visible={inviteVisible}
+                        onClose={() => setInviteVisible(false)}
+                        roomId={selectedRoomId}
+                    />
+                    <EditRoomImageModal
+                        visible={editImageVisible}
+                        onClose={() => setEditImageVisible(false)}
+                        roomId={selectedRoomId}
+                        currentImageUrl={selectedRoomImageUrl}
+                        onImageUpdated={fetchRooms}
+                    />
+                </>
+            )}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
+    center: { justifyContent: 'center', alignItems: 'center' },
     list: { paddingVertical: 8 },
     chatItem: {
         flexDirection: 'row',
@@ -78,5 +210,29 @@ const styles = StyleSheet.create({
     lastMsg: {
         fontSize: 14,
         marginTop: 2,
+    },
+    emptyContainer: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    fab: {
+        position: 'absolute',
+        right: 20,
+        bottom: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    fabText: {
+        color: '#fff',
+        fontSize: 30,
+        fontWeight: 'bold',
     }
 });

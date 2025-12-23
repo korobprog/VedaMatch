@@ -30,6 +30,7 @@ func main() {
 	// Handlers
 	authHandler := handlers.NewAuthHandler()
 	messageHandler := handlers.NewMessageHandler()
+	roomHandler := handlers.NewRoomHandler()
 
 	// Routes
 	api := app.Group("/api")
@@ -48,6 +49,17 @@ func main() {
 	log.Println("Registering /api/messages routes...")
 	api.Post("/messages", messageHandler.SendMessage)
 	api.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
+
+	// Room Routes
+	api.Post("/rooms", roomHandler.CreateRoom)
+	api.Get("/rooms", roomHandler.GetRooms)
+	api.Post("/rooms/invite", roomHandler.InviteUser)
+	api.Post("/rooms/remove", roomHandler.RemoveUser)
+	api.Post("/rooms/role", roomHandler.UpdateMemberRole)
+	api.Get("/rooms/:id/members", roomHandler.GetRoomMembers)
+	api.Put("/rooms/:id", roomHandler.UpdateRoom)
+	api.Post("/rooms/:id/image", roomHandler.UpdateRoomImage)
+
 	log.Println("Routes registered.")
 
 	// Static files for avatars

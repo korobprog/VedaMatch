@@ -1,0 +1,24 @@
+2025/12/23 15:31:46 Connected to Database
+2025/12/23 15:31:46 Database Migrated
+2025/12/23 15:31:46 Registering /api/messages routes...
+2025/12/23 15:31:46 Routes registered.
+2025/12/23 15:31:46 Server starting on port :8081
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                   Fiber v2.52.0                   │ 
+ │               http://127.0.0.1:8081               │ 
+ │       (bound on host 0.0.0.0 and port 8081)       │ 
+ │                                                   │ 
+ │ Handlers ............ 24  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............ 104242 │ 
+ └───────────────────────────────────────────────────┘ 
+
+15:32:06 | 200 |   13.405629ms | 127.0.0.1 | POST | /api/heartbeat/4 | -
+
+2025/12/23 15:32:13 [31;1m/home/maxim/Documents/Rag-agent/server/internal/handlers/auth_handler.go:89 [35;1mrecord not found
+[0m[33m[2.103ms] [34;1m[rows:0][0m SELECT * FROM "users" WHERE email = 'test_dev_yogi@example.com' AND "users"."deleted_at" IS NULL ORDER BY "users"."id" LIMIT 1
+2025/12/23 15:32:13 [AUTH] Login failed: user not found (test_dev_yogi@example.com)
+15:32:13 | 401 |    2.264496ms | 127.0.0.1 | POST | /api/login | -
+15:32:13 | 201 |   86.125214ms | 127.0.0.1 | POST | /api/register | -
+15:32:13 | 200 |   75.156069ms | 127.0.0.1 | POST | /api/login | -
+15:32:13 | 200 |   29.838351ms | 127.0.0.1 | POST | /api/heartbeat/5 | -

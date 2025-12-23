@@ -26,7 +26,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_PATH } from '../config/api.config';
+import { API_PATH, APP_ENV } from '../config/api.config';
 
 const { width, height } = Dimensions.get('window');
 
@@ -108,6 +108,69 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         }
     };
 
+    const handleDevLogin = async () => {
+        const devEmail = 'test_dev_yogi@example.com';
+        const devPassword = 'password';
+        const devProfile = {
+            email: devEmail,
+            password: devPassword,
+            karmicName: 'Dev Yogi',
+            spiritualName: 'Dasa dasa',
+            gender: 'Male',
+            country: 'India',
+            city: 'Vrindavan',
+            identity: 'Devotee',
+            diet: 'Vegetarian',
+            madh: 'Gaudiya',
+            mentor: 'Srila Prabhupada',
+            dob: '1970-01-01',
+            isProfileComplete: true,
+        };
+
+        setLoading(true);
+        try {
+            console.log('Dev Login: Attempting login...');
+            const loginRes = await axios.post(`${API_PATH}/login`, {
+                email: devEmail,
+                password: devPassword,
+            });
+
+            let { user } = loginRes.data;
+
+            // If user exists but profile is not complete, update it automatically
+            if (!user.isProfileComplete) {
+                console.log('Dev Login: Profile incomplete, auto-completing...');
+                const updateRes = await axios.put(`${API_PATH}/update-profile/${user.ID}`, {
+                    ...devProfile
+                });
+                user = updateRes.data.user;
+            }
+
+            await login(user);
+            navigation.replace('Portal', {});
+
+        } catch (error: any) {
+            console.log('Dev Login: Login failed, attempting registration...');
+            try {
+                await axios.post(`${API_PATH}/register`, devProfile);
+
+                const retryLoginRes = await axios.post(`${API_PATH}/login`, {
+                    email: devEmail,
+                    password: devPassword,
+                });
+                const { user } = retryLoginRes.data;
+                await login(user);
+                navigation.replace('Portal', {});
+            } catch (regError: any) {
+                console.error('Dev Login Error:', regError.response?.data || regError.message);
+                const errorMsg = regError.response?.data?.error || regError.message;
+                Alert.alert('Dev Error', `Failed: ${errorMsg}`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {/* Background Layers */}
@@ -163,6 +226,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                             <Text style={styles.loginButtonText}>Login</Text>
                         )}
                     </TouchableOpacity>
+
+                    {APP_ENV !== 'production' && (
+                        <TouchableOpacity
+                            style={[styles.loginButton, { backgroundColor: '#4CAF50', marginTop: 10 }]}
+                            onPress={handleDevLogin}
+                            disabled={loading}
+                        >
+                            <Text style={styles.loginButtonText}>{t('auth.devLogin')}</Text>
+                        </TouchableOpacity>
+                    )}
 
                     <TouchableOpacity
                         style={styles.registerLink}

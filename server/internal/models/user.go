@@ -9,7 +9,7 @@ type User struct {
 	KarmicName        string `json:"karmicName"`
 	SpiritualName     string `json:"spiritualName"`
 	Email             string `json:"email" gorm:"unique"`
-	Password          string `json:"-"`
+	Password          string `json:"password"`
 	Gender            string `json:"gender"`
 	Country           string `json:"country"`
 	City              string `json:"city"`
