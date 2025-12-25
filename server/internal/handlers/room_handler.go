@@ -226,23 +226,56 @@ func (h *RoomHandler) UpdateRoomImage(c *fiber.Ctx) error {
 func (h *RoomHandler) UpdateRoom(c *fiber.Ctx) error {
 	roomID := c.Params("id")
 
-	var body struct {
-		ImageUrl string `json:"imageUrl"`
-	}
-	if err := c.BodyParser(&body); err != nil {
+	var updates map[string]interface{}
+	if err := c.BodyParser(&updates); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
 		})
 	}
 
 	// Update room in database
-	if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Update("image_url", body.ImageUrl).Error; err != nil {
+	if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Updates(updates).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not update room",
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"imageUrl": body.ImageUrl,
-	})
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func (h *RoomHandler) UpdateRoomSettings(c *fiber.Ctx) error {
+	roomID := c.Params("id")
+
+	var body struct {
+		IsPublic  *bool `json:"isPublic"`
+		AiEnabled *bool `json:"aiEnabled"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	updates := make(map[string]interface{})
+	if body.IsPublic != nil {
+		updates["is_public"] = *body.IsPublic
+	}
+	if body.AiEnabled != nil {
+		updates["ai_enabled"] = *body.AiEnabled
+	}
+
+	if len(updates) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "No settings to update",
+		})
+	}
+
+	if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Updates(updates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not update room settings",
+		})
+	}
+
+	return c.SendStatus(fiber.StatusOK)
 }

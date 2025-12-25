@@ -1,0 +1,52 @@
+import React, { createContext, useContext, useEffect, useRef } from 'react';
+import { useUser } from './UserContext';
+import { WebSocketService } from '../services/websocketService';
+
+interface WebSocketContextType {
+    addListener: (listener: (msg: any) => void) => () => void;
+}
+
+const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
+
+export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user } = useUser();
+    const wsServiceRef = useRef<WebSocketService | null>(null);
+    const listenersRef = useRef<Set<(msg: any) => void>>(new Set());
+
+    useEffect(() => {
+        if (user?.ID) {
+            wsServiceRef.current = new WebSocketService(user.ID, (msg) => {
+                listenersRef.current.forEach(listener => listener(msg));
+            });
+            wsServiceRef.current.connect();
+        }
+
+        return () => {
+            if (wsServiceRef.current) {
+                wsServiceRef.current.disconnect();
+                wsServiceRef.current = null;
+            }
+        };
+    }, [user?.ID]);
+
+    const addListener = (listener: (msg: any) => void) => {
+        listenersRef.current.add(listener);
+        return () => {
+            listenersRef.current.delete(listener);
+        };
+    };
+
+    return (
+        <WebSocketContext.Provider value={{ addListener }}>
+            {children}
+        </WebSocketContext.Provider>
+    );
+};
+
+export const useWebSocket = () => {
+    const context = useContext(WebSocketContext);
+    if (!context) {
+        throw new Error('useWebSocket must be used within a WebSocketProvider');
+    }
+    return context;
+};

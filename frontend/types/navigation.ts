@@ -7,4 +7,7 @@ export type RootStackParamList = {
     ContactProfile: { userId: number };
     AppSettings: undefined;
     RoomChat: { roomId: number, roomName: string };
+    MediaLibrary: { userId: number };
+    EditDatingProfile: { userId: number };
+    DatingFavorites: undefined;
 };

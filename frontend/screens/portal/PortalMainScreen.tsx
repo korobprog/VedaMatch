@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    SafeAreaView,
     useColorScheme,
     Animated,
     Dimensions,
@@ -74,20 +73,22 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
             {/* Header with Back button */}
-            <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
-                <StatusBar
-                    translucent
-                    backgroundColor="transparent"
-                    barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-                />
-                <TouchableOpacity
-                    onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.replace('Chat')}
-                    style={styles.backButton}
-                >
-                    <Text style={[styles.backText, { color: theme.text }]}>← {t('chat.history')}</Text>
-                </TouchableOpacity>
+            <View style={{
+                backgroundColor: theme.header,
+                borderBottomColor: theme.borderColor,
+                borderBottomWidth: 1,
+                height: 50,
+            }}>
+                <View style={styles.headerContent}>
+                    <TouchableOpacity
+                        onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.replace('Chat')}
+                        style={styles.backButton}
+                    >
+                        <Text style={[styles.backText, { color: theme.text }]}>← {t('chat.history')}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Horizontal Menu Tabs - Static layout */}
@@ -154,7 +155,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             <View style={styles.content}>
                 {renderContent()}
             </View>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -162,13 +163,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        height: Platform.OS === 'android' ? 60 + (StatusBar.currentHeight || 0) : 80,
+    headerContent: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 20,
     },
     backButton: {
         flexDirection: 'row',

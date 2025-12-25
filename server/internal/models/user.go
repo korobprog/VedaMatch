@@ -18,10 +18,21 @@ type User struct {
 	Madh              string `json:"madh"`
 	Mentor            string `json:"mentor"`
 	Dob               string `json:"dob"`
+	Bio               string `json:"bio"`
+	Interests         string `json:"interests"`
+	LookingFor        string `json:"lookingFor"`
+	MaritalStatus     string `json:"maritalStatus"`
+	BirthTime         string `json:"birthTime"`
+	BirthPlaceLink    string `json:"birthPlaceLink"`
+	DatingEnabled     bool   `json:"datingEnabled" gorm:"default:false"`
 	IsProfileComplete bool   `json:"isProfileComplete" gorm:"default:false"`
 	CurrentPlan       string `json:"currentPlan" gorm:"default:'trial'"`
 	Region            string `json:"region" gorm:"default:'global'"`
 	RagFileID         string `json:"ragFileId"`
 	AvatarURL         string `json:"avatarUrl"`
 	LastSeen          string `json:"lastSeen"` // Using string for ISO format or time.Time
+	Role              string `json:"role" gorm:"default:'user'"`
+	IsBlocked         bool   `json:"isBlocked" gorm:"default:false"`
+	IsFlagged         bool   `json:"isFlagged" gorm:"default:false"`
+	FlagReason        string `json:"flagReason"`
 }

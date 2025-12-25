@@ -52,6 +52,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	// 1. Save to Database
 	result := database.DB.Create(&user)
 	if result.Error != nil {
+		log.Printf("[AUTH] Registration failed: %v", result.Error)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not create user",
 		})

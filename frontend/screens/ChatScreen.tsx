@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
-    SafeAreaView,
+    View,
     StatusBar,
     StyleSheet,
     useColorScheme,
     Alert,
+    Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -57,13 +58,9 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
         );
     };
 
-    return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar
-                barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-                backgroundColor={theme.header}
-            />
 
+    return (
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
             <ChatHeader
                 title="Vedic AI"
                 onSettingsPress={() => setIsSettingsOpen(true)}
@@ -115,7 +112,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                     navigation.navigate('Registration', { isDarkMode });
                 }}
             />
-        </SafeAreaView >
+        </View>
     );
 };
 

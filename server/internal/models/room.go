@@ -10,6 +10,7 @@ type Room struct {
 	Description string `json:"description"`
 	OwnerID     uint   `json:"ownerId"`
 	IsPublic    bool   `json:"isPublic" gorm:"default:true"`
+	AiEnabled   bool   `json:"aiEnabled" gorm:"default:false"`
 	ImageURL    string `json:"imageUrl"`
 }
 

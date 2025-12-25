@@ -1,0 +1,1360 @@
+(globalThis.TURBOPACK || (globalThis.TURBOPACK = [])).push([typeof document === "object" ? document.currentScript : undefined,
+"[project]/admin/src/components/landing/HeroSection.tsx [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "HeroSection",
+    ()=>HeroSection
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/jsx-dev-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/compiler-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/framer-motion@12.23.26_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/framer-motion/dist/es/render/components/motion/proxy.mjs [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$image$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/image.js [app-client] (ecmascript)");
+'use client';
+;
+;
+;
+;
+// Portrait cards data with positioning for the arc/curve effect
+const portraitCards = [
+    {
+        src: '/vaishnava_group.png',
+        rotate: -15,
+        x: -420,
+        y: 60,
+        scale: 0.7,
+        z: 1
+    },
+    {
+        src: '/krishnaAssistant.png',
+        rotate: -10,
+        x: -280,
+        y: 30,
+        scale: 0.85,
+        z: 2
+    },
+    {
+        src: '/krishna_bg.png',
+        rotate: -5,
+        x: -140,
+        y: 10,
+        scale: 0.95,
+        z: 3
+    },
+    {
+        src: '/vaishnava_portrait.png',
+        rotate: 0,
+        x: 0,
+        y: 0,
+        scale: 1,
+        z: 4
+    },
+    // Center
+    {
+        src: '/vaishnava_group.png',
+        rotate: 5,
+        x: 140,
+        y: 10,
+        scale: 0.95,
+        z: 3
+    },
+    {
+        src: '/krishnaAssistant.png',
+        rotate: 10,
+        x: 280,
+        y: 30,
+        scale: 0.85,
+        z: 2
+    },
+    {
+        src: '/vaishnava_portrait.png',
+        rotate: 15,
+        x: 420,
+        y: 60,
+        scale: 0.7,
+        z: 1
+    }
+];
+// Features section data
+const features = [
+    {
+        title: 'Духовное Общение',
+        description: 'Общайтесь с единомышленниками, делитесь опытом и получайте поддержку в практике.'
+    },
+    {
+        title: 'ИИ Помощник',
+        description: 'Получайте ответы на вопросы о философии, практике и священных писаниях.'
+    },
+    {
+        title: 'База Знаний',
+        description: 'Доступ к огромной библиотеке ведических текстов, лекций и материалов.'
+    }
+];
+function HeroSection() {
+    const $ = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["c"])(18);
+    if ($[0] !== "cf55681dac0ab505b5fb39e705d2b14b661081bdfe6909bfc057db234720276c") {
+        for(let $i = 0; $i < 18; $i += 1){
+            $[$i] = Symbol.for("react.memo_cache_sentinel");
+        }
+        $[0] = "cf55681dac0ab505b5fb39e705d2b14b661081bdfe6909bfc057db234720276c";
+    }
+    let t0;
+    if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+        t0 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "absolute inset-0 bg-gradient-to-b from-[#fffbeb] via-[#faf9f6] to-[#f5f0e8] z-0 pointer-events-none"
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 83,
+            columnNumber: 10
+        }, this);
+        $[1] = t0;
+    } else {
+        t0 = $[1];
+    }
+    let t1;
+    let t2;
+    let t3;
+    if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+        t1 = {
+            opacity: 0,
+            y: 20
+        };
+        t2 = {
+            opacity: 1,
+            y: 0
+        };
+        t3 = {
+            duration: 0.8,
+            ease: "easeOut"
+        };
+        $[2] = t1;
+        $[3] = t2;
+        $[4] = t3;
+    } else {
+        t1 = $[2];
+        t2 = $[3];
+        t3 = $[4];
+    }
+    let t4;
+    if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+        t4 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["motion"].h1, {
+            initial: t1,
+            animate: t2,
+            transition: t3,
+            className: "text-5xl md:text-7xl font-serif text-[#2c1810] mb-6 tracking-tight",
+            children: [
+                "Духовные Технологии,",
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("br", {}, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 114,
+                    columnNumber: 162
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                    className: "font-bold",
+                    children: "Ведическая Мудрость"
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 114,
+                    columnNumber: 168
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 114,
+            columnNumber: 10
+        }, this);
+        $[5] = t4;
+    } else {
+        t4 = $[5];
+    }
+    let t5;
+    if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+        t5 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["motion"].p, {
+            initial: {
+                opacity: 0,
+                y: 20
+            },
+            animate: {
+                opacity: 1,
+                y: 0
+            },
+            transition: {
+                duration: 0.8,
+                delay: 0.2,
+                ease: "easeOut"
+            },
+            className: "text-xl text-[#5c4d47] mb-10 max-w-2xl mx-auto leading-relaxed",
+            children: "Единая платформа для управления знаниями, общения и служения — быстрее и эффективнее."
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 121,
+            columnNumber: 10
+        }, this);
+        $[6] = t5;
+    } else {
+        t5 = $[6];
+    }
+    let t6;
+    let t7;
+    let t8;
+    if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
+        t6 = {
+            opacity: 0,
+            y: 20
+        };
+        t7 = {
+            opacity: 1,
+            y: 0
+        };
+        t8 = {
+            duration: 0.8,
+            delay: 0.4,
+            ease: "easeOut"
+        };
+        $[7] = t6;
+        $[8] = t7;
+        $[9] = t8;
+    } else {
+        t6 = $[7];
+        t7 = $[8];
+        t8 = $[9];
+    }
+    let t9;
+    if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+        t9 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "w-7 h-7 flex items-center justify-center text-white fill-current",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+                viewBox: "0 0 384 512",
+                className: "w-5 h-5 fill-current",
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                    d: "M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 52.3-11.4 69.5-34.3z"
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 163,
+                    columnNumber: 152
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                lineNumber: 163,
+                columnNumber: 92
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 163,
+            columnNumber: 10
+        }, this);
+        $[10] = t9;
+    } else {
+        t9 = $[10];
+    }
+    let t10;
+    if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+        t10 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+            className: "flex items-center gap-3 bg-[#1e1e1e] text-white px-5 py-2.5 rounded-full hover:bg-[#2c2c2c] transition-all hover:scale-105 active:scale-95 border border-white/10 shadow-lg group",
+            children: [
+                t9,
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "text-left",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "text-[9px] opacity-70 leading-tight",
+                            children: "Download on the"
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                            lineNumber: 170,
+                            columnNumber: 240
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "text-sm font-semibold leading-tight",
+                            children: "App Store"
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                            lineNumber: 170,
+                            columnNumber: 314
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 170,
+                    columnNumber: 213
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 170,
+            columnNumber: 11
+        }, this);
+        $[11] = t10;
+    } else {
+        t10 = $[11];
+    }
+    let t11;
+    if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
+        t11 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "w-7 h-7 flex items-center justify-center",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+                viewBox: "0 0 24 24",
+                className: "w-6 h-6",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                        fill: "#EA4335",
+                        d: "M3.61 1.46c-.3.3-.46.75-.46 1.32v18.44c0 .57.17 1.02.47 1.32l.07.07 10.33-10.33v-.24L3.68 1.39l-.07.07z"
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                        lineNumber: 177,
+                        columnNumber: 114
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                        fill: "#FBBC04",
+                        d: "M17.46 15.72l-3.44-3.44v-.24l3.44-3.44.08.04 4.08 2.32c1.16.66 1.16 1.74 0 2.4l-4.08 2.32-.08.04z"
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                        lineNumber: 177,
+                        columnNumber: 245
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                        fill: "#4285F4",
+                        d: "M17.54 15.68L14.02 12.16 3.61 22.54c.39.41.98.45 1.74.03l12.19-6.89"
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                        lineNumber: 177,
+                        columnNumber: 370
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                        fill: "#34A853",
+                        d: "M17.54 8.64L5.35 1.75c-.76-.42-1.35-.38-1.74.03l10.41 10.38 3.52-3.52z"
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                        lineNumber: 177,
+                        columnNumber: 465
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                lineNumber: 177,
+                columnNumber: 69
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 177,
+            columnNumber: 11
+        }, this);
+        $[12] = t11;
+    } else {
+        t11 = $[12];
+    }
+    let t12;
+    if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
+        t12 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+            className: "flex items-center gap-3 bg-[#1e1e1e] text-white px-5 py-2.5 rounded-full hover:bg-[#2c2c2c] transition-all hover:scale-105 active:scale-95 border border-white/10 shadow-lg group",
+            children: [
+                t11,
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "text-left",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "text-[9px] opacity-70 leading-tight",
+                            children: "GET IT ON"
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                            lineNumber: 184,
+                            columnNumber: 241
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "text-sm font-semibold leading-tight",
+                            children: "Google Play"
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                            lineNumber: 184,
+                            columnNumber: 309
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 184,
+                    columnNumber: 214
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 184,
+            columnNumber: 11
+        }, this);
+        $[13] = t12;
+    } else {
+        t12 = $[13];
+    }
+    let t13;
+    if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
+        t13 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "w-7 h-7 flex items-center justify-center bg-white rounded-md",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "text-black font-extrabold text-base leading-none",
+                children: "R"
+            }, void 0, false, {
+                fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                lineNumber: 191,
+                columnNumber: 89
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 191,
+            columnNumber: 11
+        }, this);
+        $[14] = t13;
+    } else {
+        t13 = $[14];
+    }
+    let t14;
+    if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+        t14 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "z-10 container mx-auto px-4 text-center max-w-4xl mb-12",
+            children: [
+                t4,
+                t5,
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["motion"].div, {
+                    initial: t6,
+                    animate: t7,
+                    transition: t8,
+                    className: "flex flex-wrap items-center justify-center gap-4",
+                    children: [
+                        t10,
+                        t12,
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            className: "flex items-center gap-3 bg-[#1e1e1e] text-white px-5 py-2.5 rounded-full hover:bg-[#2c2c2c] transition-all hover:scale-105 active:scale-95 border border-white/10 shadow-lg group",
+                            children: [
+                                t13,
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "text-left",
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "text-[9px] opacity-70 leading-tight",
+                                            children: "Скачать в"
+                                        }, void 0, false, {
+                                            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                                            lineNumber: 198,
+                                            columnNumber: 447
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "text-sm font-semibold leading-tight",
+                                            children: "RuStore"
+                                        }, void 0, false, {
+                                            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                                            lineNumber: 198,
+                                            columnNumber: 515
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                                    lineNumber: 198,
+                                    columnNumber: 420
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                            lineNumber: 198,
+                            columnNumber: 217
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 198,
+                    columnNumber: 92
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 198,
+            columnNumber: 11
+        }, this);
+        $[15] = t14;
+    } else {
+        t14 = $[15];
+    }
+    let t15;
+    if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
+        t15 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "relative w-full h-[400px] md:h-[500px] mt-8 overflow-visible",
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "absolute inset-0 flex items-center justify-center",
+                    children: portraitCards.map(_HeroSectionPortraitCardsMap)
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 205,
+                    columnNumber: 89
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#faf9f6] to-transparent z-10 pointer-events-none"
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 205,
+                    columnNumber: 211
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 205,
+            columnNumber: 11
+        }, this);
+        $[16] = t15;
+    } else {
+        t15 = $[16];
+    }
+    let t16;
+    if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
+        t16 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("section", {
+            className: "relative min-h-screen flex flex-col items-center overflow-hidden bg-[#faf9f6] pt-24 pb-20",
+            children: [
+                t0,
+                t14,
+                t15,
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "container mx-auto px-4 mt-16 z-10",
+                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "grid md:grid-cols-3 gap-8 max-w-5xl mx-auto",
+                        children: features.map(_HeroSectionFeaturesMap)
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                        lineNumber: 212,
+                        columnNumber: 187
+                    }, this)
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                    lineNumber: 212,
+                    columnNumber: 136
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 212,
+            columnNumber: 11
+        }, this);
+        $[17] = t16;
+    } else {
+        t16 = $[17];
+    }
+    return t16;
+}
+_c = HeroSection;
+function _HeroSectionFeaturesMap(feature, idx_0) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["motion"].div, {
+        initial: {
+            opacity: 0,
+            y: 30
+        },
+        animate: {
+            opacity: 1,
+            y: 0
+        },
+        transition: {
+            duration: 0.6,
+            delay: 0.8 + idx_0 * 0.15
+        },
+        className: "text-center p-6",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                className: "text-xl font-bold text-[#2c1810] mb-3",
+                children: feature.title
+            }, void 0, false, {
+                fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                lineNumber: 229,
+                columnNumber: 34
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                className: "text-[#5c4d47] leading-relaxed text-sm",
+                children: feature.description
+            }, void 0, false, {
+                fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+                lineNumber: 229,
+                columnNumber: 108
+            }, this)
+        ]
+    }, idx_0, true, {
+        fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+        lineNumber: 220,
+        columnNumber: 10
+    }, this);
+}
+function _HeroSectionPortraitCardsMap(card, idx) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["motion"].div, {
+        initial: {
+            opacity: 0,
+            y: 100,
+            scale: 0.8
+        },
+        animate: {
+            opacity: 1,
+            y: card.y,
+            x: card.x,
+            scale: card.scale,
+            rotate: card.rotate
+        },
+        transition: {
+            duration: 0.8,
+            delay: 0.3 + idx * 0.1,
+            type: "spring",
+            stiffness: 100
+        },
+        style: {
+            zIndex: card.z
+        },
+        className: "absolute w-[140px] h-[200px] md:w-[180px] md:h-[260px] rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-[#e8e0d5]",
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$image$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
+            src: card.src,
+            alt: `Portrait ${idx + 1}`,
+            fill: true,
+            className: "object-cover"
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+            lineNumber: 249,
+            columnNumber: 146
+        }, this)
+    }, idx, false, {
+        fileName: "[project]/admin/src/components/landing/HeroSection.tsx",
+        lineNumber: 232,
+        columnNumber: 10
+    }, this);
+}
+var _c;
+__turbopack_context__.k.register(_c, "HeroSection");
+if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {
+    __turbopack_context__.k.registerExports(__turbopack_context__.m, globalThis.$RefreshHelpers$);
+}
+}),
+"[project]/admin/src/components/landing/ScrollSection.tsx [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "ScrollSection",
+    ()=>ScrollSection
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/jsx-dev-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/compiler-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/framer-motion@12.23.26_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/framer-motion/dist/es/render/components/motion/proxy.mjs [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$scroll$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/framer-motion@12.23.26_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/framer-motion/dist/es/value/use-scroll.mjs [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$transform$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/framer-motion@12.23.26_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/framer-motion/dist/es/value/use-transform.mjs [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$spring$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/framer-motion@12.23.26_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/framer-motion/dist/es/value/use-spring.mjs [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/index.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$image$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/image.js [app-client] (ecmascript)");
+;
+var _s = __turbopack_context__.k.signature();
+'use client';
+;
+;
+;
+;
+const galleryImages = [
+    // Top Left
+    {
+        src: '/vaishnava_group.png',
+        alt: 'Kirtan',
+        style: {
+            top: '5%',
+            left: '5%'
+        },
+        rotate: -6
+    },
+    // Top Right
+    {
+        src: '/krishna_bg.png',
+        alt: 'Temple',
+        style: {
+            top: '10%',
+            right: '5%'
+        },
+        rotate: 5
+    },
+    // Center Left
+    {
+        src: '/vaishnava_portrait.png',
+        alt: 'Study',
+        style: {
+            top: '40%',
+            left: '2%'
+        },
+        rotate: 3
+    },
+    // Center Right
+    {
+        src: '/krishnaAssistant.png',
+        alt: 'Meditation',
+        style: {
+            top: '45%',
+            right: '2%'
+        },
+        rotate: -4
+    },
+    // Bottom Left
+    {
+        src: '/vaishnava_group.png',
+        alt: 'Service',
+        style: {
+            bottom: '5%',
+            left: '10%'
+        },
+        rotate: -5
+    },
+    // Bottom Right
+    {
+        src: '/vaishnava_portrait.png',
+        alt: 'Devotion',
+        style: {
+            bottom: '10%',
+            right: '8%'
+        },
+        rotate: 6
+    }
+];
+function ScrollSection() {
+    _s();
+    const $ = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["c"])(15);
+    if ($[0] !== "924492b46c2437092c82ac1636c7d705b65e953be8e0a0c873047ff4855b4af7") {
+        for(let $i = 0; $i < 15; $i += 1){
+            $[$i] = Symbol.for("react.memo_cache_sentinel");
+        }
+        $[0] = "924492b46c2437092c82ac1636c7d705b65e953be8e0a0c873047ff4855b4af7";
+    }
+    const containerRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRef"])(null);
+    let t0;
+    if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+        t0 = {
+            target: containerRef,
+            offset: [
+                "start end",
+                "end start"
+            ]
+        };
+        $[1] = t0;
+    } else {
+        t0 = $[1];
+    }
+    const { scrollYProgress } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$scroll$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useScroll"])(t0);
+    let t1;
+    if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+        t1 = {
+            stiffness: 100,
+            damping: 30,
+            restDelta: 0.001
+        };
+        $[2] = t1;
+    } else {
+        t1 = $[2];
+    }
+    const springConfig = t1;
+    let t2;
+    let t3;
+    if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+        t2 = [
+            0,
+            1
+        ];
+        t3 = [
+            50,
+            -50
+        ];
+        $[3] = t2;
+        $[4] = t3;
+    } else {
+        t2 = $[3];
+        t3 = $[4];
+    }
+    const y = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$spring$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useSpring"])((0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$transform$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useTransform"])(scrollYProgress, t2, t3), springConfig);
+    let t4;
+    let t5;
+    if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+        t4 = [
+            0,
+            1
+        ];
+        t5 = [
+            -50,
+            50
+        ];
+        $[5] = t4;
+        $[6] = t5;
+    } else {
+        t4 = $[5];
+        t5 = $[6];
+    }
+    const yReverse = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$spring$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useSpring"])((0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$transform$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useTransform"])(scrollYProgress, t4, t5), springConfig);
+    let t6;
+    if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
+        t6 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+            lineNumber: 128,
+            columnNumber: 10
+        }, this);
+        $[7] = t6;
+    } else {
+        t6 = $[7];
+    }
+    let t7;
+    if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
+        t7 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "container mx-auto px-4 relative z-30 text-center pointer-events-none",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "bg-[#fffbeb]/80 backdrop-blur-md p-8 md:p-12 rounded-[2rem] inline-block shadow-sm pointer-events-auto border border-white/20",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["motion"].h2, {
+                        initial: {
+                            opacity: 0,
+                            scale: 0.9
+                        },
+                        whileInView: {
+                            opacity: 1,
+                            scale: 1
+                        },
+                        viewport: {
+                            once: true
+                        },
+                        className: "text-4xl md:text-5xl font-serif text-[#2c1810] mb-6",
+                        children: "Вдохновение в каждом моменте"
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+                        lineNumber: 135,
+                        columnNumber: 239
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "text-[#5c4d47] max-w-xl mx-auto text-lg leading-relaxed",
+                        children: "Погрузитесь в атмосферу преданности и служения. Наша платформа помогает сохранять и приумножать эти ценности."
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+                        lineNumber: 143,
+                        columnNumber: 116
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+                lineNumber: 135,
+                columnNumber: 96
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+            lineNumber: 135,
+            columnNumber: 10
+        }, this);
+        $[8] = t7;
+    } else {
+        t7 = $[8];
+    }
+    let t8;
+    if ($[9] !== y || $[10] !== yReverse) {
+        t8 = galleryImages.map({
+            "ScrollSection[galleryImages.map()]": (img, idx)=>{
+                const isEven = idx % 2 === 0;
+                const yMove = isEven ? y : yReverse;
+                return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["motion"].div, {
+                    style: {
+                        y: yMove,
+                        rotate: img.rotate,
+                        ...img.style
+                    },
+                    className: "absolute w-40 h-52 md:w-64 md:h-80 shadow-2xl rounded-lg overflow-hidden border-4 border-white hidden md:block",
+                    initial: {
+                        opacity: 0,
+                        scale: 0.8
+                    },
+                    whileInView: {
+                        opacity: 1,
+                        scale: 1
+                    },
+                    viewport: {
+                        once: true,
+                        margin: "-100px"
+                    },
+                    transition: {
+                        duration: 0.8,
+                        delay: idx * 0.1
+                    },
+                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$image$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
+                        src: img.src,
+                        alt: img.alt,
+                        fill: true,
+                        className: "object-cover hover:scale-110 transition-transform duration-700"
+                    }, void 0, false, {
+                        fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+                        lineNumber: 170,
+                        columnNumber: 12
+                    }, this)
+                }, idx, false, {
+                    fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+                    lineNumber: 154,
+                    columnNumber: 16
+                }, this);
+            }
+        }["ScrollSection[galleryImages.map()]"]);
+        $[9] = y;
+        $[10] = yReverse;
+        $[11] = t8;
+    } else {
+        t8 = $[11];
+    }
+    let t9;
+    if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
+        t9 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "md:hidden grid grid-cols-2 gap-4 px-4 w-full",
+            children: galleryImages.slice(0, 4).map(_ScrollSectionAnonymous)
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+            lineNumber: 181,
+            columnNumber: 10
+        }, this);
+        $[12] = t9;
+    } else {
+        t9 = $[12];
+    }
+    let t10;
+    if ($[13] !== t8) {
+        t10 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("section", {
+            ref: containerRef,
+            className: "py-32 bg-[#fffbeb] overflow-hidden min-h-screen flex items-center justify-center relative",
+            children: [
+                t6,
+                t7,
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "absolute inset-0 pointer-events-none z-0",
+                    children: [
+                        t8,
+                        t9
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+                    lineNumber: 188,
+                    columnNumber: 149
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+            lineNumber: 188,
+            columnNumber: 11
+        }, this);
+        $[13] = t8;
+        $[14] = t10;
+    } else {
+        t10 = $[14];
+    }
+    return t10;
+}
+_s(ScrollSection, "Ymiy3WegusEH6IBZ/lp27TxPpFs=", false, function() {
+    return [
+        __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$scroll$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useScroll"],
+        __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$spring$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useSpring"],
+        __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$framer$2d$motion$40$12$2e$23$2e$26_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$value$2f$use$2d$spring$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useSpring"]
+    ];
+});
+_c = ScrollSection;
+function _ScrollSectionAnonymous(img_0, idx_0) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "aspect-[3/4] relative rounded-xl overflow-hidden shadow-lg border-2 border-white",
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$image$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
+            src: img_0.src,
+            alt: img_0.alt,
+            fill: true,
+            className: "object-cover"
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+            lineNumber: 197,
+            columnNumber: 120
+        }, this)
+    }, idx_0, false, {
+        fileName: "[project]/admin/src/components/landing/ScrollSection.tsx",
+        lineNumber: 197,
+        columnNumber: 10
+    }, this);
+}
+var _c;
+__turbopack_context__.k.register(_c, "ScrollSection");
+if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {
+    __turbopack_context__.k.registerExports(__turbopack_context__.m, globalThis.$RefreshHelpers$);
+}
+}),
+"[project]/admin/src/components/landing/LandingPage.tsx [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "default",
+    ()=>LandingPage
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/jsx-dev-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/compiler-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/client/app-dir/link.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$src$2f$components$2f$landing$2f$HeroSection$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/src/components/landing/HeroSection.tsx [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$src$2f$components$2f$landing$2f$ScrollSection$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/src/components/landing/ScrollSection.tsx [app-client] (ecmascript)");
+'use client';
+;
+;
+;
+;
+;
+function LandingPage() {
+    const $ = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["c"])(9);
+    if ($[0] !== "4546819c934009ff22b24fcbc6c57ec74d39aa85338051611dcc374181c0ae83") {
+        for(let $i = 0; $i < 9; $i += 1){
+            $[$i] = Symbol.for("react.memo_cache_sentinel");
+        }
+        $[0] = "4546819c934009ff22b24fcbc6c57ec74d39aa85338051611dcc374181c0ae83";
+    }
+    let t0;
+    if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+        t0 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "flex items-center gap-2",
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "w-8 h-8 bg-gradient-to-tr from-orange-400 to-red-500 rounded-lg flex items-center justify-center text-white font-bold",
+                    children: "V"
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 17,
+                    columnNumber: 51
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                    className: "text-xl font-bold text-[#2c1810]",
+                    children: "Vedic AI"
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 17,
+                    columnNumber: 193
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 17,
+            columnNumber: 10
+        }, this);
+        $[1] = t0;
+    } else {
+        t0 = $[1];
+    }
+    let t1;
+    let t2;
+    if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+        t1 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
+            className: "fixed top-0 left-0 right-0 z-50 bg-[#faf9f6]/80 backdrop-blur-md border-b border-[#e7e5e4]",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "container mx-auto px-4 h-16 flex items-center justify-between",
+                children: [
+                    t0,
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "flex items-center gap-4",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
+                                href: "/login",
+                                className: "text-[#5c4d47] hover:text-[#2c1810] font-medium transition-colors",
+                                children: "Вход"
+                            }, void 0, false, {
+                                fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                lineNumber: 25,
+                                columnNumber: 242
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
+                                href: "/login",
+                                className: "bg-[#2c1810] text-[#faf9f6] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#4a2c20] transition-colors",
+                                children: "Админ Панель"
+                            }, void 0, false, {
+                                fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                lineNumber: 25,
+                                columnNumber: 351
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                        lineNumber: 25,
+                        columnNumber: 201
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                lineNumber: 25,
+                columnNumber: 118
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 25,
+            columnNumber: 10
+        }, this);
+        t2 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$src$2f$components$2f$landing$2f$HeroSection$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["HeroSection"], {}, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 26,
+                    columnNumber: 16
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$src$2f$components$2f$landing$2f$ScrollSection$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["ScrollSection"], {}, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 26,
+                    columnNumber: 31
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 26,
+            columnNumber: 10
+        }, this);
+        $[2] = t1;
+        $[3] = t2;
+    } else {
+        t1 = $[2];
+        t2 = $[3];
+    }
+    let t3;
+    let t4;
+    if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+        t3 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                    className: "text-xl font-bold mb-4",
+                    children: "Vedic AI"
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 36,
+                    columnNumber: 15
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                    className: "text-white/60",
+                    children: "Современные технологии на службе вечных ценностей."
+                }, void 0, false, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 36,
+                    columnNumber: 67
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 36,
+            columnNumber: 10
+        }, this);
+        t4 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h4", {
+            className: "font-bold mb-4",
+            children: "Разделы"
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 37,
+            columnNumber: 10
+        }, this);
+        $[4] = t3;
+        $[5] = t4;
+    } else {
+        t3 = $[4];
+        t4 = $[5];
+    }
+    let t5;
+    let t6;
+    if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+        t5 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            children: [
+                t4,
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("ul", {
+                    className: "space-y-2 text-white/60",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("li", {
+                            children: "Главная"
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                            lineNumber: 47,
+                            columnNumber: 59
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("li", {
+                            children: "О проекте"
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                            lineNumber: 47,
+                            columnNumber: 75
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("li", {
+                            children: "Контакты"
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                            lineNumber: 47,
+                            columnNumber: 93
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 47,
+                    columnNumber: 19
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 47,
+            columnNumber: 10
+        }, this);
+        t6 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h4", {
+            className: "font-bold mb-4",
+            children: "Ресурсы"
+        }, void 0, false, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 48,
+            columnNumber: 10
+        }, this);
+        $[6] = t5;
+        $[7] = t6;
+    } else {
+        t5 = $[6];
+        t6 = $[7];
+    }
+    let t7;
+    if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
+        t7 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "min-h-screen bg-[#faf9f6]",
+            children: [
+                t1,
+                t2,
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("footer", {
+                    className: "bg-[#2c1810] text-[#faf9f6] py-12",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "container mx-auto px-4 grid md:grid-cols-4 gap-8",
+                            children: [
+                                t3,
+                                t5,
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    children: [
+                                        t6,
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("ul", {
+                                            className: "space-y-2 text-white/60",
+                                            children: [
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("li", {
+                                                    children: "Документация"
+                                                }, void 0, false, {
+                                                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                                    lineNumber: 57,
+                                                    columnNumber: 238
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("li", {
+                                                    children: "Блог"
+                                                }, void 0, false, {
+                                                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                                    lineNumber: 57,
+                                                    columnNumber: 259
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("li", {
+                                                    children: "Сообщество"
+                                                }, void 0, false, {
+                                                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                                    lineNumber: 57,
+                                                    columnNumber: 272
+                                                }, this)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                            lineNumber: 57,
+                                            columnNumber: 198
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                    lineNumber: 57,
+                                    columnNumber: 189
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h4", {
+                                            className: "font-bold mb-4",
+                                            children: "Свяжитесь с нами"
+                                        }, void 0, false, {
+                                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                            lineNumber: 57,
+                                            columnNumber: 307
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                            className: "text-white/60",
+                                            children: "iskcon.dev@gmail.com"
+                                        }, void 0, false, {
+                                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                            lineNumber: 57,
+                                            columnNumber: 359
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                                    lineNumber: 57,
+                                    columnNumber: 302
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                            lineNumber: 57,
+                            columnNumber: 115
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "container mx-auto px-4 mt-12 pt-8 border-t border-white/10 text-center text-white/40 text-sm",
+                            children: "© 2025 Vedic AI Agent. All rights reserved. Hare Krishna."
+                        }, void 0, false, {
+                            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                            lineNumber: 57,
+                            columnNumber: 424
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+                    lineNumber: 57,
+                    columnNumber: 61
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/admin/src/components/landing/LandingPage.tsx",
+            lineNumber: 57,
+            columnNumber: 10
+        }, this);
+        $[8] = t7;
+    } else {
+        t7 = $[8];
+    }
+    return t7;
+}
+_c = LandingPage;
+var _c;
+__turbopack_context__.k.register(_c, "LandingPage");
+if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {
+    __turbopack_context__.k.registerExports(__turbopack_context__.m, globalThis.$RefreshHelpers$);
+}
+}),
+"[project]/admin/src/app/page.tsx [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "default",
+    ()=>HomePage
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/jsx-dev-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/node_modules/.pnpm/next@16.1.1-canary.5_babel-plugin-react-compiler@1.0.0_react-dom@19.0.0-rc.1_react@19.0.0-rc.1__react@19.0.0-rc.1/node_modules/next/dist/compiled/react/compiler-runtime.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$src$2f$components$2f$landing$2f$LandingPage$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/admin/src/components/landing/LandingPage.tsx [app-client] (ecmascript)");
+'use client';
+;
+;
+;
+function HomePage() {
+    const $ = (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$compiler$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["c"])(2);
+    if ($[0] !== "e67ae934495a8b165c2bed2c26f764204da83f9079cb65fb460030dba1cf21c8") {
+        for(let $i = 0; $i < 2; $i += 1){
+            $[$i] = Symbol.for("react.memo_cache_sentinel");
+        }
+        $[0] = "e67ae934495a8b165c2bed2c26f764204da83f9079cb65fb460030dba1cf21c8";
+    }
+    let t0;
+    if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+        t0 = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$1$2e$1$2d$canary$2e$5_babel$2d$plugin$2d$react$2d$compiler$40$1$2e$0$2e$0_react$2d$dom$40$19$2e$0$2e$0$2d$rc$2e$1_react$40$19$2e$0$2e$0$2d$rc$2e$1_$5f$react$40$19$2e$0$2e$0$2d$rc$2e$1$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$admin$2f$src$2f$components$2f$landing$2f$LandingPage$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
+            fileName: "[project]/admin/src/app/page.tsx",
+            lineNumber: 15,
+            columnNumber: 10
+        }, this);
+        $[1] = t0;
+    } else {
+        t0 = $[1];
+    }
+    return t0;
+}
+_c = HomePage;
+var _c;
+__turbopack_context__.k.register(_c, "HomePage");
+if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {
+    __turbopack_context__.k.registerExports(__turbopack_context__.m, globalThis.$RefreshHelpers$);
+}
+}),
+]);
+
+//# sourceMappingURL=admin_src_a9673932._.js.map

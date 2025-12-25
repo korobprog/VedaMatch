@@ -7,6 +7,8 @@ export default {
         loading: 'Loading...',
         save: 'Save',
         back: 'Back',
+        close: 'Close',
+        settings: 'Settings',
     },
     chat: {
         welcome: 'Namaste. I am your assistant 🙇‍♂️. How can I help you?',
@@ -69,6 +71,12 @@ export default {
             deity: 'Puja',
             peacock: 'Peacock',
         },
+        publicRoom: 'Public Room',
+        publicRoomDesc: 'Anyone can find and join',
+        aiAssistant: 'AI Assistant',
+        aiAssistantDesc: 'AI joins the conversation',
+        getSummary: 'Get Chat Summary',
+        summary: 'Chat Summary',
     },
     file: {
         shareMessage: 'Check out this image!',

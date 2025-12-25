@@ -1,26 +1,0 @@
-* Host localhost:8081 was resolved.
-* IPv6: ::1
-* IPv4: 127.0.0.1
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying [::1]:8081...
-* connect to ::1 port 8081 from ::1 port 54948 failed: В соединении отказано
-*   Trying 127.0.0.1:8081...
-* Connected to localhost (127.0.0.1) port 8081
-* using HTTP/1.x
-> GET /api/v1/models HTTP/1.1
-> Host: localhost:8081
-> User-Agent: curl/8.15.0
-> Accept: */*
-> 
-* Request completely sent off
-< HTTP/1.1 200 OK
-< Date: Thu, 18 Dec 2025 02:57:10 GMT
-< Content-Type: application/json
-< Content-Length: 73208
-< Vary: Origin
-< Access-Control-Allow-Origin: *
-< 
-{ [3939 bytes data]
-100 73208  100 73208    0     0   380k      0 --:--:-- --:--:-- --:--:--  382k
-* Connection #0 to host localhost left intact
