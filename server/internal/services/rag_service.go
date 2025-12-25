@@ -53,9 +53,17 @@ Email: %s
 Идентичность: %s
 Диета: %s
 Традиция (мадх): %s
-Наставник: %s`,
+Наставник: %s
+О себе: %s
+Интересы: %s
+Кого ищу: %s
+Семейное положение: %s
+Время рождения: %s
+Место рождения (линк): %s
+Знакомства включены: %v`,
 		user.KarmicName, user.SpiritualName, user.Email, user.Gender, user.Country,
-		user.City, user.Dob, user.Identity, user.Diet, user.Madh, user.Mentor)
+		user.City, user.Dob, user.Identity, user.Diet, user.Madh, user.Mentor,
+		user.Bio, user.Interests, user.LookingFor, user.MaritalStatus, user.BirthTime, user.BirthPlaceLink, user.DatingEnabled)
 
 	// 2. Upload to Google Gemini (Media Upload)
 	// Endpoint: POST https://generativelanguage.googleapis.com/upload/v1beta/files

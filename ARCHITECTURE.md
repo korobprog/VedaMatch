@@ -92,14 +92,22 @@ server/
 │   └── main.go              # Точка входа, роутинг
 ├── internal/
 │   ├── handlers/
-│   │   ├── auth_handler.go # Регистрация/логин
-│   │   └── chat.go         # Прокси для AI чата
+│   │   ├── auth_handler.go   # Регистрация/логин/друзья/блокировки
+│   │   ├── chat.go           # Прокси для AI чата
+│   │   ├── dating_handler.go # Поиск кандидатов, AI совместимость
+│   │   ├── media_handler.go  # Управление фото (загрузка, удаление)
+│   │   ├── room_handler.go   # Управление комнатами и участниками
+│   │   └── message_handler.go# Сообщения и саммари
 │   ├── models/
-│   │   └── user.go         # Модель пользователя
+│   │   ├── user.go           # Модель пользователя + Dating профиль
+│   │   ├── media.go          # Модель для фото пользователя
+│   │   ├── room.go           # Модель комнат
+│   │   └── message.go        # Модель сообщений
 │   ├── services/
-│   │   └── rag_service.go  # Интеграция с Google Gemini RAG
+│   │   ├── rag_service.go    # Интеграция с Google Gemini RAG
+│   │   └── ai_chat_service.go# Сервис для AI ответов и совместимости
 │   └── database/
-│       └── database.go     # Подключение к БД
+│       └── database.go       # Подключение к БД и миграции
 └── go.mod
 ```
 
@@ -122,18 +130,32 @@ server/
 ### Модель пользователя
 ```go
 type User struct {
-    KarmicName    string  // Кармическое имя
-    SpiritualName string  // Духовное имя
-    Email         string  // Email (уникальный)
-    Gender        string  // Пол
-    Country       string  // Страна
-    City          string  // Город
-    Identity      string  // Идентичность
-    Diet          string  // Диета
-    Madh          string  // Традиция (мадх)
-    Mentor        string  // Наставник
-    Dob           string  // Дата рождения
-    RagFileID     string  // ID файла в RAG системе
+    KarmicName     string  // Кармическое имя
+    SpiritualName  string  // Духовное имя
+    Email          string  // Email (уникальный)
+    Gender         string  // Пол
+    Country        string  // Страна
+    City           string  // Город
+    Identity       string  // Идентичность
+    Diet           string  // Диета
+    Madh           string  // Традиция (мадх)
+    Mentor         string  // Наставник
+    Dob            string  // Дата рождения
+    // Поля для знакомств (Dating)
+    Bio            string  // О себе
+    Interests      string  // Интересы
+    LookingFor     string  // Кого ищу
+    MaritalStatus  string  // Семейное положение
+    BirthTime      string  // Время рождения
+    BirthPlaceLink string  // Место рождения (ссылка или название)
+    DatingEnabled  bool    // Включен ли профиль знакомств
+    RagFileID      string  // ID файла в RAG системе
+}
+
+type Media struct {
+    UserID    uint
+    URL       string  // Путь к файлу
+    IsProfile bool    // Является ли фото основным аватаром
 }
 ```
 

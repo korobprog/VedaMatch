@@ -18,7 +18,9 @@ import { RootStackParamList } from '../../../types/navigation';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
+import { useWebSocket } from '../../../context/WebSocketContext';
 import { InviteFriendModal } from './InviteFriendModal';
+import { RoomSettingsModal } from './RoomSettingsModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
@@ -28,43 +30,102 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user } = useUser();
+    const { addListener } = useWebSocket();
 
     const [messages, setMessages] = useState<any[]>([]);
     const [inputText, setInputText] = useState('');
     const [loading, setLoading] = useState(true);
     const [inviteVisible, setInviteVisible] = useState(false);
+    const [settingsVisible, setSettingsVisible] = useState(false);
 
     const fetchMessages = async () => {
-        // TODO: Implement fetching messages for room
-        setLoading(false);
+        try {
+            const response = await fetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`);
+            if (response.ok) {
+                const data = await response.json();
+                const formattedMessages = data.map((m: any) => ({
+                    id: m.ID.toString(),
+                    content: m.content,
+                    sender: m.senderId === user?.ID ? (user?.karmicName || 'Me') : (m.senderId === 0 ? 'AI' : 'Other'),
+                    isMe: m.senderId === user?.ID,
+                    time: new Date(m.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                }));
+                setMessages(formattedMessages);
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
         fetchMessages();
+
+        const removeListener = addListener((msg: any) => {
+            // Check if message belongs to this room
+            if (msg.roomId === roomId) {
+                const formattedMsg = {
+                    id: msg.ID.toString(),
+                    content: msg.content,
+                    sender: msg.senderId === user?.ID ? (user?.karmicName || 'Me') : (msg.senderId === 0 ? 'AI' : 'Other'),
+                    isMe: msg.senderId === user?.ID,
+                    time: new Date(msg.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                };
+                setMessages(prev => {
+                    // Avoid duplicates (e.g. if we sent it and it came back via WS)
+                    if (prev.find(m => m.id === formattedMsg.id)) return prev;
+                    return [...prev, formattedMsg];
+                });
+            }
+        });
+
         navigation.setOptions({
             title: roomName,
             headerRight: () => (
-                <TouchableOpacity onPress={() => setInviteVisible(true)} style={{ marginRight: 10 }}>
-                    <Text style={{ fontSize: 24, color: theme.text }}>👤+</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => setInviteVisible(true)} style={{ marginRight: 15 }}>
+                        <Text style={{ fontSize: 24, color: theme.text }}>👤+</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setSettingsVisible(true)} style={{ marginRight: 10 }}>
+                        <Text style={{ fontSize: 24, color: theme.text }}>⋮</Text>
+                    </TouchableOpacity>
+                </View>
             )
         });
-    }, [navigation, roomName]);
 
-    const handleSendMessage = () => {
+        return () => removeListener();
+    }, [navigation, roomName, roomId, user?.ID]);
+
+    const handleSendMessage = async () => {
         if (!inputText.trim()) return;
 
         const newMessage = {
-            id: Date.now().toString(),
+            senderId: user?.ID,
+            roomId: roomId,
             content: inputText,
-            sender: user?.karmicName || 'Me',
-            isMe: true,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            type: 'text',
         };
 
-        setMessages((prev) => [...prev, newMessage]);
         setInputText('');
-        // TODO: Send to backend via WebSocket or API
+
+        try {
+            const response = await fetch(`${API_PATH}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newMessage),
+            });
+
+            if (response.ok) {
+                // No need to fetchMessages() here anymore, 
+                // the WS will send it back to us or we can rely on immediate local update if we want 
+                // but for now relying on WS is cleaner for "sync"
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+        }
     };
 
     const renderMessage = ({ item }: any) => (
@@ -120,6 +181,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 visible={inviteVisible}
                 onClose={() => setInviteVisible(false)}
                 roomId={roomId}
+            />
+
+            <RoomSettingsModal
+                visible={settingsVisible}
+                onClose={() => setSettingsVisible(false)}
+                roomId={roomId}
+                roomName={roomName}
             />
         </SafeAreaView>
     );

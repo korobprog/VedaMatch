@@ -2,7 +2,8 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAvailableModels } from '../services/openaiService';
 import { modelsConfig } from '../config/models.config';
-import { Alert } from 'react-native';
+import { Alert, useColorScheme } from 'react-native';
+import { COLORS } from '../components/chat/ChatConstants';
 
 interface Model {
     id: string;
@@ -26,6 +27,8 @@ interface SettingsContextType {
     setImagePosition: (position: 'left' | 'center' | 'right') => void;
     defaultMenuTab: 'portal' | 'history';
     setDefaultMenuTab: (tab: 'portal' | 'history') => void;
+    theme: typeof COLORS.dark;
+    isDarkMode: boolean;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -39,6 +42,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [imageSize, setImageSize] = useState<number>(280);
     const [imagePosition, setImagePosition] = useState<'left' | 'center' | 'right'>('left');
     const [defaultMenuTab, setDefaultMenuTabState] = useState<'portal' | 'history'>('portal');
+
+    const colorScheme = useColorScheme();
+    const isDarkMode = colorScheme === 'dark';
+    const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 
@@ -127,7 +134,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             setImageSize,
             setImagePosition,
             defaultMenuTab,
-            setDefaultMenuTab
+            setDefaultMenuTab,
+            theme,
+            isDarkMode,
         }}>
             {children}
         </SettingsContext.Provider>

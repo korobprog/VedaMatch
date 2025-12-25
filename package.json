@@ -10,7 +10,10 @@
     "frontend": "cd frontend && pnpm run start",
     "android": "cd frontend && pnpm run android",
     "server": "cd server && ./START.sh",
-    "dev": "concurrently \"pnpm run server\" \"pnpm run frontend\" \"pnpm run android\" --names \"SERVER,METRO,ANDROID\" --prefix-colors \"blue,magenta,green\" --kill-others-on-fail"
+    "admin": "cd admin && pnpm run dev",
+    "clean": "pkill -f 'go run' || true && pkill -f next || true && pkill -f emulator || true && rm -rf admin/.next admin/node_modules/.cache && fuser -k 3000/tcp 3005/tcp 8081/tcp 8082/tcp || true",
+    "dev": "concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run android\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\"",
+    "dev:web": "concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" --names \"SERVER,ADMIN,METRO\" --prefix-colors \"blue,yellow,magenta\""
   },
   "dependencies": {
     "expo-image-picker": "^17.0.10",
@@ -18,7 +21,8 @@
     "http-proxy-middleware": "^2.0.9"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "wait-on": "^9.0.3"
   },
   "keywords": [
     "proxy",

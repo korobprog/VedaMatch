@@ -1,9 +1,11 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SettingsProvider } from './context/SettingsContext';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ChatProvider } from './context/ChatContext';
 import { UserProvider } from './context/UserContext';
+import { WebSocketProvider } from './context/WebSocketContext';
 import { ChatScreen } from './screens/ChatScreen';
 import RegistrationScreen from './screens/RegistrationScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -15,40 +17,80 @@ import { KrishnaAssistant } from './components/KrishnaAssistant';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 
 import { RoomChatScreen } from './screens/portal/chat/RoomChatScreen';
+import { MediaLibraryScreen } from './screens/portal/dating/MediaLibraryScreen';
+import { EditDatingProfileScreen } from './screens/portal/dating/EditDatingProfileScreen';
+import { DatingFavoritesScreen } from './screens/portal/dating/DatingFavoritesScreen';
+
+import { StatusBar, useColorScheme } from 'react-native';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Component to handle StatusBar styling based on theme context
+const ThemedStatusBar = () => {
+  const { isDarkMode } = useSettings();
+
+  return (
+    <StatusBar
+      barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+      backgroundColor="transparent"
+      translucent={true}
+    />
+  );
+};
+
+// Component to handle the main app layout with theme and safe area
+const AppContent = () => {
+  const { theme } = useSettings();
+
+  return (
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.background }}
+      edges={['top']}
+    >
+      <NavigationContainer>
+        <ThemedStatusBar />
+        <Stack.Navigator
+          initialRouteName="Login"
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        >
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Chat" component={ChatScreen} />
+          <Stack.Screen name="Registration" component={RegistrationScreen} />
+          <Stack.Screen name="Plans" component={PlansScreen} />
+          <Stack.Screen name="Portal" component={PortalMainScreen} />
+          <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+          <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
+          <Stack.Screen
+            name="RoomChat"
+            component={RoomChatScreen}
+            options={{ headerShown: true }}
+          />
+          <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
+          <Stack.Screen name="EditDatingProfile" component={EditDatingProfileScreen} />
+          <Stack.Screen name="DatingFavorites" component={DatingFavoritesScreen} />
+        </Stack.Navigator>
+        <KrishnaAssistant />
+      </NavigationContainer>
+    </SafeAreaView>
+  );
+};
+
 function App(): React.JSX.Element {
   return (
-    <SettingsProvider>
-      <UserProvider>
-        <ChatProvider>
-          <NavigationContainer>
-            <Stack.Navigator
-              initialRouteName="Login"
-              screenOptions={{
-                headerShown: false,
-                animation: 'slide_from_right',
-              }}
-            >
-              <Stack.Screen name="Login" component={LoginScreen} />
-              <Stack.Screen name="Chat" component={ChatScreen} />
-              <Stack.Screen name="Registration" component={RegistrationScreen} />
-              <Stack.Screen name="Plans" component={PlansScreen} />
-              <Stack.Screen name="Portal" component={PortalMainScreen} />
-              <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
-              <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
-              <Stack.Screen
-                name="RoomChat"
-                component={RoomChatScreen}
-                options={{ headerShown: true }}
-              />
-            </Stack.Navigator>
-            <KrishnaAssistant />
-          </NavigationContainer>
-        </ChatProvider>
-      </UserProvider>
-    </SettingsProvider>
+    <SafeAreaProvider>
+      <SettingsProvider>
+        <UserProvider>
+          <WebSocketProvider>
+            <ChatProvider>
+              <AppContent />
+            </ChatProvider>
+          </WebSocketProvider>
+        </UserProvider>
+      </SettingsProvider>
+    </SafeAreaProvider>
   );
 }
 

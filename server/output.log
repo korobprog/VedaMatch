@@ -1,7 +1,0 @@
-2025/12/23 14:33:50 Connected to Database
-2025/12/23 14:33:50 Database Migrated
-2025/12/23 14:33:50 Registering /api/messages routes...
-2025/12/23 14:33:50 Routes registered.
-2025/12/23 14:33:50 Server starting on port :8081
-2025/12/23 14:33:50 failed to listen: listen tcp4 :8081: bind: address already in use
-exit status 1

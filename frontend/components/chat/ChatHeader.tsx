@@ -30,44 +30,46 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     const subTitle = recipientUser ? (recipientUser.identity || 'Devotee') : null;
 
     return (
-        <View style={[styles.header, {
+        <View style={{
             backgroundColor: theme.header,
             borderBottomColor: theme.borderColor,
-            height: Platform.OS === 'android' ? 60 + (StatusBar.currentHeight || 0) : 60,
-            paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
-        }]}>
-            <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton}>
-                {/* 3 Vertical Sticks */}
-                <View style={styles.sticksContainer}>
-                    <View style={[styles.stick, { backgroundColor: theme.text }]} />
-                    <View style={[styles.stick, { backgroundColor: theme.text }]} />
-                    <View style={[styles.stick, { backgroundColor: theme.text }]} />
+            borderBottomWidth: 0.5,
+            height: 44,
+        }}>
+            <View style={styles.headerContent}>
+                <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton}>
+                    {/* 3 Vertical Sticks */}
+                    <View style={styles.sticksContainer}>
+                        <View style={[styles.stick, { backgroundColor: theme.text }]} />
+                        <View style={[styles.stick, { backgroundColor: theme.text }]} />
+                        <View style={[styles.stick, { backgroundColor: theme.text }]} />
+                    </View>
+                </TouchableOpacity>
+
+                <View style={styles.titleContainer}>
+                    {recipientUser ? (
+                        <>
+                            <Text style={[styles.title, { color: theme.text }]}>{displayTitle}</Text>
+                            {subTitle && (
+                                <Text style={[styles.subTitle, { color: theme.subText }]}>{subTitle}</Text>
+                            )}
+                        </>
+                    ) : null}
                 </View>
-            </TouchableOpacity>
 
-            <View style={styles.titleContainer}>
-                {recipientUser ? (
-                    <>
-                        <Text style={[styles.title, { color: theme.text }]}>{displayTitle}</Text>
-                        {subTitle && (
-                            <Text style={[styles.subTitle, { color: theme.subText }]}>{subTitle}</Text>
-                        )}
-                    </>
-                ) : null}
+                {/* Gear removed as requested */}
+                <View style={{ width: 40 }} />
             </View>
-
-            {/* Gear removed as requested */}
-            <View style={{ width: 40 }} />
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    header: {
+    headerContent: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        borderBottomWidth: 0.5,
     },
     titleContainer: {
         flex: 1,

@@ -7,6 +7,7 @@ import { useSettings } from './SettingsContext';
 import { messageService } from '../services/messageService';
 import { UserContact } from '../services/contactService';
 import { useUser } from './UserContext';
+import { useWebSocket } from './WebSocketContext';
 
 export interface ChatHistory {
     id: string;
@@ -55,6 +56,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const [recipientId, setRecipientId] = useState<number | null>(null);
     const [recipientUser, setRecipientUser] = useState<UserContact | null>(null);
     const { user: currentUser } = useUser();
+    const { addListener } = useWebSocket();
 
     const isFirstRun = useRef(true);
 
@@ -151,6 +153,49 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [recipientId, currentUser?.ID]);
 
+    // WebSocket Listener for real-time messages
+    useEffect(() => {
+        const removeListener = addListener((msg: any) => {
+            // Check if it's a P2P message for the current chat or an AI message
+            const isTargetedToMe = msg.recipientId === currentUser?.ID;
+            const isFromCurrentRecipient = msg.senderId === recipientId;
+            const isMyOwnMessage = msg.senderId === currentUser?.ID; // For sync across devices
+            const isAiMessage = msg.senderId === 0 && !msg.roomId && !recipientId; // AI message for non-P2P chat
+
+            let shouldAdd = false;
+            let senderType: 'user' | 'bot' | 'other' = 'other';
+
+            if (recipientId) {
+                // P2P Mode
+                if ((isTargetedToMe && isFromCurrentRecipient) || (isMyOwnMessage && msg.recipientId === recipientId)) {
+                    shouldAdd = true;
+                    senderType = isMyOwnMessage ? 'user' : 'other';
+                }
+            } else {
+                // AI Mode (Search / Assistant)
+                if (msg.senderId === 0 && !msg.roomId) {
+                    shouldAdd = true;
+                    senderType = 'bot';
+                }
+            }
+
+            if (shouldAdd) {
+                const newMessage: Message = {
+                    id: msg.ID.toString(),
+                    text: msg.content,
+                    sender: senderType as any,
+                    createdAt: msg.CreatedAt
+                };
+                setMessages(prev => {
+                    if (prev.find(m => m.id === newMessage.id)) return prev;
+                    return [...prev, newMessage];
+                });
+            }
+        });
+
+        return () => removeListener();
+    }, [recipientId, currentUser?.ID]);
+
     const setChatRecipient = (user: UserContact | null) => {
         if (!user) {
             setRecipientId(null);
@@ -235,13 +280,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         try {
             setIsLoading(true);
             const savedMsg = await messageService.sendMessage(currentUser.ID, recipientId, text);
-            const newMessage: Message = {
-                id: savedMsg.ID.toString(),
-                text: savedMsg.content,
-                sender: 'user',
-                createdAt: savedMsg.CreatedAt
-            };
-            setMessages((prev) => [...prev, newMessage]);
+            // No need to manually add to state anymore, WS will handle it
+            // This ensures consistency and sync across devices
             setInputText('');
         } catch (error) {
             console.error('Failed to send P2P message', error);
