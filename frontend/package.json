@@ -4,12 +4,15 @@
   "private": true,
   "scripts": {
     "android": "source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools && export REACT_NATIVE_PACKAGER_PORT=8082 && export PORT=8082 && node fix-metro-port.js && ./ensure-emulator.sh && react-native run-android --port 8082 --no-packager",
+    "android:device": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8082 tcp:8082 && source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools && export REACT_NATIVE_PACKAGER_PORT=8082 && export PORT=8082 && node fix-metro-port.js && react-native run-android --port 8082 --no-packager",
     "emulator": "./start-emulator.sh",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "node fix-metro-port.js && PORT=8082 REACT_NATIVE_PACKAGER_PORT=8082 RCT_METRO_PORT=8082 react-native start",
     "test": "jest",
     "clean": "react-native start --reset-cache",
+    "build:debug": "source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && cd android && ./gradlew clean && ./gradlew assembleDebug",
+    "build:release": "source $HOME/.sdkman/bin/sdkman-init.sh 2>/dev/null && export JAVA_HOME=$HOME/.sdkman/candidates/java/current && export ANDROID_HOME=$HOME/Android/Sdk && cd android && ./gradlew clean && ./gradlew assembleRelease",
     "postinstall": "node fix-metro-port.js"
   },
   "dependencies": {

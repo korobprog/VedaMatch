@@ -6,7 +6,7 @@ plugins {
     id("com.facebook.react.settings")
 }
 
-rootProject.name = 'RagAgent'
+rootProject.name = 'vedamatch'
 
 extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
     ex.autolinkLibrariesFromCommand()

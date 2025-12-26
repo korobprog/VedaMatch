@@ -24,7 +24,7 @@ func NewDatingHandler(aiService *services.AiChatService) *DatingHandler {
 
 func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	var candidates []models.User
-	query := database.DB.Where("dating_enabled = ? AND is_profile_complete = ?", true, true)
+	query := database.DB.Preload("Photos").Where("dating_enabled = ? AND is_profile_complete = ?", true, true)
 
 	// Simple filtering
 	// Parse query params
@@ -251,7 +251,7 @@ func (h *DatingHandler) GetFavorites(c *fiber.Ctx) error {
 	}
 
 	var favorites []models.DatingFavorite
-	if err := database.DB.Preload("Candidate").Where("user_id = ?", userID).Find(&favorites).Error; err != nil {
+	if err := database.DB.Preload("Candidate").Preload("Candidate.Photos").Where("user_id = ?", userID).Find(&favorites).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch favorites"})
 	}
 

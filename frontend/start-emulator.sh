@@ -6,6 +6,7 @@ source ~/.bashrc 2>/dev/null
 if [ -z "$ANDROID_HOME" ]; then
     export ANDROID_HOME=$HOME/Android/Sdk
 fi
+export ANDROID_SDK_ROOT=$ANDROID_HOME
 
 # Проверяем наличие эмулятора
 if [ ! -f "$ANDROID_HOME/emulator/emulator" ]; then
@@ -43,7 +44,7 @@ echo ""
 # Ждем пока эмулятор загрузится
 for i in {1..60}; do
     sleep 2
-    if adb devices 2>/dev/null | grep -q "device$"; then
+    if adb devices 2>/dev/null | grep "^emulator-" | grep -q "device$"; then
         echo "✅ Эмулятор готов!"
         adb devices
         exit 0
