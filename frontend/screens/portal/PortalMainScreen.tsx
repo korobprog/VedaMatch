@@ -10,6 +10,7 @@ import {
     Platform,
     StatusBar,
     ScrollView,
+    Image,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/chat/ChatConstants';
@@ -87,6 +88,14 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
                         style={styles.backButton}
                     >
                         <Text style={[styles.backText, { color: theme.text }]}>← {t('chat.history')}</Text>
+                    </TouchableOpacity>
+
+                    {/* AI Assistant Button */}
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('Chat')}
+                        style={styles.aiButton}
+                    >
+                        <Text style={styles.aiButtonText}>🙏 AI</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -172,9 +181,28 @@ const styles = StyleSheet.create({
     backButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        flex: 1,
     },
     backText: {
         fontSize: 18,
+        fontWeight: 'bold',
+    },
+    aiButton: {
+        backgroundColor: '#FF9933',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        shadowColor: '#FF9933',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    aiButtonText: {
+        color: '#fff',
+        fontSize: 14,
         fontWeight: 'bold',
     },
     tabBarControl: {

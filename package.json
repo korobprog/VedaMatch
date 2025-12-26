@@ -7,13 +7,14 @@
     "start": "node proxy-server.js",
     "proxy": "node proxy-server.js",
     "backend": "cd server && go run cmd/api/main.go",
-    "frontend": "cd frontend && pnpm run start",
-    "android": "cd frontend && pnpm run android",
     "server": "cd server && ./START.sh",
     "admin": "cd admin && pnpm run dev",
-    "clean": "pkill -f 'go run' || true && pkill -f next || true && pkill -f emulator || true && rm -rf admin/.next admin/node_modules/.cache && fuser -k 3000/tcp 3005/tcp 8081/tcp 8082/tcp || true",
-    "dev": "concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run android\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\"",
-    "dev:web": "concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" --names \"SERVER,ADMIN,METRO\" --prefix-colors \"blue,yellow,magenta\""
+    "frontend": "cd frontend && pnpm run start",
+    "android": "cd frontend && pnpm run android",
+    "device": "cd frontend && pnpm run android:device",
+    "clean": "fuser -k 3000/tcp 3005/tcp 8081/tcp 8082/tcp 2>/dev/null || true && rm -rf admin/.next admin/node_modules/.cache || true",
+    "dev:emulator": "pnpm run clean && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run android\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\"",
+    "dev:usb": "pnpm run clean && ./adb-reverse-all.sh && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run device\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\""
   },
   "dependencies": {
     "expo-image-picker": "^17.0.10",

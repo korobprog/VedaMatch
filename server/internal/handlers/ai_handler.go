@@ -9,6 +9,7 @@ import (
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -262,46 +263,68 @@ func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
 		ResponseTime int64  `json:"responseTime"`
 	}
 
-	results := make([]TestResult, 0, len(aiModels))
+	resultsChan := make(chan TestResult, len(aiModels))
 	testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
 
-	for _, model := range aiModels {
-		testBody := map[string]interface{}{
-			"model":      model.ModelID,
-			"provider":   model.Provider,
-			"messages":   []map[string]string{{"role": "user", "content": "hi"}},
-			"max_tokens": 5,
-		}
+	var wg sync.WaitGroup
+	for _, m := range aiModels {
+		wg.Add(1)
+		go func(model models.AiModel) {
+			defer wg.Done()
 
-		jsonBody, _ := json.Marshal(testBody)
-		req, _ := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+			testBody := map[string]interface{}{
+				"model":      model.ModelID,
+				"provider":   model.Provider,
+				"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+				"max_tokens": 5,
+			}
 
-		start := time.Now()
-		client := &http.Client{Timeout: 30 * time.Second}
-		resp, err := client.Do(req)
-		duration := time.Since(start).Milliseconds()
+			jsonBody, _ := json.Marshal(testBody)
+			req, _ := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+apiKey)
 
-		status := "online"
-		if err != nil {
-			status = "offline"
-		} else if resp.StatusCode != http.StatusOK {
-			status = "error"
-			resp.Body.Close()
-		} else {
-			resp.Body.Close()
-		}
+			start := time.Now()
+			client := &http.Client{Timeout: 30 * time.Second}
+			resp, err := client.Do(req)
+			duration := time.Since(start).Milliseconds()
 
-		model.LastTestStatus = status
-		model.LastResponseTime = duration
-		database.DB.Save(&model)
+			status := "online"
+			if err != nil {
+				status = "offline"
+			} else if resp.StatusCode != http.StatusOK {
+				status = "error"
+				if resp.Body != nil {
+					resp.Body.Close()
+				}
+			} else {
+				resp.Body.Close()
+			}
 
-		results = append(results, TestResult{
-			ModelID:      model.ModelID,
-			Status:       status,
-			ResponseTime: duration,
-		})
+			// Update in DB (careful with concurrent writes if using same DB connection,
+			// but GORM/Go sql.DB handles connection pooling)
+			database.DB.Model(&models.AiModel{}).Where("id = ?", model.ID).Updates(map[string]interface{}{
+				"last_test_status":   status,
+				"last_response_time": duration,
+			})
+
+			resultsChan <- TestResult{
+				ModelID:      model.ModelID,
+				Status:       status,
+				ResponseTime: duration,
+			}
+		}(m)
+	}
+
+	// Wait for all tests to finish in a separate goroutine
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	results := make([]TestResult, 0, len(aiModels))
+	for res := range resultsChan {
+		results = append(results, res)
 	}
 
 	return c.JSON(fiber.Map{

@@ -98,6 +98,16 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
 
     const handleSaveProfile = async () => {
         if (saving) return;
+
+        // Validation if dating is enabled
+        if (profile.datingEnabled) {
+            if (!profile.bio.trim() || !profile.interests.trim() || !profile.lookingFor.trim() ||
+                !profile.maritalStatus.trim() || !profile.dob || !profile.birthTime || !profile.birthPlaceLink) {
+                Alert.alert('Внимание', 'Для активации профиля в знакомствах необходимо заполнить все поля, включая астрологические данные.');
+                return;
+            }
+        }
+
         setSaving(true);
         try {
             const response = await axios.put(`${API_PATH}/dating/profile/${userId}`, profile);
@@ -192,13 +202,24 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
 
                 <View style={styles.content}>
                     <View style={styles.switchRow}>
-                        <Text style={[styles.label, { color: theme.text }]}>Enable Dating Profile</Text>
+                        <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>Enable Dating Profile</Text>
                         <Switch
                             value={profile.datingEnabled}
                             onValueChange={(val) => setProfile({ ...profile, datingEnabled: val })}
                             trackColor={{ false: '#767577', true: theme.accent }}
                         />
                     </View>
+
+                    <Text style={[styles.infoText, { color: theme.subText, marginBottom: 15 }]}>
+                        💡 Загружайте свои лучшие фотографии в галерею, чтобы другие пользователи могли просматривать их в слайд-шоу.
+                    </Text>
+
+                    <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: theme.inputBackground, borderColor: theme.accent, borderWidth: 1, marginBottom: 20, alignItems: 'center' }]}
+                        onPress={() => navigation.navigate('MediaLibrary', { userId })}
+                    >
+                        <Text style={{ color: theme.accent, fontWeight: 'bold' }}>📸 Manage Photos / Add New</Text>
+                    </TouchableOpacity>
 
                     <Text style={[styles.label, { color: theme.text }]}>About Me (Bio)</Text>
                     <TextInput
@@ -292,7 +313,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         }}
                     />
 
-                    <Text style={[styles.label, { color: theme.text }]}>Birth Place</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>Birth Place (для астрологии)</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => {
@@ -381,6 +402,13 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         marginTop: 16,
     },
+    infoText: {
+        fontSize: 14,
+        lineHeight: 20,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        padding: 10,
+        borderRadius: 8,
+    },
     sectionTitle: {
         fontSize: 18,
         fontWeight: 'bold',
@@ -440,5 +468,10 @@ const styles = StyleSheet.create({
     },
     cityText: {
         fontSize: 16,
+    },
+    actionBtn: {
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 25,
     }
 });

@@ -17,7 +17,7 @@ import { COLORS } from '../../components/chat/ChatConstants';
 import { useSettings } from '../../context/SettingsContext';
 
 export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const {
@@ -137,6 +137,37 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             onPress={() => setDefaultMenuTab('history')}
                         >
                             <Text style={{ color: defaultMenuTab === 'history' ? theme.buttonText : theme.text }}>{t('chat.history')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Language Settings Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.language')}</Text>
+                    <View style={styles.sizeOptions}>
+                        <TouchableOpacity
+                            style={[
+                                styles.sizeBtn,
+                                {
+                                    backgroundColor: i18n.language === 'ru' ? theme.button : theme.inputBackground,
+                                    borderColor: theme.borderColor
+                                }
+                            ]}
+                            onPress={() => i18n.changeLanguage('ru')}
+                        >
+                            <Text style={{ color: i18n.language === 'ru' ? theme.buttonText : theme.text }}>Русский</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.sizeBtn,
+                                {
+                                    backgroundColor: i18n.language === 'en' ? theme.button : theme.inputBackground,
+                                    borderColor: theme.borderColor
+                                }
+                            ]}
+                            onPress={() => i18n.changeLanguage('en')}
+                        >
+                            <Text style={{ color: i18n.language === 'en' ? theme.buttonText : theme.text }}>English</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

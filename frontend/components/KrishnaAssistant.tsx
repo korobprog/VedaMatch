@@ -163,7 +163,7 @@ export const KrishnaAssistant: React.FC = () => {
         return (
             <TouchableOpacity
                 style={styles.callButton}
-                onPress={rollIn}
+                onPress={() => navigation.navigate('Chat')}
             >
                 <Image source={krishnaAssistant} style={styles.miniIcon} />
             </TouchableOpacity>

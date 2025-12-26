@@ -15,12 +15,23 @@ import (
 type RAGService struct {
 	apiKey   string
 	corpusID string // Often referred to as "Store ID" or "Corpus Name"
+	baseURL  string
 }
 
 func NewRAGService() *RAGService {
+	baseURL := os.Getenv("GEMINI_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://generativelanguage.googleapis.com"
+	}
+	// Remove trailing slash if present
+	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
+		baseURL = baseURL[:len(baseURL)-1]
+	}
+
 	return &RAGService{
 		apiKey:   os.Getenv("GEMINI_API_KEY"),
 		corpusID: os.Getenv("GEMINI_CORPUS_ID"),
+		baseURL:  baseURL,
 	}
 }
 
@@ -66,8 +77,8 @@ Email: %s
 		user.Bio, user.Interests, user.LookingFor, user.MaritalStatus, user.BirthTime, user.BirthPlaceLink, user.DatingEnabled)
 
 	// 2. Upload to Google Gemini (Media Upload)
-	// Endpoint: POST https://generativelanguage.googleapis.com/upload/v1beta/files
-	uploadURL := "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" + s.apiKey
+	// Endpoint: POST /upload/v1beta/files
+	uploadURL := fmt.Sprintf("%s/upload/v1beta/files?key=%s", s.baseURL, s.apiKey)
 
 	// We need to send:
 	// 1. Metadata (display name)
@@ -160,7 +171,7 @@ Email: %s
 		// Check if s.corpusID already contains "fileSearchStores/"
 		// If the user put the full URL in .env (unlikely for an ID), we handle it.
 		// Let's construct a standard URL.
-		importURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/fileSearchStores/%s:importFile?key=%s", s.corpusID, s.apiKey)
+		importURL := fmt.Sprintf("%s/v1beta/fileSearchStores/%s:importFile?key=%s", s.baseURL, s.corpusID, s.apiKey)
 
 		importBody := map[string]string{
 			"fileName": uploadedFileName, // The resource name from upload response

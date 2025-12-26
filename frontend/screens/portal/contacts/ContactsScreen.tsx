@@ -79,19 +79,27 @@ export const ContactsScreen: React.FC = () => {
 
         return c.karmicName?.toLowerCase().includes(search.toLowerCase()) ||
             c.spiritualName?.toLowerCase().includes(search.toLowerCase());
+    }).sort((a, b) => {
+        if (filter === 'all') {
+            const isFriendA = friends.some(f => f.ID === a.ID);
+            const isFriendB = friends.some(f => f.ID === b.ID);
+            if (isFriendA && !isFriendB) return -1;
+            if (!isFriendA && isFriendB) return 1;
+        }
+        return 0;
     });
 
     const renderItem = ({ item }: { item: UserContact }) => {
         const avatarUrl = item.avatarUrl ? `${API_BASE_URL}${item.avatarUrl}` : null;
         const online = isOnline(item.lastSeen);
         const isBlocked = filter === 'blocked';
+        const isFriend = friends.some(f => f.ID === item.ID);
 
         return (
             <TouchableOpacity
                 style={[styles.contactItem, { borderBottomColor: theme.borderColor }]}
                 onPress={() => {
                     if (isBlocked) return;
-                    const isFriend = friends.some(f => f.ID === item.ID);
                     if (isFriend) {
                         setChatRecipient(item);
                         navigation.navigate('Chat');
@@ -114,9 +122,18 @@ export const ContactsScreen: React.FC = () => {
                     {online && !isBlocked && <View style={styles.onlineStatus} />}
                 </View>
                 <View style={styles.contactInfo}>
-                    <Text style={[styles.contactName, { color: theme.text }]}>
-                        {item.spiritualName || item.karmicName}
-                    </Text>
+                    <View style={styles.nameRow}>
+                        <Text style={[styles.contactName, { color: theme.text }]}>
+                            {item.spiritualName || item.karmicName}
+                        </Text>
+                        {isFriend && !isBlocked && (
+                            <View style={[styles.friendTag, { backgroundColor: theme.accent + '20' }]}>
+                                <Text style={[styles.friendTagText, { color: theme.accent }]}>
+                                    {t('contacts.friend')}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
                     <Text style={[styles.contactDesc, { color: theme.subText }]}>
                         {item.identity || 'Devotee'} • {item.city}, {item.country}
                     </Text>
@@ -261,6 +278,21 @@ const styles = StyleSheet.create({
     contactName: {
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    friendTag: {
+        marginLeft: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    friendTagText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
     },
     contactDesc: {
         fontSize: 13,
