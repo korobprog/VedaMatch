@@ -1,0 +1,48 @@
+2025/12/26 23:46:06 Connected to Database
+2025/12/26 23:46:06 Database Migrated
+User madhava@example.com already exists (ID: 14)
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.578ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 14 AND url = '/uploads/dating/stock_0.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 14: /uploads/dating/stock_0.jpg
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.481ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 14 AND url = '/uploads/dating/stock_1.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 14: /uploads/dating/stock_1.jpg
+User lalita@example.com already exists (ID: 15)
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.357ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 15 AND url = '/uploads/dating/stock_2.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 15: /uploads/dating/stock_2.jpg
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.405ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 15 AND url = '/uploads/dating/stock_3.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 15: /uploads/dating/stock_3.jpg
+User arjuna@example.com already exists (ID: 16)
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.339ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 16 AND url = '/uploads/dating/stock_4.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 16: /uploads/dating/stock_4.jpg
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.332ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 16 AND url = '/uploads/dating/stock_5.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 16: /uploads/dating/stock_5.jpg
+User saraswati@example.com already exists (ID: 17)
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.259ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 17 AND url = '/uploads/dating/stock_6.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 17: /uploads/dating/stock_6.jpg
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.273ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 17 AND url = '/uploads/dating/stock_7.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 17: /uploads/dating/stock_7.jpg
+User mohini@example.com already exists (ID: 18)
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.242ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 18 AND url = '/uploads/dating/stock_8.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 18: /uploads/dating/stock_8.jpg
+
+2025/12/26 23:46:07 [31;1m/home/maxim/Documents/Rag-agent/server/cmd/seed_dating/main.go:220 [35;1mrecord not found
+[0m[33m[0.269ms] [34;1m[rows:0][0m SELECT * FROM "media" WHERE (user_id = 18 AND url = '/uploads/dating/stock_9.jpg') AND "media"."deleted_at" IS NULL ORDER BY "media"."id" LIMIT 1
+Added photo for user 18: /uploads/dating/stock_9.jpg
+Seeding completed at 26 Dec 25 23:46 +10

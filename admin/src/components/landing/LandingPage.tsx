@@ -18,15 +18,19 @@ export default function LandingPage() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <Link href="/login" className="text-[#5c4d47] hover:text-[#2c1810] font-medium transition-colors">
-                            Вход
-                        </Link>
-                        <Link
-                            href="/login"
-                            className="bg-[#2c1810] text-[#faf9f6] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#4a2c20] transition-colors"
-                        >
-                            Админ Панель
-                        </Link>
+                        {process.env.NEXT_PUBLIC_APP_ENV !== 'production' && (
+                            <>
+                                <Link href="/login" className="text-[#5c4d47] hover:text-[#2c1810] font-medium transition-colors">
+                                    Вход
+                                </Link>
+                                <Link
+                                    href="/login"
+                                    className="bg-[#2c1810] text-[#faf9f6] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#4a2c20] transition-colors"
+                                >
+                                    Админ Панель
+                                </Link>
+                            </>
+                        )}
                     </div>
                 </div>
             </nav>

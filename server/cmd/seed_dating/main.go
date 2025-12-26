@@ -26,7 +26,11 @@ func downloadFile(url string, destPath string) error {
 		return nil // already downloaded
 	}
 
-	resp, err := http.Get(url)
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Get(url)
 	if err != nil {
 		return err
 	}
@@ -52,7 +56,7 @@ func main() {
 	password, _ := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
 
 	// Ensure upload dir
-	uploadsDir := "uploads/dating"
+	// uploadsDir := "uploads/dating"
 
 	usersData := []struct {
 		User   models.User
@@ -78,9 +82,8 @@ func main() {
 				IsProfileComplete: true,
 			},
 			Photos: []string{
-				"https://randomuser.me/api/portraits/men/32.jpg",
-				"https://randomuser.me/api/portraits/men/33.jpg",
-				"https://randomuser.me/api/portraits/men/34.jpg",
+				"https://images.unsplash.com/photo-1608932931398-80f38fc81740?auto=format&fit=crop&q=80&w=1080",
+				"https://images.unsplash.com/photo-1689258077068-75eb291e503b?auto=format&fit=crop&q=80&w=1080",
 			},
 		},
 		{
@@ -103,11 +106,91 @@ func main() {
 				IsProfileComplete: true,
 			},
 			Photos: []string{
-				"https://randomuser.me/api/portraits/women/44.jpg",
-				"https://randomuser.me/api/portraits/women/45.jpg",
-				"https://randomuser.me/api/portraits/women/46.jpg",
+				"https://images.unsplash.com/photo-1618622127587-3261f2b2f553?auto=format&fit=crop&q=80&w=1080",
+				"https://images.unsplash.com/photo-1725375176342-b317caad2a68?auto=format&fit=crop&q=80&w=1080",
 			},
 		},
+		{
+			User: models.User{
+				KarmicName:        "Arjun Sharma",
+				SpiritualName:     "Arjuna Das",
+				Email:             "arjuna@example.com",
+				Password:          string(password),
+				Gender:            "Male",
+				Country:           "India",
+				City:              "New Delhi",
+				Identity:          "Devotee",
+				Diet:              "Vegetarian",
+				Madh:              "Gaudiya Vaishnava (ISKCON)",
+				Mentor:            "Radhanath Swami",
+				Dob:               "1988-03-12",
+				Bio:               "Software engineer dedicated to Bhakti. Enjoys deep philosophical discussions.",
+				Interests:         "Coding, Philosophy, Kirtan, Yoga",
+				DatingEnabled:     true,
+				IsProfileComplete: true,
+			},
+			Photos: []string{
+				"https://images.unsplash.com/photo-1618816566992-b5e08d3c02f9?auto=format&fit=crop&q=80&w=1080",
+				"https://images.unsplash.com/photo-1617746652974-0be48cd984d1?auto=format&fit=crop&q=80&w=1080",
+			},
+		},
+		{
+			User: models.User{
+				KarmicName:        "Sarah Jenkins",
+				SpiritualName:     "Saraswati Devi",
+				Email:             "saraswati@example.com",
+				Password:          string(password),
+				Gender:            "Female",
+				Country:           "UK",
+				City:              "London",
+				Identity:          "Devotee",
+				Diet:              "Vegetarian",
+				Madh:              "Gaudiya Vaishnava (ISKCON)",
+				Mentor:            "Jayapataka Swami",
+				Dob:               "1992-11-05",
+				Bio:               "Artist and teacher. Seeking someone to share a life of service and devotion.",
+				Interests:         "Art, Education, Deity Worship, Nature",
+				DatingEnabled:     true,
+				IsProfileComplete: true,
+			},
+			Photos: []string{
+				"https://images.unsplash.com/photo-1686699429240-3b7c20e1f60b?auto=format&fit=crop&q=80&w=1080",
+				"https://images.unsplash.com/photo-1590955256683-73dbde9ca653?auto=format&fit=crop&q=80&w=1080",
+			},
+		},
+		{
+			User: models.User{
+				KarmicName:        "Maria Garcia",
+				SpiritualName:     "Mohini Dasi",
+				Email:             "mohini@example.com",
+				Password:          string(password),
+				Gender:            "Female",
+				Country:           "Spain",
+				City:              "Madrid",
+				Identity:          "Devotee",
+				Diet:              "Vegan",
+				Madh:              "Gaudiya Vaishnava (ISKCON)",
+				Mentor:            "Bhakti Chaitanya Swami",
+				Dob:               "1994-07-22",
+				Bio:               "Yoga instructor and nutritionist. Loves traveling to holy places.",
+				Interests:         "Yoga, Nutrition, Pilgrimage, Photography",
+				DatingEnabled:     true,
+				IsProfileComplete: true,
+			},
+			Photos: []string{
+				"https://images.unsplash.com/photo-1656568726647-9092bf2b5640?auto=format&fit=crop&q=80&w=1080",
+				"https://images.unsplash.com/photo-1618007032300-cb3239bf2fed?auto=format&fit=crop&q=80&w=1080",
+			},
+		},
+	}
+
+	// User to Local Photo mapping
+	userPhotos := map[string][]string{
+		"madhava@example.com":   {"stock_0.jpg", "stock_1.jpg"},
+		"lalita@example.com":    {"stock_2.jpg", "stock_3.jpg"},
+		"arjuna@example.com":    {"stock_4.jpg", "stock_5.jpg"},
+		"saraswati@example.com": {"stock_6.jpg", "stock_7.jpg"},
+		"mohini@example.com":    {"stock_8.jpg", "stock_9.jpg"},
 	}
 
 	for _, item := range usersData {
@@ -124,16 +207,13 @@ func main() {
 			fmt.Printf("User %s already exists (ID: %d)\n", u.Email, u.ID)
 		}
 
-		// Process Photos
-		for i, photoUrl := range item.Photos {
-			fileName := fmt.Sprintf("user_%d_photo_%d.jpg", u.ID, i)
-			localPath := filepath.Join(uploadsDir, fileName)
+		// Process Photos from mapping
+		photos, ok := userPhotos[u.Email]
+		if !ok {
+			continue
+		}
 
-			if err := downloadFile(photoUrl, localPath); err != nil {
-				fmt.Printf("Failed to download photo %s: %v\n", photoUrl, err)
-				continue
-			}
-
+		for i, fileName := range photos {
 			// Add to Media table if not exists
 			dbUrl := fmt.Sprintf("/uploads/dating/%s", fileName)
 			var existingMedia models.Media
@@ -150,6 +230,8 @@ func main() {
 				if isProfile {
 					database.DB.Model(&u).Update("avatar_url", dbUrl)
 				}
+			} else {
+				fmt.Printf("Photo %s already exists in DB for user %d\n", dbUrl, u.ID)
 			}
 		}
 	}
