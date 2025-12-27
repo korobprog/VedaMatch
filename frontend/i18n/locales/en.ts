@@ -202,6 +202,9 @@ export default {
         filters: 'Filters',
         longPressOptions: 'Long press photo to manage',
         addPhoto: 'Add Photo',
-        mainPhotoBadge: 'Main'
+        mainPhotoBadge: 'Main',
+        totalProfiles: 'Total Profiles',
+        inYourCity: 'In Your City',
+        newLast24h: 'New (24h)'
     }
 };

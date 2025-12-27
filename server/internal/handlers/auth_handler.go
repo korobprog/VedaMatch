@@ -136,6 +136,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.Identity = updateData.Identity
 	user.Diet = updateData.Diet
 	user.Madh = updateData.Madh
+	user.YogaStyle = updateData.YogaStyle
+	user.Guna = updateData.Guna
 	user.Mentor = updateData.Mentor
 	user.Dob = updateData.Dob
 	user.IsProfileComplete = true // Mark as complete since we are updating profile

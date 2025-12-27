@@ -23,22 +23,15 @@ import { COLORS } from '../components/chat/ChatConstants';
 
 
 
-const MADH_OPTIONS = [
-    'Gaudiya Vaishnava (ISKCON)',
-    'Gaudiya Vaishnava (Gaudiya Math)',
-    'Sri Vaishnava',
-    'Madhva Sampradaya',
-    'Nimbarka Sampradaya',
-    'Other',
-];
+import { DATING_TRADITIONS, GUNAS, YOGA_STYLES, IDENTITY_OPTIONS } from '../constants/DatingConstants';
 
 const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
-const IDENTITY_OPTIONS = ['Yogi', 'In Goodness'];
 const GENDER_OPTIONS = ['Male', 'Female'];
 
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { API_PATH } from '../config/api.config';
+import { contactService } from '../services/contactService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 
@@ -60,7 +53,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [madh, setMadh] = useState(''); // Optional now
     const [mentor, setMentor] = useState('');
     const [gender, setGender] = useState(GENDER_OPTIONS[0]);
-    const [identity, setIdentity] = useState(IDENTITY_OPTIONS[0]);
+    const [identity, setIdentity] = useState(IDENTITY_OPTIONS[0]); // Default first option
+    const [yogaStyle, setYogaStyle] = useState('');
+    const [guna, setGuna] = useState('');
     const [diet, setDiet] = useState(DIET_OPTIONS[2]);
     const [agreement, setAgreement] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -74,7 +69,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [cityInputMode, setCityInputMode] = useState(false);
     const [showMadhPicker, setShowMadhPicker] = useState(false);
     const [showGenderPicker, setShowGenderPicker] = useState(false);
-    const [showIdentityPicker, setShowIdentityPicker] = useState(false);
+    const [showYogaPicker, setShowYogaPicker] = useState(false);
+    const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [showDietPicker, setShowDietPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
 
@@ -275,7 +271,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     madh,
                     mentor,
                     gender,
-                    identity,
+                    identity, // Include this
+                    yogaStyle,
+                    guna,
                     diet,
                 };
 
@@ -579,7 +577,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                 <TouchableOpacity style={styles.pickerItem} onPress={() => { setMadh(''); setShowMadhPicker(false); }}>
                                     <Text style={{ color: theme.subText }}>None</Text>
                                 </TouchableOpacity>
-                                {MADH_OPTIONS.map((m) => (
+                                {DATING_TRADITIONS.map((m) => (
                                     <TouchableOpacity key={m} style={styles.pickerItem} onPress={() => { setMadh(m); setShowMadhPicker(false); }}>
                                         <Text style={{ color: theme.inputText }}>{m}</Text>
                                     </TouchableOpacity>
@@ -597,6 +595,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             placeholderTextColor={theme.subText}
                         />
 
+
+
                         {/* Identity */}
                         <Text style={[styles.label, { color: theme.text }]}>{t('registration.identity')}</Text>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -610,6 +610,42 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                 </TouchableOpacity>
                             ))}
                         </View>
+
+                        {/* Yoga Style */}
+                        <Text style={[styles.label, { color: theme.text }]}>Yoga Style</Text>
+                        <TouchableOpacity
+                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                            onPress={() => setShowYogaPicker(!showYogaPicker)}
+                        >
+                            <Text style={{ color: yogaStyle ? theme.inputText : theme.subText }}>{yogaStyle || 'Select Yoga Style'}</Text>
+                        </TouchableOpacity>
+                        {showYogaPicker && (
+                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                {YOGA_STYLES.map((y) => (
+                                    <TouchableOpacity key={y} style={styles.pickerItem} onPress={() => { setYogaStyle(y); setShowYogaPicker(false); }}>
+                                        <Text style={{ color: theme.inputText }}>{y}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+
+                        {/* Guna */}
+                        <Text style={[styles.label, { color: theme.text }]}>Mode of Nature (Guna)</Text>
+                        <TouchableOpacity
+                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                            onPress={() => setShowGunaPicker(!showGunaPicker)}
+                        >
+                            <Text style={{ color: guna ? theme.inputText : theme.subText }}>{guna || 'Select Guna'}</Text>
+                        </TouchableOpacity>
+                        {showGunaPicker && (
+                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                {GUNAS.map((g) => (
+                                    <TouchableOpacity key={g} style={styles.pickerItem} onPress={() => { setGuna(g); setShowGunaPicker(false); }}>
+                                        <Text style={{ color: theme.inputText }}>{g}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
 
                         {/* Diet */}
                         <Text style={[styles.label, { color: theme.text }]}>{t('registration.diet')}</Text>
@@ -661,7 +697,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 )}
 
             </ScrollView>
-        </View>
+        </View >
     );
 };
 

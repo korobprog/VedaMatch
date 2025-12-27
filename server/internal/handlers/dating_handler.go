@@ -31,6 +31,9 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	gender := c.Query("gender")
 	city := c.Query("city")
 	madh := c.Query("madh")
+	yogaStyle := c.Query("yogaStyle")
+	guna := c.Query("guna")
+	identity := c.Query("identity")
 	minAge := c.QueryInt("minAge", 0)
 	maxAge := c.QueryInt("maxAge", 0)
 	userID := c.Query("userId")
@@ -41,9 +44,10 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 		if err := database.DB.First(&currentUser, userID).Error; err == nil {
 			// If no gender specified, default to opposite
 			if gender == "" {
-				if currentUser.Gender == "Male" {
+				switch currentUser.Gender {
+				case "Male":
 					gender = "Female"
-				} else if currentUser.Gender == "Female" {
+				case "Female":
 					gender = "Male"
 				}
 			}
@@ -66,6 +70,18 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	// Apply Madh Filter
 	if madh != "" {
 		query = query.Where("madh = ?", madh)
+	}
+
+	if yogaStyle != "" {
+		query = query.Where("yoga_style = ?", yogaStyle)
+	}
+
+	if guna != "" {
+		query = query.Where("guna = ?", guna)
+	}
+
+	if identity != "" {
+		query = query.Where("identity = ?", identity)
 	}
 
 	// Apply Age Filter (assuming Dob is YYYY-MM-DD or compatible string)
@@ -210,13 +226,19 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 
 	// Use a struct with pointers for partial updates (handles zero values and correct mapping)
 	var updates struct {
-		Bio               *string `json:"bio"`
-		Interests         *string `json:"interests"`
-		LookingFor        *string `json:"lookingFor"`
-		MaritalStatus     *string `json:"maritalStatus"`
-		Dob               *string `json:"dob"`
-		BirthTime         *string `json:"birthTime"`
-		BirthPlaceLink    *string `json:"birthPlaceLink"`
+		Bio            *string `json:"bio"`
+		Interests      *string `json:"interests"`
+		LookingFor     *string `json:"lookingFor"`
+		MaritalStatus  *string `json:"maritalStatus"`
+		Dob            *string `json:"dob"`
+		BirthTime      *string `json:"birthTime"`
+		BirthPlaceLink *string `json:"birthPlaceLink"`
+		City           *string `json:"city"`
+
+		Madh              *string `json:"madh"`
+		YogaStyle         *string `json:"yogaStyle"`
+		Guna              *string `json:"guna"`
+		Identity          *string `json:"identity"`
 		DatingEnabled     *bool   `json:"datingEnabled"`
 		IsProfileComplete *bool   `json:"isProfileComplete"`
 	}
@@ -247,6 +269,21 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 	}
 	if updates.BirthPlaceLink != nil {
 		updateMap["birth_place_link"] = *updates.BirthPlaceLink
+	}
+	if updates.City != nil {
+		updateMap["city"] = *updates.City
+	}
+	if updates.Madh != nil {
+		updateMap["madh"] = *updates.Madh
+	}
+	if updates.YogaStyle != nil {
+		updateMap["yoga_style"] = *updates.YogaStyle
+	}
+	if updates.Guna != nil {
+		updateMap["guna"] = *updates.Guna
+	}
+	if updates.Identity != nil {
+		updateMap["identity"] = *updates.Identity
 	}
 	if updates.DatingEnabled != nil {
 		updateMap["dating_enabled"] = *updates.DatingEnabled
@@ -300,6 +337,16 @@ func (h *DatingHandler) GetFavorites(c *fiber.Ctx) error {
 	return c.JSON(favorites)
 }
 
+func (h *DatingHandler) GetDatingProfile(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	var user models.User
+	// Preload Photos to ensure they are available for the preview
+	if err := database.DB.Preload("Photos").First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	return c.JSON(user)
+}
+
 func (h *DatingHandler) RemoveFromFavorites(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if err := database.DB.Delete(&models.DatingFavorite{}, id).Error; err != nil {
@@ -324,14 +371,34 @@ func cleanResponse(resp string) string {
 
 func (h *DatingHandler) GetDatingCities(c *fiber.Ctx) error {
 	var cities []string
-	// Fetch distinct cities where dating is enabled and profile is complete
-	// We want only non-empty cities
-	if err := database.DB.Model(&models.User{}).
-		Where("dating_enabled = ? AND is_profile_complete = ? AND city != ?", true, true, "").
-		Distinct("city").
-		Pluck("city", &cities).Error; err != nil {
+	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city != ''", true).Distinct().Pluck("city", &cities).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch cities"})
 	}
-
 	return c.JSON(cities)
+}
+
+func (h *DatingHandler) GetDatingStats(c *fiber.Ctx) error {
+	var totalCount int64
+	var cityCount int64
+	var newCount int64
+
+	city := c.Query("city")
+
+	// Total active dating profiles
+	database.DB.Model(&models.User{}).Where("dating_enabled = ?", true).Count(&totalCount)
+
+	// Profiles in specific city
+	if city != "" {
+		database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city = ?", true, city).Count(&cityCount)
+	}
+
+	// New profiles in last 24h
+	twentyFourHoursAgo := time.Now().Add(-24 * time.Hour)
+	database.DB.Model(&models.User{}).Where("dating_enabled = ? AND created_at > ?", true, twentyFourHoursAgo).Count(&newCount)
+
+	return c.JSON(fiber.Map{
+		"total": totalCount,
+		"city":  cityCount,
+		"new":   newCount,
+	})
 }

@@ -10,6 +10,12 @@ interface UserProfile {
     isProfileComplete?: boolean;
     isTourCompleted?: boolean;
     ID?: number;
+    city?: string;
+    madh?: string;
+    yogaStyle?: string;
+    guna?: string;
+    identity?: string;
+    datingEnabled?: boolean;
 }
 
 interface UserContextType {

@@ -16,6 +16,8 @@ type User struct {
 	Identity          string  `json:"identity"`
 	Diet              string  `json:"diet"`
 	Madh              string  `json:"madh"`
+	YogaStyle         string  `json:"yogaStyle"`
+	Guna              string  `json:"guna"`
 	Mentor            string  `json:"mentor"`
 	Dob               string  `json:"dob"`
 	Bio               string  `json:"bio"`

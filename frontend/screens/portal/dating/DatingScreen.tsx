@@ -13,7 +13,8 @@ import {
     Modal,
     ScrollView,
     TextInput,
-    Switch
+    Switch,
+    Animated
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
@@ -25,6 +26,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import LinearGradient from 'react-native-linear-gradient';
+import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
 
 const { width } = Dimensions.get('window');
 
@@ -63,6 +65,15 @@ export const DatingScreen = () => {
     const [filterCity, setFilterCity] = useState('');
     const [filterMinAge, setFilterMinAge] = useState('');
     const [filterMaxAge, setFilterMaxAge] = useState('');
+    const [filterMadh, setFilterMadh] = useState('');
+    const [filterYogaStyle, setFilterYogaStyle] = useState('');
+    const [filterGuna, setFilterGuna] = useState('');
+    const [filterIdentity, setFilterIdentity] = useState('');
+
+    const [showMadhPicker, setShowMadhPicker] = useState(false);
+    const [showYogaPicker, setShowYogaPicker] = useState(false);
+    const [showGunaPicker, setShowGunaPicker] = useState(false);
+    const [showIdentityPicker, setShowIdentityPicker] = useState(false);
 
     // City Selection
     const [availableCities, setAvailableCities] = useState<string[]>([]);
@@ -70,11 +81,25 @@ export const DatingScreen = () => {
     const [citySearchQuery, setCitySearchQuery] = useState('');
     const [friendIds, setFriendIds] = useState<number[]>([]);
 
+    // Preview Profile State
+    const [showPreview, setShowPreview] = useState(false);
+    const [previewProfile, setPreviewProfile] = useState<Profile | null>(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [stats, setStats] = useState({ total: 0, city: 0, new: 0 });
+    const [showStats, setShowStats] = useState(false);
+    const [filterNew, setFilterNew] = useState(false);
+
     useEffect(() => {
         if (user?.ID) {
             fetchFriends();
+            // Sync filters with user profile to ensure they find people like themselves by default
+            const u = user as any;
+            setFilterMadh(u.madh || u.sampradaya || '');
+            setFilterYogaStyle(u.yogaStyle || '');
+            setFilterGuna(u.guna || '');
+            setFilterIdentity(u.identity || '');
         }
-    }, [user?.ID]);
+    }, [user]);
 
     const fetchFriends = async () => {
         try {
@@ -89,7 +114,25 @@ export const DatingScreen = () => {
     useEffect(() => {
         fetchCandidates();
         fetchCities();
+        fetchStats();
     }, []);
+
+    useEffect(() => {
+        if (user?.city) {
+            fetchStats();
+        }
+    }, [user?.city]);
+
+    const fetchStats = async () => {
+        try {
+            const response = await axios.get(`${API_PATH}/dating/stats`, {
+                params: { city: user?.city }
+            });
+            setStats(response.data);
+        } catch (error) {
+            console.error('Failed to fetch stats:', error);
+        }
+    };
 
     const filteredCities = availableCities.filter(city =>
         city.toLowerCase().includes(citySearchQuery.toLowerCase())
@@ -113,7 +156,11 @@ export const DatingScreen = () => {
                     userId: user?.ID,
                     city: filterCity,
                     minAge: filterMinAge,
-                    maxAge: filterMaxAge
+                    maxAge: filterMaxAge,
+                    madh: filterMadh,
+                    yogaStyle: filterYogaStyle,
+                    guna: filterGuna,
+                    identity: filterIdentity
                 }
             });
             setCandidates(response.data);
@@ -183,78 +230,131 @@ export const DatingScreen = () => {
             });
             setFriendIds([...friendIds, currentCandidateId]);
             Alert.alert('Success', 'Request sent! You can now chat.');
-            // Optionally navigate to chat immediately? User said "if user accepts". 
-            // Since our backend adds friend immediately, we can allow chat or just say "Request Sent".
-            // Let's stick to "Request Sent" and maybe allow chat if backend allows it.
-            // But for better UX let's just say "Connected! You can now chat." since we know backend adds it immediately.
         } catch (error) {
             Alert.alert('Error', 'Could not connect.');
         }
     };
 
-    const DatingCard = ({ item }: { item: Profile }) => {
+    const fetchPreviewProfile = async () => {
+        if (!user?.ID) return;
+        setPreviewLoading(true);
+        try {
+            // First try to get the full profile if endpoint exists, or construct from what we know + fetch
+            // Using the edit endpoint to get full details might be easiest: /dating/profile/{id}
+            const response = await axios.get(`${API_PATH}/dating/profile/${user.ID}`);
+            console.log('Preview profile data:', response.data);
+
+            // Map response to Profile interface
+            // Response typically has: ID, spiritual_name, ...
+            const d = response.data;
+            const mappedProfile: Profile = {
+                ID: d.ID || user.ID,
+                spiritualName: d.spiritual_name || d.spiritualName || user.spiritualName || 'Me',
+                age: d.age || 0,
+                city: d.city || '',
+                bio: d.bio || '',
+                madh: d.sampradaya || d.madh || '',
+                avatarUrl: d.avatar_url || d.avatarUrl || user.avatar || '',
+                photos: d.photos || []
+            };
+            setPreviewProfile(mappedProfile);
+            setShowPreview(true);
+        } catch (error) {
+            console.error('Failed to fetch preview:', error);
+            Alert.alert('Error', 'Could not load profile preview');
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const DatingCard = ({ item, isPreview = false }: { item: Profile, isPreview?: boolean }) => {
         const allPhotos = item.photos || [];
         const displayPhotos = allPhotos.length > 0 ? allPhotos : (item.avatarUrl ? [{ url: item.avatarUrl }] : []);
-        const [activeIndex, setActiveIndex] = useState(0);
-        const flatListRef = React.useRef<FlatList>(null);
 
-        const handleScroll = (event: any) => {
-            const contentOffset = event.nativeEvent.contentOffset.x;
-            const index = Math.round(contentOffset / (width - 34));
-            if (index !== activeIndex && index >= 0 && index < displayPhotos.length) {
-                setActiveIndex(index);
-            }
-        };
+        const [activeIndex, setActiveIndex] = useState(0);
+        const fadeAnim = React.useRef(new Animated.Value(1)).current;
+        const [isPaused, setIsPaused] = useState(false);
+
+        // Auto-change slides logic
+        useEffect(() => {
+            if (displayPhotos.length <= 1 || isPaused) return;
+
+            const interval = setInterval(() => {
+                Animated.sequence([
+                    Animated.timing(fadeAnim, {
+                        toValue: 0,
+                        duration: 500,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(fadeAnim, {
+                        toValue: 1,
+                        duration: 500,
+                        useNativeDriver: true,
+                    })
+                ]).start();
+
+                // Change index in the middle of fade
+                setTimeout(() => {
+                    setActiveIndex((prev) => (prev + 1) % displayPhotos.length);
+                }, 500);
+
+            }, 5000); // Change every 5 seconds
+
+            return () => clearInterval(interval);
+        }, [displayPhotos.length, isPaused]);
 
         const handleTap = (event: any) => {
             const x = event.nativeEvent.locationX;
             const cardWidth = width - 34;
+
+            setIsPaused(true); // Pause auto-rotation on manual interaction
+            // Resume after 10s
+            // setTimeout(() => setIsPaused(false), 10000); // Optional: resume later
+
             if (x < cardWidth * 0.3) {
                 // Tap left
                 if (activeIndex > 0) {
-                    flatListRef.current?.scrollToIndex({ index: activeIndex - 1, animated: true });
+                    setActiveIndex(activeIndex - 1);
                 }
             } else if (x > cardWidth * 0.7) {
                 // Tap right
                 if (activeIndex < displayPhotos.length - 1) {
-                    flatListRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
-                } else {
+                    setActiveIndex(activeIndex + 1);
+                } else if (!isPreview) {
                     navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
                 }
             } else {
                 // Tap middle
-                navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
+                if (!isPreview) {
+                    navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
+                }
             }
         };
+
+        const getImageUrl = (url: string) => {
+            if (!url) return '';
+            if (url.startsWith('http')) return url;
+            return `${API_PATH.replace(/\/api\/?$/, '')}${url}`;
+        };
+
+        const currentPhotoUrl = displayPhotos[activeIndex]?.url;
 
         return (
             <View style={[styles.card, { backgroundColor: theme.header, borderColor: theme.borderColor }]}>
                 <View style={styles.avatarContainer}>
                     {displayPhotos.length > 0 ? (
                         <View style={{ flex: 1 }}>
-                            <FlatList
-                                ref={flatListRef}
-                                data={displayPhotos}
-                                horizontal
-                                pagingEnabled
-                                showsHorizontalScrollIndicator={false}
-                                onScroll={handleScroll}
-                                scrollEventThrottle={16}
-                                keyExtractor={(_, index) => index.toString()}
-                                renderItem={({ item: photo }) => (
-                                    <TouchableOpacity
-                                        activeOpacity={1}
-                                        onPress={handleTap}
-                                        style={{ width: width - 34, height: 350 }}
-                                    >
-                                        <Image
-                                            source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}${photo.url}` }}
-                                            style={styles.avatar}
-                                            resizeMode="cover"
-                                        />
-                                    </TouchableOpacity>
-                                )}
-                            />
+                            <TouchableOpacity
+                                activeOpacity={1}
+                                onPress={handleTap}
+                                style={{ width: '100%', height: 350 }}
+                            >
+                                <Animated.Image
+                                    source={{ uri: getImageUrl(currentPhotoUrl) }}
+                                    style={[styles.avatar, { opacity: fadeAnim }]}
+                                    resizeMode="cover"
+                                />
+                            </TouchableOpacity>
 
                             {/* Gradient Overlay for Top Indicators */}
                             <LinearGradient
@@ -281,7 +381,9 @@ export const DatingScreen = () => {
                             )}
 
                             <View style={styles.tapToView}>
-                                <Text style={styles.tapText}>{t('dating.tapToSlide')}</Text>
+                                <Text style={styles.tapText}>
+                                    {isPaused ? t('dating.tapToSlide') + ' (Paused)' : t('dating.tapToSlide')}
+                                </Text>
                             </View>
                         </View>
                     ) : (
@@ -292,19 +394,24 @@ export const DatingScreen = () => {
                     )}
                 </View>
                 <View style={styles.cardInfo}>
-                    <Text style={[styles.name, { color: theme.text }]}>{item.spiritualName || 'Devotee'}</Text>
+                    <Text style={[styles.name, { color: theme.text }]}>
+                        {item.spiritualName || 'Devotee'}
+                        {item.age ? `, ${item.age}` : ''}
+                    </Text>
                     <Text style={[styles.city, { color: theme.subText }]}>{item.city}</Text>
                     <Text style={[styles.path, { color: theme.accent }]}>{item.madh}</Text>
                     <Text style={[styles.bio, { color: theme.text }]} numberOfLines={3}>{item.bio || 'No bio yet'}</Text>
 
-                    <View style={styles.actions}>
-                        <TouchableOpacity
-                            style={[styles.actionBtn, { backgroundColor: theme.button }]}
-                            onPress={() => handleCheckCompatibility(item.ID)}
-                        >
-                            <Text style={{ color: theme.buttonText }}>{t('dating.checkCompatibility')}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    {!isPreview && (
+                        <View style={styles.actions}>
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: theme.button }]}
+                                onPress={() => handleCheckCompatibility(item.ID)}
+                            >
+                                <Text style={{ color: theme.buttonText }}>{t('dating.checkCompatibility')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </View >
         );
@@ -315,6 +422,13 @@ export const DatingScreen = () => {
             <View style={[styles.topMenu, { borderBottomColor: theme.borderColor, alignItems: 'center' }]}>
                 {/* Left Arrow */}
                 <Text style={{ fontSize: 18, color: theme.subText, marginRight: 5 }}>‹</Text>
+
+                <TouchableOpacity
+                    style={[styles.iconBtn, { backgroundColor: theme.inputBackground, marginRight: 5 }]}
+                    onPress={() => setShowStats(!showStats)}
+                >
+                    <Text style={{ fontSize: 14 }}>{showStats ? '📊 ▲' : '📊 ▼'}</Text>
+                </TouchableOpacity>
 
                 <ScrollView
                     horizontal
@@ -335,9 +449,15 @@ export const DatingScreen = () => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                        onPress={() => fetchPreviewProfile()}
+                    >
+                        <Text style={{ color: theme.text }}>👁️ {t('settings.tabs.chat').replace('Чат', 'Превью') || 'Preview'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
                         onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                     >
-                        <Text style={{ color: theme.text }}>🖼️ {t('settings.tabs.chat').replace('Чат', 'Медиа')}</Text>
+                        <Text style={{ color: theme.text }}>🖼️ Media</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
@@ -350,6 +470,71 @@ export const DatingScreen = () => {
                 {/* Right Arrow */}
                 <Text style={{ fontSize: 18, color: theme.subText, marginLeft: 5 }}>›</Text>
             </View>
+
+            {/* Statistics Bar */}
+            {showStats && (
+                <View style={[styles.statsBar, { borderBottomColor: theme.borderColor }]}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
+                        <TouchableOpacity
+                            style={[
+                                styles.statItem,
+                                { backgroundColor: (!filterCity && !filterNew) ? theme.accent : theme.inputBackground }
+                            ]}
+                            onPress={() => {
+                                setFilterCity('');
+                                setFilterNew(false);
+                                fetchCandidates();
+                            }}
+                        >
+                            <Text style={styles.statEmoji}>👥</Text>
+                            <View>
+                                <Text style={[styles.statValue, { color: (!filterCity && !filterNew) ? '#fff' : theme.text }]}>{stats.total}</Text>
+                                <Text style={[styles.statLabel, { color: (!filterCity && !filterNew) ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.totalProfiles', 'Всего анкет')}</Text>
+                            </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.statItem,
+                                { backgroundColor: (filterCity === user?.city && filterCity !== '') ? theme.accent : theme.inputBackground }
+                            ]}
+                            onPress={() => {
+                                if (user?.city) {
+                                    if (filterCity === user.city) {
+                                        setFilterCity('');
+                                    } else {
+                                        setFilterCity(user.city);
+                                        setFilterNew(false);
+                                    }
+                                    fetchCandidates();
+                                }
+                            }}
+                        >
+                            <Text style={styles.statEmoji}>📍</Text>
+                            <View>
+                                <Text style={[styles.statValue, { color: (filterCity === user?.city && filterCity !== '') ? '#fff' : theme.text }]}>{stats.city}</Text>
+                                <Text style={[styles.statLabel, { color: (filterCity === user?.city && filterCity !== '') ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.inYourCity', 'В вашем городе')}</Text>
+                            </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.statItem,
+                                { backgroundColor: filterNew ? theme.accent : theme.inputBackground }
+                            ]}
+                            onPress={() => {
+                                setFilterNew(!filterNew);
+                                if (!filterNew) setFilterCity('');
+                                fetchCandidates();
+                            }}
+                        >
+                            <Text style={styles.statEmoji}>✨</Text>
+                            <View>
+                                <Text style={[styles.statValue, { color: filterNew ? '#fff' : theme.text }]}>{stats.new}</Text>
+                                <Text style={[styles.statLabel, { color: filterNew ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.newLast24h', 'Новые (24ч)')}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </ScrollView>
+                </View>
+            )}
 
             {loading ? (
                 <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.accent} />
@@ -467,6 +652,53 @@ export const DatingScreen = () => {
                                 />
                             </View>
                         </View>
+                        <View style={{ marginBottom: 15 }}>
+                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Tradition (Madh)</Text>
+                            <TouchableOpacity
+                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                onPress={() => setShowMadhPicker(true)}
+                            >
+                                <Text style={{ color: filterMadh ? theme.text : theme.subText }}>
+                                    {filterMadh || "Select Tradition"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ marginBottom: 15 }}>
+                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Yoga Style</Text>
+                            <TouchableOpacity
+                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                onPress={() => setShowYogaPicker(true)}
+                            >
+                                <Text style={{ color: filterYogaStyle ? theme.text : theme.subText }}>
+                                    {filterYogaStyle || "Any"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ marginBottom: 15 }}>
+                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Guna</Text>
+                            <TouchableOpacity
+                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                onPress={() => setShowGunaPicker(true)}
+                            >
+                                <Text style={{ color: filterGuna ? theme.text : theme.subText }}>
+                                    {filterGuna || "Any"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ marginBottom: 15 }}>
+                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Identity</Text>
+                            <TouchableOpacity
+                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                onPress={() => setShowIdentityPicker(true)}
+                            >
+                                <Text style={{ color: filterIdentity ? theme.text : theme.subText }}>
+                                    {filterIdentity || "Any"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
 
                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                             <TouchableOpacity
@@ -475,6 +707,10 @@ export const DatingScreen = () => {
                                     setFilterCity('');
                                     setFilterMinAge('');
                                     setFilterMaxAge('');
+                                    setFilterMadh('');
+                                    setFilterYogaStyle('');
+                                    setFilterGuna('');
+                                    setFilterIdentity('');
                                     fetchCandidates();
                                 }}
                             >
@@ -497,6 +733,39 @@ export const DatingScreen = () => {
                         >
                             <Text style={{ color: theme.subText, fontSize: 18 }}>✕</Text>
                         </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Profile Preview Modal */}
+            <Modal
+                visible={showPreview}
+                transparent
+                animationType="slide"
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.background, padding: 0, width: '95%', height: '90%', borderRadius: 20 }]}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 15, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.borderColor }}>
+                            <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>Profile Preview</Text>
+                            <TouchableOpacity onPress={() => setShowPreview(false)} style={{ padding: 5 }}>
+                                <Text style={{ color: theme.subText, fontSize: 20 }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ padding: 15, flex: 1 }}>
+                            {previewLoading ? (
+                                <ActivityIndicator size="large" color={theme.primary} />
+                            ) : previewProfile ? (
+                                <ScrollView showsVerticalScrollIndicator={false}>
+                                    <DatingCard item={previewProfile} isPreview={true} />
+                                    <Text style={{ color: theme.subText, textAlign: 'center', marginTop: 10 }}>
+                                        This is how others see your card
+                                    </Text>
+                                </ScrollView>
+                            ) : (
+                                <Text style={{ color: theme.text, textAlign: 'center' }}>Failed to load profile</Text>
+                            )}
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -552,6 +821,116 @@ export const DatingScreen = () => {
                     </View>
                 </View>
             </Modal>
+
+            {/* Madh Selection Modal */}
+            <Modal
+                visible={showMadhPicker}
+                transparent
+                animationType="fade"
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Tradition</Text>
+
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            <TouchableOpacity
+                                style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                onPress={() => {
+                                    setFilterMadh('');
+                                    setShowMadhPicker(false);
+                                }}
+                            >
+                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
+                            </TouchableOpacity>
+                            {DATING_TRADITIONS.map((madh, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                    onPress={() => {
+                                        setFilterMadh(madh);
+                                        setShowMadhPicker(false);
+                                    }}
+                                >
+                                    <Text style={{ color: theme.text }}>{madh}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]}
+                            onPress={() => setShowMadhPicker(false)}
+                        >
+                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Yoga Style Picker */}
+            <Modal visible={showYogaPicker} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Yoga Style</Text>
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(''); setShowYogaPicker(false); }}>
+                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
+                            </TouchableOpacity>
+                            {YOGA_STYLES.map((style, index) => (
+                                <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(style); setShowYogaPicker(false); }}>
+                                    <Text style={{ color: theme.text }}>{style}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowYogaPicker(false)}>
+                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Guna Picker */}
+            <Modal visible={showGunaPicker} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Guna</Text>
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(''); setShowGunaPicker(false); }}>
+                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
+                            </TouchableOpacity>
+                            {GUNAS.map((guna, index) => (
+                                <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(guna); setShowGunaPicker(false); }}>
+                                    <Text style={{ color: theme.text }}>{guna}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowGunaPicker(false)}>
+                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Identity Picker */}
+            <Modal visible={showIdentityPicker} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Identity</Text>
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(''); setShowIdentityPicker(false); }}>
+                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
+                            </TouchableOpacity>
+                            {IDENTITY_OPTIONS.map((opt, index) => (
+                                <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(opt); setShowIdentityPicker(false); }}>
+                                    <Text style={{ color: theme.text }}>{opt}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowIdentityPicker(false)}>
+                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -570,6 +949,37 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 20,
+    },
+    iconBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    statsBar: {
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+    },
+    statItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 15,
+        marginRight: 10,
+        minWidth: 100,
+    },
+    statEmoji: {
+        fontSize: 18,
+        marginRight: 8,
+    },
+    statValue: {
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    statLabel: {
+        fontSize: 10,
     },
     list: {
         padding: 16,

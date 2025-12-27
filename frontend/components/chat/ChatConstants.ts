@@ -13,6 +13,8 @@ export const COLORS = {
         menuBackground: '#1E1E1E',
         iconColor: '#D7CCC8',  // Pale bronze
         accent: '#FFB74D',     // Subtle Gold for highlights
+        primary: '#FF9933',    // Saffron Brand Color
+        error: '#FF5252',      // Error Red
         button: '#5D4037',     // Match registration
         buttonText: '#D7CCC8',
     },
@@ -30,6 +32,8 @@ export const COLORS = {
         menuBackground: '#FFFFFF',
         iconColor: '#5D4037',  // Deep Brown
         accent: '#A1887F',     // Muted Copper
+        primary: '#FF9933',    // Saffron Brand Color
+        error: '#FF5252',      // Error Red
         button: '#8D6E63',     // Match registration
         buttonText: '#FFFFFF',
     },

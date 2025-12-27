@@ -129,9 +129,11 @@ func main() {
 	api.Post("/media/:id/set-profile", mediaHandler.SetProfilePhoto)
 
 	// Dating Routes
+	api.Get("/dating/stats", datingHandler.GetDatingStats)
 	api.Get("/dating/cities", datingHandler.GetDatingCities)
 	api.Get("/dating/candidates", datingHandler.GetCandidates)
 	api.Post("/dating/compatibility/:userId/:candidateId", datingHandler.GetCompatibility)
+	api.Get("/dating/profile/:id", datingHandler.GetDatingProfile)
 	api.Put("/dating/profile/:id", datingHandler.UpdateDatingProfile)
 	api.Post("/dating/favorites", datingHandler.AddToFavorites)
 	api.Get("/dating/favorites", datingHandler.GetFavorites)

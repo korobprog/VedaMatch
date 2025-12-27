@@ -207,6 +207,9 @@ export default {
         filters: 'Фильтры',
         longPressOptions: 'Зажмите фото для управления',
         addPhoto: 'Добавить фото',
-        mainPhotoBadge: 'Главное'
+        mainPhotoBadge: 'Главное',
+        totalProfiles: 'Всего анкет',
+        inYourCity: 'В вашем городе',
+        newLast24h: 'Новые за 24ч'
     }
 };

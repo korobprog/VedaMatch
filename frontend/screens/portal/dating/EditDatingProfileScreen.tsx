@@ -21,6 +21,7 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { useUser } from '../../../context/UserContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
+import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditDatingProfile'>;
 
@@ -39,15 +40,24 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         maritalStatus: '',
         birthTime: '',
         birthPlaceLink: '',
+        city: '',
         dob: '',
+        madh: '',
+        yogaStyle: '',
+        guna: '',
+        identity: '',
         datingEnabled: false
     });
 
     const [openTimePicker, setOpenTimePicker] = useState(false);
     const [citySearchModal, setCitySearchModal] = useState(false);
+    const [madhSelectionModal, setMadhSelectionModal] = useState(false);
+    const [yogaSelectionModal, setYogaSelectionModal] = useState(false);
+    const [gunaSelectionModal, setGunaSelectionModal] = useState(false);
     const [cityQuery, setCityQuery] = useState('');
     const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
     const [isSearchingCities, setIsSearchingCities] = useState(false);
+    const [citySearchType, setCitySearchType] = useState<'current' | 'birth'>('current');
     const [tempDate, setTempDate] = useState(new Date());
     const [openDobPicker, setOpenDobPicker] = useState(false);
     const [tempDob, setTempDob] = useState(new Date());
@@ -71,7 +81,12 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     maritalStatus: me.maritalStatus || '',
                     birthTime: me.birthTime || '',
                     birthPlaceLink: me.birthPlaceLink || '',
+                    city: me.city || '',
                     dob: me.dob || '',
+                    madh: me.madh || '',
+                    yogaStyle: me.yogaStyle || '',
+                    guna: me.guna || '',
+                    identity: me.identity || IDENTITY_OPTIONS[0],
                     datingEnabled: me.datingEnabled || false
                 });
                 if (me.birthTime) {
@@ -102,8 +117,8 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         // Validation if dating is enabled
         if (profile.datingEnabled) {
             if (!profile.bio.trim() || !profile.interests.trim() || !profile.lookingFor.trim() ||
-                !profile.maritalStatus.trim() || !profile.dob || !profile.birthTime || !profile.birthPlaceLink) {
-                Alert.alert('Внимание', 'Для активации профиля в знакомствах необходимо заполнить все поля, включая астрологические данные.');
+                !profile.maritalStatus.trim() || !profile.dob || !profile.birthTime || !profile.birthPlaceLink || !profile.city) {
+                Alert.alert('Внимание', 'Для активации профиля в знакомствах необходимо заполнить все поля, включая город и астрологические данные.');
                 return;
             }
         }
@@ -173,7 +188,11 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
     };
 
     const handleCitySelect = (item: any) => {
-        setProfile({ ...profile, birthPlaceLink: item.display_name });
+        if (citySearchType === 'current') {
+            setProfile({ ...profile, city: item.display_name });
+        } else {
+            setProfile({ ...profile, birthPlaceLink: item.display_name });
+        }
         setCitySearchModal(false);
         setCityQuery('');
         setCitySuggestions([]);
@@ -221,6 +240,20 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         <Text style={{ color: theme.accent, fontWeight: 'bold' }}>📸 Manage Photos / Add New</Text>
                     </TouchableOpacity>
 
+                    <Text style={[styles.label, { color: theme.text }]}>Current City</Text>
+                    <TouchableOpacity
+                        style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        onPress={() => {
+                            setCitySearchType('current');
+                            setCityQuery(profile.city);
+                            setCitySearchModal(true);
+                        }}
+                    >
+                        <Text style={{ color: profile.city ? theme.text : theme.subText }} numberOfLines={1}>
+                            {profile.city || "Select current city..."}
+                        </Text>
+                    </TouchableOpacity>
+
                     <Text style={[styles.label, { color: theme.text }]}>About Me (Bio)</Text>
                     <TextInput
                         style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
@@ -240,6 +273,59 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         placeholder="Yoga, kirtan, cooking..."
                         placeholderTextColor={theme.subText}
                     />
+
+
+
+                    <Text style={[styles.label, { color: theme.text }]}>Tradition (Madh)</Text>
+                    <TouchableOpacity
+                        style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        onPress={() => setMadhSelectionModal(true)}
+                    >
+                        <Text style={{ color: profile.madh ? theme.text : theme.subText }}>
+                            {profile.madh || "Select Tradition"}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <Text style={[styles.label, { color: theme.text }]}>Yoga Style</Text>
+                    <TouchableOpacity
+                        style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        onPress={() => setYogaSelectionModal(true)}
+                    >
+                        <Text style={{ color: profile.yogaStyle ? theme.text : theme.subText }}>
+                            {profile.yogaStyle || "Select Yoga Style"}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <Text style={[styles.label, { color: theme.text }]}>Mode of Nature (Guna)</Text>
+                    <TouchableOpacity
+                        style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        onPress={() => setGunaSelectionModal(true)}
+                    >
+                        <Text style={{ color: profile.guna ? theme.text : theme.subText }}>
+                            {profile.guna || "Select Guna"}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <Text style={[styles.label, { color: theme.text }]}>Identity</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                        {IDENTITY_OPTIONS.map((opt) => (
+                            <TouchableOpacity
+                                key={opt}
+                                style={[styles.radioBtn, {
+                                    borderColor: theme.borderColor,
+                                    backgroundColor: profile.identity === opt ? theme.button : 'transparent',
+                                    padding: 10,
+                                    borderRadius: 8,
+                                    borderWidth: 1,
+                                    marginRight: 10,
+                                    marginBottom: 10
+                                }]}
+                                onPress={() => setProfile({ ...profile, identity: opt })}
+                            >
+                                <Text style={{ color: profile.identity === opt ? theme.buttonText : theme.text }}>{opt}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
 
                     <Text style={[styles.label, { color: theme.text }]}>Looking For</Text>
                     <TextInput
@@ -317,6 +403,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => {
+                            setCitySearchType('birth');
                             setCityQuery(profile.birthPlaceLink);
                             setCitySearchModal(true);
                         }}
@@ -335,7 +422,9 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         <TouchableOpacity onPress={() => setCitySearchModal(false)}>
                             <Text style={{ color: theme.accent, fontSize: 16 }}>Close</Text>
                         </TouchableOpacity>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>Search City</Text>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>
+                            {citySearchType === 'current' ? 'Search Current City' : 'Search Birth Place'}
+                        </Text>
                         <View style={{ width: 50 }} />
                     </View>
                     <View style={styles.searchContainer}>
@@ -363,6 +452,110 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         keyboardShouldPersistTaps="always"
                     />
                 </SafeAreaView>
+            </Modal>
+            {/* Madh Selection Modal */}
+            <Modal
+                visible={madhSelectionModal}
+                transparent
+                animationType="fade"
+            >
+                <View style={[styles.modalOverlay, { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }]}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, borderRadius: 20, maxHeight: '60%', padding: 20 }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>Select Tradition</Text>
+
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            {DATING_TRADITIONS.map((madh, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                    onPress={() => {
+                                        setProfile({ ...profile, madh: madh });
+                                        setMadhSelectionModal(false);
+                                    }}
+                                >
+                                    <Text style={{ color: theme.text }}>{madh}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: theme.button, marginTop: 10, alignItems: 'center' }]}
+                            onPress={() => setMadhSelectionModal(false)}
+                        >
+                            <Text style={{ color: theme.buttonText }}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Yoga Selection Modal */}
+            <Modal
+                visible={yogaSelectionModal}
+                transparent
+                animationType="fade"
+            >
+                <View style={[styles.modalOverlay, { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }]}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, borderRadius: 20, maxHeight: '60%', padding: 20 }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>Select Yoga Style</Text>
+
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            {YOGA_STYLES.map((style, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                    onPress={() => {
+                                        setProfile({ ...profile, yogaStyle: style });
+                                        setYogaSelectionModal(false);
+                                    }}
+                                >
+                                    <Text style={{ color: theme.text }}>{style}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: theme.button, marginTop: 10, alignItems: 'center' }]}
+                            onPress={() => setYogaSelectionModal(false)}
+                        >
+                            <Text style={{ color: theme.buttonText }}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Guna Selection Modal */}
+            <Modal
+                visible={gunaSelectionModal}
+                transparent
+                animationType="fade"
+            >
+                <View style={[styles.modalOverlay, { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }]}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, borderRadius: 20, maxHeight: '60%', padding: 20 }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>Select Guna</Text>
+
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            {GUNAS.map((guna, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                    onPress={() => {
+                                        setProfile({ ...profile, guna: guna });
+                                        setGunaSelectionModal(false);
+                                    }}
+                                >
+                                    <Text style={{ color: theme.text }}>{guna}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: theme.button, marginTop: 10, alignItems: 'center' }]}
+                            onPress={() => setGunaSelectionModal(false)}
+                        >
+                            <Text style={{ color: theme.buttonText }}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </Modal>
         </SafeAreaView >
     );
@@ -473,5 +666,28 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 20,
         borderRadius: 25,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        borderRadius: 20,
+        padding: 20,
+        maxHeight: '80%',
+        width: '100%',
+    },
+    radioBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginRight: 10,
+        marginBottom: 10,
     }
 });

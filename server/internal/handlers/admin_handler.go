@@ -35,9 +35,10 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 
 	// Filter by Status
 	status := c.Query("status")
-	if status == "blocked" {
+	switch status {
+	case "blocked":
 		query = query.Where("is_blocked = ?", true)
-	} else if status == "active" {
+	case "active":
 		query = query.Where("is_blocked = ?", false)
 	}
 
