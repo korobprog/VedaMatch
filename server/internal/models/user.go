@@ -22,8 +22,8 @@ type User struct {
 	Interests         string  `json:"interests"`
 	LookingFor        string  `json:"lookingFor"`
 	MaritalStatus     string  `json:"maritalStatus"`
-	BirthTime         string  `json:"birthTime"`
-	BirthPlaceLink    string  `json:"birthPlaceLink"`
+	BirthTime         string  `json:"birthTime" gorm:"column:birth_time"`
+	BirthPlaceLink    string  `json:"birthPlaceLink" gorm:"column:birth_place_link"`
 	DatingEnabled     bool    `json:"datingEnabled" gorm:"default:false"`
 	IsProfileComplete bool    `json:"isProfileComplete" gorm:"default:false"`
 	CurrentPlan       string  `json:"currentPlan" gorm:"default:'trial'"`
