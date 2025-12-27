@@ -72,3 +72,46 @@ pnpm run phone:quick
 - **Admin Panel:** Next.js
 - **AI:** Google Gemini / OpenAI (через прокси)
 - **Database:** PostgreSQL
+
+## Деплой (Dokploy)
+
+### 1. Настройка сервера (Backend)
+В Dokploy создайте новый сервис и укажите:
+- **Build Path**: `/server`
+- **Build Type**: `Dockerfile`
+- **Port**: `8081` (раздел Domains)
+
+### 2. Настройка админки (Admin Panel)
+- **Build Path**: `/admin`
+- **Build Type**: `Nixpacks` (или Dockerfile, если есть)
+- **Environment**: `NEXT_PUBLIC_APP_ENV=production` — этот флаг скрывает кнопки "Вход" и "Админ Панель" на лендинге.
+
+---
+
+## Конфигурация окружения (.env)
+
+### Backend (в Dokploy Environment)
+Обязательные переменные:
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` — данные PostgreSQL.
+- `GEMINI_API_KEY` — ключ API.
+- `GEMINI_BASE_URL` — прокси-URL.
+- `APP_ENV=production`.
+
+### Frontend (React Native)
+Файл `frontend/.env` используется для настройки сборки приложения.
+
+**Для Production (релиз APK):**
+```env
+API_BASE_URL=https://api.vedamatch.ru
+APP_ENV=production
+```
+*Эффект: Кнопка "Dev Login" будет скрыта, подключение пойдет к боевому серверу.*
+
+**Для Локальной разработки:**
+```env
+API_BASE_URL=http://10.0.2.2:8081
+APP_ENV=development
+```
+*Эффект: Доступен быстрый вход (Dev Login), подключение к локальному серверу.*
+
+> **Важно:** После изменения `.env` в React Native требуется полная пересборка приложения (`pnpm android`).

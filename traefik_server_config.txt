@@ -1,0 +1,23 @@
+http:
+  routers:
+    vedamatch-server-dnkxc8-router-2:
+      rule: Host(`api.vedamatch.ru`)
+      service: vedamatch-server-dnkxc8-service-2
+      middlewares:
+        - redirect-to-https
+      entryPoints:
+        - web
+    vedamatch-server-dnkxc8-router-websecure-2:
+      rule: Host(`api.vedamatch.ru`)
+      service: vedamatch-server-dnkxc8-service-2
+      middlewares: []
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+  services:
+    vedamatch-server-dnkxc8-service-2:
+      loadBalancer:
+        servers:
+          - url: http://vedamatch-server-dnkxc8:8081
+        passHostHeader: true

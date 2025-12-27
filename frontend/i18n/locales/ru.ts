@@ -159,6 +159,7 @@ export default {
         login: 'Войти',
         profile: 'Профиль',
         devLogin: 'Быстрый вход (DEV)',
+        logout: 'Выйти',
     },
     contacts: {
         sendMessage: 'Отправить сообщение',

@@ -208,12 +208,54 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
-	var updates map[string]interface{}
+	// Use a struct with pointers for partial updates (handles zero values and correct mapping)
+	var updates struct {
+		Bio               *string `json:"bio"`
+		Interests         *string `json:"interests"`
+		LookingFor        *string `json:"lookingFor"`
+		MaritalStatus     *string `json:"maritalStatus"`
+		Dob               *string `json:"dob"`
+		BirthTime         *string `json:"birthTime"`
+		BirthPlaceLink    *string `json:"birthPlaceLink"`
+		DatingEnabled     *bool   `json:"datingEnabled"`
+		IsProfileComplete *bool   `json:"isProfileComplete"`
+	}
+
 	if err := c.BodyParser(&updates); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
-	if err := database.DB.Model(&user).Updates(updates).Error; err != nil {
+	// Map to snake_case column names for GORM
+	updateMap := make(map[string]interface{})
+	if updates.Bio != nil {
+		updateMap["bio"] = *updates.Bio
+	}
+	if updates.Interests != nil {
+		updateMap["interests"] = *updates.Interests
+	}
+	if updates.LookingFor != nil {
+		updateMap["looking_for"] = *updates.LookingFor
+	}
+	if updates.MaritalStatus != nil {
+		updateMap["marital_status"] = *updates.MaritalStatus
+	}
+	if updates.Dob != nil {
+		updateMap["dob"] = *updates.Dob
+	}
+	if updates.BirthTime != nil {
+		updateMap["birth_time"] = *updates.BirthTime
+	}
+	if updates.BirthPlaceLink != nil {
+		updateMap["birth_place_link"] = *updates.BirthPlaceLink
+	}
+	if updates.DatingEnabled != nil {
+		updateMap["dating_enabled"] = *updates.DatingEnabled
+	}
+	if updates.IsProfileComplete != nil {
+		updateMap["is_profile_complete"] = *updates.IsProfileComplete
+	}
+
+	if err := database.DB.Model(&user).Updates(updateMap).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update profile"})
 	}
 

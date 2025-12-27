@@ -52,28 +52,7 @@ func InitializeSuperAdmin() {
 		return
 	}
 
-	log.Printf("[AUTH] Attempting to initialize superadmin: %s", email)
-
-	var admin models.User
-	result := DB.Where("email = ?", email).First(&admin)
-
-	if result.Error == nil {
-		log.Printf("[AUTH] User with email %s already exists. Syncing role and password.", email)
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		DB.Model(&admin).Updates(map[string]interface{}{
-			"role":     "superadmin",
-			"password": string(hashedPassword),
-		})
-		return
-	}
-
-	// Also check if any other superadmin exists just in case
-	var count int64
-	DB.Model(&models.User{}).Where("role = ?", "superadmin").Count(&count)
-	if count > 0 {
-		log.Printf("[AUTH] Another superadmin already exists, skipping creation for %s to avoid duplicates", email)
-		return
-	}
+	log.Printf("[AUTH] Attempting to initialize superadmin from environment: %s", email)
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -81,6 +60,20 @@ func InitializeSuperAdmin() {
 		return
 	}
 
+	var admin models.User
+	result := DB.Where("email = ?", email).First(&admin)
+
+	if result.Error == nil {
+		log.Printf("[AUTH] User %s found. Updating role to superadmin and syncing password.", email)
+		DB.Model(&admin).Updates(map[string]interface{}{
+			"role":                "superadmin",
+			"password":            string(hashedPassword),
+			"is_profile_complete": true,
+		})
+		return
+	}
+
+	// Create new superadmin
 	admin = models.User{
 		Email:             email,
 		Password:          string(hashedPassword),
@@ -93,7 +86,7 @@ func InitializeSuperAdmin() {
 	if err := DB.Create(&admin).Error; err != nil {
 		log.Printf("[AUTH] Failed to create superadmin: %v", err)
 	} else {
-		log.Printf("[AUTH] Superadmin %s initialized successfully", email)
+		log.Printf("[AUTH] Superadmin %s created successfully", email)
 	}
 }
 

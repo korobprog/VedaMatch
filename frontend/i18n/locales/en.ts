@@ -155,6 +155,7 @@ export default {
         login: 'Login',
         profile: 'Profile',
         devLogin: 'Quick Login (DEV)',
+        logout: 'Logout',
     },
     contacts: {
         sendMessage: 'Send Message',

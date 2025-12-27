@@ -15,6 +15,7 @@ interface UserProfile {
 interface UserContextType {
     user: UserProfile | null;
     isLoggedIn: boolean;
+    isLoading: boolean;
     login: (profile: UserProfile) => Promise<void>;
     logout: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
@@ -24,6 +25,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
 
     useEffect(() => {
@@ -54,6 +56,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }
         } catch (e) {
             console.error('Failed to load user', e);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -79,6 +83,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         <UserContext.Provider value={{
             user,
             isLoggedIn: !!user,
+            isLoading,
             login,
             logout,
             setTourCompleted

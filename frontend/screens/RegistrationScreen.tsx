@@ -302,8 +302,6 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
                 await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
                 await login(updatedUser);
-
-                navigation.replace('Plans');
             }
         } catch (error: any) {
             console.error('Registration/Update error:', error);
@@ -329,7 +327,6 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         if (userStr && userStr !== 'undefined') {
                             await login(JSON.parse(userStr));
                         }
-                        navigation.replace('Portal', {});
                     }
                 }
             ]

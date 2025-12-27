@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
 
 export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
@@ -30,6 +31,8 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         defaultMenuTab,
         setDefaultMenuTab
     } = useSettings();
+
+    const { logout } = useUser();
 
     const [activeFilters, setActiveFilters] = useState({
         text: false,
@@ -265,8 +268,28 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         })
                     )}
                 </View>
+
+                {/* Logout Section */}
+                <View style={[styles.section, { borderBottomWidth: 0, marginTop: 20, marginBottom: 40 }]}>
+                    <TouchableOpacity
+                        style={[
+                            styles.sizeBtn,
+                            {
+                                backgroundColor: theme.error || '#FF4444',
+                                borderColor: theme.error || '#FF4444',
+                                alignItems: 'center',
+                                paddingVertical: 15
+                            }
+                        ]}
+                        onPress={logout}
+                    >
+                        <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>
+                            {t('auth.logout') || 'Logout'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 };
 

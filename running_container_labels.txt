@@ -1,0 +1,1 @@
+{"com.docker.swarm.node.id":"rkzkuznzs72tpphsb3upa123j","com.docker.swarm.service.id":"bchpfik1uizfel3yb7yra2hj3","com.docker.swarm.service.name":"vedamatch-server-dnkxc8","com.docker.swarm.task":"","com.docker.swarm.task.id":"uqrirzuw2j6c88gi7uzgg562w","com.docker.swarm.task.name":"vedamatch-server-dnkxc8.1.uqrirzuw2j6c88gi7uzgg562w"}

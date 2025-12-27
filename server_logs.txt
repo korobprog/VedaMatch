@@ -1,0 +1,140 @@
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 No .env file found
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 Connected to Database
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 Database Migrated
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:34 No .env file found
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 [AUTH] Attempting to initialize superadmin: korobprog@gmail.com
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:34 Connected to Database
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 [AUTH] User with email korobprog@gmail.com already exists. Ensuring it has superadmin role.
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:35 Database Migrated
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 No .env file found
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:35 [AUTH] Attempting to initialize superadmin: korobprog@gmail.com
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:35 [AUTH] User with email korobprog@gmail.com already exists. Ensuring it has superadmin role.
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:35 Registering /api/messages routes...
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 Connected to Database
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 Database Migrated
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:35 Routes registered.
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 2025/12/27 01:08:35 Server starting on port :8081
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  ┌───────────────────────────────────────────────────┐ 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  │                   Fiber v2.52.0                   │ 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  │               http://127.0.0.1:8081               │ 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  │       (bound on host 0.0.0.0 and port 8081)       │ 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  │                                                   │ 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  │ Handlers ............ 75  Processes ........... 1 │ 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  │ Prefork ....... Disabled  PID ................. 1 │ 
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    |  └───────────────────────────────────────────────────┘ 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 [AUTH] Attempting to initialize superadmin: korobprog@gmail.com
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 [AUTH] User with email korobprog@gmail.com already exists. Ensuring it has superadmin role.
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 Registering /api/messages routes...
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 Routes registered.
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 2025/12/27 01:04:46 Server starting on port :8081
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 Registering /api/messages routes...
+vedamatch-server-dnkxc8.1.8z8bsyc48j7i@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  ┌───────────────────────────────────────────────────┐ 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  │                   Fiber v2.52.0                   │ 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  │               http://127.0.0.1:8081               │ 
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 2025/12/27 01:00:40 No .env file found
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 2025/12/27 01:00:40 Connected to Database
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  │       (bound on host 0.0.0.0 and port 8081)       │ 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  │                                                   │ 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  │ Handlers ............ 75  Processes ........... 1 │ 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  │ Prefork ....... Disabled  PID ................. 1 │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 No .env file found
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 Connected to Database
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 Database Migrated
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    |  └───────────────────────────────────────────────────┘ 
+vedamatch-server-dnkxc8.1.er79geltt2yw@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 [AUTH] Attempting to initialize superadmin: korobprog@gmail.com
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 Routes registered.
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 [AUTH] User with email korobprog@gmail.com already exists. Syncing role and password.
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 Registering /api/messages routes...
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 Routes registered.
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 2025/12/27 01:10:38 Server starting on port :8081
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 2025/12/27 01:10:44 Server starting on port :8081
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  ┌───────────────────────────────────────────────────┐ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  │                   Fiber v2.52.0                   │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  │               http://127.0.0.1:8081               │ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  ┌───────────────────────────────────────────────────┐ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  │       (bound on host 0.0.0.0 and port 8081)       │ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  │                   Fiber v2.52.0                   │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  │                                                   │ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  │               http://127.0.0.1:8081               │ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  │       (bound on host 0.0.0.0 and port 8081)       │ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  │                                                   │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  │ Handlers ............ 75  Processes ........... 1 │ 
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  │ Handlers ............ 75  Processes ........... 1 │ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  │ Prefork ....... Disabled  PID ................. 1 │ 
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  ┌───────────────────────────────────────────────────┐ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    |  └───────────────────────────────────────────────────┘ 
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 2025/12/27 01:00:40 Database Migrated
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 2025/12/27 01:00:40 Registering /api/messages routes...
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 2025/12/27 01:00:40 Routes registered.
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 2025/12/27 01:00:40 Server starting on port :8081
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  │                   Fiber v2.52.0                   │ 
+vedamatch-server-dnkxc8.1.zcuamjxs3vpz@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  │ Prefork ....... Disabled  PID ................. 1 │ 
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  │               http://127.0.0.1:8081               │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    |  └───────────────────────────────────────────────────┘ 
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  │       (bound on host 0.0.0.0 and port 8081)       │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  │                                                   │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:28:10 | 404 |      37.611µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:44 | 404 |      28.794µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  │ Handlers ............ 75  Processes ........... 1 │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:44 | 404 |      30.157µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  │ Prefork ....... Disabled  PID ................. 1 │ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:45 | 404 |      29.227µs | 10.0.1.4 | POST | /graphql | Cannot POST /graphql
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:45 | 404 |      48.593µs | 10.0.1.4 | POST | /api | Cannot POST /api
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:46 | 404 |      97.046µs | 10.0.1.4 | POST | /api/graphql | Cannot POST /api/graphql
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    |  └───────────────────────────────────────────────────┘ 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:46 | 404 |      27.403µs | 10.0.1.4 | POST | /graphql/api | Cannot POST /graphql/api
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:47 | 404 |      48.412µs | 10.0.1.4 | POST | /api/gql | Cannot POST /api/gql
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:48 | 404 |      34.596µs | 10.0.1.4 | GET | /swagger-ui.html | Cannot GET /swagger-ui.html
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:49 | 404 |      35.568µs | 10.0.1.4 | GET | /swagger/index.html | Cannot GET /swagger/index.html
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:50 | 404 |      156.45µs | 10.0.1.4 | GET | /swagger/swagger-ui.html | Cannot GET /swagger/swagger-ui.html
+vedamatch-server-dnkxc8.1.41amt7ncnodc@vedamatch.com    | 01:03:20 | 405 |      87.428µs | 10.0.1.4 | GET | /api/login | Method Not Allowed
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:51 | 404 |      31.551µs | 10.0.1.4 | GET | /webjars/swagger-ui/index.html | Cannot GET /webjars/swagger-ui/index.html
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:52 | 404 |      29.186µs | 10.0.1.4 | GET | /swagger.json | Cannot GET /swagger.json
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:53 | 404 |      33.674µs | 10.0.1.4 | GET | /swagger/v1/swagger.json | Cannot GET /swagger/v1/swagger.json
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:54 | 404 |       41.98µs | 10.0.1.4 | GET | /v2/api-docs | Cannot GET /v2/api-docs
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:56 | 404 |      30.127µs | 10.0.1.4 | GET | /v3/api-docs | Cannot GET /v3/api-docs
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:57 | 404 |      43.754µs | 10.0.1.4 | GET | /api-docs/swagger.json | Cannot GET /api-docs/swagger.json
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:57 | 404 |      25.528µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:58 | 404 |      43.422µs | 10.0.1.4 | GET | /api/swagger.json | Cannot GET /api/swagger.json
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:29:59 | 404 |      37.611µs | 10.0.1.4 | GET | /@vite/env | Cannot GET /@vite/env
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:00 | 404 |      29.125µs | 10.0.1.4 | GET | /actuator/env | Cannot GET /actuator/env
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:01 | 404 |      30.789µs | 10.0.1.4 | GET | /server | Cannot GET /server
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:02 | 404 |      38.564µs | 10.0.1.4 | GET | /version | Cannot GET /version
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:02 | 404 |      33.744µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:03 | 404 |      49.534µs | 10.0.1.4 | GET | /.vscode/sftp.json | Cannot GET /.vscode/sftp.json
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:03 | 404 |      39.394µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:03 | 404 |       47.47µs | 10.0.1.4 | GET | /favicon.ico | Cannot GET /favicon.ico
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:05 | 404 |      48.283µs | 10.0.1.4 | GET | /about | Cannot GET /about
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:06 | 404 |      29.225µs | 10.0.1.4 | GET | /debug/default/view | Cannot GET /debug/default/view
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:07 | 404 |      29.466µs | 10.0.1.4 | GET | /v2/_catalog | Cannot GET /v2/_catalog
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:08 | 404 |      32.882µs | 10.0.1.4 | GET | /ecp/Current/exporttool/microsoft.exchange.ediscovery.exporttool.application | Cannot GET /ecp/Current/exporttool/microsoft.exchange.ediscovery.exporttool.application
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:09 | 404 |      35.107µs | 10.0.1.4 | GET | /server-status | Cannot GET /server-status
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:10 | 404 |      34.847µs | 10.0.1.4 | GET | /login.action | Cannot GET /login.action
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:11 | 404 |      34.486µs | 10.0.1.4 | GET | /_all_dbs | Cannot GET /_all_dbs
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:12 | 404 |       46.88µs | 10.0.1.4 | GET | /.DS_Store | Cannot GET /.DS_Store
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:13 | 404 |      43.585µs | 10.0.1.4 | GET | /.env | Cannot GET /.env
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:15 | 404 |       31.15µs | 10.0.1.4 | GET | /.git/config | Cannot GET /.git/config
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:16 | 404 |       31.44µs | 10.0.1.4 | GET | /s/932323e293e2035313e25343/_/;/META-INF/maven/com.atlassian.jira/jira-webapp-dist/pom.properties | Cannot GET /s/932323e293e2035313e25343/_/;/META-INF/maven/com.atlassian.jira/jira-webapp-dist/pom.properties
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:17 | 404 |      46.329µs | 10.0.1.4 | GET | /config.json | Cannot GET /config.json
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:18 | 404 |      38.594µs | 10.0.1.4 | GET | /telescope/requests | Cannot GET /telescope/requests
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:19 | 404 |      44.154µs | 10.0.1.4 | GET | /info.php | Cannot GET /info.php
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:20 | 404 |      42.121µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:30 | 404 |       41.77µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:38 | 404 |       36.56µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:30:43 | 404 |      38.735µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:31:10 | 404 |      28.455µs | 10.0.1.4 | HEAD | / | Cannot HEAD /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:31:40 | 404 |      50.477µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:31:41 | 404 |      70.345µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:31:41 | 404 |      48.133µs | 10.0.1.4 | GET | / | Cannot GET /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:31:52 | 404 |      45.548µs | 10.0.1.4 | HEAD | / | Cannot HEAD /
+vedamatch-server-dnkxc8.1.uqrirzuw2j6c@vedamatch.com    | 01:31:56 | 404 |      42.562µs | 10.0.1.4 | HEAD | / | Cannot HEAD /

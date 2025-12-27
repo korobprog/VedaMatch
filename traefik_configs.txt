@@ -1,0 +1,8 @@
+/etc/dokploy/traefik/dynamic:
+acme.json
+certificates
+dokploy.yml
+middlewares.yml
+vedamatch-server-dnkxc8.yml
+
+/etc/dokploy/traefik/dynamic/certificates:

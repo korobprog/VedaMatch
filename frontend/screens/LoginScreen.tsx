@@ -93,12 +93,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
             const { user } = response.data;
             await login(user);
-
-            if (user.isProfileComplete) {
-                navigation.replace('Portal', {});
-            } else {
-                navigation.replace('Registration', { isDarkMode: false, phase: 'profile' });
-            }
         } catch (error: any) {
             console.warn('Login failure:', error.message);
             const msg = error.response?.data?.error || t('login_failed');
@@ -147,7 +141,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             }
 
             await login(user);
-            navigation.replace('Portal', {});
 
         } catch (error: any) {
             console.log('Dev Login: Login failed, attempting registration...');
@@ -160,7 +153,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 });
                 const { user } = retryLoginRes.data;
                 await login(user);
-                navigation.replace('Portal', {});
             } catch (regError: any) {
                 console.error('Dev Login Error:', regError.response?.data || regError.message);
                 const errorMsg = regError.response?.data?.error || regError.message;
