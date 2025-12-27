@@ -58,8 +58,12 @@ func InitializeSuperAdmin() {
 	result := DB.Where("email = ?", email).First(&admin)
 
 	if result.Error == nil {
-		log.Printf("[AUTH] User with email %s already exists. Ensuring it has superadmin role.", email)
-		DB.Model(&admin).Update("role", "superadmin")
+		log.Printf("[AUTH] User with email %s already exists. Syncing role and password.", email)
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		DB.Model(&admin).Updates(map[string]interface{}{
+			"role":     "superadmin",
+			"password": string(hashedPassword),
+		})
 		return
 	}
 
