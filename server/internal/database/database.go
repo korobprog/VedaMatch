@@ -48,13 +48,26 @@ func InitializeSuperAdmin() {
 	password := os.Getenv("SUPERADMIN_PASSWORD")
 
 	if email == "" || password == "" {
-		log.Println("[AUTH] Superadmin credentials not set in .env, skipping initialization")
+		log.Println("[AUTH] Superadmin credentials not set in environment, skipping initialization")
 		return
 	}
 
+	log.Printf("[AUTH] Attempting to initialize superadmin: %s", email)
+
+	var admin models.User
+	result := DB.Where("email = ?", email).First(&admin)
+
+	if result.Error == nil {
+		log.Printf("[AUTH] User with email %s already exists. Ensuring it has superadmin role.", email)
+		DB.Model(&admin).Update("role", "superadmin")
+		return
+	}
+
+	// Also check if any other superadmin exists just in case
 	var count int64
 	DB.Model(&models.User{}).Where("role = ?", "superadmin").Count(&count)
 	if count > 0 {
+		log.Printf("[AUTH] Another superadmin already exists, skipping creation for %s to avoid duplicates", email)
 		return
 	}
 
@@ -64,7 +77,7 @@ func InitializeSuperAdmin() {
 		return
 	}
 
-	admin := models.User{
+	admin = models.User{
 		Email:             email,
 		Password:          string(hashedPassword),
 		Role:              "superadmin",
@@ -76,7 +89,7 @@ func InitializeSuperAdmin() {
 	if err := DB.Create(&admin).Error; err != nil {
 		log.Printf("[AUTH] Failed to create superadmin: %v", err)
 	} else {
-		log.Println("[AUTH] Superadmin initialized successfully")
+		log.Printf("[AUTH] Superadmin %s initialized successfully", email)
 	}
 }
 
