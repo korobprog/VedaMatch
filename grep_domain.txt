@@ -1,3 +1,0 @@
-/etc/dokploy/traefik/dynamic/vedamatch-server-dnkxc8.yml:      rule: Host(`api.vedamatch.ru`)
-/etc/dokploy/traefik/dynamic/vedamatch-server-dnkxc8.yml:      rule: Host(`api.vedamatch.ru`)
-/etc/dokploy/traefik/dynamic/acme.json:          "main": "api.vedamatch.ru"

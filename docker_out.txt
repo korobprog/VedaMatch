@@ -1,6 +1,0 @@
-ID             NAME                           MODE         REPLICAS   IMAGE                            PORTS
-0sze44hlz3q3   dokploy                        replicated   1/1        dokploy/dokploy:latest           
-vxa5fu2rtr72   dokploy-postgres               replicated   1/1        postgres:16                      
-xjhamw0i10ep   dokploy-redis                  replicated   1/1        redis:7                          
-p3fn0p3i7i7x   vedamatch-ragdatabase-cog4dx   replicated   1/1        postgres:15                      
-bchpfik1uizf   vedamatch-server-dnkxc8        replicated   1/1        vedamatch-server-dnkxc8:latest   

@@ -1,1 +1,0 @@
--rw------- 1 root root 3457 Dec 26 11:03 /etc/dokploy/traefik/dynamic/acme.json
