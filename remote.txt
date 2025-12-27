@@ -1,2 +1,0 @@
-origin	https://github.com/korobprog/vedicai.git (fetch)
-origin	https://github.com/korobprog/vedicai.git (push)

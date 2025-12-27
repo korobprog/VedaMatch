@@ -1,6 +1,0 @@
-PING vedamatch-server-dnkxc8 (10.0.1.11): 56 data bytes
-64 bytes from 10.0.1.11: seq=0 ttl=64 time=0.239 ms
-
---- vedamatch-server-dnkxc8 ping statistics ---
-1 packets transmitted, 1 packets received, 0% packet loss
-round-trip min/avg/max = 0.239/0.239/0.239 ms
