@@ -3,17 +3,25 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/services"
 	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
+
+type TestResult struct {
+	ModelID      string `json:"modelId"`
+	Status       string `json:"status"`
+	ResponseTime int64  `json:"responseTime"`
+}
 
 type AiHandler struct{}
 
@@ -62,7 +70,11 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 	newCount := 0
 	updatedCount := 0
 
+	// Track valid model IDs from API
+	validModelIDs := make(map[string]bool)
+
 	for _, m := range apiResp.Data {
+		validModelIDs[m.ID] = true
 		var existing models.AiModel
 		result := database.DB.Where("model_id = ?", m.ID).First(&existing)
 
@@ -73,7 +85,7 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 				Name:         m.ID, // Or derive name if possible
 				Provider:     m.Provider,
 				Category:     m.Category,
-				IsEnabled:    false, // Disabled by default until admin reviews? Or enabled? User said "add/remove", maybe disabled by default if new.
+				IsEnabled:    false, // Default to disabled, admin will enable manually
 				IsNew:        true,
 				IsRagEnabled: false,
 				LastSyncDate: now,
@@ -90,11 +102,27 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 		}
 	}
 
+	// Disable models that are no longer in the API list
+	var allModels []models.AiModel
+	database.DB.Find(&allModels)
+
+	disabledCount := 0
+	for _, m := range allModels {
+		if !validModelIDs[m.ModelID] && m.IsEnabled {
+			m.IsEnabled = false
+			m.LastTestStatus = "offline" // Mark as offline/missing
+			database.DB.Save(&m)
+			disabledCount++
+			log.Printf("[Sync] Disabled outdated model: %s", m.ModelID)
+		}
+	}
+
 	return c.JSON(fiber.Map{
-		"message":       "Synchronization complete",
-		"newModels":     newCount,
-		"updatedModels": updatedCount,
-		"syncDate":      now,
+		"message":        "Synchronization complete",
+		"newModels":      newCount,
+		"updatedModels":  updatedCount,
+		"disabledModels": disabledCount,
+		"syncDate":       now,
 	})
 }
 
@@ -127,6 +155,8 @@ func (h *AiHandler) GetClientModels(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch models"})
 	}
 
+	log.Printf("[AI] GetClientModels returning %d enabled models", len(aiModels))
+
 	// Format to match OpenAI models list format for compatibility if needed
 	// or just return the array
 	return c.JSON(fiber.Map{
@@ -139,11 +169,14 @@ func (h *AiHandler) GetClientModels(c *fiber.Ctx) error {
 func (h *AiHandler) UpdateModel(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var body struct {
-		IsEnabled     *bool  `json:"isEnabled"`
-		Name          string `json:"name"`
-		IsNew         *bool  `json:"isNew"`
-		IsRecommended *bool  `json:"isRecommended"`
-		IsRagEnabled  *bool  `json:"isRagEnabled"`
+		IsEnabled            *bool  `json:"isEnabled"`
+		Name                 string `json:"name"`
+		IsNew                *bool  `json:"isNew"`
+		IsRecommended        *bool  `json:"isRecommended"`
+		IsRagEnabled         *bool  `json:"isRagEnabled"`
+		LatencyTier          string `json:"latencyTier"`
+		IntelligenceTier     string `json:"intelligenceTier"`
+		IsAutoRoutingEnabled *bool  `json:"isAutoRoutingEnabled"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -169,6 +202,15 @@ func (h *AiHandler) UpdateModel(c *fiber.Ctx) error {
 	}
 	if body.IsRagEnabled != nil {
 		aiModel.IsRagEnabled = *body.IsRagEnabled
+	}
+	if body.LatencyTier != "" {
+		aiModel.LatencyTier = body.LatencyTier
+	}
+	if body.IntelligenceTier != "" {
+		aiModel.IntelligenceTier = body.IntelligenceTier
+	}
+	if body.IsAutoRoutingEnabled != nil {
+		aiModel.IsAutoRoutingEnabled = *body.IsAutoRoutingEnabled
 	}
 
 	if err := database.DB.Save(&aiModel).Error; err != nil {
@@ -200,15 +242,29 @@ func (h *AiHandler) TestModel(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "API_OPEN_AI key not set"})
 	}
 
-	// Prepare a simple chat completion request
+	// Prepare a simple completion request based on category
+	// Unified endpoint for all models
 	testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
-	testBody := map[string]interface{}{
-		"model":    aiModel.ModelID,
-		"provider": aiModel.Provider,
-		"messages": []map[string]string{
-			{"role": "user", "content": "hi"},
-		},
-		"max_tokens": 5,
+	var testBody map[string]interface{}
+
+	if aiModel.Category == "image" {
+		// Use unified chat endpoint for images too
+		testBody = map[string]interface{}{
+			"model":    aiModel.ModelID,
+			"provider": aiModel.Provider,
+			"messages": []map[string]string{
+				{"role": "user", "content": "a small cat"},
+			},
+		}
+	} else {
+		testBody = map[string]interface{}{
+			"model":    aiModel.ModelID,
+			"provider": aiModel.Provider,
+			"messages": []map[string]string{
+				{"role": "user", "content": "hi"},
+			},
+			"max_tokens": 5,
+		}
 	}
 
 	jsonBody, _ := json.Marshal(testBody)
@@ -245,38 +301,42 @@ func (h *AiHandler) TestModel(c *fiber.Ctx) error {
 	})
 }
 
-// BulkTestModels tests all enabled models in parallel
-func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
+// performBulkTestInternal runs logic for bulk testing without HTTP context
+func (h *AiHandler) performBulkTestInternal() ([]TestResult, error) {
 	var aiModels []models.AiModel
 	if err := database.DB.Where("is_enabled = ?", true).Find(&aiModels).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch models"})
+		return nil, err
 	}
 
 	apiKey := os.Getenv("API_OPEN_AI")
 	if apiKey == "" {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "API_OPEN_AI key not set"})
-	}
-
-	type TestResult struct {
-		ModelID      string `json:"modelId"`
-		Status       string `json:"status"`
-		ResponseTime int64  `json:"responseTime"`
+		return nil, fmt.Errorf("API key not set")
 	}
 
 	resultsChan := make(chan TestResult, len(aiModels))
-	testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
-
 	var wg sync.WaitGroup
+
 	for _, m := range aiModels {
 		wg.Add(1)
 		go func(model models.AiModel) {
 			defer wg.Done()
 
-			testBody := map[string]interface{}{
-				"model":      model.ModelID,
-				"provider":   model.Provider,
-				"messages":   []map[string]string{{"role": "user", "content": "hi"}},
-				"max_tokens": 5,
+			testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
+			var testBody map[string]interface{}
+
+			if model.Category == "image" {
+				testBody = map[string]interface{}{
+					"model":    model.ModelID,
+					"provider": model.Provider,
+					"messages": []map[string]string{{"role": "user", "content": "a small cat"}},
+				}
+			} else {
+				testBody = map[string]interface{}{
+					"model":      model.ModelID,
+					"provider":   model.Provider,
+					"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+					"max_tokens": 5,
+				}
 			}
 
 			jsonBody, _ := json.Marshal(testBody)
@@ -285,7 +345,7 @@ func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
 			req.Header.Set("Authorization", "Bearer "+apiKey)
 
 			start := time.Now()
-			client := &http.Client{Timeout: 30 * time.Second}
+			client := &http.Client{Timeout: 60 * time.Second}
 			resp, err := client.Do(req)
 			duration := time.Since(start).Milliseconds()
 
@@ -301,8 +361,6 @@ func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
 				resp.Body.Close()
 			}
 
-			// Update in DB (careful with concurrent writes if using same DB connection,
-			// but GORM/Go sql.DB handles connection pooling)
 			database.DB.Model(&models.AiModel{}).Where("id = ?", model.ID).Updates(map[string]interface{}{
 				"last_test_status":   status,
 				"last_response_time": duration,
@@ -316,7 +374,6 @@ func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
 		}(m)
 	}
 
-	// Wait for all tests to finish in a separate goroutine
 	go func() {
 		wg.Wait()
 		close(resultsChan)
@@ -326,11 +383,110 @@ func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
 	for res := range resultsChan {
 		results = append(results, res)
 	}
+	return results, nil
+}
+
+// BulkTestModels tests all enabled models in parallel
+func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
+	results, err := h.performBulkTestInternal()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(fiber.Map{
 		"tested":  len(results),
 		"results": results,
 	})
+}
+
+// AutoOptimizeModels runs tests and updates Auto Routing status based on performance
+func (h *AiHandler) AutoOptimizeModels(c *fiber.Ctx) error {
+	results, err := h.optimizeInternal()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	autoEnabledCount := 0
+	for _, res := range results {
+		var model models.AiModel
+		if err := database.DB.Where("model_id = ?", res.ModelID).First(&model).Error; err == nil {
+			if model.IsAutoRoutingEnabled {
+				autoEnabledCount++
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"message":            "Optimization complete",
+		"tested":             len(results),
+		"auto_magic_enabled": autoEnabledCount,
+	})
+}
+
+// optimizeInternal is a helper that runs tests and applies optimization logic
+func (h *AiHandler) optimizeInternal() ([]TestResult, error) {
+	results, err := h.performBulkTestInternal()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, res := range results {
+		var model models.AiModel
+		if err := database.DB.Where("model_id = ?", res.ModelID).First(&model).Error; err != nil {
+			log.Printf("[AutoMagic] Error finding model %s: %v", res.ModelID, err)
+			continue
+		}
+
+		shouldEnableAuto := false
+		if res.Status == "online" {
+			// Relaxed thresholds
+			if (model.Category == "text" || model.Category == "llm" || model.Category == "chat") && res.ResponseTime < 30000 {
+				shouldEnableAuto = true
+				log.Printf("[AutoMagic] Model %s (text) QUALIFIED: %dms", model.ModelID, res.ResponseTime)
+			} else if (model.Category == "image" || model.Category == "diffusion") && res.ResponseTime < 60000 {
+				shouldEnableAuto = true
+				log.Printf("[AutoMagic] Model %s (image) QUALIFIED: %dms", model.ModelID, res.ResponseTime)
+			} else if (model.Category == "audio" || model.Category == "voice") && res.ResponseTime < 30000 {
+				shouldEnableAuto = true
+				log.Printf("[AutoMagic] Model %s (audio) QUALIFIED: %dms", model.ModelID, res.ResponseTime)
+			} else {
+				log.Printf("[AutoMagic] Model %s REJECTED: Category=%s, Time=%dms", model.ModelID, model.Category, res.ResponseTime)
+			}
+		} else {
+			log.Printf("[AutoMagic] Model %s OFFLINE/ERROR: %s", model.ModelID, res.Status)
+		}
+
+		if shouldEnableAuto != model.IsAutoRoutingEnabled {
+			log.Printf("[AutoMagic] Updating %s: AutoRouting %v -> %v", model.ModelID, model.IsAutoRoutingEnabled, shouldEnableAuto)
+			database.DB.Model(&model).Update("is_auto_routing_enabled", shouldEnableAuto)
+		}
+	}
+	return results, nil
+}
+
+// HandleSchedule configures the background check service
+func (h *AiHandler) HandleSchedule(c *fiber.Ctx) error {
+	type ScheduleRequest struct {
+		IntervalMinutes int  `json:"intervalMinutes"`
+		Enabled         bool `json:"enabled"`
+	}
+
+	var req ScheduleRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	if req.Enabled {
+		task := func() {
+			log.Println("[Scheduler] Running auto-optimization task")
+			h.optimizeInternal()
+		}
+		services.GlobalScheduler.Start(req.IntervalMinutes, task)
+	} else {
+		services.GlobalScheduler.Stop()
+	}
+
+	return c.JSON(fiber.Map{"status": "updated", "running": services.GlobalScheduler.IsRunning()})
 }
 
 // GetRecommendedModels returns recommended models for the client
