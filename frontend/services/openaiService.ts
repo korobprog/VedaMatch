@@ -122,8 +122,47 @@ export const sendMessage = async (
         throw new Error(`Ошибка API (${response.status}): ${errorText.substring(0, 100)}`);
       }
 
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content || '';
+      const text = await response.text();
+      console.log('DEBUG: Received API response text length:', text.length);
+      console.log('DEBUG: Response preview:', text.substring(0, 500));
+
+      let data: any;
+      try {
+        data = JSON.parse(text);
+        console.log('DEBUG: Parsed JSON data keys:', Object.keys(data));
+      } catch (e) {
+        console.error('DEBUG: JSON parse error:', e);
+        throw new Error(`Failed to parse JSON response: ${text.substring(0, 100)}...`);
+      }
+
+      // Handle DALL-E style image response
+      // Check if data.data exists and is an array with a url
+      if (data && data.data && Array.isArray(data.data) && data.data.length > 0 && data.data[0]?.url) {
+        console.log('DEBUG: Detected DALL-E style image response');
+        return {
+          content: `![Image](${data.data[0].url})`,
+          model: data.model || options.model,
+          provider: data.provider || options.provider
+        };
+      }
+
+      // Handle standard ChatCompletion
+      if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        console.error('DEBUG: Unexpected API response structure. Data:', JSON.stringify(data));
+        if (data && data.error) {
+          throw new Error(data.error.message || JSON.stringify(data.error));
+        }
+        throw new Error('API returned empty choices or invalid format' + JSON.stringify(data));
+      }
+
+      const choice = data.choices[0];
+      if (!choice) {
+        throw new Error('First choice is undefined');
+      }
+
+      const content = choice.message?.content || '';
+      console.log('DEBUG: Extracted content length:', content.length);
+
       const responseModel = data.model;
       const usage = data.usage;
       const metadata = data._metadata;

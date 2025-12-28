@@ -402,3 +402,11 @@ func (h *DatingHandler) GetDatingStats(c *fiber.Ctx) error {
 		"new":   newCount,
 	})
 }
+
+func (h *DatingHandler) GetWhoLikedMe(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "Not implemented"})
+}
+
+func (h *DatingHandler) GetNotifications(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "Not implemented"})
+}

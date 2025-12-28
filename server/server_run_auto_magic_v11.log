@@ -1,0 +1,45 @@
+2025/12/28 21:12:29 Connected to Database
+2025/12/28 21:12:29 Database Migrated
+2025/12/28 21:12:29 [AUTH] Attempting to initialize superadmin from environment: korobprog@gmail.com
+2025/12/28 21:12:30 [AUTH] User korobprog@gmail.com found. Updating role to superadmin and syncing password.
+2025/12/28 21:12:30 [Scheduler] Service initialized
+2025/12/28 21:12:30 [Scheduler] Restoring state: Enabled, Interval=60 minutes
+2025/12/28 21:12:30 [Scheduler] Started with interval 60 minutes
+2025/12/28 21:12:30 Registering /api/messages routes...
+2025/12/28 21:12:30 [Scheduler] Running auto-optimization task
+2025/12/28 21:12:30 Routes registered.
+2025/12/28 21:12:30 Server starting on port :8081
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                   Fiber v2.52.0                   │ 
+ │               http://127.0.0.1:8081               │ 
+ │       (bound on host 0.0.0.0 and port 8081)       │ 
+ │                                                   │ 
+ │ Handlers ............ 88  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............ 836307 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2025/12/28 21:12:30 [Auth] WARNING: Protected middleware bypassing auth for recovery
+21:12:30 | 101 |      97.547µs | 127.0.0.1 | GET | /api/ws/9 | -
+
+2025/12/28 21:12:45 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[1066.365ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=14474,"last_test_status"='online',"updated_at"='2025-12-28 21:12:44.563' WHERE id = 128 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 21:12:45 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[692.528ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=14866,"last_test_status"='online',"updated_at"='2025-12-28 21:12:44.958' WHERE id = 148 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 21:12:45 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[810.616ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=14749,"last_test_status"='online',"updated_at"='2025-12-28 21:12:44.835' WHERE id = 157 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 21:12:49 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[248.312ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=19076,"last_test_status"='online',"updated_at"='2025-12-28 21:12:49.161' WHERE id = 172 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 21:13:02 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[451.682ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=32298,"last_test_status"='online',"updated_at"='2025-12-28 21:13:02.386' WHERE id = 108 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 21:13:03 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[239.446ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=32893,"last_test_status"='online',"updated_at"='2025-12-28 21:13:02.978' WHERE id = 138 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 21:13:06 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[207.981ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=36095,"last_test_status"='online',"updated_at"='2025-12-28 21:13:06.181' WHERE id = 118 AND "ai_models"."deleted_at" IS NULL[0m
+signal: killed

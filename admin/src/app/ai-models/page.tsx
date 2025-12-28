@@ -22,7 +22,9 @@ import {
     X,
     Sparkles,
     TestTube,
-    Database
+    Wand2,
+    Database,
+    CalendarClock
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -48,8 +50,13 @@ export default function AiModelsPage() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [isBulkTesting, setIsBulkTesting] = useState(false);
     const [isDisablingOffline, setIsDisablingOffline] = useState(false);
+    const [isOptimizing, setIsOptimizing] = useState(false);
     const [testingId, setTestingId] = useState<number | null>(null);
     const [showRecommendations, setShowRecommendations] = useState(false);
+    const [showSchedule, setShowSchedule] = useState(false);
+    const [scheduleInterval, setScheduleInterval] = useState(60);
+    const [isSchedulerEnabled, setIsSchedulerEnabled] = useState(false);
+    const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
     const { data: models, error, mutate } = useSWR(
         `/admin/ai-models?search=${search}&category=${category}`,
@@ -65,6 +72,23 @@ export default function AiModelsPage() {
             console.error('Failed to sync models', err);
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    const handleSaveSchedule = async () => {
+        setIsSavingSchedule(true);
+        try {
+            const res = await api.post('/admin/ai-models/schedule', {
+                intervalMinutes: scheduleInterval,
+                enabled: isSchedulerEnabled
+            });
+            alert(`Планировщик ${res.data.running ? 'запущен' : 'остановлен'}`);
+            setShowSchedule(false);
+        } catch (err) {
+            console.error('Failed to update schedule', err);
+            alert('Ошибка настройки планировщика');
+        } finally {
+            setIsSavingSchedule(false);
         }
     };
 
@@ -94,6 +118,20 @@ export default function AiModelsPage() {
         }
     };
 
+    const handleAutoOptimize = async () => {
+        setIsOptimizing(true);
+        try {
+            const res = await api.post('/admin/ai-models/auto-optimize');
+            alert(`Оптимизация завершена! Включено авто-определение для ${res.data.auto_magic_enabled} моделей.`);
+            mutate();
+        } catch (err) {
+            console.error('Failed to optimize models', err);
+            alert('Ошибка оптимизации');
+        } finally {
+            setIsOptimizing(false);
+        }
+    };
+
     const handleToggleEnabled = async (id: number, currentStatus: boolean) => {
         try {
             await api.put(`/admin/ai-models/${id}`, { isEnabled: !currentStatus });
@@ -118,6 +156,15 @@ export default function AiModelsPage() {
             mutate();
         } catch (err) {
             console.error('Failed to toggle RAG status', err);
+        }
+    };
+
+    const handleToggleAutoMagic = async (id: number) => {
+        try {
+            await api.post(`/admin/ai-models/${id}/toggle-auto`);
+            mutate();
+        } catch (err) {
+            console.error('Failed to toggle Auto-Magic status', err);
         }
     };
 
@@ -174,6 +221,21 @@ export default function AiModelsPage() {
                 </div>
                 <div className="flex gap-2 flex-wrap">
                     <button
+                        onClick={() => setShowSchedule(true)}
+                        className="flex items-center gap-2 bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-indigo-500/20"
+                        title="Настройки планировщика"
+                    >
+                        <CalendarClock className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={handleAutoOptimize}
+                        disabled={isOptimizing}
+                        className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-purple-600/20 disabled:opacity-50"
+                    >
+                        {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                        Auto-Magic
+                    </button>
+                    <button
                         onClick={() => setShowRecommendations(true)}
                         className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-amber-500/20"
                     >
@@ -200,12 +262,90 @@ export default function AiModelsPage() {
                         onClick={handleSync}
                         disabled={isSyncing}
                         className="flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-[var(--primary)]/20 disabled:opacity-50"
+                        title="Синхронизировать"
                     >
                         {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                        Синхронизировать
                     </button>
                 </div>
             </div>
+
+            {/* Schedule Modal */}
+            <AnimatePresence>
+                {showSchedule && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                        onClick={() => setShowSchedule(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-[var(--card)] rounded-3xl p-6 max-w-sm w-full shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <CalendarClock className="w-5 h-5 text-indigo-500" />
+                                    Планировщик
+                                </h2>
+                                <button onClick={() => setShowSchedule(false)} className="p-2 hover:bg-[var(--secondary)] rounded-xl">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Интервал (минуты)</label>
+                                    <input
+                                        type="number"
+                                        value={scheduleInterval}
+                                        onChange={(e) => setScheduleInterval(Number(e.target.value))}
+                                        className="w-full bg-[var(--secondary)] rounded-xl px-4 py-2 border border-[var(--border)]"
+                                        min="1"
+                                    />
+                                    <div className="flex gap-2 mt-2">
+                                        {[60, 300, 1440].map(m => (
+                                            <button
+                                                key={m}
+                                                onClick={() => setScheduleInterval(m)}
+                                                className="text-xs bg-[var(--secondary)] px-2 py-1 rounded-lg hover:bg-[var(--border)] transition-colors"
+                                            >
+                                                {m === 60 ? '1ч' : m === 300 ? '5ч' : '24ч'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between p-3 bg-[var(--secondary)] rounded-xl">
+                                    <span className="font-medium">Авто-проверка</span>
+                                    <button
+                                        onClick={() => setIsSchedulerEnabled(!isSchedulerEnabled)}
+                                        className={`relative w-12 h-6 rounded-full transition-colors ${isSchedulerEnabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isSchedulerEnabled ? 'right-1' : 'left-1'}`} />
+                                    </button>
+                                </div>
+
+                                <p className="text-xs text-[var(--muted-foreground)]">
+                                    Планировщик будет автоматически запускать тест моделей и оптимизацию маршрутизации каждые {scheduleInterval} минут.
+                                </p>
+
+                                <button
+                                    onClick={handleSaveSchedule}
+                                    disabled={isSavingSchedule}
+                                    className="w-full bg-indigo-500 text-white font-bold py-3 rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 mt-2"
+                                >
+                                    {isSavingSchedule && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    Сохранить и запустить
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Recommendations Modal */}
             <AnimatePresence>
@@ -375,6 +515,7 @@ export default function AiModelsPage() {
                                     <th className="px-6 py-4 font-semibold">Модель</th>
                                     <th className="px-6 py-4 font-semibold">Тип</th>
                                     <th className="px-6 py-4 font-semibold">Статус</th>
+                                    <th className="px-6 py-4 font-semibold">Auto</th>
                                     <th className="px-6 py-4 font-semibold">Рек.</th>
                                     <th className="px-6 py-4 font-semibold">RAG</th>
                                     <th className="px-6 py-4 font-semibold">Мониторинг</th>
@@ -432,6 +573,20 @@ export default function AiModelsPage() {
                                                         <span className={`text-xs font-semibold ${model.isEnabled ? 'text-emerald-500' : 'text-[var(--muted-foreground)]'}`}>
                                                             {model.isEnabled ? 'Активна' : 'Выкл'}
                                                         </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center justify-center">
+                                                        <button
+                                                            onClick={() => handleToggleAutoMagic(model.ID)}
+                                                            className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${model.isAutoRoutingEnabled
+                                                                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200'
+                                                                    : 'bg-[var(--secondary)] text-[var(--muted-foreground)] opacity-30 hover:opacity-100 hover:text-purple-500 hover:bg-purple-50'
+                                                                }`}
+                                                            title={model.isAutoRoutingEnabled ? "Auto-Magic Включен (Нажмите чтобы выключить)" : "Auto-Magic Выключен (Нажмите чтобы включить)"}
+                                                        >
+                                                            <Wand2 className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">

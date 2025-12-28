@@ -10,7 +10,8 @@ import {
     ActivityIndicator,
     Platform,
     StatusBar,
-    ScrollView
+    ScrollView,
+    Switch
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/chat/ChatConstants';
@@ -29,7 +30,9 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         imageSize,
         setImageSize,
         defaultMenuTab,
-        setDefaultMenuTab
+        setDefaultMenuTab,
+        isAutoMagicEnabled,
+        toggleAutoMagic
     } = useSettings();
 
     const { logout } = useUser();
@@ -141,6 +144,24 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         >
                             <Text style={{ color: defaultMenuTab === 'history' ? theme.buttonText : theme.text }}>{t('chat.history')}</Text>
                         </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Auto-Magic Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View>
+                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 5 }]}>Auto-Magic</Text>
+                            <Text style={[styles.subLabel, { color: theme.subText, marginBottom: 0, maxWidth: '90%' }]}>
+                                Автоматически выбирать лучшую модель для ваших запросов
+                            </Text>
+                        </View>
+                        <Switch
+                            value={isAutoMagicEnabled}
+                            onValueChange={toggleAutoMagic}
+                            trackColor={{ false: theme.inputBackground, true: theme.button }}
+                            thumbColor={isAutoMagicEnabled ? '#fff' : '#f4f3f4'}
+                        />
                     </View>
                 </View>
 

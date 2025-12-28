@@ -1,0 +1,151 @@
+2025/12/28 20:22:33 Connected to Database
+2025/12/28 20:22:33 Database Migrated
+2025/12/28 20:22:33 [AUTH] Attempting to initialize superadmin from environment: korobprog@gmail.com
+2025/12/28 20:22:33 [AUTH] User korobprog@gmail.com found. Updating role to superadmin and syncing password.
+2025/12/28 20:22:33 [Scheduler] Service initialized
+2025/12/28 20:22:33 [Scheduler] Restoring state: Enabled, Interval=60 minutes
+2025/12/28 20:22:33 [Scheduler] Started with interval 60 minutes
+2025/12/28 20:22:33 Registering /api/messages routes...
+2025/12/28 20:22:33 [Scheduler] Running auto-optimization task
+2025/12/28 20:22:33 Routes registered.
+2025/12/28 20:22:33 Server starting on port :8081
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                   Fiber v2.52.0                   │ 
+ │               http://127.0.0.1:8081               │ 
+ │       (bound on host 0.0.0.0 and port 8081)       │ 
+ │                                                   │ 
+ │ Handlers ............ 88  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............ 789790 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2025/12/28 20:22:34 [Auth] WARNING: Protected middleware bypassing auth for recovery
+20:22:33 | 101 |      80.904µs | 127.0.0.1 | GET | /api/ws/9 | -
+
+2025/12/28 20:22:46 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[748.360ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=11758,"last_test_status"='online',"updated_at"='2025-12-28 20:22:45.457' WHERE id = 107 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 20:22:46 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[741.021ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=11781,"last_test_status"='online',"updated_at"='2025-12-28 20:22:45.486' WHERE id = 100 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 20:22:46 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[320.527ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=12203,"last_test_status"='online',"updated_at"='2025-12-28 20:22:45.906' WHERE id = 97 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 20:22:46 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[259.988ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=12262,"last_test_status"='online',"updated_at"='2025-12-28 20:22:45.967' WHERE id = 96 AND "ai_models"."deleted_at" IS NULL[0m
+2025/12/28 20:23:10 [Auth] WARNING: Protected middleware bypassing auth for recovery
+20:23:10 | 200 |   11.897441ms | 127.0.0.1 | POST | /api/heartbeat/9 | -
+2025/12/28 20:23:33 [AutoMagic] Model calm (audio) QUALIFIED: 5137ms
+2025/12/28 20:23:33 [AutoMagic] Model nova (audio) QUALIFIED: 6482ms
+2025/12/28 20:23:33 [AutoMagic] Model ash (audio) QUALIFIED: 6522ms
+2025/12/28 20:23:33 [AutoMagic] Model fable (audio) QUALIFIED: 11758ms
+2025/12/28 20:23:33 [AutoMagic] Model sage (audio) QUALIFIED: 11781ms
+2025/12/28 20:23:33 [AutoMagic] Model scientific_style (audio) QUALIFIED: 12203ms
+2025/12/28 20:23:33 [AutoMagic] Model shimmer (audio) QUALIFIED: 12262ms
+2025/12/28 20:23:33 [AutoMagic] Model cowboy (audio) QUALIFIED: 13508ms
+2025/12/28 20:23:33 [AutoMagic] Model patient_teacher (audio) QUALIFIED: 13776ms
+2025/12/28 20:23:33 [AutoMagic] Model onyx (audio) QUALIFIED: 14420ms
+2025/12/28 20:23:33 [AutoMagic] Model echo (audio) QUALIFIED: 14472ms
+2025/12/28 20:23:33 [AutoMagic] Model claude37sonnetthinking (text) QUALIFIED: 14541ms
+2025/12/28 20:23:33 [AutoMagic] Updating claude37sonnetthinking: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model coral (audio) QUALIFIED: 14582ms
+2025/12/28 20:23:33 [AutoMagic] Model command-r7b-arabic-02-2025 (text) QUALIFIED: 14595ms
+2025/12/28 20:23:33 [AutoMagic] Updating command-r7b-arabic-02-2025: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model ballad (audio) QUALIFIED: 14607ms
+2025/12/28 20:23:33 [AutoMagic] Model alloy (audio) QUALIFIED: 14630ms
+2025/12/28 20:23:33 [AutoMagic] Model friendly (audio) QUALIFIED: 14642ms
+2025/12/28 20:23:33 [AutoMagic] Model noir_detective (audio) QUALIFIED: 14694ms
+2025/12/28 20:23:33 [AutoMagic] Model verse (audio) QUALIFIED: 14734ms
+2025/12/28 20:23:33 [AutoMagic] Model ling-1t (text) QUALIFIED: 15043ms
+2025/12/28 20:23:33 [AutoMagic] Model Qwen/Qwen3-Coder-30B-A3B-Instruct (text) QUALIFIED: 15390ms
+2025/12/28 20:23:33 [AutoMagic] Model gpt-4 (text) QUALIFIED: 16871ms
+2025/12/28 20:23:33 [AutoMagic] Model command-r-08-2024 (text) QUALIFIED: 17009ms
+2025/12/28 20:23:33 [AutoMagic] Model qwen-3-1.7b (text) QUALIFIED: 17329ms
+2025/12/28 20:23:33 [AutoMagic] Model claude41opusthinking (text) QUALIFIED: 17482ms
+2025/12/28 20:23:33 [AutoMagic] Model ring-mini-2.0 (text) QUALIFIED: 17746ms
+2025/12/28 20:23:33 [AutoMagic] Model pplx_alpha (text) QUALIFIED: 17897ms
+2025/12/28 20:23:33 [AutoMagic] Model ring-1t (text) QUALIFIED: 18777ms
+2025/12/28 20:23:33 [AutoMagic] Updating ring-1t: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model ling (text) QUALIFIED: 18853ms
+2025/12/28 20:23:33 [AutoMagic] Model custom/blackbox-base (text) QUALIFIED: 18961ms
+2025/12/28 20:23:33 [AutoMagic] Updating custom/blackbox-base: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model command-a (text) QUALIFIED: 19623ms
+2025/12/28 20:23:33 [AutoMagic] Updating command-a: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model qwen-3-30b (text) QUALIFIED: 19972ms
+2025/12/28 20:23:33 [AutoMagic] Updating qwen-3-30b: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model ling-mini-2.0 (text) QUALIFIED: 20057ms
+2025/12/28 20:23:33 [AutoMagic] Model qwen-3-235b (text) QUALIFIED: 20148ms
+2025/12/28 20:23:33 [AutoMagic] Model o3 (text) QUALIFIED: 21801ms
+2025/12/28 20:23:33 [AutoMagic] Updating o3: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model claude40opus (text) QUALIFIED: 21826ms
+2025/12/28 20:23:33 [AutoMagic] Model gpt45 (text) QUALIFIED: 22795ms
+2025/12/28 20:23:33 [AutoMagic] Updating gpt45: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model google/gemma-3-12b-it (text) QUALIFIED: 23683ms
+2025/12/28 20:23:33 [AutoMagic] Model command-a-03-2025 (text) QUALIFIED: 23906ms
+2025/12/28 20:23:33 [AutoMagic] Updating command-a-03-2025: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model turbo (text) QUALIFIED: 25086ms
+2025/12/28 20:23:33 [AutoMagic] Model gpt5_thinking (text) QUALIFIED: 25130ms
+2025/12/28 20:23:33 [AutoMagic] Updating gpt5_thinking: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model o4mini (text) QUALIFIED: 25935ms
+2025/12/28 20:23:33 [AutoMagic] Updating o4mini: AutoRouting false -> true
+2025/12/28 20:23:33 [AutoMagic] Model gpt-4.1-mini (text) QUALIFIED: 26350ms
+2025/12/28 20:23:33 [AutoMagic] Model o3pro_labs (text) QUALIFIED: 27155ms
+2025/12/28 20:23:33 [AutoMagic] Model claude40opus_research (text) QUALIFIED: 27955ms
+2025/12/28 20:23:33 [AutoMagic] Model qwen-3-14b (text) QUALIFIED: 28822ms
+2025/12/28 20:23:33 [AutoMagic] Model o3_labs (text) QUALIFIED: 29281ms
+2025/12/28 20:23:33 [AutoMagic] Model pplx_reasoning REJECTED: Category=text, Time=30869ms
+2025/12/28 20:23:33 [AutoMagic] Updating pplx_reasoning: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model gpt5 REJECTED: Category=text, Time=32188ms
+2025/12/28 20:23:33 [AutoMagic] Model claude40sonnet_research REJECTED: Category=text, Time=32635ms
+2025/12/28 20:23:33 [AutoMagic] Model claude2 REJECTED: Category=text, Time=35444ms
+2025/12/28 20:23:33 [AutoMagic] Updating claude2: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model o3pro REJECTED: Category=text, Time=38309ms
+2025/12/28 20:23:33 [AutoMagic] Updating o3pro: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model o3pro_research REJECTED: Category=text, Time=38396ms
+2025/12/28 20:23:33 [AutoMagic] Updating o3pro_research: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model qwen-3-4b REJECTED: Category=text, Time=41271ms
+2025/12/28 20:23:33 [AutoMagic] Updating qwen-3-4b: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model claude45sonnet REJECTED: Category=text, Time=49780ms
+2025/12/28 20:23:33 [AutoMagic] Model claude40sonnetthinking_research REJECTED: Category=text, Time=51390ms
+2025/12/28 20:23:33 [AutoMagic] Model gpt4o REJECTED: Category=text, Time=52267ms
+2025/12/28 20:23:33 [AutoMagic] Updating gpt4o: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model command-r7b-12-2024 REJECTED: Category=text, Time=53237ms
+2025/12/28 20:23:33 [AutoMagic] Updating command-r7b-12-2024: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model pplx_pro_upgraded REJECTED: Category=text, Time=53893ms
+2025/12/28 20:23:33 [AutoMagic] Model claude40opusthinking REJECTED: Category=text, Time=55275ms
+2025/12/28 20:23:33 [AutoMagic] Updating claude40opusthinking: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model comet_max_assistant REJECTED: Category=text, Time=55432ms
+2025/12/28 20:23:33 [AutoMagic] Updating comet_max_assistant: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model qwen-3-0.6b REJECTED: Category=text, Time=55514ms
+2025/12/28 20:23:33 [AutoMagic] Updating qwen-3-0.6b: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model grok REJECTED: Category=text, Time=55714ms
+2025/12/28 20:23:33 [AutoMagic] Updating grok: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model auto REJECTED: Category=text, Time=55785ms
+2025/12/28 20:23:33 [AutoMagic] Model claude40opusthinking_research REJECTED: Category=text, Time=57409ms
+2025/12/28 20:23:33 [AutoMagic] Model claude40sonnetthinking_labs REJECTED: Category=text, Time=57468ms
+2025/12/28 20:23:33 [AutoMagic] Model pplx_beta OFFLINE/ERROR: offline
+2025/12/28 20:23:33 [AutoMagic] Updating pplx_beta: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model flux-dev OFFLINE/ERROR: offline
+2025/12/28 20:23:33 [AutoMagic] Updating flux-dev: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model o3mini OFFLINE/ERROR: offline
+2025/12/28 20:23:33 [AutoMagic] Updating o3mini: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model qwen-3-32b OFFLINE/ERROR: offline
+2025/12/28 20:23:33 [AutoMagic] Updating qwen-3-32b: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model sd-3.5-large OFFLINE/ERROR: offline
+2025/12/28 20:23:33 [AutoMagic] Updating sd-3.5-large: AutoRouting true -> false
+2025/12/28 20:23:33 [AutoMagic] Model flux OFFLINE/ERROR: offline
+2025/12/28 20:23:33 [AutoMagic] Updating flux: AutoRouting true -> false
+2025/12/28 20:23:34 [AutoMagic] Model gpt41 OFFLINE/ERROR: offline
+2025/12/28 20:23:34 [AutoMagic] Updating gpt41: AutoRouting true -> false
+2025/12/28 20:23:34 [AutoMagic] Model r1 OFFLINE/ERROR: offline
+2025/12/28 20:23:34 [AutoMagic] Updating r1: AutoRouting true -> false
+2025/12/28 20:23:34 [AutoMagic] Model meta-llama/Llama-3.3-70B-Instruct-Turbo OFFLINE/ERROR: offline
+2025/12/28 20:26:09 [Auth] WARNING: Protected middleware bypassing auth for recovery
+20:26:09 | 200 |   13.326971ms | 127.0.0.1 | POST | /api/heartbeat/9 | -
+2025/12/28 20:29:09 [Auth] WARNING: Protected middleware bypassing auth for recovery
+20:29:09 | 200 |     12.0884ms | 127.0.0.1 | POST | /api/heartbeat/9 | -
+2025/12/28 20:32:09 [Auth] WARNING: Protected middleware bypassing auth for recovery
+20:32:09 | 200 |   19.292392ms | 127.0.0.1 | POST | /api/heartbeat/9 | -
+2025/12/28 20:35:09 [Auth] WARNING: Protected middleware bypassing auth for recovery
+20:35:09 | 200 |   11.870046ms | 127.0.0.1 | POST | /api/heartbeat/9 | -
+signal: killed

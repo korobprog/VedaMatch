@@ -50,6 +50,9 @@ func main() {
 	mediaHandler := handlers.NewMediaHandler()
 	datingHandler := handlers.NewDatingHandler(aiChatService)
 
+	// Restore scheduler state from database
+	aiHandler.RestoreScheduler()
+
 	// Routes
 	api := app.Group("/api")
 
@@ -75,6 +78,7 @@ func main() {
 	admin.Post("/ai-models/disable-offline", aiHandler.DisableOfflineModels)
 	admin.Post("/ai-models/auto-optimize", aiHandler.AutoOptimizeModels)
 	admin.Post("/ai-models/schedule", aiHandler.HandleSchedule)
+	admin.Post("/ai-models/:id/toggle-auto", aiHandler.ToggleAutoRouting)
 
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
