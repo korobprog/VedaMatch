@@ -29,6 +29,8 @@ interface SettingsContextType {
     setDefaultMenuTab: (tab: 'portal' | 'history') => void;
     theme: typeof COLORS.dark;
     isDarkMode: boolean;
+    isAutoMagicEnabled: boolean;
+    toggleAutoMagic: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -42,6 +44,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [imageSize, setImageSize] = useState<number>(280);
     const [imagePosition, setImagePosition] = useState<'left' | 'center' | 'right'>('left');
     const [defaultMenuTab, setDefaultMenuTabState] = useState<'portal' | 'history'>('portal');
+    const [isAutoMagicEnabled, setIsAutoMagicEnabled] = useState<boolean>(true);
 
     const colorScheme = useColorScheme();
     const isDarkMode = colorScheme === 'dark';
@@ -94,6 +97,16 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         console.log(`Model switched to: ${modelId} (${provider})`);
     };
 
+    const toggleAutoMagic = async () => {
+        const newValue = !isAutoMagicEnabled;
+        setIsAutoMagicEnabled(newValue);
+        try {
+            await AsyncStorage.setItem('auto_magic_enabled', JSON.stringify(newValue));
+        } catch (e) {
+            console.error('Failed to save auto magic settings', e);
+        }
+    };
+
     // Initial fetch on mount? 
     // Maybe better to lazy load when drawer opens, but user asked for "cached list".
     // We can fetch on app start silently.
@@ -103,6 +116,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 const tab = await AsyncStorage.getItem('default_menu_tab');
                 if (tab === 'history' || tab === 'portal') {
                     setDefaultMenuTabState(tab);
+                }
+
+                const autoMagic = await AsyncStorage.getItem('auto_magic_enabled');
+                if (autoMagic !== null) {
+                    setIsAutoMagicEnabled(JSON.parse(autoMagic));
                 }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
@@ -137,6 +155,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             setDefaultMenuTab,
             theme,
             isDarkMode,
+            isAutoMagicEnabled,
+            toggleAutoMagic,
         }}>
             {children}
         </SettingsContext.Provider>

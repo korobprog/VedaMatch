@@ -1,21 +1,0 @@
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0  7045    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-HTTP/2 200 
-x-imgix-id: e962001e0bb300f50ec21837d77781a06d828232
-cache-control: public, max-age=31536000
-last-modified: Fri, 26 Dec 2025 13:41:08 GMT
-date: Fri, 26 Dec 2025 13:44:13 GMT
-age: 185
-accept-ranges: bytes
-content-type: image/jpeg
-access-control-allow-origin: *
-timing-allow-origin: *
-cross-origin-resource-policy: cross-origin
-x-content-type-options: nosniff
-server: imgix
-x-served-by: cache-fra-eddf8230149-FRA
-x-cache: HIT
-alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
-content-length: 7045
-

@@ -1,0 +1,33 @@
+2025/12/28 19:54:53 Connected to Database
+2025/12/28 19:54:54 Database Migrated
+2025/12/28 19:54:54 [AUTH] Attempting to initialize superadmin from environment: korobprog@gmail.com
+2025/12/28 19:54:54 [AUTH] User korobprog@gmail.com found. Updating role to superadmin and syncing password.
+2025/12/28 19:54:54 [Scheduler] Service initialized
+2025/12/28 19:54:54 [Scheduler] Restoring state: Enabled, Interval=60 minutes
+2025/12/28 19:54:54 [Scheduler] Started with interval 60 minutes
+2025/12/28 19:54:54 Registering /api/messages routes...
+2025/12/28 19:54:54 [Scheduler] Running auto-optimization task
+2025/12/28 19:54:54 Routes registered.
+2025/12/28 19:54:54 Server starting on port :8081
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                   Fiber v2.52.0                   │ 
+ │               http://127.0.0.1:8081               │ 
+ │       (bound on host 0.0.0.0 and port 8081)       │ 
+ │                                                   │ 
+ │ Handlers ............ 88  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............ 761622 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2025/12/28 19:54:54 [Auth] WARNING: Protected middleware bypassing auth for recovery
+19:54:54 | 101 |      58.695µs | 127.0.0.1 | GET | /api/ws/9 | -
+
+2025/12/28 19:55:16 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[1047.799ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=20797,"last_test_status"='online',"updated_at"='2025-12-28 19:55:15.212' WHERE id = 168 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 19:55:16 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[1054.685ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=20852,"last_test_status"='online',"updated_at"='2025-12-28 19:55:15.271' WHERE id = 154 AND "ai_models"."deleted_at" IS NULL[0m
+
+2025/12/28 19:55:18 [32m/home/maxim/Documents/Rag-agent/server/internal/handlers/ai_handler.go:365 [33mSLOW SQL >= 200ms
+[0m[31;1m[215.671ms] [33m[rows:1][35m UPDATE "ai_models" SET "last_response_time"=23409,"last_test_status"='online',"updated_at"='2025-12-28 19:55:17.821' WHERE id = 159 AND "ai_models"."deleted_at" IS NULL[0m
+signal: killed

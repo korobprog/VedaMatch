@@ -40,7 +40,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const { t } = useTranslation();
-    const { currentModel, currentProvider } = useSettings();
+    const { currentModel, currentProvider, isAutoMagicEnabled } = useSettings();
     const [inputText, setInputText] = useState('');
     const [showMenu, setShowMenu] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -244,8 +244,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             ];
 
             const response = await sendMessage(messagesForAPI, {
-                model: currentModel,
-                provider: currentProvider,
+                model: isAutoMagicEnabled ? 'auto' : currentModel,
+                provider: isAutoMagicEnabled ? undefined : currentProvider,
                 signal: controller.signal,
             });
 

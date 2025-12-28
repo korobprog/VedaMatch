@@ -11,6 +11,7 @@ import (
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"strconv"
 	"sync"
 	"time"
 
@@ -464,7 +465,7 @@ func (h *AiHandler) optimizeInternal() ([]TestResult, error) {
 	return results, nil
 }
 
-// HandleSchedule configures the background check service
+// HandleSchedule configures the background check service and persists settings
 func (h *AiHandler) HandleSchedule(c *fiber.Ctx) error {
 	type ScheduleRequest struct {
 		IntervalMinutes int  `json:"intervalMinutes"`
@@ -475,6 +476,17 @@ func (h *AiHandler) HandleSchedule(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 	}
+
+	// Persist settings
+	database.DB.Assign(models.SystemSetting{Value: fmt.Sprintf("%d", req.IntervalMinutes)}).FirstOrCreate(&models.SystemSetting{}, models.SystemSetting{Key: "scheduler_interval"})
+	database.DB.Where(models.SystemSetting{Key: "scheduler_interval"}).Updates(models.SystemSetting{Value: fmt.Sprintf("%d", req.IntervalMinutes)})
+
+	enabledStr := "false"
+	if req.Enabled {
+		enabledStr = "true"
+	}
+	database.DB.Assign(models.SystemSetting{Value: enabledStr}).FirstOrCreate(&models.SystemSetting{}, models.SystemSetting{Key: "scheduler_enabled"})
+	database.DB.Where(models.SystemSetting{Key: "scheduler_enabled"}).Updates(models.SystemSetting{Value: enabledStr})
 
 	if req.Enabled {
 		task := func() {
@@ -502,18 +514,84 @@ func (h *AiHandler) GetRecommendedModels(c *fiber.Ctx) error {
 	})
 }
 
-// DisableOfflineModels disables all models that are offline or have errors
+// DisableOfflineModels disables all models that are offline or have errors or have no status
 func (h *AiHandler) DisableOfflineModels(c *fiber.Ctx) error {
+	log.Println("[DisableOffline] Request received to disable offline models")
+
+	// Debug: Count how many models match criteria (NOT online)
+	var count int64
+	if err := database.DB.Model(&models.AiModel{}).
+		Where("last_test_status != ? OR last_test_status IS NULL", "online").
+		Count(&count).Error; err != nil {
+		log.Printf("[DisableOffline] Error counting models: %v", err)
+	}
+	log.Printf("[DisableOffline] Found %d models that are NOT online", count)
+
 	result := database.DB.Model(&models.AiModel{}).
-		Where("last_test_status IN ?", []string{"offline", "error"}).
+		Where("last_test_status != ? OR last_test_status IS NULL", "online").
 		Update("is_enabled", false)
 
 	if result.Error != nil {
+		log.Printf("[DisableOffline] Error updating models: %v", result.Error)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to disable offline models"})
 	}
+
+	log.Printf("[DisableOffline] Successfully disabled %d models", result.RowsAffected)
 
 	return c.JSON(fiber.Map{
 		"message":  "Offline models disabled",
 		"disabled": result.RowsAffected,
+	})
+}
+
+// RestoreScheduler checks the database for saved scheduler settings and restores the state
+func (h *AiHandler) RestoreScheduler() {
+	var enabledSetting models.SystemSetting
+	if err := database.DB.Where("key = ?", "scheduler_enabled").First(&enabledSetting).Error; err != nil {
+		log.Println("[Scheduler] No saved state found (or error), scheduler remains disabled")
+		return
+	}
+
+	if enabledSetting.Value != "true" {
+		log.Println("[Scheduler] Saved state is disabled")
+		return
+	}
+
+	var intervalSetting models.SystemSetting
+	intervalMinutes := 60 // Default
+	if err := database.DB.Where("key = ?", "scheduler_interval").First(&intervalSetting).Error; err == nil {
+		if val, err := strconv.Atoi(intervalSetting.Value); err == nil {
+			intervalMinutes = val
+		}
+	}
+
+	log.Printf("[Scheduler] Restoring state: Enabled, Interval=%d minutes", intervalMinutes)
+	services.GlobalScheduler.Start(intervalMinutes, func() {
+		log.Println("[Scheduler] Running auto-optimization task")
+		h.optimizeInternal()
+	})
+}
+
+// ToggleAutoRouting manually toggles the Auto-Magic status for a model
+func (h *AiHandler) ToggleAutoRouting(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var model models.AiModel
+
+	if err := database.DB.Where("id = ?", id).First(&model).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Model not found"})
+	}
+
+	// Toggle status
+	newStatus := !model.IsAutoRoutingEnabled
+	model.IsAutoRoutingEnabled = newStatus
+
+	if err := database.DB.Save(&model).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update model"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":                 "Auto-Routing status updated",
+		"id":                      model.ID,
+		"is_auto_routing_enabled": newStatus,
 	})
 }

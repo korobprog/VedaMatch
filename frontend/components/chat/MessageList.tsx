@@ -18,6 +18,7 @@ import { ChatImage } from '../../ChatImage';
 import { Message, COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
 import { useSettings } from '../../context/SettingsContext';
+import { WebView } from 'react-native-webview';
 
 interface MessageListProps {
     onDownloadImage: (imageUrl: string, imageName?: string) => void;
@@ -80,10 +81,54 @@ export const MessageList: React.FC<MessageListProps> = ({
         },
     };
 
+    // Helper to render audio player using WebView
+    const renderAudioPlayer = (url: string, key: string | number) => {
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <style>
+                    body { margin: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+                    audio { width: 95%; max-width: 400px; height: 40px; border-radius: 20px; }
+                </style>
+            </head>
+            <body>
+                <audio controls controlsList="nodownload">
+                    <source src="${url}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+            </body>
+            </html>
+        `;
+
+        return (
+            <View key={key} style={{ height: 60, width: 260, marginVertical: 5, borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent' }}>
+                <WebView
+                    originWhitelist={['*']}
+                    source={{ html }}
+                    style={{ backgroundColor: 'transparent' }}
+                    scrollEnabled={false}
+                    showsHorizontalScrollIndicator={false}
+                    showsVerticalScrollIndicator={false}
+                    scalesPageToFit={false}
+                    androidLayerType="hardware"
+                    mediaPlaybackRequiresUserAction={false}
+                    allowsInlineMediaPlayback={true}
+                    javaScriptEnabled={true}
+                />
+            </View>
+        );
+    };
+
     const renderMessage = ({ item }: { item: Message }) => {
         const isUser = item.sender === 'user';
-        // Проверяем, является ли сообщение только изображением (формат ![alt](url))
         const isImageOnly = !isUser && item.text.trim().startsWith('![') && item.text.trim().endsWith(')') && !item.text.trim().includes('\n', 2);
+
+        // Parse content looking for <audio> tags
+        // Regex finds <audio ... src="...">...</audio> or just open tag if it's not closed properly (though usually LLM closes it)
+        // We assume valid HTML <audio ...></audio>
+        const parts = item.text.split(/(<audio\s+[^>]*src="[^"]+"[^>]*>.*?<\/audio>)/gi);
 
         return (
             <View
@@ -104,12 +149,12 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <View style={[
                             styles.avatar,
                             {
-                                backgroundColor: isDarkMode ? 'transparent' : '#FFF', // Белый или прозрачный фон для картинки
+                                backgroundColor: isDarkMode ? 'transparent' : '#FFF',
                                 borderColor: theme.borderColor,
-                                borderWidth: 0, // Убираем границу для лучшего вида с фото
+                                borderWidth: 0,
                                 marginBottom: isImageOnly ? 6 : 0,
                                 marginRight: isImageOnly ? 0 : 8,
-                                overflow: 'hidden', // Чтобы скругление работало для Image
+                                overflow: 'hidden',
                             }
                         ]}>
                             <Image
@@ -125,17 +170,30 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 backgroundColor: theme.botBubble,
                                 borderColor: theme.borderColor,
                                 borderWidth: isDarkMode ? 0 : 1,
-                                // Ширина бокса пузыря = размер картинки + отступы, но не больше чем (экран - 40)
                                 width: isImageOnly ? Math.min(imageSize + 14, SCREEN_WIDTH - 40) : undefined,
                                 maxWidth: '100%',
                             }
                         ]}>
-                            <Markdown
-                                style={markdownStyles}
-                                rules={markdownRules}
-                            >
-                                {item.text}
-                            </Markdown>
+                            {parts.map((part, index) => {
+                                // Check if this part is an audio tag
+                                const audioMatch = part.match(/<audio\s+[^>]*src="([^"]+)"[^>]*>/i);
+                                if (audioMatch) {
+                                    return renderAudioPlayer(audioMatch[1], index);
+                                }
+
+                                // Skip empty strings resulting from split
+                                if (!part.trim() && parts.length > 1) return null;
+
+                                return (
+                                    <Markdown
+                                        key={index}
+                                        style={markdownStyles}
+                                        rules={markdownRules}
+                                    >
+                                        {part}
+                                    </Markdown>
+                                );
+                            })}
 
                             {item.navTab && (
                                 <TouchableOpacity

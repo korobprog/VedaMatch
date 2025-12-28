@@ -12,6 +12,7 @@ import {
     Dimensions,
 } from 'react-native';
 import { useSettings } from './context/SettingsContext';
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 interface ChatImageProps {
     imageUrl: string;
@@ -33,6 +34,7 @@ export const ChatImage: React.FC<ChatImageProps> = ({
     onShare,
     theme,
 }) => {
+    const { t, i18n } = useTranslation(); // Init i18n
     const { imageSize, imagePosition } = useSettings();
     const [size, setSize] = useState<{ width: number; height: number } | null>(null);
     const [loading, setLoading] = useState(true);
@@ -47,10 +49,19 @@ export const ChatImage: React.FC<ChatImageProps> = ({
             return;
         }
 
+        // Safety timeout: if getSize doesn't respond in 10s, stop loading and use default size
+        const safetyTimeout = setTimeout(() => {
+            if (isMounted && loading && !imageLoaded) {
+                console.warn('ChatImage: getSize safety timeout reached for', imageUrl);
+                setLoading(false);
+            }
+        }, 10000);
+
         // Пытаемся получить размеры через getSize
         Image.getSize(
             imageUrl,
             (width, height) => {
+                clearTimeout(safetyTimeout);
                 if (isMounted) {
                     setSize({ width, height });
                     setLoading(false);
@@ -58,6 +69,7 @@ export const ChatImage: React.FC<ChatImageProps> = ({
                 }
             },
             (err) => {
+                clearTimeout(safetyTimeout);
                 console.error('Failed to load image size via getSize, will use onLoad fallback', err);
                 // Не устанавливаем error = true, так как можем получить размеры через onLoad
                 if (isMounted) {
@@ -68,6 +80,7 @@ export const ChatImage: React.FC<ChatImageProps> = ({
 
         return () => {
             isMounted = false;
+            clearTimeout(safetyTimeout);
         };
     }, [imageUrl]);
 
@@ -86,7 +99,35 @@ export const ChatImage: React.FC<ChatImageProps> = ({
         setLoading(false);
     };
 
-    // Используем fallback размеры, если getSize не сработал
+    // Mahamantra for loading state
+    const MANTRA_LINES_EN = [
+        "Hare Krishna Hare Krishna",
+        "Krishna Krishna Hare Hare",
+        "Hare Rama Hare Rama",
+        "Rama Rama Hare Hare"
+    ];
+
+    const MANTRA_LINES_RU = [
+        "Харе Кришна Харе Кришна",
+        "Кришна Кришна Харе Харе",
+        "Харе Рама Харе Рама",
+        "Рама Рама Харе Харе"
+    ];
+
+    const MANTRA_LINES = i18n.language === 'ru' ? MANTRA_LINES_RU : MANTRA_LINES_EN;
+
+    const [mantraIndex, setMantraIndex] = useState(0);
+
+    useEffect(() => {
+        if (!loading && imageLoaded) return; // Stop if loaded
+
+        const interval = setInterval(() => {
+            setMantraIndex((prev) => (prev + 1) % MANTRA_LINES.length);
+        }, 1500); // Change every 1.5 seconds for a nice flow
+
+        return () => clearInterval(interval);
+    }, [loading, imageLoaded, i18n.language]);
+
     const displaySize = size || { width: 400, height: 400 }; // Fallback размеры
     const aspectRatio = displaySize.width / displaySize.height;
 
@@ -112,48 +153,64 @@ export const ChatImage: React.FC<ChatImageProps> = ({
 
     return (
         <View style={[styles.container, { alignItems: containerAlign }]}>
-            {loading && !imageLoaded && (
-                <View style={[styles.loadingContainer, { borderColor: theme.borderColor, width: MAX_WIDTH }]}>
-                    <ActivityIndicator size="small" color={theme.accent} />
-                    <Text style={[styles.loadingText, { color: theme.text }]}>Загрузка изображения...</Text>
-                </View>
-            )}
-            {(!loading || imageLoaded) && (
-                <>
-                    <TouchableWithoutFeedback onPress={() => { }}>
-                        <Image
-                            source={{ uri: imageUrl }}
-                            style={[
-                                styles.image,
-                                {
-                                    width: finalWidth,
-                                    aspectRatio: aspectRatio,
-                                    minHeight: 200,
-                                    maxHeight: 600,
-                                } as StyleProp<ImageStyle>,
-                            ]}
-                            resizeMode="contain"
-                            onLoad={handleImageLoad}
-                            onError={handleImageError}
-                        />
-                    </TouchableWithoutFeedback>
-                    <View style={[styles.buttonsContainer, { width: finalWidth }]}>
-                        <TouchableOpacity
-                            style={[styles.button, { backgroundColor: theme.accent, marginRight: 4 }]}
-                            onPress={() => onDownload(imageUrl, altText)}
-                            disabled={loading}
-                        >
-                            <Text style={styles.buttonText}>📥 Скачать</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.button, { backgroundColor: theme.botBubble, borderWidth: 1, borderColor: theme.accent }]}
-                            onPress={() => onShare(imageUrl)}
-                            disabled={loading}
-                        >
-                            <Text style={[styles.buttonText, { color: theme.text }]}>🔗 Поделиться</Text>
-                        </TouchableOpacity>
+            <View style={{ width: finalWidth, position: 'relative' }}>
+                <TouchableWithoutFeedback onPress={() => { }}>
+                    <Image
+                        source={{ uri: imageUrl }}
+                        style={[
+                            styles.image,
+                            {
+                                width: finalWidth,
+                                aspectRatio: aspectRatio,
+                                minHeight: loading && !imageLoaded ? 200 : 0,
+                                maxHeight: 600,
+                            } as StyleProp<ImageStyle>,
+                        ]}
+                        resizeMode="contain"
+                        onLoad={handleImageLoad}
+                        onError={handleImageError}
+                    />
+                </TouchableWithoutFeedback>
+
+                {loading && !imageLoaded && (
+                    <View style={[
+                        styles.loadingContainer,
+                        {
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            borderColor: theme.borderColor,
+                            backgroundColor: 'rgba(0,0,0,0.05)',
+                            marginVertical: 0, // Reset margin since it's absolute
+                        }
+                    ]}>
+                        <ActivityIndicator size="small" color={theme.accent} />
+                        <Text style={[styles.loadingText, { color: theme.text, textAlign: 'center', fontStyle: 'italic', paddingHorizontal: 10 }]}>
+                            {MANTRA_LINES[mantraIndex]}
+                        </Text>
                     </View>
-                </>
+                )}
+            </View>
+
+            {(!loading || imageLoaded) && (
+                <View style={[styles.buttonsContainer, { width: finalWidth }]}>
+                    <TouchableOpacity
+                        style={[styles.button, { backgroundColor: theme.accent, marginRight: 4 }]}
+                        onPress={() => onDownload(imageUrl, altText)}
+                        disabled={loading}
+                    >
+                        <Text style={styles.buttonText}>📥 Скачать</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.button, { backgroundColor: theme.botBubble, borderWidth: 1, borderColor: theme.accent }]}
+                        onPress={() => onShare(imageUrl)}
+                        disabled={loading}
+                    >
+                        <Text style={[styles.buttonText, { color: theme.text }]}>🔗 Поделиться</Text>
+                    </TouchableOpacity>
+                </View>
             )}
         </View>
     );
