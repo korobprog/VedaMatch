@@ -5,6 +5,7 @@ import (
 	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/handlers"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"rag-agent-server/internal/websocket"
@@ -24,6 +25,9 @@ func main() {
 
 	// Initialize Database
 	database.Connect()
+
+	// Initialize Services
+	services.InitScheduler()
 
 	// Initialize Fiber App
 	app := fiber.New()
@@ -50,7 +54,7 @@ func main() {
 	api := app.Group("/api")
 
 	// Admin Routes (Protected - should ideally have middleware)
-	admin := api.Group("/admin")
+	admin := api.Group("/admin", middleware.AdminProtected())
 	admin.Get("/users", adminHandler.GetUsers)
 	admin.Post("/users/:id/toggle-block", adminHandler.ToggleBlockUser)
 	admin.Put("/users/:id/role", adminHandler.UpdateUserRole)
@@ -69,22 +73,28 @@ func main() {
 	admin.Post("/ai-models/:id/test", aiHandler.TestModel)
 	admin.Post("/ai-models/bulk-test", aiHandler.BulkTestModels)
 	admin.Post("/ai-models/disable-offline", aiHandler.DisableOfflineModels)
+	admin.Post("/ai-models/auto-optimize", aiHandler.AutoOptimizeModels)
+	admin.Post("/ai-models/schedule", aiHandler.HandleSchedule)
 
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
-	api.Put("/update-profile/:id", authHandler.UpdateProfile)
-	api.Get("/contacts", authHandler.GetContacts)
-	api.Post("/heartbeat/:id", authHandler.Heartbeat)
-	api.Post("/upload-avatar/:id", authHandler.UploadAvatar)
-	api.Post("/friends/add", authHandler.AddFriend)
-	api.Post("/friends/remove", authHandler.RemoveFriend)
-	api.Get("/friends/:id", authHandler.GetFriends)
-	api.Post("/blocks/add", authHandler.BlockUser)
-	api.Post("/blocks/remove", authHandler.UnblockUser)
-	api.Get("/blocks/:id", authHandler.GetBlockedUsers)
+
+	// Protected Routes
+	protected := api.Group("/", middleware.Protected())
+
+	protected.Put("/update-profile/:id", authHandler.UpdateProfile)
+	protected.Get("/contacts", authHandler.GetContacts)
+	protected.Post("/heartbeat/:id", authHandler.Heartbeat)
+	protected.Post("/upload-avatar/:id", authHandler.UploadAvatar)
+	protected.Post("/friends/add", authHandler.AddFriend)
+	protected.Post("/friends/remove", authHandler.RemoveFriend)
+	protected.Get("/friends/:id", authHandler.GetFriends)
+	protected.Post("/blocks/add", authHandler.BlockUser)
+	protected.Post("/blocks/remove", authHandler.UnblockUser)
+	protected.Get("/blocks/:id", authHandler.GetBlockedUsers)
 	log.Println("Registering /api/messages routes...")
-	api.Post("/messages", messageHandler.SendMessage)
-	api.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
+	protected.Post("/messages", messageHandler.SendMessage)
+	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
 
 	// WebSocket Route
 	api.Get("/ws/:id", ws.New(func(c *ws.Conn) {
@@ -111,33 +121,35 @@ func main() {
 	}))
 
 	// Room Routes
-	api.Post("/rooms", roomHandler.CreateRoom)
-	api.Get("/rooms", roomHandler.GetRooms)
-	api.Post("/rooms/invite", roomHandler.InviteUser)
-	api.Post("/rooms/remove", roomHandler.RemoveUser)
-	api.Post("/rooms/role", roomHandler.UpdateMemberRole)
-	api.Get("/rooms/:id/members", roomHandler.GetRoomMembers)
-	api.Get("/rooms/:id/summary", messageHandler.GetRoomSummary)
-	api.Put("/rooms/:id", roomHandler.UpdateRoom)
-	api.Put("/rooms/:id/settings", roomHandler.UpdateRoomSettings)
-	api.Post("/rooms/:id/image", roomHandler.UpdateRoomImage)
+	protected.Post("/rooms", roomHandler.CreateRoom)
+	protected.Get("/rooms", roomHandler.GetRooms)
+	protected.Post("/rooms/invite", roomHandler.InviteUser)
+	protected.Post("/rooms/remove", roomHandler.RemoveUser)
+	protected.Post("/rooms/role", roomHandler.UpdateMemberRole)
+	protected.Get("/rooms/:id/members", roomHandler.GetRoomMembers)
+	protected.Get("/rooms/:id/summary", messageHandler.GetRoomSummary)
+	protected.Put("/rooms/:id", roomHandler.UpdateRoom)
+	protected.Put("/rooms/:id/settings", roomHandler.UpdateRoomSettings)
+	protected.Post("/rooms/:id/image", roomHandler.UpdateRoomImage)
 
 	// Media Routes
-	api.Post("/media/upload/:userId", mediaHandler.UploadPhoto)
-	api.Get("/media/:userId", mediaHandler.ListPhotos)
-	api.Delete("/media/:id", mediaHandler.DeletePhoto)
-	api.Post("/media/:id/set-profile", mediaHandler.SetProfilePhoto)
+	protected.Post("/media/upload/:userId", mediaHandler.UploadPhoto)
+	protected.Get("/media/:userId", mediaHandler.ListPhotos)
+	protected.Delete("/media/:id", mediaHandler.DeletePhoto)
+	protected.Post("/media/:id/set-profile", mediaHandler.SetProfilePhoto)
 
 	// Dating Routes
-	api.Get("/dating/stats", datingHandler.GetDatingStats)
-	api.Get("/dating/cities", datingHandler.GetDatingCities)
-	api.Get("/dating/candidates", datingHandler.GetCandidates)
-	api.Post("/dating/compatibility/:userId/:candidateId", datingHandler.GetCompatibility)
-	api.Get("/dating/profile/:id", datingHandler.GetDatingProfile)
-	api.Put("/dating/profile/:id", datingHandler.UpdateDatingProfile)
-	api.Post("/dating/favorites", datingHandler.AddToFavorites)
-	api.Get("/dating/favorites", datingHandler.GetFavorites)
-	api.Delete("/dating/favorites/:id", datingHandler.RemoveFromFavorites)
+	protected.Get("/dating/stats", datingHandler.GetDatingStats)
+	protected.Get("/dating/cities", datingHandler.GetDatingCities)
+	protected.Get("/dating/candidates", datingHandler.GetCandidates)
+	protected.Post("/dating/compatibility/:userId/:candidateId", datingHandler.GetCompatibility)
+	protected.Get("/dating/profile/:id", datingHandler.GetDatingProfile)
+	protected.Put("/dating/profile/:id", datingHandler.UpdateDatingProfile)
+	protected.Post("/dating/favorites", datingHandler.AddToFavorites)
+	protected.Get("/dating/favorites", datingHandler.GetFavorites)
+	protected.Get("/dating/liked-me", datingHandler.GetWhoLikedMe)
+	protected.Get("/dating/notifications", datingHandler.GetNotifications)
+	protected.Delete("/dating/favorites/:id", datingHandler.RemoveFromFavorites)
 
 	log.Println("Routes registered.")
 
