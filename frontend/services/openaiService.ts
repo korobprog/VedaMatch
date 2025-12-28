@@ -191,7 +191,6 @@ export const getAvailableModels = async (provider?: string): Promise<any> => {
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
       },
       signal: controller.signal
