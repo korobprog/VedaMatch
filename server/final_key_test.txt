@@ -1,0 +1,12 @@
+=== ФИНАЛЬНОЕ ТЕСТИРОВАНИЕ КЛЮЧЕЙ ===
+
+
+--- GEMINI_API_KEY ---
+  models/gemini-2.5-flash (Google): ✅ РАБОТАЕТ (3.60s)
+    Ответ: Привет! Кратко: что именно?
+  models/gemini-2.5-flash (Proxy): ✅ РАБОТАЕТ (3.04s)
+
+--- GEMINI_API_KEY_BACKUP ---
+  models/gemini-2.5-flash (Google): ✅ РАБОТАЕТ (1.43s)
+    Ответ: Да.
+  models/gemini-2.5-flash (Proxy): ✅ РАБОТАЕТ (4.20s)

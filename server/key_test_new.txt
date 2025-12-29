@@ -1,0 +1,2 @@
+GEMINI_API_KEY: ❌ НЕ РАБОТАЕТ - status=404, error=models/gemini-1.5-flash is not found for API versi
+GEMINI_API_KEY_BACKUP: ❌ НЕ РАБОТАЕТ - status=404, error=models/gemini-1.5-flash is not found for API versi

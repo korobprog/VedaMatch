@@ -1,0 +1,11 @@
+=== СРАВНЕНИЕ: ПРОКСИ vs ПРЯМОЙ ДОСТУП ===
+
+--- Через ПРОКСИ (Cloudflare Worker) ---
+Прокси: ❌ 404 - models/gemini-1.5-flash is not found for API version v1beta, or is not
+
+--- Напрямую с Google API ---
+Google API: ❌ 404 - models/gemini-1.5-flash is not found for API version v1beta, or is not
+
+=== ВЫВОД ===
+Если Google API работает, а прокси нет - проблема в Cloudflare Worker
+Если оба не работают - проблема в ключе или квоте

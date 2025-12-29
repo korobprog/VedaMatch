@@ -243,35 +243,49 @@ func (h *AiHandler) TestModel(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "API_OPEN_AI key not set"})
 	}
 
-	// Prepare a simple completion request based on category
-	// Unified endpoint for all models
+	// Prepare request based on Provider
+	var req *http.Request
+	var err error
 	testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
-	var testBody map[string]interface{}
 
-	if aiModel.Category == "image" {
-		// Use unified chat endpoint for images too
-		testBody = map[string]interface{}{
-			"model":    aiModel.ModelID,
-			"provider": aiModel.Provider,
-			"messages": []map[string]string{
-				{"role": "user", "content": "a small cat"},
-			},
+	if aiModel.Provider == "PollinationsAI" {
+		// Pollinations direct test
+		// Request a tiny image to test connectivity
+		testURL = "https://image.pollinations.ai/prompt/test?width=16&height=16"
+		req, err = http.NewRequest("GET", testURL, nil)
+		if err == nil {
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 		}
 	} else {
-		testBody = map[string]interface{}{
-			"model":    aiModel.ModelID,
-			"provider": aiModel.Provider,
-			"messages": []map[string]string{
-				{"role": "user", "content": "hi"},
-			},
-			"max_tokens": 5,
+		// Standard aggregator test
+		var testBody map[string]interface{}
+		if aiModel.Category == "image" {
+			testBody = map[string]interface{}{
+				"model":    aiModel.ModelID,
+				"provider": aiModel.Provider,
+				"messages": []map[string]string{
+					{"role": "user", "content": "a small cat"},
+				},
+			}
+		} else {
+			testBody = map[string]interface{}{
+				"model":    aiModel.ModelID,
+				"provider": aiModel.Provider,
+				"messages": []map[string]string{
+					{"role": "user", "content": "hi"},
+				},
+				"max_tokens": 5,
+			}
 		}
+		jsonBody, _ := json.Marshal(testBody)
+		req, err = http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
-	jsonBody, _ := json.Marshal(testBody)
-	req, _ := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request"})
+	}
 
 	start := time.Now()
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -322,28 +336,44 @@ func (h *AiHandler) performBulkTestInternal() ([]TestResult, error) {
 		go func(model models.AiModel) {
 			defer wg.Done()
 
-			testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
-			var testBody map[string]interface{}
+			var req *http.Request
+			var err error
 
-			if model.Category == "image" {
-				testBody = map[string]interface{}{
-					"model":    model.ModelID,
-					"provider": model.Provider,
-					"messages": []map[string]string{{"role": "user", "content": "a small cat"}},
-				}
+			if model.Provider == "PollinationsAI" {
+				testURL := "https://image.pollinations.ai/prompt/test?width=16&height=16"
+				req, err = http.NewRequest("GET", testURL, nil)
 			} else {
-				testBody = map[string]interface{}{
-					"model":      model.ModelID,
-					"provider":   model.Provider,
-					"messages":   []map[string]string{{"role": "user", "content": "hi"}},
-					"max_tokens": 5,
+				// Standard Aggregator
+				testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
+				var testBody map[string]interface{}
+
+				if model.Category == "image" {
+					testBody = map[string]interface{}{
+						"model":    model.ModelID,
+						"provider": model.Provider,
+						"messages": []map[string]string{{"role": "user", "content": "a small cat"}},
+					}
+				} else {
+					testBody = map[string]interface{}{
+						"model":      model.ModelID,
+						"provider":   model.Provider,
+						"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+						"max_tokens": 5,
+					}
 				}
+
+				jsonBody, _ := json.Marshal(testBody)
+				req, err = http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+apiKey)
 			}
 
-			jsonBody, _ := json.Marshal(testBody)
-			req, _ := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Authorization", "Bearer "+apiKey)
+			if err != nil {
+				// Should not happen if params are ok
+				log.Printf("Err creating request for %s: %v", model.ModelID, err)
+				resultsChan <- TestResult{ModelID: model.ModelID, Status: "error", ResponseTime: 0}
+				return
+			}
 
 			start := time.Now()
 			client := &http.Client{Timeout: 60 * time.Second}

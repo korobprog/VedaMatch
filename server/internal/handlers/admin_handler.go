@@ -208,6 +208,17 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 		settingsMap["API_OPEN_AI"] = strings.Repeat("*", len(os.Getenv("API_OPEN_AI")))
 	}
 
+	// Ensure Gemini keys are present for UI
+	geminiKeys := []string{"GEMINI_API_KEY", "GEMINI_API_KEY_BACKUP_1", "GEMINI_API_KEY_BACKUP_2"}
+	for _, key := range geminiKeys {
+		if _, ok := settingsMap[key]; !ok {
+			envVal := os.Getenv(key)
+			if envVal != "" {
+				settingsMap[key] = strings.Repeat("*", len(envVal))
+			}
+		}
+	}
+
 	return c.JSON(settingsMap)
 }
 
@@ -226,6 +237,10 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 		// Special case: update env for current session if it's API_OPEN_AI
 		if k == "API_OPEN_AI" && v != "" {
 			os.Setenv("API_OPEN_AI", v)
+		}
+		// Also update Gemini keys in env
+		if strings.HasPrefix(k, "GEMINI_API_KEY") && v != "" {
+			os.Setenv(k, v)
 		}
 	}
 

@@ -9,9 +9,12 @@ import (
 func main() {
 	database.Connect()
 
-	// Disable AutoRouting for sd-3.5-large
+	// Disable sd-3.5-large entirely
 	err := database.DB.Model(&models.AiModel{}).Where("model_id = ?", "sd-3.5-large").
-		Update("is_auto_routing_enabled", false).Error
+		Updates(map[string]interface{}{
+			"is_enabled":              false,
+			"is_auto_routing_enabled": false,
+		}).Error
 
 	if err != nil {
 		log.Fatalf("Failed to update model: %v", err)
