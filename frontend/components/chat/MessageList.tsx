@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
-import { ChatImage } from '../../ChatImage';
+import { ChatImage } from '../ChatImage';
 import { Message, COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
 import { useSettings } from '../../context/SettingsContext';

@@ -34,70 +34,48 @@ export const ChatImage: React.FC<ChatImageProps> = ({
     onShare,
     theme,
 }) => {
-    const { t, i18n } = useTranslation(); // Init i18n
+    const { t, i18n } = useTranslation();
     const { imageSize, imagePosition } = useSettings();
-    const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+    // Default size is square until loaded
+    const [size, setSize] = useState<{ width: number; height: number }>({ width: 300, height: 300 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
-    const [imageLoaded, setImageLoaded] = useState(false);
+
+    // Add timestamp to prevent caching issues
+    const [currentUrl, setCurrentUrl] = useState('');
 
     useEffect(() => {
-        let isMounted = true;
-        if (!imageUrl) {
-            setLoading(false);
-            setError(true);
-            return;
+        if (imageUrl) {
+            // Use URL as is to leverage caching and prevent reloading on remounts
+            setCurrentUrl(imageUrl);
+            setLoading(true);
+            setError(false);
         }
-
-        // Safety timeout: if getSize doesn't respond in 10s, stop loading and use default size
-        const safetyTimeout = setTimeout(() => {
-            if (isMounted && loading && !imageLoaded) {
-                console.warn('ChatImage (comp): getSize safety timeout reached for', imageUrl);
-                setLoading(false);
-            }
-        }, 10000);
-
-        // Пытаемся получить размеры через getSize
-        Image.getSize(
-            imageUrl,
-            (width, height) => {
-                clearTimeout(safetyTimeout);
-                if (isMounted) {
-                    setSize({ width, height });
-                    setLoading(false);
-                    setError(false);
-                }
-            },
-            (err) => {
-                clearTimeout(safetyTimeout);
-                console.error('Failed to load image size via getSize, will use onLoad fallback', err);
-                // Не устанавливаем error = true, так как можем получить размеры через onLoad
-                if (isMounted) {
-                    setLoading(false);
-                }
-            }
-        );
-
-        return () => {
-            isMounted = false;
-            clearTimeout(safetyTimeout);
-        };
     }, [imageUrl]);
 
-    // Fallback: получаем размеры через onLoad
     const handleImageLoad = (event: any) => {
-        const { width, height } = event.nativeEvent.source || {};
-        if (width && height && !size) {
+        const { width, height } = event.nativeEvent.source;
+        if (width && height) {
             setSize({ width, height });
         }
-        setImageLoaded(true);
         setLoading(false);
+        setError(false);
     };
 
-    const handleImageError = () => {
-        setError(true);
+    const handleImageError = (e: any) => {
+        console.warn(`[ChatImage] Image failed to load: ${currentUrl}`, e.nativeEvent.error);
+        // If error happens, stop loading spinner
         setLoading(false);
+        setError(true);
     };
+
+    const handleRetry = () => {
+        setLoading(true);
+        setError(false);
+        const timestamp = new Date().getTime();
+        const char = imageUrl.includes('?') ? '&' : '?';
+        setCurrentUrl(`${imageUrl}${char}retry=${timestamp}`);
+    }
 
     // Mahamantra for loading state
     const MANTRA_LINES_EN = [
@@ -115,94 +93,115 @@ export const ChatImage: React.FC<ChatImageProps> = ({
     ];
 
     const MANTRA_LINES = i18n.language === 'ru' ? MANTRA_LINES_RU : MANTRA_LINES_EN;
-
     const [mantraIndex, setMantraIndex] = useState(0);
 
     useEffect(() => {
-        if (!loading && imageLoaded) return; // Stop if loaded
+        if (!loading) return;
 
         const interval = setInterval(() => {
             setMantraIndex((prev) => (prev + 1) % MANTRA_LINES.length);
-        }, 1500); // Change every 1.5 seconds for a nice flow
+        }, 1500);
 
         return () => clearInterval(interval);
-    }, [loading, imageLoaded, i18n.language]);
+    }, [loading, i18n.language]);
 
-    const displaySize = size || { width: 400, height: 400 }; // Fallback размеры
-    const aspectRatio = displaySize.width / displaySize.height;
-
-    // Максимальная ширина изображения в чате
-    // Максимальная ширина изображения в чате (из настроек)
+    // Calculate display dimensions
     const { width: SCREEN_WIDTH } = Dimensions.get('window');
-    const MAX_WIDTH = Math.min(imageSize || 220, SCREEN_WIDTH - 60);
-    const finalWidth = Math.min(displaySize.width, MAX_WIDTH);
+    const MAX_WIDTH = Math.min(imageSize || 300, SCREEN_WIDTH - 60);
 
-    // Позиционирование (из настроек)
+    // Calculate aspect ratio
+    const aspectRatio = size.width / size.height;
+
+    // Final width/height calculation
+    const finalWidth = Math.min(size.width, MAX_WIDTH);
+    const finalHeight = finalWidth / aspectRatio;
+
+    // Alignment
     const containerAlign = imagePosition === 'left' ? 'flex-start' : imagePosition === 'right' ? 'flex-end' : 'center';
-
-    if (error && !imageLoaded) {
-        return (
-            <View style={[styles.errorContainer, { borderColor: theme.borderColor, width: MAX_WIDTH }]}>
-                <Text style={[styles.errorText, { color: theme.text }]}>Не удалось загрузить изображение</Text>
-                {onDownload && (
-                    <TouchableOpacity onPress={() => onDownload(imageUrl, altText)}>
-                        <Text style={[styles.linkText, { color: theme.accent }]}>Скачать по ссылке</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
-        );
-    }
 
     return (
         <View style={[styles.container, { alignItems: containerAlign }]}>
-            <View style={{ width: finalWidth, position: 'relative' }}>
-                <TouchableWithoutFeedback onPress={() => { }}>
-                    <Image
-                        source={{ uri: imageUrl }}
-                        style={[
-                            styles.image,
-                            {
-                                width: finalWidth,
-                                aspectRatio: aspectRatio,
-                                minHeight: loading && !imageLoaded ? 200 : 0,
-                                maxHeight: 600,
-                            } as StyleProp<ImageStyle>,
-                        ]}
-                        resizeMode="contain"
-                        onLoad={handleImageLoad}
-                        onError={handleImageError}
-                    />
-                </TouchableWithoutFeedback>
+            <View style={{
+                width: finalWidth,
+                minHeight: 250, // Fixed height placeholder while loading
+                height: loading ? 300 : finalHeight,
+                backgroundColor: loading || error ? '#F5F5F5' : 'transparent',
+                borderRadius: 12,
+                overflow: 'hidden', // important for corner radius
+                borderWidth: 1,
+                borderColor: 'rgba(0,0,0,0.05)'
+            }}>
+                {/* Only render Image if we have a URL */}
+                {currentUrl !== '' && !error && (
+                    <TouchableWithoutFeedback onPress={() => { }}>
+                        <Image
+                            source={{ uri: currentUrl }}
+                            style={[
+                                styles.image,
+                                {
+                                    width: finalWidth,
+                                    height: finalHeight,
+                                    // Hide image completely until loaded (opacity 0) to avoid ugly partial renders
+                                    opacity: loading ? 0 : 1,
+                                    backgroundColor: 'transparent',
+                                } as StyleProp<ImageStyle>,
+                            ]}
+                            resizeMode="contain"
+                            onLoad={handleImageLoad}
+                            onError={handleImageError}
+                        />
+                    </TouchableWithoutFeedback>
+                )}
 
-                {loading && !imageLoaded && (
+                {/* Loading State - GPT Style Overlay */}
+                {loading && (
                     <View style={[
                         styles.loadingContainer,
                         {
                             position: 'absolute',
+                            width: '100%',
+                            height: '100%',
                             top: 0,
                             left: 0,
-                            right: 0,
-                            bottom: 0,
-                            borderColor: theme.borderColor,
-                            backgroundColor: 'rgba(0,0,0,0.05)',
-                            marginVertical: 0, // Reset margin since it's absolute
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            borderColor: 'transparent',
+                            backgroundColor: 'rgba(255,255,255,0.8)', // Light overlay
                         }
                     ]}>
-                        <ActivityIndicator size="small" color={theme.accent} />
-                        <Text style={[styles.loadingText, { color: theme.text, textAlign: 'center', fontStyle: 'italic', paddingHorizontal: 10 }]}>
+                        <ActivityIndicator size="large" color={theme.accent} />
+                        <Text style={[styles.loadingText, { color: theme.text, marginTop: 15, fontWeight: 'bold' }]}>
+                            Creating image...
+                        </Text>
+                        <Text style={[styles.loadingText, { color: theme.text, opacity: 0.6, fontSize: 10, marginTop: 5 }]}>
                             {MANTRA_LINES[mantraIndex]}
                         </Text>
                     </View>
                 )}
+
+                {/* Error State */}
+                {error && (
+                    <View style={[styles.errorContainer, { borderColor: theme.borderColor, width: '100%', height: 150 }]}>
+                        <Text style={[styles.errorText, { color: theme.text }]}>Не удалось загрузить изображение</Text>
+                        <TouchableOpacity onPress={handleRetry} style={{ marginBottom: 10 }}>
+                            <Text style={[styles.linkText, { color: theme.accent }]}>🔄 Попробовать снова</Text>
+                        </TouchableOpacity>
+
+                        {onDownload && (
+                            <TouchableOpacity onPress={() => onDownload(imageUrl, altText)}>
+                                <Text style={[styles.linkText, { color: theme.accent }]}>Скачать по ссылке</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
             </View>
 
-            {(!loading || imageLoaded) && (
+            {(!loading && !error) && (
                 <View style={[styles.buttonsContainer, { width: finalWidth }]}>
                     {onDownload && (
                         <TouchableOpacity
                             style={[styles.button, { backgroundColor: theme.accent, marginRight: 4 }]}
                             onPress={() => onDownload(imageUrl, altText)}
-                            disabled={loading}
                         >
                             <Text style={styles.buttonText}>📥 Скачать</Text>
                         </TouchableOpacity>
@@ -211,7 +210,6 @@ export const ChatImage: React.FC<ChatImageProps> = ({
                         <TouchableOpacity
                             style={[styles.button, { backgroundColor: theme.botBubble, borderWidth: 1, borderColor: theme.accent }]}
                             onPress={() => onShare(imageUrl)}
-                            disabled={loading}
                         >
                             <Text style={[styles.buttonText, { color: theme.text }]}>🔗 Поделиться</Text>
                         </TouchableOpacity>

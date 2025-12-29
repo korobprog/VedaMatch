@@ -26,6 +26,9 @@ func main() {
 	// Initialize Database
 	database.Connect()
 
+	// Seed Gemini models if not present
+	database.SeedGeminiModels()
+
 	// Initialize Services
 	services.InitScheduler()
 

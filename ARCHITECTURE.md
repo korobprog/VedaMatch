@@ -391,3 +391,165 @@ Google Gemini API (особенно Semantic Retrieval / Corpora) имеет ж�
 ### 3. Резервный вариант (File API)
 Если работа с `corpora` остается нестабильной из-за блокировок, архитектура предусматривает переход на **Gemini File API**. В этом случае профиль пользователя загружается как обычный файл, который передается в контекст модели (`generateContent`) при каждом запросе, что менее чувствительно к региональным проверкам на этапе поиска.
 
+## Gemini API Integration (Chat)
+
+### Обзор
+Система интегрирует Google Gemini API для чата с многоуровневым fallback механизмом, обеспечивающим высокую доступность сервиса.
+
+### Архитектура fallback
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        GEMINI FALLBACK CHAIN                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   gemini-2.5-flash + Key 1                                         │
+│         ↓ (429/error)                                               │
+│   gemini-2.5-flash + Key 2                                         │
+│         ↓ (429/error)                                               │
+│   gemini-2.5-flash + Key 3                                         │
+│         ↓ (all keys exhausted)                                      │
+│   gemini-2.5-flash-lite + Key 1                                    │
+│         ↓ (429/error)                                               │
+│   gemini-2.5-flash-lite + Key 2                                    │
+│         ↓ (429/error)                                               │
+│   gemini-2.5-flash-lite + Key 3                                    │
+│         ↓ (all Gemini exhausted)                                    │
+│   OpenAI (RVFreeLLM proxy)                                         │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Компоненты
+
+#### 1. GeminiService (`server/internal/services/gemini_service.go`)
+- **Ротация ключей**: Автоматическое переключение между 3 API ключами
+- **Fallback моделей**: При исчерпании лимитов gemini-2.5-flash → gemini-2.5-flash-lite
+- **Формат запроса**: Использует заголовок `X-goog-api-key` для аутентификации
+- **Конвертация**: Преобразует OpenAI-формат в Gemini-формат и обратно
+
+#### 2. Cloudflare Worker Proxy (`GEMINI_BASE_URL`)
+- **URL**: `https://mute-waterfall-ef1e.makstreid.workers.dev`
+- **Назначение**: Проксирование запросов к `generativelanguage.googleapis.com` для обхода региональных ограничений
+- **Функции**:
+  - Передача заголовка `X-goog-api-key`
+  - CORS обработка
+  - Проксирование изображений (параметр `?url=`)
+
+#### 3. AutoMagic Routing (`server/internal/handlers/chat.go`)
+- **Приоритет**: Gemini модели (provider=Google) имеют наивысший приоритет
+- **Fallback**: При ошибках Gemini автоматически переключается на OpenAI
+
+### Переменные окружения
+
+```env
+# Primary Gemini key (используется первым)
+GEMINI_API_KEY=
+
+# Backup keys (автоматический fallback)
+GEMINI_API_KEY_BACKUP_1=
+GEMINI_API_KEY_BACKUP_2=
+
+# Proxy URL (Cloudflare Worker)
+GEMINI_BASE_URL=
+```
+
+### Поддерживаемые модели (2025)
+
+| Модель | Статус | Описание |
+|--------|--------|----------|
+| `gemini-2.5-flash` | ✅ Активна | Основная рабочая модель, высокая скорость |
+| `gemini-2.5-flash-lite` | ✅ Активна | Лёгкая версия, fallback модель |
+| `gemini-2.0-flash` | ⚠️ Лимиты | Может быть исчерпана на Free Tier |
+| `gemini-3-*` | ❌ Preview | Ещё не доступны через API |
+
+### Автоматический Seed моделей
+
+При запуске сервера (`SeedGeminiModels()` в `database/seed.go`) автоматически добавляются модели Gemini в базу данных с включённым AutoRouting.
+
+### Cloudflare Worker Code
+
+```javascript
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // 1. CORS Preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-goog-api-key',
+        },
+      });
+    }
+
+    // 2. Image Proxy (with User-Agent to avoid 403)
+    const proxyUrl = url.searchParams.get('url');
+    if (proxyUrl) {
+      try {
+        const imageResponse = await fetch(proxyUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        
+        const newHeaders = new Headers();
+        newHeaders.set('Access-Control-Allow-Origin', '*');
+        newHeaders.set('Content-Type', imageResponse.headers.get('Content-Type') || 'image/webp');
+        
+        return new Response(imageResponse.body, {
+          status: imageResponse.status,
+          headers: newHeaders
+        });
+      } catch (e) {
+        return new Response('Proxy Error: ' + e.message, { status: 500 });
+      }
+    }
+    
+    // 3. Gemini API Proxy  
+    if (url.pathname.startsWith('/v1beta/')) {
+        url.hostname = 'generativelanguage.googleapis.com';
+        
+        const headers = new Headers(request.headers);
+        headers.set('Content-Type', 'application/json');
+        const apiKey = request.headers.get('X-goog-api-key');
+        if (apiKey) headers.set('X-goog-api-key', apiKey);
+
+        const body = request.method === 'POST' ? await request.text() : null;
+        const response = await fetch(url.toString(), {
+          method: request.method,
+          headers: headers,
+          body: body,
+        });
+
+        const respHeaders = new Headers(response.headers);
+        respHeaders.set('Access-Control-Allow-Origin', '*');
+
+        return new Response(await response.blob(), {
+          status: response.status,
+          headers: respHeaders,
+        });
+    }
+    
+    return new Response('Not Found', { status: 404 });
+  },
+};
+```
+
+### Логирование
+
+В логах сервера можно отслеживать работу Gemini:
+
+```
+[Gemini] Attempting direct Gemini API for model: gemini-2.5-flash
+[GeminiService] Success with model gemini-2.5-flash, key index 0
+[Gemini] All Gemini keys failed for gemini-2.5-flash: ... Falling back to OpenAI proxy.
+```
+
+### Админка
+
+- **Settings → AI & API**: Поля для управления 3 Gemini ключами
+- **AI Models**: Отображение Gemini моделей с возможностью включения/отключения
+

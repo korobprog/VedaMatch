@@ -1,0 +1,4 @@
+gemini-pro: ❌ status=404, error=models/gemini-pro is not found for API version v1beta, or is
+gemini-1.5-pro: ❌ status=404, error=models/gemini-1.5-pro is not found for API version v1beta, o
+gemini-1.5-flash-latest: ❌ status=404, error=models/gemini-1.5-flash-latest is not found for API version 
+gemini-2.0-flash-exp: ❌ status=429, error=You exceeded your current quota, please check your plan and 

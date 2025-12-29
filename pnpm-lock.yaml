@@ -17,6 +17,9 @@ importers:
       http-proxy-middleware:
         specifier: ^2.0.9
         version: 2.0.9
+      react-native-fast-image:
+        specifier: ^8.6.3
+        version: 8.6.3(react-native@0.83.1(@babel/core@7.28.5)(react@19.2.3))(react@19.2.3)
     devDependencies:
       concurrently:
         specifier: ^8.2.2
@@ -2270,6 +2273,12 @@ packages:
 
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
+
+  react-native-fast-image@8.6.3:
+    resolution: {integrity: sha512-Sdw4ESidXCXOmQ9EcYguNY2swyoWmx53kym2zRsvi+VeFCHEdkO+WG1DK+6W81juot40bbfLNhkc63QnWtesNg==}
+    peerDependencies:
+      react: ^17 || ^18
+      react-native: '>=0.60.0'
 
   react-native@0.83.1:
     resolution: {integrity: sha512-mL1q5HPq5cWseVhWRLl+Fwvi5z1UO+3vGOpjr+sHFwcUletPRZ5Kv+d0tUfqHmvi73/53NjlQqX1Pyn4GguUfA==}
@@ -5567,6 +5576,11 @@ snapshots:
       - utf-8-validate
 
   react-is@18.3.1: {}
+
+  react-native-fast-image@8.6.3(react-native@0.83.1(@babel/core@7.28.5)(react@19.2.3))(react@19.2.3):
+    dependencies:
+      react: 19.2.3
+      react-native: 0.83.1(@babel/core@7.28.5)(react@19.2.3)
 
   react-native@0.83.1(@babel/core@7.28.5)(react@19.2.3):
     dependencies:
