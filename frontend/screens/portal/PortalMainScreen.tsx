@@ -4,16 +4,23 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    useColorScheme,
-    Animated,
     Dimensions,
-    Platform,
     StatusBar,
     ScrollView,
     Image,
+    Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { COLORS } from '../../components/chat/ChatConstants';
+import LinearGradient from 'react-native-linear-gradient';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withRepeat,
+    withTiming,
+    withSequence,
+    interpolate,
+} from 'react-native-reanimated';
+
 import { ContactsScreen } from './contacts/ContactsScreen';
 import { PortalChatScreen } from './chat/PortalChatScreen';
 import { ShopsScreen } from './shops/ShopsScreen';
@@ -22,25 +29,43 @@ import { NewsScreen } from './news/NewsScreen';
 import { DatingScreen } from './dating/DatingScreen';
 import { KnowledgeBaseScreen } from './knowledge_base/KnowledgeBaseScreen';
 import { useUser } from '../../context/UserContext';
-import { Alert } from 'react-native';
+import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 
 const { width } = Dimensions.get('window');
 
 export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base'>(route.params?.initialTab || 'contacts');
 
-    const scrollViewRef = useRef<ScrollView>(null);
-    // itemWidth moved below for consistency
+    // AI Pulse Animation
+    const pulseValue = useSharedValue(0);
 
     useEffect(() => {
         if (route.params?.initialTab) {
             setActiveTab(route.params.initialTab);
         }
     }, [route.params?.initialTab]);
+
+    useEffect(() => {
+        pulseValue.value = withRepeat(
+            withSequence(
+                withTiming(1, { duration: 1500 }),
+                withTiming(0, { duration: 1500 })
+            ),
+            -1,
+            true
+        );
+    }, []);
+
+    const animatedPulseStyle = useAnimatedStyle(() => {
+        const scale = interpolate(pulseValue.value, [0, 1], [1, 1.1]);
+        const opacity = interpolate(pulseValue.value, [0, 1], [0.8, 1]);
+        return {
+            transform: [{ scale }],
+            opacity,
+        };
+    });
 
     const tabs = [
         { id: 'contacts', label: t('settings.tabs.contacts'), icon: '👥' },
@@ -52,13 +77,9 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         { id: 'knowledge_base', label: t('settings.tabs.knowledge_base'), icon: '📖' },
     ];
 
-    // Static tabs
-    const displayTabs = tabs;
-    const itemWidth = 80; // Reduced width for closer icons
-
-    const handleScroll = (event: any) => {
-        // No circular logic needed for static tabs
-    };
+    // Split tabs for Left and Right of AI button
+    const leftTabs = tabs.slice(0, 3);
+    const rightTabs = tabs.slice(3);
 
     const renderContent = () => {
         switch (activeTab) {
@@ -73,96 +94,105 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         }
     };
 
+    const TabButton = ({ tab }: { tab: any }) => {
+        const isActive = activeTab === tab.id;
+        return (
+            <TouchableOpacity
+                key={tab.id}
+                onPress={() => {
+                    if (!user?.isProfileComplete) {
+                        Alert.alert(
+                            'Profile Incomplete',
+                            'Please complete your registration to access this service.',
+                            [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                    text: 'Complete Profile',
+                                    onPress: () => navigation.navigate('Registration', { isDarkMode: false, phase: 'profile' })
+                                }
+                            ]
+                        );
+                        return;
+                    }
+                    setActiveTab(tab.id as any);
+                }}
+                style={styles.tabItem}
+            >
+                <View style={[styles.iconContainer, isActive && styles.activeIconContainer]}>
+                    <Text style={[styles.tabIcon, isActive && styles.activeTabIcon]}>{tab.icon}</Text>
+                </View>
+                {isActive && <View style={styles.activeDot} />}
+            </TouchableOpacity>
+        );
+    };
+
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {/* Header with Back button */}
-            <View style={{
-                backgroundColor: theme.header,
-                borderBottomColor: theme.borderColor,
-                borderBottomWidth: 1,
-                height: 50,
-            }}>
-                <View style={styles.headerContent}>
+        <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor={ModernVedicTheme.colors.background} />
+
+            {/* Header */}
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    {/* User Avatar Placeholder or Back */}
                     <TouchableOpacity
                         onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.replace('Chat')}
-                        style={styles.backButton}
+                        style={styles.avatarButton}
                     >
-                        <Text style={[styles.backText, { color: theme.text }]}>← {t('chat.history')}</Text>
-                    </TouchableOpacity>
-
-                    {/* AI Assistant Button */}
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('Chat')}
-                        style={styles.aiButton}
-                    >
-                        <Text style={styles.aiButtonText}>🙏 AI</Text>
+                        <Text style={{ fontSize: 20 }}>👤</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
 
-            {/* Horizontal Menu Tabs - Static layout */}
-            <View style={[styles.tabBarControl, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
-                {/* Left indicators */}
-                <View style={[styles.arrowContainer, { left: 0 }]} pointerEvents="none">
-                    <Text style={[styles.arrow, { color: theme.accent, opacity: 0.6 }]}>‹</Text>
-                </View>
+                <Text style={styles.headerTitle}>MAIN PORTAL</Text>
 
-                <ScrollView
-                    ref={scrollViewRef}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.tabBarScroll}
-                    scrollEventThrottle={16}
-                >
-                    {displayTabs.map((tab) => (
-                        <TouchableOpacity
-                            key={tab.id}
-                            onPress={() => {
-                                if (!user?.isProfileComplete) {
-                                    Alert.alert(
-                                        'Profile Incomplete',
-                                        'Please complete your registration to access this service.',
-                                        [
-                                            { text: 'Cancel', style: 'cancel' },
-                                            {
-                                                text: 'Complete Profile',
-                                                onPress: () => navigation.navigate('Registration', { isDarkMode, phase: 'profile' })
-                                            }
-                                        ]
-                                    );
-                                    return;
-                                }
-                                setActiveTab(tab.id as any);
-                            }}
-                            style={[
-                                styles.tabItem,
-                                { width: itemWidth },
-                                activeTab === tab.id && { borderBottomColor: theme.accent, borderBottomWidth: 2 }
-                            ]}
-                        >
-                            <Text style={{ fontSize: 24, marginBottom: 2 }}>{tab.icon}</Text>
-                            <Text
-                                style={[
-                                    styles.tabLabel,
-                                    { color: activeTab === tab.id ? theme.accent : theme.subText }
-                                ]}
-                                numberOfLines={1}
-                            >
-                                {tab.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
-                {/* Right indicator */}
-                <View style={[styles.arrowContainer, { right: 0 }]} pointerEvents="none">
-                    <Text style={[styles.arrow, { color: theme.accent, opacity: 0.6 }]}>›</Text>
+                <View style={styles.headerRight}>
+                    <TouchableOpacity style={styles.iconButton}>
+                        <Text style={{ fontSize: 20 }}>🔔</Text>
+                    </TouchableOpacity>
                 </View>
             </View>
 
             {/* Content Area */}
             <View style={styles.content}>
                 {renderContent()}
+            </View>
+
+            {/* Floating Bottom Navigation */}
+            <View style={styles.bottomNavContainer}>
+                {/* Glassmorphic Background */}
+                <View style={styles.glassBackground}>
+                    <View style={styles.navRow}>
+                        {/* Left Tabs */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sideScroll} contentContainerStyle={styles.sideScrollContent}>
+                            {leftTabs.map(tab => <TabButton key={tab.id} tab={tab} />)}
+                        </ScrollView>
+
+                        {/* Spacer for AI Button */}
+                        <View style={styles.centerSpacer} />
+
+                        {/* Right Tabs */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sideScroll} contentContainerStyle={styles.sideScrollContent}>
+                            {rightTabs.map(tab => <TabButton key={tab.id} tab={tab} />)}
+                        </ScrollView>
+                    </View>
+                </View>
+
+                {/* AI Button (Floating Above) */}
+                <Animated.View style={[styles.aiButtonContainer, animatedPulseStyle]}>
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => navigation.navigate('Chat')}
+                        style={styles.aiButtonTouchable}
+                    >
+                        <LinearGradient
+                            colors={[ModernVedicTheme.colors.aiButtonStart, ModernVedicTheme.colors.aiButtonEnd]}
+                            style={styles.aiButtonGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                        >
+                            <Text style={styles.aiButtonText}>AI</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </Animated.View>
             </View>
         </View>
     );
@@ -171,77 +201,145 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: ModernVedicTheme.colors.background,
     },
-    headerContent: {
-        flex: 1,
+    header: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-    },
-    backButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    backText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    aiButton: {
-        backgroundColor: '#FF9933',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        shadowColor: '#FF9933',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
-    },
-    aiButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    tabBarControl: {
-        borderBottomWidth: 1,
-        height: 70,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    tabBarScroll: {
-        paddingHorizontal: 0,
-        alignItems: 'center',
-    },
-    arrowContainer: {
-        position: 'absolute',
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'ios' ? 60 : 20,
+        paddingBottom: 20,
+        backgroundColor: ModernVedicTheme.colors.background,
         zIndex: 10,
-        width: 30,
-        height: '100%',
+    },
+    headerTitle: {
+        fontFamily: ModernVedicTheme.typography.subHeader.fontFamily, // Cinzel
+        fontSize: ModernVedicTheme.typography.subHeader.fontSize,
+        fontWeight: 'bold',
+        color: ModernVedicTheme.colors.primary,
+        letterSpacing: 1.5,
+    },
+    headerLeft: {
+        width: 40,
+    },
+    headerRight: {
+        width: 40,
+        alignItems: 'flex-end',
+    },
+    avatarButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: ModernVedicTheme.colors.backgroundSecondary,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.01)', // Almost invisible but catches nothing thanks to pointerEvents none
+        ...ModernVedicTheme.shadows.soft,
     },
-    arrow: {
-        fontSize: 30,
-        fontWeight: '300',
+    iconButton: {
+        padding: 5,
+    },
+    content: {
+        flex: 1,
+        paddingBottom: 100, // Space for bottom nav
+    },
+    bottomNavContainer: {
+        position: 'absolute',
+        bottom: 30,
+        left: 20,
+        right: 20,
+        height: 80,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    glassBackground: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 70,
+        backgroundColor: ModernVedicTheme.colors.glass,
+        borderRadius: 35,
+        borderWidth: 1,
+        borderColor: ModernVedicTheme.colors.glassBorder,
+        ...ModernVedicTheme.shadows.medium,
+        overflow: 'hidden',
+    },
+    navRow: {
+        flexDirection: 'row',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    sideScroll: {
+        flex: 1,
+    },
+    sideScrollContent: {
+        alignItems: 'center',
+        paddingHorizontal: 10,
+    },
+    centerSpacer: {
+        width: 70, // Space for AI button
     },
     tabItem: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 10,
-        marginHorizontal: 0,
+        width: 60,
+        height: '100%',
     },
-    tabLabel: {
-        fontSize: 10,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        width: '100%',
+    iconContainer: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 20,
+    },
+    activeIconContainer: {
+        // backgroundColor: 'rgba(214, 125, 62, 0.1)',
+    },
+    tabIcon: {
+        fontSize: 24,
+        opacity: 0.5,
+        color: ModernVedicTheme.colors.textSecondary,
+    },
+    activeTabIcon: {
+        opacity: 1,
+        fontSize: 26,
+        color: ModernVedicTheme.colors.primary,
+    },
+    activeDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: ModernVedicTheme.colors.primary,
         marginTop: 4,
     },
-    content: {
+    aiButtonContainer: {
+        position: 'absolute',
+        bottom: 25, // Extends above the bar
+        width: 70,
+        height: 70,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...ModernVedicTheme.shadows.glow,
+    },
+    aiButtonTouchable: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 35,
+        overflow: 'hidden',
+    },
+    aiButtonGradient: {
         flex: 1,
-    }
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 35,
+        borderWidth: 2,
+        borderColor: '#FFF',
+    },
+    aiButtonText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#FFF',
+    },
 });
