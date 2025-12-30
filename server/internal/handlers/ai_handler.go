@@ -12,6 +12,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -243,6 +244,36 @@ func (h *AiHandler) TestModel(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "API_OPEN_AI key not set"})
 	}
 
+	// Special handling for Gemini/Google models
+	if strings.HasPrefix(aiModel.ModelID, "gemini") || aiModel.Provider == "Google" {
+		geminiService := services.GetGeminiService()
+		if geminiService.HasKeys() {
+			start := time.Now()
+			messages := []map[string]string{
+				{"role": "user", "content": "hi"},
+			}
+			// Use the service to test connectivity
+			_, err := geminiService.SendMessage(aiModel.ModelID, messages)
+			duration := time.Since(start).Milliseconds()
+
+			status := "online"
+			if err != nil {
+				log.Printf("Gemini Test error for model %s: %v", aiModel.ModelID, err)
+				status = "error"
+			}
+
+			aiModel.LastTestStatus = status
+			aiModel.LastResponseTime = duration
+			database.DB.Save(&aiModel)
+
+			return c.JSON(fiber.Map{
+				"status":       status,
+				"responseTime": duration,
+				"model":        aiModel,
+			})
+		}
+	}
+
 	// Prepare request based on Provider
 	var req *http.Request
 	var err error
@@ -338,6 +369,40 @@ func (h *AiHandler) performBulkTestInternal() ([]TestResult, error) {
 
 			var req *http.Request
 			var err error
+
+			if strings.HasPrefix(model.ModelID, "gemini") || model.Provider == "Google" {
+				geminiService := services.GetGeminiService()
+				status := "offline"
+				var duration int64 = 0
+
+				if geminiService.HasKeys() {
+					start := time.Now()
+					messages := []map[string]string{
+						{"role": "user", "content": "hi"},
+					}
+					_, err := geminiService.SendMessage(model.ModelID, messages)
+					duration = time.Since(start).Milliseconds()
+
+					if err == nil {
+						status = "online"
+					} else {
+						status = "error"
+						log.Printf("Gemini Bulk Test error for %s: %v", model.ModelID, err)
+					}
+				}
+
+				database.DB.Model(&models.AiModel{}).Where("id = ?", model.ID).Updates(map[string]interface{}{
+					"last_test_status":   status,
+					"last_response_time": duration,
+				})
+
+				resultsChan <- TestResult{
+					ModelID:      model.ModelID,
+					Status:       status,
+					ResponseTime: duration,
+				}
+				return
+			}
 
 			if model.Provider == "PollinationsAI" {
 				testURL := "https://image.pollinations.ai/prompt/test?width=16&height=16"

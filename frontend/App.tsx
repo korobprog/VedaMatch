@@ -11,6 +11,7 @@ import RegistrationScreen from './screens/RegistrationScreen';
 import LoginScreen from './screens/LoginScreen';
 import PlansScreen from './screens/PlansScreen';
 import { RootStackParamList } from './types/navigation';
+// Portal Main Screen
 import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { KrishnaAssistant } from './components/KrishnaAssistant';

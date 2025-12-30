@@ -174,7 +174,7 @@ export const KrishnaAssistant: React.FC = () => {
         <View style={styles.container} pointerEvents="box-none">
             <Animated.View style={[
                 styles.wrapper,
-                isAuthScreen ? { top: 100, bottom: undefined } : { bottom: 40 },
+                isAuthScreen ? { top: 100, bottom: undefined } : { top: '50%', bottom: undefined, marginTop: -50 },
                 animatedStyle
             ]}>
                 <TouchableOpacity
@@ -341,7 +341,8 @@ const styles = StyleSheet.create({
     },
     callButton: {
         position: 'absolute',
-        bottom: 120,
+        top: '50%',
+        marginTop: -30,
         right: 0,
         backgroundColor: 'rgba(255, 153, 51, 0.8)',
         paddingHorizontal: 8,
