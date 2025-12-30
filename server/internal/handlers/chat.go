@@ -135,7 +135,9 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 
 		if len(modelsToTry) == 0 {
 			log.Printf("%s No auto-routing models found at all. Defaulting to gpt-3.5-turbo", intentLogPrefix)
-			modelsToTry = append(modelsToTry, models.AiModel{ModelID: "gpt-3.5-turbo", Provider: ""})
+			fallbackModelID := "gpt-3.5-turbo"
+			fallbackProvider := getProviderForModel(fallbackModelID)
+			modelsToTry = append(modelsToTry, models.AiModel{ModelID: fallbackModelID, Provider: fallbackProvider})
 		}
 
 		log.Printf("%s Strategy: Intent='%s', Complex=%v, Candidates=%d", intentLogPrefix, targetCategory, isComplexTask, len(modelsToTry))
@@ -200,16 +202,20 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 	for i, modelConf := range modelsToTry {
 		// Update body for this attempt
 		body["model"] = modelConf.ModelID
-		if modelConf.Provider != "" {
-			body["provider"] = modelConf.Provider
-		} else {
-			delete(body, "provider") // Clear provider if empty to let backend decide or usage of default
+		
+		// Determine provider - use model's provider if set, otherwise determine from model ID
+		provider := modelConf.Provider
+		if provider == "" {
+			provider = getProviderForModel(modelConf.ModelID)
 		}
+		
+		// Always set provider in body (required by external API)
+		body["provider"] = provider
 
-		log.Printf("%s [Attempt %d/%d] Trying model: %s (Provider: %s)", intentLogPrefix, i+1, len(modelsToTry), modelConf.ModelID, modelConf.Provider)
+		log.Printf("%s [Attempt %d/%d] Trying model: %s (Provider: %s)", intentLogPrefix, i+1, len(modelsToTry), modelConf.ModelID, provider)
 
 		// Check if this is a Gemini model - try Gemini service first
-		if strings.HasPrefix(modelConf.ModelID, "gemini") || modelConf.Provider == "Google" {
+		if strings.HasPrefix(modelConf.ModelID, "gemini") || provider == "Google" {
 			geminiService := services.GetGeminiService()
 			if geminiService.HasKeys() {
 				log.Printf("[Gemini] Attempting direct Gemini API for model: %s", modelConf.ModelID)
@@ -241,7 +247,7 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 		}
 
 		// Check if this is Pollinations AI (Direct Image Generation)
-		if modelConf.Provider == "PollinationsAI" {
+		if provider == "PollinationsAI" {
 			log.Printf("[Pollinations] Attempting direct API for model: %s", modelConf.ModelID)
 
 			// Extract prompt
@@ -479,6 +485,30 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// getProviderForModel determines the provider based on model ID pattern
+// This matches the logic from ai_chat_service.go
+func getProviderForModel(modelID string) string {
+	// Try to find model in database first
+	var model models.AiModel
+	if err := database.DB.Where("model_id = ?", modelID).First(&model).Error; err == nil && model.Provider != "" {
+		return model.Provider
+	}
+	// Default providers based on model patterns
+	if len(modelID) >= 3 && modelID[:3] == "gpt" {
+		return "OpenAI"
+	}
+	if len(modelID) >= 6 && modelID[:6] == "claude" {
+		return "Anthropic"
+	}
+	if len(modelID) >= 6 && modelID[:6] == "gemini" {
+		return "Google"
+	}
+	if len(modelID) >= 5 && modelID[:5] == "sonar" {
+		return "Perplexity"
+	}
+	return "OpenAI"
 }
 
 func containsCyrillic(s string) bool {
