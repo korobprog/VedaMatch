@@ -98,16 +98,25 @@ func (s *AiChatService) makeRequest(modelID string, messages []map[string]string
 		apiModelID = "gpt4o"
 	}
 
+	// Ensure provider is not empty
+	if provider == "" {
+		provider = "OpenAI" // Default fallback
+		log.Printf("[AiChatService] Warning: Provider was empty for model %s, using default: %s", modelID, provider)
+	}
+
 	apiKey := s.getApiKey(provider)
 	if apiKey == "" {
 		return "", fmt.Errorf("API Key not found for provider: %s", provider)
 	}
 
 	requestBody := map[string]interface{}{
-		"model":    apiModelID,
-		"messages": messages,
-		"provider": provider,
+		"model":       apiModelID,
+		"messages":    messages,
+		"provider":    provider,
+		"content_type": "text", // Explicitly specify content type to avoid auto-detection as 'audio'
 	}
+
+	log.Printf("[AiChatService] Making request: model=%s, provider=%s, content_type=text", apiModelID, provider)
 
 	jsonBody, _ := json.Marshal(requestBody)
 	req, err := http.NewRequest("POST", s.apiURL, bytes.NewBuffer(jsonBody))
