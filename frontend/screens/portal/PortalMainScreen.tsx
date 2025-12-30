@@ -9,17 +9,11 @@ import {
     ScrollView,
     Image,
     Alert,
+    Platform,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import LinearGradient from 'react-native-linear-gradient';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withRepeat,
-    withTiming,
-    withSequence,
-    interpolate,
-} from 'react-native-reanimated';
+
+
 
 import { ContactsScreen } from './contacts/ContactsScreen';
 import { PortalChatScreen } from './chat/PortalChatScreen';
@@ -38,8 +32,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const { user } = useUser();
     const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base'>(route.params?.initialTab || 'contacts');
 
-    // AI Pulse Animation
-    const pulseValue = useSharedValue(0);
+
 
     useEffect(() => {
         if (route.params?.initialTab) {
@@ -47,25 +40,9 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         }
     }, [route.params?.initialTab]);
 
-    useEffect(() => {
-        pulseValue.value = withRepeat(
-            withSequence(
-                withTiming(1, { duration: 1500 }),
-                withTiming(0, { duration: 1500 })
-            ),
-            -1,
-            true
-        );
-    }, []);
 
-    const animatedPulseStyle = useAnimatedStyle(() => {
-        const scale = interpolate(pulseValue.value, [0, 1], [1, 1.1]);
-        const opacity = interpolate(pulseValue.value, [0, 1], [0.8, 1]);
-        return {
-            transform: [{ scale }],
-            opacity,
-        };
-    });
+
+
 
     const tabs = [
         { id: 'contacts', label: t('settings.tabs.contacts'), icon: '👥' },
@@ -177,22 +154,18 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
                 </View>
 
                 {/* AI Button (Floating Above) */}
-                <Animated.View style={[styles.aiButtonContainer, animatedPulseStyle]}>
+                <View style={styles.aiButtonContainer}>
                     <TouchableOpacity
                         activeOpacity={0.9}
                         onPress={() => navigation.navigate('Chat')}
                         style={styles.aiButtonTouchable}
                     >
-                        <LinearGradient
-                            colors={[ModernVedicTheme.colors.aiButtonStart, ModernVedicTheme.colors.aiButtonEnd]}
-                            style={styles.aiButtonGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                        >
-                            <Text style={styles.aiButtonText}>AI</Text>
-                        </LinearGradient>
+                        <Image
+                            source={require('../../assets/ai.png')}
+                            style={styles.aiButtonImage}
+                        />
                     </TouchableOpacity>
-                </Animated.View>
+                </View>
             </View>
         </View>
     );
@@ -258,11 +231,8 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 70,
-        backgroundColor: ModernVedicTheme.colors.glass,
+        backgroundColor: 'transparent',
         borderRadius: 35,
-        borderWidth: 1,
-        borderColor: ModernVedicTheme.colors.glassBorder,
-        ...ModernVedicTheme.shadows.medium,
         overflow: 'hidden',
     },
     navRow: {
@@ -329,17 +299,9 @@ const styles = StyleSheet.create({
         borderRadius: 35,
         overflow: 'hidden',
     },
-    aiButtonGradient: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: 35,
-        borderWidth: 2,
-        borderColor: '#FFF',
-    },
-    aiButtonText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#FFF',
+    aiButtonImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
 });
