@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     StatusBar,
@@ -18,6 +18,7 @@ import { COLORS } from '../components/chat/ChatConstants';
 import { ChatHeader } from '../components/chat/ChatHeader';
 import { MessageList } from '../components/chat/MessageList';
 import { ChatInput } from '../components/chat/ChatInput';
+import { ProtectedScreen } from '../components/ProtectedScreen';
 import { shareImage, downloadImage } from '../services/fileService';
 import { contactService } from '../services/contactService';
 
@@ -28,7 +29,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { currentModel, currentProvider, selectModel } = useSettings();
     const { handleMenuOption, recipientUser, setShowMenu } = useChat();
-    const { user: currentUser } = useUser();
+    const { user: currentUser, isLoggedIn } = useUser();
     const { t } = useTranslation();
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -60,9 +61,10 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
 
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <ChatHeader
-                title="Vedic AI"
+        <ProtectedScreen>
+            <View style={[styles.container, { backgroundColor: theme.background }]}>
+                <ChatHeader
+                title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "Vedic AI"}
                 onSettingsPress={() => setIsSettingsOpen(true)}
             />
 
@@ -113,6 +115,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                 }}
             />
         </View>
+        </ProtectedScreen>
     );
 };
 

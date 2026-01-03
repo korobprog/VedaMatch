@@ -7,6 +7,7 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { contactService, UserContact } from '../../../services/contactService';
 import { API_BASE_URL, API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
+import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 import { useChat } from '../../../context/ChatContext';
 
@@ -233,7 +234,8 @@ export const ContactsScreen: React.FC = () => {
     const uniqueCities = availableCities;
 
     return (
-        <View style={styles.container}>
+        <ProtectedScreen requireCompleteProfile={false}>
+            <View style={styles.container}>
             <View style={styles.filterBar}>
                 <TouchableOpacity
                     onPress={() => setFilter('all')}
@@ -390,6 +392,7 @@ export const ContactsScreen: React.FC = () => {
                 </View>
             </Modal>
         </View>
+        </ProtectedScreen>
     );
 };
 

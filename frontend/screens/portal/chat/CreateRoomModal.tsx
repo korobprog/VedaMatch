@@ -52,6 +52,12 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
             return;
         }
 
+        if (!user?.ID) {
+            Alert.alert(t('common.error'), 'Please log in to create a room');
+            onClose();
+            return;
+        }
+
         setLoading(true);
         try {
             const response = await fetch(`${API_PATH}/rooms`, {
@@ -63,7 +69,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                     name,
                     description,
                     isPublic,
-                    ownerId: user?.ID,
+                    ownerId: user.ID,
                     imageUrl: selectedImage.id, // Store preset ID for now
                 }),
             });

@@ -27,6 +27,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import LinearGradient from 'react-native-linear-gradient';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
+import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 const { width } = Dimensions.get('window');
 
@@ -150,10 +151,15 @@ export const DatingScreen = () => {
     };
 
     const fetchCandidates = async () => {
+        if (!user?.ID) {
+            setLoading(false);
+            return;
+        }
+
         try {
             const response = await axios.get(`${API_PATH}/dating/candidates`, {
                 params: {
-                    userId: user?.ID,
+                    userId: user.ID,
                     city: filterCity,
                     minAge: filterMinAge,
                     maxAge: filterMaxAge,
@@ -418,7 +424,8 @@ export const DatingScreen = () => {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ProtectedScreen requireCompleteProfile={true}>
+            <View style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={[styles.topMenu, { borderBottomColor: theme.borderColor, alignItems: 'center' }]}>
                 {/* Left Arrow */}
                 <Text style={{ fontSize: 18, color: theme.subText, marginRight: 5 }}>‹</Text>
@@ -932,6 +939,7 @@ export const DatingScreen = () => {
                 </View>
             </Modal>
         </View>
+        </ProtectedScreen>
     );
 };
 

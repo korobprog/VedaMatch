@@ -11,6 +11,7 @@ import { EditRoomImageModal } from './EditRoomImageModal';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
+import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 const EMOJI_MAP: any = {
     'om': '🕉️',
@@ -42,6 +43,12 @@ export const PortalChatScreen: React.FC = () => {
     const [selectedRoomImageUrl, setSelectedRoomImageUrl] = useState<string>('');
 
     const fetchRooms = async () => {
+        if (!user?.ID) {
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
+
         try {
             const response = await fetch(`${API_PATH}/rooms`);
             if (response.ok) {
@@ -57,8 +64,10 @@ export const PortalChatScreen: React.FC = () => {
     };
 
     useEffect(() => {
-        fetchRooms();
-    }, []);
+        if (user?.ID) {
+            fetchRooms();
+        }
+    }, [user?.ID]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -125,8 +134,9 @@ export const PortalChatScreen: React.FC = () => {
     }
 
     return (
-        <View style={styles.container}>
-            <FlatList
+        <ProtectedScreen>
+            <View style={styles.container}>
+                <FlatList
                 data={rooms}
                 keyExtractor={item => item.ID.toString()}
                 renderItem={renderItem}
@@ -171,6 +181,7 @@ export const PortalChatScreen: React.FC = () => {
                 </>
             )}
         </View>
+        </ProtectedScreen>
     );
 };
 
@@ -234,5 +245,5 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 30,
         fontWeight: 'bold',
-    }
+    },
 });
