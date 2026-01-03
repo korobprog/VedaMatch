@@ -90,6 +90,11 @@ func main() {
 	protected := api.Group("/", middleware.Protected())
 
 	protected.Put("/update-profile/:id", authHandler.UpdateProfile)
+	protected.Put("/update-location/:id", authHandler.UpdateLocation)
+	protected.Put("/update-coordinates/:id", authHandler.UpdateLocationCoordinates)
+	protected.Get("/location/nearby", authHandler.GetNearbyUsers)
+	protected.Get("/location/by-city", authHandler.SearchByCity)
+	protected.Get("/location/by-country", authHandler.GetUsersByCountry)
 	protected.Get("/contacts", authHandler.GetContacts)
 	protected.Post("/heartbeat/:id", authHandler.Heartbeat)
 	protected.Post("/upload-avatar/:id", authHandler.UploadAvatar)

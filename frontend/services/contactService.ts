@@ -10,6 +10,8 @@ export interface UserContact {
     identity: string;
     city: string;
     country: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 export const contactService = {

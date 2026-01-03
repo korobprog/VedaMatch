@@ -27,7 +27,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     const displayTitle = recipientUser
         ? (recipientUser.spiritualName || recipientUser.karmicName)
         : title;
-    const subTitle = recipientUser ? (recipientUser.identity || 'Devotee') : null;
+    const subTitle = recipientUser
+        ? `${recipientUser.identity || 'Devotee'} • ${recipientUser.country}, ${recipientUser.city}`
+        : null;
 
     return (
         <View style={{

@@ -45,9 +45,20 @@ export const ContactsScreen: React.FC = () => {
     const fetchCities = async () => {
         try {
             const response = await axios.get(`${API_PATH}/dating/cities`);
+            console.log('Cities from API:', response.data);
             setAvailableCities(response.data);
         } catch (error) {
             console.error('Failed to fetch cities:', error);
+            // Extract unique cities from contacts
+            const citiesFromContacts = new Set<string>();
+            allContacts.forEach(contact => {
+                if (contact.city) {
+                    citiesFromContacts.add(contact.city);
+                }
+            });
+            const cities = Array.from(citiesFromContacts).sort();
+            setAvailableCities(cities);
+            console.log('Fallback cities from contacts:', cities);
         }
     };
 
@@ -55,7 +66,33 @@ export const ContactsScreen: React.FC = () => {
         try {
             setLoading(true);
             const contacts = await contactService.getContacts();
+            console.log('Contacts fetched:', contacts.length);
             setAllContacts(contacts);
+
+            // Extract cities from contacts
+            const citiesSet = new Set<string>();
+            contacts.forEach(contact => {
+                if (contact.city) {
+                    citiesSet.add(contact.city);
+                }
+            });
+            const citiesFromContacts = Array.from(citiesSet).sort();
+
+            // Try to get cities from API, fallback to contacts
+            try {
+                const response = await axios.get(`${API_PATH}/dating/cities`);
+                if (response.data && response.data.length > 0) {
+                    setAvailableCities(response.data);
+                    console.log('Cities from API:', response.data.length);
+                } else {
+                    setAvailableCities(citiesFromContacts);
+                    console.log('No cities from API, using contacts:', citiesFromContacts.length);
+                }
+            } catch (apiError) {
+                setAvailableCities(citiesFromContacts);
+                console.log('API error, using cities from contacts:', citiesFromContacts.length);
+            }
+
             if (currentUser?.ID) {
                 const userFriends = await contactService.getFriends(currentUser.ID);
                 setFriends(userFriends);
@@ -105,8 +142,16 @@ export const ContactsScreen: React.FC = () => {
             if (c.city !== filterCity) return false;
         }
 
-        return c.karmicName?.toLowerCase().includes(search.toLowerCase()) ||
-            c.spiritualName?.toLowerCase().includes(search.toLowerCase());
+        // Search by name, city, or country
+        if (search) {
+            const searchLower = search.toLowerCase();
+            return c.karmicName?.toLowerCase().includes(searchLower) ||
+                c.spiritualName?.toLowerCase().includes(searchLower) ||
+                c.city?.toLowerCase().includes(searchLower) ||
+                c.country?.toLowerCase().includes(searchLower);
+        }
+
+        return true;
     }).sort((a, b) => {
         if (filter === 'all') {
             const isFriendA = friends.some(f => f.ID === a.ID);
@@ -163,7 +208,7 @@ export const ContactsScreen: React.FC = () => {
                         )}
                     </View>
                     <Text style={[styles.contactDesc, { color: theme.subText }]}>
-                        {item.identity || 'Devotee'} • {item.city}
+                        {item.identity || 'Devotee'} • {item.country}, {item.city}
                     </Text>
                 </View>
                 {isBlocked ? (
@@ -184,6 +229,9 @@ export const ContactsScreen: React.FC = () => {
         city.toLowerCase().includes(citySearchQuery.toLowerCase())
     );
 
+    const uniqueCountries = Array.from(new Set(allContacts.map(c => c.country).filter(Boolean))).sort();
+    const uniqueCities = availableCities;
+
     return (
         <View style={styles.container}>
             <View style={styles.filterBar}>
@@ -191,13 +239,13 @@ export const ContactsScreen: React.FC = () => {
                     onPress={() => setFilter('all')}
                     style={[styles.filterBtn, filter === 'all' && { borderBottomColor: theme.accent }]}
                 >
-                    <Text style={[styles.filterText, { color: filter === 'all' ? theme.text : theme.subText }]}>All</Text>
+                    <Text style={[styles.filterText, { color: filter === 'all' ? theme.text : theme.subText }]}>All ({displayedContacts.length})</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     onPress={() => setFilter('friends')}
                     style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: theme.accent }]}
                 >
-                    <Text style={[styles.filterText, { color: filter === 'friends' ? theme.text : theme.subText }]}>Friends</Text>
+                    <Text style={[styles.filterText, { color: filter === 'friends' ? theme.text : theme.subText }]}>Friends ({friends.length})</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     onPress={() => setFilter('blocked')}
@@ -207,28 +255,50 @@ export const ContactsScreen: React.FC = () => {
                 </TouchableOpacity>
             </View>
 
+            {/* Location Filters */}
             {filter === 'all' && (
-                <View style={[styles.cityFilterContainer, { backgroundColor: theme.inputBackground }]}>
+                <View style={[styles.filtersContainer, { backgroundColor: theme.header }]}>
+                    {/* City Filter */}
                     <TouchableOpacity
-                        style={styles.cityFilterBtn}
+                        style={[styles.filterChip, filterCity && { backgroundColor: theme.accent + '30', borderColor: theme.accent }]}
                         onPress={() => setShowCityPicker(true)}
                     >
-                        <Text style={[styles.cityFilterText, { color: theme.text }]}>
-                            📍 {filterCity || t('dating.allCities', 'All Cities')}
+                        <Text style={[styles.filterChipText, { color: filterCity ? theme.accent : theme.subText }]}>
+                            {filterCity ? `📍 ${filterCity}` : '🏙️ City'}
                         </Text>
-                        <Text style={{ color: theme.subText }}>▼</Text>
+                        {filterCity && (
+                            <TouchableOpacity
+                                onPress={() => setFilterCity('')}
+                                style={styles.clearFilterBtn}
+                            >
+                                <Text style={{ color: theme.accent, fontSize: 12 }}>✕</Text>
+                            </TouchableOpacity>
+                        )}
                     </TouchableOpacity>
+
+                    {/* Stats */}
+                    <View style={styles.statsContainer}>
+                        <Text style={[styles.statsText, { color: theme.subText }]}>
+                            {uniqueCities.length} cities • {uniqueCountries.length} countries
+                        </Text>
+                    </View>
                 </View>
             )}
 
             <View style={[styles.searchContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                <Text style={{ color: theme.subText, marginRight: 8 }}>🔍</Text>
                 <TextInput
                     style={[styles.searchInput, { color: theme.inputText }]}
-                    placeholder={t('contacts.searchPlaceholder')}
+                    placeholder="Search by name, city or country"
                     placeholderTextColor={theme.subText}
                     value={search}
                     onChangeText={setSearch}
                 />
+                {search ? (
+                    <TouchableOpacity onPress={() => setSearch('')}>
+                        <Text style={{ color: theme.accent, fontSize: 18 }}>✕</Text>
+                    </TouchableOpacity>
+                ) : null}
             </View>
             <FlatList
                 data={displayedContacts}
@@ -247,7 +317,18 @@ export const ContactsScreen: React.FC = () => {
                         {loading ? (
                             <ActivityIndicator color={theme.accent} />
                         ) : (
-                            <Text style={[styles.empty, { color: theme.subText }]}>No contacts found</Text>
+                            <>
+                                <Text style={[styles.empty, { color: theme.subText }]}>
+                                    {search ? `No results for "${search}"` : 'No contacts found'}
+                                </Text>
+                                {filter === 'all' && filterCity && (
+                                    <TouchableOpacity onPress={() => setFilterCity('')}>
+                                        <Text style={[styles.clearFilterLink, { color: theme.accent }]}>
+                                            Clear city filter
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+                            </>
                         )}
                     </View>
                 }
@@ -261,13 +342,13 @@ export const ContactsScreen: React.FC = () => {
             >
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.selectCity', 'Select City')}</Text>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select City</Text>
 
                         <TextInput
                             style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 10 }]}
                             value={citySearchQuery}
                             onChangeText={setCitySearchQuery}
-                            placeholder={t('dating.searchCity', 'Search City...')}
+                            placeholder="Search city..."
                             placeholderTextColor={theme.subText}
                         />
 
@@ -279,27 +360,31 @@ export const ContactsScreen: React.FC = () => {
                                     setShowCityPicker(false);
                                 }}
                             >
-                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.allCities', 'All Cities')}</Text>
+                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>All Cities ({allContacts.length})</Text>
                             </TouchableOpacity>
-                            {filteredCities.map((city, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
-                                    onPress={() => {
-                                        setFilterCity(city);
-                                        setShowCityPicker(false);
-                                    }}
-                                >
-                                    <Text style={{ color: theme.text }}>{city}</Text>
-                                </TouchableOpacity>
-                            ))}
+                            {filteredCities.map((city, index) => {
+                                const count = allContacts.filter(c => c.city === city).length;
+                                return (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor, flexDirection: 'row', justifyContent: 'space-between' }}
+                                        onPress={() => {
+                                            setFilterCity(city);
+                                            setShowCityPicker(false);
+                                        }}
+                                    >
+                                        <Text style={{ color: theme.text }}>{city}</Text>
+                                        <Text style={{ color: theme.subText, fontSize: 12 }}>{count} users</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </ScrollView>
 
                         <TouchableOpacity
                             style={{ padding: 15, alignItems: 'center' }}
                             onPress={() => setShowCityPicker(false)}
                         >
-                            <Text style={{ color: theme.subText }}>{t('common.close', 'Close')}</Text>
+                            <Text style={{ color: theme.subText }}>Close</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -325,31 +410,50 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
     },
-    cityFilterContainer: {
+    filtersContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 8,
-        marginTop: 5,
-        marginHorizontal: 16,
-        borderRadius: 8,
+        borderBottomWidth: 0.5,
     },
-    cityFilterBtn: {
+    filterChip: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'transparent',
+        marginRight: 8,
     },
-    cityFilterText: {
-        fontWeight: '600',
-        fontSize: 14,
+    filterChipText: {
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    clearFilterBtn: {
+        marginLeft: 4,
+    },
+    statsContainer: {
+        marginLeft: 'auto',
+    },
+    statsText: {
+        fontSize: 12,
     },
     searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
         margin: 16,
         paddingHorizontal: 16,
         height: 44,
         borderRadius: 22,
         borderWidth: 1,
-        justifyContent: 'center',
     },
-    searchInput: { fontSize: 16 },
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
+        marginLeft: 4,
+    },
     list: { paddingBottom: 20 },
     contactItem: {
         flexDirection: 'row',
@@ -418,6 +522,12 @@ const styles = StyleSheet.create({
     },
     empty: {
         textAlign: 'center',
+        fontSize: 16,
+    },
+    clearFilterLink: {
+        textAlign: 'center',
+        marginTop: 8,
+        fontSize: 14,
     },
     unblockBtn: {
         paddingVertical: 6,
