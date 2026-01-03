@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3005",
-    "build": "next build",
-    "start": "next start",
+    "dev": "node start-dev.js",
+    "build": "npx next build",
+    "start": "npx next start",
     "lint": "biome check",
     "format": "biome format --write"
   },

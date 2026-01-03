@@ -7,7 +7,6 @@ import {
     Dimensions,
     StatusBar,
     ScrollView,
-    Image,
     Alert,
     Platform,
 } from 'react-native';
@@ -54,9 +53,6 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         { id: 'knowledge_base', label: t('settings.tabs.knowledge_base'), icon: '📖' },
     ];
 
-    // Split tabs for Left and Right of AI button
-    const leftTabs = tabs.slice(0, 3);
-    const rightTabs = tabs.slice(3);
 
     const renderContent = () => {
         switch (activeTab) {
@@ -137,34 +133,14 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             <View style={styles.bottomNavContainer}>
                 {/* Glassmorphic Background */}
                 <View style={styles.glassBackground}>
-                    <View style={styles.navRow}>
-                        {/* Left Tabs */}
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sideScroll} contentContainerStyle={styles.sideScrollContent}>
-                            {leftTabs.map(tab => <TabButton key={tab.id} tab={tab} />)}
-                        </ScrollView>
-
-                        {/* Spacer for AI Button */}
-                        <View style={styles.centerSpacer} />
-
-                        {/* Right Tabs */}
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sideScroll} contentContainerStyle={styles.sideScrollContent}>
-                            {rightTabs.map(tab => <TabButton key={tab.id} tab={tab} />)}
-                        </ScrollView>
-                    </View>
-                </View>
-
-                {/* AI Button (Floating Above) */}
-                <View style={styles.aiButtonContainer}>
-                    <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={() => navigation.navigate('Chat')}
-                        style={styles.aiButtonTouchable}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.sideScroll}
+                        contentContainerStyle={styles.sideScrollContent}
                     >
-                        <Image
-                            source={require('../../assets/ai.png')}
-                            style={styles.aiButtonImage}
-                        />
-                    </TouchableOpacity>
+                        {tabs.map(tab => <TabButton key={tab.id} tab={tab} />)}
+                    </ScrollView>
                 </View>
             </View>
         </View>
@@ -231,77 +207,51 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 70,
-        backgroundColor: 'transparent',
+        backgroundColor: ModernVedicTheme.colors.glass,
         borderRadius: 35,
+        borderWidth: 1,
+        borderColor: ModernVedicTheme.colors.glassBorder,
         overflow: 'hidden',
-    },
-    navRow: {
-        flexDirection: 'row',
-        height: '100%',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        ...ModernVedicTheme.shadows.soft,
     },
     sideScroll: {
         flex: 1,
     },
     sideScrollContent: {
         alignItems: 'center',
-        paddingHorizontal: 10,
-    },
-    centerSpacer: {
-        width: 70, // Space for AI button
+        paddingHorizontal: 15,
     },
     tabItem: {
         alignItems: 'center',
         justifyContent: 'center',
-        width: 60,
+        width: 70,
         height: '100%',
     },
     iconContainer: {
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 20,
+        borderRadius: 22,
     },
     activeIconContainer: {
-        // backgroundColor: 'rgba(214, 125, 62, 0.1)',
+        backgroundColor: 'rgba(214, 125, 62, 0.15)',
     },
     tabIcon: {
-        fontSize: 24,
+        fontSize: 26,
         opacity: 0.5,
         color: ModernVedicTheme.colors.textSecondary,
     },
     activeTabIcon: {
         opacity: 1,
-        fontSize: 26,
+        fontSize: 28,
         color: ModernVedicTheme.colors.primary,
     },
     activeDot: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
         backgroundColor: ModernVedicTheme.colors.primary,
-        marginTop: 4,
-    },
-    aiButtonContainer: {
-        position: 'absolute',
-        bottom: 25, // Extends above the bar
-        width: 70,
-        height: 70,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...ModernVedicTheme.shadows.glow,
-    },
-    aiButtonTouchable: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 35,
-        overflow: 'hidden',
-    },
-    aiButtonImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
+        marginTop: 2,
     },
 });

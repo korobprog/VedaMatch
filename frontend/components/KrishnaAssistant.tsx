@@ -22,6 +22,7 @@ import Animated, {
     runOnJS,
 } from 'react-native-reanimated';
 import { useUser } from '../context/UserContext';
+import { useChat } from '../context/ChatContext';
 import krishnaAssistant from '../assets/krishnaAssistant.png';
 
 const { width } = Dimensions.get('window');
@@ -41,7 +42,8 @@ const TOUR_STEPS = [
 export const KrishnaAssistant: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { user, setTourCompleted } = useUser();
-    const [isVisible, setIsVisible] = useState(true);
+    const { handleNewChat } = useChat();
+    const [isVisible, setIsVisible] = useState(false);
     const [isRollingOut, setIsRollingOut] = useState(false);
     const [currentStep, setCurrentStep] = useState(-1); // -1 means no tour active
 
@@ -93,16 +95,13 @@ export const KrishnaAssistant: React.FC = () => {
     const prevRoute = React.useRef<string | undefined>(undefined);
 
     useEffect(() => {
-        // Start tour if just registered and tour not completed
+        // Start tour ONLY if tour not completed and we are on Portal
         if (user && !user.isTourCompleted && currentRoute === 'Portal' && currentStep === -1) {
             setCurrentStep(0);
             rollIn();
         } else if (currentRoute === 'Portal' && currentStep === -1 && isVisible && currentRoute !== prevRoute.current) {
             // Collapse by default on Portal if no tour and we just arrived
             rollOut();
-        } else if ((currentRoute === 'Login' || currentRoute === 'Registration') && !isVisible && currentRoute !== prevRoute.current) {
-            // Expand on auth screens ONLY when we just navigated to them
-            rollIn();
         }
 
         prevRoute.current = currentRoute;
@@ -151,6 +150,7 @@ export const KrishnaAssistant: React.FC = () => {
                 rollOut();
             }
         } else {
+            handleNewChat();
             navigation.navigate('Chat');
         }
     };
@@ -163,7 +163,10 @@ export const KrishnaAssistant: React.FC = () => {
         return (
             <TouchableOpacity
                 style={styles.callButton}
-                onPress={() => navigation.navigate('Chat')}
+                onPress={() => {
+                    handleNewChat();
+                    navigation.navigate('Chat');
+                }}
             >
                 <Image source={krishnaAssistant} style={styles.miniIcon} />
             </TouchableOpacity>

@@ -93,7 +93,7 @@ func (s *AiChatService) getFallbackModels(failedModelID string) []models.AiModel
 // makeRequest handles the actual API call logic
 func (s *AiChatService) makeRequest(modelID string, messages []map[string]string) (string, error) {
 	provider := s.getProvider(modelID)
-	
+
 	// Check if this is a Gemini model - use direct Gemini API to avoid content_type issues
 	if strings.HasPrefix(modelID, "gemini") || provider == "Google" {
 		geminiService := GetGeminiService()
@@ -107,7 +107,7 @@ func (s *AiChatService) makeRequest(modelID string, messages []map[string]string
 			// Continue to proxy fallback
 		}
 	}
-	
+
 	// Fix for provider specific model names if needed
 	apiModelID := modelID
 	if apiModelID == "gpt5" {
@@ -126,9 +126,9 @@ func (s *AiChatService) makeRequest(modelID string, messages []map[string]string
 	}
 
 	requestBody := map[string]interface{}{
-		"model":       apiModelID,
-		"messages":    messages,
-		"provider":    provider,
+		"model":        apiModelID,
+		"messages":     messages,
+		"provider":     provider,
 		"content_type": "text", // Explicitly specify content type to avoid auto-detection as 'audio'
 	}
 

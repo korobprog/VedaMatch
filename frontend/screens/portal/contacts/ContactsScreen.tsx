@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, useColorScheme, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, useColorScheme, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { contactService, UserContact } from '../../../services/contactService';
-import { API_BASE_URL } from '../../../config/api.config';
+import { API_BASE_URL, API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 
 import { useChat } from '../../../context/ChatContext';
@@ -24,9 +25,31 @@ export const ContactsScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'friends' | 'blocked'>('all');
 
+    // City Filter State
+    const [filterCity, setFilterCity] = useState('');
+    const [availableCities, setAvailableCities] = useState<string[]>([]);
+    const [showCityPicker, setShowCityPicker] = useState(false);
+    const [citySearchQuery, setCitySearchQuery] = useState('');
+
     useEffect(() => {
         fetchContacts();
+        fetchCities();
     }, []);
+
+    useEffect(() => {
+        if (currentUser?.city) {
+            setFilterCity(currentUser.city);
+        }
+    }, [currentUser]);
+
+    const fetchCities = async () => {
+        try {
+            const response = await axios.get(`${API_PATH}/dating/cities`);
+            setAvailableCities(response.data);
+        } catch (error) {
+            console.error('Failed to fetch cities:', error);
+        }
+    };
 
     const fetchContacts = async () => {
         try {
@@ -75,6 +98,11 @@ export const ContactsScreen: React.FC = () => {
         if (filter !== 'blocked') {
             const isBlocked = blockedContacts.some(bc => bc.ID === c.ID);
             if (isBlocked) return false;
+        }
+
+        // Apply City Filter only for 'all' tab
+        if (filter === 'all' && filterCity) {
+            if (c.city !== filterCity) return false;
         }
 
         return c.karmicName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -135,7 +163,7 @@ export const ContactsScreen: React.FC = () => {
                         )}
                     </View>
                     <Text style={[styles.contactDesc, { color: theme.subText }]}>
-                        {item.identity || 'Devotee'} • {item.city}, {item.country}
+                        {item.identity || 'Devotee'} • {item.city}
                     </Text>
                 </View>
                 {isBlocked ? (
@@ -151,6 +179,10 @@ export const ContactsScreen: React.FC = () => {
             </TouchableOpacity>
         );
     };
+
+    const filteredCities = availableCities.filter(city =>
+        city.toLowerCase().includes(citySearchQuery.toLowerCase())
+    );
 
     return (
         <View style={styles.container}>
@@ -174,6 +206,20 @@ export const ContactsScreen: React.FC = () => {
                     <Text style={[styles.filterText, { color: filter === 'blocked' ? theme.text : theme.subText }]}>{t('contacts.blocked')}</Text>
                 </TouchableOpacity>
             </View>
+
+            {filter === 'all' && (
+                <View style={[styles.cityFilterContainer, { backgroundColor: theme.inputBackground }]}>
+                    <TouchableOpacity
+                        style={styles.cityFilterBtn}
+                        onPress={() => setShowCityPicker(true)}
+                    >
+                        <Text style={[styles.cityFilterText, { color: theme.text }]}>
+                            📍 {filterCity || t('dating.allCities', 'All Cities')}
+                        </Text>
+                        <Text style={{ color: theme.subText }}>▼</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             <View style={[styles.searchContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
                 <TextInput
@@ -206,6 +252,58 @@ export const ContactsScreen: React.FC = () => {
                     </View>
                 }
             />
+
+            {/* City Selection Modal */}
+            <Modal
+                visible={showCityPicker}
+                transparent
+                animationType="fade"
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.selectCity', 'Select City')}</Text>
+
+                        <TextInput
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 10 }]}
+                            value={citySearchQuery}
+                            onChangeText={setCitySearchQuery}
+                            placeholder={t('dating.searchCity', 'Search City...')}
+                            placeholderTextColor={theme.subText}
+                        />
+
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            <TouchableOpacity
+                                style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                onPress={() => {
+                                    setFilterCity('');
+                                    setShowCityPicker(false);
+                                }}
+                            >
+                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.allCities', 'All Cities')}</Text>
+                            </TouchableOpacity>
+                            {filteredCities.map((city, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                    onPress={() => {
+                                        setFilterCity(city);
+                                        setShowCityPicker(false);
+                                    }}
+                                >
+                                    <Text style={{ color: theme.text }}>{city}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={{ padding: 15, alignItems: 'center' }}
+                            onPress={() => setShowCityPicker(false)}
+                        >
+                            <Text style={{ color: theme.subText }}>{t('common.close', 'Close')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -226,6 +324,22 @@ const styles = StyleSheet.create({
     filterText: {
         fontSize: 15,
         fontWeight: '600',
+    },
+    cityFilterContainer: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        marginTop: 5,
+        marginHorizontal: 16,
+        borderRadius: 8,
+    },
+    cityFilterBtn: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    cityFilterText: {
+        fontWeight: '600',
+        fontSize: 14,
     },
     searchContainer: {
         margin: 16,
@@ -321,5 +435,32 @@ const styles = StyleSheet.create({
         padding: 16,
         textAlign: 'center',
         fontStyle: 'italic',
-    }
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        width: '80%',
+        borderRadius: 16,
+        padding: 20,
+        elevation: 5,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 15,
+        textAlign: 'center',
+    },
+    input: {
+        width: '100%',
+        height: 50,
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 15,
+        fontSize: 16,
+        marginBottom: 15,
+    },
 });

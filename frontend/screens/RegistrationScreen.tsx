@@ -20,6 +20,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../context/UserContext';
 import { COLORS } from '../components/chat/ChatConstants';
+import { ModernVedicTheme } from '../theme/ModernVedicTheme';
 
 
 
@@ -353,6 +354,16 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
+                <View style={styles.logoHeaderContainer}>
+                    <View style={styles.logoWrapper}>
+                        <Image
+                            source={require('../assets/logo_tilak.png')}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                        />
+                    </View>
+                </View>
+
                 {phase === 'initial' ? (
                     <>
                         <Text style={[styles.label, { color: theme.text }]}>Email</Text>
@@ -807,6 +818,27 @@ const styles = StyleSheet.create({
     skipText: {
         fontSize: 14,
         fontWeight: 'bold',
+    },
+    logoHeaderContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+        marginTop: 10,
+    },
+    logoWrapper: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: 'rgba(255, 255, 255, 0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.6)',
+        ...ModernVedicTheme.shadows.soft,
+        shadowOpacity: 0.1,
+    },
+    logoImage: {
+        width: 70,
+        height: 70,
     },
 });
 

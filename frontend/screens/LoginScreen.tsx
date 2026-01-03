@@ -9,6 +9,10 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Image,
+    StatusBar,
+    Keyboard,
+    ScrollView,
     Alert,
 } from 'react-native';
 import Animated, {
@@ -18,6 +22,7 @@ import Animated, {
     withTiming,
     withSequence,
     interpolate,
+    withSpring,
 } from 'react-native-reanimated';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +30,6 @@ import { useUser } from '../context/UserContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_PATH, APP_ENV } from '../config/api.config';
 import { ModernVedicTheme } from '../theme/ModernVedicTheme';
 
@@ -38,13 +42,27 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [emailFocused, setEmailFocused] = useState(false);
+    const [passwordFocused, setPasswordFocused] = useState(false);
+    const [passwordVisible, setPasswordVisible] = useState(false);
 
     // Animation values
     const glowValue = useSharedValue(0);
     const floatValue = useSharedValue(0);
+    const formOpacity = useSharedValue(0);
+    const formTranslateY = useSharedValue(20);
+
+    // Input focus animations
+    const emailFocusValue = useSharedValue(0);
+    const passwordFocusValue = useSharedValue(0);
+
     const { login } = useUser();
 
     useEffect(() => {
+        // Initial entrance
+        formOpacity.value = withTiming(1, { duration: 800 });
+        formTranslateY.value = withSpring(0);
+
         glowValue.value = withRepeat(
             withSequence(
                 withTiming(1, { duration: 3000 }),
@@ -63,9 +81,17 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         );
     }, []);
 
+    useEffect(() => {
+        emailFocusValue.value = withTiming(emailFocused ? 1 : 0, { duration: 200 });
+    }, [emailFocused]);
+
+    useEffect(() => {
+        passwordFocusValue.value = withTiming(passwordFocused ? 1 : 0, { duration: 200 });
+    }, [passwordFocused]);
+
     const animatedGlowStyle = useAnimatedStyle(() => {
         const opacity = interpolate(glowValue.value, [0, 1], [0.3, 0.6]);
-        const scale = interpolate(glowValue.value, [0, 1], [1, 1.1]);
+        const scale = interpolate(glowValue.value, [0, 1], [1, 1.2]);
         return {
             opacity,
             transform: [{ scale }],
@@ -73,11 +99,34 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     });
 
     const animatedFloatStyle = useAnimatedStyle(() => {
-        const translateY = interpolate(floatValue.value, [0, 1], [0, -10]);
+        const translateY = interpolate(floatValue.value, [0, 1], [0, -15]);
         return {
             transform: [{ translateY }],
         };
     });
+
+    const animatedFormStyle = useAnimatedStyle(() => ({
+        opacity: formOpacity.value,
+        transform: [{ translateY: formTranslateY.value }],
+    }));
+
+    const emailInputStyle = useAnimatedStyle(() => ({
+        borderColor: interpolate(emailFocusValue.value, [0, 1], [0, 1]) === 1
+            ? ModernVedicTheme.colors.primary
+            : 'rgba(255, 255, 255, 0.4)',
+        backgroundColor: interpolate(emailFocusValue.value, [0, 1], [0, 1]) === 1
+            ? 'rgba(255, 255, 255, 0.95)'
+            : 'rgba(255, 255, 255, 0.6)',
+    }));
+
+    const passwordInputStyle = useAnimatedStyle(() => ({
+        borderColor: interpolate(passwordFocusValue.value, [0, 1], [0, 1]) === 1
+            ? ModernVedicTheme.colors.primary
+            : 'rgba(255, 255, 255, 0.4)',
+        backgroundColor: interpolate(passwordFocusValue.value, [0, 1], [0, 1]) === 1
+            ? 'rgba(255, 255, 255, 0.95)'
+            : 'rgba(255, 255, 255, 0.6)',
+    }));
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -124,7 +173,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
         setLoading(true);
         try {
-            console.log('Dev Login: Attempting login...');
             const loginRes = await axios.post(`${API_PATH}/login`, {
                 email: devEmail,
                 password: devPassword,
@@ -132,9 +180,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
             let { user } = loginRes.data;
 
-            // If user exists but profile is not complete, update it automatically
             if (!user.isProfileComplete) {
-                console.log('Dev Login: Profile incomplete, auto-completing...');
                 const updateRes = await axios.put(`${API_PATH}/update-profile/${user.ID}`, {
                     ...devProfile
                 });
@@ -144,7 +190,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             await login(user);
 
         } catch (error: any) {
-            console.log('Dev Login: Login failed, attempting registration...');
             try {
                 await axios.post(`${API_PATH}/register`, devProfile);
 
@@ -155,7 +200,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 const { user } = retryLoginRes.data;
                 await login(user);
             } catch (regError: any) {
-                console.error('Dev Login Error:', regError.response?.data || regError.message);
                 const errorMsg = regError.response?.data?.error || regError.message;
                 Alert.alert('Dev Error', `Failed: ${errorMsg}`);
             }
@@ -166,107 +210,145 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
             {/* Background Layers */}
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: ModernVedicTheme.colors.background }]}>
-                {/* Subtle Radial Gradient Simulation using LinearGradient with different angles/opacity if needed, 
-                 but for now just a soft Vertical gradient to give depth */}
+            <View style={StyleSheet.absoluteFill}>
                 <LinearGradient
-                    colors={[ModernVedicTheme.colors.background, '#FFF0E0', '#FFE5CC']}
+                    colors={[ModernVedicTheme.colors.background, '#FFE8D6', '#FFF8F0']}
                     style={StyleSheet.absoluteFill}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                 />
             </View>
 
-            {/* Decorative Mandala Glow (Top Center) */}
+            {/* Decorative Om Glow in Background */}
             <Animated.View style={[styles.glow, animatedGlowStyle]}>
                 <LinearGradient
-                    colors={[ModernVedicTheme.colors.secondary, 'transparent']}
+                    colors={['rgba(214, 125, 62, 0.15)', 'transparent']}
                     style={styles.glowGradient}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
+                />
+            </Animated.View>
+
+            <Animated.View style={[styles.glowBottom, animatedGlowStyle]}>
+                <LinearGradient
+                    colors={['rgba(255, 179, 0, 0.1)', 'transparent']}
+                    style={styles.glowGradient}
                 />
             </Animated.View>
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.content}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={styles.keyboardView}
             >
-                <Animated.View style={[styles.headerContainer, animatedFloatStyle]}>
-                    <View style={styles.logoPlaceholder}>
-                        <Text style={styles.logoIcon}>🕉️</Text>
-                    </View>
-                    <Text style={styles.title}>VedaMatch</Text>
-                    <Text style={styles.subtitle}>Connect Your Soul. Discover Your Match.</Text>
-                </Animated.View>
-
-                <View style={styles.formCard}>
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.inputIcon}>📧</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Email Address"
-                            placeholderTextColor={ModernVedicTheme.colors.textSecondary}
-                            value={email}
-                            onChangeText={setEmail}
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                        />
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.inputIcon}>🔒</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Password"
-                            placeholderTextColor={ModernVedicTheme.colors.textSecondary}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                        />
-                    </View>
-
-                    <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={handleLogin}
-                        disabled={loading}
-                        style={styles.loginButtonWrapper}
-                    >
-                        <LinearGradient
-                            colors={[ModernVedicTheme.colors.gradientStart, ModernVedicTheme.colors.gradientEnd]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.loginButton}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#FFF" />
-                            ) : (
-                                <Text style={styles.loginButtonText}>Login with Saffron</Text>
-                            )}
-                        </LinearGradient>
-                    </TouchableOpacity>
-
-                    {APP_ENV !== 'production' && (
-                        <TouchableOpacity
-                            style={[styles.loginButtonWrapper, { marginTop: 10 }]}
-                            onPress={handleDevLogin}
-                            disabled={loading}
-                        >
-                            <View style={[styles.loginButton, { backgroundColor: '#4CAF50' }]}>
-                                <Text style={styles.loginButtonText}>{t('auth.devLogin')}</Text>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <Animated.View style={[styles.content, animatedFormStyle]}>
+                        <Animated.View style={[styles.headerContainer, animatedFloatStyle]}>
+                            <View style={styles.logoWrapper}>
+                                <Image
+                                    source={require('../assets/logo_tilak.png')}
+                                    style={styles.logoImage}
+                                    resizeMode="contain"
+                                />
                             </View>
-                        </TouchableOpacity>
-                    )}
+                            <Text style={styles.title}>VedaMatch</Text>
+                            <Text style={styles.subtitle}>Connect Your Soul • Discover Your Match</Text>
+                        </Animated.View>
 
-                    <TouchableOpacity
-                        style={styles.registerLink}
-                        onPress={() => navigation.navigate('Registration', { isDarkMode: false, phase: 'initial' })}
-                    >
-                        <Text style={styles.registerLinkText}>
-                            New to VedaMatch? <Text style={styles.registerBold}>Create Account</Text>
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                        <View style={styles.formCard}>
+                            <Animated.View style={[styles.inputContainer, emailInputStyle]}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Email Address"
+                                    placeholderTextColor="rgba(107, 91, 83, 0.6)"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    onFocus={() => setEmailFocused(true)}
+                                    onBlur={() => setEmailFocused(false)}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
+                                />
+                            </Animated.View>
+
+                            <Animated.View style={[styles.inputContainer, passwordInputStyle]}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Password"
+                                    placeholderTextColor="rgba(107, 91, 83, 0.6)"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    onFocus={() => setPasswordFocused(true)}
+                                    onBlur={() => setPasswordFocused(false)}
+                                    secureTextEntry={!passwordVisible}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setPasswordVisible(!passwordVisible)}
+                                    style={styles.eyeButton}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <View style={styles.eyeIconContainer}>
+                                        {passwordVisible ? (
+                                            <View style={styles.eyeIconBox}>
+                                                <View style={styles.eyeBase} />
+                                                <View style={styles.eyePupil} />
+                                                <View style={styles.eyeSlash} />
+                                            </View>
+                                        ) : (
+                                            <View style={styles.eyeIconBox}>
+                                                <View style={styles.eyeBase} />
+                                                <View style={styles.eyePupil} />
+                                            </View>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            </Animated.View>
+
+                            <TouchableOpacity
+                                activeOpacity={0.85}
+                                onPress={handleLogin}
+                                disabled={loading}
+                                style={styles.loginButtonContainer}
+                            >
+                                <LinearGradient
+                                    colors={[ModernVedicTheme.colors.gradientStart, ModernVedicTheme.colors.gradientEnd]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.loginButton}
+                                >
+                                    {loading ? (
+                                        <ActivityIndicator color="#FFF" />
+                                    ) : (
+                                        <Text style={styles.loginButtonText}>Login with Saffron</Text>
+                                    )}
+                                </LinearGradient>
+                            </TouchableOpacity>
+
+                            {APP_ENV !== 'production' && (
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    style={[styles.devButton]}
+                                    onPress={handleDevLogin}
+                                    disabled={loading}
+                                >
+                                    <Text style={styles.devButtonText}>Быстрый вход (DEV)</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            <TouchableOpacity
+                                style={styles.registerLink}
+                                onPress={() => navigation.navigate('Registration', { isDarkMode: false, phase: 'initial' })}
+                            >
+                                <Text style={styles.registerLinkText}>
+                                    New to VedaMatch? <Text style={styles.registerBold}>Create Account</Text>
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                </ScrollView>
             </KeyboardAvoidingView>
         </View>
     );
@@ -275,122 +357,190 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: ModernVedicTheme.colors.background,
+    },
+    keyboardView: {
+        flex: 1,
+    },
+    content: {
+        paddingHorizontal: 28,
+        paddingTop: height * 0.10,
+        paddingBottom: 40,
+    },
+    scrollContent: {
+        flexGrow: 1,
     },
     glow: {
         position: 'absolute',
-        top: -height * 0.15,
-        left: 0,
-        right: 0,
-        height: height * 0.5,
-        opacity: 0.3,
+        top: -width * 0.3,
+        right: -width * 0.3,
+        width: width,
+        height: width,
         alignItems: 'center',
+        justifyContent: 'center',
+    },
+    glowBottom: {
+        position: 'absolute',
+        bottom: -width * 0.4,
+        left: -width * 0.4,
+        width: width * 1.2,
+        height: width * 1.2,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     glowGradient: {
-        width: width * 1.5,
-        height: width * 1.5,
-        borderRadius: width * 0.75,
-        opacity: 0.15,
-    },
-    content: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 24,
+        width: '100%',
+        height: '100%',
+        borderRadius: width / 2,
     },
     headerContainer: {
         alignItems: 'center',
-        marginBottom: 40,
+        marginBottom: 32,
     },
-    logoPlaceholder: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: ModernVedicTheme.colors.backgroundSecondary,
+    logoWrapper: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.8)',
         ...ModernVedicTheme.shadows.soft,
+        shadowOpacity: 0.1,
     },
-    logoIcon: {
-        fontSize: 40,
+    logoImage: {
+        width: 85,
+        height: 85,
     },
     title: {
-        fontSize: ModernVedicTheme.typography.header.fontSize,
-        fontWeight: 'bold', // Playfair fallback
+        fontSize: 36,
+        fontWeight: '700',
         color: ModernVedicTheme.colors.primary,
-        marginBottom: 8,
-        fontFamily: ModernVedicTheme.typography.header.fontFamily,
+        fontFamily: Platform.OS === 'ios' ? 'Playfair Display' : 'serif',
+        letterSpacing: 1.5,
     },
     subtitle: {
-        fontSize: ModernVedicTheme.typography.body.fontSize,
+        fontSize: 14,
         color: ModernVedicTheme.colors.textSecondary,
-        fontFamily: ModernVedicTheme.typography.body.fontFamily,
-        textAlign: 'center',
+        marginTop: 6,
+        fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'sans-serif',
+        opacity: 0.8,
+        letterSpacing: 0.5,
     },
     formCard: {
         width: '100%',
-        backgroundColor: 'rgba(255, 255, 255, 0.4)', // Glassmorphism base
-        borderRadius: ModernVedicTheme.layout.borderRadius.lg,
+        backgroundColor: 'rgba(255, 255, 255, 0.35)',
+        borderRadius: 40,
         padding: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.6)',
-        // Shadow is subtle for glass
-        shadowColor: ModernVedicTheme.colors.shadow,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.05,
-        shadowRadius: 20,
-        elevation: 5,
+        borderWidth: 0,
+        ...ModernVedicTheme.shadows.medium,
+        shadowColor: ModernVedicTheme.colors.primary,
+        shadowOpacity: 0.08,
+        shadowRadius: 25,
+        elevation: 0,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: ModernVedicTheme.colors.glass,
-        borderRadius: ModernVedicTheme.layout.borderRadius.md,
-        borderWidth: 1,
-        borderColor: ModernVedicTheme.colors.glassBorder,
+        borderRadius: 24,
+        borderWidth: 0.8,
         marginBottom: 16,
-        height: 56,
-        paddingHorizontal: 16,
-    },
-    inputIcon: {
-        fontSize: 18,
-        marginRight: 12,
-        opacity: 0.7,
+        height: 60,
+        paddingHorizontal: 24,
     },
     input: {
         flex: 1,
-        fontSize: 16,
+        fontSize: 17,
         color: ModernVedicTheme.colors.text,
-        height: '100%',
+        fontWeight: '500',
     },
-    loginButtonWrapper: {
-        borderRadius: ModernVedicTheme.layout.borderRadius.md,
+    loginButtonContainer: {
+        borderRadius: 24,
         overflow: 'hidden',
-        marginTop: 8,
+        marginTop: 12,
         ...ModernVedicTheme.shadows.soft,
+        shadowColor: ModernVedicTheme.colors.primary,
+        shadowOpacity: 0.25,
     },
     loginButton: {
-        height: 56,
+        height: 60,
         justifyContent: 'center',
         alignItems: 'center',
     },
     loginButtonText: {
-        color: ModernVedicTheme.colors.textLight,
+        color: '#FFF',
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
         letterSpacing: 0.5,
     },
+    devButton: {
+        height: 56,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.4)',
+        borderRadius: 24,
+        marginTop: 12,
+        borderWidth: 0,
+    },
+    devButtonText: {
+        color: ModernVedicTheme.colors.textSecondary,
+        fontSize: 15,
+        fontWeight: '600',
+        letterSpacing: 0.3,
+    },
     registerLink: {
-        marginTop: 24,
+        marginTop: 28,
         alignItems: 'center',
     },
     registerLinkText: {
         color: ModernVedicTheme.colors.textSecondary,
-        fontSize: 14,
+        fontSize: 15,
+        opacity: 0.9,
     },
     registerBold: {
         color: ModernVedicTheme.colors.primary,
-        fontWeight: 'bold',
+        fontWeight: '700',
+    },
+    eyeButton: {
+        padding: 4,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    eyeIconContainer: {
+        width: 24,
+        height: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    eyeIconBox: {
+        width: 20,
+        height: 14,
+        borderWidth: 1.5,
+        borderColor: ModernVedicTheme.colors.textSecondary,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    eyeBase: {
+        width: '100%',
+        height: '100%',
+        position: 'absolute',
+    },
+    eyePupil: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: ModernVedicTheme.colors.textSecondary,
+    },
+    eyeSlash: {
+        width: 2,
+        height: 22,
+        backgroundColor: ModernVedicTheme.colors.textSecondary,
+        position: 'absolute',
+        transform: [{ rotate: '45deg' }],
     },
 });
 

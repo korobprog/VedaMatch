@@ -7,12 +7,12 @@
     "start": "node proxy-server.js",
     "proxy": "node proxy-server.js",
     "backend": "cd server && go run cmd/api/main.go",
-    "server": "cd server && ./START.sh",
+    "server": "node server/start.js",
     "admin": "cd admin && pnpm run dev",
     "frontend": "cd frontend && pnpm run start",
     "android": "cd frontend && pnpm run android",
     "device": "cd frontend && pnpm run android:device",
-    "clean": "fuser -k 3000/tcp 3005/tcp 8081/tcp 8082/tcp 2>/dev/null || true && rm -rf admin/.next admin/node_modules/.cache || true",
+    "clean": "kill-port 3000 3005 8081 8082 && rimraf admin/.next admin/node_modules/.cache",
     "dev:emulator": "pnpm run clean && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run android\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\"",
     "dev:usb": "pnpm run clean && ./adb-reverse-all.sh && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run device\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\""
   },
@@ -24,7 +24,9 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "wait-on": "^9.0.3"
+    "wait-on": "^9.0.3",
+    "rimraf": "^5.0.5",
+    "kill-port": "^2.0.1"
   },
   "keywords": [
     "proxy",

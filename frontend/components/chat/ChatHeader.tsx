@@ -54,7 +54,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                 <Text style={[styles.subTitle, { color: theme.subText }]}>{subTitle}</Text>
                             )}
                         </>
-                    ) : null}
+                    ) : (
+                        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+                    )}
                 </View>
 
                 {/* Gear removed as requested */}
