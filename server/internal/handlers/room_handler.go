@@ -201,7 +201,7 @@ func (h *RoomHandler) UpdateRoomImage(c *fiber.Ctx) error {
 			fileName := fmt.Sprintf("rooms/%s_%d%s", roomID, time.Now().Unix(), ext)
 			contentType := file.Header.Get("Content-Type")
 
-			imageURL, err := s3Service.UploadFile(c.Context(), fileContent, fileName, contentType)
+			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
 				if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Update("image_url", imageURL).Error; err != nil {
 					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update room in database"})

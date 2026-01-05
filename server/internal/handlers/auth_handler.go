@@ -187,7 +187,7 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 			fileName := fmt.Sprintf("avatars/%s_%d%s", userId, time.Now().Unix(), ext)
 			contentType := file.Header.Get("Content-Type")
 
-			avatarURL, err := s3Service.UploadFile(c.Context(), fileContent, fileName, contentType)
+			avatarURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
 				log.Printf("[S3] Avatar uploaded: %s", avatarURL)
 				database.DB.Model(&models.User{}).Where("id = ?", userId).Update("avatar_url", avatarURL)
