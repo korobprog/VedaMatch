@@ -6,15 +6,21 @@ import (
 	"path/filepath"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/services"
+	"rag-agent-server/internal/websocket"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-type MediaHandler struct{}
+type MediaHandler struct {
+	hub *websocket.Hub
+}
 
-func NewMediaHandler() *MediaHandler {
-	return &MediaHandler{}
+func NewMediaHandler(hub *websocket.Hub) *MediaHandler {
+	return &MediaHandler{hub: hub}
 }
 
 func (h *MediaHandler) UploadPhoto(c *fiber.Ctx) error {
@@ -27,6 +33,31 @@ func (h *MediaHandler) UploadPhoto(c *fiber.Ctx) error {
 		})
 	}
 
+	// 1. Try S3 Storage
+	s3Service := services.GetS3Service()
+	if s3Service != nil {
+		fileContent, err := file.Open()
+		if err == nil {
+			defer fileContent.Close()
+			ext := filepath.Ext(file.Filename)
+			fileName := fmt.Sprintf("media/u%s_%d%s", userID, time.Now().Unix(), ext)
+			contentType := file.Header.Get("Content-Type")
+
+			imageURL, err := s3Service.UploadFile(c.Context(), fileContent, fileName, contentType)
+			if err == nil {
+				media := models.Media{
+					UserID:    uint(parseUint(userID)),
+					URL:       imageURL,
+					IsProfile: false,
+				}
+				if err := database.DB.Create(&media).Error; err == nil {
+					return c.JSON(media)
+				}
+			}
+		}
+	}
+
+	// 2. Fallback to Local Storage
 	uploadsDir := "./uploads/media"
 	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -81,15 +112,30 @@ func (h *MediaHandler) DeletePhoto(c *fiber.Ctx) error {
 		})
 	}
 
-	// Remove from DB
+	// 1. Remove from S3 if needed
+	s3Service := services.GetS3Service()
+	if s3Service != nil && strings.HasPrefix(media.URL, "http") {
+		// Extract key from URL
+		// Example: https://bucket.s3.endpoint.com/media/u1_123.jpg
+		// Key: media/u1_123.jpg
+		publicURL := os.Getenv("S3_PUBLIC_URL")
+		if strings.HasPrefix(media.URL, publicURL) {
+			key := strings.TrimPrefix(media.URL, publicURL+"/")
+			s3Service.DeleteFile(c.Context(), key)
+		}
+	}
+
+	// 2. Remove from disk if it's a local file
+	if strings.HasPrefix(media.URL, "/uploads") {
+		_ = os.Remove("." + media.URL)
+	}
+
+	// 3. Remove from DB
 	if err := database.DB.Delete(&media).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not delete from database",
 		})
 	}
-
-	// Remove from disk (optional but good)
-	_ = os.Remove("." + media.URL)
 
 	return c.SendStatus(fiber.StatusOK)
 }
@@ -120,4 +166,121 @@ func parseUint(s string) uint {
 	var n uint
 	fmt.Sscanf(s, "%d", &n)
 	return n
+}
+
+// UploadMessageMedia uploads a media file (image, audio, document) and creates a message
+func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "No file provided",
+		})
+	}
+
+	mediaType := c.FormValue("type") // 'image', 'audio', 'document'
+	senderID := c.FormValue("senderId")
+	recipientID := c.FormValue("recipientId")
+	roomID := c.FormValue("roomId")
+
+	if mediaType == "" || senderID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "type and senderId are required",
+		})
+	}
+
+	allowedTypes := map[string][]string{
+		"image":    {"image/jpeg", "image/png", "image/gif", "image/webp"},
+		"audio":    {"audio/mpeg", "audio/mp4", "audio/wav", "audio/webm"},
+		"document": {"application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"},
+	}
+
+	maxSize := map[string]int64{
+		"image":    10 * 1024 * 1024,
+		"audio":    5 * 1024 * 1024,
+		"document": 20 * 1024 * 1024,
+	}
+
+	mimeTypes, ok := allowedTypes[mediaType]
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid media type",
+		})
+	}
+
+	contentType := file.Header.Get("Content-Type")
+	if !contains(mimeTypes, contentType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("Invalid file type %s for media type %s", contentType, mediaType),
+		})
+	}
+
+	maxBytes := maxSize[mediaType]
+	if file.Size > maxBytes {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("File size exceeds limit of %d MB", maxBytes/(1024*1024)),
+		})
+	}
+
+	s3Service := services.GetS3Service()
+	if s3Service == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "S3 service not initialized",
+		})
+	}
+
+	fileContent, err := file.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not open file",
+		})
+	}
+	defer fileContent.Close()
+
+	ext := filepath.Ext(file.Filename)
+	fileName := fmt.Sprintf("messages/%s/u%s_%d%s", mediaType, senderID, time.Now().Unix(), ext)
+
+	fileURL, err := s3Service.UploadFile(c.Context(), fileContent, fileName, contentType)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Could not upload file to S3: %v", err),
+		})
+	}
+
+	msg := models.Message{
+		SenderID: parseUint(senderID),
+		Content:  fileURL,
+		Type:     mediaType,
+		FileName: file.Filename,
+		FileSize: file.Size,
+		MimeType: contentType,
+	}
+
+	if recipientID != "" {
+		msg.RecipientID = parseUint(recipientID)
+	}
+	if roomID != "" {
+		roomIDUint, _ := strconv.ParseUint(roomID, 10, 32)
+		msg.RoomID = uint(roomIDUint)
+	}
+
+	if err := database.DB.Create(&msg).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not save message",
+		})
+	}
+
+	if h.hub != nil {
+		h.hub.Broadcast(msg)
+	}
+
+	return c.JSON(msg)
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

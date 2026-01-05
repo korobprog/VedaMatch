@@ -6,7 +6,7 @@ interface NearbyUsersRequest {
 	radiusKm?: number;
 }
 
-interface UserWithDistance {
+export interface UserWithDistance {
 	ID: number;
 	karmicName: string;
 	spiritualName: string;

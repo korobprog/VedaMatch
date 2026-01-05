@@ -11,12 +11,14 @@ import {
     Platform,
     StatusBar,
     ScrollView,
-    Switch
+    Switch,
+    Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
+import { useLocation } from '../../hooks/useLocation';
 
 export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
@@ -36,6 +38,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
     } = useSettings();
 
     const { logout } = useUser();
+    const { refreshLocationData } = useLocation();
 
     const [activeFilters, setActiveFilters] = useState({
         text: false,
@@ -92,6 +95,28 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
             </View>
 
             <ScrollView style={styles.content}>
+                {/* Profile Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.profile') || 'Profile'}</Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.actionButton,
+                            { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }
+                        ]}
+                        onPress={() => navigation.navigate('EditProfile' as any)}
+                    >
+                        <View style={styles.actionContent}>
+                            <Text style={[styles.actionTitle, { color: theme.text }]}>
+                                {t('profile.editProfile') || 'Edit Profile'}
+                            </Text>
+                            <Text style={[styles.actionDescription, { color: theme.subText }]}>
+                                {t('profile.editProfileDesc') || 'Update your personal information'}
+                            </Text>
+                        </View>
+                        <Text style={{ color: theme.subText }}>→</Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* Image Settings Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.imageSettings')}</Text>
@@ -194,6 +219,34 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             <Text style={{ color: i18n.language === 'en' ? theme.buttonText : theme.text }}>English</Text>
                         </TouchableOpacity>
                     </View>
+                </View>
+
+                {/* Location Cache Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.location')}</Text>
+                    <Text style={[styles.subLabel, { color: theme.subText }]}>
+                        {t('settings.locationCacheDescription')}
+                    </Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.sizeBtn,
+                            {
+                                backgroundColor: theme.button,
+                                borderColor: theme.button,
+                                marginTop: 10
+                            }
+                        ]}
+                        onPress={async () => {
+                            await refreshLocationData();
+                            Alert.alert(
+                                t('settings.locationCacheCleared'),
+                                t('settings.locationCacheClearedMsg'),
+                                [{ text: t('common.ok') }]
+                            );
+                        }}
+                    >
+                        <Text style={{ color: theme.buttonText, fontWeight: '500' }}>{t('settings.clearLocationCache')}</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* AI Models Section */}
@@ -415,5 +468,26 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
         paddingHorizontal: 20,
-    }
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        marginTop: 10,
+    },
+    actionContent: {
+        flex: 1,
+    },
+    actionTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    actionDescription: {
+        fontSize: 14,
+    },
 });

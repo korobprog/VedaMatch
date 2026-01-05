@@ -5,21 +5,42 @@ import (
 	"sync"
 )
 
+type WSMessage interface {
+	GetType() string
+	GetSenderID() uint
+	GetRecipientID() uint
+	GetRoomID() uint
+}
+
+type MessageWrapper struct {
+	models.Message
+}
+
+func (m MessageWrapper) GetType() string      { return "message" }
+func (m MessageWrapper) GetSenderID() uint    { return m.SenderID }
+func (m MessageWrapper) GetRecipientID() uint { return m.RecipientID }
+func (m MessageWrapper) GetRoomID() uint      { return m.RoomID }
+
+type TypingWrapper struct {
+	models.TypingEvent
+}
+
+func (t TypingWrapper) GetType() string      { return "typing" }
+func (t TypingWrapper) GetSenderID() uint    { return t.SenderID }
+func (t TypingWrapper) GetRecipientID() uint { return t.RecipientID }
+func (t TypingWrapper) GetRoomID() uint      { return 0 }
+
 type Hub struct {
-	// Registered clients by UserID
-	clients map[uint]*Client
-	// Inbound messages from the handlers
-	broadcast chan models.Message
-	// Register requests from the clients
-	Register chan *Client
-	// Unregister requests from clients
+	clients    map[uint]*Client
+	broadcast  chan WSMessage
+	Register   chan *Client
 	Unregister chan *Client
 	mu         sync.RWMutex
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		broadcast:  make(chan models.Message),
+		broadcast:  make(chan WSMessage, 256),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
 		clients:    make(map[uint]*Client),
@@ -43,18 +64,12 @@ func (h *Hub) Run() {
 		case message := <-h.broadcast:
 			h.mu.RLock()
 			for userID, client := range h.clients {
-				// Send if:
-				// 1. RecipientID matches
-				// 2. RoomID matches (broadcast to all, frontend filters)
-				// 3. Sender is the one who sent (sync across devices)
-
 				shouldSend := false
-				if message.RecipientID != 0 {
-					if userID == message.RecipientID || userID == message.SenderID {
+				if message.GetRecipientID() != 0 {
+					if userID == message.GetRecipientID() || userID == message.GetSenderID() {
 						shouldSend = true
 					}
-				} else if message.RoomID != 0 {
-					// Room broadcast
+				} else if message.GetRoomID() != 0 {
 					shouldSend = true
 				}
 
@@ -62,7 +77,6 @@ func (h *Hub) Run() {
 					select {
 					case client.Send <- message:
 					default:
-						// If client buffer is full, we don't want to block the hub
 					}
 				}
 			}
@@ -72,5 +86,9 @@ func (h *Hub) Run() {
 }
 
 func (h *Hub) Broadcast(msg models.Message) {
-	h.broadcast <- msg
+	h.broadcast <- MessageWrapper{Message: msg}
+}
+
+func (h *Hub) BroadcastTyping(event models.TypingEvent) {
+	h.broadcast <- TypingWrapper{TypingEvent: event}
 }

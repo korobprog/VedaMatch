@@ -5,8 +5,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     useColorScheme,
-    Platform,
-    StatusBar,
 } from 'react-native';
 import { COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
     View,
     TouchableOpacity,
@@ -8,12 +8,20 @@ import {
     Platform,
     StyleSheet,
     useColorScheme,
+    Alert,
+    ActivityIndicator,
+    Vibration,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS, MENU_OPTIONS, FRIEND_MENU_OPTIONS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
+import { useWebSocket } from '../../context/WebSocketContext';
+import { useUser } from '../../context/UserContext';
 import { Image } from 'react-native';
-import { API_BASE_URL } from '../../config/api.config';
+import { API_PATH } from '../../config/api.config';
+import { getMediaUrl } from '../../utils/url';
+import { mediaService, MediaFile } from '../../services/mediaService';
+import { AudioRecorder } from './AudioRecorder';
 
 interface ChatInputProps {
     onMenuOption: (option: string) => void;
@@ -28,16 +36,116 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setInputText,
         handleSendMessage,
         handleStopRequest,
+        handleSendMedia,
         isLoading,
         showMenu,
         setShowMenu,
         handleNewChat,
         recipientUser,
+        isUploading,
     } = useChat();
+    const { sendTypingIndicator } = useWebSocket();
+    const { user: currentUser } = useUser();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const avatarUrl = recipientUser?.avatarUrl ? `${API_BASE_URL}${recipientUser.avatarUrl}` : null;
+    const {
+        isRecording,
+        startRecording,
+        stopRecording,
+    } = useChat();
+    const micTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handlePickImage = async () => {
+        try {
+            const media = await mediaService.pickImage();
+            await handleSendMedia(media);
+        } catch (e: any) {
+            if (e.message !== 'Cancelled') {
+                Alert.alert('Ошибка', 'Не удалось выбрать фото');
+            }
+        }
+    };
+
+    const handleTakePhoto = async () => {
+        try {
+            const media = await mediaService.takePhoto();
+            await handleSendMedia(media);
+        } catch (e: any) {
+            if (e.message !== 'Cancelled') {
+                Alert.alert('Ошибка', 'Не удалось сделать фото');
+            }
+        }
+    };
+
+    const handlePickDocument = async () => {
+        try {
+            const media = await mediaService.pickDocument();
+            await handleSendMedia(media);
+        } catch (e: any) {
+            if (e.message !== 'Cancelled') {
+                Alert.alert('Ошибка', 'Не удалось выбрать документ');
+            }
+        }
+    };
+
+    const justFinishedRecording = useRef(false);
+
+    const handleMicPressIn = () => {
+        micTimeoutRef.current = setTimeout(() => {
+            Vibration.vibrate(50);
+            startRecording();
+            micTimeoutRef.current = null;
+        }, 500);
+    };
+
+    const handleMicPressOut = () => {
+        if (micTimeoutRef.current) {
+            clearTimeout(micTimeoutRef.current);
+            micTimeoutRef.current = null;
+        } else if (isRecording) {
+            Vibration.vibrate(50);
+            stopRecording();
+            justFinishedRecording.current = true;
+            setTimeout(() => { justFinishedRecording.current = false; }, 200);
+        }
+    };
+
+    const onSendPress = () => {
+        if (justFinishedRecording.current) return;
+        if (isLoading) {
+            handleStopRequest();
+        } else {
+            handleSendMessage();
+        }
+    };
+
+    const avatarUrl = getMediaUrl(recipientUser?.avatarUrl);
+
+    const handleTextChange = (text: string) => {
+        setInputText(text);
+
+        if (recipientUser?.ID && currentUser?.ID && recipientUser.ID !== currentUser.ID) {
+            sendTypingIndicator(recipientUser.ID, true);
+
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            typingTimeoutRef.current = setTimeout(() => {
+                sendTypingIndicator(recipientUser.ID, false);
+            }, 3000);
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        };
+    }, []);
 
     return (
         <KeyboardAvoidingView
@@ -59,7 +167,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         </Text>
                     </View>
                     {(recipientUser ? FRIEND_MENU_OPTIONS : MENU_OPTIONS).map((option, index, array) => {
-                        const isImplemented = !recipientUser || option === 'contacts.viewProfile' || option === 'contacts.block';
+                        const isImplemented = !recipientUser ||
+                            option === 'contacts.viewProfile' ||
+                            option === 'contacts.block' ||
+                            option === 'contacts.takePhoto' ||
+                            option === 'contacts.attachFile';
                         return (
                             <TouchableOpacity
                                 key={option}
@@ -68,7 +180,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     index < array.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.borderColor },
                                     !isImplemented && { opacity: 0.3 }
                                 ]}
-                                onPress={() => isImplemented && onMenuOption(option)}
+                                onPress={() => {
+                                    if (!isImplemented) return;
+                                    setShowMenu(false);
+                                    if (option === 'contacts.takePhoto') {
+                                        handleTakePhoto();
+                                        return;
+                                    }
+                                    if (option === 'contacts.attachFile') {
+                                        handlePickDocument();
+                                        return;
+                                    }
+                                    onMenuOption(option);
+                                }}
                                 disabled={!isImplemented}
                             >
                                 <Text style={{
@@ -108,22 +232,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     placeholder={t('chat.placeholder')}
                     placeholderTextColor={theme.subText}
                     value={inputText}
-                    onChangeText={setInputText}
+                    onChangeText={handleTextChange}
                     onSubmitEditing={handleSendMessage}
                     multiline
-                    editable={!isLoading}
+                    editable={!isLoading && !isUploading && !isRecording}
                 />
+
                 <TouchableOpacity
-                    onPress={isLoading ? handleStopRequest : handleSendMessage}
+                    onPress={onSendPress}
+                    onPressIn={handleMicPressIn}
+                    onPressOut={handleMicPressOut}
                     style={styles.sendButton}
+                    disabled={isUploading}
+                    delayLongPress={500}
                 >
-                    {isLoading ? (
+                    {isUploading ? (
+                        <ActivityIndicator size="small" color={theme.iconColor} />
+                    ) : isLoading ? (
                         <View style={{ width: 14, height: 14, backgroundColor: theme.iconColor, borderRadius: 2 }} />
                     ) : (
-                        <Text style={[styles.sendButtonText, { color: theme.iconColor }]}>↑</Text>
+                        <Text style={[styles.sendButtonText, { color: isRecording ? theme.error : theme.iconColor }]}>
+                            {isRecording ? '🎙️' : '↑'}
+                        </Text>
                     )}
                 </TouchableOpacity>
             </View>
+
+            <AudioRecorder />
         </KeyboardAvoidingView>
     );
 };
@@ -192,5 +327,11 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
+    },
+    mediaButton: {
+        padding: 8,
+    },
+    mediaIcon: {
+        fontSize: 20,
     },
 });

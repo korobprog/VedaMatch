@@ -14,6 +14,7 @@ import { RootStackParamList } from './types/navigation';
 // Portal Main Screen
 import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
+import { EditProfileScreen } from './screens/settings/EditProfileScreen';
 import { KrishnaAssistant } from './components/KrishnaAssistant';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 
@@ -73,6 +74,7 @@ const AppContent = () => {
               <Stack.Screen name="Chat" component={ChatScreen} />
               <Stack.Screen name="Plans" component={PlansScreen} />
               <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+              <Stack.Screen name="EditProfile" component={EditProfileScreen} />
               <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
               <Stack.Screen
                 name="RoomChat"
@@ -82,6 +84,7 @@ const AppContent = () => {
               <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
               <Stack.Screen name="EditDatingProfile" component={EditDatingProfileScreen} />
               <Stack.Screen name="DatingFavorites" component={DatingFavoritesScreen} />
+              <Stack.Screen name="Registration" component={RegistrationScreen} />
             </Stack.Group>
           ) : (
             <Stack.Group>

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/services"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -190,7 +191,27 @@ func (h *RoomHandler) UpdateRoomImage(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create uploads/rooms directory if it doesn't exist
+	// 1. Try S3 Storage
+	s3Service := services.GetS3Service()
+	if s3Service != nil {
+		fileContent, err := file.Open()
+		if err == nil {
+			defer fileContent.Close()
+			ext := filepath.Ext(file.Filename)
+			fileName := fmt.Sprintf("rooms/%s_%d%s", roomID, time.Now().Unix(), ext)
+			contentType := file.Header.Get("Content-Type")
+
+			imageURL, err := s3Service.UploadFile(c.Context(), fileContent, fileName, contentType)
+			if err == nil {
+				if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Update("image_url", imageURL).Error; err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update room in database"})
+				}
+				return c.JSON(fiber.Map{"imageUrl": imageURL})
+			}
+		}
+	}
+
+	// 2. Fallback to Local Storage
 	uploadsDir := "./uploads/rooms"
 	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -198,19 +219,16 @@ func (h *RoomHandler) UpdateRoomImage(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate unique filename
 	ext := filepath.Ext(file.Filename)
 	filename := fmt.Sprintf("room_%s_%d%s", roomID, time.Now().Unix(), ext)
 	filePath := filepath.Join(uploadsDir, filename)
 
-	// Save file
 	if err := c.SaveFile(file, filePath); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not save image",
 		})
 	}
 
-	// Update database
 	imageURL := "/uploads/rooms/" + filename
 	if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Update("image_url", imageURL).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

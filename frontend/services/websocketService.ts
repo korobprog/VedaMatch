@@ -69,4 +69,16 @@ export class WebSocketService {
             this.socket = null;
         }
     }
+
+    sendTypingIndicator(recipientId: number, isTyping: boolean) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            const message = {
+                type: 'typing',
+                senderId: this.userId,
+                recipientId,
+                isTyping
+            };
+            this.socket.send(JSON.stringify(message));
+        }
+    }
 }

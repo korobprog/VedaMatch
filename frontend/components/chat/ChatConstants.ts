@@ -17,6 +17,7 @@ export const COLORS = {
         error: '#FF5252',      // Error Red
         button: '#5D4037',     // Match registration
         buttonText: '#D7CCC8',
+        card: '#1E1E1E',
     },
     // Light mode: Vedic Temple Day (Warm Stone, Copper, Clay)
     light: {
@@ -36,6 +37,7 @@ export const COLORS = {
         error: '#FF5252',      // Error Red
         button: '#8D6E63',     // Match registration
         buttonText: '#FFFFFF',
+        card: '#FFFFFF',
     },
 };
 
@@ -43,6 +45,16 @@ export type Message = {
     id: string;
     text: string;
     sender: 'user' | 'bot' | 'other';
+    type?: 'text' | 'image' | 'audio' | 'document';
+    fileName?: string;
+    fileSize?: number;
+    mimeType?: string;
+    duration?: number;
+    uploading?: boolean;
+    content?: string;
+    senderId?: number;
+    recipientId?: number;
+    roomId?: number;
     createdAt?: string;
     navTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base';
 };
@@ -59,6 +71,8 @@ export const MENU_OPTIONS = [
 
 export const FRIEND_MENU_OPTIONS = [
     'contacts.viewProfile',
+    'contacts.takePhoto',
+    'contacts.attachFile',
     'contacts.media',
     'contacts.search',
     'contacts.mute',

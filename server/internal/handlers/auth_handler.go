@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
@@ -148,17 +149,6 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Async update RAG
-	go func(u models.User) {
-		fileID, err := h.ragService.UploadProfile(u)
-		if err != nil {
-			log.Printf("Error uploading profile to RAG for user %d: %v", u.ID, err)
-		} else {
-			u.RagFileID = fileID
-			database.DB.Model(&u).Update("rag_file_id", fileID)
-		}
-	}(user)
-
 	user.Password = ""
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Profile updated successfully",
@@ -186,7 +176,30 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No avatar file provided"})
 	}
 
-	// Create uploads directory if not exists
+	// 1. Try S3 Storage
+	s3Service := services.GetS3Service()
+	if s3Service != nil {
+		fileContent, err := file.Open()
+		if err == nil {
+			defer fileContent.Close()
+			ext := filepath.Ext(file.Filename)
+			// avatars/userId_timestamp.ext to avoid caching issues + uniqueness
+			fileName := fmt.Sprintf("avatars/%s_%d%s", userId, time.Now().Unix(), ext)
+			contentType := file.Header.Get("Content-Type")
+
+			avatarURL, err := s3Service.UploadFile(c.Context(), fileContent, fileName, contentType)
+			if err == nil {
+				log.Printf("[S3] Avatar uploaded: %s", avatarURL)
+				database.DB.Model(&models.User{}).Where("id = ?", userId).Update("avatar_url", avatarURL)
+				return c.Status(fiber.StatusOK).JSON(fiber.Map{
+					"avatarUrl": avatarURL,
+				})
+			}
+			log.Printf("[S3] Error uploading: %v. Falling back to local.", err)
+		}
+	}
+
+	// 2. Fallback to Local Storage
 	uploadDir := "./uploads/avatars"
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
 		os.MkdirAll(uploadDir, 0755)
@@ -199,7 +212,6 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save avatar"})
 	}
 
-	// Update user avatar URL
 	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filename)
 	database.DB.Model(&models.User{}).Where("id = ?", userId).Update("avatar_url", avatarURL)
 

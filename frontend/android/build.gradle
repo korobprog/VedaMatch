@@ -36,3 +36,19 @@ allprojects {
     }
 }
 
+allprojects {
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.browser:browser:1.8.0'
+        }
+    }
+}
+
+subprojects {
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
+}
+

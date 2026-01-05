@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useRef, ReactNode, useEffect } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Message } from '../components/chat/ChatConstants';
@@ -8,6 +9,7 @@ import { messageService } from '../services/messageService';
 import { UserContact } from '../services/contactService';
 import { useUser } from './UserContext';
 import { useWebSocket } from './WebSocketContext';
+import { mediaService, MediaFile } from '../services/mediaService';
 
 export interface ChatHistory {
     id: string;
@@ -34,6 +36,15 @@ interface ChatContextType {
     recipientId: number | null;
     recipientUser: UserContact | null;
     setChatRecipient: (user: UserContact | null) => void;
+    isTyping: boolean;
+    handleSendMedia: (media: MediaFile) => Promise<void>;
+    isUploading: boolean;
+    uploadProgress: number;
+    isRecording: boolean;
+    recordingDuration: number;
+    startRecording: () => Promise<void>;
+    stopRecording: () => Promise<void>;
+    cancelRecording: () => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -55,8 +66,15 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const [currentChatId, setCurrentChatId] = useState<string | null>(null);
     const [recipientId, setRecipientId] = useState<number | null>(null);
     const [recipientUser, setRecipientUser] = useState<UserContact | null>(null);
+    const [isTyping, setIsTyping] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
     const { user: currentUser } = useUser();
     const { addListener } = useWebSocket();
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const isFirstRun = useRef(true);
 
@@ -156,6 +174,24 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     // WebSocket Listener for real-time messages
     useEffect(() => {
         const removeListener = addListener((msg: any) => {
+            // Handle typing events
+            if (msg.type === 'typing') {
+                if (recipientId && msg.senderId === recipientId && msg.recipientId === currentUser?.ID) {
+                    if (msg.isTyping) {
+                        setIsTyping(true);
+                        if (typingTimeoutRef.current) {
+                            clearTimeout(typingTimeoutRef.current);
+                        }
+                        typingTimeoutRef.current = setTimeout(() => {
+                            setIsTyping(false);
+                        }, 3000);
+                    } else {
+                        setIsTyping(false);
+                    }
+                }
+                return;
+            }
+
             // Check if it's a P2P message for the current chat or an AI message
             const isTargetedToMe = msg.recipientId === currentUser?.ID;
             const isFromCurrentRecipient = msg.senderId === recipientId;
@@ -193,7 +229,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             }
         });
 
-        return () => removeListener();
+        return () => {
+            removeListener();
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        };
     }, [recipientId, currentUser?.ID]);
 
     const setChatRecipient = (user: UserContact | null) => {
@@ -379,6 +420,116 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const handleSendMedia = async (media: MediaFile) => {
+        if (!currentUser?.ID) return;
+
+        try {
+            setIsUploading(true);
+            setUploadProgress(0);
+
+            const tempId = Date.now().toString();
+            const tempMessage: Message = {
+                id: tempId,
+                text: '',
+                sender: 'user',
+                type: media.type,
+                fileName: media.name,
+                fileSize: media.size,
+                uploading: true,
+                content: media.uri,
+            };
+
+            setMessages(prev => [...prev, tempMessage]);
+
+            const savedMessage = await mediaService.uploadMedia(
+                media,
+                currentUser.ID,
+                recipientId || undefined,
+                undefined
+            );
+
+            const finalMessage: Message = {
+                id: savedMessage.ID?.toString() || savedMessage.id || tempId,
+                text: savedMessage.content || '',
+                sender: 'user',
+                type: savedMessage.type || media.type,
+                fileName: savedMessage.fileName,
+                fileSize: savedMessage.fileSize,
+                duration: savedMessage.duration,
+                content: savedMessage.content,
+                senderId: savedMessage.senderId,
+                recipientId: savedMessage.recipientId,
+                createdAt: savedMessage.CreatedAt,
+            };
+
+            setMessages(prev =>
+                prev.map(m =>
+                    m.id === tempId ? finalMessage : m
+                )
+            );
+        } catch (error: any) {
+            console.error('Failed to send media:', error);
+            setMessages(prev => prev.filter(m => !m.uploading));
+            Alert.alert(
+                'Ошибка',
+                error.message || 'Не удалось отправить файл'
+            );
+        } finally {
+            setIsUploading(false);
+            setUploadProgress(0);
+        }
+    };
+
+    const startRecording = async () => {
+        try {
+            await mediaService.startRecording();
+            setIsRecording(true);
+            setRecordingDuration(0);
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingDuration(prev => prev + 1);
+            }, 1000);
+        } catch (error) {
+            console.error('Failed to start recording:', error);
+        }
+    };
+
+    const stopRecording = async () => {
+        if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+        }
+
+        try {
+            const finalDuration = recordingDuration;
+            const media = await mediaService.stopRecording();
+            media.duration = finalDuration; // Use duration from context timer
+
+            setIsRecording(false);
+            setRecordingDuration(0);
+            await handleSendMedia(media);
+        } catch (error) {
+            console.error('Failed to stop recording:', error);
+            setIsRecording(false);
+            setRecordingDuration(0);
+        }
+    };
+
+    const cancelRecording = async () => {
+        if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+        }
+
+        try {
+            await mediaService.stopRecording();
+        } catch (error) {
+            console.error('Failed to cancel recording:', error);
+        }
+
+        setIsRecording(false);
+        setRecordingDuration(0);
+    };
+
     return (
         <ChatContext.Provider value={{
             messages,
@@ -397,7 +548,16 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             deleteChat,
             recipientId,
             recipientUser,
-            setChatRecipient
+            setChatRecipient,
+            isTyping,
+            handleSendMedia,
+            isUploading,
+            uploadProgress,
+            isRecording,
+            recordingDuration,
+            startRecording,
+            stopRecording,
+            cancelRecording,
         }}>
             {children}
         </ChatContext.Provider>

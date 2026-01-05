@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     View,
     Text,
-    TextInput,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
@@ -13,26 +12,36 @@ import {
     Platform,
     Switch,
     StatusBar,
+    TextInput
 } from 'react-native';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../context/UserContext';
 import { COLORS } from '../components/chat/ChatConstants';
-import { ModernVedicTheme } from '../theme/ModernVedicTheme';
-
-
-
-import { DATING_TRADITIONS, GUNAS, YOGA_STYLES, IDENTITY_OPTIONS } from '../constants/DatingConstants';
-
-const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
-const GENDER_OPTIONS = ['Male', 'Female'];
+import {
+    DATING_TRADITIONS,
+    GUNAS,
+    YOGA_STYLES,
+    IDENTITY_OPTIONS
+} from '../constants/DatingConstants';
 
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { API_PATH } from '../config/api.config';
 import { contactService } from '../services/contactService';
+
+// Custom Components & Hooks
+import { useLocation } from '../hooks/useLocation';
+import { FormInput } from '../components/registration/FormInput';
+import { FormSelect } from '../components/registration/FormSelect';
+import { PickerContainer } from '../components/registration/PickerContainer';
+import { PickerItem } from '../components/registration/PickerItem';
+import { AvatarUploader } from '../components/registration/AvatarUploader';
+import { RadioGroup } from '../components/registration/RadioGroup';
+
+const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
+const GENDER_OPTIONS = ['Male', 'Female'];
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 
@@ -51,84 +60,36 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [karmicName, setKarmicName] = useState('');
     const [spiritualName, setSpiritualName] = useState('');
     const [dob, setDob] = useState(new Date());
-    const [madh, setMadh] = useState(''); // Optional now
+    const [madh, setMadh] = useState('');
     const [mentor, setMentor] = useState('');
     const [gender, setGender] = useState(GENDER_OPTIONS[0]);
-    const [identity, setIdentity] = useState(IDENTITY_OPTIONS[0]); // Default first option
+    const [identity, setIdentity] = useState(IDENTITY_OPTIONS[0]);
     const [yogaStyle, setYogaStyle] = useState('');
     const [guna, setGuna] = useState('');
     const [diet, setDiet] = useState(DIET_OPTIONS[2]);
     const [agreement, setAgreement] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [detectingLocation, setDetectingLocation] = useState(false);
 
-    // Store full country objects to get capital
-    const [countriesData, setCountriesData] = useState<any[]>([]);
-    const [citiesData, setCitiesData] = useState<string[]>([]);
-    const [loadingCountries, setLoadingCountries] = useState(true);
+    // Location Hook
+    const {
+        countriesData,
+        citiesData,
+        loadingCountries,
+        fetchCountries,
+        fetchCities,
+        setCitiesData,
+        autoDetectLocation
+    } = useLocation();
+
+    // UI States
     const [showCountryPicker, setShowCountryPicker] = useState(false);
     const [showCityPicker, setShowCityPicker] = useState(false);
     const [cityInputMode, setCityInputMode] = useState(false);
     const [showMadhPicker, setShowMadhPicker] = useState(false);
-    const [showGenderPicker, setShowGenderPicker] = useState(false);
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
-    const [showDietPicker, setShowDietPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
-
-    useEffect(() => {
-        fetchCountries();
-    }, []);
-
-    const fetchCountries = async () => {
-        setLoadingCountries(true);
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            const response = await fetch('https://restcountries.com/v3.1/all?fields=name,capital', {
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            if (Array.isArray(data)) {
-                const sortedData = data.sort((a: any, b: any) =>
-                    (a.name?.common || '').localeCompare(b.name?.common || '')
-                );
-                setCountriesData(sortedData);
-                console.log('Countries loaded:', sortedData.length);
-            } else {
-                throw new Error('Invalid data format from countries API');
-            }
-        } catch (error: any) {
-            console.warn('Error fetching countries (using fallback):', error?.message || 'Unknown error');
-            // Fallback: use a basic list of popular countries
-            const fallbackCountries = [
-                { name: { common: 'Russia' }, capital: ['Moscow'] },
-                { name: { common: 'United States' }, capital: ['Washington, D.C.'] },
-                { name: { common: 'India' }, capital: ['New Delhi'] },
-                { name: { common: 'United Kingdom' }, capital: ['London'] },
-                { name: { common: 'Germany' }, capital: ['Berlin'] },
-                { name: { common: 'France' }, capital: ['Paris'] },
-                { name: { common: 'Spain' }, capital: ['Madrid'] },
-                { name: { common: 'Italy' }, capital: ['Rome'] },
-                { name: { common: 'Brazil' }, capital: ['Brasília'] },
-                { name: { common: 'China' }, capital: ['Beijing'] },
-                { name: { common: 'Japan' }, capital: ['Tokyo'] },
-                { name: { common: 'Canada' }, capital: ['Ottawa'] },
-                { name: { common: 'Australia' }, capital: ['Canberra'] },
-                { name: { common: 'Mexico' }, capital: ['Mexico City'] },
-                { name: { common: 'Argentina' }, capital: ['Buenos Aires'] },
-            ];
-            setCountriesData(fallbackCountries);
-        } finally {
-            setLoadingCountries(false);
-        }
-    };
 
     const handleCountrySelect = async (cData: any) => {
         setCountry(cData.name.common);
@@ -141,86 +102,43 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         await fetchCities(cData.name.common);
     };
 
-    const fetchCities = async (countryName: string) => {
+    const handleAutoDetect = async () => {
+        setDetectingLocation(true);
         try {
-            // Using GeoNames API to get cities
-            const countryUrl = `https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fields=cca2`;
-            const countryResponse = await fetch(countryUrl);
-
-            if (countryResponse.ok) {
-                const countryData = await countryResponse.json();
-                if (countryData && countryData.length > 0) {
-                    const countryCode = countryData[0].cca2;
-                    const citiesUrl = `https://secure.geonames.org/searchJSON?country=${countryCode}&featureClass=P&maxRows=100&username=demo`;
-                    const citiesResponse = await fetch(citiesUrl);
-
-                    if (citiesResponse.ok) {
-                        const citiesData = await citiesResponse.json();
-                        if (citiesData && citiesData.geonames) {
-                            const cities = citiesData.geonames
-                                .map((city: any) => city.name)
-                                .filter((name: string, index: number, self: string[]) => self.indexOf(name) === index)
-                                .sort();
-                            setCitiesData(cities);
-                            return;
-                        }
-                    }
+            const detected = await autoDetectLocation();
+            if (detected) {
+                setCountry(detected.country);
+                if (detected.city) {
+                    setCity(detected.city);
                 }
+
+                // Fetch cities for detected country if countryData is available
+                if (detected.countryData) {
+                    await fetchCities(detected.country);
+                }
+
+                Alert.alert(
+                    t('common.success'),
+                    `${t('registration.locationDetected')}: ${detected.city ? `${detected.city}, ` : ''}${detected.country}`,
+                    [{ text: t('common.ok') }]
+                );
+            } else {
+                Alert.alert(
+                    t('common.error'),
+                    t('registration.locationDetectionFailed'),
+                    [{ text: t('common.ok') }]
+                );
             }
-
-            // Fallback to major cities
-            setCitiesData(getMajorCities(countryName));
-        } catch (error: any) {
-            console.warn('Error fetching cities (using fallback):', error?.message || 'Unknown error');
-            setCitiesData(getMajorCities(countryName));
+        } catch (error) {
+            console.error('[AutoDetect] Error:', error);
+            Alert.alert(
+                t('common.error'),
+                t('registration.locationDetectionFailed'),
+                [{ text: t('common.ok') }]
+            );
+        } finally {
+            setDetectingLocation(false);
         }
-    };
-
-    const getMajorCities = (countryName: string): string[] => {
-        // Popular cities by country (fallback)
-        const majorCities: { [key: string]: string[] } = {
-            'Russia': ['Moscow', 'Saint Petersburg', 'Novosibirsk', 'Yekaterinburg', 'Kazan', 'Nizhny Novgorod'],
-            'United States': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia'],
-            'India': ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata'],
-            'United Kingdom': ['London', 'Manchester', 'Birmingham', 'Liverpool', 'Leeds', 'Edinburgh'],
-            'Germany': ['Berlin', 'Munich', 'Hamburg', 'Cologne', 'Frankfurt', 'Stuttgart'],
-            'France': ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Nantes'],
-            'Spain': ['Madrid', 'Barcelona', 'Valencia', 'Seville', 'Bilbao', 'Malaga'],
-            'Italy': ['Rome', 'Milan', 'Naples', 'Turin', 'Palermo', 'Genoa'],
-            'Brazil': ['São Paulo', 'Rio de Janeiro', 'Brasília', 'Salvador', 'Fortaleza', 'Belo Horizonte'],
-            'China': ['Beijing', 'Shanghai', 'Guangzhou', 'Shenzhen', 'Chengdu', 'Hangzhou'],
-        };
-        return majorCities[countryName] || [];
-    };
-
-    const handleChooseAvatar = () => {
-        Alert.alert(
-            'Upload Avatar',
-            'Choose an option',
-            [
-                {
-                    text: 'Camera (Front)',
-                    onPress: () => {
-                        launchCamera({ mediaType: 'photo', cameraType: 'front', saveToPhotos: true }, (response) => {
-                            if (response.assets && response.assets.length > 0) {
-                                setAvatar(response.assets[0]);
-                            }
-                        });
-                    },
-                },
-                {
-                    text: 'Gallery',
-                    onPress: () => {
-                        launchImageLibrary({ mediaType: 'photo' }, (response) => {
-                            if (response.assets && response.assets.length > 0) {
-                                setAvatar(response.assets[0]);
-                            }
-                        });
-                    },
-                },
-                { text: 'Cancel', style: 'cancel' },
-            ]
-        );
     };
 
     const handleSubmit = async () => {
@@ -272,12 +190,13 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     madh,
                     mentor,
                     gender,
-                    identity, // Include this
+                    identity,
                     yogaStyle,
                     guna,
                     diet,
                 };
 
+                console.log('Sending profile data:', JSON.stringify(profileData, null, 2));
                 const response = await axios.put(`${API_PATH}/update-profile/${user.ID}`, profileData);
                 const updatedUser = response.data.user;
 
@@ -366,92 +285,77 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
                 {phase === 'initial' ? (
                     <>
-                        <Text style={[styles.label, { color: theme.text }]}>Email</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        <FormInput
+                            label="Email"
+                            theme={theme}
                             value={email}
                             onChangeText={setEmail}
                             keyboardType="email-address"
                             autoCapitalize="none"
                             placeholder="email@example.com"
-                            placeholderTextColor={theme.subText}
                         />
-                        <Text style={[styles.label, { color: theme.text }]}>Password</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        <FormInput
+                            label="Password"
+                            theme={theme}
                             value={password}
                             onChangeText={setPassword}
-                            secureTextEntry
+                            secureTextEntry={true}
                             placeholder="••••••••"
-                            placeholderTextColor={theme.subText}
                         />
-                        <Text style={[styles.label, { color: theme.text }]}>Confirm Password</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        <FormInput
+                            label="Confirm Password"
+                            theme={theme}
                             value={confirmPassword}
                             onChangeText={setConfirmPassword}
-                            secureTextEntry
+                            secureTextEntry={true}
                             placeholder="••••••••"
-                            placeholderTextColor={theme.subText}
                         />
                     </>
                 ) : (
                     <>
-
                         {/* Avatar */}
-                        <TouchableOpacity onPress={handleChooseAvatar} style={[styles.avatarContainer, { borderColor: theme.accent }]}>
-                            {avatar ? (
-                                <Image source={{ uri: avatar.uri }} style={styles.avatarImage} />
-                            ) : (
-                                <Text style={{ color: theme.subText }}>Add Photo</Text>
-                            )}
-                        </TouchableOpacity>
+                        <AvatarUploader
+                            avatar={avatar}
+                            onAvatarChange={setAvatar}
+                            theme={theme}
+                        />
 
                         {/* Gender */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.gender')}</Text>
-                        <View style={{ flexDirection: 'row', marginBottom: 10 }}>
-                            {GENDER_OPTIONS.map((g) => (
-                                <TouchableOpacity
-                                    key={g}
-                                    style={[
-                                        styles.radioBtn,
-                                        { borderColor: theme.borderColor, backgroundColor: gender === g ? theme.button : 'transparent' }
-                                    ]}
-                                    onPress={() => setGender(g)}
-                                >
-                                    <Text style={{ color: gender === g ? theme.buttonText : theme.text }}>{g}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        <RadioGroup
+                            label={t('registration.gender')}
+                            options={GENDER_OPTIONS}
+                            value={gender}
+                            onChange={setGender}
+                            theme={theme}
+                            layout="row"
+                        />
 
                         {/* Name Fields */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.karmicName')}</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        <FormInput
+                            label={t('registration.karmicName')}
+                            theme={theme}
                             value={karmicName}
                             onChangeText={setKarmicName}
                             placeholder="e.g., Ivan Ivanov"
-                            placeholderTextColor={theme.subText}
                         />
 
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.spiritualName')}</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        <FormInput
+                            label={t('registration.spiritualName')}
+                            theme={theme}
                             value={spiritualName}
                             onChangeText={setSpiritualName}
                             placeholder="e.g., Das Anu Das"
-                            placeholderTextColor={theme.subText}
                         />
 
 
                         {/* Date of Birth */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.dob')}</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        <FormSelect
+                            label={t('registration.dob')}
+                            value={dob.toLocaleString()}
+                            placeholder=""
+                            theme={theme}
                             onPress={() => setOpenDatePicker(true)}
-                        >
-                            <Text style={{ color: theme.inputText }}>{dob.toLocaleString()}</Text>
-                        </TouchableOpacity>
+                        />
                         <DatePicker
                             modal
                             open={openDatePicker}
@@ -467,9 +371,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         />
 
                         {/* Country */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.country')}</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        <FormSelect
+                            label={t('registration.country')}
+                            value={country}
+                            placeholder={t('registration.selectCountry')}
+                            theme={theme}
                             onPress={() => {
                                 if (loadingCountries) {
                                     Alert.alert('Loading', 'Please wait, countries are being loaded...');
@@ -482,31 +388,44 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                 }
                                 setShowCountryPicker(!showCountryPicker);
                             }}
-                            disabled={loadingCountries}
+                            loading={loadingCountries}
+                            loadingText={t('registration.loadingCountries')}
+                        />
+
+                        {/* Auto-detect Location Button */}
+                        <TouchableOpacity
+                            style={[
+                                styles.autoDetectButton,
+                                { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }
+                            ]}
+                            onPress={handleAutoDetect}
+                            disabled={detectingLocation}
                         >
-                            <Text style={{ color: country ? theme.inputText : theme.subText }}>
-                                {loadingCountries ? t('registration.loadingCountries') : (country || t('registration.selectCountry'))}
-                            </Text>
+                            {detectingLocation ? (
+                                <ActivityIndicator size="small" color={theme.button} />
+                            ) : (
+                                <Text style={[styles.autoDetectText, { color: theme.button }]}>
+                                    {t('registration.detectLocation')}
+                                </Text>
+                            )}
                         </TouchableOpacity>
+
                         {showCountryPicker && countriesData.length > 0 && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, zIndex: 1000 }]}>
-                                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                                    {countriesData.map((c: any) => (
-                                        <TouchableOpacity
-                                            key={c.name.common}
-                                            style={styles.pickerItem}
-                                            onPress={() => handleCountrySelect(c)}
-                                        >
-                                            <Text style={{ color: theme.inputText }}>{c.name.common}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
+                            <PickerContainer theme={theme}>
+                                {countriesData.map((c: any) => (
+                                    <PickerItem
+                                        key={c.name.common}
+                                        label={c.name.common}
+                                        theme={theme}
+                                        onPress={() => handleCountrySelect(c)}
+                                    />
+                                ))}
+                            </PickerContainer>
                         )}
                         {showCountryPicker && countriesData.length === 0 && !loadingCountries && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                            <PickerContainer theme={theme}>
                                 <Text style={{ color: theme.subText, padding: 12 }}>No countries available. Tap to retry.</Text>
-                            </View>
+                            </PickerContainer>
                         )}
 
                         {/* City */}
@@ -537,23 +456,26 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                     )}
                                 </View>
                                 {showCityPicker && citiesData.length > 0 && (
-                                    <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
-                                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                                            <TouchableOpacity style={styles.pickerItem} onPress={() => { setCity(''); setShowCityPicker(false); }}>
-                                                <Text style={{ color: theme.subText }}>Clear</Text>
-                                            </TouchableOpacity>
-                                            {citiesData.map((cityName: string) => (
-                                                <TouchableOpacity key={cityName} style={styles.pickerItem} onPress={() => { setCity(cityName); setShowCityPicker(false); }}>
-                                                    <Text style={{ color: theme.inputText }}>{cityName}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </ScrollView>
-                                    </View>
+                                    <PickerContainer theme={theme}>
+                                        <PickerItem
+                                            label="Clear"
+                                            theme={theme}
+                                            onPress={() => { setCity(''); setShowCityPicker(false); }}
+                                        />
+                                        {citiesData.map((cityName: string) => (
+                                            <PickerItem
+                                                key={cityName}
+                                                label={cityName}
+                                                theme={theme}
+                                                onPress={() => { setCity(cityName); setShowCityPicker(false); }}
+                                            />
+                                        ))}
+                                    </PickerContainer>
                                 )}
                                 {showCityPicker && citiesData.length === 0 && country && (
-                                    <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                    <PickerContainer theme={theme}>
                                         <Text style={{ color: theme.subText, padding: 12 }}>Loading cities...</Text>
-                                    </View>
+                                    </PickerContainer>
                                 )}
                             </>
                         ) : (
@@ -576,101 +498,82 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         )}
 
                         {/* Madh */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.madh')}</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        <FormSelect
+                            label={t('registration.madh')}
+                            value={madh}
+                            placeholder="Select Tradition"
+                            theme={theme}
                             onPress={() => setShowMadhPicker(!showMadhPicker)}
-                        >
-                            <Text style={{ color: madh ? theme.inputText : theme.subText }}>{madh || 'Select Tradition'}</Text>
-                        </TouchableOpacity>
+                        />
                         {showMadhPicker && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
-                                <TouchableOpacity style={styles.pickerItem} onPress={() => { setMadh(''); setShowMadhPicker(false); }}>
-                                    <Text style={{ color: theme.subText }}>None</Text>
-                                </TouchableOpacity>
+                            <PickerContainer theme={theme}>
+                                <PickerItem label="None" theme={theme} onPress={() => { setMadh(''); setShowMadhPicker(false); }} />
                                 {DATING_TRADITIONS.map((m) => (
-                                    <TouchableOpacity key={m} style={styles.pickerItem} onPress={() => { setMadh(m); setShowMadhPicker(false); }}>
-                                        <Text style={{ color: theme.inputText }}>{m}</Text>
-                                    </TouchableOpacity>
+                                    <PickerItem key={m} label={m} theme={theme} onPress={() => { setMadh(m); setShowMadhPicker(false); }} />
                                 ))}
-                            </View>
+                            </PickerContainer>
                         )}
 
                         {/* Mentor */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.mentor')}</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        <FormInput
+                            label={t('registration.mentor')}
+                            theme={theme}
                             value={mentor}
                             onChangeText={setMentor}
                             placeholder="Current Shiksha/Diksha Guru"
-                            placeholderTextColor={theme.subText}
                         />
 
-
-
                         {/* Identity */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.identity')}</Text>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                            {IDENTITY_OPTIONS.map((opt) => (
-                                <TouchableOpacity
-                                    key={opt}
-                                    style={[styles.radioBtn, { borderColor: theme.borderColor, backgroundColor: identity === opt ? theme.button : 'transparent' }]}
-                                    onPress={() => setIdentity(opt)}
-                                >
-                                    <Text style={{ color: identity === opt ? theme.buttonText : theme.text }}>{opt}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        <RadioGroup
+                            label={t('registration.identity')}
+                            options={IDENTITY_OPTIONS}
+                            value={identity}
+                            onChange={setIdentity}
+                            theme={theme}
+                            layout="row"
+                        />
 
                         {/* Yoga Style */}
-                        <Text style={[styles.label, { color: theme.text }]}>Yoga Style</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        <FormSelect
+                            label="Yoga Style"
+                            value={yogaStyle}
+                            placeholder="Select Yoga Style"
+                            theme={theme}
                             onPress={() => setShowYogaPicker(!showYogaPicker)}
-                        >
-                            <Text style={{ color: yogaStyle ? theme.inputText : theme.subText }}>{yogaStyle || 'Select Yoga Style'}</Text>
-                        </TouchableOpacity>
+                        />
                         {showYogaPicker && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                            <PickerContainer theme={theme}>
                                 {YOGA_STYLES.map((y) => (
-                                    <TouchableOpacity key={y} style={styles.pickerItem} onPress={() => { setYogaStyle(y); setShowYogaPicker(false); }}>
-                                        <Text style={{ color: theme.inputText }}>{y}</Text>
-                                    </TouchableOpacity>
+                                    <PickerItem key={y} label={y} theme={theme} onPress={() => { setYogaStyle(y); setShowYogaPicker(false); }} />
                                 ))}
-                            </View>
+                            </PickerContainer>
                         )}
 
                         {/* Guna */}
-                        <Text style={[styles.label, { color: theme.text }]}>Mode of Nature (Guna)</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                        <FormSelect
+                            label="Mode of Nature (Guna)"
+                            value={guna}
+                            placeholder="Select Guna"
+                            theme={theme}
                             onPress={() => setShowGunaPicker(!showGunaPicker)}
-                        >
-                            <Text style={{ color: guna ? theme.inputText : theme.subText }}>{guna || 'Select Guna'}</Text>
-                        </TouchableOpacity>
+                        />
                         {showGunaPicker && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                            <PickerContainer theme={theme}>
                                 {GUNAS.map((g) => (
-                                    <TouchableOpacity key={g} style={styles.pickerItem} onPress={() => { setGuna(g); setShowGunaPicker(false); }}>
-                                        <Text style={{ color: theme.inputText }}>{g}</Text>
-                                    </TouchableOpacity>
+                                    <PickerItem key={g} label={g} theme={theme} onPress={() => { setGuna(g); setShowGunaPicker(false); }} />
                                 ))}
-                            </View>
+                            </PickerContainer>
                         )}
 
                         {/* Diet */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.diet')}</Text>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                            {DIET_OPTIONS.map((opt) => (
-                                <TouchableOpacity
-                                    key={opt}
-                                    style={[styles.radioBtn, { borderColor: theme.borderColor, backgroundColor: diet === opt ? theme.button : 'transparent' }]}
-                                    onPress={() => setDiet(opt)}
-                                >
-                                    <Text style={{ color: diet === opt ? theme.buttonText : theme.text }}>{opt}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        <RadioGroup
+                            label={t('registration.diet')}
+                            options={DIET_OPTIONS}
+                            value={diet}
+                            onChange={setDiet}
+                            theme={theme}
+                            layout="row"
+                        />
                     </>
                 )}
 
@@ -693,7 +596,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     onPress={handleSubmit}
                     disabled={loading}
                 >
-                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>{phase === 'initial' ? 'Next' : t('registration.submit')}</Text>}
+                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>{phase === 'initial' ? 'Next' : (phase === 'profile' ? 'Update Profile' : t('registration.submit'))}</Text>}
                 </TouchableOpacity>
 
                 {phase === 'initial' && (
@@ -736,25 +639,30 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
+    skipButton: {
+        padding: 10,
+    },
+    skipText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
     content: {
         padding: 20,
         paddingBottom: 50,
     },
-    avatarContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        borderWidth: 2,
-        alignSelf: 'center',
-        justifyContent: 'center',
+    logoHeaderContainer: {
         alignItems: 'center',
         marginBottom: 20,
-        overflow: 'hidden',
-        borderStyle: 'dashed',
     },
-    avatarImage: {
-        width: '100%',
-        height: '100%',
+    logoWrapper: {
+        width: 80,
+        height: 80,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    logoImage: {
+        width: 60,
+        height: 60,
     },
     label: {
         fontSize: 14,
@@ -769,26 +677,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         height: 50,
     },
-    pickerContainer: {
-        borderWidth: 1,
-        borderRadius: 8,
-        marginTop: 5,
-        maxHeight: 200,
-        overflow: 'hidden',
-    },
-    pickerItem: {
-        padding: 12,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#333',
-    },
-    radioBtn: {
-        paddingHorizontal: 15,
-        paddingVertical: 8,
-        borderWidth: 1,
-        borderRadius: 20,
-        marginRight: 10,
-        marginBottom: 10,
-    },
     checkboxContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -798,47 +686,33 @@ const styles = StyleSheet.create({
     checkboxLabel: {
         flex: 1,
         marginLeft: 10,
-        fontSize: 13,
     },
     submitButton: {
-        paddingVertical: 15,
-        borderRadius: 25,
+        height: 50,
+        borderRadius: 8,
+        justifyContent: 'center',
         alignItems: 'center',
         marginTop: 10,
     },
     submitButtonText: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 'bold',
     },
-    skipButton: {
-        padding: 5,
-        width: 60,
-        alignItems: 'flex-end',
-    },
-    skipText: {
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    logoHeaderContainer: {
+    autoDetectButton: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 24,
-        marginTop: 10,
-    },
-    logoWrapper: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: 'rgba(255, 255, 255, 0.4)',
         justifyContent: 'center',
-        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 8,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.6)',
-        ...ModernVedicTheme.shadows.soft,
-        shadowOpacity: 0.1,
+        marginTop: 10,
+        marginBottom: 5,
+        gap: 8,
     },
-    logoImage: {
-        width: 70,
-        height: 70,
+    autoDetectText: {
+        fontSize: 14,
+        fontWeight: '600',
     },
 });
 

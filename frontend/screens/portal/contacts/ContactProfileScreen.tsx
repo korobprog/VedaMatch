@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, useColorScheme, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../../../types/navigation';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { contactService, UserContact } from '../../../services/contactService';
@@ -8,6 +9,7 @@ import { useUser } from '../../../context/UserContext';
 import { useChat } from '../../../context/ChatContext';
 import { API_BASE_URL } from '../../../config/api.config';
 import { useTranslation } from 'react-i18next';
+import { getMediaUrl } from '../../../utils/url';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactProfile'>;
 
@@ -83,9 +85,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
         );
     }
 
-    const avatarUrl = contact.avatarUrl
-        ? `${API_BASE_URL}${contact.avatarUrl}`
-        : null;
+    const avatarUrl = getMediaUrl(contact.avatarUrl);
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -122,7 +122,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
 
                 <View style={styles.infoSection}>
                     <InfoItem label="Identity" value={contact.identity || 'Devotee'} theme={theme} />
-                    <InfoItem label="Location" value={`${contact.city}, ${contact.country}`} theme={theme} />
+                    <InfoItem label="Location" value={`${contact.city}, ${contact.country} `} theme={theme} />
                     <InfoItem label="Email" value={contact.email} theme={theme} />
                 </View>
 

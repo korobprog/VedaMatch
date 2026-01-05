@@ -2,6 +2,7 @@ export default {
     common: {
         error: 'Error',
         success: 'Success',
+        info: 'Info',
         cancel: 'Cancel',
         ok: 'OK',
         loading: 'Loading...',
@@ -117,10 +118,15 @@ export default {
         karmicNameRequired: 'Karmic Name is required',
         agreementRequired: 'You must agree to the data processing policy',
         successMsg: 'Profile successfully registered! Data saved and will be processed by AI.',
+        detectLocation: 'Detect via GPS',
+        locationDetected: 'Location detected',
+        locationDetectionFailed: 'Failed to detect location. Check GPS permission.',
+        detectingLocation: 'Detecting location...',
     },
     settings: {
         title: 'Portal',
         appSettings: 'Settings',
+        profile: 'Profile',
         aiModels: 'AI Models',
         selectModel: 'Select Model',
         text: 'Text',
@@ -149,7 +155,12 @@ export default {
             knowledge_base: 'Knowledge Base'
         },
         language: 'Language',
-        selectLanguage: 'Select Language'
+        selectLanguage: 'Select Language',
+        location: 'Location',
+        clearLocationCache: 'Clear Location Cache',
+        locationCacheDescription: 'Clear countries and cities cache to update data',
+        locationCacheCleared: 'Cache Cleared',
+        locationCacheClearedMsg: 'Countries and cities data will be reloaded on next request'
     },
     auth: {
         login: 'Login',
@@ -161,6 +172,8 @@ export default {
         sendMessage: 'Send Message',
         friendsOnly: 'Friends only',
         viewProfile: 'View Profile',
+        takePhoto: 'Take Photo',
+        attachFile: 'Attach File',
         media: 'Media & Files',
         search: 'Search in Chat',
         mute: 'Mute Notifications',
@@ -205,6 +218,34 @@ export default {
         mainPhotoBadge: 'Main',
         totalProfiles: 'Total Profiles',
         inYourCity: 'In Your City',
-        newLast24h: 'New (24h)'
+        newLast24h: 'New (24h)',
+        madh: 'Madh',
+        selectTradition: 'Select Tradition',
+        identity: 'Identity',
+        yogaStyle: 'Yoga Style',
+        selectStyle: 'Select Style',
+        guna: 'Guna',
+        selectGuna: 'Select Guna',
+        diet: 'Diet',
+        profile: 'Dating Profile',
+        enableProfile: 'Enable Dating Profile',
+        bio: 'About Me',
+        bioPlaceholder: 'Tell about yourself',
+        interests: 'Interests',
+        interestsPlaceholder: 'Your interests and hobbies',
+        lookingFor: 'Looking For',
+        lookingForPlaceholder: 'Describe your ideal partner',
+        maritalStatus: 'Marital Status',
+        birthTime: 'Birth Time'
+    },
+    profile: {
+        editProfile: 'Edit Profile',
+        editProfileDesc: 'Update your personal information',
+        updateSuccess: 'Profile updated successfully!',
+        personalInfo: 'Personal Info',
+        spiritualInfo: 'Spiritual Info',
+        yogaPractice: 'Yoga & Practice',
+        avatar: 'Avatar',
+        changeAvatar: 'Change Avatar'
     }
 };

@@ -2,6 +2,22 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Camera and Media permissions for image picking -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <!-- Audio recording permissions -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Network and location for some features -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"

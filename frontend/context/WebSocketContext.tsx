@@ -4,6 +4,7 @@ import { WebSocketService } from '../services/websocketService';
 
 interface WebSocketContextType {
     addListener: (listener: (msg: any) => void) => () => void;
+    sendTypingIndicator: (recipientId: number, isTyping: boolean) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -36,8 +37,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
     };
 
+    const sendTypingIndicator = (recipientId: number, isTyping: boolean) => {
+        if (wsServiceRef.current) {
+            wsServiceRef.current.sendTypingIndicator(recipientId, isTyping);
+        }
+    };
+
     return (
-        <WebSocketContext.Provider value={{ addListener }}>
+        <WebSocketContext.Provider value={{ addListener, sendTypingIndicator }}>
             {children}
         </WebSocketContext.Provider>
     );

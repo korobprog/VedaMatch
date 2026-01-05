@@ -2,6 +2,7 @@ export default {
     common: {
         error: 'Ошибка',
         success: 'Успешно',
+        info: 'Информация',
         cancel: 'Отмена',
         ok: 'OK',
         loading: 'Загрузка...',
@@ -121,10 +122,15 @@ export default {
         karmicNameRequired: 'Кармическое имя обязательно для заполнения',
         agreementRequired: 'Вы должны согласиться с политикой обработки данных',
         successMsg: 'Профиль успешно зарегистрирован! Данные сохранены в базе данных и будут обработаны ИИ системой.',
+        detectLocation: 'Определить по GPS',
+        locationDetected: 'Локация определена',
+        locationDetectionFailed: 'Не удалось определить локацию. Проверьте разрешение на геолокацию.',
+        detectingLocation: 'Определение локации...',
     },
     settings: {
         title: 'Портал',
         appSettings: 'Настройки',
+        profile: 'Профиль',
         aiModels: 'ИИ Модели',
         selectModel: 'Выберите модель',
         text: 'Текст',
@@ -153,7 +159,12 @@ export default {
             knowledge_base: 'База знаний'
         },
         language: 'Язык',
-        selectLanguage: 'Выберите язык'
+        selectLanguage: 'Выберите язык',
+        location: 'Локация',
+        clearLocationCache: 'Очистить кеш локаций',
+        locationCacheDescription: 'Очистить кеш стран и городов для обновления данных',
+        locationCacheCleared: 'Кеш очищен',
+        locationCacheClearedMsg: 'Данные о странах и городах будут загружены заново при следующем запросе'
     },
     auth: {
         login: 'Войти',
@@ -165,6 +176,8 @@ export default {
         sendMessage: 'Отправить сообщение',
         friendsOnly: 'Только для друзей',
         viewProfile: 'Посмотреть профиль',
+        takePhoto: 'Сделать фото',
+        attachFile: 'Закрепить файл',
         media: 'Медиа и файлы',
         search: 'Поиск в чате',
         mute: 'Убрать звук',
@@ -210,6 +223,34 @@ export default {
         mainPhotoBadge: 'Главное',
         totalProfiles: 'Всего анкет',
         inYourCity: 'В вашем городе',
-        newLast24h: 'Новые за 24ч'
+        newLast24h: 'Новые за 24ч',
+        madh: 'Матх',
+        selectTradition: 'Выберите сампрадаю',
+        identity: 'Самоидентификация',
+        yogaStyle: 'Стиль йоги',
+        selectStyle: 'Выберите стиль',
+        guna: 'Гуна',
+        selectGuna: 'Выберите гуну',
+        diet: 'Питание',
+        profile: 'Профиль знакомств',
+        enableProfile: 'Включить профиль знакомств',
+        bio: 'О себе',
+        bioPlaceholder: 'Расскажите о себе',
+        interests: 'Интересы',
+        interestsPlaceholder: 'Ваши интересы и хобби',
+        lookingFor: 'Кого ищу',
+        lookingForPlaceholder: 'Опишите идеального партнера',
+        maritalStatus: 'Семейное положение',
+        birthTime: 'Время рождения'
+    },
+    profile: {
+        editProfile: 'Редактировать профиль',
+        editProfileDesc: 'Обновите личную информацию',
+        updateSuccess: 'Профиль успешно обновлен!',
+        personalInfo: 'Персональные данные',
+        spiritualInfo: 'Духовная информация',
+        yogaPractice: 'Йога и Практика',
+        avatar: 'Аватар',
+        changeAvatar: 'Изменить аватар'
     }
 };

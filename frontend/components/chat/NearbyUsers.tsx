@@ -7,15 +7,13 @@ import {
 	TouchableOpacity,
 	Image,
 	ActivityIndicator,
-	TextInput,
-	Slider,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { COLORS } from './ChatConstants';
+import { getMediaUrl } from '../../utils/url';
 import { nearbyService, UserWithDistance } from '../../services/nearbyService';
 import { useChat } from '../../context/ChatContext';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL } from '../../config/api.config';
-import { useColorScheme } from 'react-native';
 
 interface NearbyUsersProps {
 	latitude: number;
@@ -54,7 +52,7 @@ export const NearbyUsers: React.FC<NearbyUsersProps> = ({ latitude, longitude, t
 	};
 
 	const renderItem = ({ item }: { item: UserWithDistance }) => {
-		const avatarUrl = item.avatarUrl ? `${API_BASE_URL}${item.avatarUrl}` : null;
+		const avatarUrl = getMediaUrl(item.avatarUrl);
 
 		return (
 			<TouchableOpacity

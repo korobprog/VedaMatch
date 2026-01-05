@@ -2,7 +2,6 @@ package websocket
 
 import (
 	"log"
-	"rag-agent-server/internal/models"
 
 	"github.com/gofiber/websocket/v2"
 )
@@ -11,7 +10,7 @@ type Client struct {
 	Hub    *Hub
 	Conn   *websocket.Conn
 	UserID uint
-	Send   chan models.Message
+	Send   chan WSMessage
 }
 
 func (c *Client) ReadPump() {
@@ -27,7 +26,6 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
-		// Inbound messages from WebSocket can be handled here if needed
 	}
 }
 

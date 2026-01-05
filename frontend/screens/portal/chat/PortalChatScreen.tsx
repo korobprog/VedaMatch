@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, ActivityIndicator, RefreshControl, Alert, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { getMediaUrl } from '../../../utils/url';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
@@ -74,26 +75,28 @@ export const PortalChatScreen: React.FC = () => {
         fetchRooms();
     };
 
-    const renderItem = ({ item }: any) => {
+    const renderItem = ({ item }: { item: any }) => {
+        const mediaUrl = getMediaUrl(item.imageUrl);
         const emoji = EMOJI_MAP[item.imageUrl] || EMOJI_MAP['general'];
 
         return (
             <TouchableOpacity
                 style={[styles.chatItem, { borderBottomColor: theme.borderColor }]}
-                onPress={() => {
-                    navigation.navigate('RoomChat', { roomId: item.ID, roomName: item.name });
-                }}
+                onPress={() => navigation.navigate('RoomChat', { roomId: item.id, roomName: item.name })}
                 onLongPress={() => {
-                    setSelectedRoomId(item.ID);
-                    setSelectedRoomImageUrl(item.imageUrl || 'general');
-                    // Show menu with options
+                    // Admins only or everyone? Let's say everyone can invite for now
+                    setSelectedRoomId(item.id);
                     Alert.alert(
                         item.name,
-                        t('chat.chooseAction'),
+                        t('chat.roomOptions'),
                         [
                             {
-                                text: t('chat.editRoomImage'),
-                                onPress: () => setEditImageVisible(true),
+                                text: t('chat.editImage'),
+                                onPress: () => {
+                                    setSelectedRoomId(item.id);
+                                    setSelectedRoomImageUrl(item.imageUrl || 'general');
+                                    setEditImageVisible(true);
+                                }
                             },
                             {
                                 text: t('chat.inviteFriends'),
@@ -108,7 +111,11 @@ export const PortalChatScreen: React.FC = () => {
                 }}
             >
                 <View style={[styles.chatIcon, { backgroundColor: theme.accent }]}>
-                    <Text style={{ fontSize: 20 }}>{emoji}</Text>
+                    {mediaUrl ? (
+                        <Image source={{ uri: mediaUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                    ) : (
+                        <Text style={{ fontSize: 20 }}>{emoji}</Text>
+                    )}
                 </View>
                 <View style={styles.chatInfo}>
                     <View style={styles.chatHeaderRow}>
@@ -137,50 +144,50 @@ export const PortalChatScreen: React.FC = () => {
         <ProtectedScreen>
             <View style={styles.container}>
                 <FlatList
-                data={rooms}
-                keyExtractor={item => item.ID.toString()}
-                renderItem={renderItem}
-                contentContainerStyle={styles.list}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.accent]} />
-                }
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Text style={{ color: theme.subText }}>{t('chat.noRooms')}</Text>
-                    </View>
-                }
-            />
-            {/* Create Room Button (FAB) */}
-            <TouchableOpacity
-                style={[styles.fab, { backgroundColor: theme.accent }]}
-                onPress={() => setModalVisible(true)}
-            >
-                <Text style={styles.fabText}>+</Text>
-            </TouchableOpacity>
+                    data={rooms}
+                    keyExtractor={item => item.ID.toString()}
+                    renderItem={renderItem}
+                    contentContainerStyle={styles.list}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.accent]} />
+                    }
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Text style={{ color: theme.subText }}>{t('chat.noRooms')}</Text>
+                        </View>
+                    }
+                />
+                {/* Create Room Button (FAB) */}
+                <TouchableOpacity
+                    style={[styles.fab, { backgroundColor: theme.accent }]}
+                    onPress={() => setModalVisible(true)}
+                >
+                    <Text style={styles.fabText}>+</Text>
+                </TouchableOpacity>
 
-            <CreateRoomModal
-                visible={modalVisible}
-                onClose={() => setModalVisible(false)}
-                onRoomCreated={fetchRooms}
-            />
+                <CreateRoomModal
+                    visible={modalVisible}
+                    onClose={() => setModalVisible(false)}
+                    onRoomCreated={fetchRooms}
+                />
 
-            {selectedRoomId && (
-                <>
-                    <InviteFriendModal
-                        visible={inviteVisible}
-                        onClose={() => setInviteVisible(false)}
-                        roomId={selectedRoomId}
-                    />
-                    <EditRoomImageModal
-                        visible={editImageVisible}
-                        onClose={() => setEditImageVisible(false)}
-                        roomId={selectedRoomId}
-                        currentImageUrl={selectedRoomImageUrl}
-                        onImageUpdated={fetchRooms}
-                    />
-                </>
-            )}
-        </View>
+                {selectedRoomId && (
+                    <>
+                        <InviteFriendModal
+                            visible={inviteVisible}
+                            onClose={() => setInviteVisible(false)}
+                            roomId={selectedRoomId}
+                        />
+                        <EditRoomImageModal
+                            visible={editImageVisible}
+                            onClose={() => setEditImageVisible(false)}
+                            roomId={selectedRoomId}
+                            currentImageUrl={selectedRoomImageUrl}
+                            onImageUpdated={fetchRooms}
+                        />
+                    </>
+                )}
+            </View>
         </ProtectedScreen>
     );
 };

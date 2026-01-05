@@ -1,10 +1,8 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,17 +11,10 @@ import (
 	"rag-agent-server/internal/services"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
-
-type TestResult struct {
-	ModelID      string `json:"modelId"`
-	Status       string `json:"status"`
-	ResponseTime int64  `json:"responseTime"`
-}
 
 type AiHandler struct{}
 
@@ -231,115 +222,18 @@ func (h *AiHandler) DeleteModel(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Model deleted successfully"})
 }
 
-// TestModel tests model response speed and status
+// TestModel tests model response speed and status via Service
 func (h *AiHandler) TestModel(c *fiber.Ctx) error {
 	id := c.Params("id")
-	var aiModel models.AiModel
-	if err := database.DB.First(&aiModel, id).Error; err != nil {
+	testService := services.GetModelTestingService()
+
+	aiModel, status, duration, err := testService.TestSingleModel(id)
+
+	if err != nil && status == "offline" && strings.Contains(err.Error(), "not found") {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Model not found"})
 	}
 
-	apiKey := os.Getenv("API_OPEN_AI")
-	if apiKey == "" {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "API_OPEN_AI key not set"})
-	}
-
-	// Special handling for Gemini/Google models
-	if strings.HasPrefix(aiModel.ModelID, "gemini") || aiModel.Provider == "Google" {
-		geminiService := services.GetGeminiService()
-		if geminiService.HasKeys() {
-			start := time.Now()
-			messages := []map[string]string{
-				{"role": "user", "content": "hi"},
-			}
-			// Use the service to test connectivity
-			_, err := geminiService.SendMessage(aiModel.ModelID, messages)
-			duration := time.Since(start).Milliseconds()
-
-			status := "online"
-			if err != nil {
-				log.Printf("Gemini Test error for model %s: %v", aiModel.ModelID, err)
-				status = "error"
-			}
-
-			aiModel.LastTestStatus = status
-			aiModel.LastResponseTime = duration
-			database.DB.Save(&aiModel)
-
-			return c.JSON(fiber.Map{
-				"status":       status,
-				"responseTime": duration,
-				"model":        aiModel,
-			})
-		}
-	}
-
-	// Prepare request based on Provider
-	var req *http.Request
-	var err error
-	testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
-
-	if aiModel.Provider == "PollinationsAI" {
-		// Pollinations direct test
-		// Request a tiny image to test connectivity
-		testURL = "https://image.pollinations.ai/prompt/test?width=16&height=16"
-		req, err = http.NewRequest("GET", testURL, nil)
-		if err == nil {
-			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		}
-	} else {
-		// Standard aggregator test
-		var testBody map[string]interface{}
-		if aiModel.Category == "image" {
-			testBody = map[string]interface{}{
-				"model":    aiModel.ModelID,
-				"provider": aiModel.Provider,
-				"messages": []map[string]string{
-					{"role": "user", "content": "a small cat"},
-				},
-			}
-		} else {
-			testBody = map[string]interface{}{
-				"model":    aiModel.ModelID,
-				"provider": aiModel.Provider,
-				"messages": []map[string]string{
-					{"role": "user", "content": "hi"},
-				},
-				"max_tokens": 5,
-			}
-		}
-		jsonBody, _ := json.Marshal(testBody)
-		req, err = http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request"})
-	}
-
-	start := time.Now()
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	duration := time.Since(start).Milliseconds()
-
-	status := "online"
-	if err != nil {
-		log.Printf("Test error for model %s: %v", aiModel.ModelID, err)
-		status = "offline"
-	} else if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		log.Printf("Test failed with status %d for model %s: %s", resp.StatusCode, aiModel.ModelID, string(respBody))
-		status = "error"
-		resp.Body.Close()
-	} else {
-		resp.Body.Close()
-	}
-
-	aiModel.LastTestStatus = status
-	aiModel.LastResponseTime = duration
-	database.DB.Save(&aiModel)
-
+	// We return the model even if test failed, but with updated status
 	return c.JSON(fiber.Map{
 		"status":       status,
 		"responseTime": duration,
@@ -347,144 +241,10 @@ func (h *AiHandler) TestModel(c *fiber.Ctx) error {
 	})
 }
 
-// performBulkTestInternal runs logic for bulk testing without HTTP context
-func (h *AiHandler) performBulkTestInternal() ([]TestResult, error) {
-	var aiModels []models.AiModel
-	if err := database.DB.Where("is_enabled = ?", true).Find(&aiModels).Error; err != nil {
-		return nil, err
-	}
-
-	apiKey := os.Getenv("API_OPEN_AI")
-	if apiKey == "" {
-		return nil, fmt.Errorf("API key not set")
-	}
-
-	resultsChan := make(chan TestResult, len(aiModels))
-	var wg sync.WaitGroup
-
-	for _, m := range aiModels {
-		wg.Add(1)
-		go func(model models.AiModel) {
-			defer wg.Done()
-
-			var req *http.Request
-			var err error
-
-			if strings.HasPrefix(model.ModelID, "gemini") || model.Provider == "Google" {
-				geminiService := services.GetGeminiService()
-				status := "offline"
-				var duration int64 = 0
-
-				if geminiService.HasKeys() {
-					start := time.Now()
-					messages := []map[string]string{
-						{"role": "user", "content": "hi"},
-					}
-					_, err := geminiService.SendMessage(model.ModelID, messages)
-					duration = time.Since(start).Milliseconds()
-
-					if err == nil {
-						status = "online"
-					} else {
-						status = "error"
-						log.Printf("Gemini Bulk Test error for %s: %v", model.ModelID, err)
-					}
-				}
-
-				database.DB.Model(&models.AiModel{}).Where("id = ?", model.ID).Updates(map[string]interface{}{
-					"last_test_status":   status,
-					"last_response_time": duration,
-				})
-
-				resultsChan <- TestResult{
-					ModelID:      model.ModelID,
-					Status:       status,
-					ResponseTime: duration,
-				}
-				return
-			}
-
-			if model.Provider == "PollinationsAI" {
-				testURL := "https://image.pollinations.ai/prompt/test?width=16&height=16"
-				req, err = http.NewRequest("GET", testURL, nil)
-			} else {
-				// Standard Aggregator
-				testURL := "https://rvlautoai.ru/webhook/v1/chat/completions"
-				var testBody map[string]interface{}
-
-				if model.Category == "image" {
-					testBody = map[string]interface{}{
-						"model":    model.ModelID,
-						"provider": model.Provider,
-						"messages": []map[string]string{{"role": "user", "content": "a small cat"}},
-					}
-				} else {
-					testBody = map[string]interface{}{
-						"model":      model.ModelID,
-						"provider":   model.Provider,
-						"messages":   []map[string]string{{"role": "user", "content": "hi"}},
-						"max_tokens": 5,
-					}
-				}
-
-				jsonBody, _ := json.Marshal(testBody)
-				req, err = http.NewRequest("POST", testURL, bytes.NewBuffer(jsonBody))
-				req.Header.Set("Content-Type", "application/json")
-				req.Header.Set("Authorization", "Bearer "+apiKey)
-			}
-
-			if err != nil {
-				// Should not happen if params are ok
-				log.Printf("Err creating request for %s: %v", model.ModelID, err)
-				resultsChan <- TestResult{ModelID: model.ModelID, Status: "error", ResponseTime: 0}
-				return
-			}
-
-			start := time.Now()
-			client := &http.Client{Timeout: 60 * time.Second}
-			resp, err := client.Do(req)
-			duration := time.Since(start).Milliseconds()
-
-			status := "online"
-			if err != nil {
-				status = "offline"
-			} else if resp.StatusCode != http.StatusOK {
-				status = "error"
-				if resp.Body != nil {
-					resp.Body.Close()
-				}
-			} else {
-				resp.Body.Close()
-			}
-
-			database.DB.Model(&models.AiModel{}).Where("id = ?", model.ID).Updates(map[string]interface{}{
-				"last_test_status":   status,
-				"last_response_time": duration,
-			})
-
-			resultsChan <- TestResult{
-				ModelID:      model.ModelID,
-				Status:       status,
-				ResponseTime: duration,
-			}
-		}(m)
-	}
-
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
-
-	results := make([]TestResult, 0, len(aiModels))
-	for res := range resultsChan {
-		results = append(results, res)
-	}
-	return results, nil
-}
-
-// BulkTestModels tests all enabled models in parallel
+// BulkTestModels tests all enabled models in parallel via Service
 func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
-	results, err := h.performBulkTestInternal()
+	testService := services.GetModelTestingService()
+	results, err := testService.RunBulkTest()
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -497,7 +257,8 @@ func (h *AiHandler) BulkTestModels(c *fiber.Ctx) error {
 
 // AutoOptimizeModels runs tests and updates Auto Routing status based on performance
 func (h *AiHandler) AutoOptimizeModels(c *fiber.Ctx) error {
-	results, err := h.optimizeInternal()
+	testService := services.GetModelTestingService()
+	results, err := testService.RunOptimization()
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -517,47 +278,6 @@ func (h *AiHandler) AutoOptimizeModels(c *fiber.Ctx) error {
 		"tested":             len(results),
 		"auto_magic_enabled": autoEnabledCount,
 	})
-}
-
-// optimizeInternal is a helper that runs tests and applies optimization logic
-func (h *AiHandler) optimizeInternal() ([]TestResult, error) {
-	results, err := h.performBulkTestInternal()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, res := range results {
-		var model models.AiModel
-		if err := database.DB.Where("model_id = ?", res.ModelID).First(&model).Error; err != nil {
-			log.Printf("[AutoMagic] Error finding model %s: %v", res.ModelID, err)
-			continue
-		}
-
-		shouldEnableAuto := false
-		if res.Status == "online" {
-			// Relaxed thresholds
-			if (model.Category == "text" || model.Category == "llm" || model.Category == "chat") && res.ResponseTime < 30000 {
-				shouldEnableAuto = true
-				log.Printf("[AutoMagic] Model %s (text) QUALIFIED: %dms", model.ModelID, res.ResponseTime)
-			} else if (model.Category == "image" || model.Category == "diffusion") && res.ResponseTime < 60000 {
-				shouldEnableAuto = true
-				log.Printf("[AutoMagic] Model %s (image) QUALIFIED: %dms", model.ModelID, res.ResponseTime)
-			} else if (model.Category == "audio" || model.Category == "voice") && res.ResponseTime < 30000 {
-				shouldEnableAuto = true
-				log.Printf("[AutoMagic] Model %s (audio) QUALIFIED: %dms", model.ModelID, res.ResponseTime)
-			} else {
-				log.Printf("[AutoMagic] Model %s REJECTED: Category=%s, Time=%dms", model.ModelID, model.Category, res.ResponseTime)
-			}
-		} else {
-			log.Printf("[AutoMagic] Model %s OFFLINE/ERROR: %s", model.ModelID, res.Status)
-		}
-
-		if shouldEnableAuto != model.IsAutoRoutingEnabled {
-			log.Printf("[AutoMagic] Updating %s: AutoRouting %v -> %v", model.ModelID, model.IsAutoRoutingEnabled, shouldEnableAuto)
-			database.DB.Model(&model).Update("is_auto_routing_enabled", shouldEnableAuto)
-		}
-	}
-	return results, nil
 }
 
 // HandleSchedule configures the background check service and persists settings
@@ -586,7 +306,7 @@ func (h *AiHandler) HandleSchedule(c *fiber.Ctx) error {
 	if req.Enabled {
 		task := func() {
 			log.Println("[Scheduler] Running auto-optimization task")
-			h.optimizeInternal()
+			services.GetModelTestingService().RunOptimization()
 		}
 		services.GlobalScheduler.Start(req.IntervalMinutes, task)
 	} else {
@@ -661,10 +381,11 @@ func (h *AiHandler) RestoreScheduler() {
 	}
 
 	log.Printf("[Scheduler] Restoring state: Enabled, Interval=%d minutes", intervalMinutes)
-	services.GlobalScheduler.Start(intervalMinutes, func() {
+	task := func() {
 		log.Println("[Scheduler] Running auto-optimization task")
-		h.optimizeInternal()
-	})
+		services.GetModelTestingService().RunOptimization()
+	}
+	services.GlobalScheduler.Start(intervalMinutes, task)
 }
 
 // ToggleAutoRouting manually toggles the Auto-Magic status for a model

@@ -150,7 +150,7 @@ type GeminiResponse struct {
 func (s *GeminiService) SendMessage(modelID string, messages []map[string]string) (string, error) {
 	// If no keys locally, but we returned true in HasKeys (due to proxy), try once with empty key
 	if len(s.keys) == 0 {
-		return s.sendMessageInternal(modelID, messages, "")
+		return s.sendMessageInternal(modelID, messages)
 	}
 
 	// Normal rotation logic with local keys
@@ -165,7 +165,7 @@ func (s *GeminiService) SendMessage(modelID string, messages []map[string]string
 
 	// Try each model with each key
 	for _, currentModel := range modelsToTry {
-		content, err := s.sendMessageInternal(currentModel, messages, "") // Use rotation inside
+		content, err := s.sendMessageInternal(currentModel, messages) // Use rotation inside
 		if err == nil {
 			return content, nil
 		}
@@ -174,7 +174,7 @@ func (s *GeminiService) SendMessage(modelID string, messages []map[string]string
 	return "", fmt.Errorf("all Gemini models and keys exhausted")
 }
 
-func (s *GeminiService) sendMessageInternal(modelID string, messages []map[string]string, forceKey string) (string, error) {
+func (s *GeminiService) sendMessageInternal(modelID string, messages []map[string]string) (string, error) {
 	// Convert OpenAI-style messages to Gemini format
 	geminiMessages := []GeminiMessage{}
 	for _, msg := range messages {

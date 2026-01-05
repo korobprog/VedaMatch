@@ -17,6 +17,8 @@ import {
 import { useSettings } from './context/SettingsContext';
 import { useUser } from './context/UserContext';
 import { useChat } from './context/ChatContext';
+import { COLORS } from './components/chat/ChatConstants';
+import { getMediaUrl } from './utils/url';
 import { API_BASE_URL } from './config/api.config';
 
 const { width } = Dimensions.get('window');
@@ -333,7 +335,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             <View style={styles.profileSection}>
                                 <View style={[styles.avatarCircle, { backgroundColor: theme.sectionBg }]}>
                                     {user?.avatar ? (
-                                        <Image source={{ uri: `${API_BASE_URL}${user.avatar}` }} style={styles.avatarImage} />
+                                        <Image source={{ uri: getMediaUrl(user.avatar) || '' }} style={styles.avatarImage} />
                                     ) : (
                                         <Text style={{ fontSize: 20 }}>👤</Text>
                                     )}

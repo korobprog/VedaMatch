@@ -38,6 +38,11 @@ Rag Agent - это мобильное приложение (React Native) с б�
 │  Google Gemini  │  RAG система
 │   RAG Store     │  Хранение профилей пользователей
 └─────────────────┘
+
+┌─────────────────┐
+│  Timeweb Cloud  │  S3 Storage (Медиа)
+│   S3 (ru-1)     │  Аватары, фото, файлы
+└─────────────────┘
 ```
 
 ## Frontend (React Native)
@@ -105,7 +110,8 @@ server/
 │   │   └── message.go        # Модель сообщений
 │   ├── services/
 │   │   ├── rag_service.go    # Интеграция с Google Gemini RAG
-│   │   └── ai_chat_service.go# Сервис для AI ответов и совместимости
+│   │   ├── ai_chat_service.go# Сервис для AI ответов и совместимости
+│   │   └── s3_service.go     # Интеграция с Timeweb S3 (Storage)
 │   └── database/
 │       └── database.go       # Подключение к БД и миграции
 └── go.mod
@@ -154,7 +160,7 @@ type User struct {
 
 type Media struct {
     UserID    uint
-    URL       string  // Путь к файлу
+    URL       string  // Путь к файлу (Локальный путь или S3 URL)
     IsProfile bool    // Является ли фото основным аватаром
 }
 ```
@@ -166,6 +172,14 @@ type Media struct {
 - `DB_PASSWORD` - Пароль БД (по умолчанию: ragpassword)
 - `DB_NAME` - Имя БД (по умолчанию: ragdb)
 - `API_OPEN_AI` - API ключ для внешнего AI API
+
+#### S3 (Timeweb Cloud)
+- `S3_ENDPOINT` - URL эндпоинта (например, https://s3.twcstorage.ru)
+- `S3_REGION` - Регион (ru-1)
+- `S3_ACCESS_KEY` - Ключ доступа S3
+- `S3_SECRET_KEY` - Секретный ключ S3
+- `S3_BUCKET_NAME` - Имя бакета
+- `S3_PUBLIC_URL` - Публичный URL бакета для формирования ссылок
 
 ## База данных (PostgreSQL)
 

@@ -6,7 +6,6 @@ import (
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/handlers"
 	"rag-agent-server/internal/middleware"
-	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"rag-agent-server/internal/websocket"
 
@@ -50,8 +49,9 @@ func main() {
 	roomHandler := handlers.NewRoomHandler()
 	adminHandler := handlers.NewAdminHandler()
 	aiHandler := handlers.NewAiHandler()
-	mediaHandler := handlers.NewMediaHandler()
+	mediaHandler := handlers.NewMediaHandler(hub)
 	datingHandler := handlers.NewDatingHandler(aiChatService)
+	typingHandler := handlers.NewTypingHandler(hub)
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -107,6 +107,7 @@ func main() {
 	log.Println("Registering /api/messages routes...")
 	protected.Post("/messages", messageHandler.SendMessage)
 	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
+	protected.Post("/typing", typingHandler.SetTyping)
 
 	// WebSocket Route
 	api.Get("/ws/:id", ws.New(func(c *ws.Conn) {
@@ -124,7 +125,7 @@ func main() {
 			Hub:    hub,
 			Conn:   c,
 			UserID: userId,
-			Send:   make(chan models.Message, 256),
+			Send:   make(chan websocket.WSMessage, 256),
 		}
 		hub.Register <- client
 
@@ -149,6 +150,9 @@ func main() {
 	protected.Get("/media/:userId", mediaHandler.ListPhotos)
 	protected.Delete("/media/:id", mediaHandler.DeletePhoto)
 	protected.Post("/media/:id/set-profile", mediaHandler.SetProfilePhoto)
+
+	// Message Media Routes
+	protected.Post("/messages/media", mediaHandler.UploadMessageMedia)
 
 	// Dating Routes
 	protected.Get("/dating/stats", datingHandler.GetDatingStats)

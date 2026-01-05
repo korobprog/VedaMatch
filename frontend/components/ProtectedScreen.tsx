@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useUser } from '../../context/UserContext';
-import { COLORS } from '../chat/ChatConstants';
+import { useUser } from '../context/UserContext';
+import { COLORS } from './chat/ChatConstants';
 import { useColorScheme } from 'react-native';
+
 
 interface ProtectedScreenProps {
 	children: React.ReactNode;
@@ -16,7 +17,7 @@ export const ProtectedScreen: React.FC<ProtectedScreenProps> = ({
 }) => {
 	const navigation = useNavigation<any>();
 	const { user, isLoggedIn, isLoading } = useUser();
-	const isDarkMode = useColorScheme() === 'dark');
+	const isDarkMode = useColorScheme() === 'dark';
 	const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
 	useEffect(() => {
