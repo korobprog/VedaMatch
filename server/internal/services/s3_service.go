@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -27,12 +28,12 @@ var (
 
 func GetS3Service() *S3Service {
 	s3Once.Do(func() {
-		endpoint := os.Getenv("S3_ENDPOINT")
-		region := os.Getenv("S3_REGION")
-		accessKey := os.Getenv("S3_ACCESS_KEY")
-		secretKey := os.Getenv("S3_SECRET_KEY")
-		bucketName := os.Getenv("S3_BUCKET_NAME")
-		publicURL := os.Getenv("S3_PUBLIC_URL")
+		endpoint := strings.TrimSpace(os.Getenv("S3_ENDPOINT"))
+		region := strings.TrimSpace(os.Getenv("S3_REGION"))
+		accessKey := strings.TrimSpace(os.Getenv("S3_ACCESS_KEY"))
+		secretKey := strings.TrimSpace(os.Getenv("S3_SECRET_KEY"))
+		bucketName := strings.TrimSpace(os.Getenv("S3_BUCKET_NAME"))
+		publicURL := strings.TrimSpace(os.Getenv("S3_PUBLIC_URL"))
 
 		if accessKey == "" || secretKey == "" || bucketName == "" {
 			log.Println("[S3] Warning: S3 credentials or bucket name not set")
@@ -40,7 +41,7 @@ func GetS3Service() *S3Service {
 		}
 
 		// Custom resolver for Timeweb S3
-		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, reqRegion string, options ...interface{}) (aws.Endpoint, error) {
 			return aws.Endpoint{
 				URL:           endpoint,
 				SigningRegion: region,
