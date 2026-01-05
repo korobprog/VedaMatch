@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -35,38 +35,33 @@ func GetS3Service() *S3Service {
 		bucketName := strings.TrimSpace(os.Getenv("S3_BUCKET_NAME"))
 		publicURL := strings.TrimSpace(os.Getenv("S3_PUBLIC_URL"))
 
+		accessKey = strings.TrimSpace(accessKey)
+		secretKey = strings.TrimSpace(secretKey)
+		endpoint = strings.TrimSpace(endpoint)
+		region = strings.TrimSpace(region)
+		bucketName = strings.TrimSpace(bucketName)
+
 		if accessKey == "" || secretKey == "" || bucketName == "" {
 			log.Println("[S3] Warning: S3 credentials or bucket name not set")
 			return
 		}
 
-		// Custom resolver for Timeweb S3
-		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, reqRegion string, options ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				URL:               endpoint,
-				SigningRegion:     region,
-				HostnameImmutable: true,
-			}, nil
-		})
-
-		cfg, err := config.LoadDefaultConfig(context.TODO(),
-			config.WithRegion(region),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-			config.WithEndpointResolverWithOptions(customResolver),
-		)
-		if err != nil {
-			log.Fatalf("[S3] Unable to load SDK config, %v", err)
-		}
-
 		s3Instance = &S3Service{
-			client: s3.NewFromConfig(cfg, func(o *s3.Options) {
-				o.UsePathStyle = true
-				o.Region = region
+			client: s3.New(s3.Options{
+				Region:       region,
+				Credentials:  aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
+				BaseEndpoint: aws.String(endpoint),
+				UsePathStyle: true,
 			}),
 			bucketName: bucketName,
 			publicURL:  publicURL,
 		}
-		log.Printf("[S3] Connected to endpoint: %s, region: %s, bucket: %s", endpoint, region, bucketName)
+
+		keyPreview := ""
+		if len(accessKey) > 4 {
+			keyPreview = accessKey[:4] + "***"
+		}
+		log.Printf("[S3] Configured: endpoint=%s, region=%s, bucket=%s, accessKey=%s", endpoint, region, bucketName, keyPreview)
 	})
 
 	return s3Instance
@@ -89,7 +84,9 @@ func (s *S3Service) UploadFile(ctx context.Context, file io.Reader, fileName str
 		putInput.ContentLength = aws.Int64(contentSize)
 	}
 
-	_, err := s.client.PutObject(ctx, putInput)
+	_, err := s.client.PutObject(ctx, putInput, s3.WithAPIOptions(
+		v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
+	))
 
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file to S3: %w", err)
