@@ -43,7 +43,7 @@ func (h *MediaHandler) UploadPhoto(c *fiber.Ctx) error {
 			fileName := fmt.Sprintf("media/u%s_%d%s", userID, time.Now().Unix(), ext)
 			contentType := file.Header.Get("Content-Type")
 
-			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType)
+			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
 				media := models.Media{
 					UserID:    uint(parseUint(userID)),
@@ -239,7 +239,7 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 	ext := filepath.Ext(file.Filename)
 	fileName := fmt.Sprintf("messages/%s/u%s_%d%s", mediaType, senderID, time.Now().Unix(), ext)
 
-	fileURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType)
+	fileURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Could not upload file to S3: %v", err),

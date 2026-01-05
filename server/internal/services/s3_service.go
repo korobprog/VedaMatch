@@ -43,8 +43,9 @@ func GetS3Service() *S3Service {
 		// Custom resolver for Timeweb S3
 		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, reqRegion string, options ...interface{}) (aws.Endpoint, error) {
 			return aws.Endpoint{
-				URL:           endpoint,
-				SigningRegion: region,
+				URL:               endpoint,
+				SigningRegion:     region,
+				HostnameImmutable: true,
 			}, nil
 		})
 
@@ -60,28 +61,35 @@ func GetS3Service() *S3Service {
 		s3Instance = &S3Service{
 			client: s3.NewFromConfig(cfg, func(o *s3.Options) {
 				o.UsePathStyle = true
+				o.Region = region
 			}),
 			bucketName: bucketName,
 			publicURL:  publicURL,
 		}
-		log.Printf("[S3] Connected to endpoint: %s, bucket: %s", endpoint, bucketName)
+		log.Printf("[S3] Connected to endpoint: %s, region: %s, bucket: %s", endpoint, region, bucketName)
 	})
 
 	return s3Instance
 }
 
 // UploadFile uploads a file to S3 and returns the public URL
-func (s *S3Service) UploadFile(ctx context.Context, file io.Reader, fileName string, contentType string) (string, error) {
+func (s *S3Service) UploadFile(ctx context.Context, file io.Reader, fileName string, contentType string, contentSize int64) (string, error) {
 	if s == nil || s.client == nil {
 		return "", fmt.Errorf("S3 service not initialized")
 	}
 
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+	putInput := &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucketName),
 		Key:         aws.String(fileName),
 		Body:        file,
 		ContentType: aws.String(contentType),
-	})
+	}
+
+	if contentSize > 0 {
+		putInput.ContentLength = aws.Int64(contentSize)
+	}
+
+	_, err := s.client.PutObject(ctx, putInput)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file to S3: %w", err)
