@@ -9,6 +9,11 @@
 # 
 # Add any project specific keep options here:
 
+# Keep React Native classes
+-keep class com.facebook.react.** { *; }
+-dontwarn com.facebook.react.**
+-dontwarn com.facebook.infer.**
+
 # Fix for duplicate classes issue with react-native-slider
 -dontwarn com.facebook.react.viewmanagers.RNCSliderManagerDelegate
 -keep class com.facebook.react.viewmanagers.RNCSliderManagerDelegate { *; }
@@ -41,4 +46,48 @@
 # Add consumer rules for react-native-gesture-handler
 -keep class com.swmansion.gesturehandler.** { *; }
 -dontwarn com.swmansion.gesturehandler.**
+
+# Keep your app classes
+-keep class com.ragagent.** { *; }
+
+# Keep javax annotations
+-keep class javax.annotation.** { *; }
+-dontwarn javax.annotation.**
+
+# Don't warn about Facebook ProGuard annotations
+-dontwarn com.facebook.proguard.annotations.**
+-keep class com.facebook.proguard.annotations.** { *; }
+
+# Keep Hermes classes
+-keep class com.facebook.hermes.** { *; }
+-dontwarn com.facebook.hermes.**
+
+# Keep JSI classes
+-keep class com.facebook.jsi.** { *; }
+-dontwarn com.facebook.jsi.**
+
+# Keep all view managers
+-keep class * extends com.facebook.react.viewmanagers.** { *; }
+
+# Keep all native modules
+-keep class * extends com.facebook.react.bridge.NativeModule { *; }
+-keep class * implements com.facebook.react.bridge.Module { *; }
+
+# Keep JSON classes
+-keep class com.google.gson.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+
+# Keep okhttp
+-keepattributes Signature
+-keepattributes Exceptions
+-dontwarn okhttp3.**
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+
+# Keep retrofit
+-dontwarn retrofit2.**
+-keep class retrofit2.** { *; }
+-keepattributes Signature
+-keepattributes Exceptions
 

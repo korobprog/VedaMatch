@@ -65,16 +65,5 @@
   },
   "engines": {
     "node": ">=18"
-  },
-  "codegenConfig": {
-    "libraries": [
-      {
-        "name": "@react-native-community/slider",
-        "type": "components",
-        "codegenConfig": {
-          "jsSrcsDir": "none"
-        }
-      }
-    ]
   }
 }

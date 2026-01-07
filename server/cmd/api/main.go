@@ -52,6 +52,7 @@ func main() {
 	mediaHandler := handlers.NewMediaHandler(hub)
 	datingHandler := handlers.NewDatingHandler(aiChatService)
 	typingHandler := handlers.NewTypingHandler(hub)
+	ragHandler := handlers.NewRAGHandler(services.NewRAGPipelineService(database.DB))
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -166,6 +167,16 @@ func main() {
 	protected.Get("/dating/liked-me", datingHandler.GetWhoLikedMe)
 	protected.Get("/dating/notifications", datingHandler.GetNotifications)
 	protected.Delete("/dating/favorites/:id", datingHandler.RemoveFromFavorites)
+
+	// RAG Routes
+	protected.Post("/rag/documents/upload", ragHandler.UploadDocument)
+	protected.Get("/rag/documents", ragHandler.ListDocuments)
+	protected.Get("/rag/documents/:id", ragHandler.GetDocument)
+	protected.Delete("/rag/documents/:id", ragHandler.DeleteDocument)
+	protected.Post("/rag/query", ragHandler.QueryDocuments)
+	protected.Get("/rag/statistics", ragHandler.GetStatistics)
+	protected.Post("/rag/sessions", ragHandler.CreateChatSession)
+	protected.Get("/rag/sessions", ragHandler.ListChatSessions)
 
 	log.Println("Routes registered.")
 

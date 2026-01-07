@@ -5,7 +5,7 @@ apply plugin: "com.facebook.react"
 // react-native-config - автолинкование в React Native 0.76+
 apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
 
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
 def jscFlavor = 'org.webkit:android-jsc:+'
 
 react {
@@ -19,29 +19,43 @@ project.ext.react = [
     bundleInRelease: false
 ]
 
-// Skip bundle task entirely
-tasks.whenTaskAdded { task ->
-    if (task.name == 'createBundleReleaseJsAndAssets' || task.name == 'createBundleDebugJsAndAssets') {
-        task.enabled = false
-        task.actions.clear()
-        task.dependsOn = []
-        logger.quiet("Skipping bundle creation - using pre-bundled assets")
-        logger.lifecycle("Using pre-bundled JS bundle from src/main/assets/index.android.bundle")
-        def bundleFile = file('src/main/assets/index.android.bundle')
-        if (bundleFile.exists()) {
-            logger.lifecycle("✓ Bundle file exists at: ${bundleFile}")
-        } else {
-            logger.lifecycle("⚠️ Bundle file NOT FOUND at: ${bundleFile}")
-            logger.lifecycle(" Please ensure bundle is created before building APK")
+    // Skip bundle and codegen tasks entirely
+    tasks.whenTaskAdded { task ->
+        if (task.name == 'createBundleReleaseJsAndAssets' || task.name == 'createBundleDebugJsAndAssets') {
+            task.enabled = false
+            task.actions.clear()
+            task.dependsOn = []
+            logger.quiet("Skipping bundle creation - using pre-bundled assets")
+            logger.lifecycle("Using pre-bundled JS bundle from src/main/assets/index.android.bundle")
+            def bundleFile = file('src/main/assets/index.android.bundle')
+            if (bundleFile.exists()) {
+                logger.lifecycle("✓ Bundle file exists at: ${bundleFile}")
+            } else {
+                logger.lifecycle("⚠️ Bundle file NOT FOUND at: ${bundleFile}")
+                logger.lifecycle(" Please ensure bundle is created before building APK")
+            }
+        }
+        if (task.name.contains('generateCodegen')) {
+            task.enabled = false
+            logger.quiet("Skipping codegen task: ${task.name}")
         }
     }
-}
 
- android {
+  android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
     namespace "com.ragagent"
+
+    configurations {
+        all {
+            resolutionStrategy {
+                force 'androidx.annotation:annotation:1.8.0'
+                force 'com.google.guava:guava:33.1.0-android'
+            }
+            exclude group: 'com.facebook.yoga', module: 'proguard-annotations'
+        }
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -64,7 +78,7 @@ tasks.whenTaskAdded { task ->
         versionName "1.0"
         resValue "string", "react_native_packager_port", project.findProperty("REACT_NATIVE_PACKAGER_PORT") ?: "8082"
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a'
+            abiFilters 'arm64-v8a', 'x86_64'
         }
 
         resValue "string", "API_BASE_URL", project.hasProperty("API_BASE_URL") ? project.property("API_BASE_URL") : "\"https://api.vedamatch.ru\""
@@ -110,8 +124,11 @@ tasks.whenTaskAdded { task ->
         pickFirst 'META-INF/notice.txt'
         pickFirst 'META-INF/ASL2.0'
         pickFirst 'META-INF/*.kotlin_module'
-        pickFirst '**/lib/armeabi-v7a/libc++_shared.so'
-        pickFirst '**/lib/armeabi-v7a/libjsc.so'
+        pickFirst '**/lib/arm64-v8a/libc++_shared.so'
+        pickFirst '**/lib/arm64-v8a/libjsc.so'
+        pickFirst '**/lib/x86_64/libc++_shared.so'
+        pickFirst '**/lib/x86_64/libjsc.so'
+        exclude '**/lib/armeabi-v7a/**'
         // Exclude duplicate classes
         pickFirst 'com/facebook/react/viewmanagers/RNGestureHandlerRootViewManagerInterface.class'
         pickFirst 'com/facebook/react/viewmanagers/RNGestureHandlerRootViewManagerInterface.dex'
