@@ -2,32 +2,56 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-// react-native-config
+// react-native-config - автолинкование в React Native 0.76+
 apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
+def enableProguardInReleaseBuilds = false
+def jscFlavor = 'org.webkit:android-jsc:+'
 
 react {
     /* Autolinking */
     autolinkLibrariesWithApp()
 }
 
-def enableProguardInReleaseBuilds = false
-def jscFlavor = 'org.webkit:android-jsc:+'
+// Skip bundle creation - use pre-bundled JS bundle
+project.ext.react = [
+    enableHermes: hermesEnabled.toBoolean(),
+    bundleInRelease: false
+]
 
-android {
+// Skip bundle task entirely
+tasks.whenTaskAdded { task ->
+    if (task.name == 'createBundleReleaseJsAndAssets' || task.name == 'createBundleDebugJsAndAssets') {
+        task.enabled = false
+        task.actions.clear()
+        task.dependsOn = []
+        logger.quiet("Skipping bundle creation - using pre-bundled assets")
+        logger.lifecycle("Using pre-bundled JS bundle from src/main/assets/index.android.bundle")
+        def bundleFile = file('src/main/assets/index.android.bundle')
+        if (bundleFile.exists()) {
+            logger.lifecycle("✓ Bundle file exists at: ${bundleFile}")
+        } else {
+            logger.lifecycle("⚠️ Bundle file NOT FOUND at: ${bundleFile}")
+            logger.lifecycle(" Please ensure bundle is created before building APK")
+        }
+    }
+}
+
+ android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
     namespace "com.ragagent"
-    
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    
+
     kotlinOptions {
         jvmTarget = '17'
     }
-    
+
     aaptOptions {
         cruncherEnabled = false
     }
@@ -38,9 +62,15 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-        // Настройка порта Metro bundler (8081 занят Go сервером)
         resValue "string", "react_native_packager_port", project.findProperty("REACT_NATIVE_PACKAGER_PORT") ?: "8082"
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+
+        resValue "string", "API_BASE_URL", project.hasProperty("API_BASE_URL") ? project.property("API_BASE_URL") : "\"https://api.vedamatch.ru\""
+        resValue "string", "APP_ENV", project.hasProperty("APP_ENV") ? project.property("APP_ENV") : "\"production\""
     }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -49,18 +79,16 @@ android {
             keyPassword 'android'
         }
         release {
-            if (project.hasProperty('MYAPP_RELEASE_STORE_FILE')) {
-                storeFile file(MYAPP_RELEASE_STORE_FILE)
-                storePassword MYAPP_RELEASE_STORE_PASSWORD
-                keyAlias MYAPP_RELEASE_KEY_ALIAS
-                keyPassword MYAPP_RELEASE_KEY_PASSWORD
-            }
+            storeFile file(MYAPP_UPLOAD_STORE_FILE ?: 'release.keystore')
+            storePassword MYAPP_UPLOAD_STORE_PASSWORD ?: 'android'
+            keyAlias MYAPP_UPLOAD_KEY_ALIAS ?: 'release-key'
+            keyPassword MYAPP_UPLOAD_KEY_PASSWORD ?: 'android'
         }
     }
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
-            // Настройка адреса Metro bundler для debug режима
             buildConfigField "String", "REACT_NATIVE_PACKAGER_PORT", "\"8082\""
         }
         release {
@@ -68,6 +96,25 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+    }
+
+    packagingOptions {
+        pickFirst 'META-INF/DEPENDENCIES'
+        pickFirst 'META-INF/LICENSE'
+        pickFirst 'META-INF/LICENSE.txt'
+        pickFirst 'META-INF/license'
+        pickFirst 'META-INF/LICENSE.txt'
+        pickFirst 'META-INF/NOTICE'
+        pickFirst 'META-INF/notice'
+        pickFirst 'META-INF/NOTICE.txt'
+        pickFirst 'META-INF/notice.txt'
+        pickFirst 'META-INF/ASL2.0'
+        pickFirst 'META-INF/*.kotlin_module'
+        pickFirst '**/lib/armeabi-v7a/libc++_shared.so'
+        pickFirst '**/lib/armeabi-v7a/libjsc.so'
+        // Exclude duplicate classes
+        pickFirst 'com/facebook/react/viewmanagers/RNGestureHandlerRootViewManagerInterface.class'
+        pickFirst 'com/facebook/react/viewmanagers/RNGestureHandlerRootViewManagerInterface.dex'
     }
 }
 
@@ -80,4 +127,3 @@ dependencies {
         implementation jscFlavor
     }
 }
-

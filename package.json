@@ -10,11 +10,17 @@
     "server": "node server/start.js",
     "admin": "cd admin && pnpm run dev",
     "frontend": "cd frontend && pnpm run start",
+    "frontend:clean": "cd frontend && pnpm run start:clean",
     "android": "cd frontend && pnpm run android",
     "device": "cd frontend && pnpm run android:device",
     "clean": "kill-port 3000 3005 8081 8082 && rimraf admin/.next admin/node_modules/.cache",
     "dev:emulator": "pnpm run clean && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run android\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\"",
-    "dev:usb": "pnpm run clean && ./adb-reverse-all.sh && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run device\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\""
+    "dev:usb": "pnpm run clean && node adb-reverse.js && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend:clean\" \"wait-on tcp:8082 && pnpm run device\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\"",
+    "android:setup": "cd frontend && copy .env.production .env",
+    "android:bundle": "cd frontend && npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
+    "android:build": "cd frontend/android && gradlew.bat assembleRelease -x mergeDexRelease",
+    "android:copy": "copy frontend\\android\\app\\build\\outputs\\apk\\release\\app-release.apk ragagent-release.apk",
+    "build:release": "pnpm run android:setup && pnpm run android:bundle && pnpm run android:build && pnpm run android:copy"
   },
   "dependencies": {
     "expo-image-picker": "^17.0.10",

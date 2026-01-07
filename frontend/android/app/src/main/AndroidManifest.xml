@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Required for audio recording on Android 10+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Network and location for some features -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
