@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node start-dev.js",
+    "dev": "npx next dev --port 3005",
     "build": "npx next build",
     "start": "npx next start",
     "lint": "biome check",

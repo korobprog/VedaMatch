@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/database"
@@ -181,6 +182,7 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 	senderID := c.FormValue("senderId")
 	recipientID := c.FormValue("recipientId")
 	roomID := c.FormValue("roomId")
+	duration := c.FormValue("duration") // Audio duration in seconds
 
 	if mediaType == "" || senderID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -221,29 +223,51 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 		})
 	}
 
+	var fileURL string
+	var uploadErr error
+
 	s3Service := services.GetS3Service()
-	if s3Service == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "S3 service not initialized",
-		})
+
+	if s3Service != nil {
+		fileContent, err := file.Open()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not open file",
+			})
+		}
+		defer fileContent.Close()
+
+		ext := filepath.Ext(file.Filename)
+		fileName := fmt.Sprintf("messages/%s/u%s_%d%s", mediaType, senderID, time.Now().Unix(), ext)
+
+		fileURL, uploadErr = s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
+		if uploadErr == nil {
+			log.Printf("[Media] File uploaded to S3: %s", fileURL)
+		} else {
+			log.Printf("[Media] S3 upload failed: %v, falling back to local storage", uploadErr)
+		}
 	}
 
-	fileContent, err := file.Open()
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not open file",
-		})
-	}
-	defer fileContent.Close()
+	if fileURL == "" {
+		uploadsDir := "./uploads/media/messages"
+		if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create upload directory",
+			})
+		}
 
-	ext := filepath.Ext(file.Filename)
-	fileName := fmt.Sprintf("messages/%s/u%s_%d%s", mediaType, senderID, time.Now().Unix(), ext)
+		ext := filepath.Ext(file.Filename)
+		filename := fmt.Sprintf("u%s_%d%s", senderID, time.Now().Unix(), ext)
+		filePath := filepath.Join(uploadsDir, filename)
 
-	fileURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Could not upload file to S3: %v", err),
-		})
+		if err := c.SaveFile(file, filePath); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not save file locally",
+			})
+		}
+
+		fileURL = "/uploads/media/messages/" + filename
+		log.Printf("[Media] File saved locally: %s", fileURL)
 	}
 
 	msg := models.Message{
@@ -253,6 +277,13 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 		FileName: file.Filename,
 		FileSize: file.Size,
 		MimeType: contentType,
+	}
+
+	if mediaType == "audio" && duration != "" {
+		durationInt, err := strconv.Atoi(duration)
+		if err == nil {
+			msg.Duration = durationInt
+		}
 	}
 
 	if recipientID != "" {

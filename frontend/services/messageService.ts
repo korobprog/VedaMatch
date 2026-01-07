@@ -2,12 +2,17 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config/api.config';
 
 export interface P2PMessage {
-    ID: number;
-    CreatedAt: string;
+    id?: number;
+    ID?: number;
+    createdAt?: string;
+    CreatedAt?: string;
     senderId: number;
     recipientId: number;
     content: string;
-    type: 'text' | 'image';
+    type: 'text' | 'image' | 'audio' | 'video' | 'file';
+    fileName?: string;
+    fileSize?: number;
+    duration?: number;
 }
 
 export const messageService = {

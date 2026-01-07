@@ -45,7 +45,7 @@ export type Message = {
     id: string;
     text: string;
     sender: 'user' | 'bot' | 'other';
-    type?: 'text' | 'image' | 'audio' | 'document';
+    type?: 'text' | 'image' | 'audio' | 'video' | 'file' | 'document';
     fileName?: string;
     fileSize?: number;
     mimeType?: string;

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -106,8 +107,33 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	user.Password = ""
+
+	// Generate JWT token
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Println("[AUTH] JWT_SECRET not configured")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Server configuration error",
+		})
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userId": user.ID,
+		"email":  user.Email,
+		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+	})
+
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		log.Printf("[AUTH] Failed to generate token: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not generate token",
+		})
+	}
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Login successful",
+		"token":   tokenString,
 		"user":    user,
 	})
 }
@@ -120,7 +146,13 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	userId := c.Params("id")
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	var user models.User
 	if err := database.DB.First(&user, userId).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -157,7 +189,11 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
-	userId := c.Params("id")
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	var user models.User
 	if err := database.DB.First(&user, userId).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
@@ -170,7 +206,13 @@ func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
-	userId := c.Params("id")
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	file, err := c.FormFile("avatar")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No avatar file provided"})
@@ -221,8 +263,14 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	var body struct {
-		UserID   uint `json:"userId"`
 		FriendID uint `json:"friendId"`
 	}
 	if err := c.BodyParser(&body); err != nil {
@@ -230,7 +278,7 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 	}
 
 	friendship := models.Friend{
-		UserID:   body.UserID,
+		UserID:   userId.(uint),
 		FriendID: body.FriendID,
 	}
 
@@ -242,15 +290,21 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) RemoveFriend(c *fiber.Ctx) error {
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	var body struct {
-		UserID   uint `json:"userId"`
 		FriendID uint `json:"friendId"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
-	if err := database.DB.Where("user_id = ? AND friend_id = ?", body.UserID, body.FriendID).Delete(&models.Friend{}).Error; err != nil {
+	if err := database.DB.Where("user_id = ? AND friend_id = ?", userId, body.FriendID).Delete(&models.Friend{}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not remove friend"})
 	}
 
@@ -258,7 +312,11 @@ func (h *AuthHandler) RemoveFriend(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GetFriends(c *fiber.Ctx) error {
-	userId := c.Params("id")
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	var friends []models.Friend
 	if err := database.DB.Where("user_id = ?", userId).Find(&friends).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch friends"})
@@ -289,8 +347,12 @@ func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	var body struct {
-		UserID    uint `json:"userId"`
 		BlockedID uint `json:"blockedId"`
 	}
 	if err := c.BodyParser(&body); err != nil {
@@ -298,7 +360,7 @@ func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
 	}
 
 	block := models.Block{
-		UserID:    body.UserID,
+		UserID:    userId.(uint),
 		BlockedID: body.BlockedID,
 	}
 
@@ -308,21 +370,25 @@ func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
 
 	// Also remove friendship if exists
 	database.DB.Where("(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
-		body.UserID, body.BlockedID, body.BlockedID, body.UserID).Delete(&models.Friend{})
+		userId, body.BlockedID, body.BlockedID, userId).Delete(&models.Friend{})
 
 	return c.Status(fiber.StatusCreated).JSON(block)
 }
 
 func (h *AuthHandler) UnblockUser(c *fiber.Ctx) error {
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	var body struct {
-		UserID    uint `json:"userId"`
 		BlockedID uint `json:"blockedId"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
-	if err := database.DB.Where("user_id = ? AND blocked_id = ?", body.UserID, body.BlockedID).Delete(&models.Block{}).Error; err != nil {
+	if err := database.DB.Where("user_id = ? AND blocked_id = ?", userId, body.BlockedID).Delete(&models.Block{}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not unblock user"})
 	}
 
@@ -330,7 +396,11 @@ func (h *AuthHandler) UnblockUser(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GetBlockedUsers(c *fiber.Ctx) error {
-	userId := c.Params("id")
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	var blocks []models.Block
 	if err := database.DB.Where("user_id = ?", userId).Find(&blocks).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch blocked users"})

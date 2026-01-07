@@ -53,6 +53,12 @@ func NewGeminiService() *GeminiService {
 	if key := os.Getenv("GEMINI_API_KEY_BACKUP_2"); key != "" {
 		keys = append(keys, key)
 	}
+	if key := os.Getenv("GEMINI_API_KEY_BACKUP_3"); key != "" {
+		keys = append(keys, key)
+	}
+	if key := os.Getenv("GEMINI_API_KEY_BACKUP_4"); key != "" {
+		keys = append(keys, key)
+	}
 
 	log.Printf("[GeminiService] Initialized with %d keys, base URL: %s", len(keys), baseURL)
 

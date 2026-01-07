@@ -8,7 +8,6 @@ import {
     Animated,
     Dimensions,
     Modal,
-    ActivityIndicator,
     FlatList,
     Alert,
     Image,
@@ -17,9 +16,7 @@ import {
 import { useSettings } from './context/SettingsContext';
 import { useUser } from './context/UserContext';
 import { useChat } from './context/ChatContext';
-import { COLORS } from './components/chat/ChatConstants';
 import { getMediaUrl } from './utils/url';
-import { API_BASE_URL } from './config/api.config';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.8;

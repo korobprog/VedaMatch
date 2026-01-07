@@ -150,7 +150,8 @@ export const MessageList: React.FC<MessageListProps> = ({
 
     const renderMessage = ({ item }: { item: Message }) => {
         const isUser = item.sender === 'user';
-        const isImageOnly = !isUser && item.text.trim().startsWith('![') && item.text.trim().endsWith(')') && !item.text.trim().includes('\n', 2);
+        const text = item.text || '';
+        const isImageOnly = !isUser && text.trim().startsWith('![') && text.trim().endsWith(')') && !text.trim().includes('\n', 2);
 
         // Handle uploading state
         if (item.uploading) {
@@ -218,7 +219,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             );
         }
 
-        if (item.type === 'document' && item.content) {
+        if ((item.type === 'document' || item.type === 'file') && item.content) {
             const content = item.content;
             return (
                 <View style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}>
@@ -255,7 +256,8 @@ export const MessageList: React.FC<MessageListProps> = ({
         // Parse content looking for <audio> tags
         // Regex finds <audio ... src="...">...</audio> or just open tag if it's not closed properly (though usually LLM closes it)
         // We assume valid HTML <audio ...></audio>
-        const parts = item.text.split(/(<audio\s+[^>]*src="[^"]+"[^>]*>.*?<\/audio>)/gi);
+        const textContent = item.text || '';
+        const parts = textContent.split(/(<audio\s+[^>]*src="[^"]+"[^>]*>.*?<\/audio>)/gi);
 
         return (
             <View

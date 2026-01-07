@@ -73,8 +73,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             const media = await mediaService.takePhoto();
             await handleSendMedia(media);
         } catch (e: any) {
+            console.error('ChatInput takePhoto error:', e);
             if (e.message !== 'Cancelled') {
-                Alert.alert('Ошибка', 'Не удалось сделать фото');
+                Alert.alert('Ошибка', `Не удалось сделать фото: ${e.message || 'Unknown error'}`);
             }
         }
     };

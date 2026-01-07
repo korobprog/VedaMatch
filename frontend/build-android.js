@@ -5,6 +5,24 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
+// Read .env.production file
+const envFile = path.join(__dirname, '.env.production');
+const envConfig = {};
+
+if (fs.existsSync(envFile)) {
+  const content = fs.readFileSync(envFile, 'utf8');
+  content.split('\n').forEach(line => {
+    const [key, ...valueParts] = line.split('=');
+    if (key && !key.trim().startsWith('#') && valueParts.length > 0) {
+      envConfig[key.trim()] = valueParts.join('=').trim();
+    }
+  });
+  console.log('📋 Loaded env configuration:');
+  console.log(envConfig);
+} else {
+  console.warn(`⚠️ .env.production not found at ${envFile}`);
+}
+
 const platform = os.platform();
 const androidDir = path.join(__dirname, 'android');
 const buildType = process.argv[2] || 'release'; // 'debug' or 'release'
@@ -44,7 +62,14 @@ try {
 
   // Build
   console.log(`\n🔨 Building ${buildType}...`);
-  execSync(`${gradleCommand} assemble${buildTypeCapitalized}`, { 
+  
+  // Pass env variables to Gradle
+  const gradleArgs = Object.entries(envConfig).map(([key, value]) => `-P${key}=${value}`).join(' ');
+  const command = `${gradleCommand} assemble${buildTypeCapitalized} ${gradleArgs}`;
+  
+  console.log(`Gradle command: ${command}\n`);
+  
+  execSync(command, { 
     stdio: 'inherit',
     cwd: androidDir,
     shell: true

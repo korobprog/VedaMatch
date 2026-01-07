@@ -18,3 +18,11 @@ type Message struct {
 	Duration  int    `json:"duration,omitempty"`  // Audio duration in seconds
 	Thumbnail string `json:"thumbnail,omitempty"` // Thumbnail URL for images
 }
+
+func (m *Message) GetID() uint {
+	return m.ID
+}
+
+func (m *Message) GetCreatedAt() string {
+	return m.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+}

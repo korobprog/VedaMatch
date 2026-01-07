@@ -89,27 +89,27 @@ func main() {
 	// Protected Routes
 	protected := api.Group("/", middleware.Protected())
 
-	protected.Put("/update-profile/:id", authHandler.UpdateProfile)
-	protected.Put("/update-location/:id", authHandler.UpdateLocation)
-	protected.Put("/update-coordinates/:id", authHandler.UpdateLocationCoordinates)
+	protected.Put("/update-profile", authHandler.UpdateProfile)
+	protected.Put("/update-location", authHandler.UpdateLocation)
+	protected.Put("/update-coordinates", authHandler.UpdateLocationCoordinates)
 	protected.Get("/location/nearby", authHandler.GetNearbyUsers)
 	protected.Get("/location/by-city", authHandler.SearchByCity)
 	protected.Get("/location/by-country", authHandler.GetUsersByCountry)
 	protected.Get("/contacts", authHandler.GetContacts)
-	protected.Post("/heartbeat/:id", authHandler.Heartbeat)
-	protected.Post("/upload-avatar/:id", authHandler.UploadAvatar)
+	protected.Post("/heartbeat", authHandler.Heartbeat)
+	protected.Post("/upload-avatar", authHandler.UploadAvatar)
 	protected.Post("/friends/add", authHandler.AddFriend)
 	protected.Post("/friends/remove", authHandler.RemoveFriend)
-	protected.Get("/friends/:id", authHandler.GetFriends)
+	protected.Get("/friends", authHandler.GetFriends)
 	protected.Post("/blocks/add", authHandler.BlockUser)
 	protected.Post("/blocks/remove", authHandler.UnblockUser)
-	protected.Get("/blocks/:id", authHandler.GetBlockedUsers)
+	protected.Get("/blocks", authHandler.GetBlockedUsers)
 	log.Println("Registering /api/messages routes...")
 	protected.Post("/messages", messageHandler.SendMessage)
 	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
 	protected.Post("/typing", typingHandler.SetTyping)
 
-	// WebSocket Route
+	// WebSocket Route (with ID in URL)
 	api.Get("/ws/:id", ws.New(func(c *ws.Conn) {
 		// userId from path parameter
 		userIdStr := c.Params("id")

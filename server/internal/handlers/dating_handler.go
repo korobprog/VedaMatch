@@ -371,7 +371,7 @@ func cleanResponse(resp string) string {
 
 func (h *DatingHandler) GetDatingCities(c *fiber.Ctx) error {
 	var cities []string
-	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city != ''", true).Distinct().Pluck("city", &cities).Error; err != nil {
+	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city != ?", true, "").Distinct().Pluck("city", &cities).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch cities"})
 	}
 	return c.JSON(cities)

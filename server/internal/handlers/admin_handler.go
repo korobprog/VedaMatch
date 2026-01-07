@@ -209,7 +209,7 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 	}
 
 	// Ensure Gemini keys are present for UI
-	geminiKeys := []string{"GEMINI_API_KEY", "GEMINI_API_KEY_BACKUP_1", "GEMINI_API_KEY_BACKUP_2"}
+	geminiKeys := []string{"GEMINI_API_KEY", "GEMINI_API_KEY_BACKUP_1", "GEMINI_API_KEY_BACKUP_2", "GEMINI_API_KEY_BACKUP_3", "GEMINI_API_KEY_BACKUP_4"}
 	for _, key := range geminiKeys {
 		if _, ok := settingsMap[key]; !ok {
 			envVal := os.Getenv(key)

@@ -18,4 +18,3 @@ project(':react-native-nitro-modules').projectDir = new File(rootProject.project
 includeBuild("../node_modules/@react-native/gradle-plugin")
 
 include ':app'
-

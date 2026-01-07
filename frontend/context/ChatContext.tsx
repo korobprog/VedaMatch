@@ -83,7 +83,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         const init = async () => {
             try {
                 const savedHistory = await AsyncStorage.getItem('chat_history');
-                if (savedHistory && savedHistory !== 'undefined') {
+                if (savedHistory && savedHistory !== 'undefined' && savedHistory !== 'null') {
                     const parsed = JSON.parse(savedHistory);
                     setHistory(parsed);
                 }
@@ -155,14 +155,20 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     if (!currentRecipientId || !currentUserId) return;
                     const p2pMessages = await messageService.getMessages(currentUserId, currentRecipientId);
                     const formattedMessages: Message[] = p2pMessages.map(m => ({
-                        id: m.ID.toString(),
+                        id: m.id?.toString() || m.ID?.toString(),
                         text: m.content,
-                        sender: m.senderId === currentUser.ID ? 'user' : ('other' as any),
-                        createdAt: m.CreatedAt
+                        sender: m.senderId === currentUser.ID ? 'user' : 'other' as any,
+                        type: m.type || 'text',
+                        content: m.content,
+                        fileName: m.fileName,
+                        fileSize: m.fileSize,
+                        duration: m.duration,
+                        createdAt: m.createdAt || m.CreatedAt
                     }));
                     setMessages(formattedMessages);
-                } catch (e) {
+                } catch (e: any) {
                     console.error('Failed to load P2P messages', e);
+                    Alert.alert('Error loading messages', e.message || 'Unknown network error');
                 } finally {
                     setIsLoading(false);
                 }
@@ -174,6 +180,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     // WebSocket Listener for real-time messages
     useEffect(() => {
         const removeListener = addListener((msg: any) => {
+            console.log('📨 WebSocket message received:', msg);
+            
             // Handle typing events
             if (msg.type === 'typing') {
                 if (recipientId && msg.senderId === recipientId && msg.recipientId === currentUser?.ID) {
@@ -217,10 +225,15 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
             if (shouldAdd) {
                 const newMessage: Message = {
-                    id: msg.ID.toString(),
-                    text: msg.content,
+                    id: msg.id?.toString() || msg.ID?.toString() || Date.now().toString(),
+                    text: msg.content || '',
                     sender: senderType as any,
-                    createdAt: msg.CreatedAt
+                    type: msg.type || 'text',
+                    content: msg.content || '',
+                    fileName: msg.fileName,
+                    fileSize: msg.fileSize,
+                    duration: msg.duration,
+                    createdAt: msg.createdAt || msg.CreatedAt || new Date().toISOString()
                 };
                 setMessages(prev => {
                     if (prev.find(m => m.id === newMessage.id)) return prev;
@@ -291,7 +304,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             });
 
             const botResponse: Message = {
-                id: (Date.now() + 1).toString(),
+                id: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 text: response.content,
                 sender: 'bot',
             };
@@ -303,7 +316,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             }
 
             const errorMessage: Message = {
-                id: (Date.now() + 1).toString(),
+                id: `error_${Date.now()}`,
                 text: `${t('common.error')}: ${error.message || t('chat.errorFetch')}`,
                 sender: 'bot',
             };
@@ -341,7 +354,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
             // Add user message to UI
             const newUserMessage: Message = {
-                id: Date.now().toString(),
+                id: `user_${Date.now()}`,
                 text: inputText.trim(),
                 sender: 'user',
             };
@@ -372,7 +385,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         const tab = option.split('.').pop() as any;
 
         const systemMsg: Message = {
-            id: Date.now().toString(),
+            id: `sys_${Date.now()}`,
             text: t(`chat.searchPrompts.${tab}`),
             sender: 'bot',
             navTab: tab,
@@ -386,7 +399,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const handleNewChat = () => {
         setMessages([
             {
-                id: Date.now().toString(),
+                id: `welcome_${Date.now()}`,
                 text: t('chat.welcome'),
                 sender: 'bot',
             }
@@ -424,10 +437,14 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         if (!currentUser?.ID) return;
 
         try {
+            console.log('📤 Starting media upload:', media);
+
             setIsUploading(true);
             setUploadProgress(0);
 
             const tempId = Date.now().toString();
+            console.log('🆔 Created temp message ID:', tempId);
+
             const tempMessage: Message = {
                 id: tempId,
                 text: '',
@@ -439,8 +456,14 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 content: media.uri,
             };
 
-            setMessages(prev => [...prev, tempMessage]);
+            console.log('➕ Adding temp message to state:', tempMessage);
+            setMessages(prev => {
+                const newMessages = [...prev, tempMessage];
+                console.log('📨 Messages after adding temp:', newMessages.length);
+                return newMessages;
+            });
 
+            console.log('🌐 Uploading media to server...');
             const savedMessage = await mediaService.uploadMedia(
                 media,
                 currentUser.ID,
@@ -448,8 +471,10 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 undefined
             );
 
+            console.log('✅ Server response:', savedMessage);
+
             const finalMessage: Message = {
-                id: savedMessage.ID?.toString() || savedMessage.id || tempId,
+                id: savedMessage.id?.toString() || savedMessage.ID?.toString() || tempId,
                 text: savedMessage.content || '',
                 sender: 'user',
                 type: savedMessage.type || media.type,
@@ -459,14 +484,34 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 content: savedMessage.content,
                 senderId: savedMessage.senderId,
                 recipientId: savedMessage.recipientId,
-                createdAt: savedMessage.CreatedAt,
+                createdAt: savedMessage.createdAt || savedMessage.CreatedAt,
             };
 
-            setMessages(prev =>
-                prev.map(m =>
+            console.log('🔄 Updating message from temp to final:', finalMessage);
+
+            setMessages(prev => {
+                const finalId = savedMessage.ID?.toString() || savedMessage.id || tempId;
+
+                console.log('🔍 Current messages count:', prev.length);
+                console.log('🔍 Looking for temp message with ID:', tempId);
+
+                // CRITICAL: Check if this message was already added by WebSocket
+                const alreadyExists = prev.some(m => (m.id === finalId || m.id === tempId) && m.id !== tempId);
+
+                if (alreadyExists) {
+                    console.log('⚠️ Message already added by WebSocket, removing temp');
+                    // Just remove the temporary uploading message
+                    return prev.filter(m => m.id !== tempId);
+                }
+
+                console.log('🔄 Replacing temp message with final message');
+                // Otherwise replace temp message with final one
+                const updated = prev.map(m =>
                     m.id === tempId ? finalMessage : m
-                )
-            );
+                );
+                console.log('✅ Updated messages count:', updated.length);
+                return updated;
+            });
         } catch (error: any) {
             console.error('Failed to send media:', error);
             setMessages(prev => prev.filter(m => !m.uploading));
@@ -500,13 +545,17 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
 
         try {
+            console.log('🛑 Stopping audio recording, duration:', recordingDuration);
             const finalDuration = recordingDuration;
             const media = await mediaService.stopRecording();
+            console.log('📦 Stopped recording, media object:', media);
             media.duration = finalDuration; // Use duration from context timer
 
             setIsRecording(false);
             setRecordingDuration(0);
+            console.log('🚀 Calling handleSendMedia with audio...');
             await handleSendMedia(media);
+            console.log('✅ handleSendMedia completed');
         } catch (error) {
             console.error('Failed to stop recording:', error);
             setIsRecording(false);

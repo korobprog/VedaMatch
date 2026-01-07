@@ -47,11 +47,45 @@ async function requestAudioPermission(): Promise<boolean> {
 	}
 
 	try {
+		const recordAudioStatus = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+		console.log('Record audio permission status:', recordAudioStatus);
+
+		if (!recordAudioStatus) {
+			const granted = await PermissionsAndroid.request(
+				PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+				{
+					title: 'Microphone Permission',
+					message: 'This app needs access to your microphone to record audio messages.',
+					buttonNeutral: 'Ask Me Later',
+					buttonNegative: 'Cancel',
+					buttonPositive: 'OK',
+				}
+			);
+			console.log('Record audio permission granted:', granted === PermissionsAndroid.RESULTS.GRANTED);
+			return granted === PermissionsAndroid.RESULTS.GRANTED;
+		}
+
+		return true;
+	} catch (err) {
+		console.error('Error requesting audio permission:', err);
+		return false;
+	}
+}
+
+async function requestCameraPermission(): Promise<boolean> {
+	if (Platform.OS !== 'android') {
+		return true;
+	}
+
+	try {
+		const result = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+		if (result) return true;
+
 		const granted = await PermissionsAndroid.request(
-			PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+			PermissionsAndroid.PERMISSIONS.CAMERA,
 			{
-				title: 'Microphone Permission',
-				message: 'This app needs access to your microphone to record audio.',
+				title: 'Camera Permission',
+				message: 'App needs access to your camera to take photos.',
 				buttonNeutral: 'Ask Me Later',
 				buttonNegative: 'Cancel',
 				buttonPositive: 'OK',
@@ -59,7 +93,7 @@ async function requestAudioPermission(): Promise<boolean> {
 		);
 		return granted === PermissionsAndroid.RESULTS.GRANTED;
 	} catch (err) {
-		console.error(err);
+		console.error('Failed to request camera permission:', err);
 		return false;
 	}
 }
@@ -67,6 +101,12 @@ async function requestAudioPermission(): Promise<boolean> {
 export const mediaService = {
 	async takePhoto(): Promise<MediaFile> {
 		try {
+			const hasPermission = await requestCameraPermission();
+			if (!hasPermission) {
+				throw new Error('Camera permission denied');
+			}
+
+			console.log('📸 Launching camera...');
 			const result: ImagePickerResponse = await launchCamera({
 				mediaType: 'photo',
 				quality: 0.8,
@@ -75,11 +115,24 @@ export const mediaService = {
 				includeBase64: false,
 			});
 
-			if (result.didCancel || !result.assets || result.assets.length === 0) {
+			if (result.didCancel) {
+				console.log('📸 Camera cancelled');
 				throw new Error('Cancelled');
 			}
 
+			if (result.errorCode) {
+				console.error('📸 Camera error:', result.errorMessage);
+				throw new Error(result.errorMessage || 'Camera error');
+			}
+
+			if (!result.assets || result.assets.length === 0) {
+				console.error('📸 No assets returned');
+				throw new Error('No image captured');
+			}
+
 			const asset: Asset = result.assets[0];
+			console.log('📸 Photo captured:', asset.uri);
+
 			return {
 				uri: asset.uri || '',
 				type: 'image',
@@ -88,10 +141,11 @@ export const mediaService = {
 				mimeType: asset.type || 'image/jpeg',
 			};
 		} catch (error) {
+			console.error('📸 takePhoto error:', error);
 			if (error instanceof Error && error.message === 'Cancelled') {
 				throw error;
 			}
-			throw new Error('Failed to take photo');
+			throw error;
 		}
 	},
 
@@ -161,28 +215,80 @@ export const mediaService = {
 		try {
 			const hasPermission = await requestAudioPermission();
 			if (!hasPermission) {
+				console.error('❌ Microphone permission denied');
 				throw new Error('Microphone permission denied');
 			}
-			await audioRecorderPlayer.startRecorder();
+
+			console.log('✅ Starting audio recording...');
+
+			const result = await audioRecorderPlayer.startRecorder();
+			console.log('✅ Recording started, result:', result);
+
 			audioRecorderPlayer.addRecordBackListener((e) => {
 				lastDuration = e.currentPosition;
+				console.log('⏱️ Recording duration:', e.currentPosition);
 			});
 		} catch (error) {
-			console.error('Failed to start recording:', error);
-			throw new Error('Failed to start recording');
+			console.error('❌ Failed to start recording:', error);
+			throw new Error('Failed to start recording: ' + (error as Error).message);
 		}
 	},
 
 	async stopRecording(): Promise<MediaFile> {
 		try {
-			const uri = await audioRecorderPlayer.stopRecorder();
+			console.log('🛑 Stopping audio recording...');
+
+			const rawUri = await audioRecorderPlayer.stopRecorder();
+			console.log('✅ Recording stopped, URI:', rawUri);
+
 			audioRecorderPlayer.removeRecordBackListener();
 
-			const fileStats = await RNFS.stat(uri.replace('file://', ''));
+			// Clean up URI for file system operations
+			// Remove file:// prefix if present
+			let path = rawUri;
+			if (path.startsWith('file://')) {
+				path = path.replace('file://', '');
+			}
+
+			// Remove extra leading slashes to ensure we have exactly one leading slash for absolute path
+			// e.g. //data/... -> /data/...
+			while (path.startsWith('//')) {
+				path = path.substring(1);
+			}
+
+			// If it doesn't start with /, add it (shouldn't happen on Android usually if it was absolute)
+			if (!path.startsWith('/')) {
+				path = '/' + path;
+			}
+
+			// Check if file exists
+			console.log('📁 Checking if file exists:', path);
+			const fileExists = await RNFS.exists(path);
+			console.log('📁 File exists:', fileExists);
+
+			if (!fileExists) {
+				console.error('❌ Audio file not found:', path);
+				throw new Error('Audio file not found');
+			}
+
+			const fileStats = await RNFS.stat(path);
 			const durationSeconds = Math.floor(lastDuration / 1000);
 
+			console.log('📊 Audio file stats:', {
+				path: path,
+				size: fileStats.size,
+				duration: durationSeconds,
+			});
+
+			// Verify file is not empty
+			if (fileStats.size === 0) {
+				console.error('❌ Audio file is empty!');
+				throw new Error('Audio file is empty');
+			}
+
 			return {
-				uri: uri,
+				// Ensure we return a valid file URI for components/upload
+				uri: `file://${path}`,
 				type: 'audio',
 				name: `voice_${Date.now()}.m4a`,
 				size: Number(fileStats.size) || 0,
@@ -190,8 +296,8 @@ export const mediaService = {
 				duration: durationSeconds,
 			};
 		} catch (error) {
-			console.error('Failed to stop recording:', error);
-			throw new Error('Failed to stop recording');
+			console.error('❌ Failed to stop recording:', error);
+			throw new Error('Failed to stop recording: ' + (error as Error).message);
 		}
 	},
 
@@ -204,8 +310,16 @@ export const mediaService = {
 		try {
 			const formData = new FormData();
 
+			// Ensure URI has file:// prefix for Android if it's a local file path
+			let fileUri = media.uri;
+			if (Platform.OS === 'android' && !fileUri.startsWith('file://') && !fileUri.startsWith('content://') && !fileUri.startsWith('http')) {
+				fileUri = `file://${fileUri}`;
+			}
+
+			console.log('📤 Preparing upload for URI:', fileUri);
+
 			formData.append('file', {
-				uri: media.uri,
+				uri: fileUri,
 				type: media.mimeType || 'application/octet-stream',
 				name: media.name,
 			} as any);
@@ -223,16 +337,23 @@ export const mediaService = {
 
 			const response = await fetch(`${API_PATH}/messages/media`, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'multipart/form-data',
-				},
 				body: formData,
+				headers: {
+					'Accept': 'application/json',
+				},
 			});
 
 			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
+				const errorTxt = await response.text();
+				let errorData;
+				try {
+					errorData = JSON.parse(errorTxt);
+				} catch (e) {
+					errorData = { error: errorTxt };
+				}
+
 				throw new Error(
-					errorData.error || `Upload failed: ${response.statusText}`
+					errorData.error || `Upload failed: ${response.status} ${response.statusText}`
 				);
 			}
 

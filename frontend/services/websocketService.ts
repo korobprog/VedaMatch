@@ -29,14 +29,23 @@ export class WebSocketService {
 
         this.socket.onmessage = (event) => {
             try {
-                if (event.data === 'undefined') {
-                    console.warn('[WebSocket] Received "undefined" string as message, ignoring.');
+                if (!event.data) {
+                    console.warn('[WebSocket] Received empty message');
                     return;
                 }
-                const message = JSON.parse(event.data);
-                this.onMessageCallback(message);
+                const dataStr = String(event.data);
+                if (dataStr === 'undefined' || dataStr === 'null') {
+                    console.warn(`[WebSocket] Received "${dataStr}" string as message, ignoring.`);
+                    return;
+                }
+                const message = JSON.parse(dataStr);
+
+                if (this.onMessageCallback) {
+                    this.onMessageCallback(message);
+                }
             } catch (error) {
                 console.error('[WebSocket] Error parsing message:', error);
+                console.log('Raw message data type:', typeof event.data);
                 console.log('Raw message data:', event.data);
             }
         };

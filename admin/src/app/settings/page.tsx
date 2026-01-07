@@ -29,6 +29,8 @@ export default function SettingsPage() {
         GEMINI_API_KEY: '',
         GEMINI_API_KEY_BACKUP_1: '',
         GEMINI_API_KEY_BACKUP_2: '',
+        GEMINI_API_KEY_BACKUP_3: '',
+        GEMINI_API_KEY_BACKUP_4: '',
         DEFAULT_ASTRO_MODEL: 'gpt-4o',
     });
 
@@ -188,6 +190,34 @@ export default function SettingsPage() {
                                             value={settings.GEMINI_API_KEY_BACKUP_2 || ''}
                                             onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY_BACKUP_2: e.target.value })}
                                             placeholder="Enter Backup Gemini API Key 2"
+                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                        />
+                                    </div>
+
+                                    <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Key className="w-4 h-4 text-blue-300" />
+                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Gemini API Key Backup 2</label>
+                                        </div>
+                                        <input
+                                            type="password"
+                                            value={settings.GEMINI_API_KEY_BACKUP_3 || ''}
+                                            onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY_BACKUP_3: e.target.value })}
+                                            placeholder="Enter Backup Gemini API Key 3"
+                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                        />
+                                    </div>
+
+                                    <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Key className="w-4 h-4 text-blue-300" />
+                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Gemini API Key Backup 2</label>
+                                        </div>
+                                        <input
+                                            type="password"
+                                            value={settings.GEMINI_API_KEY_BACKUP_4 || ''}
+                                            onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY_BACKUP_4: e.target.value })}
+                                            placeholder="Enter Backup Gemini API Key 4"
                                             className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                                         />
                                     </div>

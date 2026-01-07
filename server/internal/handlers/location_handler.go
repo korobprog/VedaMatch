@@ -109,7 +109,13 @@ func (h *AuthHandler) sortByDistance(users []UserWithDistance) []UserWithDistanc
 }
 
 func (h *AuthHandler) UpdateLocationCoordinates(c *fiber.Ctx) error {
-	userId := c.Params("id")
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	var req struct {
 		Latitude  *float64 `json:"latitude"`
 		Longitude *float64 `json:"longitude"`

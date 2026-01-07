@@ -23,7 +23,13 @@ func (h *AuthHandler) UpdateLocation(c *fiber.Ctx) error {
 		})
 	}
 
-	userId := c.Params("id")
+	userId := c.Locals("userId")
+	if userId == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	var user models.User
 	if err := database.DB.First(&user, userId).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{

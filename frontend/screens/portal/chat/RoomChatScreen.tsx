@@ -11,6 +11,9 @@ import {
     Platform,
     ActivityIndicator,
     useColorScheme,
+    Image,
+    Linking,
+    Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -21,6 +24,8 @@ import { useUser } from '../../../context/UserContext';
 import { useWebSocket } from '../../../context/WebSocketContext';
 import { InviteFriendModal } from './InviteFriendModal';
 import { RoomSettingsModal } from './RoomSettingsModal';
+import { AudioPlayer } from '../../../components/chat/AudioPlayer';
+import { mediaService } from '../../../services/mediaService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
@@ -46,6 +51,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 const formattedMessages = data.map((m: any) => ({
                     id: m.ID.toString(),
                     content: m.content,
+                    type: m.type || 'text',
+                    fileName: m.fileName,
+                    fileSize: m.fileSize,
+                    duration: m.duration,
                     sender: m.senderId === user?.ID ? (user?.karmicName || 'Me') : (m.senderId === 0 ? 'AI' : 'Other'),
                     isMe: m.senderId === user?.ID,
                     time: new Date(m.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -68,6 +77,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 const formattedMsg = {
                     id: msg.ID.toString(),
                     content: msg.content,
+                    type: msg.type || 'text',
+                    fileName: msg.fileName,
+                    fileSize: msg.fileSize,
+                    duration: msg.duration,
                     sender: msg.senderId === user?.ID ? (user?.karmicName || 'Me') : (msg.senderId === 0 ? 'AI' : 'Other'),
                     isMe: msg.senderId === user?.ID,
                     time: new Date(msg.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -128,17 +141,53 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         }
     };
 
-    const renderMessage = ({ item }: any) => (
-        <View style={[
-            styles.messageBubble,
-            item.isMe ? styles.myMessage : styles.otherMessage,
-            { backgroundColor: item.isMe ? theme.userBubble : theme.botBubble }
-        ]}>
-            {!item.isMe && <Text style={[styles.senderName, { color: theme.accent }]}>{item.sender}</Text>}
-            <Text style={[styles.messageText, { color: theme.text }]}>{item.content}</Text>
-            <Text style={[styles.timeText, { color: theme.subText }]}>{item.time}</Text>
-        </View>
-    );
+    const renderMessage = ({ item }: any) => {
+        const isAudio = item.type === 'audio';
+        const isImage = item.type === 'image';
+        const isDocument = item.type === 'document';
+
+        return (
+            <View style={[
+                styles.messageBubble,
+                item.isMe ? styles.myMessage : styles.otherMessage,
+                { backgroundColor: item.isMe ? theme.userBubble : theme.botBubble }
+            ]}>
+                {!item.isMe && <Text style={[styles.senderName, { color: theme.accent }]}>{item.sender}</Text>}
+
+                {isAudio ? (
+                    <AudioPlayer
+                        url={item.content}
+                        duration={item.duration}
+                        isDarkMode={isDarkMode}
+                        onError={() => Alert.alert('Error', 'Failed to play audio')}
+                    />
+                ) : isImage ? (
+                    <TouchableOpacity onPress={() => Alert.alert('Image', 'View image option coming soon')}>
+                        <Image
+                            source={{ uri: item.content }}
+                            style={styles.messageImage}
+                            resizeMode="cover"
+                        />
+                    </TouchableOpacity>
+                ) : isDocument ? (
+                    <TouchableOpacity
+                        style={styles.documentRow}
+                        onPress={() => Linking.openURL(item.content)}
+                    >
+                        <Text style={{ fontSize: 20, marginRight: 8 }}>📄</Text>
+                        <View>
+                            <Text style={[styles.messageText, { color: theme.text }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
+                            <Text style={{ color: theme.subText, fontSize: 10 }}>{mediaService.formatFileSize(item.fileSize)}</Text>
+                        </View>
+                    </TouchableOpacity>
+                ) : (
+                    <Text style={[styles.messageText, { color: theme.text }]}>{item.content}</Text>
+                )}
+
+                <Text style={[styles.timeText, { color: theme.subText }]}>{item.time}</Text>
+            </View>
+        );
+    };
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -223,6 +272,17 @@ const styles = StyleSheet.create({
         fontSize: 10,
         alignSelf: 'flex-end',
         marginTop: 4,
+    },
+    messageImage: {
+        width: 200,
+        height: 200,
+        borderRadius: 12,
+        marginVertical: 4,
+    },
+    documentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 5,
     },
     inputContainer: {
         flexDirection: 'row',
