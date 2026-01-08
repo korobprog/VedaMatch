@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,11 +39,31 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 	imageService := services.GetImageProcessingService()
 	routerService := services.GetSmartRouterService()
 
+	// 0. Load personalized prompts based on user profile
+	userID := c.Locals("userID")
+	if userIDStr, ok := body["userId"].(string); ok && userID == nil {
+		if id, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
+			userID = uint(id)
+		}
+	}
+	if userIDFloat, ok := body["userId"].(float64); ok && userID == nil {
+		userID = uint(userIDFloat)
+	}
+
+	systemPrompt := loadUserSystemPrompt(userID)
+
 	// 1. Analyze Intent
 	// We extract messages to a typed slice for the service
 	var messagesInterface []interface{}
 	if msgs, ok := body["messages"].([]interface{}); ok {
 		messagesInterface = msgs
+	}
+
+	// Prepend system prompt if available
+	if systemPrompt != "" {
+		messagesInterface = prependSystemMessage(messagesInterface, systemPrompt)
+		body["messages"] = messagesInterface
+		log.Printf("[Chat] Applied personalized system prompt for user %v", userID)
 	}
 
 	intentResult := intentService.DetectIntent(messagesInterface)
@@ -357,4 +379,83 @@ func (h *ChatHandler) HandleModels(c *fiber.Ctx) error {
 	c.Status(resp.StatusCode)
 	c.Set("Content-Type", "application/json")
 	return c.Send(respBody)
+}
+
+// loadUserSystemPrompt loads and combines applicable prompts for a user
+func loadUserSystemPrompt(userIDInterface interface{}) string {
+	if userIDInterface == nil {
+		// No user ID, return only global prompts
+		return loadGlobalPrompts()
+	}
+
+	var userID uint
+	switch v := userIDInterface.(type) {
+	case uint:
+		userID = v
+	case int:
+		userID = uint(v)
+	case float64:
+		userID = uint(v)
+	case string:
+		if id, err := strconv.ParseUint(v, 10, 32); err == nil {
+			userID = uint(id)
+		}
+	}
+
+	if userID == 0 {
+		return loadGlobalPrompts()
+	}
+
+	// Use the BuildSystemPromptForUser function from prompt_handler
+	return BuildSystemPromptForUser(userID)
+}
+
+// loadGlobalPrompts loads only global prompts (for anonymous users)
+func loadGlobalPrompts() string {
+	var prompts []models.AIPrompt
+	if err := database.DB.Where("is_active = ? AND scope = ?", true, models.ScopeGlobal).
+		Order("priority DESC").
+		Find(&prompts).Error; err != nil {
+		log.Printf("[Chat] Error loading global prompts: %v", err)
+		return ""
+	}
+
+	var parts []string
+	for _, p := range prompts {
+		if p.Content != "" {
+			parts = append(parts, p.Content)
+		}
+	}
+
+	return strings.Join(parts, "\n\n")
+}
+
+// prependSystemMessage adds a system message at the beginning of the messages array
+func prependSystemMessage(messages []interface{}, systemPrompt string) []interface{} {
+	if systemPrompt == "" {
+		return messages
+	}
+
+	systemMessage := map[string]interface{}{
+		"role":    "system",
+		"content": systemPrompt,
+	}
+
+	// Check if first message is already a system message
+	if len(messages) > 0 {
+		if firstMsg, ok := messages[0].(map[string]interface{}); ok {
+			if role, ok := firstMsg["role"].(string); ok && role == "system" {
+				// Combine with existing system message
+				existingContent, _ := firstMsg["content"].(string)
+				firstMsg["content"] = systemPrompt + "\n\n" + existingContent
+				return messages
+			}
+		}
+	}
+
+	// Prepend new system message
+	result := make([]interface{}, 0, len(messages)+1)
+	result = append(result, systemMessage)
+	result = append(result, messages...)
+	return result
 }

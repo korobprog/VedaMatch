@@ -1,10 +1,16 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -208,15 +214,25 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 		settingsMap["API_OPEN_AI"] = strings.Repeat("*", len(os.Getenv("API_OPEN_AI")))
 	}
 
-	// Ensure Gemini keys are present for UI
-	geminiKeys := []string{"GEMINI_API_KEY", "GEMINI_API_KEY_BACKUP_1", "GEMINI_API_KEY_BACKUP_2", "GEMINI_API_KEY_BACKUP_3", "GEMINI_API_KEY_BACKUP_4", "GEMINI_API_KEY_BACKUP_5"}
-	for _, key := range geminiKeys {
-		if _, ok := settingsMap[key]; !ok {
-			envVal := os.Getenv(key)
-			if envVal != "" {
-				settingsMap[key] = strings.Repeat("*", len(envVal))
+	// Scan all environment variables for GEMINI_ keys to capture backups not yet in DB
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		key := pair[0]
+		val := pair[1]
+
+		if strings.HasPrefix(key, "GEMINI_API_KEY") {
+			// Only add if not already in settingsMap (DB takes precedence or we just want to ensure it's shown)
+			if _, ok := settingsMap[key]; !ok {
+				if val != "" {
+					settingsMap[key] = strings.Repeat("*", len(val))
+				}
 			}
 		}
+	}
+
+	// Ensure GEMINI_CORPUS_ID is present
+	if _, ok := settingsMap["GEMINI_CORPUS_ID"]; !ok {
+		settingsMap["GEMINI_CORPUS_ID"] = os.Getenv("GEMINI_CORPUS_ID")
 	}
 
 	return c.JSON(settingsMap)
@@ -242,7 +258,136 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 		if strings.HasPrefix(k, "GEMINI_API_KEY") && v != "" {
 			os.Setenv(k, v)
 		}
+		if k == "GEMINI_CORPUS_ID" {
+			os.Setenv(k, v)
+		}
 	}
 
 	return c.JSON(fiber.Map{"message": "Settings updated"})
+}
+
+// RAG Management Methods
+
+func (h *AdminHandler) ListGeminiCorpora(c *fiber.Ctx) error {
+	keyName := c.Query("key_name")
+	if keyName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "key_name is required"})
+	}
+
+	// 1. Get API Key
+	var apiKey string
+	// Try DB first
+	var setting models.SystemSetting
+	if err := database.DB.Where("key = ?", keyName).First(&setting).Error; err == nil {
+		apiKey = setting.Value
+	}
+	// Fallback to Env
+	if apiKey == "" {
+		apiKey = os.Getenv(keyName)
+	}
+
+	if apiKey == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": fmt.Sprintf("API Key '%s' not found", keyName)})
+	}
+
+	// 2. Call Google API (via Proxy if set)
+	baseURL := os.Getenv("GEMINI_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://generativelanguage.googleapis.com"
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	url := fmt.Sprintf("%s/v1beta/corpora?key=%s", baseURL, apiKey)
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect to Gemini API: " + err.Error()})
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return c.Status(resp.StatusCode).JSON(fiber.Map{
+			"error":   "Gemini API Error",
+			"status":  resp.StatusCode,
+			"details": string(body),
+		})
+	}
+
+	// 3. Return Raw JSON
+	var data interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to parse JSON response"})
+	}
+
+	return c.JSON(data)
+}
+
+func (h *AdminHandler) CreateGeminiCorpus(c *fiber.Ctx) error {
+	var body struct {
+		KeyName     string `json:"keyName"`
+		DisplayName string `json:"displayName"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	if body.KeyName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "keyName is required"})
+	}
+
+	// 1. Get API Key
+	var apiKey string
+	var setting models.SystemSetting
+	if err := database.DB.Where("key = ?", body.KeyName).First(&setting).Error; err == nil {
+		apiKey = setting.Value
+	}
+	if apiKey == "" {
+		apiKey = os.Getenv(body.KeyName)
+	}
+	if apiKey == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "API Key not found"})
+	}
+
+	// 2. Create Corpus
+	baseURL := os.Getenv("GEMINI_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://generativelanguage.googleapis.com"
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	url := fmt.Sprintf("%s/v1beta/corpora?key=%s", baseURL, apiKey)
+
+	payload := map[string]string{
+		"displayName": body.DisplayName,
+	}
+	if payload["displayName"] == "" {
+		payload["displayName"] = "New Corpus " + time.Now().Format("2006-01-02 15:04")
+	}
+
+	jsonPayload, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect to Gemini API"})
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return c.Status(resp.StatusCode).JSON(fiber.Map{
+			"error":   "Failed to create corpus",
+			"details": string(respBody),
+		})
+	}
+
+	var data interface{}
+	json.Unmarshal(respBody, &data)
+
+	return c.JSON(data)
 }

@@ -1,16 +1,13 @@
-import ImagePicker, {
+import {
 	Asset,
 	ImagePickerResponse,
 	launchImageLibrary,
 	launchCamera,
 } from 'react-native-image-picker';
-import DocumentPicker, {
-	DocumentPickerResponse,
-	types,
-} from 'react-native-document-picker';
+import DocumentPicker from 'react-native-document-picker';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { API_PATH } from '../config/api.config';
-import { Alert, PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import { getAuthHeaders } from './contactService';
 
@@ -351,7 +348,7 @@ export const mediaService = {
 				let errorData;
 				try {
 					errorData = JSON.parse(errorTxt);
-				} catch (e) {
+				} catch {
 					errorData = { error: errorTxt };
 				}
 

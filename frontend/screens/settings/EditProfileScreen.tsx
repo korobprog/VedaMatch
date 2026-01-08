@@ -17,11 +17,10 @@ import DatePicker from 'react-native-date-picker';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { API_PATH, API_BASE_URL } from '../../config/api.config';
+import { API_PATH } from '../../config/api.config';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
-import { contactService } from '../../services/contactService';
 import {
     DATING_TRADITIONS,
     YOGA_STYLES,
@@ -39,7 +38,7 @@ const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation();
     const { user, login } = useUser();
-    const { countriesData, citiesData, fetchCountries, fetchCities, autoDetectLocation } = useLocation();
+    const { countriesData, fetchCountries, fetchCities } = useLocation();
 
     const isDarkMode = Platform.OS === 'ios' ? true : false;
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
@@ -47,7 +46,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
-    const [avatar, setAvatar] = useState<any>(null);
+    // const [avatar, setAvatar] = useState<any>(null); // TODO: Implement avatar picker
     const [country, setCountry] = useState('');
     const [city, setCity] = useState('');
     const [karmicName, setKarmicName] = useState('');
@@ -68,7 +67,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [datingEnabled, setDatingEnabled] = useState(false);
 
     const [showCountryPicker, setShowCountryPicker] = useState(false);
-    const [showCityPicker, setShowCityPicker] = useState(false);
+    // const [showCityPicker, setShowCityPicker] = useState(false);
     const [showMadhPicker, setShowMadhPicker] = useState(false);
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
@@ -76,7 +75,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [showDietPicker, setShowDietPicker] = useState(false);
     const [showGenderPicker, setShowGenderPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
-    const [openTimePicker, setOpenTimePicker] = useState(false);
+    // const [openTimePicker, setOpenTimePicker] = useState(false);
 
     const [expandedSections, setExpandedSections] = useState({
         avatar: true,
@@ -90,9 +89,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     useEffect(() => {
         loadProfile();
         fetchCountries();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchCountries]);
 
-    const loadProfile = async () => {
+    const loadProfile = React.useCallback(async () => {
         if (!user?.ID) return;
 
         try {
@@ -134,7 +134,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.ID, fetchCities]);
 
     const handleSave = async () => {
         if (!user?.ID) return;

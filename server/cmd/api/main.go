@@ -28,6 +28,9 @@ func main() {
 	// Seed Gemini models if not present
 	database.SeedGeminiModels()
 
+	// Seed default AI prompts if not present
+	database.SeedDefaultPrompts()
+
 	// Initialize Services
 	services.InitScheduler()
 
@@ -54,6 +57,7 @@ func main() {
 	typingHandler := handlers.NewTypingHandler(hub)
 	ragHandler := handlers.NewRAGHandler(services.NewRAGPipelineService(database.DB))
 	chatHandler := handlers.NewChatHandler()
+	promptHandler := handlers.NewPromptHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -73,6 +77,10 @@ func main() {
 	admin.Get("/settings", adminHandler.GetSystemSettings)
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
 
+	// RAG Management
+	admin.Get("/rag/corpora", adminHandler.ListGeminiCorpora)
+	admin.Post("/rag/corpora", adminHandler.CreateGeminiCorpus)
+
 	// AI Model Management Routes
 	admin.Get("/ai-models", aiHandler.GetAdminModels)
 	admin.Post("/ai-models/sync", aiHandler.SyncModels)
@@ -84,6 +92,15 @@ func main() {
 	admin.Post("/ai-models/auto-optimize", aiHandler.AutoOptimizeModels)
 	admin.Post("/ai-models/schedule", aiHandler.HandleSchedule)
 	admin.Post("/ai-models/:id/toggle-auto", aiHandler.ToggleAutoRouting)
+
+	// AI Prompt Management Routes
+	admin.Get("/prompts", promptHandler.GetPrompts)
+	admin.Get("/prompts/options", promptHandler.GetScopeOptions)
+	admin.Get("/prompts/:id", promptHandler.GetPrompt)
+	admin.Post("/prompts", promptHandler.CreatePrompt)
+	admin.Put("/prompts/:id", promptHandler.UpdatePrompt)
+	admin.Delete("/prompts/:id", promptHandler.DeletePrompt)
+	admin.Post("/prompts/:id/toggle", promptHandler.TogglePromptActive)
 
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)

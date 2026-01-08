@@ -50,6 +50,50 @@ export default function SettingsPage() {
         }
     };
 
+    // RAG Management State
+    const [selectedKey, setSelectedKey] = useState('GEMINI_API_KEY');
+    const [corpora, setCorpora] = useState<any[]>([]);
+    const [loadingCorpora, setLoadingCorpora] = useState(false);
+    const [newCorpusName, setNewCorpusName] = useState('');
+    const [creatingCorpus, setCreatingCorpus] = useState(false);
+
+    const fetchCorpora = async () => {
+        if (!selectedKey) return;
+        setLoadingCorpora(true);
+        try {
+            const res = await api.get(`/admin/rag/corpora?key_name=${selectedKey}`);
+            if (res.data && res.data.corpora) {
+                setCorpora(res.data.corpora);
+            } else {
+                setCorpora([]);
+            }
+        } catch (err) {
+            console.error('Failed to fetch corpora', err);
+            alert('Failed to fetch corpora. Check API Key permission.');
+        } finally {
+            setLoadingCorpora(false);
+        }
+    };
+
+    const createCorpus = async () => {
+        if (!newCorpusName) return;
+        setCreatingCorpus(true);
+        try {
+            const res = await api.post('/admin/rag/corpora', {
+                keyName: selectedKey,
+                displayName: newCorpusName
+            });
+            setNewCorpusName('');
+            fetchCorpora(); // Refresh list
+            alert(`Corpus created: ${res.data.name}`);
+        } catch (err) {
+            console.error('Failed to create corpus', err);
+            alert('Failed to create corpus.');
+        } finally {
+            setCreatingCorpus(false);
+        }
+    };
+
     const handleSave = async () => {
         setLoading(true);
         try {
@@ -149,6 +193,7 @@ export default function SettingsPage() {
                                         </p>
                                     </div>
 
+                                    {/* Primary Gemini Key */}
                                     <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
                                         <div className="flex items-center gap-2">
                                             <Key className="w-4 h-4 text-blue-500" />
@@ -162,65 +207,52 @@ export default function SettingsPage() {
                                             className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                                         />
                                         <p className="text-[10px] text-[var(--muted-foreground)] italic">
-                                            Primary key for Gemini models. Fallback chain: Primary → Backup 1 → Backup 2 → OpenAI.
+                                            Primary key for Gemini models.
                                         </p>
                                     </div>
 
-                                    <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <Key className="w-4 h-4 text-blue-400" />
-                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Gemini API Key Backup 1</label>
-                                        </div>
-                                        <input
-                                            type="password"
-                                            value={settings.GEMINI_API_KEY_BACKUP_1 || ''}
-                                            onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY_BACKUP_1: e.target.value })}
-                                            placeholder="Enter Backup Gemini API Key 1"
-                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                                        />
-                                    </div>
+                                    {/* Dynamic Backup Keys */}
+                                    {Object.keys(settings)
+                                        .filter(key => key.startsWith('GEMINI_API_KEY_BACKUP_'))
+                                        .sort((a, b) => {
+                                            const numA = parseInt(a.replace('GEMINI_API_KEY_BACKUP_', '')) || 0;
+                                            const numB = parseInt(b.replace('GEMINI_API_KEY_BACKUP_', '')) || 0;
+                                            return numA - numB;
+                                        })
+                                        .map((key) => (
+                                            <div key={key} className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3 relative group">
+                                                <div className="flex items-center gap-2">
+                                                    <Key className="w-4 h-4 text-blue-300" />
+                                                    <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">
+                                                        {key.replace(/_/g, ' ')}
+                                                    </label>
+                                                </div>
+                                                <input
+                                                    type="password"
+                                                    value={settings[key] || ''}
+                                                    onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
+                                                    placeholder={`Enter ${key}`}
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                                />
+                                            </div>
+                                        ))}
 
-                                    <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <Key className="w-4 h-4 text-blue-300" />
-                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Gemini API Key Backup 2</label>
-                                        </div>
-                                        <input
-                                            type="password"
-                                            value={settings.GEMINI_API_KEY_BACKUP_2 || ''}
-                                            onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY_BACKUP_2: e.target.value })}
-                                            placeholder="Enter Backup Gemini API Key 2"
-                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                                        />
-                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const backups = Object.keys(settings).filter(k => k.startsWith('GEMINI_API_KEY_BACKUP_'));
+                                            let nextNum = 1;
+                                            if (backups.length > 0) {
+                                                const nums = backups.map(k => parseInt(k.replace('GEMINI_API_KEY_BACKUP_', '')) || 0);
+                                                nextNum = Math.max(...nums) + 1;
+                                            }
+                                            setSettings({ ...settings, [`GEMINI_API_KEY_BACKUP_${nextNum}`]: '' });
+                                        }}
+                                        className="w-full py-3 border border-dashed border-[var(--border)] rounded-xl text-sm font-bold text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)] transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Sparkles className="w-4 h-4" /> Add New Backup Key
+                                    </button>
 
-                                    <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <Key className="w-4 h-4 text-blue-300" />
-                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Gemini API Key Backup 2</label>
-                                        </div>
-                                        <input
-                                            type="password"
-                                            value={settings.GEMINI_API_KEY_BACKUP_3 || ''}
-                                            onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY_BACKUP_3: e.target.value })}
-                                            placeholder="Enter Backup Gemini API Key 3"
-                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                                        />
-                                    </div>
 
-                                    <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <Key className="w-4 h-4 text-blue-300" />
-                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Gemini API Key Backup 2</label>
-                                        </div>
-                                        <input
-                                            type="password"
-                                            value={settings.GEMINI_API_KEY_BACKUP_4 || ''}
-                                            onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY_BACKUP_4: e.target.value })}
-                                            placeholder="Enter Backup Gemini API Key 4"
-                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                                        />
-                                    </div>
 
                                     <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
                                         <div className="flex items-center gap-2">
@@ -295,15 +327,104 @@ export default function SettingsPage() {
                                                 <p className="text-xs text-[var(--muted-foreground)]">Configure your vector database settings</p>
                                             </div>
                                         </div>
-                                        <div className="space-y-2 pt-2">
+                                        <div className="space-y-4">
+                                            {/* Current Corpus ID */}
                                             <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Corpus ID</label>
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Current Corpus ID</label>
                                                 <input
                                                     type="text"
-                                                    disabled
-                                                    value="user-profiles-store-o1klt2dm6z8h"
-                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2 px-3 text-xs font-mono outline-none opacity-70"
+                                                    value={settings.GEMINI_CORPUS_ID || ''}
+                                                    onChange={(e) => setSettings({ ...settings, GEMINI_CORPUS_ID: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2 px-3 text-xs font-mono outline-none focus:ring-2 focus:ring-[var(--primary)]/20 shadow-inner"
+                                                    placeholder="No Corpus ID configured"
                                                 />
+                                                <p className="text-[10px] text-[var(--muted-foreground)]">
+                                                    This ID must be accessible by the active API Key.
+                                                </p>
+                                            </div>
+
+                                            {/* Corpus Manager */}
+                                            <div className="p-4 bg-[var(--background)]/50 rounded-xl border border-[var(--border)] space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-sm font-bold flex items-center gap-2">
+                                                        <Globe className="w-4 h-4 text-indigo-500" /> Corpus Manager
+                                                    </h3>
+                                                    <span className="text-[10px] bg-indigo-500/10 text-indigo-500 px-2 py-1 rounded font-bold">BETA</span>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <select
+                                                        className="bg-[var(--background)] border border-[var(--border)] text-xs p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                        value={selectedKey}
+                                                        onChange={(e) => setSelectedKey(e.target.value)}
+                                                    >
+                                                        <option value="GEMINI_API_KEY">Primary Key</option>
+                                                        {Object.keys(settings)
+                                                            .filter(key => key.startsWith('GEMINI_API_KEY_BACKUP_'))
+                                                            .sort((a, b) => {
+                                                                const numA = parseInt(a.replace('GEMINI_API_KEY_BACKUP_', '')) || 0;
+                                                                const numB = parseInt(b.replace('GEMINI_API_KEY_BACKUP_', '')) || 0;
+                                                                return numA - numB;
+                                                            })
+                                                            .map(key => (
+                                                                <option key={key} value={key}>{key.replace('GEMINI_API_KEY_', '').replace(/_/g, ' ')}</option>
+                                                            ))
+                                                        }
+                                                    </select>
+
+                                                    <button
+                                                        onClick={fetchCorpora}
+                                                        disabled={loadingCorpora}
+                                                        className="bg-indigo-600 text-white text-xs font-bold py-2.5 px-4 rounded-lg hover:opacity-90 disabled:opacity-50 transition-all shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2"
+                                                    >
+                                                        {loadingCorpora ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+                                                        Fetch Corpora
+                                                    </button>
+                                                </div>
+
+                                                {corpora.length > 0 && (
+                                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                        <p className="text-[10px] uppercase font-bold text-[var(--muted-foreground)]">Available Corpora (Click to Select)</p>
+                                                        <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                                            {corpora.map((c: any) => (
+                                                                <div
+                                                                    key={c.name}
+                                                                    onClick={() => setSettings({ ...settings, GEMINI_CORPUS_ID: c.name.replace('corpora/', '') })}
+                                                                    className={`text-xs p-2.5 rounded-lg cursor-pointer flex justify-between items-center transition-all border border-transparent ${settings.GEMINI_CORPUS_ID === c.name.replace('corpora/', '')
+                                                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                                                        : 'bg-[var(--background)] hover:bg-indigo-500/5 hover:border-indigo-500/20'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex flex-col overflow-hidden">
+                                                                        <span className="font-bold truncate">{c.displayName || 'Untitled'}</span>
+                                                                        <span className="font-mono text-[10px] text-[var(--muted-foreground)] opacity-70 truncate">
+                                                                            {c.name.replace('corpora/', '')}
+                                                                        </span>
+                                                                    </div>
+                                                                    {settings.GEMINI_CORPUS_ID === c.name.replace('corpora/', '') && (
+                                                                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 ml-2" />
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex gap-2 pt-3 border-t border-[var(--border)]">
+                                                    <input
+                                                        placeholder="New Corpus Name"
+                                                        className="flex-1 bg-[var(--background)] border border-[var(--border)] text-xs p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                        value={newCorpusName}
+                                                        onChange={(e) => setNewCorpusName(e.target.value)}
+                                                    />
+                                                    <button
+                                                        onClick={createCorpus}
+                                                        disabled={creatingCorpus || !newCorpusName}
+                                                        className="bg-emerald-600 text-white text-xs font-bold py-2 px-4 rounded-lg hover:opacity-90 disabled:opacity-50 shadow-md shadow-emerald-500/20"
+                                                    >
+                                                        {creatingCorpus ? 'Creating...' : 'Create'}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

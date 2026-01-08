@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     SafeAreaView,
     useColorScheme,
-    FlatList,
     ActivityIndicator,
     Platform,
     StatusBar,
