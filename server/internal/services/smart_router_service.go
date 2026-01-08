@@ -49,9 +49,36 @@ func (s *SmartRouterService) SelectModels(targetCategory string, isComplexTask b
 			Find(&modelsToTry)
 	}
 
+	// Ensure we have non-Google fallbacks if Gemini keys might be exhausted
+	// Add non-Google models at the end if not already present
+	if targetCategory == "text" && len(modelsToTry) > 0 {
+		hasNonGoogle := false
+		for _, m := range modelsToTry {
+			if m.Provider != "Google" && m.Provider != "" {
+				hasNonGoogle = true
+				break
+			}
+		}
+		if !hasNonGoogle {
+			// Add explicit non-Google fallbacks
+			var nonGoogleModels []models.AiModel
+			database.DB.Where("is_enabled = ? AND category = ? AND provider != ?", true, "text", "Google").
+				Order("last_response_time asc").
+				Limit(2).
+				Find(&nonGoogleModels)
+			modelsToTry = append(modelsToTry, nonGoogleModels...)
+			log.Printf("%s Added %d non-Google fallback models", intentLogPrefix, len(nonGoogleModels))
+		}
+	}
+
 	if len(modelsToTry) == 0 {
 		log.Printf("%s No auto-routing models found at all. Defaulting to gpt-3.5-turbo", intentLogPrefix)
 		modelsToTry = append(modelsToTry, models.AiModel{ModelID: "gpt-3.5-turbo", Provider: ""})
+	}
+
+	// Limit to reasonable number of attempts
+	if len(modelsToTry) > 4 {
+		modelsToTry = modelsToTry[:4]
 	}
 
 	return modelsToTry

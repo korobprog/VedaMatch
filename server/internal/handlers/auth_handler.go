@@ -227,7 +227,7 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 			defer fileContent.Close()
 			ext := filepath.Ext(file.Filename)
 			// avatars/userId_timestamp.ext to avoid caching issues + uniqueness
-			fileName := fmt.Sprintf("avatars/%s_%d%s", userId, time.Now().Unix(), ext)
+			fileName := fmt.Sprintf("avatars/%d_%d%s", userId, time.Now().Unix(), ext)
 			contentType := file.Header.Get("Content-Type")
 
 			avatarURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
@@ -248,7 +248,7 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 		os.MkdirAll(uploadDir, 0755)
 	}
 
-	filename := fmt.Sprintf("%s_%s", userId, file.Filename)
+	filename := fmt.Sprintf("%d_%s", userId, file.Filename)
 	filepath := fmt.Sprintf("%s/%s", uploadDir, filename)
 
 	if err := c.SaveFile(file, filepath); err != nil {

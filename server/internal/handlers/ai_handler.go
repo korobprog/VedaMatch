@@ -411,3 +411,192 @@ func (h *AiHandler) ToggleAutoRouting(c *fiber.Ctx) error {
 		"is_auto_routing_enabled": newStatus,
 	})
 }
+
+// GeminiKeyStatus represents status of a single Gemini API key
+type GeminiKeyStatus struct {
+	Index          int     `json:"index"`
+	KeyPrefix      string  `json:"keyPrefix"`
+	KeyName        string  `json:"keyName"`
+	Status         string  `json:"status"`
+	StatusCode     int     `json:"statusCode"`
+	Message        string  `json:"message"`
+	TestedAt       string  `json:"testedAt"`
+	UsagePercent   float64 `json:"usagePercent"`
+	ResetInMinutes int     `json:"resetInMinutes"`
+	ResetTime      string  `json:"resetTime"`
+	IsUsable       bool    `json:"isUsable"`
+}
+
+// GetGeminiKeyStatus checks and returns status of all Gemini API keys
+func (h *AiHandler) GetGeminiKeyStatus(c *fiber.Ctx) error {
+	geminiService := services.GetGeminiService()
+
+	// Get keys from environment with names
+	type keyInfo struct {
+		key  string
+		name string
+	}
+	keys := []keyInfo{}
+
+	if key := os.Getenv("LM_GEMINI"); key != "" {
+		keys = append(keys, keyInfo{key, "LM_GEMINI"})
+	}
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+		keys = append(keys, keyInfo{key, "GEMINI_API_KEY"})
+	}
+
+	// Backup keys
+	for i := 1; i <= 5; i++ {
+		envName := fmt.Sprintf("GEMINI_API_KEY_BACKUP_%d", i)
+		if key := os.Getenv(envName); key != "" {
+			keys = append(keys, keyInfo{key, envName})
+		}
+	}
+
+	// Database keys
+	var settings []models.SystemSetting
+	database.DB.Where("key IN ?", []string{"LM_GEMINI", "GEMINI_API_KEY"}).Find(&settings)
+	for _, s := range settings {
+		if s.Value != "" {
+			// Check for duplicates
+			found := false
+			for _, k := range keys {
+				if k.key == s.Value {
+					found = true
+					break
+				}
+			}
+			if !found {
+				keys = append(keys, keyInfo{s.Value, "DB:" + s.Key})
+			}
+		}
+	}
+
+	results := []GeminiKeyStatus{}
+	baseURL := os.Getenv("GEMINI_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://generativelanguage.googleapis.com"
+	}
+
+	// Calculate time until quota reset (Gemini resets at midnight Pacific Time)
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	if loc == nil {
+		loc = time.FixedZone("PST", -8*60*60)
+	}
+	now := time.Now().In(loc)
+	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, loc)
+	minutesUntilReset := int(nextMidnight.Sub(now).Minutes())
+	resetTimeStr := nextMidnight.UTC().Format(time.RFC3339)
+
+	for i, ki := range keys {
+		status := GeminiKeyStatus{
+			Index:          i,
+			KeyPrefix:      ki.key[:10] + "..." + ki.key[len(ki.key)-4:],
+			KeyName:        ki.name,
+			TestedAt:       time.Now().Format(time.RFC3339),
+			ResetInMinutes: minutesUntilReset,
+			ResetTime:      resetTimeStr,
+		}
+
+		// Quick test request to Gemini API
+		testURL := fmt.Sprintf("%s/v1beta/models/gemini-2.0-flash:generateContent?key=%s", baseURL, ki.key)
+
+		reqBody := `{"contents":[{"parts":[{"text":"Hi"}]}],"generationConfig":{"maxOutputTokens":10}}`
+
+		req, err := http.NewRequest("POST", testURL, strings.NewReader(reqBody))
+		if err != nil {
+			status.Status = "error"
+			status.Message = "Failed to create request"
+			status.UsagePercent = 0
+			status.IsUsable = false
+			results = append(results, status)
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			status.Status = "error"
+			status.StatusCode = 0
+			status.Message = err.Error()
+			status.UsagePercent = 0
+			status.IsUsable = false
+			results = append(results, status)
+			continue
+		}
+		defer resp.Body.Close()
+
+		status.StatusCode = resp.StatusCode
+
+		switch resp.StatusCode {
+		case 200:
+			status.Status = "working"
+			status.Message = "Ключ работает"
+			status.UsagePercent = 0 // Unknown, but < 100%
+			status.IsUsable = true
+		case 400:
+			status.Status = "invalid"
+			status.Message = "Ключ недействителен или не найден"
+			status.UsagePercent = 0
+			status.IsUsable = false
+		case 403:
+			status.Status = "leaked"
+			status.Message = "Ключ помечен как скомпрометированный"
+			status.UsagePercent = 100
+			status.IsUsable = false
+		case 429:
+			status.Status = "rate_limited"
+			status.Message = "Превышен лимит запросов"
+			status.UsagePercent = 100 // Quota exhausted
+			status.IsUsable = false   // But might work after reset
+		default:
+			status.Status = "unknown"
+			status.Message = fmt.Sprintf("Неизвестный статус: %d", resp.StatusCode)
+			status.UsagePercent = 50
+			status.IsUsable = false
+		}
+
+		results = append(results, status)
+	}
+
+	// Count by status
+	working := 0
+	leaked := 0
+	invalid := 0
+	rateLimited := 0
+	usableCount := 0
+	for _, r := range results {
+		switch r.Status {
+		case "working":
+			working++
+			usableCount++
+		case "leaked":
+			leaked++
+		case "invalid":
+			invalid++
+		case "rate_limited":
+			rateLimited++
+		}
+	}
+
+	_ = geminiService // Suppress unused warning
+
+	// Format reset time nicely
+	hoursUntilReset := minutesUntilReset / 60
+	minsRemaining := minutesUntilReset % 60
+
+	return c.JSON(fiber.Map{
+		"keys":               results,
+		"totalKeys":          len(keys),
+		"working":            working,
+		"leaked":             leaked,
+		"invalid":            invalid,
+		"rateLimited":        rateLimited,
+		"usableCount":        usableCount,
+		"baseURL":            baseURL,
+		"resetInMinutes":     minutesUntilReset,
+		"resetTimeFormatted": fmt.Sprintf("%dч %dмин", hoursUntilReset, minsRemaining),
+		"resetTimeUTC":       resetTimeStr,
+	})
+}

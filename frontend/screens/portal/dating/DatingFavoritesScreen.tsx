@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useSettings } from '../../../context/SettingsContext';
 import { useUser } from '../../../context/UserContext';
-import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api.config';
+import { datingService } from '../../../services/datingService';
 
 interface Favorite {
     ID: number;
@@ -27,11 +27,10 @@ export const DatingFavoritesScreen = ({ navigation }: any) => {
     }, []);
 
     const fetchFavorites = async () => {
+        if (!user?.ID) return;
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/dating/favorites`, {
-                params: { userId: user?.ID }
-            });
-            setFavorites(response.data);
+            const data = await datingService.getFavorites(user.ID);
+            setFavorites(data);
         } catch (error) {
             console.error('Failed to fetch favorites:', error);
         } finally {
@@ -41,7 +40,7 @@ export const DatingFavoritesScreen = ({ navigation }: any) => {
 
     const deleteFavorite = async (id: number) => {
         try {
-            await axios.delete(`${API_BASE_URL}/api/dating/favorites/${id}`);
+            await datingService.removeFavorite(id);
             setFavorites(prev => prev.filter(f => f.ID !== id));
         } catch (error) {
             Alert.alert('Error', 'Failed to delete favorite');

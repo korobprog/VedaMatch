@@ -14,13 +14,9 @@ import {
     ScrollView
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
-import axios from 'axios';
-import { API_PATH } from '../../../config/api.config';
-import { useTranslation } from 'react-i18next';
-import { COLORS } from '../../../components/chat/ChatConstants';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import { useUser } from '../../../context/UserContext';
+import { datingService } from '../../../services/datingService';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 3;
@@ -53,8 +49,8 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const fetchPhotos = async () => {
         try {
-            const response = await axios.get(`${API_PATH}/media/${userId}`);
-            setPhotos(response.data);
+            const data = await datingService.getPhotos(userId);
+            setPhotos(data);
         } catch (error) {
             console.error('Failed to fetch photos:', error);
         } finally {
@@ -93,9 +89,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
 
             setUploading(true);
             try {
-                await axios.post(`${API_PATH}/media/upload/${userId}`, formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
+                await datingService.uploadPhoto(userId, formData);
                 fetchPhotos();
             } catch (error) {
                 Alert.alert('Error', 'Failed to upload photo');
@@ -128,7 +122,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const setProfilePicture = async (id: number) => {
         try {
-            await axios.post(`${API_PATH}/media/${id}/set-profile`);
+            await datingService.setProfilePhoto(id);
             fetchPhotos();
         } catch (error) {
             Alert.alert('Error', 'Failed to set profile picture');
@@ -137,7 +131,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const deletePhoto = async (id: number) => {
         try {
-            await axios.delete(`${API_PATH}/media/${id}`);
+            await datingService.deletePhoto(id);
             fetchPhotos();
         } catch (error) {
             Alert.alert(t('common.error'), t('common.error'));
@@ -156,7 +150,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
             delayLongPress={500}
         >
             <Image
-                source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}${item.url}` }}
+                source={{ uri: `${datingService.getMediaUrl(item.url)}` }}
                 style={[styles.photo, item.isProfile && { borderColor: theme.accent, borderWidth: 3 }]}
             />
             {item.isProfile && (
@@ -241,7 +235,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
                     >
                         {selectedPhoto && (
                             <Image
-                                source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}${selectedPhoto.url}` }}
+                                source={{ uri: `${datingService.getMediaUrl(selectedPhoto.url)}` }}
                                 style={{ width: width, height: width * 1.5 }}
                                 resizeMode="contain"
                             />

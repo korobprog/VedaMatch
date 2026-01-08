@@ -1,80 +1,235 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, useColorScheme, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { COLORS } from '../../../components/chat/ChatConstants';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-const MOCK_ADS = [
-    { id: '1', title: 'Looking for a flatmate', price: '20,000 ₽', location: 'Moscow' },
-    { id: '2', title: 'Selling Yoga Mat Lululemon', price: '5,000 ₽', location: 'SPb' },
-    { id: '3', title: 'Free Gita Books Distribution', price: 'Free', location: 'All India' },
-];
+import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
+import { adsService } from '../../../services/adsService';
+import { Ad, AdCategory, AdType } from '../../../types/ads';
+import { RootStackParamList } from '../../../types/navigation';
+
+import { AdCard } from '../../../components/ads/AdCard';
+import { CategoryPills } from '../../../components/ads/CategoryPills';
+import { AdTabSwitcher } from '../../../components/ads/AdTabSwitcher';
+import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 export const AdsScreen: React.FC = () => {
     const { t } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const colors = vedicTheme.colors;
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-    const renderItem = ({ item }: any) => (
-        <TouchableOpacity style={[styles.adItem, { borderBottomColor: theme.borderColor }]}>
-            <View style={styles.adContent}>
-                <Text style={[styles.adTitle, { color: theme.text }]}>{item.title}</Text>
-                <View style={styles.adMeta}>
-                    <Text style={[styles.adPrice, { color: theme.accent }]}>{item.price}</Text>
-                    <Text style={[styles.adLoc, { color: theme.subText }]}> • {item.location}</Text>
-                </View>
-            </View>
-            <View style={[styles.adImg, { backgroundColor: theme.inputBackground }]}>
-                <Text>📷</Text>
-            </View>
-        </TouchableOpacity>
-    );
+    const [activeTab, setActiveTab] = useState<AdType>('looking');
+    const [selectedCategory, setSelectedCategory] = useState<AdCategory | 'all'>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const [ads, setAds] = useState<Ad[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+
+    const fetchAds = useCallback(async (reset = false) => {
+        try {
+            if (reset) {
+                setLoading(true);
+            }
+
+            const currentPage = reset ? 1 : page;
+            let response;
+
+            if (activeTab === 'my') {
+                const myAds = await adsService.getMyAds();
+                response = {
+                    ads: myAds,
+                    total: myAds.length,
+                    page: 1,
+                    totalPages: 1
+                };
+            } else {
+                response = await adsService.getAds({
+                    adType: activeTab,
+                    category: selectedCategory === 'all' ? undefined : selectedCategory,
+                    search: searchQuery,
+                    page: currentPage,
+                    limit: 10,
+                    status: 'active'
+                });
+            }
+
+            if (reset) {
+                setAds(response.ads);
+            } else {
+                setAds(prev => [...prev, ...response.ads]);
+            }
+
+            setHasMore(currentPage < response.totalPages);
+            setPage(currentPage + 1);
+        } catch (error) {
+            console.error('Failed to load ads', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [activeTab, selectedCategory, searchQuery]);
+
+    useEffect(() => {
+        fetchAds(true);
+    }, [fetchAds]);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchAds(true);
+    };
+
+    const loadMore = () => {
+        if (!loading && hasMore) {
+            fetchAds();
+        }
+    };
+
+    const handleFavorite = async (ad: Ad) => {
+        try {
+            const result = await adsService.toggleFavorite(ad.ID);
+            setAds(prev => prev.map(item =>
+                item.ID === ad.ID ? { ...item, isFavorite: result.isFavorite } : item
+            ));
+        } catch (error) {
+            console.error('Error toggling favorite', error);
+        }
+    };
 
     return (
-        <View style={styles.container}>
-            <FlatList
-                data={MOCK_ADS}
-                keyExtractor={item => item.id}
-                renderItem={renderItem}
-                contentContainerStyle={styles.list}
-            />
-        </View>
+        <ProtectedScreen>
+            <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
+                {/* Search Bar */}
+                <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
+                    <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? '#333' : '#fff', borderColor: colors.textSecondary }]}>
+                        <Text style={{ marginRight: 8 }}>🔍</Text>
+                        <TextInput
+                            style={[styles.searchInput, { color: isDarkMode ? '#fff' : colors.text }]}
+                            placeholder={t('ads.searchPlaceholder')}
+                            placeholderTextColor={colors.textSecondary}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            onSubmitEditing={() => fetchAds(true)}
+                        />
+                        {searchQuery !== '' && (
+                            <TouchableOpacity onPress={() => { setSearchQuery(''); fetchAds(true); }}>
+                                <Text style={{ fontSize: 16, color: colors.textSecondary }}>✕</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                            style={styles.filterBtn}
+                            onPress={() => navigation.navigate('AdsFilters')}
+                        >
+                            <Text>🕵️‍♂️</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Tab Switcher */}
+                <AdTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+
+                {/* Categories */}
+                <CategoryPills selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+
+                {/* Ads List */}
+                <FlatList
+                    data={ads}
+                    keyExtractor={item => item.ID.toString()}
+                    renderItem={({ item }) => (
+                        <AdCard
+                            ad={item}
+                            onPress={() => navigation.navigate('AdDetail', { adId: item.ID })}
+                            onFavorite={() => handleFavorite(item)}
+                            onEdit={() => navigation.navigate('CreateAd', { adId: item.ID })} // In a real app, this would be EditAd
+                        />
+                    )}
+                    contentContainerStyle={styles.list}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+                    }
+                    onEndReached={loadMore}
+                    onEndReachedThreshold={0.5}
+                    ListEmptyComponent={
+                        !loading ? (
+                            <View style={styles.emptyContainer}>
+                                <Text style={{ fontSize: 40, marginBottom: 10 }}>📭</Text>
+                                <Text style={{ color: colors.textSecondary }}>{t('ads.noAds')}</Text>
+                            </View>
+                        ) : null
+                    }
+                    ListFooterComponent={
+                        loading && !refreshing ? <ActivityIndicator color={colors.primary} style={{ margin: 20 }} /> : null
+                    }
+                />
+
+                {/* FAB - Create Ad */}
+                <TouchableOpacity
+                    style={[styles.fab, { backgroundColor: colors.gradientStart }]}
+                    onPress={() => navigation.navigate('CreateAd')}
+                >
+                    <Text style={styles.fabText}>+</Text>
+                </TouchableOpacity>
+            </View>
+        </ProtectedScreen>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    list: { paddingVertical: 8 },
-    adItem: {
-        flexDirection: 'row',
-        padding: 16,
-        alignItems: 'center',
-        borderBottomWidth: 0.5,
-    },
-    adContent: {
+    container: {
         flex: 1,
-        marginRight: 12,
     },
-    adTitle: {
-        fontSize: 16,
-        fontWeight: '500',
+    header: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 8,
     },
-    adMeta: {
+    searchContainer: {
         flexDirection: 'row',
-        marginTop: 6,
         alignItems: 'center',
+        paddingHorizontal: 12,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 1,
     },
-    adPrice: {
-        fontSize: 15,
-        fontWeight: 'bold',
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
     },
-    adLoc: {
-        fontSize: 12,
+    filterBtn: {
+        padding: 8,
+        marginLeft: 4,
     },
-    adImg: {
-        width: 60,
-        height: 60,
-        borderRadius: 8,
+    list: {
+        paddingTop: 8,
+        paddingBottom: 80,
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        marginTop: 60,
+    },
+    fab: {
+        position: 'absolute',
+        right: 20,
+        bottom: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
         justifyContent: 'center',
         alignItems: 'center',
-    }
+        elevation: 6,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+    },
+    fabText: {
+        color: '#fff',
+        fontSize: 32,
+        fontWeight: 'bold',
+        marginTop: -4,
+    },
 });

@@ -59,3 +59,25 @@ func SeedGeminiModels() {
 		}
 	}
 }
+
+// SeedSystemSettings adds default system settings
+func SeedSystemSettings() {
+	settings := []models.SystemSetting{
+		{
+			Key:   "DEFAULT_ASTRO_MODEL",
+			Value: "gemini-2.5-flash",
+		},
+		{
+			Key:   "LM_GEMINI",
+			Value: "", // User will fill this in admin panel or .env fallback will work
+		},
+	}
+
+	for _, s := range settings {
+		var existing models.SystemSetting
+		if err := DB.Where("key = ?", s.Key).First(&existing).Error; err != nil {
+			DB.Create(&s)
+			log.Printf("[Seed] Created system setting: %s", s.Key)
+		}
+	}
+}

@@ -31,6 +31,9 @@ func main() {
 	// Seed default AI prompts if not present
 	database.SeedDefaultPrompts()
 
+	// Seed system settings
+	database.SeedSystemSettings()
+
 	// Initialize Services
 	services.InitScheduler()
 
@@ -58,6 +61,7 @@ func main() {
 	ragHandler := handlers.NewRAGHandler(services.NewRAGPipelineService(database.DB))
 	chatHandler := handlers.NewChatHandler()
 	promptHandler := handlers.NewPromptHandler()
+	adsHandler := handlers.NewAdsHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -92,6 +96,7 @@ func main() {
 	admin.Post("/ai-models/auto-optimize", aiHandler.AutoOptimizeModels)
 	admin.Post("/ai-models/schedule", aiHandler.HandleSchedule)
 	admin.Post("/ai-models/:id/toggle-auto", aiHandler.ToggleAutoRouting)
+	admin.Get("/ai-models/gemini-keys", aiHandler.GetGeminiKeyStatus)
 
 	// AI Prompt Management Routes
 	admin.Get("/prompts", promptHandler.GetPrompts)
@@ -201,7 +206,22 @@ func main() {
 	protected.Post("/rag/sessions", ragHandler.CreateChatSession)
 	protected.Get("/rag/sessions", ragHandler.ListChatSessions)
 
-	log.Println("Routes registered.")
+	// Ads Routes
+	protected.Post("/ads/upload-photo", adsHandler.UploadAdPhoto)
+	protected.Post("/ads", adsHandler.CreateAd)
+	protected.Get("/ads/user/favorites", adsHandler.GetFavorites)
+	protected.Get("/ads/user/my", adsHandler.GetMyAds)
+	api.Get("/ads", adsHandler.GetAds)
+	api.Get("/ads/categories", adsHandler.GetAdCategories)
+	api.Get("/ads/cities", adsHandler.GetAdCities)
+	api.Get("/ads/stats", adsHandler.GetAdStats)
+
+	api.Get("/ads/:id", adsHandler.GetAd)
+	protected.Put("/ads/:id", adsHandler.UpdateAd)
+	protected.Delete("/ads/:id", adsHandler.DeleteAd)
+	protected.Post("/ads/:id/favorite", adsHandler.ToggleFavorite)
+	protected.Post("/ads/:id/report", adsHandler.ReportAd)
+	protected.Post("/ads/:id/contact", adsHandler.ContactSeller)
 
 	// Static files for avatars
 	app.Static("/uploads", "./uploads")

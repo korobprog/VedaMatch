@@ -22,6 +22,7 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { useChat } from '../../../context/ChatContext';
+import { datingService } from '../../../services/datingService';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
@@ -104,8 +105,8 @@ export const DatingScreen = () => {
 
     const fetchFriends = async () => {
         try {
-            const response = await axios.get(`${API_PATH}/friends/${user?.ID}`);
-            const ids = response.data.map((f: any) => f.ID);
+            const data = await datingService.getFriends();
+            const ids = data.map((f: any) => f.ID);
             setFriendIds(ids);
         } catch (error) {
             console.error('Failed to fetch friends:', error);
@@ -126,10 +127,8 @@ export const DatingScreen = () => {
 
     const fetchStats = async () => {
         try {
-            const response = await axios.get(`${API_PATH}/dating/stats`, {
-                params: { city: user?.city }
-            });
-            setStats(response.data);
+            const data = await datingService.getStats(user?.city);
+            setStats(data);
         } catch (error) {
             console.error('Failed to fetch stats:', error);
         }
@@ -143,8 +142,8 @@ export const DatingScreen = () => {
 
     const fetchCities = async () => {
         try {
-            const response = await axios.get(`${API_PATH}/dating/cities`);
-            setAvailableCities(response.data);
+            const data = await datingService.getCities();
+            setAvailableCities(data);
         } catch (error) {
             console.error('Failed to fetch cities:', error);
         }
@@ -157,19 +156,17 @@ export const DatingScreen = () => {
         }
 
         try {
-            const response = await axios.get(`${API_PATH}/dating/candidates`, {
-                params: {
-                    userId: user.ID,
-                    city: filterCity,
-                    minAge: filterMinAge,
-                    maxAge: filterMaxAge,
-                    madh: filterMadh,
-                    yogaStyle: filterYogaStyle,
-                    guna: filterGuna,
-                    identity: filterIdentity
-                }
+            const data = await datingService.getCandidates({
+                userId: user.ID,
+                city: filterCity,
+                minAge: filterMinAge,
+                maxAge: filterMaxAge,
+                madh: filterMadh,
+                yogaStyle: filterYogaStyle,
+                guna: filterGuna,
+                identity: filterIdentity
             });
-            setCandidates(response.data);
+            setCandidates(data);
         } catch (error) {
             console.error('Failed to fetch candidates:', error);
         } finally {
@@ -178,13 +175,14 @@ export const DatingScreen = () => {
     };
 
     const handleCheckCompatibility = async (candidateId: number) => {
+        if (!user?.ID) return;
         setCurrentCandidateId(candidateId);
         setCheckingComp(true);
         setShowCompatibilityModal(true);
         setCompatibilityText('Analyzing compatibility with AI Astro-processor...');
         try {
-            const response = await axios.post(`${API_PATH}/dating/compatibility/${user?.ID}/${candidateId}`);
-            setCompatibilityText(response.data.compatibility);
+            const data = await datingService.checkCompatibility(user.ID, candidateId);
+            setCompatibilityText(data.compatibility);
         } catch (error) {
             setCompatibilityText('Failed to analyze compatibility. Please try again.');
         } finally {
@@ -193,10 +191,10 @@ export const DatingScreen = () => {
     };
 
     const handleSaveFavorite = async () => {
-        if (!currentCandidateId || !compatibilityText) return;
+        if (!currentCandidateId || !compatibilityText || !user?.ID) return;
         try {
-            await axios.post(`${API_PATH}/dating/favorites`, {
-                userId: user?.ID,
+            await datingService.addToFavorites({
+                userId: user.ID,
                 candidateId: currentCandidateId,
                 compatibilityScore: compatibilityText
             });
@@ -230,10 +228,7 @@ export const DatingScreen = () => {
 
         // Else add friend (request)
         try {
-            await axios.post(`${API_PATH}/friends/add`, {
-                userId: user.ID,
-                friendId: currentCandidateId
-            });
+            await datingService.addFriend(user.ID, currentCandidateId);
             setFriendIds([...friendIds, currentCandidateId]);
             Alert.alert('Success', 'Request sent! You can now chat.');
         } catch (error) {
@@ -245,23 +240,19 @@ export const DatingScreen = () => {
         if (!user?.ID) return;
         setPreviewLoading(true);
         try {
-            // First try to get the full profile if endpoint exists, or construct from what we know + fetch
-            // Using the edit endpoint to get full details might be easiest: /dating/profile/{id}
-            const response = await axios.get(`${API_PATH}/dating/profile/${user.ID}`);
-            console.log('Preview profile data:', response.data);
+            const data = await datingService.getProfile(user.ID);
+            console.log('Preview profile data:', data);
 
             // Map response to Profile interface
-            // Response typically has: ID, spiritual_name, ...
-            const d = response.data;
             const mappedProfile: Profile = {
-                ID: d.ID || user.ID,
-                spiritualName: d.spiritual_name || d.spiritualName || user.spiritualName || 'Me',
-                age: d.age || 0,
-                city: d.city || '',
-                bio: d.bio || '',
-                madh: d.sampradaya || d.madh || '',
-                avatarUrl: d.avatar_url || d.avatarUrl || user.avatar || '',
-                photos: d.photos || []
+                ID: data.ID || user.ID,
+                spiritualName: data.spiritual_name || data.spiritualName || user.spiritualName || 'Me',
+                age: data.age || 0,
+                city: data.city || '',
+                bio: data.bio || '',
+                madh: data.sampradaya || data.madh || '',
+                avatarUrl: data.avatar_url || data.avatarUrl || user.avatar || '',
+                photos: data.photos || []
             };
             setPreviewProfile(mappedProfile);
             setShowPreview(true);
@@ -337,11 +328,6 @@ export const DatingScreen = () => {
             }
         };
 
-        const getImageUrl = (url: string) => {
-            if (!url) return '';
-            if (url.startsWith('http')) return url;
-            return `${API_PATH.replace(/\/api\/?$/, '')}${url}`;
-        };
 
         const currentPhotoUrl = displayPhotos[activeIndex]?.url;
 
@@ -356,7 +342,7 @@ export const DatingScreen = () => {
                                 style={{ width: '100%', height: 350 }}
                             >
                                 <Animated.Image
-                                    source={{ uri: getImageUrl(currentPhotoUrl) }}
+                                    source={{ uri: datingService.getMediaUrl(currentPhotoUrl) }}
                                     style={[styles.avatar, { opacity: fadeAnim }]}
                                     resizeMode="cover"
                                 />
@@ -426,519 +412,519 @@ export const DatingScreen = () => {
     return (
         <ProtectedScreen requireCompleteProfile={true}>
             <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <View style={[styles.topMenu, { borderBottomColor: theme.borderColor, alignItems: 'center' }]}>
-                {/* Left Arrow */}
-                <Text style={{ fontSize: 18, color: theme.subText, marginRight: 5 }}>‹</Text>
+                <View style={[styles.topMenu, { borderBottomColor: theme.borderColor, alignItems: 'center' }]}>
+                    {/* Left Arrow */}
+                    <Text style={{ fontSize: 18, color: theme.subText, marginRight: 5 }}>‹</Text>
 
-                <TouchableOpacity
-                    style={[styles.iconBtn, { backgroundColor: theme.inputBackground, marginRight: 5 }]}
-                    onPress={() => setShowStats(!showStats)}
-                >
-                    <Text style={{ fontSize: 14 }}>{showStats ? '📊 ▲' : '📊 ▼'}</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.iconBtn, { backgroundColor: theme.inputBackground, marginRight: 5 }]}
+                        onPress={() => setShowStats(!showStats)}
+                    >
+                        <Text style={{ fontSize: 14 }}>{showStats ? '📊 ▲' : '📊 ▼'}</Text>
+                    </TouchableOpacity>
 
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ alignItems: 'center', paddingVertical: 10, paddingHorizontal: 5 }}
-                >
-                    <TouchableOpacity
-                        style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
-                        onPress={() => setShowFilters(true)}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ alignItems: 'center', paddingVertical: 10, paddingHorizontal: 5 }}
                     >
-                        <Text style={{ color: theme.text }}>{t('dating.filter')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
-                        onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
-                    >
-                        <Text style={{ color: theme.text }}>{t('dating.editProfile')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
-                        onPress={() => fetchPreviewProfile()}
-                    >
-                        <Text style={{ color: theme.text }}>👁️ {t('settings.tabs.chat').replace('Чат', 'Превью') || 'Preview'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
-                        onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
-                    >
-                        <Text style={{ color: theme.text }}>🖼️ Media</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
-                        onPress={() => navigation.navigate('DatingFavorites')}
-                    >
-                        <Text style={{ color: theme.text }}>{t('dating.favorites')}</Text>
-                    </TouchableOpacity>
-                </ScrollView>
-
-                {/* Right Arrow */}
-                <Text style={{ fontSize: 18, color: theme.subText, marginLeft: 5 }}>›</Text>
-            </View>
-
-            {/* Statistics Bar */}
-            {showStats && (
-                <View style={[styles.statsBar, { borderBottomColor: theme.borderColor }]}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
                         <TouchableOpacity
-                            style={[
-                                styles.statItem,
-                                { backgroundColor: (!filterCity && !filterNew) ? theme.accent : theme.inputBackground }
-                            ]}
-                            onPress={() => {
-                                setFilterCity('');
-                                setFilterNew(false);
-                                fetchCandidates();
-                            }}
+                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            onPress={() => setShowFilters(true)}
                         >
-                            <Text style={styles.statEmoji}>👥</Text>
-                            <View>
-                                <Text style={[styles.statValue, { color: (!filterCity && !filterNew) ? '#fff' : theme.text }]}>{stats.total}</Text>
-                                <Text style={[styles.statLabel, { color: (!filterCity && !filterNew) ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.totalProfiles', 'Всего анкет')}</Text>
-                            </View>
+                            <Text style={{ color: theme.text }}>{t('dating.filter')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[
-                                styles.statItem,
-                                { backgroundColor: (filterCity === user?.city && filterCity !== '') ? theme.accent : theme.inputBackground }
-                            ]}
-                            onPress={() => {
-                                if (user?.city) {
-                                    if (filterCity === user.city) {
-                                        setFilterCity('');
-                                    } else {
-                                        setFilterCity(user.city);
-                                        setFilterNew(false);
-                                    }
-                                    fetchCandidates();
-                                }
-                            }}
+                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
                         >
-                            <Text style={styles.statEmoji}>📍</Text>
-                            <View>
-                                <Text style={[styles.statValue, { color: (filterCity === user?.city && filterCity !== '') ? '#fff' : theme.text }]}>{stats.city}</Text>
-                                <Text style={[styles.statLabel, { color: (filterCity === user?.city && filterCity !== '') ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.inYourCity', 'В вашем городе')}</Text>
-                            </View>
+                            <Text style={{ color: theme.text }}>{t('dating.editProfile')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[
-                                styles.statItem,
-                                { backgroundColor: filterNew ? theme.accent : theme.inputBackground }
-                            ]}
-                            onPress={() => {
-                                setFilterNew(!filterNew);
-                                if (!filterNew) setFilterCity('');
-                                fetchCandidates();
-                            }}
+                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            onPress={() => fetchPreviewProfile()}
                         >
-                            <Text style={styles.statEmoji}>✨</Text>
-                            <View>
-                                <Text style={[styles.statValue, { color: filterNew ? '#fff' : theme.text }]}>{stats.new}</Text>
-                                <Text style={[styles.statLabel, { color: filterNew ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.newLast24h', 'Новые (24ч)')}</Text>
-                            </View>
+                            <Text style={{ color: theme.text }}>👁️ {t('settings.tabs.chat').replace('Чат', 'Превью') || 'Preview'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
+                        >
+                            <Text style={{ color: theme.text }}>🖼️ Media</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            onPress={() => navigation.navigate('DatingFavorites')}
+                        >
+                            <Text style={{ color: theme.text }}>{t('dating.favorites')}</Text>
                         </TouchableOpacity>
                     </ScrollView>
+
+                    {/* Right Arrow */}
+                    <Text style={{ fontSize: 18, color: theme.subText, marginLeft: 5 }}>›</Text>
                 </View>
-            )}
 
-            {loading ? (
-                <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.accent} />
-            ) : candidates.length === 0 ? (
-                <View style={styles.empty}>
-                    <Text style={{ color: theme.subText }}>{t('dating.noCandidates')}</Text>
-                    <Text style={{ color: theme.subText }}>{t('dating.joinPrompt')}</Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={candidates}
-                    keyExtractor={(item) => item.ID.toString()}
-                    renderItem={({ item }) => <DatingCard item={item} />}
-                    contentContainerStyle={styles.list}
-                />
-            )}
-
-            <Modal
-                visible={showCompatibilityModal}
-                transparent
-                animationType="fade"
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.header }]}>
-                        <Text style={[styles.modalTitle, { color: theme.accent }]}>{t('dating.compatibilityAnalysis')}</Text>
-
-                        <View style={{ alignItems: 'center', marginVertical: 10 }}>
-                            <Image
-                                source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}/uploads/kolobok_astrologer.png` }}
-                                style={{ width: 120, height: 120, borderRadius: 60 }}
-                                resizeMode="cover"
-                            />
-                        </View>
-
-                        <ScrollView
-                            style={styles.modalBody}
-                            contentContainerStyle={styles.modalScrollContent}
-                            showsVerticalScrollIndicator={true}
-                        >
-                            {checkingComp ? (
-                                <View style={{ paddingVertical: 20 }}>
-                                    <ActivityIndicator color={theme.accent} size="large" />
-                                    <Text style={[styles.modalText, { color: theme.subText, marginTop: 10 }]}>{t('dating.exploringStars')}</Text>
+                {/* Statistics Bar */}
+                {showStats && (
+                    <View style={[styles.statsBar, { borderBottomColor: theme.borderColor }]}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.statItem,
+                                    { backgroundColor: (!filterCity && !filterNew) ? theme.accent : theme.inputBackground }
+                                ]}
+                                onPress={() => {
+                                    setFilterCity('');
+                                    setFilterNew(false);
+                                    fetchCandidates();
+                                }}
+                            >
+                                <Text style={styles.statEmoji}>👥</Text>
+                                <View>
+                                    <Text style={[styles.statValue, { color: (!filterCity && !filterNew) ? '#fff' : theme.text }]}>{stats.total}</Text>
+                                    <Text style={[styles.statLabel, { color: (!filterCity && !filterNew) ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.totalProfiles', 'Всего анкет')}</Text>
                                 </View>
-                            ) : (
-                                <Text style={[styles.modalText, { color: theme.text }]}>{compatibilityText}</Text>
-                            )}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.statItem,
+                                    { backgroundColor: (filterCity === user?.city && filterCity !== '') ? theme.accent : theme.inputBackground }
+                                ]}
+                                onPress={() => {
+                                    if (user?.city) {
+                                        if (filterCity === user.city) {
+                                            setFilterCity('');
+                                        } else {
+                                            setFilterCity(user.city);
+                                            setFilterNew(false);
+                                        }
+                                        fetchCandidates();
+                                    }
+                                }}
+                            >
+                                <Text style={styles.statEmoji}>📍</Text>
+                                <View>
+                                    <Text style={[styles.statValue, { color: (filterCity === user?.city && filterCity !== '') ? '#fff' : theme.text }]}>{stats.city}</Text>
+                                    <Text style={[styles.statLabel, { color: (filterCity === user?.city && filterCity !== '') ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.inYourCity', 'В вашем городе')}</Text>
+                                </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.statItem,
+                                    { backgroundColor: filterNew ? theme.accent : theme.inputBackground }
+                                ]}
+                                onPress={() => {
+                                    setFilterNew(!filterNew);
+                                    if (!filterNew) setFilterCity('');
+                                    fetchCandidates();
+                                }}
+                            >
+                                <Text style={styles.statEmoji}>✨</Text>
+                                <View>
+                                    <Text style={[styles.statValue, { color: filterNew ? '#fff' : theme.text }]}>{stats.new}</Text>
+                                    <Text style={[styles.statLabel, { color: filterNew ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.newLast24h', 'Новые (24ч)')}</Text>
+                                </View>
+                            </TouchableOpacity>
                         </ScrollView>
-                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                            <TouchableOpacity
-                                style={[styles.closeBtn, { backgroundColor: theme.header, flex: 1, borderWidth: 1, borderColor: theme.borderColor }]}
-                                onPress={handleSaveFavorite}
+                    </View>
+                )}
+
+                {loading ? (
+                    <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.accent} />
+                ) : candidates.length === 0 ? (
+                    <View style={styles.empty}>
+                        <Text style={{ color: theme.subText }}>{t('dating.noCandidates')}</Text>
+                        <Text style={{ color: theme.subText }}>{t('dating.joinPrompt')}</Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={candidates}
+                        keyExtractor={(item) => item.ID.toString()}
+                        renderItem={({ item }) => <DatingCard item={item} />}
+                        contentContainerStyle={styles.list}
+                    />
+                )}
+
+                <Modal
+                    visible={showCompatibilityModal}
+                    transparent
+                    animationType="fade"
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.header }]}>
+                            <Text style={[styles.modalTitle, { color: theme.accent }]}>{t('dating.compatibilityAnalysis')}</Text>
+
+                            <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                                <Image
+                                    source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}/uploads/kolobok_astrologer.png` }}
+                                    style={{ width: 120, height: 120, borderRadius: 60 }}
+                                    resizeMode="cover"
+                                />
+                            </View>
+
+                            <ScrollView
+                                style={styles.modalBody}
+                                contentContainerStyle={styles.modalScrollContent}
+                                showsVerticalScrollIndicator={true}
                             >
-                                <Text style={{ color: theme.text }}>{t('dating.save')}</Text>
-                            </TouchableOpacity>
+                                {checkingComp ? (
+                                    <View style={{ paddingVertical: 20 }}>
+                                        <ActivityIndicator color={theme.accent} size="large" />
+                                        <Text style={[styles.modalText, { color: theme.subText, marginTop: 10 }]}>{t('dating.exploringStars')}</Text>
+                                    </View>
+                                ) : (
+                                    <Text style={[styles.modalText, { color: theme.text }]}>{compatibilityText}</Text>
+                                )}
+                            </ScrollView>
+                            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                                <TouchableOpacity
+                                    style={[styles.closeBtn, { backgroundColor: theme.header, flex: 1, borderWidth: 1, borderColor: theme.borderColor }]}
+                                    onPress={handleSaveFavorite}
+                                >
+                                    <Text style={{ color: theme.text }}>{t('dating.save')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.closeBtn, { backgroundColor: friendIds.includes(currentCandidateId || 0) ? theme.accent : '#4CAF50', flex: 1 }]}
+                                    onPress={handleConnect}
+                                >
+                                    <Text style={{ color: 'white' }}>
+                                        {friendIds.includes(currentCandidateId || 0) ? t('dating.chat') : t('dating.connect')}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.closeBtn, { backgroundColor: theme.button, flex: 1 }]}
+                                    onPress={() => setShowCompatibilityModal(false)}
+                                >
+                                    <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* Filter Modal */}
+                <Modal
+                    visible={showFilters}
+                    transparent
+                    animationType="slide"
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.header }]}>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.filters')}</Text>
+
+                            <View style={{ marginBottom: 15 }}>
+                                <Text style={{ color: theme.subText, marginBottom: 5 }}>{t('registration.city')}</Text>
+                                <TouchableOpacity
+                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    onPress={() => setShowCityPicker(true)}
+                                >
+                                    <Text style={{ color: filterCity ? theme.text : theme.subText }}>
+                                        {filterCity || t('dating.selectCity')}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={{ marginBottom: 15 }}>
+                                <Text style={{ color: theme.subText, marginBottom: 5 }}>{t('registration.dob')}</Text>
+                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <TextInput
+                                        style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
+                                        value={filterMinAge}
+                                        onChangeText={setFilterMinAge}
+                                        placeholder={t('dating.minAge')}
+                                        keyboardType="numeric"
+                                        placeholderTextColor={theme.subText}
+                                    />
+                                    <TextInput
+                                        style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
+                                        value={filterMaxAge}
+                                        onChangeText={setFilterMaxAge}
+                                        placeholder={t('dating.maxAge')}
+                                        keyboardType="numeric"
+                                        placeholderTextColor={theme.subText}
+                                    />
+                                </View>
+                            </View>
+                            <View style={{ marginBottom: 15 }}>
+                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Tradition (Madh)</Text>
+                                <TouchableOpacity
+                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    onPress={() => setShowMadhPicker(true)}
+                                >
+                                    <Text style={{ color: filterMadh ? theme.text : theme.subText }}>
+                                        {filterMadh || "Select Tradition"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={{ marginBottom: 15 }}>
+                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Yoga Style</Text>
+                                <TouchableOpacity
+                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    onPress={() => setShowYogaPicker(true)}
+                                >
+                                    <Text style={{ color: filterYogaStyle ? theme.text : theme.subText }}>
+                                        {filterYogaStyle || "Any"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={{ marginBottom: 15 }}>
+                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Guna</Text>
+                                <TouchableOpacity
+                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    onPress={() => setShowGunaPicker(true)}
+                                >
+                                    <Text style={{ color: filterGuna ? theme.text : theme.subText }}>
+                                        {filterGuna || "Any"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={{ marginBottom: 15 }}>
+                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Identity</Text>
+                                <TouchableOpacity
+                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    onPress={() => setShowIdentityPicker(true)}
+                                >
+                                    <Text style={{ color: filterIdentity ? theme.text : theme.subText }}>
+                                        {filterIdentity || "Any"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: theme.header, flex: 1, borderWidth: 1, borderColor: theme.borderColor }]}
+                                    onPress={() => {
+                                        setFilterCity('');
+                                        setFilterMinAge('');
+                                        setFilterMaxAge('');
+                                        setFilterMadh('');
+                                        setFilterYogaStyle('');
+                                        setFilterGuna('');
+                                        setFilterIdentity('');
+                                        fetchCandidates();
+                                    }}
+                                >
+                                    <Text style={{ color: theme.text, textAlign: 'center' }}>{t('dating.reset')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: theme.button, flex: 1 }]}
+                                    onPress={() => {
+                                        setShowFilters(false);
+                                        fetchCandidates();
+                                    }}
+                                >
+                                    <Text style={{ color: theme.buttonText, textAlign: 'center' }}>{t('dating.apply')}</Text>
+                                </TouchableOpacity>
+                            </View>
+
                             <TouchableOpacity
-                                style={[styles.closeBtn, { backgroundColor: friendIds.includes(currentCandidateId || 0) ? theme.accent : '#4CAF50', flex: 1 }]}
-                                onPress={handleConnect}
+                                style={{ position: 'absolute', top: 10, right: 10, padding: 5 }}
+                                onPress={() => setShowFilters(false)}
                             >
-                                <Text style={{ color: 'white' }}>
-                                    {friendIds.includes(currentCandidateId || 0) ? t('dating.chat') : t('dating.connect')}
-                                </Text>
+                                <Text style={{ color: theme.subText, fontSize: 18 }}>✕</Text>
                             </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* Profile Preview Modal */}
+                <Modal
+                    visible={showPreview}
+                    transparent
+                    animationType="slide"
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.background, padding: 0, width: '95%', height: '90%', borderRadius: 20 }]}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 15, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.borderColor }}>
+                                <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>Profile Preview</Text>
+                                <TouchableOpacity onPress={() => setShowPreview(false)} style={{ padding: 5 }}>
+                                    <Text style={{ color: theme.subText, fontSize: 20 }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={{ padding: 15, flex: 1 }}>
+                                {previewLoading ? (
+                                    <ActivityIndicator size="large" color={theme.primary} />
+                                ) : previewProfile ? (
+                                    <ScrollView showsVerticalScrollIndicator={false}>
+                                        <DatingCard item={previewProfile} isPreview={true} />
+                                        <Text style={{ color: theme.subText, textAlign: 'center', marginTop: 10 }}>
+                                            This is how others see your card
+                                        </Text>
+                                    </ScrollView>
+                                ) : (
+                                    <Text style={{ color: theme.text, textAlign: 'center' }}>Failed to load profile</Text>
+                                )}
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* City Selection Modal */}
+                <Modal
+                    visible={showCityPicker}
+                    transparent
+                    animationType="fade"
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.selectCity')}</Text>
+
+                            <TextInput
+                                style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 10 }]}
+                                value={citySearchQuery}
+                                onChangeText={setCitySearchQuery}
+                                placeholder={t('dating.searchCity')}
+                                placeholderTextColor={theme.subText}
+                            />
+
+                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                                <TouchableOpacity
+                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                    onPress={() => {
+                                        setFilterCity('');
+                                        setShowCityPicker(false);
+                                    }}
+                                >
+                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.allCities')}</Text>
+                                </TouchableOpacity>
+                                {filteredCities.map((city, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                        onPress={() => {
+                                            setFilterCity(city);
+                                            setShowCityPicker(false);
+                                        }}
+                                    >
+                                        <Text style={{ color: theme.text }}>{city}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+
                             <TouchableOpacity
-                                style={[styles.closeBtn, { backgroundColor: theme.button, flex: 1 }]}
-                                onPress={() => setShowCompatibilityModal(false)}
+                                style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]}
+                                onPress={() => setShowCityPicker(false)}
                             >
                                 <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
-            </Modal>
+                </Modal>
 
-            {/* Filter Modal */}
-            <Modal
-                visible={showFilters}
-                transparent
-                animationType="slide"
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.header }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.filters')}</Text>
+                {/* Madh Selection Modal */}
+                <Modal
+                    visible={showMadhPicker}
+                    transparent
+                    animationType="fade"
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Tradition</Text>
 
-                        <View style={{ marginBottom: 15 }}>
-                            <Text style={{ color: theme.subText, marginBottom: 5 }}>{t('registration.city')}</Text>
-                            <TouchableOpacity
-                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                                onPress={() => setShowCityPicker(true)}
-                            >
-                                <Text style={{ color: filterCity ? theme.text : theme.subText }}>
-                                    {filterCity || t('dating.selectCity')}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ marginBottom: 15 }}>
-                            <Text style={{ color: theme.subText, marginBottom: 5 }}>{t('registration.dob')}</Text>
-                            <View style={{ flexDirection: 'row', gap: 10 }}>
-                                <TextInput
-                                    style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
-                                    value={filterMinAge}
-                                    onChangeText={setFilterMinAge}
-                                    placeholder={t('dating.minAge')}
-                                    keyboardType="numeric"
-                                    placeholderTextColor={theme.subText}
-                                />
-                                <TextInput
-                                    style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
-                                    value={filterMaxAge}
-                                    onChangeText={setFilterMaxAge}
-                                    placeholder={t('dating.maxAge')}
-                                    keyboardType="numeric"
-                                    placeholderTextColor={theme.subText}
-                                />
-                            </View>
-                        </View>
-                        <View style={{ marginBottom: 15 }}>
-                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Tradition (Madh)</Text>
-                            <TouchableOpacity
-                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                                onPress={() => setShowMadhPicker(true)}
-                            >
-                                <Text style={{ color: filterMadh ? theme.text : theme.subText }}>
-                                    {filterMadh || "Select Tradition"}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ marginBottom: 15 }}>
-                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Yoga Style</Text>
-                            <TouchableOpacity
-                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                                onPress={() => setShowYogaPicker(true)}
-                            >
-                                <Text style={{ color: filterYogaStyle ? theme.text : theme.subText }}>
-                                    {filterYogaStyle || "Any"}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ marginBottom: 15 }}>
-                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Guna</Text>
-                            <TouchableOpacity
-                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                                onPress={() => setShowGunaPicker(true)}
-                            >
-                                <Text style={{ color: filterGuna ? theme.text : theme.subText }}>
-                                    {filterGuna || "Any"}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ marginBottom: 15 }}>
-                            <Text style={{ color: theme.subText, marginBottom: 5 }}>Identity</Text>
-                            <TouchableOpacity
-                                style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                                onPress={() => setShowIdentityPicker(true)}
-                            >
-                                <Text style={{ color: filterIdentity ? theme.text : theme.subText }}>
-                                    {filterIdentity || "Any"}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: theme.header, flex: 1, borderWidth: 1, borderColor: theme.borderColor }]}
-                                onPress={() => {
-                                    setFilterCity('');
-                                    setFilterMinAge('');
-                                    setFilterMaxAge('');
-                                    setFilterMadh('');
-                                    setFilterYogaStyle('');
-                                    setFilterGuna('');
-                                    setFilterIdentity('');
-                                    fetchCandidates();
-                                }}
-                            >
-                                <Text style={{ color: theme.text, textAlign: 'center' }}>{t('dating.reset')}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: theme.button, flex: 1 }]}
-                                onPress={() => {
-                                    setShowFilters(false);
-                                    fetchCandidates();
-                                }}
-                            >
-                                <Text style={{ color: theme.buttonText, textAlign: 'center' }}>{t('dating.apply')}</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <TouchableOpacity
-                            style={{ position: 'absolute', top: 10, right: 10, padding: 5 }}
-                            onPress={() => setShowFilters(false)}
-                        >
-                            <Text style={{ color: theme.subText, fontSize: 18 }}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Profile Preview Modal */}
-            <Modal
-                visible={showPreview}
-                transparent
-                animationType="slide"
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.background, padding: 0, width: '95%', height: '90%', borderRadius: 20 }]}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 15, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.borderColor }}>
-                            <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>Profile Preview</Text>
-                            <TouchableOpacity onPress={() => setShowPreview(false)} style={{ padding: 5 }}>
-                                <Text style={{ color: theme.subText, fontSize: 20 }}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ padding: 15, flex: 1 }}>
-                            {previewLoading ? (
-                                <ActivityIndicator size="large" color={theme.primary} />
-                            ) : previewProfile ? (
-                                <ScrollView showsVerticalScrollIndicator={false}>
-                                    <DatingCard item={previewProfile} isPreview={true} />
-                                    <Text style={{ color: theme.subText, textAlign: 'center', marginTop: 10 }}>
-                                        This is how others see your card
-                                    </Text>
-                                </ScrollView>
-                            ) : (
-                                <Text style={{ color: theme.text, textAlign: 'center' }}>Failed to load profile</Text>
-                            )}
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* City Selection Modal */}
-            <Modal
-                visible={showCityPicker}
-                transparent
-                animationType="fade"
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.selectCity')}</Text>
-
-                        <TextInput
-                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 10 }]}
-                            value={citySearchQuery}
-                            onChangeText={setCitySearchQuery}
-                            placeholder={t('dating.searchCity')}
-                            placeholderTextColor={theme.subText}
-                        />
-
-                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                            <TouchableOpacity
-                                style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
-                                onPress={() => {
-                                    setFilterCity('');
-                                    setShowCityPicker(false);
-                                }}
-                            >
-                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.allCities')}</Text>
-                            </TouchableOpacity>
-                            {filteredCities.map((city, index) => (
+                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                                 <TouchableOpacity
-                                    key={index}
                                     style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
                                     onPress={() => {
-                                        setFilterCity(city);
-                                        setShowCityPicker(false);
-                                    }}
-                                >
-                                    <Text style={{ color: theme.text }}>{city}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-
-                        <TouchableOpacity
-                            style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]}
-                            onPress={() => setShowCityPicker(false)}
-                        >
-                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Madh Selection Modal */}
-            <Modal
-                visible={showMadhPicker}
-                transparent
-                animationType="fade"
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Tradition</Text>
-
-                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                            <TouchableOpacity
-                                style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
-                                onPress={() => {
-                                    setFilterMadh('');
-                                    setShowMadhPicker(false);
-                                }}
-                            >
-                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
-                            </TouchableOpacity>
-                            {DATING_TRADITIONS.map((madh, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
-                                    onPress={() => {
-                                        setFilterMadh(madh);
+                                        setFilterMadh('');
                                         setShowMadhPicker(false);
                                     }}
                                 >
-                                    <Text style={{ color: theme.text }}>{madh}</Text>
+                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
                                 </TouchableOpacity>
-                            ))}
-                        </ScrollView>
+                                {DATING_TRADITIONS.map((madh, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                        onPress={() => {
+                                            setFilterMadh(madh);
+                                            setShowMadhPicker(false);
+                                        }}
+                                    >
+                                        <Text style={{ color: theme.text }}>{madh}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
 
-                        <TouchableOpacity
-                            style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]}
-                            onPress={() => setShowMadhPicker(false)}
-                        >
-                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Yoga Style Picker */}
-            <Modal visible={showYogaPicker} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Yoga Style</Text>
-                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                            <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(''); setShowYogaPicker(false); }}>
-                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
+                            <TouchableOpacity
+                                style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]}
+                                onPress={() => setShowMadhPicker(false)}
+                            >
+                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
                             </TouchableOpacity>
-                            {YOGA_STYLES.map((style, index) => (
-                                <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(style); setShowYogaPicker(false); }}>
-                                    <Text style={{ color: theme.text }}>{style}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowYogaPicker(false)}>
-                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                        </TouchableOpacity>
+                        </View>
                     </View>
-                </View>
-            </Modal>
+                </Modal>
 
-            {/* Guna Picker */}
-            <Modal visible={showGunaPicker} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Guna</Text>
-                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                            <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(''); setShowGunaPicker(false); }}>
-                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
-                            </TouchableOpacity>
-                            {GUNAS.map((guna, index) => (
-                                <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(guna); setShowGunaPicker(false); }}>
-                                    <Text style={{ color: theme.text }}>{guna}</Text>
+                {/* Yoga Style Picker */}
+                <Modal visible={showYogaPicker} transparent animationType="fade">
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Yoga Style</Text>
+                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                                <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(''); setShowYogaPicker(false); }}>
+                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
                                 </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowGunaPicker(false)}>
-                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                        </TouchableOpacity>
+                                {YOGA_STYLES.map((style, index) => (
+                                    <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(style); setShowYogaPicker(false); }}>
+                                        <Text style={{ color: theme.text }}>{style}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowYogaPicker(false)}>
+                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </View>
-            </Modal>
+                </Modal>
 
-            {/* Identity Picker */}
-            <Modal visible={showIdentityPicker} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>Select Identity</Text>
-                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                            <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(''); setShowIdentityPicker(false); }}>
-                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
-                            </TouchableOpacity>
-                            {IDENTITY_OPTIONS.map((opt, index) => (
-                                <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(opt); setShowIdentityPicker(false); }}>
-                                    <Text style={{ color: theme.text }}>{opt}</Text>
+                {/* Guna Picker */}
+                <Modal visible={showGunaPicker} transparent animationType="fade">
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Guna</Text>
+                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                                <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(''); setShowGunaPicker(false); }}>
+                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
                                 </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowIdentityPicker(false)}>
-                            <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                        </TouchableOpacity>
+                                {GUNAS.map((guna, index) => (
+                                    <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(guna); setShowGunaPicker(false); }}>
+                                        <Text style={{ color: theme.text }}>{guna}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowGunaPicker(false)}>
+                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </View>
-            </Modal>
-        </View>
+                </Modal>
+
+                {/* Identity Picker */}
+                <Modal visible={showIdentityPicker} transparent animationType="fade">
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Identity</Text>
+                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                                <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(''); setShowIdentityPicker(false); }}>
+                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
+                                </TouchableOpacity>
+                                {IDENTITY_OPTIONS.map((opt, index) => (
+                                    <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(opt); setShowIdentityPicker(false); }}>
+                                        <Text style={{ color: theme.text }}>{opt}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowIdentityPicker(false)}>
+                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
+            </View>
         </ProtectedScreen>
     );
 };

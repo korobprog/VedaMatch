@@ -15,7 +15,8 @@ import {
     UserCircle,
     Sparkles,
     Heart,
-    MessageSquare
+    MessageSquare,
+    Key
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -24,6 +25,7 @@ const menuItems = [
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Heart, label: 'Dating', path: '/dating' },
     { icon: Sparkles, label: 'AI Models', path: '/ai-models' },
+    { icon: Key, label: 'Gemini Keys', path: '/gemini-keys' },
     { icon: MessageSquare, label: 'AI Prompts', path: '/ai-prompts' },
     { icon: ShieldAlert, label: 'Admin Management', path: '/admins' },
     { icon: Settings, label: 'Settings', path: '/settings' },

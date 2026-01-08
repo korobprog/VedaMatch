@@ -1,4 +1,70 @@
 export default {
+    ads: {
+        title: 'Объявления',
+        looking: 'Ищу',
+        offering: 'Предлагаю',
+        my: 'Мои',
+        createAd: 'Создать объявление',
+        searchPlaceholder: 'Поиск объявлений...',
+        noAds: 'Объявлений пока нет',
+        price: {
+            free: 'Даром',
+            negotiable: 'Договорная',
+            from: 'от',
+            to: 'до'
+        },
+        categories: {
+            all: 'Все',
+            work: 'Работа',
+            real_estate: 'Недвижимость',
+            spiritual: 'Духовное',
+            education: 'Образование',
+            goods: 'Товары',
+            food: 'Питание',
+            transport: 'Транспорт',
+            events: 'Мероприятия',
+            services: 'Услуги',
+            charity: 'Благотворительность',
+            yoga_wellness: 'Йога и Веллнесс',
+            ayurveda: 'Аюрведа',
+            housing: 'Жильё',
+            furniture: 'Мебель'
+        },
+        filters: {
+            title: 'Фильтры',
+            reset: 'Сбросить',
+            apply: 'Применить',
+            city: 'Город',
+            priceRange: 'Цена',
+            minPrice: 'От',
+            maxPrice: 'До',
+            showFreeOnly: 'Только бесплатно'
+        },
+        card: {
+            posted: 'Размещено',
+            views: 'просмотров'
+        },
+        create: {
+            title: 'Создание объявления',
+            publish: 'Опубликовать',
+            photos: 'Фотографии',
+            addPhoto: 'Добавить',
+            details: 'Детали',
+            category: 'Категория',
+            adTitle: 'Заголовок',
+            description: 'Описание',
+            pricing: 'Цена',
+            location: 'Местоположение',
+            contact: 'Контакты',
+            useProfile: 'Использовать профиль',
+            success: 'Объявление успешно опубликовано'
+        },
+        detail: {
+            contactSuccess: 'Запрос отправлен',
+            callRequested: 'Продавец уведомлен о вашем желании связаться по телефону.',
+            messageRequested: 'Продавец уведомлен о вашем желании написать сообщение.'
+        }
+    },
     common: {
         error: 'Ошибка',
         success: 'Успешно',
@@ -253,4 +319,4 @@ export default {
         avatar: 'Аватар',
         changeAvatar: 'Изменить аватар'
     }
-};
+}

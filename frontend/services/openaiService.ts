@@ -95,6 +95,7 @@ export const sendMessage = async (
         content: msg.content,
       })),
       temperature: options.temperature ?? 0.7,
+      content_type: 'text', // Prevent proxy from detecting as audio
     };
 
     if (options.maxTokens) {

@@ -7,7 +7,7 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { contactService, UserContact } from '../../../services/contactService';
 import { useUser } from '../../../context/UserContext';
 import { useChat } from '../../../context/ChatContext';
-import { API_BASE_URL } from '../../../config/api.config';
+
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
 

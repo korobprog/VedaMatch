@@ -19,6 +19,7 @@ import axios from 'axios';
 import { API_PATH } from '../../../config/api.config';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { useUser } from '../../../context/UserContext';
+import { datingService } from '../../../services/datingService';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
@@ -71,8 +72,8 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
 
     const fetchProfile = async () => {
         try {
-            const response = await axios.get(`${API_PATH}/contacts`);
-            const me = response.data.find((u: any) => u.ID === userId);
+            const data = await datingService.getUsers();
+            const me = data.find((u: any) => u.ID === userId);
             if (me) {
                 setProfile({
                     bio: me.bio || '',
@@ -125,8 +126,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
 
         setSaving(true);
         try {
-            const response = await axios.put(`${API_PATH}/dating/profile/${userId}`, profile);
-            const updatedUser = response.data;
+            const updatedUser = await datingService.updateProfile(userId, profile);
             // Update user in context
             await login(updatedUser);
             Alert.alert('Success', 'Profile updated successfully');

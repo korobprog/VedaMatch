@@ -8,6 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/models"
+	"strings"
 	"sync"
 	"time"
 )
@@ -44,23 +47,52 @@ func NewGeminiService() *GeminiService {
 	keys := []string{}
 
 	// Load all available keys
+	// 1. First check environment variables
+	if key := os.Getenv("LM_GEMINI"); key != "" {
+		keys = append(keys, key)
+	}
 	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
 		keys = append(keys, key)
 	}
-	if key := os.Getenv("GEMINI_API_KEY_BACKUP_1"); key != "" {
-		keys = append(keys, key)
+
+	// 2. Then check database if connected
+	if database.DB != nil {
+		var settings []models.SystemSetting
+		database.DB.Where("key IN ?", []string{"LM_GEMINI", "GEMINI_API_KEY"}).Find(&settings)
+		for _, s := range settings {
+			if s.Value != "" {
+				// Avoid duplicates
+				exists := false
+				for _, k := range keys {
+					if k == s.Value {
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					// Prioritize LM_GEMINI by putting it first
+					if s.Key == "LM_GEMINI" {
+						keys = append([]string{s.Value}, keys...)
+					} else {
+						keys = append(keys, s.Value)
+					}
+				}
+			}
+		}
 	}
-	if key := os.Getenv("GEMINI_API_KEY_BACKUP_2"); key != "" {
-		keys = append(keys, key)
+
+	// 3. Backup keys
+	backupEnvKeys := []string{
+		os.Getenv("GEMINI_API_KEY_BACKUP_1"),
+		os.Getenv("GEMINI_API_KEY_BACKUP_2"),
+		os.Getenv("GEMINI_API_KEY_BACKUP_3"),
+		os.Getenv("GEMINI_API_KEY_BACKUP_4"),
+		os.Getenv("GEMINI_API_KEY_BACKUP_5"),
 	}
-	if key := os.Getenv("GEMINI_API_KEY_BACKUP_3"); key != "" {
-		keys = append(keys, key)
-	}
-	if key := os.Getenv("GEMINI_API_KEY_BACKUP_4"); key != "" {
-		keys = append(keys, key)
-	}
-	if key := os.Getenv("GEMINI_API_KEY_BACKUP_5"); key != "" {
-		keys = append(keys, key)
+	for _, k := range backupEnvKeys {
+		if k != "" {
+			keys = append(keys, k)
+		}
 	}
 
 	log.Printf("[GeminiService] Initialized with %d keys, base URL: %s", len(keys), baseURL)
@@ -154,57 +186,35 @@ type GeminiResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// SendMessage sends a message to Gemini API with automatic key rotation
-// Returns response content, used model, and error
+// SendMessage sends a message to Gemini API with automatic key rotation and model fallback
+// It tries models for the current key, and if unsuccessful due to key issues, rotates to the next key.
 func (s *GeminiService) SendMessage(modelID string, messages []map[string]string) (string, error) {
-	// If no keys locally, but we returned true in HasKeys (due to proxy), try once with empty key
-	if len(s.keys) == 0 {
-		return s.sendMessageInternal(modelID, messages)
-	}
-
-	// Normal rotation logic with local keys
 	// Models to try in order (fallback between models)
 	modelsToTry := []string{modelID}
 	switch modelID {
 	case "gemini-2.5-flash":
-		modelsToTry = append(modelsToTry, "gemini-2.5-flash-lite")
-	case "gemini-2.5-flash-lite":
-		modelsToTry = append(modelsToTry, "gemini-2.5-flash")
+		modelsToTry = append(modelsToTry, "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.5-pro")
+	case "gemini-2.0-flash":
+		modelsToTry = append(modelsToTry, "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-flash-latest")
+	case "gemini-flash-latest":
+		modelsToTry = append(modelsToTry, "gemini-2.5-flash", "gemini-2.0-flash")
 	}
 
-	// Try each model with each key
-	for _, currentModel := range modelsToTry {
-		content, err := s.sendMessageInternal(currentModel, messages) // Use rotation inside
-		if err == nil {
-			return content, nil
-		}
-	}
-
-	return "", fmt.Errorf("all Gemini models and keys exhausted")
-}
-
-func (s *GeminiService) sendMessageInternal(modelID string, messages []map[string]string) (string, error) {
-	// Convert OpenAI-style messages to Gemini format
+	// Prepare request body
 	geminiMessages := []GeminiMessage{}
 	for _, msg := range messages {
 		role := msg["role"]
-		// Gemini uses "user" and "model" roles, not "assistant"
 		if role == "assistant" {
 			role = "model"
 		}
 		if role == "system" {
-			// Prepend system message to first user message or add as user
 			role = "user"
 		}
-
 		geminiMessages = append(geminiMessages, GeminiMessage{
-			Role: role,
-			Parts: []Part{
-				{Text: msg["content"]},
-			},
+			Role:  role,
+			Parts: []Part{{Text: msg["content"]}},
 		})
 	}
-
 	reqBody := GeminiRequest{
 		Contents: geminiMessages,
 		GenerationConfig: &GenerationConfig{
@@ -213,46 +223,74 @@ func (s *GeminiService) sendMessageInternal(modelID string, messages []map[strin
 		},
 	}
 
-	// If using proxy with no local keys, just make one request
+	// If no keys locally, just try one model with empty key (proxy might handle it)
 	if len(s.keys) == 0 {
-		content, err := s.makeRequest(modelID, "", reqBody)
-		if err == nil {
-			return content, nil
+		for _, m := range modelsToTry {
+			content, err := s.makeRequest(m, "", reqBody)
+			if err == nil {
+				return content, nil
+			}
 		}
-		return "", err
+		return "", fmt.Errorf("no keys and all models failed on proxy")
 	}
 
-	// Rotation logic
+	// Try each Key
+	totalKeys := len(s.keys)
 	startIndex := s.currentIndex
-	attempts := 0
-	maxAttempts := len(s.keys)
 
-	for attempts < maxAttempts {
-		key := s.getCurrentKey()
-		if key == "" {
+	for kIdx := 0; kIdx < totalKeys; kIdx++ {
+		currentKey := s.getCurrentKey()
+
+		// For this key, try all models
+		var keyIssue bool
+
+		for _, m := range modelsToTry {
+			content, err := s.makeRequest(m, currentKey, reqBody)
+			if err == nil {
+				log.Printf("[GeminiService] Success with model %s, key index %d", m, s.currentIndex)
+				return content, nil
+			}
+
+			// Parse error to see if we should change key or stay on this key
+			if strings.Contains(err.Error(), "status 404") {
+				// Model not found for this key/proxy, try next model on same key
+				log.Printf("[GeminiService] Model %s not found (404) for key %d, checking next model", m, s.currentIndex)
+				continue
+			}
+
+			if strings.Contains(err.Error(), "status 401") ||
+				strings.Contains(err.Error(), "status 403") ||
+				strings.Contains(err.Error(), "status 429") ||
+				strings.Contains(err.Error(), "status 502") ||
+				strings.Contains(err.Error(), "API Key not found") ||
+				strings.Contains(err.Error(), "quota exceeded") ||
+				strings.Contains(err.Error(), "checkpoint") { // 502 from proxy often contains these
+				log.Printf("[GeminiService] Key issue detected (status %v) for key %d on model %s", err, s.currentIndex, m)
+				keyIssue = true
+				break // Stop trying models for this key
+			}
+
+			// For other errors, try next model anyway
+			log.Printf("[GeminiService] Model %s failed for key %d: %v. Trying next model.", m, s.currentIndex, err)
+		}
+
+		if keyIssue || kIdx < totalKeys-1 {
+			if !s.rotateKey() {
+				// We reached the end of keys but didn't exhaust kIdx? Should not happen if totalKeys matches.
+				break
+			}
+		} else {
+			// We tried all models and it wasn't a specific key issue but all models failed
 			break
 		}
-
-		content, err := s.makeRequest(modelID, key, reqBody)
-		if err == nil {
-			log.Printf("[GeminiService] Success with model %s, key index %d", modelID, s.currentIndex)
-			return content, nil
-		}
-
-		log.Printf("[GeminiService] Model %s, key %d failed: %v", modelID, s.currentIndex, err)
-
-		// Check if we should rotate key
-		if !s.rotateKey() {
-			// No more keys for this model - try next model
-			s.mutex.Lock()
-			s.currentIndex = startIndex // Reset for next model
-			s.mutex.Unlock()
-			break
-		}
-		attempts++
 	}
 
-	return "", fmt.Errorf("exhausted keys for model %s", modelID)
+	s.mutex.Lock()
+	s.currentIndex = startIndex // Optional: don't reset to keep rotation state?
+	// Actually better to NOT reset so we don't keep hitting 429 keys
+	s.mutex.Unlock()
+
+	return "", fmt.Errorf("all Gemini models and %d keys exhausted", totalKeys)
 }
 
 // makeRequest performs the actual HTTP request to Gemini API
@@ -264,6 +302,13 @@ func (s *GeminiService) makeRequest(modelID, apiKey string, reqBody GeminiReques
 
 	// Build URL: {baseURL}/v1beta/models/{model}:generateContent
 	url := fmt.Sprintf("%s/v1beta/models/%s:generateContent", s.baseURL, modelID)
+	if apiKey != "" {
+		if strings.Contains(url, "?") {
+			url += "&key=" + apiKey
+		} else {
+			url += "?key=" + apiKey
+		}
+	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
 	if err != nil {
@@ -271,7 +316,10 @@ func (s *GeminiService) makeRequest(modelID, apiKey string, reqBody GeminiReques
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-goog-api-key", apiKey)
+	// Keep header for compatibility, but query param is usually more reliable for proxies
+	if apiKey != "" {
+		req.Header.Set("X-goog-api-key", apiKey)
+	}
 
 	client := &http.Client{
 		Timeout: 120 * time.Second,

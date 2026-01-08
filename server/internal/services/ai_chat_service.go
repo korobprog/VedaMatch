@@ -33,6 +33,9 @@ func (s *AiChatService) getApiKey(provider string) string {
 	// If provider is Google/Gemini, try to use specific key first
 	if provider == "Google" || provider == "Gemini" {
 		var setting models.SystemSetting
+		if err := database.DB.Where("key = ?", "LM_GEMINI").First(&setting).Error; err == nil && setting.Value != "" {
+			return setting.Value
+		}
 		if err := database.DB.Where("key = ?", "GEMINI_API_KEY").First(&setting).Error; err == nil && setting.Value != "" {
 			return setting.Value
 		}
@@ -70,7 +73,7 @@ func (s *AiChatService) getProvider(modelID string) string {
 	if len(modelID) >= 6 && modelID[:6] == "claude" {
 		return "Anthropic"
 	}
-	if len(modelID) >= 6 && modelID[:6] == "gemini" {
+	if strings.Contains(strings.ToLower(modelID), "gemini") {
 		return "Google"
 	}
 	if len(modelID) >= 5 && modelID[:5] == "sonar" {
@@ -204,7 +207,8 @@ func (s *AiChatService) GenerateReply(room models.Room, lastMessages []models.Me
 	}
 
 	// 1. Try Default Model
-	defaultModelID := s.getModel("gpt4o")
+	// User requested Gemini-first for compatibility/astro logic
+	defaultModelID := s.getModel("gemini-2.5-flash")
 	log.Printf("[AiChatService] Attempting to generate reply with primary model: %s", defaultModelID)
 
 	content, err := s.makeRequest(defaultModelID, messages)
@@ -249,8 +253,8 @@ func (s *AiChatService) GenerateSimpleResponse(prompt string) (string, error) {
 		{"role": "user", "content": prompt},
 	}
 
-	// 1. Try Default Model
-	defaultModelID := s.getModel("gpt4o")
+	// User requested Gemini-first (LM gemini)
+	defaultModelID := s.getModel("gemini-2.5-flash")
 	log.Printf("[AiChatService] Attempting simple response with primary model: %s", defaultModelID)
 
 	content, err := s.makeRequest(defaultModelID, messages)

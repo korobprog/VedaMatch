@@ -1,4 +1,70 @@
 export default {
+    ads: {
+        title: 'Ads',
+        looking: 'Looking For',
+        offering: 'Offering',
+        my: 'My',
+        createAd: 'Create Ad',
+        searchPlaceholder: 'Search ads...',
+        noAds: 'No ads yet',
+        price: {
+            free: 'Free',
+            negotiable: 'Negotiable',
+            from: 'from',
+            to: 'to'
+        },
+        categories: {
+            all: 'All',
+            work: 'Work',
+            real_estate: 'Real Estate',
+            spiritual: 'Spiritual',
+            education: 'Education',
+            goods: 'Goods',
+            food: 'Food',
+            transport: 'Transport',
+            events: 'Events',
+            services: 'Services',
+            charity: 'Charity',
+            yoga_wellness: 'Yoga & Wellness',
+            ayurveda: 'Ayurveda',
+            housing: 'Housing',
+            furniture: 'Furniture'
+        },
+        filters: {
+            title: 'Filters',
+            reset: 'Reset',
+            apply: 'Apply',
+            city: 'City',
+            priceRange: 'Price Range',
+            minPrice: 'Min',
+            maxPrice: 'Max',
+            showFreeOnly: 'Show Free only'
+        },
+        card: {
+            posted: 'Posted',
+            views: 'views'
+        },
+        create: {
+            title: 'Create Ad',
+            publish: 'Publish Ad',
+            photos: 'Photos',
+            addPhoto: 'Add',
+            details: 'Details',
+            category: 'Category',
+            adTitle: 'Title',
+            description: 'Description',
+            pricing: 'Pricing',
+            location: 'Location',
+            contact: 'Contact Info',
+            useProfile: 'Use Profile',
+            success: 'Ad published successfully'
+        },
+        detail: {
+            contactSuccess: 'Request Sent',
+            callRequested: 'The seller has been notified that you want to contact them by phone.',
+            messageRequested: 'The seller has been notified that you want to write them a message.'
+        }
+    },
     common: {
         error: 'Error',
         success: 'Success',
@@ -248,4 +314,5 @@ export default {
         avatar: 'Avatar',
         changeAvatar: 'Change Avatar'
     }
-};
+}
+

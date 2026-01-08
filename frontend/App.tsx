@@ -23,6 +23,11 @@ import { MediaLibraryScreen } from './screens/portal/dating/MediaLibraryScreen';
 import { EditDatingProfileScreen } from './screens/portal/dating/EditDatingProfileScreen';
 import { DatingFavoritesScreen } from './screens/portal/dating/DatingFavoritesScreen';
 
+import { AdsScreen } from './screens/portal/ads/AdsScreen';
+import { CreateAdScreen } from './screens/portal/ads/CreateAdScreen';
+import { AdDetailScreen } from './screens/portal/ads/AdDetailScreen';
+import { AdsFiltersScreen } from './screens/portal/ads/AdsFiltersScreen';
+
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -84,6 +89,13 @@ const AppContent = () => {
               <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
               <Stack.Screen name="EditDatingProfile" component={EditDatingProfileScreen} />
               <Stack.Screen name="DatingFavorites" component={DatingFavoritesScreen} />
+
+              {/* Ads Routes */}
+              <Stack.Screen name="Ads" component={AdsScreen} />
+              <Stack.Screen name="CreateAd" component={CreateAdScreen} />
+              <Stack.Screen name="AdDetail" component={AdDetailScreen} />
+              <Stack.Screen name="AdsFilters" component={AdsFiltersScreen} options={{ presentation: 'modal' }} />
+
               <Stack.Screen name="Registration" component={RegistrationScreen} />
             </Stack.Group>
           ) : (

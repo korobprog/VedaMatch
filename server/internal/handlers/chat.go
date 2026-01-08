@@ -63,7 +63,9 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 	if systemPrompt != "" {
 		messagesInterface = prependSystemMessage(messagesInterface, systemPrompt)
 		body["messages"] = messagesInterface
-		log.Printf("[Chat] Applied personalized system prompt for user %v", userID)
+		log.Printf("[Chat] Applied system prompt (%d chars) for user %v", len(systemPrompt), userID)
+	} else {
+		log.Printf("[Chat] No system prompt found for user %v (check if prompts exist and are active)", userID)
 	}
 
 	intentResult := intentService.DetectIntent(messagesInterface)
@@ -121,10 +123,11 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 		if geminiService != nil && geminiService.HasKeys() {
 			log.Printf("[Gemini] Attempting Gemini FIRST for text request")
 			geminiMessages := convertMessagesForGemini(messagesInterface)
-			geminiContent, err := geminiService.SendMessage("gemini-2.5-flash", geminiMessages)
+			defaultGModel := "gemini-2.5-flash"
+			geminiContent, err := geminiService.SendMessage(defaultGModel, geminiMessages)
 			if err == nil && geminiContent != "" {
-				log.Printf("[Gemini] SUCCESS with gemini-2.5-flash")
-				response := services.ConvertToOpenAIFormat(geminiContent, "gemini-2.5-flash")
+				log.Printf("[Gemini] SUCCESS with %s", defaultGModel)
+				response := services.ConvertToOpenAIFormat(geminiContent, defaultGModel)
 				return c.JSON(response)
 			}
 			log.Printf("[Gemini] All Gemini attempts failed: %v", err)
@@ -139,6 +142,7 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 	for i, modelConf := range modelsToTry {
 		// Update body for this attempt
 		body["model"] = modelConf.ModelID
+		body["content_type"] = "text" // Failsafe to avoid 'audio' detection on proxy
 		if modelConf.Provider != "" {
 			body["provider"] = modelConf.Provider
 		} else {
@@ -157,7 +161,11 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 					response := services.ConvertToOpenAIFormat(geminiContent, modelConf.ModelID)
 					return c.JSON(response)
 				}
+				// GeminiService failed, log and skip to next model
+				// Don't send Gemini models to external proxy (causes 'audio' content type error)
+				log.Printf("[Gemini] Direct call failed for %s, skipping to next model", modelConf.ModelID)
 			}
+			continue // Skip external proxy for Gemini models
 		}
 
 		// 4b. Pollinations AI (Direct Image)
@@ -249,6 +257,10 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 	}
 
 	// 5. All Failed
+	// Suppress unused variable warnings
+	_ = lastErr
+	_ = lastRespBody
+	_ = lastStatusCode
 	log.Printf("%s All attempts failed.", intentLogPrefix)
 
 	// Failsafe: Pollinations
@@ -264,16 +276,19 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 		return c.JSON(responseJSON)
 	}
 
-	// Return last error
-	if lastStatusCode != 0 && lastStatusCode != 200 {
-		c.Status(lastStatusCode)
-		return c.Send(lastRespBody)
-	}
-
-	return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
-		"error":       "All AI models failed to respond",
-		"last_status": lastStatusCode,
-		"details":     lastErr,
+	// Return user-friendly error instead of cryptic proxy errors
+	return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+		"error": "Все AI модели временно недоступны. Пожалуйста, попробуйте позже.",
+		"choices": []map[string]interface{}{
+			{
+				"index": 0,
+				"message": map[string]string{
+					"role":    "assistant",
+					"content": "Извините, все AI сервисы временно недоступны. Пожалуйста, попробуйте позже. 🙏",
+				},
+				"finish_reason": "error",
+			},
+		},
 	})
 }
 
@@ -420,6 +435,8 @@ func loadGlobalPrompts() string {
 		return ""
 	}
 
+	log.Printf("[Chat] Found %d global prompts (scope=%s, is_active=true)", len(prompts), models.ScopeGlobal)
+
 	var parts []string
 	for _, p := range prompts {
 		if p.Content != "" {
@@ -427,7 +444,11 @@ func loadGlobalPrompts() string {
 		}
 	}
 
-	return strings.Join(parts, "\n\n")
+	result := strings.Join(parts, "\n\n")
+	if len(result) > 0 {
+		log.Printf("[Chat] Built global prompt: %d chars from %d prompts", len(result), len(parts))
+	}
+	return result
 }
 
 // prependSystemMessage adds a system message at the beginning of the messages array

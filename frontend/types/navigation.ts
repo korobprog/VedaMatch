@@ -1,5 +1,8 @@
 export type RootStackParamList = {
-    Chat: undefined;
+    Ads: undefined;
+    CreateAd: { adId?: number };
+    AdDetail: { adId: number };
+    AdsFilters: undefined;
     Registration: { isDarkMode: boolean, phase?: 'initial' | 'profile' };
     Login: undefined;
     Plans: undefined;
@@ -11,4 +14,5 @@ export type RootStackParamList = {
     MediaLibrary: { userId: number; readOnly?: boolean };
     EditDatingProfile: { userId: number };
     DatingFavorites: undefined;
+    Chat: undefined;
 };
