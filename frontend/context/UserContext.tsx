@@ -22,7 +22,7 @@ interface UserContextType {
     user: UserProfile | null;
     isLoggedIn: boolean;
     isLoading: boolean;
-    login: (profile: UserProfile) => Promise<void>;
+    login: (profile: UserProfile, token?: string) => Promise<void>;
     logout: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
 }
@@ -57,8 +57,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const loadUser = async () => {
         try {
             const savedUser = await AsyncStorage.getItem('user');
-            if (savedUser && savedUser !== 'undefined') {
+            const savedToken = await AsyncStorage.getItem('token');
+
+            if (savedUser && savedUser !== 'undefined' && savedUser !== 'null' &&
+                savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
                 setUser(JSON.parse(savedUser));
+            } else {
+                // If any is missing, clear both to be safe
+                await AsyncStorage.removeItem('user');
+                await AsyncStorage.removeItem('token');
+                setUser(null);
             }
         } catch (e) {
             console.error('Failed to load user', e);
@@ -67,14 +75,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const login = async (profile: UserProfile) => {
+    const login = async (profile: UserProfile, token?: string) => {
         setUser(profile);
         await AsyncStorage.setItem('user', JSON.stringify(profile));
+        if (token) {
+            await AsyncStorage.setItem('token', token);
+        }
     };
 
     const logout = async () => {
         setUser(null);
         await AsyncStorage.removeItem('user');
+        await AsyncStorage.removeItem('token');
     };
 
     const setTourCompleted = async () => {

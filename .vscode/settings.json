@@ -1,4 +1,27 @@
 {
     "java.compile.nullAnalysis.mode": "automatic",
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/node_modules": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/.git": true
+    },
+    "java.project.importHint": false,
+    "gradle.nestedProjects": false,
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.metadata/**",
+        "**/archived-node_modules/**"
+    ],
+    "java.dependency.packagePresentation": "hierarchical",
+    "java.autobuild.enabled": false,
+    "java.import.gradle.enabled": true
 }

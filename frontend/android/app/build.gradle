@@ -2,8 +2,8 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-// react-native-config - автолинкование в React Native 0.76+
-apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+// react-native-config - uses direct path for reliability
+apply from: file("../../node_modules/react-native-config/android/dotenv.gradle")
 
 def enableProguardInReleaseBuilds = true
 def jscFlavor = 'org.webkit:android-jsc:+'

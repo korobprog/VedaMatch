@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strings"
@@ -146,8 +147,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -189,8 +190,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
@@ -206,8 +207,8 @@ func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -263,8 +264,8 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -278,7 +279,7 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 	}
 
 	friendship := models.Friend{
-		UserID:   userId.(uint),
+		UserID:   userId,
 		FriendID: body.FriendID,
 	}
 
@@ -290,8 +291,8 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) RemoveFriend(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -312,8 +313,8 @@ func (h *AuthHandler) RemoveFriend(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GetFriends(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
@@ -338,17 +339,19 @@ func (h *AuthHandler) GetFriends(c *fiber.Ctx) error {
 func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {
 	var users []models.User
 	if err := database.DB.Find(&users).Error; err != nil {
+		log.Printf("[Contacts] Error fetching contacts: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not fetch contacts",
 		})
 	}
+	log.Printf("[Contacts] Returning %d contacts to client", len(users))
 
 	return c.Status(fiber.StatusOK).JSON(users)
 }
 
 func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
@@ -360,7 +363,7 @@ func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
 	}
 
 	block := models.Block{
-		UserID:    userId.(uint),
+		UserID:    userId,
 		BlockedID: body.BlockedID,
 	}
 
@@ -376,8 +379,8 @@ func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) UnblockUser(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
@@ -396,8 +399,8 @@ func (h *AuthHandler) UnblockUser(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GetBlockedUsers(c *fiber.Ctx) error {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 

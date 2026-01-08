@@ -141,8 +141,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 password,
             });
 
-            const { user } = response.data;
-            await login(user);
+            const { user, token } = response.data;
+            await login(user, token);
         } catch (error: any) {
             console.warn('Login failure:', error.message);
             const msg = error.response?.data?.error || t('login_failed');
@@ -178,7 +178,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 password: devPassword,
             });
 
-            let { user } = loginRes.data;
+            let { user, token } = loginRes.data;
 
             if (!user.isProfileComplete) {
                 const updateRes = await axios.put(`${API_PATH}/update-profile/${user.ID}`, {
@@ -187,7 +187,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 user = updateRes.data.user;
             }
 
-            await login(user);
+            await login(user, token);
 
         } catch (error: any) {
             try {
@@ -197,8 +197,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     email: devEmail,
                     password: devPassword,
                 });
-                const { user } = retryLoginRes.data;
-                await login(user);
+                const { user, token } = retryLoginRes.data;
+                await login(user, token);
             } catch (regError: any) {
                 const errorMsg = regError.response?.data?.error || regError.message;
                 Alert.alert('Dev Error', `Failed: ${errorMsg}`);

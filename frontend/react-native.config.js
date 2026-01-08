@@ -1,7 +1,11 @@
 module.exports = {
   project: {
     ios: {},
-    android: {},
+    android: {
+      sourceDir: './android',
+      appName: 'app',
+      packageName: 'com.ragagent',
+    },
   },
   assets: ['./assets/'],
   // Настройка порта Metro bundler
@@ -9,4 +13,3 @@ module.exports = {
     port: 8082,
   },
 };
-

@@ -43,14 +43,14 @@ export const geoLocationService = {
 			}
 
 			return new Promise((resolve, reject) => {
-				navigator.geolocation.getCurrentPosition(
-					(position) => {
+				(navigator as any).geolocation.getCurrentPosition(
+					(position: any) => {
 						resolve({
 							latitude: position.coords.latitude,
 							longitude: position.coords.longitude,
 						});
 					},
-					(error) => {
+					(error: any) => {
 						console.warn('Geolocation error:', error.message);
 						reject(error);
 					},

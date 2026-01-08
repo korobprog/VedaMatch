@@ -2,7 +2,9 @@
   "extends": "./node_modules/@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
     "skipLibCheck": true,
-    "types": ["jest"]
+    "types": [
+      "jest"
+    ],
+    "jsx": "react-native"
   }
 }
-

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api.config';
+import { getAuthHeaders } from './contactService';
 
 export interface P2PMessage {
     id?: number;
@@ -16,18 +17,23 @@ export interface P2PMessage {
 }
 
 export const messageService = {
-    async sendMessage(senderId: number, recipientId: number, content: string, type: 'text' | 'image' = 'text'): Promise<P2PMessage> {
+    async sendMessage(senderId: number, recipientId: number, content: string, type: 'text' | 'image' | 'audio' | 'video' | 'file' = 'text'): Promise<P2PMessage> {
         const url = `${API_BASE_URL}/api/messages`;
-        console.log(`[messageService] Sending message to: ${url}`, { senderId, recipientId, content });
+        const headers = await getAuthHeaders();
+        console.log(`[messageService] Sending message to: ${url}`);
         try {
             const response = await axios.post(url, {
                 senderId,
                 recipientId,
                 content,
                 type,
-            });
+            }, { headers });
             return response.data;
         } catch (error: any) {
+            if (error.response?.status === 401) {
+                console.error('[messageService] Unauthorized: Session expired or invalid token');
+                throw new Error('UNAUTHORIZED');
+            }
             console.error(`[messageService] Send failed to ${url}`, error.response?.status, error.response?.data);
             throw error;
         }
@@ -35,11 +41,16 @@ export const messageService = {
 
     async getMessages(userId: number, recipientId: number): Promise<P2PMessage[]> {
         const url = `${API_BASE_URL}/api/messages/${userId}/${recipientId}`;
+        const headers = await getAuthHeaders();
         console.log(`[messageService] Fetching messages from: ${url}`);
         try {
-            const response = await axios.get(url);
+            const response = await axios.get(url, { headers });
             return response.data;
         } catch (error: any) {
+            if (error.response?.status === 401) {
+                console.error('[messageService] Unauthorized: Session expired or invalid token');
+                throw new Error('UNAUTHORIZED');
+            }
             console.error(`[messageService] Fetch failed from ${url}`, error.response?.status);
             throw error;
         }

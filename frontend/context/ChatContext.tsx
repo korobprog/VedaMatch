@@ -155,9 +155,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     if (!currentRecipientId || !currentUserId) return;
                     const p2pMessages = await messageService.getMessages(currentUserId, currentRecipientId);
                     const formattedMessages: Message[] = p2pMessages.map(m => ({
-                        id: m.id?.toString() || m.ID?.toString(),
-                        text: m.content,
-                        sender: m.senderId === currentUser.ID ? 'user' : 'other' as any,
+                        id: (m.id || m.ID || Date.now()).toString(),
+                        text: m.content || '',
+                        sender: (m.senderId === currentUser.ID ? 'user' : 'other') as 'user' | 'other',
                         type: m.type || 'text',
                         content: m.content,
                         fileName: m.fileName,
@@ -181,7 +181,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const removeListener = addListener((msg: any) => {
             console.log('📨 WebSocket message received:', msg);
-            
+
             // Handle typing events
             if (msg.type === 'typing') {
                 if (recipientId && msg.senderId === recipientId && msg.recipientId === currentUser?.ID) {
@@ -484,7 +484,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 content: savedMessage.content,
                 senderId: savedMessage.senderId,
                 recipientId: savedMessage.recipientId,
-                createdAt: savedMessage.createdAt || savedMessage.CreatedAt,
+                createdAt: savedMessage.CreatedAt,
             };
 
             console.log('🔄 Updating message from temp to final:', finalMessage);

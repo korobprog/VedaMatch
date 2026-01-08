@@ -53,6 +53,7 @@ func main() {
 	datingHandler := handlers.NewDatingHandler(aiChatService)
 	typingHandler := handlers.NewTypingHandler(hub)
 	ragHandler := handlers.NewRAGHandler(services.NewRAGPipelineService(database.DB))
+	chatHandler := handlers.NewChatHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -87,30 +88,7 @@ func main() {
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
 
-	// Protected Routes
-	protected := api.Group("/", middleware.Protected())
-
-	protected.Put("/update-profile", authHandler.UpdateProfile)
-	protected.Put("/update-location", authHandler.UpdateLocation)
-	protected.Put("/update-coordinates", authHandler.UpdateLocationCoordinates)
-	protected.Get("/location/nearby", authHandler.GetNearbyUsers)
-	protected.Get("/location/by-city", authHandler.SearchByCity)
-	protected.Get("/location/by-country", authHandler.GetUsersByCountry)
-	protected.Get("/contacts", authHandler.GetContacts)
-	protected.Post("/heartbeat", authHandler.Heartbeat)
-	protected.Post("/upload-avatar", authHandler.UploadAvatar)
-	protected.Post("/friends/add", authHandler.AddFriend)
-	protected.Post("/friends/remove", authHandler.RemoveFriend)
-	protected.Get("/friends", authHandler.GetFriends)
-	protected.Post("/blocks/add", authHandler.BlockUser)
-	protected.Post("/blocks/remove", authHandler.UnblockUser)
-	protected.Get("/blocks", authHandler.GetBlockedUsers)
-	log.Println("Registering /api/messages routes...")
-	protected.Post("/messages", messageHandler.SendMessage)
-	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
-	protected.Post("/typing", typingHandler.SetTyping)
-
-	// WebSocket Route (with ID in URL)
+	// WebSocket Route (with ID in URL) - Moved outside protected group
 	api.Get("/ws/:id", ws.New(func(c *ws.Conn) {
 		// userId from path parameter
 		userIdStr := c.Params("id")
@@ -133,6 +111,34 @@ func main() {
 		go client.WritePump()
 		client.ReadPump()
 	}))
+
+	// Public AI Routes (Legacy/Frontend Compat)
+	api.Post("/v1/chat/completions", chatHandler.HandleChat)
+	api.Get("/v1/models", aiHandler.GetClientModels)
+
+	// Protected Routes
+	protected := api.Group("/", middleware.Protected())
+
+	protected.Post("/messages", messageHandler.SendMessage)
+	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
+
+	protected.Put("/update-profile", authHandler.UpdateProfile)
+	protected.Put("/update-location", authHandler.UpdateLocation)
+	protected.Put("/update-coordinates", authHandler.UpdateLocationCoordinates)
+	protected.Get("/location/nearby", authHandler.GetNearbyUsers)
+	protected.Get("/location/by-city", authHandler.SearchByCity)
+	protected.Get("/location/by-country", authHandler.GetUsersByCountry)
+	protected.Get("/contacts", authHandler.GetContacts)
+	protected.Post("/heartbeat", authHandler.Heartbeat)
+	protected.Post("/upload-avatar", authHandler.UploadAvatar)
+	protected.Post("/friends/add", authHandler.AddFriend)
+	protected.Post("/friends/remove", authHandler.RemoveFriend)
+	protected.Get("/friends", authHandler.GetFriends)
+	protected.Post("/blocks/add", authHandler.BlockUser)
+	protected.Post("/blocks/remove", authHandler.UnblockUser)
+	protected.Get("/blocks", authHandler.GetBlockedUsers)
+	log.Println("Registering /api/messages routes...")
+	protected.Post("/typing", typingHandler.SetTyping)
 
 	// Room Routes
 	protected.Post("/rooms", roomHandler.CreateRoom)
@@ -183,10 +189,7 @@ func main() {
 	// Static files for avatars
 	app.Static("/uploads", "./uploads")
 
-	chatHandler := handlers.NewChatHandler()
-	// Use /v1 prefix to match frontend expectation
-	api.Post("/v1/chat/completions", chatHandler.HandleChat)
-	api.Get("/v1/models", aiHandler.GetClientModels)
+	// chatHandler initialization moved up
 
 	// Start Server
 	port := ":8081"

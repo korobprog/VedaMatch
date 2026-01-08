@@ -12,6 +12,7 @@ import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { API_PATH } from '../config/api.config';
 import { Alert, PermissionsAndroid, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
+import { getAuthHeaders } from './contactService';
 
 export interface MediaFile {
 	uri: string;
@@ -335,10 +336,12 @@ export const mediaService = {
 				formData.append('roomId', roomId);
 			}
 
+			const authHeaders = await getAuthHeaders(false);
 			const response = await fetch(`${API_PATH}/messages/media`, {
 				method: 'POST',
 				body: formData,
 				headers: {
+					...authHeaders,
 					'Accept': 'application/json',
 				},
 			});

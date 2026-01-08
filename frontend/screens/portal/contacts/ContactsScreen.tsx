@@ -39,14 +39,20 @@ export const ContactsScreen: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        // We don't set the city filter automatically anymore to avoid confusion when no users are in the same city
+        /*
         if (currentUser?.city) {
             setFilterCities([currentUser.city]);
         }
+        */
     }, [currentUser?.city]);
 
     const fetchCities = async () => {
         try {
-            const response = await axios.get(`${API_PATH}/dating/cities`);
+            const token = await contactService.getAuthToken();
+            const response = await axios.get(`${API_PATH}/dating/cities`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             console.log('Cities from API:', response.data);
             setAvailableCities(response.data);
         } catch (error) {
@@ -82,7 +88,10 @@ export const ContactsScreen: React.FC = () => {
 
             // Try to get cities from API, fallback to contacts
             try {
-                const response = await axios.get(`${API_PATH}/dating/cities`);
+                const token = await contactService.getAuthToken();
+                const response = await axios.get(`${API_PATH}/dating/cities`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
                 if (response.data && response.data.length > 0) {
                     setAvailableCities(response.data);
                     console.log('Cities from API:', response.data.length);

@@ -594,3 +594,46 @@ export default {
     *   Добавлена отрисовка `AudioPlayer`, `Image` и `Document` в списке сообщений рума.
     *   Теперь голосовые сообщения проигрываются прямо в чате групповых комнат.
 
+### 4. Исправление React Native Release Build (Январь 2026)
+*   **Проблема**: APK собирался успешно, но при запуске на телефоне приложение мгновенно закрывалось (crash).
+*   **Ошибки**:
+    *   `com.facebook.soloader.B: couldn't find DSO to load: libreanimated.so`
+    *   `Missing class com.facebook.proguard.annotations.DoNotStrip` при включении ProGuard
+*   **Корневые причины**:
+    1. **Неверная конфигурация ABI**: `reactNativeArchitectures` в `gradle.properties` был установлен только на `armeabi-v7a` (32-bit)
+    2. **Отключен ProGuard**: `enableProguardInReleaseBuilds = false` в `app/build.gradle`
+    3. **Отсутствие ProGuard правил**: Missing keep rules для React Native классов
+*   **Решение**:
+    1. **Изменение ABI архитектур** (`frontend/android/gradle.properties:34`):
+        ```gradle
+        reactNativeArchitectures=arm64-v8a,x86_64  # Было: armeabi-v7a
+        ```
+    2. **Включение ProGuard** (`frontend/android/app/build.gradle:8`):
+        ```gradle
+        def enableProguardInReleaseBuilds = true  # Было: false
+        ```
+    3. **Добавление ProGuard правил** (`frontend/android/app/proguard-rules.pro`):
+        ```proguard
+        -keep class com.facebook.react.** { *; }
+        -dontwarn com.facebook.react.**
+        -dontwarn com.facebook.proguard.annotations.**
+        -keep class com.facebook.proguard.annotations.** { *; }
+        -keep class com.facebook.hermes.** { *; }
+        -keep class com.facebook.jsi.** { *; }
+        ```
+    4. **Обновление ABI фильтров** (`frontend/android/app/build.gradle:80-82`):
+        ```gradle
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'  # Было: 'armeabi-v7a', 'arm64-v8a'
+        }
+        ```
+    5. **Удаление проблемного codegenConfig** из `package.json` (конфликтовал с React Native 0.76.5)
+*   **Результат**:
+    *   APK успешно собирается (30 MB)
+    *   Приложение корректно запускается на Android устройствах
+    *   Google Play принимает APK (64-bit требование выполнено)
+*   **Дополнительные исправления для стабильности**:
+    *   Добавлен `resolutionStrategy` для устранения конфликтов версий зависимостей
+    *   Настроены `packagingOptions` для корректной упаковки .so файлов
+    *   Исключен `com.facebook.yoga:proguard-annotations` (падает из react-native 0.76)
+
