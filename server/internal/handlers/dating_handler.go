@@ -34,16 +34,32 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	yogaStyle := c.Query("yogaStyle")
 	guna := c.Query("guna")
 	identity := c.Query("identity")
+	mode := c.Query("mode", "family") // family, business, friendship, seva
+	skills := c.Query("skills")
+	industry := c.Query("industry")
 	minAge := c.QueryInt("minAge", 0)
 	maxAge := c.QueryInt("maxAge", 0)
 	userID := c.Query("userId")
 
-	// Get current user to determine opposite gender default
+	// Apply mode filter
+	if mode != "" {
+		query = query.Where("intentions ILIKE ?", "%"+mode+"%")
+	}
+
+	// Apply skills and industry for business mode
+	if skills != "" {
+		query = query.Where("skills ILIKE ?", "%"+skills+"%")
+	}
+	if industry != "" {
+		query = query.Where("industry ILIKE ?", "%"+industry+"%")
+	}
+
+	// Get current user to determine opposite gender default for family mode
 	var currentUser models.User
 	if userID != "" {
 		if err := database.DB.First(&currentUser, userID).Error; err == nil {
-			// If no gender specified, default to opposite
-			if gender == "" {
+			// If no gender specified, default to opposite ONLY in family mode
+			if gender == "" && mode == "family" {
 				switch currentUser.Gender {
 				case "Male":
 					gender = "Female"
@@ -56,7 +72,7 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 		}
 	}
 
-	// Apply Gender Filter
+	// Apply Gender Filter - usually relevant for family, but might be for others too
 	if gender != "" {
 		query = query.Where("gender = ?", gender)
 	}
@@ -239,6 +255,10 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 		YogaStyle         *string `json:"yogaStyle"`
 		Guna              *string `json:"guna"`
 		Identity          *string `json:"identity"`
+		Intentions        *string `json:"intentions"`
+		Skills            *string `json:"skills"`
+		Industry          *string `json:"industry"`
+		LookingForBusiness *string `json:"lookingForBusiness"`
 		DatingEnabled     *bool   `json:"datingEnabled"`
 		IsProfileComplete *bool   `json:"isProfileComplete"`
 	}
@@ -284,6 +304,18 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 	}
 	if updates.Identity != nil {
 		updateMap["identity"] = *updates.Identity
+	}
+	if updates.Intentions != nil {
+		updateMap["intentions"] = *updates.Intentions
+	}
+	if updates.Skills != nil {
+		updateMap["skills"] = *updates.Skills
+	}
+	if updates.Industry != nil {
+		updateMap["industry"] = *updates.Industry
+	}
+	if updates.LookingForBusiness != nil {
+		updateMap["looking_for_business"] = *updates.LookingForBusiness
 	}
 	if updates.DatingEnabled != nil {
 		updateMap["dating_enabled"] = *updates.DatingEnabled
