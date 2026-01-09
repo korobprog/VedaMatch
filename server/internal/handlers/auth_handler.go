@@ -174,6 +174,13 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.Guna = updateData.Guna
 	user.Mentor = updateData.Mentor
 	user.Dob = updateData.Dob
+	user.Bio = updateData.Bio
+	user.Interests = updateData.Interests
+	user.LookingFor = updateData.LookingFor
+	user.Intentions = updateData.Intentions
+	user.Skills = updateData.Skills
+	user.Industry = updateData.Industry
+	user.LookingForBusiness = updateData.LookingForBusiness
 	user.IsProfileComplete = true // Mark as complete since we are updating profile
 
 	if err := database.DB.Save(&user).Error; err != nil {

@@ -25,6 +25,10 @@ type User struct {
 	Bio               string   `json:"bio"`
 	Interests         string   `json:"interests"`
 	LookingFor        string   `json:"lookingFor"`
+	Intentions        string   `json:"intentions"` // marriage, business, friendship, seva
+	Skills            string   `json:"skills"`
+	Industry          string   `json:"industry"`
+	LookingForBusiness string  `json:"lookingForBusiness"`
 	MaritalStatus     string   `json:"maritalStatus"`
 	BirthTime         string   `json:"birthTime" gorm:"column:birth_time"`
 	BirthPlaceLink    string   `json:"birthPlaceLink" gorm:"column:birth_place_link"`
@@ -32,6 +36,7 @@ type User struct {
 	IsProfileComplete bool     `json:"isProfileComplete" gorm:"default:false"`
 	CurrentPlan       string   `json:"currentPlan" gorm:"default:'trial'"`
 	Region            string   `json:"region" gorm:"default:'global'"`
+	Language          string   `json:"language" gorm:"default:'en'"`
 	RagFileID         string   `json:"ragFileId"`
 	AvatarURL         string   `json:"avatarUrl"`
 	LastSeen          string   `json:"lastSeen"` // Using string for ISO format or time.Time
