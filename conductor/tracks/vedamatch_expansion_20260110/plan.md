@@ -1,13 +1,13 @@
 # План: VedaMatch & Networking
 
-## Фаза 1: Расширение Модели Данных (Бэкенд)
+## Фаза 1: Расширение Модели Данных (Бэкенд) [checkpoint: 2834a5b]
 - [x] Задача: Обновить Go модели (`User`, `DatingProfile`) для поддержки множественных целей (Intentions). (7a0122b)
     - [x] Подзадача: Миграция БД (добавление полей skills, intentions, interests).
     - [x] Подзадача: Обновление API сохранения профиля.
 - [x] Задача: Реализовать логику "Тегов" для интересов и навыков. (7c69cf7)
     - [x] Подзадача: Таблицы `tags`, `user_tags`.
     - [x] Подзадача: API для поиска и добавления тегов.
-- [ ] Задача: Conductor - User Manual Verification 'Data Model Expansion' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Data Model Expansion' (Protocol in workflow.md)
 
 ## Фаза 2: Логика Поиска и Фильтрации (Бэкенд)
 - [ ] Задача: Обновить эндпоинт поиска (`searchUsers`) для поддержки режима `mode`.
