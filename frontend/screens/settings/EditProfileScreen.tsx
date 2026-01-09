@@ -34,6 +34,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
 const GENDER_OPTIONS = ['Male', 'Female'];
 const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
+const INTENTION_OPTIONS = [
+    { key: 'family', label: 'Family/Marriage' },
+    { key: 'business', label: 'Business/Work' },
+    { key: 'friendship', label: 'Friendship' },
+    { key: 'seva', label: 'Seva/Service' }
+];
 
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation();
@@ -62,6 +68,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [bio, setBio] = useState('');
     const [interests, setInterests] = useState('');
     const [lookingFor, setLookingFor] = useState('');
+    const [intentions, setIntentions] = useState<string[]>([]); // Array of selected intentions
+    const [skills, setSkills] = useState('');
+    const [industry, setIndustry] = useState('');
+    const [lookingForBusiness, setLookingForBusiness] = useState('');
     const [maritalStatus, setMaritalStatus] = useState('');
     const [birthTime, setBirthTime] = useState('');
     const [datingEnabled, setDatingEnabled] = useState(false);
@@ -114,6 +124,17 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setBio(userData.bio || '');
                 setInterests(userData.interests || '');
                 setLookingFor(userData.lookingFor || '');
+                setSkills(userData.skills || '');
+                setIndustry(userData.industry || '');
+                setLookingForBusiness(userData.lookingForBusiness || '');
+                
+                // Parse intentions (stored as comma-separated string)
+                if (userData.intentions) {
+                    setIntentions(userData.intentions.split(',').map((i: string) => i.trim()));
+                } else {
+                    setIntentions([]);
+                }
+
                 setMaritalStatus(userData.maritalStatus || '');
                 setBirthTime(userData.birthTime || '');
                 setDatingEnabled(userData.datingEnabled || false);
@@ -157,6 +178,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 bio,
                 interests,
                 lookingFor,
+                intentions: intentions.join(','),
+                skills,
+                industry,
+                lookingForBusiness,
                 maritalStatus,
                 birthTime,
                 datingEnabled
@@ -188,6 +213,14 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         setCountry(cData.name.common);
         setShowCountryPicker(false);
         await fetchCities(cData.name.common);
+    };
+
+    const toggleIntention = (key: string) => {
+        if (intentions.includes(key)) {
+            setIntentions(intentions.filter(i => i !== key));
+        } else {
+            setIntentions([...intentions, key]);
+        }
     };
 
     const toggleSection = (section: keyof typeof expandedSections) => {
@@ -489,13 +522,13 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     )}
                 </View>
 
-                {/* Dating Profile Section */}
+                {/* Networking & Dating Profile Section */}
                 <View style={styles.section}>
-                    <SectionHeader title={t('dating.profile') || 'Dating Profile'} sectionKey="dating" isOpen={expandedSections.dating} />
+                    <SectionHeader title={t('dating.profile') || 'Networking & Dating'} sectionKey="dating" isOpen={expandedSections.dating} />
                     {expandedSections.dating && (
                         <View style={styles.sectionContent}>
                             <View style={styles.switchContainer}>
-                                <Text style={[styles.label, { color: theme.text }]}>{t('dating.enableProfile') || 'Enable Dating Profile'}</Text>
+                                <Text style={[styles.label, { color: theme.text }]}>{t('dating.enableProfile') || 'Enable Public Profile'}</Text>
                                 <Switch
                                     value={datingEnabled}
                                     onValueChange={setDatingEnabled}
@@ -503,6 +536,63 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                     thumbColor={datingEnabled ? '#fff' : '#f4f3f4'}
                                 />
                             </View>
+
+                            {/* Intentions / Goals */}
+                            <Text style={[styles.label, { color: theme.text }]}>My Goals (Select all that apply)</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 15 }}>
+                                {INTENTION_OPTIONS.map((opt) => (
+                                    <TouchableOpacity
+                                        key={opt.key}
+                                        style={[
+                                            styles.chip,
+                                            { 
+                                                backgroundColor: intentions.includes(opt.key) ? theme.button : theme.inputBackground,
+                                                borderColor: theme.borderColor 
+                                            }
+                                        ]}
+                                        onPress={() => toggleIntention(opt.key)}
+                                    >
+                                        <Text style={{ color: intentions.includes(opt.key) ? '#fff' : theme.text }}>
+                                            {opt.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Business Section (Conditional) */}
+                            {intentions.includes('business') && (
+                                <View style={{ marginBottom: 15, padding: 10, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 8 }}>
+                                    <Text style={[styles.sectionTitle, { fontSize: 15, marginBottom: 10, color: theme.text }]}>Business Profile</Text>
+                                    
+                                    <Text style={[styles.label, { color: theme.text }]}>Skills (comma separated)</Text>
+                                    <TextInput
+                                        style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                                        value={skills}
+                                        onChangeText={setSkills}
+                                        placeholder="e.g. Yoga Instructor, Web Dev, Cooking"
+                                        placeholderTextColor={theme.subText}
+                                    />
+
+                                    <Text style={[styles.label, { color: theme.text }]}>Industry</Text>
+                                    <TextInput
+                                        style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                                        value={industry}
+                                        onChangeText={setIndustry}
+                                        placeholder="e.g. Wellness, IT, Education"
+                                        placeholderTextColor={theme.subText}
+                                    />
+
+                                    <Text style={[styles.label, { color: theme.text }]}>Looking For (Business)</Text>
+                                    <TextInput
+                                        style={[styles.textArea, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor, minHeight: 60 }]}
+                                        value={lookingForBusiness}
+                                        onChangeText={setLookingForBusiness}
+                                        placeholder="e.g. Partners for eco-village, React developer..."
+                                        placeholderTextColor={theme.subText}
+                                        multiline
+                                    />
+                                </View>
+                            )}
 
                             <Text style={[styles.label, { color: theme.text }]}>{t('dating.bio')}</Text>
                             <TextInput
@@ -676,5 +766,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         borderRadius: 8,
         borderWidth: 2,
+    },
+    chip: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginRight: 8,
+        marginBottom: 8,
     },
 });
