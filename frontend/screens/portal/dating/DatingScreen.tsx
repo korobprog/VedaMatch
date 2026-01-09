@@ -45,6 +45,9 @@ interface Profile {
     madh: string;
     avatarUrl: string;
     photos: Photo[];
+    industry?: string;
+    skills?: string;
+    lookingForBusiness?: string;
 }
 
 export const DatingScreen = () => {
@@ -61,6 +64,7 @@ export const DatingScreen = () => {
     const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
     const [checkingComp, setCheckingComp] = useState(false);
     const [currentCandidateId, setCurrentCandidateId] = useState<number | null>(null);
+    const [mode, setMode] = useState<'family' | 'business' | 'friendship' | 'seva'>('family');
 
     // Filter State
     const [showFilters, setShowFilters] = useState(false);
@@ -120,6 +124,10 @@ export const DatingScreen = () => {
     }, []);
 
     useEffect(() => {
+        fetchCandidates();
+    }, [mode]);
+
+    useEffect(() => {
         if (user?.city) {
             fetchStats();
         }
@@ -158,6 +166,7 @@ export const DatingScreen = () => {
         try {
             const data = await datingService.getCandidates({
                 userId: user.ID,
+                mode: mode,
                 city: filterCity,
                 minAge: filterMinAge,
                 maxAge: filterMaxAge,
@@ -388,11 +397,22 @@ export const DatingScreen = () => {
                 <View style={styles.cardInfo}>
                     <Text style={[styles.name, { color: theme.text }]}>
                         {item.spiritualName || 'Devotee'}
-                        {item.age ? `, ${item.age}` : ''}
+                        {mode === 'family' && item.age ? `, ${item.age}` : ''}
                     </Text>
                     <Text style={[styles.city, { color: theme.subText }]}>{item.city}</Text>
-                    <Text style={[styles.path, { color: theme.accent }]}>{item.madh}</Text>
-                    <Text style={[styles.bio, { color: theme.text }]} numberOfLines={3}>{item.bio || 'No bio yet'}</Text>
+                    
+                    {mode === 'business' ? (
+                        <View style={{ marginTop: 5 }}>
+                            {item.industry && <Text style={[styles.path, { color: theme.accent }]}>💼 {item.industry}</Text>}
+                            {item.skills && <Text style={[styles.skillsText, { color: theme.text }]}>🛠️ {item.skills}</Text>}
+                        </View>
+                    ) : (
+                        <Text style={[styles.path, { color: theme.accent }]}>{item.madh}</Text>
+                    )}
+
+                    <Text style={[styles.bio, { color: theme.text }]} numberOfLines={3}>
+                        {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || 'No bio yet')}
+                    </Text>
 
                     {!isPreview && (
                         <View style={styles.actions}>
@@ -400,7 +420,9 @@ export const DatingScreen = () => {
                                 style={[styles.actionBtn, { backgroundColor: theme.button }]}
                                 onPress={() => handleCheckCompatibility(item.ID)}
                             >
-                                <Text style={{ color: theme.buttonText }}>{t('dating.checkCompatibility')}</Text>
+                                <Text style={{ color: theme.buttonText }}>
+                                    {mode === 'business' ? 'Connect' : t('dating.checkCompatibility')}
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -462,6 +484,36 @@ export const DatingScreen = () => {
 
                     {/* Right Arrow */}
                     <Text style={{ fontSize: 18, color: theme.subText, marginLeft: 5 }}>›</Text>
+                </View>
+
+                {/* Mode Switcher */}
+                <View style={{ backgroundColor: theme.background, paddingVertical: 10 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
+                        {[
+                            { key: 'family', label: 'Family', emoji: '💍' },
+                            { key: 'business', label: 'Business', emoji: '💼' },
+                            { key: 'friendship', label: 'Friends', emoji: '🤝' },
+                            { key: 'seva', label: 'Seva', emoji: '🪷' }
+                        ].map((m) => (
+                            <TouchableOpacity
+                                key={m.key}
+                                style={[
+                                    styles.modeChip,
+                                    {
+                                        backgroundColor: mode === m.key ? theme.accent : theme.inputBackground,
+                                        borderColor: theme.borderColor
+                                    }
+                                ]}
+                                onPress={() => {
+                                    setMode(m.key as any);
+                                    setLoading(true);
+                                }}
+                            >
+                                <Text style={{ fontSize: 16, marginRight: 5 }}>{m.emoji}</Text>
+                                <Text style={{ color: mode === m.key ? '#fff' : theme.text, fontWeight: 'bold' }}>{m.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                 </View>
 
                 {/* Statistics Bar */}
@@ -1085,6 +1137,20 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 20,
         borderRadius: 25,
+    },
+    modeChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 25,
+        marginRight: 10,
+        borderWidth: 1,
+    },
+    skillsText: {
+        fontSize: 12,
+        marginBottom: 4,
+        fontStyle: 'italic',
     },
     modalOverlay: {
         flex: 1,
