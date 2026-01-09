@@ -9,12 +9,12 @@
     - [x] Подзадача: API для поиска и добавления тегов.
 - [x] Задача: Conductor - User Manual Verification 'Data Model Expansion' (Protocol in workflow.md)
 
-## Фаза 2: Логика Поиска и Фильтрации (Бэкенд)
+## Фаза 2: Логика Поиска и Фильтрации (Бэкенд) [checkpoint: 3178e61]
 - [x] Задача: Обновить эндпоинт поиска (`searchUsers`) для поддержки режима `mode`. (7db07bd)
     - [x] Подзадача: Фильтр для Бизнеса (по навыкам).
     - [x] Подзадача: Фильтр для Семьи (существующий + доработки).
     - [x] Подзадача: Фильтр для Служения/Интересов.
-- [ ] Задача: Conductor - User Manual Verification 'Search Logic' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Search Logic' (Protocol in workflow.md)
 
 ## Фаза 3: Обновление UI Профиля (Фронтенд)
 - [ ] Задача: Переработка экрана редактирования профиля.
