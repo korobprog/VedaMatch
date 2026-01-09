@@ -1,0 +1,8 @@
+{
+  "track_id": "doc_mgmt_api_20260110",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-10T12:00:00Z",
+  "updated_at": "2026-01-10T12:00:00Z",
+  "description": "Implement a centralized Document Management API in the Go backend to unify Python script indexing and mobile/admin access."
+}
