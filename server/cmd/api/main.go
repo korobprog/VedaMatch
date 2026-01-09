@@ -34,6 +34,9 @@ func main() {
 	// Seed system settings
 	database.SeedSystemSettings()
 
+	// Seed demo ads if not present
+	database.SeedDemoAds()
+
 	// Initialize Services
 	services.InitScheduler()
 
@@ -62,6 +65,7 @@ func main() {
 	chatHandler := handlers.NewChatHandler()
 	promptHandler := handlers.NewPromptHandler()
 	adsHandler := handlers.NewAdsHandler()
+	tagHandler := handlers.NewTagHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -107,6 +111,13 @@ func main() {
 	admin.Delete("/prompts/:id", promptHandler.DeletePrompt)
 	admin.Post("/prompts/:id/toggle", promptHandler.TogglePromptActive)
 
+	// Admin Ads Management Routes
+	admin.Get("/ads", adsHandler.GetAdminAds)
+	admin.Get("/ads/stats", adsHandler.GetAdminStats)
+	admin.Put("/ads/:id/status", adsHandler.UpdateAdStatus)
+	admin.Put("/ads/:id", adsHandler.AdminUpdateAd)
+	admin.Delete("/ads/:id", adsHandler.AdminDeleteAd)
+
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
 
@@ -138,6 +149,20 @@ func main() {
 	api.Post("/v1/chat/completions", chatHandler.HandleChat)
 	api.Get("/v1/models", aiHandler.GetClientModels)
 
+	api.Get("/ads", adsHandler.GetAds)
+	api.Get("/ads/categories", adsHandler.GetAdCategories)
+	api.Get("/ads/cities", adsHandler.GetAdCities)
+	api.Get("/ads/stats", adsHandler.GetAdStats)
+	api.Get("/ads/:id", adsHandler.GetAd)
+
+	// Library Routes
+	library := api.Group("/library")
+	library.Get("/books", handlers.GetLibraryBooks)
+	library.Get("/books/:id", handlers.GetLibraryBookDetails) // supports id or code
+	library.Get("/books/:bookCode/chapters", handlers.GetLibraryChapters)
+	library.Get("/verses", handlers.GetLibraryVerses) // ?bookCode=bg&chapter=1
+	library.Get("/search", handlers.SearchLibrary)
+
 	// Protected Routes
 	protected := api.Group("/", middleware.Protected())
 
@@ -159,6 +184,13 @@ func main() {
 	protected.Post("/blocks/add", authHandler.BlockUser)
 	protected.Post("/blocks/remove", authHandler.UnblockUser)
 	protected.Get("/blocks", authHandler.GetBlockedUsers)
+
+	// Tag Routes
+	protected.Get("/tags", tagHandler.SearchTags)
+	protected.Post("/tags", tagHandler.CreateTag)
+	protected.Post("/users/tags", tagHandler.AddTagToUser)
+	protected.Delete("/users/tags/:tagId", tagHandler.RemoveTagFromUser)
+
 	log.Println("Registering /api/messages routes...")
 	protected.Post("/typing", typingHandler.SetTyping)
 
@@ -211,12 +243,6 @@ func main() {
 	protected.Post("/ads", adsHandler.CreateAd)
 	protected.Get("/ads/user/favorites", adsHandler.GetFavorites)
 	protected.Get("/ads/user/my", adsHandler.GetMyAds)
-	api.Get("/ads", adsHandler.GetAds)
-	api.Get("/ads/categories", adsHandler.GetAdCategories)
-	api.Get("/ads/cities", adsHandler.GetAdCities)
-	api.Get("/ads/stats", adsHandler.GetAdStats)
-
-	api.Get("/ads/:id", adsHandler.GetAd)
 	protected.Put("/ads/:id", adsHandler.UpdateAd)
 	protected.Delete("/ads/:id", adsHandler.DeleteAd)
 	protected.Post("/ads/:id/favorite", adsHandler.ToggleFavorite)
