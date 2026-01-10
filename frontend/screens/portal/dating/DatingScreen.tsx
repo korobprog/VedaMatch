@@ -661,26 +661,31 @@ export const DatingScreen = () => {
                     animationType="slide"
                 >
                     <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header }]}>
-                            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.filters')}</Text>
+                        <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                <Text style={[styles.modalTitle, { color: theme.text, marginBottom: 0 }]}>{t('dating.filters')}</Text>
+                                <TouchableOpacity onPress={() => setShowFilters(false)}>
+                                    <Text style={{ fontSize: 24, color: theme.subText }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                            <View style={{ marginBottom: 15 }}>
-                                <Text style={{ color: theme.subText, marginBottom: 5 }}>{t('registration.city')}</Text>
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                {/* City */}
+                                <Text style={[styles.filterLabel, { color: theme.subText }]}>{t('registration.city')}</Text>
                                 <TouchableOpacity
-                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
                                     onPress={() => setShowCityPicker(true)}
                                 >
                                     <Text style={{ color: filterCity ? theme.text : theme.subText }}>
                                         {filterCity || t('dating.selectCity')}
                                     </Text>
                                 </TouchableOpacity>
-                            </View>
 
-                            <View style={{ marginBottom: 15 }}>
-                                <Text style={{ color: theme.subText, marginBottom: 5 }}>{t('registration.dob')}</Text>
-                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                {/* Age Row */}
+                                <Text style={[styles.filterLabel, { color: theme.subText }]}>{t('registration.dob')}</Text>
+                                <View style={styles.filterRow}>
                                     <TextInput
-                                        style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
+                                        style={[styles.filterInput, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 0 }]}
                                         value={filterMinAge}
                                         onChangeText={setFilterMinAge}
                                         placeholder={t('dating.minAge')}
@@ -688,7 +693,7 @@ export const DatingScreen = () => {
                                         placeholderTextColor={theme.subText}
                                     />
                                     <TextInput
-                                        style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
+                                        style={[styles.filterInput, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 0 }]}
                                         value={filterMaxAge}
                                         onChangeText={setFilterMaxAge}
                                         placeholder={t('dating.maxAge')}
@@ -696,58 +701,55 @@ export const DatingScreen = () => {
                                         placeholderTextColor={theme.subText}
                                     />
                                 </View>
-                            </View>
-                            <View style={{ marginBottom: 15 }}>
-                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Tradition (Madh)</Text>
+
+                                {/* Tradition */}
+                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Tradition (Madh)</Text>
                                 <TouchableOpacity
-                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
                                     onPress={() => setShowMadhPicker(true)}
                                 >
                                     <Text style={{ color: filterMadh ? theme.text : theme.subText }}>
-                                        {filterMadh || "Select Tradition"}
+                                        {filterMadh || "Any"}
                                     </Text>
                                 </TouchableOpacity>
-                            </View>
 
-                            <View style={{ marginBottom: 15 }}>
-                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Yoga Style</Text>
+                                {/* Yoga Style */}
+                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Yoga Style</Text>
                                 <TouchableOpacity
-                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
                                     onPress={() => setShowYogaPicker(true)}
                                 >
                                     <Text style={{ color: filterYogaStyle ? theme.text : theme.subText }}>
                                         {filterYogaStyle || "Any"}
                                     </Text>
                                 </TouchableOpacity>
-                            </View>
 
-                            <View style={{ marginBottom: 15 }}>
-                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Guna</Text>
+                                {/* Guna */}
+                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Guna</Text>
                                 <TouchableOpacity
-                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
                                     onPress={() => setShowGunaPicker(true)}
                                 >
                                     <Text style={{ color: filterGuna ? theme.text : theme.subText }}>
                                         {filterGuna || "Any"}
                                     </Text>
                                 </TouchableOpacity>
-                            </View>
 
-                            <View style={{ marginBottom: 15 }}>
-                                <Text style={{ color: theme.subText, marginBottom: 5 }}>Identity</Text>
+                                {/* Identity */}
+                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Identity</Text>
                                 <TouchableOpacity
-                                    style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
                                     onPress={() => setShowIdentityPicker(true)}
                                 >
                                     <Text style={{ color: filterIdentity ? theme.text : theme.subText }}>
                                         {filterIdentity || "Any"}
                                     </Text>
                                 </TouchableOpacity>
-                            </View>
+                            </ScrollView>
 
-                            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                            <View style={styles.filterBtnContainer}>
                                 <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: theme.header, flex: 1, borderWidth: 1, borderColor: theme.borderColor }]}
+                                    style={[styles.resetBtn, { borderColor: theme.borderColor }]}
                                     onPress={() => {
                                         setFilterCity('');
                                         setFilterMinAge('');
@@ -759,25 +761,18 @@ export const DatingScreen = () => {
                                         fetchCandidates();
                                     }}
                                 >
-                                    <Text style={{ color: theme.text, textAlign: 'center' }}>{t('dating.reset')}</Text>
+                                    <Text style={{ color: theme.text, fontWeight: '600' }}>{t('dating.reset')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: theme.button, flex: 1 }]}
+                                    style={[styles.applyBtn, { backgroundColor: '#8D6E63' }]} // Brown accent color
                                     onPress={() => {
                                         setShowFilters(false);
                                         fetchCandidates();
                                     }}
                                 >
-                                    <Text style={{ color: theme.buttonText, textAlign: 'center' }}>{t('dating.apply')}</Text>
+                                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('dating.apply')}</Text>
                                 </TouchableOpacity>
                             </View>
-
-                            <TouchableOpacity
-                                style={{ position: 'absolute', top: 10, right: 10, padding: 5 }}
-                                onPress={() => setShowFilters(false)}
-                            >
-                                <Text style={{ color: theme.subText, fontSize: 18 }}>✕</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </Modal>
@@ -1160,20 +1155,62 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     modalContent: {
-        width: '100%',
+        width: '90%',
         borderRadius: 20,
         padding: 20,
         maxHeight: '80%',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
     modalTitle: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
-        marginBottom: 15,
+        marginBottom: 20,
         textAlign: 'center',
     },
-    modalBody: {
-        marginBottom: 10,
-        maxHeight: Dimensions.get('window').height * 0.6,
+    filterLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 8,
+        marginLeft: 4,
+    },
+    filterInput: {
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+        fontSize: 16,
+        marginBottom: 15,
+    },
+    filterRow: {
+        flexDirection: 'row',
+        gap: 15,
+        marginBottom: 15,
+    },
+    filterBtnContainer: {
+        flexDirection: 'row',
+        gap: 15,
+        marginTop: 20,
+    },
+    resetBtn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 25,
+        alignItems: 'center',
+        borderWidth: 1,
+    },
+    applyBtn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 25,
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 3,
     },
     modalScrollContent: {
         paddingHorizontal: 10,
