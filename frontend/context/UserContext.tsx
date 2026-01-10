@@ -16,6 +16,7 @@ interface UserProfile {
     guna?: string;
     identity?: string;
     datingEnabled?: boolean;
+    language?: string;
 }
 
 interface UserContextType {

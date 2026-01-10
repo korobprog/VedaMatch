@@ -3,8 +3,8 @@ import { API_BASE_URL } from '../config/api.config';
 export const getMediaUrl = (path: string | null | undefined): string | null => {
     if (!path) return null;
 
-    // Check if it's already a full URL (S3)
-    if (path.startsWith('http')) {
+    // Check if it's already a full URL (S3) or local file
+    if (path.startsWith('http') || path.startsWith('file://')) {
         return path;
     }
 
@@ -19,5 +19,6 @@ export const getMediaUrl = (path: string | null | undefined): string | null => {
         return `${API_BASE_URL}/${cleanPath}`;
     }
 
-    return null;
+    // Fallback: return path as-is (might be a CDN URL or other format)
+    return path;
 };

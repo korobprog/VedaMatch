@@ -94,11 +94,13 @@ const styles = StyleSheet.create({
         height: 48,
     },
     tab: {
-        flex: 1,
+        flexGrow: 1, // Changed from flex: 1
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 20,
+        paddingHorizontal: 8, // Increased padding
+        minWidth: 90, // Added minWidth
     },
     activeTab: {
         shadowColor: '#000',
@@ -108,7 +110,7 @@ const styles = StyleSheet.create({
         elevation: 3,
     },
     tabText: {
-        fontSize: 13,
+        fontSize: 12, // Reduced from 13
         fontWeight: '500',
     },
 });

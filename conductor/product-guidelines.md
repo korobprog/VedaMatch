@@ -1,13 +1,21 @@
-# Product Guidelines
+# Гайдлайны Продукта
 
-## Communication Style
-- **Tone & Voice**: The system adopts a **Professional & Informative** tone. Responses should be clear, concise, and focused on providing accurate information. The language should be formal yet accessible, ensuring that users feel they are receiving high-quality, reliable data.
+## Стиль Коммуникации
+- **Тон (Tone & Voice)**: Саттвичный (благостный), спокойный, уважительный и поддерживающий. Избегать агрессии, споров и токсичности.
+- **Языки**: **Русский и Английский**. Интерфейс и контент должны быть доступны на обоих языках.
+- **Использование терминологии (Санскрит)**: Приветствуется использование санскритских терминов (например, *садхана*, *дхарма*, *ахимса*), но они **обязательно** должны сопровождаться понятными пояснениями или быть ясны из контекста, чтобы быть доступными как опытным практикам, так и новичкам.
+- **Обращение**: Уважительное, подчеркивающее достоинство собеседника (как к душе).
 
-## Visual Identity
-- **Design Philosophy**: Both the mobile app and the admin dashboard follow a **Modern & Minimalist** aesthetic. This involves prioritizing clean lines, ample whitespace, and high-contrast typography to ensure content remains the focal point and navigation is effortless.
+## Визуальный Стиль
+- **Эстетика**: Гармония, чистота и свет.
+- **Цвета**: Природные, успокаивающие оттенки — шафрановый, белый, небесно-голубой, мягкий зеленый, золотистый.
+- **Интерфейс**: Минималистичный, "воздушный", не отвлекающий от сути контента.
 
-## User Trust & Data Integrity
-- **Transparency & Grounding**: To maintain user trust, the system must clearly indicate when a response is AI-generated. Furthermore, every response should be grounded in the indexed documents, providing explicit citations or references to the source material used for generation.
+## Этика и Безопасность
+- **Принципы сообщества**: Ахимса (ненасилие), Сатья (правдивость). Контент, нарушающий эти принципы, не допускается.
+- **Модерация**: Тщательная проверка профилей и объявлений для защиты пользователей от мошенничества и недостойного поведения.
+- **AI-Этика**: Искусственный интеллект позиционируется как смиренный помощник в поиске знаний, а не как духовный учитель (гуру).
 
-## AI Behavior & Safety
-- **Handling Uncertainty**: When the system cannot find a definitive answer within the provided document context, it must practice **Honest Uncertainty**. It should clearly state that the information is not available in its knowledge base rather than hallucinating or providing potentially misleading information.
+## Поведение AI
+- **Источники**: Ответы должны базироваться на классических текстах йоги и веданты.
+- **Честность**: Если вопрос выходит за рамки компетенции или базы знаний, AI должен прямо об этом сообщить.

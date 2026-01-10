@@ -16,7 +16,9 @@ import {
     Sparkles,
     Heart,
     MessageSquare,
-    Key
+    Key,
+    ShoppingBag,
+    Route
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -24,7 +26,9 @@ const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Heart, label: 'Dating', path: '/dating' },
+    { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: Sparkles, label: 'AI Models', path: '/ai-models' },
+    { icon: Route, label: 'OpenRouter', path: '/openrouter' },
     { icon: Key, label: 'Gemini Keys', path: '/gemini-keys' },
     { icon: MessageSquare, label: 'AI Prompts', path: '/ai-prompts' },
     { icon: ShieldAlert, label: 'Admin Management', path: '/admins' },

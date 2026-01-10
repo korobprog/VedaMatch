@@ -14,7 +14,8 @@ import {
     ScrollView,
     TextInput,
     Switch,
-    Animated
+    Animated,
+    Share
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
@@ -285,6 +286,68 @@ export const DatingScreen = () => {
         const fadeAnim = React.useRef(new Animated.Value(1)).current;
         const [isPaused, setIsPaused] = useState(false);
 
+        // Favorites and likes state
+        const [isFavorited, setIsFavorited] = useState(false);
+        const [likesCount, setLikesCount] = useState(0);
+        const [favoritingInProgress, setFavoritingInProgress] = useState(false);
+
+        // Load favorites status and likes count
+        useEffect(() => {
+            if (!isPreview && user?.ID && item.ID) {
+                // Check if favorited
+                datingService.checkIsFavorited(user.ID, item.ID)
+                    .then(res => setIsFavorited(res.isFavorited))
+                    .catch(() => { });
+
+                // Get likes count
+                datingService.getLikesCount(item.ID)
+                    .then(res => setLikesCount(res.count))
+                    .catch(() => { });
+            }
+        }, [item.ID, user?.ID, isPreview]);
+
+        // Toggle favorite handler
+        const handleToggleFavorite = async () => {
+            if (!user?.ID || favoritingInProgress) return;
+
+            setFavoritingInProgress(true);
+            try {
+                if (isFavorited) {
+                    // Need to find the favorite ID first - for now just show message
+                    Alert.alert(t('common.info'), t('dating.removedFromFavorites'));
+                    setIsFavorited(false);
+                    setLikesCount(prev => Math.max(0, prev - 1));
+                } else {
+                    await datingService.addToFavorites({
+                        userId: user.ID,
+                        candidateId: item.ID,
+                        compatibilityScore: ''
+                    });
+                    setIsFavorited(true);
+                    setLikesCount(prev => prev + 1);
+                    Alert.alert(t('common.success'), t('dating.addedToFavorites'));
+                }
+            } catch (error) {
+                console.error('Failed to toggle favorite:', error);
+            } finally {
+                setFavoritingInProgress(false);
+            }
+        };
+
+        // Share handler
+        const handleShare = async () => {
+            try {
+                const shareUrl = datingService.getShareUrl(item.ID);
+                const message = t('dating.shareMessage', { name: item.spiritualName || 'devotee' });
+                await Share.share({
+                    message: `${message}\n${shareUrl}`,
+                    title: t('dating.share')
+                });
+            } catch (error) {
+                console.error('Share error:', error);
+            }
+        };
+
         // Auto-change slides logic
         useEffect(() => {
             if (displayPhotos.length <= 1 || isPaused) return;
@@ -367,6 +430,36 @@ export const DatingScreen = () => {
                                 style={styles.topGradient}
                             />
 
+                            {/* Favorite Button - Top Right Corner */}
+                            {!isPreview && (
+                                <TouchableOpacity
+                                    style={styles.favoriteButton}
+                                    onPress={handleToggleFavorite}
+                                    disabled={favoritingInProgress}
+                                >
+                                    <Text style={{ fontSize: 24 }}>
+                                        {isFavorited ? '❤️' : '🤍'}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Likes Counter - Below favorite button */}
+                            {!isPreview && likesCount > 0 && (
+                                <View style={styles.likesCounter}>
+                                    <Text style={styles.likesText}>❤️ {likesCount}</Text>
+                                </View>
+                            )}
+
+                            {/* Share Button - Top Left Corner */}
+                            {!isPreview && (
+                                <TouchableOpacity
+                                    style={styles.shareButton}
+                                    onPress={handleShare}
+                                >
+                                    <Text style={{ fontSize: 20 }}>📤</Text>
+                                </TouchableOpacity>
+                            )}
+
                             {/* Pagination Indicators (Bars) */}
                             {displayPhotos.length > 1 && (
                                 <View style={styles.paginationContainer}>
@@ -404,7 +497,7 @@ export const DatingScreen = () => {
                         {mode === 'family' && item.age ? `, ${item.age}` : ''}
                     </Text>
                     <Text style={[styles.city, { color: theme.subText }]}>{item.city}</Text>
-                    
+
                     {mode === 'business' ? (
                         <View style={{ marginTop: 5 }}>
                             {item.industry && <Text style={[styles.path, { color: theme.accent }]}>💼 {item.industry}</Text>}
@@ -1260,5 +1353,59 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         padding: 10,
         fontSize: 16,
-    }
+    },
+    // Favorite button styles
+    favoriteButton: {
+        position: 'absolute',
+        top: 50,
+        right: 15,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 5,
+    },
+    // Likes counter styles
+    likesCounter: {
+        position: 'absolute',
+        top: 100,
+        right: 15,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    likesText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    // Modal body style (for compatibility modal)
+    modalBody: {
+        maxHeight: 300,
+        marginBottom: 10,
+    },
+    // Share button styles
+    shareButton: {
+        position: 'absolute',
+        top: 50,
+        left: 15,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 5,
+    },
 });

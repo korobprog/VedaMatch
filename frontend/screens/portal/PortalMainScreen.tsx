@@ -20,7 +20,7 @@ import { ShopsScreen } from './shops/ShopsScreen';
 import { AdsScreen } from './ads/AdsScreen';
 import { NewsScreen } from './news/NewsScreen';
 import { DatingScreen } from './dating/DatingScreen';
-import { KnowledgeBaseScreen } from './knowledge_base/KnowledgeBaseScreen';
+import { LibraryHomeScreen } from '../library/LibraryHomeScreen';
 import { useUser } from '../../context/UserContext';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 
@@ -29,7 +29,7 @@ const { width } = Dimensions.get('window');
 export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base'>(route.params?.initialTab || 'contacts');
+    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base' | 'library'>(route.params?.initialTab || 'contacts');
 
 
 
@@ -49,8 +49,8 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         { id: 'dating', label: t('settings.tabs.dating'), icon: '💖' },
         { id: 'shops', label: t('settings.tabs.shops'), icon: '🛍️' },
         { id: 'ads', label: t('settings.tabs.ads'), icon: '📢' },
+        { id: 'library', label: 'Библиотека', icon: '📚' },
         { id: 'news', label: t('settings.tabs.news'), icon: '📰' },
-        { id: 'knowledge_base', label: t('settings.tabs.knowledge_base'), icon: '📖' },
     ];
 
 
@@ -61,8 +61,8 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             case 'dating': return <DatingScreen />;
             case 'shops': return <ShopsScreen />;
             case 'ads': return <AdsScreen />;
+            case 'library': return <LibraryHomeScreen />;
             case 'news': return <NewsScreen />;
-            case 'knowledge_base': return <KnowledgeBaseScreen />;
             default: return <ContactsScreen />;
         }
     };

@@ -1,34 +1,34 @@
-# Tech Stack
+# Технологический Стек
 
-## Backend (API & Orchestration)
-- **Language**: Go (Golang)
-- **Framework**: Fiber (v2)
+## Бэкенд (API и Оркестрация)
+- **Язык**: Go (Golang)
+- **Фреймворк**: Fiber (v2)
 - **ORM**: GORM
-- **Key Capabilities**: User authentication (JWT), file management (AWS S3 compatible API), WebSocket support.
+- **Возможности**: Аутентификация пользователей (JWT), управление файлами (S3-compatible API), поддержка WebSocket.
 
-## Backend (AI & RAG Engine)
-- **Language**: Python (3.12+)
+## Бэкенд (AI и RAG движок)
+- **Язык**: Python (3.12+)
 - **LLM**: OpenAI (GPT-3.5/4)
 - **Embeddings**: SentenceTransformers
-- **Processing**: NumPy
-- **Key Capabilities**: Semantic indexing, cosine similarity search, RAG pipeline orchestration.
+- **Обработка данных**: NumPy
+- **Возможности**: Семантическое индексирование, поиск по косинусному сходству, оркестрация RAG пайплайна.
 
-## Mobile Application
-- **Framework**: React Native
-- **Language**: TypeScript
-- **Navigation**: React Navigation
-- **State Management**: React Hooks / Context API
-- **Key Capabilities**: Cross-platform (iOS/Android) mobile interface, real-time chat, audio recording/playback, document selection.
+## Мобильное Приложение
+- **Фреймворк**: React Native
+- **Язык**: TypeScript
+- **Навигация**: React Navigation
+- **Управление состоянием**: React Hooks / Context API
+- **Возможности**: Кроссплатформенное приложение (iOS/Android), чат в реальном времени, запись/воспроизведение аудио, выбор документов.
 
-## Admin Dashboard
-- **Framework**: Next.js
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Tooling**: Biome (Linting/Formatting)
-- **Key Capabilities**: Web-based administration, document management, system monitoring.
+## Админ-панель
+- **Фреймворк**: Next.js
+- **Язык**: TypeScript
+- **Стилизация**: Tailwind CSS
+- **Инструментарий**: Biome (Линтинг/Форматирование)
+- **Возможности**: Веб-интерфейс администратора, управление документами, мониторинг системы.
 
-## Infrastructure & Data
-- **Database**: PostgreSQL (managed via GORM)
-- **File Storage**: AWS S3 compatible (for document uploads)
-- **Package Management**: pnpm
-- **Containerization**: Docker & Docker Compose
+## Инфраструктура и Данные
+- **База данных**: PostgreSQL (под управлением GORM)
+- **Хранилище файлов**: AWS S3 compatible (для загрузки документов)
+- **Пакетный менеджер**: pnpm
+- **Контейнеризация**: Docker & Docker Compose

@@ -15,7 +15,10 @@ import {
     Cpu,
     Key,
     Sparkles,
-    Loader2
+    Loader2,
+    Route,
+    Zap,
+    Brain
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -32,6 +35,12 @@ export default function SettingsPage() {
         GEMINI_API_KEY_BACKUP_3: '',
         GEMINI_API_KEY_BACKUP_4: '',
         DEFAULT_ASTRO_MODEL: 'gpt-4o',
+        ROUTEWAY_API_KEY: '',
+        ROUTEWAY_API_URL: 'https://api.routeway.ai/v1/chat/completions',
+        OPENROUTER_API_KEY: '',
+        OPENROUTER_WORKER_URL: '',
+        OPENROUTER_FAST_MODEL: 'deepseek/deepseek-chat',
+        OPENROUTER_REASONING_MODEL: 'deepseek/deepseek-r1',
     });
 
     useEffect(() => {
@@ -252,7 +261,93 @@ export default function SettingsPage() {
                                         <Sparkles className="w-4 h-4" /> Add New Backup Key
                                     </button>
 
+                                    {/* Routeway API Section */}
+                                    <div className="p-4 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 rounded-2xl border border-purple-500/20 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Globe className="w-4 h-4 text-purple-500" />
+                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Routeway API Key</label>
+                                            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-bold">70+ MODELS</span>
+                                        </div>
+                                        <input
+                                            type="password"
+                                            value={settings.ROUTEWAY_API_KEY || ''}
+                                            onChange={(e) => setSettings({ ...settings, ROUTEWAY_API_KEY: e.target.value })}
+                                            placeholder="Enter Routeway API Key"
+                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-purple-500/20"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={settings.ROUTEWAY_API_URL || 'https://api.routeway.ai/v1/chat/completions'}
+                                            onChange={(e) => setSettings({ ...settings, ROUTEWAY_API_URL: e.target.value })}
+                                            placeholder="https://api.routeway.ai/v1/chat/completions"
+                                            className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 font-mono text-xs"
+                                        />
+                                        <p className="text-[10px] text-[var(--muted-foreground)] italic">
+                                            Unified API for 70+ models. Models with :free suffix are free (20 RPM / 200 RPD limit).
+                                        </p>
+                                    </div>
 
+                                    {/* OpenRouter API Section */}
+                                    <div className="p-4 bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-2xl border border-orange-500/20 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Route className="w-4 h-4 text-orange-500" />
+                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">OpenRouter Configuration</label>
+                                            <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded font-bold">SMART ROUTING</span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">API Key</label>
+                                            <input
+                                                type="password"
+                                                value={settings.OPENROUTER_API_KEY || ''}
+                                                onChange={(e) => setSettings({ ...settings, OPENROUTER_API_KEY: e.target.value })}
+                                                placeholder="Enter OpenRouter API Key"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-orange-500/20"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Worker URL (Cloudflare Proxy)</label>
+                                            <input
+                                                type="text"
+                                                value={settings.OPENROUTER_WORKER_URL || ''}
+                                                onChange={(e) => setSettings({ ...settings, OPENROUTER_WORKER_URL: e.target.value })}
+                                                placeholder="https://openrouter-proxy.your-subdomain.workers.dev"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 font-mono text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase flex items-center gap-1">
+                                                    <Zap className="w-3 h-3 text-yellow-500" /> Fast Model
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.OPENROUTER_FAST_MODEL || 'deepseek/deepseek-chat'}
+                                                    onChange={(e) => setSettings({ ...settings, OPENROUTER_FAST_MODEL: e.target.value })}
+                                                    placeholder="deepseek/deepseek-chat"
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-2 px-3 text-xs outline-none focus:ring-2 focus:ring-yellow-500/20 font-mono"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase flex items-center gap-1">
+                                                    <Brain className="w-3 h-3 text-purple-500" /> Reasoning Model
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.OPENROUTER_REASONING_MODEL || 'deepseek/deepseek-r1'}
+                                                    onChange={(e) => setSettings({ ...settings, OPENROUTER_REASONING_MODEL: e.target.value })}
+                                                    placeholder="deepseek/deepseek-r1"
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-2 px-3 text-xs outline-none focus:ring-2 focus:ring-purple-500/20 font-mono"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <p className="text-[10px] text-[var(--muted-foreground)] italic">
+                                            Smart routing: 93% запросов → Fast Model, 7% сложных → Reasoning Model. Safety-net автоматически переключает на R1 если нужно.
+                                        </p>
+                                    </div>
 
                                     <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-3">
                                         <div className="flex items-center gap-2">
@@ -264,11 +359,26 @@ export default function SettingsPage() {
                                             onChange={(e) => setSettings({ ...settings, DEFAULT_ASTRO_MODEL: e.target.value })}
                                             className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20 shadow-inner appearance-none"
                                         >
-                                            <option value="gpt-4o">GPT-4o (Stable)</option>
-                                            <option value="gpt5">GPT-5 (Perplexity)</option>
-                                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                                            <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-                                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                            <optgroup label="OpenAI">
+                                                <option value="gpt-4o">GPT-4o</option>
+                                                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                            </optgroup>
+                                            <optgroup label="Google">
+                                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                            </optgroup>
+                                            <optgroup label="Anthropic">
+                                                <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
+                                                <option value="claude-sonnet-4">Claude Sonnet 4</option>
+                                            </optgroup>
+                                            <optgroup label="Routeway Free (20 RPM)">
+                                                <option value="deepseek-r1:free">DeepSeek R1 (Free)</option>
+                                                <option value="deepseek-v3.1:free">DeepSeek V3.1 (Free)</option>
+                                                <option value="llama-3.3-70b-instruct:free">Llama 3.3 70B (Free)</option>
+                                                <option value="mistral-nemo-instruct:free">Mistral Nemo (Free)</option>
+                                                <option value="kimi-k2-0905:free">Kimi K2 (Free)</option>
+                                                <option value="glm-4.6:free">GLM 4.6 (Free)</option>
+                                            </optgroup>
                                         </select>
                                     </div>
                                 </div>

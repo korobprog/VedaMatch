@@ -52,30 +52,18 @@ export const AdDetailScreen: React.FC = () => {
         }
     };
 
-    const handleContact = async () => {
-        if (!ad) return;
-        try {
-            await adsService.contactSeller(ad.ID, 'call');
-            Alert.alert(t('ads.detail.contactSuccess'), t('ads.detail.callRequested'));
-            // Optionally still show phone info
-            if (ad.phone) {
-                Alert.alert('Phone', ad.phone);
-            }
-        } catch (error) {
-            Alert.alert('Error', 'Failed to notify seller');
-        }
-    };
-
     const handleChat = async () => {
         if (!ad || !ad.author) return;
         try {
-            await adsService.contactSeller(ad.ID, 'message');
-            Alert.alert(t('ads.detail.contactSuccess'), t('ads.detail.messageRequested'));
-
-            // Navigate to actual chat if we have the logic
-            // navigation.navigate('RoomChat', { roomId: 0, recipientId: ad.author.id });
+            const result = await adsService.contactSeller(ad.ID, 'message');
+            if (result.roomId) {
+                // Navigate to the chat room
+                navigation.navigate('RoomChat', { roomId: result.roomId, roomName: result.roomName || 'Chat' });
+            } else {
+                Alert.alert(t('ads.detail.contactSuccess'), t('ads.detail.messageRequested'));
+            }
         } catch (error) {
-            Alert.alert('Error', 'Failed to notify seller');
+            Alert.alert('Error', 'Failed to start chat');
         }
     };
 
@@ -183,9 +171,6 @@ export const AdDetailScreen: React.FC = () => {
 
                     {/* Actions */}
                     <View style={styles.actions}>
-                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleContact}>
-                            <Text style={styles.btnText}>📞 Call</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.secondary }]} onPress={handleChat}>
                             <Text style={styles.btnText}>💬 Message</Text>
                         </TouchableOpacity>
@@ -222,7 +207,7 @@ const styles = StyleSheet.create({
     authorCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 20 },
     avatar: { width: 50, height: 50, borderRadius: 25 },
     authorName: { fontSize: 16, fontWeight: 'bold' },
-    actions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+    actions: { flexDirection: 'row', justifyContent: 'center', marginBottom: 20 }, // Changed justifyContent
     actionBtn: { flex: 1, padding: 15, borderRadius: 30, alignItems: 'center', marginHorizontal: 5, elevation: 2 },
     btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
     favoriteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, marginBottom: 10 },

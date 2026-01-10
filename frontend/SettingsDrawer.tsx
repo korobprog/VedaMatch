@@ -27,7 +27,7 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onSelectModel: (model: any) => void;
     currentModel: string;
-    onNavigateToPortal: (tab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base') => void;
+    onNavigateToPortal: (tab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base' | 'library') => void;
     onNavigateToSettings: () => void;
     onNavigateToRegistration: () => void;
 }
@@ -192,14 +192,14 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
             </TouchableOpacity>
 
-            {/* Knowledge Base */}
+            {/* Library */}
             <TouchableOpacity
                 style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
-                onPress={() => onNavigateToPortal('knowledge_base')}
+                onPress={() => onNavigateToPortal('library')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>📖</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.knowledge_base')}</Text>
+                    <Text style={{ fontSize: 22, marginRight: 15 }}>📚</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>Библиотека</Text>
                 </View>
                 <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
             </TouchableOpacity>

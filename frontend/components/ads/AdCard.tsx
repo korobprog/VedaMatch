@@ -33,9 +33,13 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
 
     const isOwner = user && user.ID === ad.userId;
 
-    const imageUrl = ad.photos && ad.photos.length > 0
-        ? getMediaUrl(ad.photos[0].photoUrl)
-        : null; // Placeholder logic could go here
+    const rawPhotoUrl = ad.photos && ad.photos.length > 0 ? ad.photos[0].photoUrl : null;
+    const imageUrl = rawPhotoUrl ? getMediaUrl(rawPhotoUrl) : null;
+
+    // Debug: log issue if photo exists but URL is null
+    if (rawPhotoUrl && !imageUrl) {
+        console.warn('[AdCard] Image URL conversion failed for:', rawPhotoUrl);
+    }
 
     // Format price
     const formattedPrice = ad.isFree
@@ -69,7 +73,10 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
             {/* Image Section */}
             <View style={styles.imageContainer}>
                 {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
+                    <>
+                        {console.log('[AdCard] Rendering image:', imageUrl)}
+                        <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
+                    </>
                 ) : (
                     <View style={[styles.imagePlaceholder, { backgroundColor: isDarkMode ? '#333' : '#F0E6D2' }]}>
                         <Text style={{ fontSize: 40 }}>{ad.adType === 'looking' ? '🔍' : '📦'}</Text>

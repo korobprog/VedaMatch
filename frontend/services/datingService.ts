@@ -137,6 +137,40 @@ class DatingService {
         const baseUrl = API_PATH.replace(/\/api\/?$/, '');
         return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
     }
+
+    // Get count of people who added this profile to favorites (likes)
+    async getLikesCount(userId: number): Promise<{ count: number }> {
+        const headers = await this.getHeaders();
+        const response = await axios.get(`${API_PATH}/dating/likes/${userId}`, { headers });
+        return response.data;
+    }
+
+    // Check if current user has favorited a candidate
+    async checkIsFavorited(userId: number, candidateId: number): Promise<{ isFavorited: boolean }> {
+        const headers = await this.getHeaders();
+        const response = await axios.get(`${API_PATH}/dating/is-favorited`, {
+            params: { userId, candidateId },
+            headers
+        });
+        return response.data;
+    }
+
+    // Get users who liked (added to favorites) the current user
+    async getWhoLikedMe(userId: number) {
+        const headers = await this.getHeaders();
+        const response = await axios.get(`${API_PATH}/dating/liked-me`, {
+            params: { userId },
+            headers
+        });
+        return response.data;
+    }
+
+    // Generate shareable URL for a profile
+    getShareUrl(userId: number): string {
+        // Using a placeholder domain - should be configured based on production domain
+        return `https://vedic.ai/profile/${userId}`;
+    }
 }
 
 export const datingService = new DatingService();
+

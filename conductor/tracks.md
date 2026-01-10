@@ -1,8 +1,33 @@
-# Project Tracks
+# Список треков проекта
 
-This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
+Этот файл отслеживает основные направления развития (сервисы) портала для преданных, йогов и людей в благости.
 
 ---
 
-## [ ] Track: Implement a centralized Document Management API in the Go backend to unify Python script indexing and mobile/admin access.
-*Link: [./conductor/tracks/doc_mgmt_api_20260110/](./conductor/tracks/doc_mgmt_api_20260110/)*
+## [~] Трек 1: VedaMatch & Networking (Знакомства и Связи)
+*Мульти-режимный поиск: создание семьи, бизнес-партнерство, поиск друзей по интересам и совместное служение (сева).*
+*Ссылка: [./conductor/tracks/vedamatch_expansion_20260110/](./conductor/tracks/vedamatch_expansion_20260110/)*
+
+---
+
+## [ ] Трек 2: Библиотека Мудрости и Образование
+*Автоматический парсинг книг (Python), хранилище S3, RAG-ассистент и Тренажер Бхакти Шастры для обучения.*
+*Ссылка: [./conductor/tracks/library_education_20260110/](./conductor/tracks/library_education_20260110/)*
+
+---
+
+## [ ] Трек 3: Sattva Ads (Доска Объявлений)
+*Частные объявления: услуги, жилье, поиск попутчиков, мероприятия. Модерация и гео-поиск.*
+*Статус: Запланирован*
+
+---
+
+## [ ] Трек 4: Sattva Market (Маркетплейс и Магазины)
+*Платформа для магазинов: продажа товаров (атрибутика, продукты, одежда), корзина, оплата, витрины магазинов.*
+*Статус: Запланирован*
+
+---
+
+## [ ] Трек 5: Санга (Чаты и Контакты)
+*Система общения: список контактов, личные сообщения, WebSocket чаты, групповое общение.*
+*Статус: Запланирован*

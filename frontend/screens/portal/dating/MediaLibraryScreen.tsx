@@ -14,9 +14,12 @@ import {
     ScrollView
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../../types/navigation';
 import { useUser } from '../../../context/UserContext';
 import { datingService } from '../../../services/datingService';
+import { COLORS } from '../../../components/chat/ChatConstants';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 3;

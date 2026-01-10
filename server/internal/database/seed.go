@@ -71,6 +71,14 @@ func SeedSystemSettings() {
 			Key:   "LM_GEMINI",
 			Value: "", // User will fill this in admin panel or .env fallback will work
 		},
+		{
+			Key:   "ROUTEWAY_API_KEY",
+			Value: "", // Routeway.ai API key for unified LLM access
+		},
+		{
+			Key:   "ROUTEWAY_API_URL",
+			Value: "https://api.routeway.ai/v1/chat/completions",
+		},
 	}
 
 	for _, s := range settings {

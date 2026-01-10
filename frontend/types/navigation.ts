@@ -1,12 +1,12 @@
 export type RootStackParamList = {
     Ads: undefined;
-    CreateAd: { adId?: number };
+    CreateAd: { adId?: number } | undefined;
     AdDetail: { adId: number };
     AdsFilters: undefined;
     Registration: { isDarkMode: boolean, phase?: 'initial' | 'profile' };
     Login: undefined;
     Plans: undefined;
-    Portal: { initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' };
+    Portal: { initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' } | undefined;
     ContactProfile: { userId: number };
     AppSettings: undefined;
     EditProfile: undefined;
@@ -15,4 +15,6 @@ export type RootStackParamList = {
     EditDatingProfile: { userId: number };
     DatingFavorites: undefined;
     Chat: undefined;
+    BookList: { category: string; title: string };
+    Reader: { bookCode: string; title: string };
 };

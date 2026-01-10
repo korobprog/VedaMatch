@@ -1,117 +1,221 @@
-# Rag Agent
+# RAG Agent
 
-Интеллектуальный агент с поддержкой RAG (Retrieval-Augmented Generation) и чат-комнат.
+A modern Retrieval-Augmented Generation (RAG) system built with Python 3.12+, featuring document indexing, semantic search, and LLM-powered response generation.
 
-## Функционал комнат (Rooms)
+## Features
 
-В приложении реализована продвинутая система чат-комнат с интеграцией ИИ:
+- **Semantic Document Indexing**: Advanced embedding-based document storage and retrieval
+- **Intelligent Retrieval**: Cosine similarity search with configurable thresholds
+- **RAG Pipeline**: Seamless integration of retrieval and generation
+- **Type Hints**: Full type annotation throughout the codebase
+- **Error Handling**: Comprehensive custom exceptions
+- **Logging**: Detailed logging for debugging and monitoring
+- **Testing**: Extensive unit tests with pytest
 
-### 1. Управление доступом
-- **Публичные комнаты:** Доступны всем пользователям для поиска и входа.
-- **Приватные комнаты:** Вход только по приглашению администратора.
-- Настройка приватности доступна в меню настроек комнаты (`⋮`).
+## Requirements
 
-### 2. ИИ-Помощник (AI Assistant)
-- В каждой комнате можно включить персонального ИИ-помощника.
-- ИИ анализирует контекст последних сообщений и помогает пользователям в диалоге.
-- Возможность включения/выключения ИИ доступна владельцу или админу комнаты.
+- Python 3.12 or higher
+- OpenAI API key
 
-### 3. Саммари чата (Chat Summary)
-- Функция автоматического подведения итогов переписки.
-- ИИ анализирует последние сообщения и формирует краткий отчет о том, что обсуждалось.
-- Полезно для тех, кто хочет быстро войти в курс дела в активной группе.
+## Installation
 
-### 4. Настройка интерфейса
-- Каждая комната может иметь уникальное имя и аватар.
-- Возможность приглашать друзей прямо из списка контактов.
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd Rag-agent
+   ```
 
-## Быстрый старт
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### Предварительные требования
-- Node.js 18+
-- pnpm
-- Android SDK / Android Studio
-- Go 1.21+
-- Docker (для PostgreSQL)
+3. Set your OpenAI API key:
+   ```bash
+   export OPENAI_API_KEY=your-api-key-here
+   ```
 
-### Скрипты запуска
+## Quick Start
 
-| Скрипт | Команда | Описание |
-|--------|---------|----------|
-| **dev:phone** | `pnpm run dev:phone` | 📱 Полный запуск на физическом устройстве (сервер + Metro + билд) |
-| **phone:quick** | `pnpm run phone:quick` | ⚡ Быстрый запуск Metro (если сервер уже работает) |
-| **dev:web** | `pnpm run dev:web` | 🌐 Запуск для веб-разработки (сервер + админка + Metro) |
-| **dev** | `pnpm run dev` | 🖥️ Полный запуск с эмулятором Android |
-| **server** | `pnpm run server` | 🚀 Только backend сервер |
-| **admin** | `pnpm run admin` | 👨‍💼 Только админ-панель |
+```python
+from rag_agent.main import RAGAgent, Document
 
-### Запуск на физическом устройстве (USB)
+# Initialize the agent
+agent = RAGAgent(model_name="gpt-3.5-turbo")
 
-1. Подключите телефон по USB с включенной отладкой
-2. Выполните одну команду:
+# Create and index documents
+documents = [
+    Document(content="Python is a high-level programming language."),
+    Document(content="Machine learning enables systems to learn from data."),
+    Document(content="RAG combines retrieval with generation for better responses."),
+]
+agent.index_documents(documents)
+
+# Query the system
+result = agent.query("What is RAG?")
+print(f"Answer: {result['answer']}")
+```
+
+## Usage
+
+### Loading Documents from Files
+
+```python
+# Load documents from a text file
+documents = agent.load_documents("path/to/document.txt")
+agent.index_documents(documents)
+```
+
+### Configuring Retrieval
+
+```python
+# Retrieve with custom parameters
+context = agent.retrieve(
+    query="your question",
+    top_k=5,
+    threshold=0.6
+)
+```
+
+### Generating Responses
+
+```python
+# Generate with custom parameters
+answer = agent.generate(
+    query="your question",
+    context=context,
+    max_tokens=500,
+    temperature=0.7
+)
+```
+
+## Architecture
+
+### Core Components
+
+- **Document**: Dataclass representing document chunks with metadata
+- **VectorStore**: In-memory vector store for embeddings and similarity search
+- **RAGAgent**: Main orchestrator for indexing, retrieval, and generation
+
+### Key Classes
+
+#### Document
+Represents a document chunk with content and metadata. Automatically generates unique IDs.
+
+#### VectorStore
+Manages document embeddings using SentenceTransformers. Supports:
+- Adding documents with automatic embedding generation
+- Semantic search with cosine similarity
+- Configurable similarity thresholds
+
+#### RAGAgent
+Complete RAG pipeline implementation:
+- Document loading and chunking
+- Semantic indexing
+- Context retrieval
+- LLM-powered generation
+
+## Testing
+
+Run the test suite:
+
 ```bash
-pnpm run dev:phone
+pytest src/rag_agent/test_rag_agent.py -v
 ```
 
-Скрипт автоматически:
-- Настроит `adb reverse` для портов 8081 (API) и 8082 (Metro)
-- Запустит backend сервер
-- Запустит Metro bundler
-- Соберет и установит приложение на устройство
+Run with coverage:
 
-### Быстрый перезапуск (после первой установки)
-
-Если сервер уже работает и приложение установлено:
 ```bash
-pnpm run phone:quick
+pytest src/rag_agent/test_rag_agent.py --cov=rag_agent --cov-report=html
 ```
 
-## Технологический стек
-- **Frontend:** React Native
-- **Backend:** Go (Fiber, GORM)
-- **Admin Panel:** Next.js
-- **AI:** Google Gemini / OpenAI (через прокси)
-- **Database:** PostgreSQL
+## Configuration
 
-## Деплой (Dokploy)
+### Vector Store Configuration
 
-### 1. Настройка сервера (Backend)
-В Dokploy создайте новый сервис и укажите:
-- **Build Path**: `/server`
-- **Build Type**: `Dockerfile`
-- **Port**: `8081` (раздел Domains)
-
-### 2. Настройка админки (Admin Panel)
-- **Build Path**: `/admin`
-- **Build Type**: `Nixpacks` (или Dockerfile, если есть)
-- **Environment**: `NEXT_PUBLIC_APP_ENV=production` — этот флаг скрывает кнопки "Вход" и "Админ Панель" на лендинге.
-
----
-
-## Конфигурация окружения (.env)
-
-### Backend (в Dokploy Environment)
-Обязательные переменные:
-- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` — данные PostgreSQL.
-- `GEMINI_API_KEY` — ключ API.
-- `GEMINI_BASE_URL` — прокси-URL.
-- `APP_ENV=production`.
-
-### Frontend (React Native)
-Файл `frontend/.env` используется для настройки сборки приложения.
-
-**Для Production (релиз APK):**
-```env
-API_BASE_URL=https://api.vedamatch.ru
-APP_ENV=production
+```python
+agent = RAGAgent(
+    model_name="gpt-4",
+    embedding_dim=768,  # Dimension of embeddings
+    api_key="your-api-key"
+)
 ```
-*Эффект: Кнопка "Dev Login" будет скрыта, подключение пойдет к боевому серверу.*
 
-**Для Локальной разработки:**
-```env
-API_BASE_URL=http://10.0.2.2:8081
-APP_ENV=development
+### Retrieval Parameters
+
+- `top_k`: Number of documents to retrieve (default: 3)
+- `threshold`: Minimum similarity score (default: 0.5)
+
+### Generation Parameters
+
+- `max_tokens`: Maximum tokens in response (default: 500)
+- `temperature`: Generation randomness (default: 0.7)
+
+## Error Handling
+
+The system includes custom exceptions for different error scenarios:
+
+- `EmbeddingError`: Errors during embedding generation
+- `RetrievalError`: Errors during document retrieval
+- `GenerationError`: Errors during response generation
+
+Example:
+
+```python
+try:
+    result = agent.query("your question")
+except GenerationError as e:
+    logger.error(f"Generation failed: {e}")
 ```
-*Эффект: Доступен быстрый вход (Dev Login), подключение к локальному серверу.*
 
-> **Важно:** После изменения `.env` в React Native требуется полная пересборка приложения (`pnpm android`).
+## Logging
+
+Configure logging:
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+```
+
+## Project Structure
+
+```
+Rag-agent/
+├── src/
+│   └── rag_agent/
+│       ├── main.py              # Main RAG implementation
+│       └── test_rag_agent.py    # Unit tests
+├── requirements.txt             # Python dependencies
+├── pyproject.toml              # Modern packaging configuration
+├── README.md                   # This file
+└── .gitignore                  # Git ignore rules
+```
+
+## Dependencies
+
+- `numpy>=1.24.0`: Numerical computing
+- `openai>=1.3.0`: OpenAI API client
+- `sentence-transformers>=2.2.0`: Text embeddings
+- `pytest>=7.4.0`: Testing framework
+- `pytest-cov>=4.1.0`: Coverage plugin
+- `python-dotenv>=1.0.0`: Environment variable management
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- All tests pass
+- Code follows type hints
+- New features include tests
+- Documentation is updated
+
+## License
+
+[Your License Here]
+
+## Support
+
+For issues and questions, please open an issue on the repository.

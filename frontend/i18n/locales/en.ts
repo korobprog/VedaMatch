@@ -60,10 +60,17 @@ export default {
             success: 'Ad published successfully'
         },
         detail: {
-            contactSuccess: 'Request Sent',
-            callRequested: 'The seller has been notified that you want to contact them by phone.',
             messageRequested: 'The seller has been notified that you want to write them a message.'
         }
+    },
+    reader: {
+        title: 'Library',
+        chapter: 'Chapter',
+        text: 'Text',
+        prev: 'Prev Chapter',
+        next: 'Next Chapter',
+        jump: 'Jump to Verse',
+        toc: 'Contents'
     },
     common: {
         error: 'Error',
@@ -78,6 +85,7 @@ export default {
         back: 'Back',
         close: 'Close',
         settings: 'Settings',
+        errorUpdate: 'Failed to update profile'
     },
     chat: {
         welcome: 'Namaste. I am your assistant 🙇‍♂️. How can I help you?',
@@ -188,6 +196,7 @@ export default {
         locationDetected: 'Location detected',
         locationDetectionFailed: 'Failed to detect location. Check GPS permission.',
         detectingLocation: 'Detecting location...',
+        requiredFieldsForDating: 'To activate your dating profile, you must fill in all fields, including city and astrological data.'
     },
     settings: {
         title: 'Portal',
@@ -302,7 +311,33 @@ export default {
         lookingFor: 'Looking For',
         lookingForPlaceholder: 'Describe your ideal partner',
         maritalStatus: 'Marital Status',
-        birthTime: 'Birth Time'
+        birthTime: 'Birth Time',
+        goals: 'My Goals (Networking)',
+        intentions: {
+            family: 'Family/Marriage',
+            business: 'Business/Work',
+            friendship: 'Friendship',
+            seva: 'Seva/Service'
+        },
+        businessProfile: 'Business Profile',
+        skills: 'Skills',
+        industry: 'Industry',
+        lookingForBusiness: 'Looking For (Business)',
+        astroDetails: 'Astro Details',
+        birthPlace: 'Birth Place (for astrology)',
+        selectDate: 'Select date',
+        selectTime: 'Select time',
+        addToFavorites: 'Add to favorites',
+        removeFromFavorites: 'Remove from favorites',
+        addedToFavorites: 'Added to favorites!',
+        removedFromFavorites: 'Removed from favorites',
+        likesCount: 'added to favorites',
+        share: 'Share',
+        shareMessage: 'Meet {{name}} on VedaMatch!',
+        skillsPlaceholder: 'Go, React, Management...',
+        industryPlaceholder: 'IT, Wellness, Art...',
+        lookingForBusinessPlaceholder: 'Partners, Employees...',
+        maritalStatusPlaceholder: 'Single, Divorced, etc.'
     },
     profile: {
         editProfile: 'Edit Profile',
@@ -312,7 +347,7 @@ export default {
         spiritualInfo: 'Spiritual Info',
         yogaPractice: 'Yoga & Practice',
         avatar: 'Avatar',
-        changeAvatar: 'Change Avatar'
+        changeAvatar: 'Change Avatar',
+        photoTip: 'Upload your best photos to the gallery so other users can view them in a slideshow.'
     }
 }
-

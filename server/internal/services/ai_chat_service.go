@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +31,19 @@ func NewAiChatService() *AiChatService {
 }
 
 func (s *AiChatService) getApiKey(provider string) string {
+	// OpenRouter uses worker proxy, no direct API key needed here
+	if provider == "OpenRouter" {
+		return "via-worker-proxy"
+	}
+
+	// If provider is Routeway, use Routeway API key
+	if provider == "Routeway" {
+		var setting models.SystemSetting
+		if err := database.DB.Where("key = ?", "ROUTEWAY_API_KEY").First(&setting).Error; err == nil && setting.Value != "" {
+			return setting.Value
+		}
+	}
+
 	// If provider is Google/Gemini, try to use specific key first
 	if provider == "Google" || provider == "Gemini" {
 		var setting models.SystemSetting
@@ -66,6 +80,10 @@ func (s *AiChatService) getProvider(modelID string) string {
 	if err := database.DB.Where("model_id = ?", modelID).First(&model).Error; err == nil && model.Provider != "" {
 		return model.Provider
 	}
+	// OpenRouter models use format: provider/model (e.g. deepseek/deepseek-chat)
+	if strings.Contains(modelID, "/") {
+		return "OpenRouter"
+	}
 	// Default providers based on model patterns
 	if len(modelID) >= 3 && modelID[:3] == "gpt" {
 		return "OpenAI"
@@ -78,6 +96,10 @@ func (s *AiChatService) getProvider(modelID string) string {
 	}
 	if len(modelID) >= 5 && modelID[:5] == "sonar" {
 		return "Perplexity"
+	}
+	// Check if model ends with :free (Routeway free models)
+	if strings.HasSuffix(modelID, ":free") {
+		return "Routeway"
 	}
 	return "OpenAI"
 }
@@ -96,6 +118,19 @@ func (s *AiChatService) getFallbackModels(failedModelID string) []models.AiModel
 // makeRequest handles the actual API call logic
 func (s *AiChatService) makeRequest(modelID string, messages []map[string]string) (string, error) {
 	provider := s.getProvider(modelID)
+
+	// OpenRouter models - use worker proxy with smart routing
+	if provider == "OpenRouter" || strings.Contains(modelID, "/") {
+		openRouterService := GetOpenRouterService()
+		if openRouterService.HasWorkerURL() {
+			log.Printf("[AiChatService] Using OpenRouter worker for model: %s", modelID)
+			content, err := openRouterService.SendMessage(modelID, messages)
+			if err == nil {
+				return content, nil
+			}
+			log.Printf("[AiChatService] OpenRouter failed for %s: %v. Falling back.", modelID, err)
+		}
+	}
 
 	// Check if this is a Gemini model - use direct Gemini API to avoid content_type issues
 	if strings.HasPrefix(modelID, "gemini") || provider == "Google" {
@@ -135,10 +170,24 @@ func (s *AiChatService) makeRequest(modelID string, messages []map[string]string
 		"content_type": "text", // Explicitly specify content type to avoid auto-detection as 'audio'
 	}
 
-	log.Printf("[AiChatService] Making request: model=%s, provider=%s, content_type=text", apiModelID, provider)
+	// Determine the API URL - use Routeway URL for Routeway provider
+	apiURL := s.apiURL
+	if provider == "Routeway" {
+		var setting models.SystemSetting
+		if err := database.DB.Where("key = ?", "ROUTEWAY_API_URL").First(&setting).Error; err == nil && setting.Value != "" {
+			apiURL = setting.Value
+		} else {
+			apiURL = "https://api.routeway.ai/v1/chat/completions"
+		}
+		// Routeway uses OpenAI-compatible format, no need for provider field
+		delete(requestBody, "provider")
+		delete(requestBody, "content_type")
+	}
+
+	log.Printf("[AiChatService] Making request: model=%s, provider=%s, url=%s", apiModelID, provider, apiURL)
 
 	jsonBody, _ := json.Marshal(requestBody)
-	req, err := http.NewRequest("POST", s.apiURL, bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return "", err
 	}
@@ -275,4 +324,15 @@ func (s *AiChatService) GenerateSimpleResponse(prompt string) (string, error) {
 	}
 
 	return "", fmt.Errorf("all AI models failed")
+}
+
+func (s *AiChatService) GenerateResponse(ctx context.Context, messages []models.ChatMessage, modelID string, apiKey string) (string, error) {
+	var chatParams []map[string]string
+	for _, msg := range messages {
+		chatParams = append(chatParams, map[string]string{
+			"role":    msg.Role,
+			"content": msg.Content,
+		})
+	}
+	return s.makeRequest(modelID, chatParams)
 }

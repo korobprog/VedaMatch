@@ -30,11 +30,13 @@ export const AdsScreen: React.FC = () => {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
 
+
     const fetchAds = useCallback(async (reset = false) => {
         try {
             if (reset) {
                 setLoading(true);
             }
+
 
             const currentPage = reset ? 1 : page;
             let response;

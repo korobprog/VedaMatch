@@ -76,12 +76,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     pill: {
+        flex: 0, // Prevent flex layout from affecting size
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        justifyContent: 'center',
+        paddingHorizontal: 14,
         paddingVertical: 8,
         borderRadius: 20,
-        marginRight: 10,
+        marginRight: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,

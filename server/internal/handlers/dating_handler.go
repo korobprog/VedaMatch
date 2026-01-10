@@ -251,16 +251,16 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 		BirthPlaceLink *string `json:"birthPlaceLink"`
 		City           *string `json:"city"`
 
-		Madh              *string `json:"madh"`
-		YogaStyle         *string `json:"yogaStyle"`
-		Guna              *string `json:"guna"`
-		Identity          *string `json:"identity"`
-		Intentions        *string `json:"intentions"`
-		Skills            *string `json:"skills"`
-		Industry          *string `json:"industry"`
+		Madh               *string `json:"madh"`
+		YogaStyle          *string `json:"yogaStyle"`
+		Guna               *string `json:"guna"`
+		Identity           *string `json:"identity"`
+		Intentions         *string `json:"intentions"`
+		Skills             *string `json:"skills"`
+		Industry           *string `json:"industry"`
 		LookingForBusiness *string `json:"lookingForBusiness"`
-		DatingEnabled     *bool   `json:"datingEnabled"`
-		IsProfileComplete *bool   `json:"isProfileComplete"`
+		DatingEnabled      *bool   `json:"datingEnabled"`
+		IsProfileComplete  *bool   `json:"isProfileComplete"`
 	}
 
 	if err := c.BodyParser(&updates); err != nil {
@@ -435,8 +435,63 @@ func (h *DatingHandler) GetDatingStats(c *fiber.Ctx) error {
 	})
 }
 
+// GetFavoriteCount returns how many people added this profile to favorites
+func (h *DatingHandler) GetFavoriteCount(c *fiber.Ctx) error {
+	userID := c.Params("userId")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "userId is required"})
+	}
+
+	var count int64
+	if err := database.DB.Model(&models.DatingFavorite{}).Where("candidate_id = ?", userID).Count(&count).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not count favorites"})
+	}
+
+	return c.JSON(fiber.Map{
+		"count": count,
+	})
+}
+
+// GetWhoLikedMe returns users who added you to their favorites
 func (h *DatingHandler) GetWhoLikedMe(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "Not implemented"})
+	userID := c.Query("userId")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "userId is required"})
+	}
+
+	var favorites []models.DatingFavorite
+	if err := database.DB.Preload("User").Preload("User.Photos").Where("candidate_id = ?", userID).Find(&favorites).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch likes"})
+	}
+
+	// Extract users who liked
+	var users []models.User
+	for _, fav := range favorites {
+		// Load user who created the favorite
+		var user models.User
+		if err := database.DB.Preload("Photos").First(&user, fav.UserID).Error; err == nil {
+			users = append(users, user)
+		}
+	}
+
+	return c.JSON(users)
+}
+
+// CheckIsFavorited checks if current user has favorited a candidate
+func (h *DatingHandler) CheckIsFavorited(c *fiber.Ctx) error {
+	userID := c.Query("userId")
+	candidateID := c.Query("candidateId")
+
+	if userID == "" || candidateID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "userId and candidateId are required"})
+	}
+
+	var count int64
+	database.DB.Model(&models.DatingFavorite{}).Where("user_id = ? AND candidate_id = ?", userID, candidateID).Count(&count)
+
+	return c.JSON(fiber.Map{
+		"isFavorited": count > 0,
+	})
 }
 
 func (h *DatingHandler) GetNotifications(c *fiber.Ctx) error {

@@ -1,0 +1,22 @@
+name = "openrouter-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Настройки приложения
+[vars]
+ALLOWED_ORIGINS = "https://vedicai.ru,https://admin.vedicai.ru"
+SITE_NAME = "VedicAI"
+SITE_URL = "https://vedicai.ru"
+RATE_LIMIT_PER_MINUTE = "60"
+
+# Модели для умного роутинга
+FAST_MODEL = "deepseek/deepseek-chat"
+REASONING_MODEL = "deepseek/deepseek-r1"
+
+# KV для rate limiting (опционально)
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT_KV"
+# id = "your-kv-namespace-id"
+
+# Секреты (добавить через wrangler secret put):
+# - OPENROUTER_API_KEY

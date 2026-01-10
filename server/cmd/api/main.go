@@ -66,6 +66,7 @@ func main() {
 	promptHandler := handlers.NewPromptHandler()
 	adsHandler := handlers.NewAdsHandler()
 	tagHandler := handlers.NewTagHandler()
+	openRouterHandler := handlers.NewOpenRouterHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -117,6 +118,15 @@ func main() {
 	admin.Put("/ads/:id/status", adsHandler.UpdateAdStatus)
 	admin.Put("/ads/:id", adsHandler.AdminUpdateAd)
 	admin.Delete("/ads/:id", adsHandler.AdminDeleteAd)
+
+	// OpenRouter Management Routes
+	admin.Get("/openrouter/status", openRouterHandler.GetStatus)
+	admin.Get("/openrouter/models", openRouterHandler.GetModels)
+	admin.Get("/openrouter/settings", openRouterHandler.GetSettings)
+	admin.Put("/openrouter/settings", openRouterHandler.UpdateSettings)
+	admin.Post("/openrouter/test", openRouterHandler.TestConnection)
+	admin.Post("/openrouter/test-routing", openRouterHandler.TestSmartRouting)
+	admin.Get("/openrouter/recommendations", openRouterHandler.GetModelRecommendations)
 
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
@@ -224,6 +234,8 @@ func main() {
 	protected.Put("/dating/profile/:id", datingHandler.UpdateDatingProfile)
 	protected.Post("/dating/favorites", datingHandler.AddToFavorites)
 	protected.Get("/dating/favorites", datingHandler.GetFavorites)
+	protected.Get("/dating/likes/:userId", datingHandler.GetFavoriteCount)
+	protected.Get("/dating/is-favorited", datingHandler.CheckIsFavorited)
 	protected.Get("/dating/liked-me", datingHandler.GetWhoLikedMe)
 	protected.Get("/dating/notifications", datingHandler.GetNotifications)
 	protected.Delete("/dating/favorites/:id", datingHandler.RemoveFromFavorites)

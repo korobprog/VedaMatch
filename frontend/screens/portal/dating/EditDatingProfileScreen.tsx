@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -15,8 +15,8 @@ import {
     SafeAreaView
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
-import { API_PATH } from '../../../config/api.config';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { useUser } from '../../../context/UserContext';
 import { datingService } from '../../../services/datingService';
@@ -27,15 +27,16 @@ import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../.
 type Props = NativeStackScreenProps<RootStackParamList, 'EditDatingProfile'>;
 
 const INTENTION_OPTIONS = [
-    { key: 'family', label: 'Family/Marriage' },
-    { key: 'business', label: 'Business/Work' },
-    { key: 'friendship', label: 'Friendship' },
-    { key: 'seva', label: 'Seva/Service' }
+    { key: 'family', labelKey: 'dating.intentions.family' },
+    { key: 'business', labelKey: 'dating.intentions.business' },
+    { key: 'friendship', labelKey: 'dating.intentions.friendship' },
+    { key: 'seva', labelKey: 'dating.intentions.seva' }
 ];
 
 export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) => {
+    const { t } = useTranslation();
     const { userId } = route.params;
-    const { user: currentUser, login } = useUser();
+    const { login } = useUser();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
@@ -134,7 +135,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         if (profile.datingEnabled) {
             if (!profile.bio.trim() || !profile.interests.trim() || !profile.lookingFor.trim() ||
                 !profile.maritalStatus.trim() || !profile.dob || !profile.birthTime || !profile.birthPlaceLink || !profile.city) {
-                Alert.alert('Внимание', 'Для активации профиля в знакомствах необходимо заполнить все поля, включая город и астрологические данные.');
+                Alert.alert(t('common.info'), t('registration.requiredFieldsForDating') || 'Для активации профиля в знакомствах необходимо заполнить все поля, включая город и астрологические данные.');
                 return;
             }
         }
@@ -148,10 +149,10 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             const updatedUser = await datingService.updateProfile(userId, profileData);
             // Update user in context
             await login(updatedUser);
-            Alert.alert('Success', 'Profile updated successfully');
+            Alert.alert(t('common.success'), t('profile.updateSuccess') || 'Profile updated successfully');
             navigation.goBack();
         } catch (error) {
-            Alert.alert('Error', 'Failed to update profile');
+            Alert.alert(t('common.error'), t('common.errorUpdate') || 'Failed to update profile');
             console.error('Save profile error:', error);
         } finally {
             setSaving(false);
@@ -233,14 +234,14 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Text style={{ color: theme.text, fontSize: 17 }}>Cancel</Text>
+                    <Text style={{ color: theme.text, fontSize: 17 }}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.title, { color: theme.text }]}>Dating Profile</Text>
+                <Text style={[styles.title, { color: theme.text }]}>{t('dating.profile')}</Text>
                 <TouchableOpacity onPress={handleSaveProfile} disabled={saving}>
                     {saving ? (
                         <ActivityIndicator color={theme.accent} />
                     ) : (
-                        <Text style={{ color: theme.accent, fontSize: 17, fontWeight: 'bold' }}>Save</Text>
+                        <Text style={{ color: theme.accent, fontSize: 17, fontWeight: 'bold' }}>{t('common.save')}</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -248,7 +249,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
                 <View style={styles.content}>
                     <View style={styles.switchRow}>
-                        <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>Enable Dating Profile</Text>
+                        <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>{t('dating.enableProfile')}</Text>
                         <Switch
                             value={profile.datingEnabled}
                             onValueChange={(val) => setProfile({ ...profile, datingEnabled: val })}
@@ -257,17 +258,17 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     </View>
 
                     <Text style={[styles.infoText, { color: theme.subText, marginBottom: 15 }]}>
-                        💡 Загружайте свои лучшие фотографии в галерею, чтобы другие пользователи могли просматривать их в слайд-шоу.
+                        💡 {t('profile.photoTip')}
                     </Text>
 
                     <TouchableOpacity
                         style={styles.actionBtn}
                         onPress={() => navigation.navigate('MediaLibrary', { userId })}
                     >
-                        <Text style={{ color: theme.accent, fontWeight: 'bold' }}>📸 Manage Photos / Add New</Text>
+                        <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.managePhotos')}</Text>
                     </TouchableOpacity>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Current City</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('registration.city')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => {
@@ -277,32 +278,32 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         }}
                     >
                         <Text style={{ color: profile.city ? theme.text : theme.subText }} numberOfLines={1}>
-                            {profile.city || "Select current city..."}
+                            {profile.city || t('dating.selectCity')}
                         </Text>
                     </TouchableOpacity>
 
-                    <Text style={[styles.label, { color: theme.text }]}>About Me (Bio)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.bio')}</Text>
                     <TextInput
                         style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
                         multiline
                         numberOfLines={4}
                         value={profile.bio}
                         onChangeText={(val) => setProfile({ ...profile, bio: val })}
-                        placeholder="Tell others about yourself..."
+                        placeholder={t('dating.bioPlaceholder')}
                         placeholderTextColor={theme.subText}
                     />
 
-                    <Text style={[styles.label, { color: theme.text }]}>Interests</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.interests')}</Text>
                     <TextInput
                         style={[styles.input, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
                         value={profile.interests}
                         onChangeText={(val) => setProfile({ ...profile, interests: val })}
-                        placeholder="Yoga, kirtan, cooking..."
+                        placeholder={t('dating.interestsPlaceholder')}
                         placeholderTextColor={theme.subText}
                     />
 
                     {/* Networking Goals */}
-                    <Text style={[styles.label, { color: theme.text }]}>My Goals (Networking)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.goals')}</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
                         {INTENTION_OPTIONS.map((opt) => (
                             <TouchableOpacity
@@ -317,7 +318,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                                 onPress={() => toggleIntention(opt.key)}
                             >
                                 <Text style={{ color: profile.intentions.includes(opt.key) ? '#fff' : theme.text, fontWeight: '500' }}>
-                                    {opt.label}
+                                    {t(opt.labelKey)}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -326,69 +327,69 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     {/* Conditional Business Profile */}
                     {profile.intentions.includes('business') && (
                         <View style={{ marginBottom: 15, padding: 15, backgroundColor: theme.inputBackground, borderRadius: 12, borderWidth: 1, borderColor: theme.accent + '40' }}>
-                            <Text style={[styles.sectionTitle, { fontSize: 16, marginTop: 0, marginBottom: 10, color: theme.accent }]}>Business Profile</Text>
+                            <Text style={[styles.sectionTitle, { fontSize: 16, marginTop: 0, marginBottom: 10, color: theme.accent }]}>{t('dating.businessProfile')}</Text>
                             
-                            <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>Skills</Text>
+                            <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>{t('dating.skills')}</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.borderColor }]}
                                 value={profile.skills}
                                 onChangeText={(val) => setProfile({ ...profile, skills: val })}
-                                placeholder="Go, React, Management..."
+                                placeholder={t('dating.skillsPlaceholder')}
                                 placeholderTextColor={theme.subText}
                             />
 
-                            <Text style={[styles.label, { color: theme.text }]}>Industry</Text>
+                            <Text style={[styles.label, { color: theme.text }]}>{t('dating.industry')}</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.borderColor }]}
                                 value={profile.industry}
                                 onChangeText={(val) => setProfile({ ...profile, industry: val })}
-                                placeholder="IT, Wellness, Art..."
+                                placeholder={t('dating.industryPlaceholder')}
                                 placeholderTextColor={theme.subText}
                             />
 
-                            <Text style={[styles.label, { color: theme.text }]}>Looking For (Business)</Text>
+                            <Text style={[styles.label, { color: theme.text }]}>{t('dating.lookingForBusiness')}</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea, { backgroundColor: theme.background, color: theme.text, borderColor: theme.borderColor, minHeight: 60 }]}
                                 value={profile.lookingForBusiness}
                                 onChangeText={(val) => setProfile({ ...profile, lookingForBusiness: val })}
-                                placeholder="Partners, Employees..."
+                                placeholder={t('dating.lookingForBusinessPlaceholder')}
                                 placeholderTextColor={theme.subText}
                                 multiline
                             />
                         </View>
                     )}
 
-                    <Text style={[styles.label, { color: theme.text }]}>Tradition (Madh)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.madh')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => setMadhSelectionModal(true)}
                     >
                         <Text style={{ color: profile.madh ? theme.text : theme.subText }}>
-                            {profile.madh || "Select Tradition"}
+                            {profile.madh || t('dating.selectTradition')}
                         </Text>
                     </TouchableOpacity>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Yoga Style</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.yogaStyle')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => setYogaSelectionModal(true)}
                     >
                         <Text style={{ color: profile.yogaStyle ? theme.text : theme.subText }}>
-                            {profile.yogaStyle || "Select Yoga Style"}
+                            {profile.yogaStyle || t('dating.selectStyle')}
                         </Text>
                     </TouchableOpacity>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Mode of Nature (Guna)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.guna')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => setGunaSelectionModal(true)}
                     >
                         <Text style={{ color: profile.guna ? theme.text : theme.subText }}>
-                            {profile.guna || "Select Guna"}
+                            {profile.guna || t('dating.selectGuna')}
                         </Text>
                     </TouchableOpacity>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Identity</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.identity')}</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                         {IDENTITY_OPTIONS.map((opt) => (
                             <TouchableOpacity
@@ -409,34 +410,34 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         ))}
                     </View>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Looking For (Relationship)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.lookingFor')}</Text>
                     <TextInput
                         style={[styles.input, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
                         value={profile.lookingFor}
                         onChangeText={(val) => setProfile({ ...profile, lookingFor: val })}
-                        placeholder="Serious relationship, friendship..."
+                        placeholder={t('dating.lookingForPlaceholder')}
                         placeholderTextColor={theme.subText}
                     />
 
-                    <Text style={[styles.label, { color: theme.text }]}>Marital Status</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.maritalStatus')}</Text>
                     <TextInput
                         style={[styles.input, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
                         value={profile.maritalStatus}
                         onChangeText={(val) => setProfile({ ...profile, maritalStatus: val })}
-                        placeholder="Single, Divorced, etc."
+                        placeholder={t('dating.maritalStatusPlaceholder')}
                         placeholderTextColor={theme.subText}
                     />
 
                     <View style={styles.divider} />
-                    <Text style={[styles.sectionTitle, { color: theme.accent, marginTop: 0 }]}>Astro Details</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.accent, marginTop: 0 }]}>{t('dating.astroDetails')}</Text>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Date of Birth</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('registration.dob')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => setOpenDobPicker(true)}
                     >
                         <Text style={{ color: profile.dob ? theme.text : theme.subText }}>
-                            {profile.dob || "Select date of birth"}
+                            {profile.dob || t('dating.selectDate')}
                         </Text>
                     </TouchableOpacity>
                     <DatePicker
@@ -456,13 +457,13 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         }}
                     />
 
-                    <Text style={[styles.label, { color: theme.text }]}>Birth Time</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.birthTime')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => setOpenTimePicker(true)}
                     >
                         <Text style={{ color: profile.birthTime ? theme.text : theme.subText }}>
-                            {profile.birthTime || "Select birth time"}
+                            {profile.birthTime || t('dating.selectTime')}
                         </Text>
                     </TouchableOpacity>
                     <DatePicker
@@ -481,7 +482,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         }}
                     />
 
-                    <Text style={[styles.label, { color: theme.text }]}>Birth Place (для астрологии)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.birthPlace')}</Text>
                     <TouchableOpacity
                         style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                         onPress={() => {
@@ -491,7 +492,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         }}
                     >
                         <Text style={{ color: profile.birthPlaceLink ? theme.text : theme.subText }} numberOfLines={1}>
-                            {profile.birthPlaceLink || "Select city..."}
+                            {profile.birthPlaceLink || t('dating.selectCity')}
                         </Text>
                     </TouchableOpacity>
                     
@@ -504,17 +505,17 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
                     <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
                         <TouchableOpacity onPress={() => setCitySearchModal(false)}>
-                            <Text style={{ color: theme.accent, fontSize: 16 }}>Close</Text>
+                            <Text style={{ color: theme.accent, fontSize: 16 }}>{t('common.close')}</Text>
                         </TouchableOpacity>
                         <Text style={[styles.modalTitle, { color: theme.text }]}>
-                            {citySearchType === 'current' ? 'Search Current City' : 'Search Birth Place'}
+                            {citySearchType === 'current' ? t('dating.searchCity') : t('dating.birthPlace')}
                         </Text>
                         <View style={{ width: 50 }} />
                     </View>
                     <View style={styles.searchContainer}>
                         <TextInput
                             style={[styles.searchInput, { color: theme.text, backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-                            placeholder="Start typing city name..."
+                            placeholder={t('dating.searchCity')}
                             placeholderTextColor={theme.subText}
                             value={cityQuery}
                             onChangeText={searchCities}
@@ -545,7 +546,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             >
                 <View style={[styles.modalOverlay, { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }]}>
                     <View style={[styles.modalContent, { backgroundColor: theme.header, borderRadius: 20, maxHeight: '60%', padding: 20 }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>Select Tradition</Text>
+                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>{t('dating.selectTradition')}</Text>
 
                         <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                             {DATING_TRADITIONS.map((madh, index) => (
@@ -566,7 +567,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                             style={[styles.actionBtn, { backgroundColor: theme.button, marginTop: 10, alignItems: 'center' }]}
                             onPress={() => setMadhSelectionModal(false)}
                         >
-                            <Text style={{ color: theme.buttonText }}>Close</Text>
+                            <Text style={{ color: theme.buttonText }}>{t('common.close')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -580,7 +581,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             >
                 <View style={[styles.modalOverlay, { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }]}>
                     <View style={[styles.modalContent, { backgroundColor: theme.header, borderRadius: 20, maxHeight: '60%', padding: 20 }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>Select Yoga Style</Text>
+                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>{t('dating.selectStyle')}</Text>
 
                         <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                             {YOGA_STYLES.map((style, index) => (
@@ -601,7 +602,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                             style={[styles.actionBtn, { backgroundColor: theme.button, marginTop: 10, alignItems: 'center' }]}
                             onPress={() => setYogaSelectionModal(false)}
                         >
-                            <Text style={{ color: theme.buttonText }}>Close</Text>
+                            <Text style={{ color: theme.buttonText }}>{t('common.close')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -615,7 +616,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             >
                 <View style={[styles.modalOverlay, { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }]}>
                     <View style={[styles.modalContent, { backgroundColor: theme.header, borderRadius: 20, maxHeight: '60%', padding: 20 }]}>
-                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>Select Guna</Text>
+                        <Text style={[styles.modalTitle, { color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }]}>{t('dating.selectGuna')}</Text>
 
                         <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                             {GUNAS.map((guna, index) => (
@@ -636,7 +637,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                             style={[styles.actionBtn, { backgroundColor: theme.button, marginTop: 10, alignItems: 'center' }]}
                             onPress={() => setGunaSelectionModal(false)}
                         >
-                            <Text style={{ color: theme.buttonText }}>Close</Text>
+                            <Text style={{ color: theme.buttonText }}>{t('common.close')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

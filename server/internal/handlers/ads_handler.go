@@ -727,7 +727,7 @@ func (h *AdsHandler) UploadAdPhoto(c *fiber.Ctx) error {
 	})
 }
 
-// ContactSeller sends a notification message to the ad seller
+// ContactSeller initiates a chat with the seller
 func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 	adID := c.Params("id")
 	userID := middleware.GetUserID(c)
@@ -736,7 +736,7 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		Method string `json:"method"` // "call" or "message"
+		Method string `json:"method"` // "message"
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
@@ -747,39 +747,329 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 
-	// Get current user info for metadata
-	var currentUser models.User
-	database.DB.First(&currentUser, userID)
-
-	userName := currentUser.SpiritualName
-	if userName == "" {
-		userName = currentUser.KarmicName
-	}
-	if userName == "" {
-		userName = "User"
+	if ad.UserID == userID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "You cannot message yourself"})
 	}
 
-	var content string
-	if req.Method == "call" {
-		content = fmt.Sprintf("🔔 Пользователь %s хочет связаться с вами по поводу вашего объявления: «%s». Будьте готовы к звонку!", userName, ad.Title)
-	} else {
-		content = fmt.Sprintf("🔔 Пользователь %s хочет написать вам по поводу вашего объявления: «%s». Зайдите в чат для ответа.", userName, ad.Title)
+	// Logic for "message" - ensure a private room exists
+	if req.Method == "message" {
+		var roomID uint
+		var roomName string
+
+		// 1. Check for existing private room between these two users
+		type Result struct {
+			ID   uint
+			Name string
+		}
+		var result Result
+
+		// This query finds a room where both users are members.
+		err := database.DB.Raw(`
+			SELECT r.id, r.name
+			FROM rooms r
+			JOIN room_members rm1 ON r.id = rm1.room_id
+			JOIN room_members rm2 ON r.id = rm2.room_id
+			WHERE r.is_public = false 
+			AND rm1.user_id = ? 
+			AND rm2.user_id = ?
+			LIMIT 1
+		`, userID, ad.UserID).Scan(&result).Error
+
+		if err == nil && result.ID != 0 {
+			roomID = result.ID
+			roomName = result.Name
+		} else {
+			// 2. Create new private room
+			currentUser := models.User{}
+			database.DB.First(&currentUser, userID)
+
+			sellerName := ad.User.SpiritualName
+			if sellerName == "" {
+				sellerName = ad.User.KarmicName
+			}
+
+			buyerName := currentUser.SpiritualName
+			if buyerName == "" {
+				buyerName = currentUser.KarmicName
+			}
+
+			roomName = fmt.Sprintf("%s & %s", buyerName, sellerName)
+			newRoom := models.Room{
+				Name:        roomName,
+				Description: fmt.Sprintf("Chat regarding ad: %s", ad.Title),
+				OwnerID:     userID,
+				IsPublic:    false,
+				AiEnabled:   false,
+			}
+
+			if err := database.DB.Create(&newRoom).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create chat room"})
+			}
+			roomID = newRoom.ID
+
+			// Add members
+			members := []models.RoomMember{
+				{RoomID: roomID, UserID: userID, Role: "admin"},
+				{RoomID: roomID, UserID: ad.UserID, Role: "member"},
+			}
+			database.DB.Create(&members)
+		}
+
+		return c.JSON(fiber.Map{
+			"success":  true,
+			"roomId":   roomID,
+			"roomName": roomName,
+			"message":  "Chat room ready",
+		})
 	}
 
-	// Create a technical/system message
-	msg := models.Message{
-		SenderID:    0, // System
-		RecipientID: ad.UserID,
-		Content:     content,
-		Type:        "text",
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Only message method is supported"})
+}
+
+// ================== ADMIN ENDPOINTS ==================
+
+// GetAdminAds returns all ads with admin filters (including pending/rejected)
+func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	query := database.DB.Model(&models.Ad{}).Preload("Photos").Preload("User")
+
+	// Filter by status (allow all statuses for admin)
+	status := c.Query("status")
+	if status != "" && status != "all" {
+		query = query.Where("status = ?", status)
 	}
 
-	if err := database.DB.Create(&msg).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not send notification"})
+	// Filter by category
+	category := c.Query("category")
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+
+	// Filter by ad type
+	adType := c.Query("adType")
+	if adType != "" {
+		query = query.Where("ad_type = ?", adType)
+	}
+
+	// Search
+	search := c.Query("search")
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		query = query.Where("title ILIKE ? OR description ILIKE ?", searchPattern, searchPattern)
+	}
+
+	// Filter by user
+	userID := c.Query("userId")
+	if userID != "" {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	// Count total
+	var total int64
+	query.Count(&total)
+
+	// Order by created_at DESC
+	query = query.Order("created_at DESC")
+
+	var ads []models.Ad
+	if err := query.Offset(offset).Limit(limit).Find(&ads).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not fetch ads",
+		})
+	}
+
+	// Build response with author info
+	responses := make([]models.AdResponse, len(ads))
+	for i, ad := range ads {
+		responses[i] = models.AdResponse{
+			Ad: ad,
+		}
+		if ad.User != nil {
+			responses[i].Author = &models.AdAuthor{
+				ID:            ad.User.ID,
+				SpiritualName: ad.User.SpiritualName,
+				KarmicName:    ad.User.KarmicName,
+				AvatarURL:     ad.User.AvatarURL,
+				City:          ad.User.City,
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"ads":        responses,
+		"total":      total,
+		"page":       page,
+		"totalPages": int(math.Ceil(float64(total) / float64(limit))),
+	})
+}
+
+// UpdateAdStatus updates the status of an ad (approve/reject/archive)
+func (h *AdsHandler) UpdateAdStatus(c *fiber.Ctx) error {
+	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
+	}
+
+	var ad models.Ad
+	if err := database.DB.First(&ad, adID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
+	}
+
+	var req struct {
+		Status  string `json:"status"`
+		Comment string `json:"comment"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	// Validate status
+	validStatuses := map[string]bool{"pending": true, "active": true, "rejected": true, "archived": true}
+	if !validStatuses[req.Status] {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid status"})
+	}
+
+	// Update ad
+	ad.Status = models.AdStatus(req.Status)
+	ad.ModerationComment = req.Comment
+	now := time.Now().Format(time.RFC3339)
+	ad.ModeratedAt = &now
+
+	if err := database.DB.Save(&ad).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update ad"})
 	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Notification sent to seller",
+		"message": "Ad status updated",
+		"status":  ad.Status,
+	})
+}
+
+// AdminUpdateAd allows admin to edit any ad
+func (h *AdsHandler) AdminUpdateAd(c *fiber.Ctx) error {
+	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
+	}
+
+	var ad models.Ad
+	if err := database.DB.First(&ad, adID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
+	}
+
+	var req struct {
+		Title       string  `json:"title"`
+		Description string  `json:"description"`
+		Category    string  `json:"category"`
+		Price       float64 `json:"price"`
+		City        string  `json:"city"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	// Update fields if provided
+	if req.Title != "" {
+		ad.Title = req.Title
+	}
+	if req.Description != "" {
+		ad.Description = req.Description
+	}
+	if req.Category != "" {
+		ad.Category = models.AdCategory(req.Category)
+	}
+	if req.Price > 0 {
+		ad.Price = &req.Price
+	}
+	if req.City != "" {
+		ad.City = req.City
+	}
+
+	if err := database.DB.Save(&ad).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update ad"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Ad updated successfully",
+		"ad":      ad,
+	})
+}
+
+// AdminDeleteAd permanently deletes an ad
+func (h *AdsHandler) AdminDeleteAd(c *fiber.Ctx) error {
+	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
+	}
+
+	var ad models.Ad
+	if err := database.DB.First(&ad, adID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
+	}
+
+	// Delete photos
+	database.DB.Where("ad_id = ?", adID).Delete(&models.AdPhoto{})
+
+	// Delete favorites
+	database.DB.Where("ad_id = ?", adID).Delete(&models.AdFavorite{})
+
+	// Delete reports
+	database.DB.Where("ad_id = ?", adID).Delete(&models.AdReport{})
+
+	// Delete ad (hard delete)
+	if err := database.DB.Unscoped().Delete(&ad).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Ad deleted permanently",
+	})
+}
+
+// GetAdminStats returns statistics for the admin dashboard
+func (h *AdsHandler) GetAdminStats(c *fiber.Ctx) error {
+	var totalAds, pendingAds, activeAds, rejectedAds, archivedAds int64
+
+	database.DB.Model(&models.Ad{}).Count(&totalAds)
+	database.DB.Model(&models.Ad{}).Where("status = ?", "pending").Count(&pendingAds)
+	database.DB.Model(&models.Ad{}).Where("status = ?", "active").Count(&activeAds)
+	database.DB.Model(&models.Ad{}).Where("status = ?", "rejected").Count(&rejectedAds)
+	database.DB.Model(&models.Ad{}).Where("status = ?", "archived").Count(&archivedAds)
+
+	// Categories breakdown
+	type CategoryCount struct {
+		Category string
+		Count    int64
+	}
+	var categoryBreakdown []CategoryCount
+	database.DB.Model(&models.Ad{}).
+		Select("category, COUNT(*) as count").
+		Group("category").
+		Scan(&categoryBreakdown)
+
+	categoriesMap := make(map[string]int64)
+	for _, cb := range categoryBreakdown {
+		categoriesMap[cb.Category] = cb.Count
+	}
+
+	return c.JSON(fiber.Map{
+		"total":      totalAds,
+		"pending":    pendingAds,
+		"active":     activeAds,
+		"rejected":   rejectedAds,
+		"archived":   archivedAds,
+		"categories": categoriesMap,
 	})
 }

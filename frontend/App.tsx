@@ -27,6 +27,8 @@ import { AdsScreen } from './screens/portal/ads/AdsScreen';
 import { CreateAdScreen } from './screens/portal/ads/CreateAdScreen';
 import { AdDetailScreen } from './screens/portal/ads/AdDetailScreen';
 import { AdsFiltersScreen } from './screens/portal/ads/AdsFiltersScreen';
+import { BookListScreen } from './screens/library/BookListScreen';
+import { ReaderScreen } from './screens/library/ReaderScreen';
 
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 
@@ -95,6 +97,11 @@ const AppContent = () => {
               <Stack.Screen name="CreateAd" component={CreateAdScreen} />
               <Stack.Screen name="AdDetail" component={AdDetailScreen} />
               <Stack.Screen name="AdsFilters" component={AdsFiltersScreen} options={{ presentation: 'modal' }} />
+
+              {/* Library Routes */}
+              <Stack.Screen name="BookList" component={BookListScreen} options={{ headerShown: true, title: 'Книги' }} />
+              <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: 'Чтение' }} />
+
 
               <Stack.Screen name="Registration" component={RegistrationScreen} />
             </Stack.Group>

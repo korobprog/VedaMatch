@@ -162,10 +162,11 @@ class AdsService {
         }
     }
 
-    async contactSeller(id: number, method: 'call' | 'message'): Promise<void> {
+    async contactSeller(id: number, method: 'call' | 'message'): Promise<{ roomId?: number, roomName?: string, message: string }> {
         try {
             const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/ads/${id}/contact`, { method }, { headers });
+            const response = await axios.post(`${API_PATH}/ads/${id}/contact`, { method }, { headers });
+            return response.data;
         } catch (error) {
             console.error(`Error contacting seller for ad ${id}:`, error);
             throw error;
