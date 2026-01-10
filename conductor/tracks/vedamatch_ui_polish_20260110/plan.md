@@ -7,12 +7,12 @@
     - [x] Подзадача: Перезапустить сид.
 - [x] Задача: Conductor - User Manual Verification 'Content Expansion' (Protocol in workflow.md)
 
-## Фаза 2: Полировка UI Фильтров
-- [ ] Задача: Переверстать модальное окно фильтров в `DatingScreen.tsx`.
-    - [ ] Подзадача: Стилизация инпутов (белый фон, скругление).
-    - [ ] Подзадача: Компоновка возраста в строку.
-    - [ ] Подзадача: Стилизация кнопок.
-- [ ] Задача: Conductor - User Manual Verification 'Filters UI' (Protocol in workflow.md)
+## Фаза 2: Полировка UI Фильтров [checkpoint: 53f1611]
+- [x] Задача: Переверстать модальное окно фильтров в `DatingScreen.tsx`.
+    - [x] Подзадача: Стилизация инпутов (белый фон, скругление).
+    - [x] Подзадача: Компоновка возраста в строку.
+    - [x] Подзадача: Стилизация кнопок.
+- [x] Задача: Conductor - User Manual Verification 'Filters UI' (Protocol in workflow.md)
 
 ## Фаза 3: Полировка UI Профиля
 - [ ] Задача: Обновить стили `EditProfileScreen.tsx`.
