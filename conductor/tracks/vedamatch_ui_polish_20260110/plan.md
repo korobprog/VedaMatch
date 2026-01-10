@@ -14,9 +14,9 @@
     - [x] Подзадача: Стилизация кнопок.
 - [x] Задача: Conductor - User Manual Verification 'Filters UI' (Protocol in workflow.md)
 
-## Фаза 3: Полировка UI Профиля
-- [ ] Задача: Обновить стили `EditProfileScreen.tsx`.
-    - [ ] Подзадача: Заголовки секций.
-    - [ ] Подзадача: Отступы и тени карточек.
-    - [ ] Подзадача: Поле Bio (multiline).
-- [ ] Задача: Conductor - User Manual Verification 'Profile UI Polish' (Protocol in workflow.md)
+## Фаза 3: Полировка UI Профиля [checkpoint: 0af328e]
+- [x] Задача: Обновить стили `EditProfileScreen.tsx`.
+    - [x] Подзадача: Заголовки секций.
+    - [x] Подзадача: Отступы и тени карточек.
+    - [x] Подзадача: Поле Bio (multiline).
+- [x] Задача: Conductor - User Manual Verification 'Profile UI Polish' (Protocol in workflow.md)
