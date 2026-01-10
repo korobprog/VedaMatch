@@ -26,6 +26,13 @@ import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../.
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditDatingProfile'>;
 
+const INTENTION_OPTIONS = [
+    { key: 'family', label: 'Family/Marriage' },
+    { key: 'business', label: 'Business/Work' },
+    { key: 'friendship', label: 'Friendship' },
+    { key: 'seva', label: 'Seva/Service' }
+];
+
 export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) => {
     const { userId } = route.params;
     const { user: currentUser, login } = useUser();
@@ -47,7 +54,11 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         yogaStyle: '',
         guna: '',
         identity: '',
-        datingEnabled: false
+        datingEnabled: false,
+        intentions: [] as string[],
+        skills: '',
+        industry: '',
+        lookingForBusiness: ''
     });
 
     const [openTimePicker, setOpenTimePicker] = useState(false);
@@ -88,7 +99,11 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     yogaStyle: me.yogaStyle || '',
                     guna: me.guna || '',
                     identity: me.identity || IDENTITY_OPTIONS[0],
-                    datingEnabled: me.datingEnabled || false
+                    datingEnabled: me.datingEnabled || false,
+                    intentions: me.intentions ? me.intentions.split(',').map((i: string) => i.trim()) : [],
+                    skills: me.skills || '',
+                    industry: me.industry || '',
+                    lookingForBusiness: me.lookingForBusiness || ''
                 });
                 if (me.birthTime) {
                     const today = new Date();
@@ -126,7 +141,11 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
 
         setSaving(true);
         try {
-            const updatedUser = await datingService.updateProfile(userId, profile);
+            const profileData = {
+                ...profile,
+                intentions: profile.intentions.join(',')
+            };
+            const updatedUser = await datingService.updateProfile(userId, profileData);
             // Update user in context
             await login(updatedUser);
             Alert.alert('Success', 'Profile updated successfully');
@@ -198,27 +217,35 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         setCitySuggestions([]);
     };
 
+    const toggleIntention = (key: string) => {
+        if (profile.intentions.includes(key)) {
+            setProfile({ ...profile, intentions: profile.intentions.filter(i => i !== key) });
+        } else {
+            setProfile({ ...profile, intentions: [...profile.intentions, key] });
+        }
+    };
+
     if (loading) {
         return <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.accent} />;
     }
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
-                <View style={[styles.header, { borderBottomColor: theme.borderColor }]}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={{ color: theme.text, fontSize: 18 }}>Cancel</Text>
-                    </TouchableOpacity>
-                    <Text style={[styles.title, { color: theme.text }]}>Dating Profile</Text>
-                    <TouchableOpacity onPress={handleSaveProfile} disabled={saving}>
-                        {saving ? (
-                            <ActivityIndicator color={theme.accent} />
-                        ) : (
-                            <Text style={{ color: theme.accent, fontSize: 18, fontWeight: 'bold' }}>Save</Text>
-                        )}
-                    </TouchableOpacity>
-                </View>
+            <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <Text style={{ color: theme.text, fontSize: 17 }}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={[styles.title, { color: theme.text }]}>Dating Profile</Text>
+                <TouchableOpacity onPress={handleSaveProfile} disabled={saving}>
+                    {saving ? (
+                        <ActivityIndicator color={theme.accent} />
+                    ) : (
+                        <Text style={{ color: theme.accent, fontSize: 17, fontWeight: 'bold' }}>Save</Text>
+                    )}
+                </TouchableOpacity>
+            </View>
 
+            <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
                 <View style={styles.content}>
                     <View style={styles.switchRow}>
                         <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>Enable Dating Profile</Text>
@@ -234,7 +261,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     </Text>
 
                     <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: theme.inputBackground, borderColor: theme.accent, borderWidth: 1, marginBottom: 20, alignItems: 'center' }]}
+                        style={styles.actionBtn}
                         onPress={() => navigation.navigate('MediaLibrary', { userId })}
                     >
                         <Text style={{ color: theme.accent, fontWeight: 'bold' }}>📸 Manage Photos / Add New</Text>
@@ -274,7 +301,62 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         placeholderTextColor={theme.subText}
                     />
 
+                    {/* Networking Goals */}
+                    <Text style={[styles.label, { color: theme.text }]}>My Goals (Networking)</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+                        {INTENTION_OPTIONS.map((opt) => (
+                            <TouchableOpacity
+                                key={opt.key}
+                                style={[
+                                    styles.chip,
+                                    { 
+                                        backgroundColor: profile.intentions.includes(opt.key) ? theme.accent : theme.inputBackground,
+                                        borderColor: theme.borderColor 
+                                    }
+                                ]}
+                                onPress={() => toggleIntention(opt.key)}
+                            >
+                                <Text style={{ color: profile.intentions.includes(opt.key) ? '#fff' : theme.text, fontWeight: '500' }}>
+                                    {opt.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
 
+                    {/* Conditional Business Profile */}
+                    {profile.intentions.includes('business') && (
+                        <View style={{ marginBottom: 15, padding: 15, backgroundColor: theme.inputBackground, borderRadius: 12, borderWidth: 1, borderColor: theme.accent + '40' }}>
+                            <Text style={[styles.sectionTitle, { fontSize: 16, marginTop: 0, marginBottom: 10, color: theme.accent }]}>Business Profile</Text>
+                            
+                            <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>Skills</Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.borderColor }]}
+                                value={profile.skills}
+                                onChangeText={(val) => setProfile({ ...profile, skills: val })}
+                                placeholder="Go, React, Management..."
+                                placeholderTextColor={theme.subText}
+                            />
+
+                            <Text style={[styles.label, { color: theme.text }]}>Industry</Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.borderColor }]}
+                                value={profile.industry}
+                                onChangeText={(val) => setProfile({ ...profile, industry: val })}
+                                placeholder="IT, Wellness, Art..."
+                                placeholderTextColor={theme.subText}
+                            />
+
+                            <Text style={[styles.label, { color: theme.text }]}>Looking For (Business)</Text>
+                            <TextInput
+                                style={[styles.input, styles.textArea, { backgroundColor: theme.background, color: theme.text, borderColor: theme.borderColor, minHeight: 60 }]}
+                                value={profile.lookingForBusiness}
+                                onChangeText={(val) => setProfile({ ...profile, lookingForBusiness: val })}
+                                placeholder="Partners, Employees..."
+                                placeholderTextColor={theme.subText}
+                                multiline
+                            />
+                        </View>
+                    )}
 
                     <Text style={[styles.label, { color: theme.text }]}>Tradition (Madh)</Text>
                     <TouchableOpacity
@@ -327,7 +409,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         ))}
                     </View>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Looking For</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>Looking For (Relationship)</Text>
                     <TextInput
                         style={[styles.input, { color: theme.text, borderColor: theme.borderColor, backgroundColor: theme.inputBackground }]}
                         value={profile.lookingFor}
@@ -346,7 +428,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     />
 
                     <View style={styles.divider} />
-                    <Text style={[styles.sectionTitle, { color: theme.accent }]}>Astro Details</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.accent, marginTop: 0 }]}>Astro Details</Text>
 
                     <Text style={[styles.label, { color: theme.text }]}>Date of Birth</Text>
                     <TouchableOpacity
@@ -412,6 +494,8 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                             {profile.birthPlaceLink || "Select city..."}
                         </Text>
                     </TouchableOpacity>
+                    
+                    <View style={{ height: 40 }} />
                 </View>
             </ScrollView>
 
@@ -590,33 +674,37 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
     },
     label: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 15,
+        fontWeight: '700',
+        marginTop: 15,
         marginBottom: 8,
-        marginTop: 16,
+        color: '#333',
     },
     infoText: {
-        fontSize: 14,
-        lineHeight: 20,
+        fontSize: 13,
+        lineHeight: 18,
         backgroundColor: 'rgba(0,0,0,0.05)',
-        padding: 10,
-        borderRadius: 8,
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        marginTop: 20,
+        marginTop: 25,
         marginBottom: 10,
+        color: '#8D6E63',
     },
     input: {
         borderWidth: 1,
-        borderRadius: 8,
+        borderRadius: 10,
         padding: 12,
         fontSize: 16,
-        minHeight: 50,
+        minHeight: 52,
     },
     textArea: {
-        height: 100,
+        minHeight: 100,
         textAlignVertical: 'top',
     },
     divider: {
@@ -666,6 +754,11 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 20,
         borderRadius: 25,
+        borderWidth: 1,
+        borderColor: '#8D6E63',
+        backgroundColor: '#fff',
+        alignItems: 'center',
+        marginBottom: 20,
     },
     modalOverlay: {
         flex: 1,
@@ -689,5 +782,31 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         marginRight: 10,
         marginBottom: 10,
-    }
+    },
+    chip: {
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginRight: 8,
+        marginBottom: 10,
+    },
+    saveButton: {
+        height: 50,
+        borderRadius: 25,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 20,
+        marginBottom: 40,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    saveButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
 });

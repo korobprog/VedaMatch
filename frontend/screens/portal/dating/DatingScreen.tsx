@@ -75,6 +75,8 @@ export const DatingScreen = () => {
     const [filterYogaStyle, setFilterYogaStyle] = useState('');
     const [filterGuna, setFilterGuna] = useState('');
     const [filterIdentity, setFilterIdentity] = useState('');
+    const [filterSkills, setFilterSkills] = useState('');
+    const [filterIndustry, setFilterIndustry] = useState('');
 
     const [showMadhPicker, setShowMadhPicker] = useState(false);
     const [showYogaPicker, setShowYogaPicker] = useState(false);
@@ -173,7 +175,9 @@ export const DatingScreen = () => {
                 madh: filterMadh,
                 yogaStyle: filterYogaStyle,
                 guna: filterGuna,
-                identity: filterIdentity
+                identity: filterIdentity,
+                skills: filterSkills,
+                industry: filterIndustry
             });
             setCandidates(data);
         } catch (error) {
@@ -670,6 +674,29 @@ export const DatingScreen = () => {
                             </View>
 
                             <ScrollView showsVerticalScrollIndicator={false}>
+                                {/* Business Filters */}
+                                {mode === 'business' && (
+                                    <>
+                                        <Text style={[styles.filterLabel, { color: theme.subText }]}>Skills</Text>
+                                        <TextInput
+                                            style={[styles.filterInput, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
+                                            value={filterSkills}
+                                            onChangeText={setFilterSkills}
+                                            placeholder="e.g. Management, Coding..."
+                                            placeholderTextColor={theme.subText}
+                                        />
+
+                                        <Text style={[styles.filterLabel, { color: theme.subText }]}>Industry</Text>
+                                        <TextInput
+                                            style={[styles.filterInput, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
+                                            value={filterIndustry}
+                                            onChangeText={setFilterIndustry}
+                                            placeholder="e.g. IT, Wellness..."
+                                            placeholderTextColor={theme.subText}
+                                        />
+                                    </>
+                                )}
+
                                 {/* City */}
                                 <Text style={[styles.filterLabel, { color: theme.subText }]}>{t('registration.city')}</Text>
                                 <TouchableOpacity
@@ -758,6 +785,8 @@ export const DatingScreen = () => {
                                         setFilterYogaStyle('');
                                         setFilterGuna('');
                                         setFilterIdentity('');
+                                        setFilterSkills('');
+                                        setFilterIndustry('');
                                         fetchCandidates();
                                     }}
                                 >
