@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, Alert, ImageBackground, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, Alert, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { libraryService } from '../../services/libraryService';
@@ -7,6 +7,7 @@ import { ScriptureVerse, ChapterInfo } from '../../types/library';
 
 import { useUser } from '../../context/UserContext';
 import { useTranslation } from 'react-i18next';
+declare var require: any;
 
 export const ReaderScreen = () => {
     const route = useRoute<any>();
@@ -181,7 +182,7 @@ export const ReaderScreen = () => {
         versePositions.current[index] = y;
     };
 
-    const handleScroll = (event: any) => {
+    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const y = event.nativeEvent.contentOffset.y;
         // Find which verse we are currently viewing
         const indices = Object.keys(versePositions.current).map(Number).sort((a, b) => a - b);
@@ -483,7 +484,7 @@ export const ReaderScreen = () => {
                                     readerTheme === 'dark' && { backgroundColor: '#2a2a2a' },
                                     readerTheme === 'ancient' && { backgroundColor: 'rgba(234, 215, 164, 0.6)', borderColor: '#DBC18B', borderWidth: 1 }
                                 ]}
-                                onLayout={(event) => onVerseLayout(index, event.nativeEvent.layout.y)}
+                                onLayout={(event: LayoutChangeEvent) => onVerseLayout(index, event.nativeEvent.layout.y)}
                             >
                                 <View style={styles.verseHeader}>
                                     <Text style={[

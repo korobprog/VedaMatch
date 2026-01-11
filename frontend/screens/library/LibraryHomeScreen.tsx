@@ -1,20 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { libraryService } from '../../services/libraryService';
 import { ScriptureBook } from '../../types/library';
-
-// Mock categories for now based on the image
-const CATEGORIES = [
-    { id: 'scriptures', title: 'Священные писания', description: 'Основополагающее философское произведение ведической мудрости', icon: '📚' },
-    { id: 'puranas', title: 'Пураны', description: 'Энциклопедия ведической философии', icon: '🕉️' },
-    { id: 'practice', title: 'Практика', description: 'Практическое руководство по развитию любви к Богу', icon: '🙏' },
-    { id: 'culture', title: 'Культура', description: 'Принципы поведения и общения', icon: '🤝' },
-];
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../types/navigation';
 
 export const LibraryHomeScreen = () => {
-    const navigation = useNavigation<any>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const [books, setBooks] = useState<ScriptureBook[]>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         loadBooks();
@@ -22,44 +17,52 @@ export const LibraryHomeScreen = () => {
 
     const loadBooks = async () => {
         try {
+            setLoading(true);
             const data = await libraryService.getBooks();
             setBooks(data);
         } catch (error) {
             console.error('Failed to load books', error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleCategoryPress = (category: any) => {
-        // For now, simplify logic: if category is 'scriptures', show BG.
-        // We will navigate to a BookList screen filtering by category, or just show list.
-        navigation.navigate('BookList', { category: category.id, title: category.title });
+    const handleBookPress = (book: ScriptureBook) => {
+        navigation.navigate('Reader', { bookCode: book.code, title: book.name_ru || book.name_en });
     };
 
-    const handleBookPress = (book: ScriptureBook) => {
-        navigation.navigate('BookReader', { bookCode: book.code, title: book.name_ru || book.name_en });
-    };
+    const renderBookItem = ({ item }: { item: ScriptureBook }) => (
+        <TouchableOpacity
+            style={styles.card}
+            onPress={() => handleBookPress(item)}
+        >
+            <View style={styles.iconContainer}>
+                <Text style={{ fontSize: 30 }}>📚</Text>
+            </View>
+            <View style={styles.textContainer}>
+                <Text style={styles.cardTitle}>{item.name_ru || item.name_en}</Text>
+                <Text style={styles.cardDescription} numberOfLines={3}>{item.description_ru || item.description_en}</Text>
+            </View>
+        </TouchableOpacity>
+    );
+
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.center]}>
+                <ActivityIndicator size="large" color="#D67D3E" />
+            </View>
+        );
+    }
 
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.categories}>
-                {CATEGORIES.map((cat) => (
-                    <TouchableOpacity
-                        key={cat.id}
-                        style={styles.card}
-                        onPress={() => handleCategoryPress(cat)}
-                    >
-                        <View style={styles.iconContainer}>
-                            <Text style={{ fontSize: 30 }}>{cat.icon}</Text>
-                        </View>
-                        <View style={styles.textContainer}>
-                            <Text style={styles.categoryLabel}>{cat.title.toUpperCase()}</Text>
-                            <Text style={styles.cardTitle}>{cat.title === 'Священные писания' ? 'Бхагавад-гита как она есть' : cat.title === 'Пураны' ? 'Шримад-Бхагаватам' : cat.title}</Text>
-                            <Text style={styles.cardDescription} numberOfLines={3}>{cat.description}</Text>
-                        </View>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        </ScrollView>
+        <View style={styles.container}>
+            <FlatList<ScriptureBook>
+                data={books}
+                renderItem={renderBookItem}
+                keyExtractor={(item: ScriptureBook) => item.code}
+                contentContainerStyle={styles.list}
+            />
+        </View>
     );
 };
 
@@ -68,21 +71,11 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F8F9FA', // Light background
     },
-    header: {
-        padding: 20,
-        paddingTop: 40,
+    center: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#1A1A1A',
-        marginBottom: 8,
-    },
-    headerSubtitle: {
-        fontSize: 14,
-        color: '#666',
-    },
-    categories: {
+    list: {
         padding: 16,
     },
     card: {
@@ -112,12 +105,6 @@ const styles = StyleSheet.create({
     },
     textContainer: {
         flex: 1,
-    },
-    categoryLabel: {
-        fontSize: 12,
-        color: '#BCAAA4', // Muted brownish
-        fontWeight: 'bold',
-        marginBottom: 4,
     },
     cardTitle: {
         fontSize: 16,

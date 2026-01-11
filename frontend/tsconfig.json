@@ -1,9 +1,14 @@
 {
   "extends": "./node_modules/@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "skipLibCheck": true,
     "types": [
-      "jest"
+      "jest",
+      "react-native"
     ],
     "jsx": "react-native"
   }

@@ -427,7 +427,7 @@ export const DatingScreen = () => {
                             {/* Gradient Overlay for Top Indicators */}
                             <LinearGradient
                                 colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0)']}
-                                style={styles.topGradient}
+                                style={styles.topGradient as any}
                             />
 
                             {/* Favorite Button - Top Right Corner */}
@@ -492,11 +492,39 @@ export const DatingScreen = () => {
                     )}
                 </View>
                 <View style={styles.cardInfo}>
-                    <Text style={[styles.name, { color: theme.text }]}>
-                        {item.spiritualName || 'Devotee'}
-                        {mode === 'family' && item.age ? `, ${item.age}` : ''}
-                    </Text>
-                    <Text style={[styles.city, { color: theme.subText }]}>{item.city}</Text>
+                    {/* Header row: Name + Action icons */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.name, { color: theme.text }]}>
+                                {item.spiritualName || 'Devotee'}
+                                {mode === 'family' && item.age ? `, ${item.age}` : ''}
+                            </Text>
+                            <Text style={[styles.city, { color: theme.subText }]}>{item.city}</Text>
+                        </View>
+
+                        {/* Share + Favorite icons */}
+                        {!isPreview && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <TouchableOpacity
+                                    style={{ padding: 8 }}
+                                    onPress={handleShare}
+                                >
+                                    <Text style={{ fontSize: 20 }}>📤</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={{ padding: 8 }}
+                                    onPress={handleToggleFavorite}
+                                    disabled={favoritingInProgress}
+                                >
+                                    <Text style={{ fontSize: 20 }}>{isFavorited ? '❤️' : '🤍'}</Text>
+                                </TouchableOpacity>
+                                {likesCount > 0 && (
+                                    <Text style={{ fontSize: 11, color: theme.subText }}>{likesCount}</Text>
+                                )}
+                            </View>
+                        )}
+                    </View>
 
                     {mode === 'business' ? (
                         <View style={{ marginTop: 5 }}>
@@ -545,6 +573,7 @@ export const DatingScreen = () => {
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
+                        style={{ flex: 1 }}
                         contentContainerStyle={{ alignItems: 'center', paddingVertical: 10, paddingHorizontal: 5 }}
                     >
                         <TouchableOpacity
@@ -686,7 +715,7 @@ export const DatingScreen = () => {
                         <Text style={{ color: theme.subText }}>{t('dating.joinPrompt')}</Text>
                     </View>
                 ) : (
-                    <FlatList
+                    <FlatList<Profile>
                         data={candidates}
                         keyExtractor={(item) => item.ID.toString()}
                         renderItem={({ item }) => <DatingCard item={item} />}
@@ -1249,11 +1278,19 @@ const styles = StyleSheet.create({
         marginTop: 15,
         flexDirection: 'row',
         justifyContent: 'flex-end',
+        alignItems: 'center',
     },
     actionBtn: {
-        paddingVertical: 10,
+        paddingVertical: 12,
         paddingHorizontal: 20,
         borderRadius: 25,
+    },
+    actionBtnIcon: {
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: 44,
     },
     modeChip: {
         flexDirection: 'row',

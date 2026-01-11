@@ -77,11 +77,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const login = async (profile: UserProfile, token?: string) => {
-        setUser(profile);
-        await AsyncStorage.setItem('user', JSON.stringify(profile));
+        // IMPORTANT: Store token BEFORE setting user state
+        // This prevents race conditions where effects (like heartbeat) fire
+        // before the token is available in AsyncStorage
         if (token) {
             await AsyncStorage.setItem('token', token);
         }
+        await AsyncStorage.setItem('user', JSON.stringify(profile));
+        // Set user state last - this triggers effects that may need the token
+        setUser(profile);
     };
 
     const logout = async () => {

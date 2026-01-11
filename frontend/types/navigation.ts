@@ -1,4 +1,5 @@
 export type RootStackParamList = {
+    Preview: undefined;
     Ads: undefined;
     CreateAd: { adId?: number } | undefined;
     AdDetail: { adId: number };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
@@ -29,6 +29,7 @@ import { AdDetailScreen } from './screens/portal/ads/AdDetailScreen';
 import { AdsFiltersScreen } from './screens/portal/ads/AdsFiltersScreen';
 import { BookListScreen } from './screens/library/BookListScreen';
 import { ReaderScreen } from './screens/library/ReaderScreen';
+import PreviewScreen from './screens/PreviewScreen';
 
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 
@@ -47,10 +48,15 @@ const ThemedStatusBar = () => {
   );
 };
 
-// Component to handle the main app layout with theme and safe area
 const AppContent = () => {
   const { theme } = useSettings();
   const { isLoggedIn, isLoading } = useUser();
+  const [showPreview, setShowPreview] = useState(true);
+
+  // Show preview only for non-logged-in users
+  if (showPreview && !isLoggedIn && !isLoading) {
+    return <PreviewScreen onFinish={() => setShowPreview(false)} />;
+  }
 
   if (isLoading) {
     return (
