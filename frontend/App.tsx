@@ -32,7 +32,21 @@ import { ReaderScreen } from './screens/library/ReaderScreen';
 import { NewsDetailScreen } from './screens/portal/news/NewsDetailScreen';
 import PreviewScreen from './screens/PreviewScreen';
 
+// Market Routes
+import { MarketHomeScreen } from './screens/portal/shops/MarketHomeScreen';
+import { ShopsScreen } from './screens/portal/shops/ShopsScreen';
+import { CreateShopScreen } from './screens/portal/shops/CreateShopScreen';
+import { SellerDashboardScreen } from './screens/portal/shops/SellerDashboardScreen';
+import { ProductEditScreen } from './screens/portal/shops/ProductEditScreen';
+import { ProductDetailsScreen } from './screens/portal/shops/ProductDetailsScreen';
+import { CheckoutScreen } from './screens/portal/shops/CheckoutScreen';
+import { OrderSuccessScreen } from './screens/portal/shops/OrderSuccessScreen';
+import { MyOrdersScreen } from './screens/portal/shops/MyOrdersScreen';
+import { SellerOrdersScreen } from './screens/portal/shops/SellerOrdersScreen';
+import { ShopsMapScreen } from './screens/portal/shops/ShopsMapScreen';
+
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -50,6 +64,7 @@ const ThemedStatusBar = () => {
 };
 
 const AppContent = () => {
+  const { t } = useTranslation();
   const { theme } = useSettings();
   const { isLoggedIn, isLoading } = useUser();
   const [showPreview, setShowPreview] = useState(true);
@@ -110,6 +125,23 @@ const AppContent = () => {
               <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: 'Чтение' }} />
               <Stack.Screen name="NewsDetail" component={NewsDetailScreen} options={{ headerShown: false }} />
 
+              {/* Market Routes */}
+              <Stack.Screen name="MarketHome" component={MarketHomeScreen} options={{ headerShown: true, title: t('market.title') }} />
+              <Stack.Screen name="Shops" component={ShopsScreen} options={{ headerShown: true, title: t('market.shops') }} />
+              <Stack.Screen name="ShopDetails" component={ShopsScreen} options={{ headerShown: true, title: t('market.shops').slice(0, -1) }} />
+              <Stack.Screen name="CreateShop" component={CreateShopScreen} options={{ headerShown: true, title: t('market.shop.create') }} />
+              <Stack.Screen name="EditShop" component={CreateShopScreen} options={{ headerShown: true, title: t('market.product.edit') }} />
+              <Stack.Screen name="SellerDashboard" component={SellerDashboardScreen} options={{ headerShown: true, title: t('market.myShop') }} />
+              <Stack.Screen name="CreateProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.add') }} />
+              <Stack.Screen name="EditProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.edit') }} />
+              <Stack.Screen name="MyProducts" component={SellerDashboardScreen} options={{ headerShown: true, title: t('market.seller.myProducts') }} />
+              <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} options={{ headerShown: true, title: t('market.title').split(' ')[1] || t('market.title') }} />
+              <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ headerShown: true, title: t('market.total') }} />
+              <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ headerShown: false }} />
+              <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
+              <Stack.Screen name="OrderDetails" component={MyOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
+              <Stack.Screen name="SellerOrders" component={SellerOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
+              <Stack.Screen name="ShopsMap" component={ShopsMapScreen} options={{ headerShown: true, title: t('market.map.title') }} />
 
               <Stack.Screen name="Registration" component={RegistrationScreen} />
             </Stack.Group>

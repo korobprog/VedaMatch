@@ -35,12 +35,35 @@ func Connect() {
 	log.Println("Connected to Database")
 
 	// Auto Migrate
-	err = DB.AutoMigrate(&models.User{}, &models.Friend{}, &models.Message{}, &models.Block{}, &models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{}, &models.SystemSetting{}, &models.DatingFavorite{}, &models.DatingCompatibility{}, &models.AIPrompt{}, &models.Ad{}, &models.AdPhoto{}, &models.AdFavorite{}, &models.AdReport{}, &models.ScriptureBook{}, &models.ScriptureVerse{}, &models.Tag{}, &models.UserTag{}, &models.NewsSource{}, &models.NewsItem{})
+	err = DB.AutoMigrate(
+		// Core models
+		&models.User{}, &models.Friend{}, &models.Message{}, &models.Block{},
+		&models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{},
+		&models.SystemSetting{}, &models.DatingFavorite{}, &models.DatingCompatibility{},
+		&models.AIPrompt{},
+		// Ads models
+		&models.Ad{}, &models.AdPhoto{}, &models.AdFavorite{}, &models.AdReport{},
+		// Library models
+		&models.ScriptureBook{}, &models.ScriptureVerse{},
+		// Tags
+		&models.Tag{}, &models.UserTag{},
+		// News models
+		&models.NewsSource{}, &models.NewsItem{},
+		// Sattva Market models
+		&models.Shop{}, &models.ShopReview{},
+		&models.Product{}, &models.ProductVariant{}, &models.ProductImage{},
+		&models.ProductReview{}, &models.ProductFavorite{},
+		&models.Order{}, &models.OrderItem{},
+		// RAG models
+		&models.Document{}, &models.Chunk{},
+		&models.ChatSession{}, &models.ChatMessage{},
+	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
 	log.Println("Database Migrated")
 	InitializeSuperAdmin()
+	SeedMarket()
 }
 
 func InitializeSuperAdmin() {

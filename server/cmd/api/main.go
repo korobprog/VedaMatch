@@ -71,6 +71,9 @@ func main() {
 	tagHandler := handlers.NewTagHandler()
 	openRouterHandler := handlers.NewOpenRouterHandler()
 	newsHandler := handlers.NewNewsHandler()
+	shopHandler := handlers.NewShopHandler()
+	productHandler := handlers.NewProductHandler()
+	orderHandler := handlers.NewOrderHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -150,6 +153,11 @@ func main() {
 	admin.Post("/openrouter/test-routing", openRouterHandler.TestSmartRouting)
 	admin.Get("/openrouter/recommendations", openRouterHandler.GetModelRecommendations)
 
+	// Admin Shop Management Routes
+	admin.Get("/shops", shopHandler.AdminGetShops)
+	admin.Get("/shops/stats", shopHandler.AdminGetShopStats)
+	admin.Put("/shops/:id/moderate", shopHandler.AdminModerateShop)
+
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
 
@@ -186,6 +194,17 @@ func main() {
 	api.Get("/ads/cities", adsHandler.GetAdCities)
 	api.Get("/ads/stats", adsHandler.GetAdStats)
 	api.Get("/ads/:id", adsHandler.GetAd)
+
+	// Public Shop Routes (Sattva Market)
+	api.Get("/shops", shopHandler.GetShops)
+	api.Get("/shops/categories", shopHandler.GetShopCategories)
+	api.Get("/shops/slug/:slug", shopHandler.GetShopBySlug)
+	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
+
+	// Public Product Routes (Sattva Market)
+	api.Get("/products", productHandler.GetProducts)
+	api.Get("/products/categories", productHandler.GetProductCategories)
+	api.Get("/products/:id/reviews", productHandler.GetProductReviews)
 
 	// Public News Routes
 	api.Get("/news", newsHandler.GetNews)
@@ -288,6 +307,42 @@ func main() {
 	protected.Post("/ads/:id/favorite", adsHandler.ToggleFavorite)
 	protected.Post("/ads/:id/report", adsHandler.ReportAd)
 	protected.Post("/ads/:id/contact", adsHandler.ContactSeller)
+
+	// Shop Routes (Sattva Market - Seller)
+	protected.Post("/shops/upload-logo", shopHandler.UploadShopPhoto)
+	protected.Post("/shops/upload-cover", shopHandler.UploadShopPhoto)
+	protected.Get("/shops/my", shopHandler.GetMyShop)
+	protected.Get("/shops/can-create", shopHandler.CanCreateShop)
+	protected.Post("/shops", shopHandler.CreateShop)
+	protected.Put("/shops/:id", shopHandler.UpdateShop)
+	protected.Get("/shops/seller/stats", shopHandler.GetSellerStats)
+
+	// Product Routes (Sattva Market - Seller)
+	protected.Post("/products/upload-photo", productHandler.UploadProductPhoto)
+	protected.Get("/products/my", productHandler.GetMyProducts)
+	protected.Post("/products", productHandler.CreateProduct)
+	protected.Put("/products/:id", productHandler.UpdateProduct)
+	protected.Delete("/products/:id", productHandler.DeleteProduct)
+	protected.Put("/products/:id/stock", productHandler.UpdateStock)
+	protected.Post("/products/:id/favorite", productHandler.ToggleFavorite)
+	protected.Post("/products/:id/reviews", productHandler.AddReview)
+
+	// Order Routes (Sattva Market - Buyer)
+	protected.Post("/orders", orderHandler.CreateOrder)
+	protected.Get("/orders/my", orderHandler.GetMyOrders)
+	protected.Get("/orders/:id", orderHandler.GetOrder)
+	protected.Post("/orders/:id/cancel", orderHandler.CancelOrder)
+
+	// Order Routes (Sattva Market - Seller)
+	protected.Get("/orders/seller", orderHandler.GetSellerOrders)
+	protected.Put("/orders/:id/status", orderHandler.UpdateOrderStatus)
+	protected.Get("/orders/:id/contact-buyer", orderHandler.ContactBuyer)
+
+	// Public Shop Routes (Wildcards) - Moved here to avoid conflicts with /shops/my
+	api.Get("/shops/:id", shopHandler.GetShop)
+
+	// Public Product Routes (Wildcards)
+	api.Get("/products/:id", productHandler.GetProduct)
 
 	// Static files for avatars
 	app.Static("/uploads", "./uploads")

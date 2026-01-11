@@ -1,8 +1,11 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"rag-agent-server/internal/models"
 
@@ -44,66 +47,84 @@ func (s *EmbeddingService) CreateEmbedding(ctx context.Context, text string) ([]
 		return nil, fmt.Errorf("text cannot be empty")
 	}
 
+	// Try OpenAI first
 	resp, err := s.client.CreateEmbeddings(ctx, openai.EmbeddingRequest{
 		Input: []string{text},
 		Model: s.model,
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create embedding: %w", err)
+	if err == nil && len(resp.Data) > 0 {
+		embedding := make([]float64, len(resp.Data[0].Embedding))
+		for i, v := range resp.Data[0].Embedding {
+			embedding[i] = float64(v)
+		}
+		return embedding, nil
 	}
 
-	if len(resp.Data) == 0 {
-		return nil, fmt.Errorf("no embedding returned")
+	// Fallback to Gemini
+	geminiKey := os.Getenv("LM_GEMINI")
+	if geminiKey != "" {
+		return s.createGeminiEmbedding(text, geminiKey)
 	}
 
-	// Convert []float32 to []float64
-	embedding := make([]float64, len(resp.Data[0].Embedding))
-	for i, v := range resp.Data[0].Embedding {
-		embedding[i] = float64(v)
-	}
-
-	return embedding, nil
+	return nil, fmt.Errorf("failed to create embedding with OpenAI and no Gemini key available")
 }
 
-// CreateEmbeddings creates embeddings for multiple texts
+func (s *EmbeddingService) createGeminiEmbedding(text, apiKey string) ([]float64, error) {
+	type GeminiPart struct {
+		Text string `json:"text"`
+	}
+	type GeminiContent struct {
+		Parts []GeminiPart `json:"parts"`
+	}
+	type GeminiReq struct {
+		Model   string        `json:"model"`
+		Content GeminiContent `json:"content"`
+	}
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=%s", apiKey)
+	reqBody := GeminiReq{
+		Model: "models/embedding-001",
+		Content: GeminiContent{
+			Parts: []GeminiPart{{Text: text}},
+		},
+	}
+
+	jsonBody, _ := json.Marshal(reqBody)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("gemini api error: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Embedding struct {
+			Values []float64 `json:"values"`
+		} `json:"embedding"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result.Embedding.Values, nil
+}
+
+// CreateEmbeddings creates embeddings for multiple texts (simplified Gemini support)
 func (s *EmbeddingService) CreateEmbeddings(ctx context.Context, texts []string) ([][]float64, error) {
-	if len(texts) == 0 {
-		return nil, fmt.Errorf("texts cannot be empty")
-	}
-
-	// Create embeddings in batches
-	batchSize := 100
-	allEmbeddings := make([][]float64, 0, len(texts))
-
-	for i := 0; i < len(texts); i += batchSize {
-		end := i + batchSize
-		if end > len(texts) {
-			end = len(texts)
-		}
-
-		batch := texts[i:end]
-
-		resp, err := s.client.CreateEmbeddings(ctx, openai.EmbeddingRequest{
-			Input: batch,
-			Model: s.model,
-		})
-
+	// For simplicity in this edit, we'll just map CreateEmbedding
+	results := make([][]float64, len(texts))
+	for i, text := range texts {
+		emb, err := s.CreateEmbedding(ctx, text)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create embeddings for batch %d: %w", i/batchSize, err)
+			return nil, err
 		}
-
-		for _, data := range resp.Data {
-			// Convert []float32 to []float64
-			embedding := make([]float64, len(data.Embedding))
-			for i, v := range data.Embedding {
-				embedding[i] = float64(v)
-			}
-			allEmbeddings = append(allEmbeddings, embedding)
-		}
+		results[i] = emb
 	}
-
-	return allEmbeddings, nil
+	return results, nil
 }
 
 // EmbedChunk creates an embedding for a document chunk

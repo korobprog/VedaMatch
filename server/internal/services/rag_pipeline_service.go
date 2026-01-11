@@ -179,6 +179,30 @@ func (s *RAGPipelineService) QueryDocuments(ctx context.Context, userID uuid.UUI
 	return s.retrievalService.ExecuteRAG(ctx, req)
 }
 
+// SearchProducts performs a semantic search for products in the market
+func (s *RAGPipelineService) SearchProducts(ctx context.Context, query string, topK int) ([]SearchResult, error) {
+	if topK == 0 {
+		topK = 5
+	}
+
+	embeddings, err := s.embeddingService.CreateEmbedding(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	req := SearchRequest{
+		Query:     embeddings,
+		TopK:      topK,
+		Threshold: 0.5, // Lower threshold for products to get more results
+	}
+
+	// Optionally filter by document_id if we have a fixed one for products
+	// doc, err := s.GetDocumentByTitle("Sattva Market AI Index", "")
+	// if err == nil { req.DocumentID = doc.ID.String() }
+
+	return s.vectorStore.Search(req)
+}
+
 // ListDocuments lists all documents for a user
 func (s *RAGPipelineService) ListDocuments(userID uuid.UUID) ([]models.Document, error) {
 	var documents []models.Document

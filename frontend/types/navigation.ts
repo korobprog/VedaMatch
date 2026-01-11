@@ -1,3 +1,5 @@
+import { CartItem } from './market';
+
 export type RootStackParamList = {
     Preview: undefined;
     Ads: undefined;
@@ -15,8 +17,27 @@ export type RootStackParamList = {
     MediaLibrary: { userId: number; readOnly?: boolean };
     EditDatingProfile: { userId: number };
     DatingFavorites: undefined;
-    Chat: undefined;
+    Chat: { userId?: number; name?: string } | undefined;
     BookList: { category: string; title: string };
     Reader: { bookCode: string; title: string };
     NewsDetail: { newsId: number };
+
+    // Market Routes
+    MarketHome: undefined;
+    Shops: undefined;
+    ShopDetails: { shopId: number };
+    CreateShop: undefined;
+    EditShop: { shopId: number };
+    SellerDashboard: undefined;
+    CreateProduct: undefined;
+    EditProduct: { productId: number };
+    MyProducts: undefined;
+    ProductDetails: { productId: number };
+    Checkout: { items?: CartItem[]; shopId?: number } | undefined;
+    OrderSuccess: { orderId: number; orderNumber: string };
+    MyOrders: undefined;
+    OrderDetails: { orderId: number };
+    SellerOrders: undefined;
+    ShopsMap: undefined;
+    Messages: undefined;
 };

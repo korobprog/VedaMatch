@@ -16,7 +16,8 @@ import (
 )
 
 type AiChatService struct {
-	apiURL string
+	apiURL     string
+	ragService *RAGPipelineService
 }
 
 func NewAiChatService() *AiChatService {
@@ -26,7 +27,8 @@ func NewAiChatService() *AiChatService {
 	}
 
 	return &AiChatService{
-		apiURL: apiURL,
+		apiURL:     apiURL,
+		ragService: NewRAGPipelineService(database.DB),
 	}
 }
 
@@ -244,6 +246,33 @@ func (s *AiChatService) GenerateReply(room models.Room, lastMessages []models.Me
 
 	// Add system prompt
 	systemPrompt := fmt.Sprintf("You are an AI assistant in the chat room '%s'. %s. Be helpful and concise.", room.Name, room.Description)
+
+	// Detect shopping intent and add product context if necessary
+	lastUserMsg := ""
+	if len(lastMessages) > 0 {
+		lastUserMsg = lastMessages[len(lastMessages)-1].Content
+	}
+
+	shoppingKeywords := []string{"купить", "цена", "товар", "магазин", "есть ли", "заказать", "прайс", "buy", "price", "product", "shop", "stock"}
+	isShoppingQuery := false
+	for _, kw := range shoppingKeywords {
+		if strings.Contains(strings.ToLower(lastUserMsg), kw) {
+			isShoppingQuery = true
+			break
+		}
+	}
+
+	if isShoppingQuery {
+		products, err := s.ragService.SearchProducts(context.Background(), lastUserMsg, 3)
+		if err == nil && len(products) > 0 {
+			marketContext := "Найденные товары в Sattva Market:\n"
+			for _, p := range products {
+				marketContext += fmt.Sprintf("- %s\n", p.Chunk.Content)
+			}
+			systemPrompt += "\n\n" + marketContext + "\nИспользуй эту информацию, чтобы помочь пользователю с покупкой. Если нужного товара нет, предложи посмотреть категории в Sattva Market."
+		}
+	}
+
 	messages = append(messages, map[string]string{"role": "system", "content": systemPrompt})
 
 	// Add context from last messages
@@ -298,8 +327,30 @@ func (s *AiChatService) GetSummary(roomName string, lastMessages []models.Messag
 }
 
 func (s *AiChatService) GenerateSimpleResponse(prompt string) (string, error) {
+	// Add search context if related to products
+	shoppingKeywords := []string{"купить", "цена", "товар", "магазин", "есть ли", "заказать", "прайс", "buy", "price", "product", "shop", "stock"}
+	isShoppingQuery := false
+	for _, kw := range shoppingKeywords {
+		if strings.Contains(strings.ToLower(prompt), kw) {
+			isShoppingQuery = true
+			break
+		}
+	}
+
+	finalPrompt := prompt
+	if isShoppingQuery {
+		products, err := s.ragService.SearchProducts(context.Background(), prompt, 3)
+		if err == nil && len(products) > 0 {
+			marketContext := "\n\nИнформацию о товарах в Sattva Market для справки:\n"
+			for _, p := range products {
+				marketContext += fmt.Sprintf("- %s\n", p.Chunk.Content)
+			}
+			finalPrompt = "Учитывая информацию о товарах маркетплейса:\n" + marketContext + "\nОтветь на вопрос пользователя: " + prompt
+		}
+	}
+
 	messages := []map[string]string{
-		{"role": "user", "content": prompt},
+		{"role": "user", "content": finalPrompt},
 	}
 
 	// User requested Gemini-first (LM gemini)

@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ContactsScreen } from './contacts/ContactsScreen';
 import { PortalChatScreen } from './chat/PortalChatScreen';
-import { ShopsScreen } from './shops/ShopsScreen';
+import { MarketHomeScreen } from './shops/MarketHomeScreen';
 import { AdsScreen } from './ads/AdsScreen';
 import { NewsScreen } from './news/NewsScreen';
 import { DatingScreen } from './dating/DatingScreen';
@@ -59,7 +59,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             case 'contacts': return <ContactsScreen />;
             case 'chat': return <PortalChatScreen />;
             case 'dating': return <DatingScreen />;
-            case 'shops': return <ShopsScreen />;
+            case 'shops': return <MarketHomeScreen />;
             case 'ads': return <AdsScreen />;
             case 'library': return <LibraryHomeScreen />;
             case 'news': return <NewsScreen />;

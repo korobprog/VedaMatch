@@ -1,0 +1,27 @@
+{
+  "track_id": "sattva_market_20260111",
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-01-11T12:00:00Z",
+  "updated_at": "2026-01-11T20:55:00Z",
+  "description": "Создание полноценного маркетплейса Sattva Market с интеграцией магазинов, товаров, мессенджера, карт и AI-поиска.",
+  "progress": {
+    "phase1_backend_core": "completed",
+    "phase2_seller_frontend": "pending",
+    "phase3_buyer_frontend": "partial",
+    "phase4_geo_maps": "partial",
+    "phase5_ai_integration": "pending",
+    "phase6_polish": "pending"
+  },
+  "files_created": [
+    "server/internal/models/shop.go",
+    "server/internal/models/product.go",
+    "server/internal/models/order.go",
+    "server/internal/services/shop_service.go",
+    "server/internal/services/product_service.go",
+    "server/internal/services/order_service.go",
+    "server/internal/handlers/shop_handler.go",
+    "server/internal/handlers/product_handler.go",
+    "server/internal/handlers/order_handler.go"
+  ]
+}

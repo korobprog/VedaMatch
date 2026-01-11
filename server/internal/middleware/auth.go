@@ -63,6 +63,13 @@ func Protected() fiber.Handler {
 		// Store userId in context
 		c.Locals("userId", userId)
 
+		// Store userRole in context (if present in token)
+		if role, ok := claims["role"].(string); ok {
+			c.Locals("userRole", role)
+		} else {
+			c.Locals("userRole", "user") // Default role
+		}
+
 		return c.Next()
 	}
 }
@@ -83,4 +90,16 @@ func GetUserID(c *fiber.Ctx) uint {
 	default:
 		return 0
 	}
+}
+
+// GetUserRole extracts userRole from context
+func GetUserRole(c *fiber.Ctx) string {
+	role := c.Locals("userRole")
+	if role == nil {
+		return "user"
+	}
+	if r, ok := role.(string); ok {
+		return r
+	}
+	return "user"
 }
