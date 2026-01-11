@@ -29,6 +29,7 @@ import { AdDetailScreen } from './screens/portal/ads/AdDetailScreen';
 import { AdsFiltersScreen } from './screens/portal/ads/AdsFiltersScreen';
 import { BookListScreen } from './screens/library/BookListScreen';
 import { ReaderScreen } from './screens/library/ReaderScreen';
+import { NewsDetailScreen } from './screens/portal/news/NewsDetailScreen';
 import PreviewScreen from './screens/PreviewScreen';
 
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
@@ -107,6 +108,7 @@ const AppContent = () => {
               {/* Library Routes */}
               <Stack.Screen name="BookList" component={BookListScreen} options={{ headerShown: true, title: 'Книги' }} />
               <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: 'Чтение' }} />
+              <Stack.Screen name="NewsDetail" component={NewsDetailScreen} options={{ headerShown: false }} />
 
 
               <Stack.Screen name="Registration" component={RegistrationScreen} />

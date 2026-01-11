@@ -637,3 +637,90 @@ export default {
     *   Настроены `packagingOptions` для корректной упаковки .so файлов
     *   Исключен `com.facebook.yoga:proguard-annotations` (падает из react-native 0.76)
 
+Авторизация:
+ВКонтакте
+для проджект весрии
+<div>
+  <script nonce="csp_nonce" src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"></script>
+  <script nonce="csp_nonce" type="text/javascript">
+    if ('VKIDSDK' in window) {
+      const VKID = window.VKIDSDK;
+
+      VKID.Config.init({
+        app: 54418465,
+        redirectUrl: 'https://api.vedamatch.ru/auth/vk/callback',
+        responseMode: VKID.ConfigResponseMode.Callback,
+        source: VKID.ConfigSource.LOWCODE,
+        scope: '', // Заполните нужными доступами по необходимости
+      });
+
+      const oneTap = new VKID.OneTap();
+
+      oneTap.render({
+        container: document.currentScript.parentElement,
+        showAlternativeLogin: true
+      })
+      .on(VKID.WidgetEvents.ERROR, vkidOnError)
+      .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, function (payload) {
+        const code = payload.code;
+        const deviceId = payload.device_id;
+
+        VKID.Auth.exchangeCode(code, deviceId)
+          .then(vkidOnSuccess)
+          .catch(vkidOnError);
+      });
+    
+      function vkidOnSuccess(data) {
+        // Обработка полученного результата
+      }
+    
+      function vkidOnError(error) {
+        // Обработка ошибки
+      }
+    }
+  </script>
+</div>
+для DEV версии 
+
+<div>
+  <script nonce="csp_nonce" src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"></script>
+  <script nonce="csp_nonce" type="text/javascript">
+    if ('VKIDSDK' in window) {
+      const VKID = window.VKIDSDK;
+
+      VKID.Config.init({
+        app: 54418465,
+        redirectUrl: 'http://localhost',
+        responseMode: VKID.ConfigResponseMode.Callback,
+        source: VKID.ConfigSource.LOWCODE,
+        scope: '', // Заполните нужными доступами по необходимости
+      });
+
+      const floatingOneTap = new VKID.FloatingOneTap();
+
+      floatingOneTap.render({
+        appName: 'VedamatchAI',
+        showAlternativeLogin: true
+      })
+      .on(VKID.WidgetEvents.ERROR, vkidOnError)
+      .on(VKID.FloatingOneTapInternalEvents.LOGIN_SUCCESS, function (payload) {
+        const code = payload.code;
+        const deviceId = payload.device_id;
+
+        VKID.Auth.exchangeCode(code, deviceId)
+          .then(vkidOnSuccess)
+          .catch(vkidOnError);
+      });
+    
+      function vkidOnSuccess(data) {
+        floatingOneTap.close();
+        
+        // Обработка полученного результата
+      }
+    
+      function vkidOnError(error) {
+        // Обработка ошибки
+      }
+    }
+  </script>
+</div>

@@ -18,7 +18,8 @@ import {
     MessageSquare,
     Key,
     ShoppingBag,
-    Route
+    Route,
+    Newspaper
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,6 +28,7 @@ const menuItems = [
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Heart, label: 'Dating', path: '/dating' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
+    { icon: Newspaper, label: 'News', path: '/news' },
     { icon: Sparkles, label: 'AI Models', path: '/ai-models' },
     { icon: Route, label: 'OpenRouter', path: '/openrouter' },
     { icon: Key, label: 'Gemini Keys', path: '/gemini-keys' },

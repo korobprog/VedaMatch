@@ -40,6 +40,9 @@ func main() {
 	// Initialize Services
 	services.InitScheduler()
 
+	// Start News Scheduler (background job for fetching news from sources)
+	services.StartNewsScheduler()
+
 	// Initialize Fiber App
 	app := fiber.New()
 
@@ -67,6 +70,7 @@ func main() {
 	adsHandler := handlers.NewAdsHandler()
 	tagHandler := handlers.NewTagHandler()
 	openRouterHandler := handlers.NewOpenRouterHandler()
+	newsHandler := handlers.NewNewsHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -119,6 +123,24 @@ func main() {
 	admin.Put("/ads/:id", adsHandler.AdminUpdateAd)
 	admin.Delete("/ads/:id", adsHandler.AdminDeleteAd)
 
+	// Admin News Management Routes
+	// IMPORTANT: Specific routes MUST come before parameterized routes (:id)
+	admin.Get("/news", newsHandler.GetAdminNews)
+	admin.Get("/news/stats", newsHandler.GetNewsStats)
+	admin.Get("/news/sources", newsHandler.GetSources)
+	admin.Post("/news/sources", newsHandler.CreateSource)
+	admin.Get("/news/sources/:id", newsHandler.GetSource)
+	admin.Put("/news/sources/:id", newsHandler.UpdateSource)
+	admin.Delete("/news/sources/:id", newsHandler.DeleteSource)
+	admin.Post("/news/sources/:id/toggle", newsHandler.ToggleSourceActive)
+	admin.Post("/news/sources/:id/fetch", newsHandler.FetchSourceNow)
+	admin.Get("/news/:id", newsHandler.GetAdminNewsItem)
+	admin.Post("/news", newsHandler.CreateNews)
+	admin.Put("/news/:id", newsHandler.UpdateNews)
+	admin.Delete("/news/:id", newsHandler.DeleteNews)
+	admin.Post("/news/:id/publish", newsHandler.PublishNews)
+	admin.Post("/news/:id/process", newsHandler.ProcessNewsAI)
+
 	// OpenRouter Management Routes
 	admin.Get("/openrouter/status", openRouterHandler.GetStatus)
 	admin.Get("/openrouter/models", openRouterHandler.GetModels)
@@ -164,6 +186,12 @@ func main() {
 	api.Get("/ads/cities", adsHandler.GetAdCities)
 	api.Get("/ads/stats", adsHandler.GetAdStats)
 	api.Get("/ads/:id", adsHandler.GetAd)
+
+	// Public News Routes
+	api.Get("/news", newsHandler.GetNews)
+	api.Get("/news/latest", newsHandler.GetLatestNews)
+	api.Get("/news/categories", newsHandler.GetNewsCategories)
+	api.Get("/news/:id", newsHandler.GetNewsItem)
 
 	// Library Routes
 	library := api.Group("/library")

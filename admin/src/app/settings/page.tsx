@@ -18,7 +18,9 @@ import {
     Loader2,
     Route,
     Zap,
-    Brain
+    Brain,
+    MessageCircle,
+    Newspaper
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -41,6 +43,11 @@ export default function SettingsPage() {
         OPENROUTER_WORKER_URL: '',
         OPENROUTER_FAST_MODEL: 'deepseek/deepseek-chat',
         OPENROUTER_REASONING_MODEL: 'deepseek/deepseek-r1',
+        // News Integration
+        VK_API_TOKEN: '',
+        VK_API_VERSION: '5.199',
+        TELEGRAM_BOT_TOKEN: '',
+        FCM_SERVER_KEY: '',
     });
 
     useEffect(() => {
@@ -119,6 +126,7 @@ export default function SettingsPage() {
     const tabs = [
         { label: 'Profile', icon: Shield },
         { label: 'AI & API', icon: Cpu },
+        { label: 'News Integration', icon: Newspaper },
         { label: 'Notifications', icon: Bell },
         { label: 'Appearance', icon: Sun },
         { label: 'System', icon: SettingsIcon },
@@ -380,6 +388,120 @@ export default function SettingsPage() {
                                                 <option value="glm-4.6:free">GLM 4.6 (Free)</option>
                                             </optgroup>
                                         </select>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        {activeTab === 'News Integration' && (
+                            <section className="space-y-6">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <Newspaper className="w-5 h-5 text-blue-500" /> News Feed Integration
+                                </h2>
+                                <p className="text-sm text-[var(--muted-foreground)]">
+                                    Configure API keys for VK and Telegram news sources. These keys allow automatic parsing of posts from public groups and channels.
+                                </p>
+
+                                <div className="space-y-4">
+                                    {/* VK API Section */}
+                                    <div className="p-4 bg-gradient-to-r from-blue-500/10 to-sky-500/10 rounded-2xl border border-blue-500/20 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
+                                                <span className="text-white text-xs font-bold">VK</span>
+                                            </div>
+                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">VKontakte API</label>
+                                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold">PUBLIC GROUPS</span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Service Access Token</label>
+                                            <input
+                                                type="password"
+                                                value={settings.VK_API_TOKEN || ''}
+                                                onChange={(e) => setSettings({ ...settings, VK_API_TOKEN: e.target.value })}
+                                                placeholder="Enter VK Service Access Token"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">API Version</label>
+                                            <input
+                                                type="text"
+                                                value={settings.VK_API_VERSION || '5.199'}
+                                                onChange={(e) => setSettings({ ...settings, VK_API_VERSION: e.target.value })}
+                                                placeholder="5.199"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2 px-4 text-xs outline-none focus:ring-2 focus:ring-blue-500/20 font-mono"
+                                            />
+                                        </div>
+
+                                        <p className="text-[10px] text-[var(--muted-foreground)] italic">
+                                            Get your token from <a href="https://vk.com/dev" target="_blank" rel="noopener" className="text-blue-400 hover:underline">VK Developers</a> → My Apps → Create App → Service Token.
+                                        </p>
+                                    </div>
+
+                                    {/* Telegram Bot API Section */}
+                                    <div className="p-4 bg-gradient-to-r from-sky-500/10 to-cyan-500/10 rounded-2xl border border-sky-500/20 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <MessageCircle className="w-5 h-5 text-sky-500" />
+                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Telegram Bot API</label>
+                                            <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded font-bold">PUBLIC CHANNELS</span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Bot Token</label>
+                                            <input
+                                                type="password"
+                                                value={settings.TELEGRAM_BOT_TOKEN || ''}
+                                                onChange={(e) => setSettings({ ...settings, TELEGRAM_BOT_TOKEN: e.target.value })}
+                                                placeholder="Enter Telegram Bot Token (from @BotFather)"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-sky-500/20"
+                                            />
+                                        </div>
+
+                                        <p className="text-[10px] text-[var(--muted-foreground)] italic">
+                                            Create a bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener" className="text-sky-400 hover:underline">@BotFather</a> and add it to your channels as admin.
+                                        </p>
+                                    </div>
+
+                                    {/* Push Notifications Section */}
+                                    <div className="p-4 bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-2xl border border-orange-500/20 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Bell className="w-5 h-5 text-orange-500" />
+                                            <label className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Push Notifications</label>
+                                            <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded font-bold">FCM</span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Firebase Cloud Messaging Server Key</label>
+                                            <input
+                                                type="password"
+                                                value={settings.FCM_SERVER_KEY || ''}
+                                                onChange={(e) => setSettings({ ...settings, FCM_SERVER_KEY: e.target.value })}
+                                                placeholder="Enter FCM Server Key"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-orange-500/20"
+                                            />
+                                        </div>
+
+                                        <p className="text-[10px] text-[var(--muted-foreground)] italic">
+                                            Used for sending push notifications when important news is published. Get from Firebase Console → Project Settings → Cloud Messaging.
+                                        </p>
+                                    </div>
+
+                                    {/* Info Box */}
+                                    <div className="p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                                        <div className="flex items-start gap-3">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-sm font-semibold text-emerald-600">How it works</p>
+                                                <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                                    1. Add API keys above and save<br />
+                                                    2. Go to News → Sources and add VK groups or Telegram channels<br />
+                                                    3. The system will automatically fetch new posts every 5 minutes<br />
+                                                    4. Posts are processed by AI for summarization and translation
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </section>

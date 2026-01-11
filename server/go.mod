@@ -13,8 +13,10 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/sashabaranov/go-openai v1.41.2
+	github.com/stretchr/testify v1.10.0
 	github.com/unidoc/unipdf/v3 v3.69.0
 	golang.org/x/crypto v0.33.0
+	golang.org/x/net v0.35.0
 	gorm.io/driver/postgres v1.5.4
 	gorm.io/gorm v1.25.5
 )
@@ -47,7 +49,6 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/savsgio/gotils v0.0.0-20230208104028-c358bd845dee // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/unidoc/freetype v0.2.3 // indirect
 	github.com/unidoc/pkcs7 v0.2.0 // indirect
 	github.com/unidoc/timestamp v0.0.0-20200412005513-91597fd3793a // indirect
@@ -56,7 +57,6 @@ require (
 	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/image v0.25.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect

@@ -70,7 +70,40 @@ func (h *MessageHandler) handleAiResponse(roomID uint) {
 		lastMessages[i], lastMessages[j] = lastMessages[j], lastMessages[i]
 	}
 
-	reply, err := h.aiService.GenerateReply(room, lastMessages)
+	var reply string
+	var err error
+
+	// Check if the last message is asking about news
+	if len(lastMessages) > 0 {
+		lastUserMsg := lastMessages[len(lastMessages)-1].Content
+
+		if services.IsNewsQuery(lastUserMsg) {
+			// User is asking about news
+			log.Printf("[AI] Detected news query: %s", lastUserMsg)
+
+			// Check if it's a specific search or general query
+			searchQuery := services.ExtractNewsSearchQuery(lastUserMsg)
+			if searchQuery != "" {
+				// Specific search
+				reply, err = services.GetNewsAIService().SearchAndSummarizeNews(searchQuery, "ru")
+			} else {
+				// General "what's new" query
+				reply, err = services.GetNewsAIService().GetLatestNewsSummary("ru", 5)
+			}
+
+			if err != nil {
+				log.Printf("[AI] News query error: %v", err)
+				// Fall back to regular AI response
+				reply, err = h.aiService.GenerateReply(room, lastMessages)
+			}
+		} else {
+			// Regular AI response
+			reply, err = h.aiService.GenerateReply(room, lastMessages)
+		}
+	} else {
+		reply, err = h.aiService.GenerateReply(room, lastMessages)
+	}
+
 	if err != nil {
 		log.Printf("AI Reply Error: %v", err)
 		return

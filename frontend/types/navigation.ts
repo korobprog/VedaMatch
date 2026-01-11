@@ -18,4 +18,5 @@ export type RootStackParamList = {
     Chat: undefined;
     BookList: { category: string; title: string };
     Reader: { bookCode: string; title: string };
+    NewsDetail: { newsId: number };
 };

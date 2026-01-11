@@ -6,7 +6,7 @@ const getBaseURL = (): string => {
     if (process.env.NEXT_PUBLIC_API_URL) {
         return process.env.NEXT_PUBLIC_API_URL;
     }
-    
+
     // Если мы в браузере, определяем URL на основе текущего домена
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
@@ -21,7 +21,7 @@ const getBaseURL = (): string => {
         // Для других случаев (например, staging) можно использовать тот же домен
         return `https://api.${hostname}/api`;
     }
-    
+
     // Fallback для SSR
     return 'http://localhost:8081/api';
 };
@@ -36,9 +36,11 @@ api.interceptors.request.use((config) => {
         const adminData = localStorage.getItem('admin_data');
         if (adminData) {
             const parsed = JSON.parse(adminData);
-            // For now we just send the user id in a header since we don't have JWT yet
-            // But we will use this to identify the admin
-            config.headers['X-Admin-ID'] = parsed.id;
+            // GORM returns ID with capital letters, so check both
+            const adminId = parsed.ID || parsed.id;
+            if (adminId) {
+                config.headers['X-Admin-ID'] = adminId;
+            }
         }
     }
     return config;
