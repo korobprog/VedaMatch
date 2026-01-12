@@ -13,6 +13,12 @@ import (
 func Protected() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		tokenString := c.Get("Authorization")
+
+		// Fallback to query parameter (e.g., for WebSockets)
+		if tokenString == "" {
+			tokenString = c.Query("token")
+		}
+
 		if tokenString == "" {
 			log.Println("[Auth] Missing authorization header")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{

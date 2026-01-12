@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
+import { getAuthHeaders } from './contactService';
 
 export interface NewsItem {
     id: number;
@@ -43,8 +44,10 @@ class NewsService {
      */
     async getNews(filters?: NewsFilters): Promise<NewsListResponse> {
         try {
+            const headers = await getAuthHeaders();
             const response = await axios.get(`${API_PATH}/news`, {
-                params: filters
+                params: filters,
+                headers
             });
             return response.data;
         } catch (error) {
@@ -95,6 +98,76 @@ class NewsService {
             throw error;
         }
     }
+
+    // ==================== SUBSCRIPTIONS & FAVORITES ====================
+
+    async subscribe(sourceId: number): Promise<boolean> {
+        try {
+            const headers = await getAuthHeaders();
+            await axios.post(`${API_PATH}/news/sources/${sourceId}/subscribe`, {}, { headers });
+            return true;
+        } catch (error) {
+            console.error('Error subscribing:', error);
+            return false;
+        }
+    }
+
+    async unsubscribe(sourceId: number): Promise<boolean> {
+        try {
+            const headers = await getAuthHeaders();
+            await axios.delete(`${API_PATH}/news/sources/${sourceId}/subscribe`, { headers });
+            return true;
+        } catch (error) {
+            console.error('Error unsubscribing:', error);
+            return false;
+        }
+    }
+
+    async getSubscriptions(): Promise<number[]> {
+        try {
+            const headers = await getAuthHeaders();
+            const response = await axios.get(`${API_PATH}/news/subscriptions`, { headers });
+            return response.data.subscriptions || [];
+        } catch (error) {
+            console.error('Error fetching subscriptions:', error);
+            return [];
+        }
+    }
+
+    async addFavorite(sourceId: number): Promise<boolean> {
+        try {
+            const headers = await getAuthHeaders();
+            await axios.post(`${API_PATH}/news/sources/${sourceId}/favorite`, {}, { headers });
+            return true;
+        } catch (error) {
+            console.error('Error adding favorite:', error);
+            return false;
+        }
+    }
+
+    async removeFavorite(sourceId: number): Promise<boolean> {
+        try {
+            const headers = await getAuthHeaders();
+            await axios.delete(`${API_PATH}/news/sources/${sourceId}/favorite`, { headers });
+            return true;
+        } catch (error) {
+            console.error('Error removing favorite:', error);
+            return false;
+        }
+    }
+
+    async getFavorites(): Promise<number[]> {
+        try {
+            const headers = await getAuthHeaders();
+            const response = await axios.get(`${API_PATH}/news/favorites`, { headers });
+            return response.data.favorites || [];
+        } catch (error) {
+            console.error('Error fetching favorites:', error);
+            return [];
+        }
+    }
+
+    // ==================== HELPERS ====================
 
     /**
      * Alias for getNewsItem - Get a single news item by ID

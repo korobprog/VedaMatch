@@ -40,4 +40,9 @@ export type RootStackParamList = {
     SellerOrders: undefined;
     ShopsMap: undefined;
     Messages: undefined;
+
+    // Education Routes
+    EducationHome: undefined;
+    CourseDetails: { courseId: number };
+    ExamTrainer: { moduleId: number; title: string };
 };

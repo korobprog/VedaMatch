@@ -4,6 +4,7 @@ import (
 	"log"
 	"math"
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
@@ -723,4 +724,116 @@ func (h *NewsHandler) GetNewsStats(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(stats)
+}
+
+// ==================== SUBSCRIPTION & FAVORITES ====================
+
+// SubscribeToSource subscribes a user to push notifications from a source
+// POST /api/news/sources/:id/subscribe
+func (h *NewsHandler) SubscribeToSource(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+	}
+
+	subscription := models.UserNewsSubscription{
+		UserID:   userID,
+		SourceID: uint(sourceID),
+	}
+
+	if err := database.DB.FirstOrCreate(&subscription, subscription).Error; err != nil {
+		log.Printf("[NEWS] Error subscribing to source: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to subscribe"})
+	}
+
+	return c.JSON(fiber.Map{"subscribed": true})
+}
+
+// UnsubscribeFromSource unsubscribes a user from push notifications
+// DELETE /api/news/sources/:id/subscribe
+func (h *NewsHandler) UnsubscribeFromSource(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+	}
+
+	if err := database.DB.Where("user_id = ? AND source_id = ?", userID, sourceID).
+		Delete(&models.UserNewsSubscription{}).Error; err != nil {
+		log.Printf("[NEWS] Error unsubscribing: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to unsubscribe"})
+	}
+
+	return c.JSON(fiber.Map{"subscribed": false})
+}
+
+// GetSubscriptions returns user's subscriptions
+// GET /api/news/subscriptions
+func (h *NewsHandler) GetSubscriptions(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+
+	var sourceIDs []uint
+	if err := database.DB.Model(&models.UserNewsSubscription{}).
+		Where("user_id = ?", userID).
+		Pluck("source_id", &sourceIDs).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch subscriptions"})
+	}
+
+	return c.JSON(fiber.Map{"subscriptions": sourceIDs})
+}
+
+// AddToFavorites adds a source to user's favorites
+// POST /api/news/sources/:id/favorite
+func (h *NewsHandler) AddToFavorites(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+	}
+
+	favorite := models.UserNewsFavorite{
+		UserID:   userID,
+		SourceID: uint(sourceID),
+	}
+
+	if err := database.DB.FirstOrCreate(&favorite, favorite).Error; err != nil {
+		log.Printf("[NEWS] Error adding to favorites: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to add to favorites"})
+	}
+
+	return c.JSON(fiber.Map{"favorite": true})
+}
+
+// RemoveFromFavorites removes a source from user's favorites
+// DELETE /api/news/sources/:id/favorite
+func (h *NewsHandler) RemoveFromFavorites(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+	}
+
+	if err := database.DB.Where("user_id = ? AND source_id = ?", userID, sourceID).
+		Delete(&models.UserNewsFavorite{}).Error; err != nil {
+		log.Printf("[NEWS] Error removing from favorites: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to remove from favorites"})
+	}
+
+	return c.JSON(fiber.Map{"favorite": false})
+}
+
+// GetFavorites returns user's favorite sources
+// GET /api/news/favorites
+func (h *NewsHandler) GetFavorites(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+
+	var sourceIDs []uint
+	if err := database.DB.Model(&models.UserNewsFavorite{}).
+		Where("user_id = ?", userID).
+		Pluck("source_id", &sourceIDs).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch favorites"})
+	}
+
+	return c.JSON(fiber.Map{"favorites": sourceIDs})
 }

@@ -14,7 +14,10 @@ export const ModernVedicTheme = {
         gradientStart: '#D67D3E',
         gradientEnd: '#FFB142',
         aiButtonStart: '#9A2A2A',
+
         aiButtonEnd: '#D67D3E',
+        surface: '#FFFFFF',
+        divider: '#E0E0E0',
     },
     typography: {
         header: {

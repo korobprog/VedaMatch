@@ -44,5 +44,6 @@ type User struct {
 	IsBlocked         bool     `json:"isBlocked" gorm:"default:false"`
 	IsFlagged         bool     `json:"isFlagged" gorm:"default:false"`
 	FlagReason        string   `json:"flagReason"`
+	PushToken         string   `json:"pushToken"` // Expo or FCM token
 	Photos            []Media  `json:"photos" gorm:"foreignKey:UserID"`
 }

@@ -96,7 +96,8 @@ class MarketService {
 
     async getShop(id: number): Promise<Shop> {
         try {
-            const response = await axios.get(`${API_PATH}/shops/${id}`);
+            const headers = await this.getHeaders();
+            const response = await axios.get(`${API_PATH}/shops/${id}`, { headers });
             return response.data;
         } catch (error) {
             console.error(`Error fetching shop ${id}:`, error);
@@ -198,7 +199,8 @@ class MarketService {
 
     async getProduct(id: number): Promise<Product> {
         try {
-            const response = await axios.get(`${API_PATH}/products/${id}`);
+            const headers = await this.getHeaders();
+            const response = await axios.get(`${API_PATH}/products/${id}`, { headers });
             return response.data;
         } catch (error) {
             console.error(`Error fetching product ${id}:`, error);

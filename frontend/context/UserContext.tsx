@@ -45,6 +45,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             // Initial heartbeat
             contactService.sendHeartbeat(user.ID);
 
+            // Register push token (simplified for now, ideally get from expo-notifications)
+            // In a real device, we would call registerForPushNotificationsAsync()
+            AsyncStorage.getItem('pushToken').then(token => {
+                if (token) {
+                    contactService.updatePushToken(token);
+                }
+            });
+
             // Set up interval (every 3 minutes)
             heartbeatInterval = setInterval(() => {
                 contactService.sendHeartbeat(user.ID!);

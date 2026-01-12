@@ -71,6 +71,24 @@ type NewsSource struct {
 	NewsItems []NewsItem `json:"newsItems,omitempty" gorm:"foreignKey:SourceID"`
 }
 
+// UserNewsSubscription tracks user subscriptions to news sources for push notifications
+type UserNewsSubscription struct {
+	UserID    uint        `json:"userId" gorm:"primaryKey;autoIncrement:false"`
+	SourceID  uint        `json:"sourceId" gorm:"primaryKey;autoIncrement:false"`
+	User      *User       `json:"-" gorm:"foreignKey:UserID"`
+	Source    *NewsSource `json:"source" gorm:"foreignKey:SourceID"`
+	CreatedAt time.Time   `json:"createdAt"`
+}
+
+// UserNewsFavorite tracks user favorite news sources
+type UserNewsFavorite struct {
+	UserID    uint        `json:"userId" gorm:"primaryKey;autoIncrement:false"`
+	SourceID  uint        `json:"sourceId" gorm:"primaryKey;autoIncrement:false"`
+	User      *User       `json:"-" gorm:"foreignKey:UserID"`
+	Source    *NewsSource `json:"source" gorm:"foreignKey:SourceID"`
+	CreatedAt time.Time   `json:"createdAt"`
+}
+
 // NewsItem represents a single news article
 type NewsItem struct {
 	gorm.Model

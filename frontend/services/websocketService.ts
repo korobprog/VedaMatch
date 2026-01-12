@@ -1,4 +1,5 @@
 import { WS_PATH } from '../config/api.config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export class WebSocketService {
     private socket: WebSocket | null = null;
@@ -12,12 +13,19 @@ export class WebSocketService {
         this.onMessageCallback = onMessage;
     }
 
-    connect() {
+    async connect() {
         if (this.socket) {
             this.socket.close();
         }
 
-        const url = `${WS_PATH}/ws/${this.userId}`;
+        let token = null;
+        try {
+            token = await AsyncStorage.getItem('token');
+        } catch (error) {
+            console.error('[WebSocket] Error retrieving token:', error);
+        }
+
+        const url = `${WS_PATH}/ws/${this.userId}?token=${token || ''}`;
         console.log(`[WebSocket] Connecting to ${url}`);
 
         this.socket = new WebSocket(url);

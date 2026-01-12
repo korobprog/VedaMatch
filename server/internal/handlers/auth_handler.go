@@ -196,6 +196,26 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	})
 }
 
+func (h *AuthHandler) UpdatePushToken(c *fiber.Ctx) error {
+	var body struct {
+		PushToken string `json:"pushToken"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	if err := database.DB.Model(&models.User{}).Where("id = ?", userId).Update("push_token", body.PushToken).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update push token"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Push token updated"})
+}
+
 func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
 	userId := middleware.GetUserID(c)
 	if userId == 0 {

@@ -194,12 +194,12 @@ export const ProductEditScreen: React.FC = () => {
 
     const removeVariant = (index: number) => {
         Alert.alert(
-            'Remove Variant',
-            'Are you sure you want to remove this variant?',
+            t('market.product.removeVariantTitle'),
+            t('market.product.removeVariantMsg'),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Remove', style: 'destructive', onPress: () => {
+                    text: t('common.delete'), style: 'destructive', onPress: () => {
                         setVariants(prev => prev.filter((_, i) => i !== index));
                     }
                 },
@@ -517,7 +517,7 @@ export const ProductEditScreen: React.FC = () => {
                         {hasVariants && (
                             <>
                                 <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                                    Add variants for different sizes, colors, etc.
+                                    {t('market.product.variantHint')}
                                 </Text>
 
                                 {variants.map((v, index) => (
@@ -527,12 +527,12 @@ export const ProductEditScreen: React.FC = () => {
                                                 {v.name || v.sku}
                                             </Text>
                                             <Text style={[styles.variantMeta, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
-                                                SKU: {v.sku} • Stock: {v.stock} {v.price ? `• ₽${v.price}` : ''}
+                                                SKU: {v.sku} • {t('market.product.stock')}: {v.stock} {v.price ? `• ₽${v.price}` : ''}
                                             </Text>
                                         </View>
                                         <View style={styles.variantActions}>
                                             <TouchableOpacity onPress={() => openEditVariant(index)}>
-                                                <Text style={{ color: colors.primary }}>Edit</Text>
+                                                <Text style={{ color: colors.primary }}>{t('common.edit')}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => removeVariant(index)}>
                                                 <Text style={{ color: '#f44336', marginLeft: 12 }}>✕</Text>
@@ -605,41 +605,41 @@ export const ProductEditScreen: React.FC = () => {
                     <View style={styles.modalOverlay}>
                         <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}>
                             <Text style={[styles.modalTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
-                                {editingVariantIndex !== null ? 'Edit Variant' : 'Add Variant'}
+                                {editingVariantIndex !== null ? t('market.product.editVariant') : t('market.product.addVariant')}
                             </Text>
 
-                            <Text style={[styles.label, { color: colors.textSecondary }]}>SKU *</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('market.product.sku')}</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
                                 value={variantSku}
                                 onChangeText={setVariantSku}
-                                placeholder="e.g. PROD-001-RED-L"
+                                placeholder={t('market.product.skuPlaceholder')}
                                 placeholderTextColor={colors.textSecondary}
                             />
 
-                            <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>Variant Name</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.variantName')}</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
                                 value={variantName}
                                 onChangeText={setVariantName}
-                                placeholder="e.g. Red, Large"
+                                placeholder={t('market.product.variantNamePlaceholder')}
                                 placeholderTextColor={colors.textSecondary}
                             />
 
                             <View style={styles.priceRow}>
                                 <View style={styles.priceField}>
-                                    <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>Price Override</Text>
+                                    <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.priceOverride')}</Text>
                                     <TextInput
                                         style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
                                         value={variantPrice}
                                         onChangeText={setVariantPrice}
-                                        placeholder="Same as base"
+                                        placeholder={t('market.product.sameAsBase')}
                                         placeholderTextColor={colors.textSecondary}
                                         keyboardType="decimal-pad"
                                     />
                                 </View>
                                 <View style={styles.priceField}>
-                                    <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>Stock</Text>
+                                    <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.stock')}</Text>
                                     <TextInput
                                         style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
                                         value={variantStock}
@@ -653,10 +653,10 @@ export const ProductEditScreen: React.FC = () => {
 
                             <View style={styles.modalButtons}>
                                 <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowVariantModal(false)}>
-                                    <Text style={{ color: colors.textSecondary }}>Cancel</Text>
+                                    <Text style={{ color: colors.textSecondary }}>{t('common.cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={saveVariant}>
-                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>{t('common.save')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>

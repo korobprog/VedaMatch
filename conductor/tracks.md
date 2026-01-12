@@ -38,3 +38,8 @@
 ## [~] Трек 6: Новости и Агрегация
 *Система агрегации, обработки и публикации новостей (Backend + Admin + Mobile).*
 *Link: [./conductor/tracks/news_feed_20260111/](./conductor/tracks/news_feed_20260111/)*
+
+---
+
+## [ ] Трек: Санга (Звонки и Контакты)
+*Ссылка: [./conductor/tracks/sanga_calls_20260112/](./conductor/tracks/sanga_calls_20260112/)*

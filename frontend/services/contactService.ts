@@ -94,6 +94,15 @@ export const contactService = {
         });
     },
 
+    updatePushToken: async (pushToken: string) => {
+        const headers = await getAuthHeaders();
+        await fetch(`${API_PATH}/update-push-token`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ pushToken }),
+        });
+    },
+
     getBlockedUsers: async (userId: number): Promise<UserContact[]> => {
         const headers = await getAuthHeaders();
         const response = await fetch(`${API_PATH}/blocks`, { headers });

@@ -21,6 +21,7 @@ import { AdsScreen } from './ads/AdsScreen';
 import { NewsScreen } from './news/NewsScreen';
 import { DatingScreen } from './dating/DatingScreen';
 import { LibraryHomeScreen } from '../library/LibraryHomeScreen';
+import { EducationHomeScreen } from './education/EducationHomeScreen';
 import { useUser } from '../../context/UserContext';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 
@@ -29,19 +30,13 @@ const { width } = Dimensions.get('window');
 export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base' | 'library'>(route.params?.initialTab || 'contacts');
-
-
+    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base' | 'library' | 'education'>(route.params?.initialTab || 'contacts');
 
     useEffect(() => {
         if (route.params?.initialTab) {
             setActiveTab(route.params.initialTab);
         }
     }, [route.params?.initialTab]);
-
-
-
-
 
     const tabs = [
         { id: 'contacts', label: t('settings.tabs.contacts'), icon: '👥' },
@@ -50,6 +45,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         { id: 'shops', label: t('settings.tabs.shops'), icon: '🛍️' },
         { id: 'ads', label: t('settings.tabs.ads'), icon: '📢' },
         { id: 'library', label: 'Библиотека', icon: '📚' },
+        { id: 'education', label: 'Обучение', icon: '🎓' },
         { id: 'news', label: t('settings.tabs.news'), icon: '📰' },
     ];
 
@@ -62,6 +58,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             case 'shops': return <MarketHomeScreen />;
             case 'ads': return <AdsScreen />;
             case 'library': return <LibraryHomeScreen />;
+            case 'education': return <EducationHomeScreen />;
             case 'news': return <NewsScreen />;
             default: return <ContactsScreen />;
         }

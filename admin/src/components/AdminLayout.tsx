@@ -19,7 +19,9 @@ import {
     Key,
     ShoppingBag,
     Route,
-    Newspaper
+    Newspaper,
+    GraduationCap,
+    Library
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,6 +31,8 @@ const menuItems = [
     { icon: Heart, label: 'Dating', path: '/dating' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: Newspaper, label: 'News', path: '/news' },
+    { icon: GraduationCap, label: 'Education', path: '/education' },
+    { icon: Library, label: 'Knowledge Base', path: '/library' },
     { icon: Sparkles, label: 'AI Models', path: '/ai-models' },
     { icon: Route, label: 'OpenRouter', path: '/openrouter' },
     { icon: Key, label: 'Gemini Keys', path: '/gemini-keys' },

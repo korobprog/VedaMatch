@@ -70,32 +70,92 @@ func NewPushNotificationService() *PushNotificationService {
 
 // SendToUser sends a push notification to a specific user
 func (s *PushNotificationService) SendToUser(userID uint, message PushMessage) error {
-	// Get user's push tokens
 	var user models.User
 	if err := s.db.First(&user, userID).Error; err != nil {
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	// TODO: When push token field is added to User model, use it here
-	// For now, just log
-	log.Printf("[PUSH] Would send to user %d: %s", userID, message.Title)
+	if user.PushToken == "" {
+		return nil
+	}
+
+	return s.SendToTokens([]string{user.PushToken}, message)
+}
+
+// SendToTokens sends a push notification to a list of tokens, automatically choosing the provider
+func (s *PushNotificationService) SendToTokens(tokens []string, message PushMessage) error {
+	var fcmTokens []string
+	var expoTokens []string
+
+	for _, token := range tokens {
+		if token == "" {
+			continue
+		}
+		// Expo tokens start with "ExponentPushToken["
+		if len(token) > 20 && token[:20] == "ExponentPushToken[" {
+			expoTokens = append(expoTokens, token)
+		} else {
+			// Assume others are FCM tokens
+			fcmTokens = append(fcmTokens, token)
+		}
+	}
+
+	var errs []error
+
+	if len(fcmTokens) > 0 {
+		if err := s.SendViaFCM(fcmTokens, message); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(expoTokens) > 0 {
+		if err := s.SendViaExpo(expoTokens, message); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("errors sending push: %v", errs)
+	}
+
 	return nil
 }
 
-// SendToAll sends a push notification to all users
+// SendToAll sends a push notification to all users who have a token
 func (s *PushNotificationService) SendToAll(message PushMessage) error {
-	log.Printf("[PUSH] Broadcasting to all users: %s", message.Title)
+	var tokens []string
+	if err := s.db.Model(&models.User{}).Where("push_token != ''").Pluck("push_token", &tokens).Error; err != nil {
+		return err
+	}
 
-	// Get all users with push tokens
-	// TODO: When push tokens table is implemented, fetch tokens and send
+	if len(tokens) == 0 {
+		return nil
+	}
 
-	return nil
+	return s.SendToTokens(tokens, message)
 }
 
-// SendNewsNotification sends a push notification for a news item
+// SendNewsNotification sends a push notification for a news item to subscribers
 func (s *PushNotificationService) SendNewsNotification(newsItem models.NewsItem) error {
 	if !newsItem.IsImportant {
 		log.Printf("[PUSH] News %d is not marked as important, skipping push", newsItem.ID)
+		return nil
+	}
+
+	// 1. Find subscribers for this source
+	var tokens []string
+	err := s.db.Table("user_news_subscriptions").
+		Select("users.push_token").
+		Joins("JOIN users ON users.id = user_news_subscriptions.user_id").
+		Where("user_news_subscriptions.source_id = ? AND users.push_token != ''", newsItem.SourceID).
+		Pluck("push_token", &tokens).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to fetch subscribers: %w", err)
+	}
+
+	if len(tokens) == 0 {
+		log.Printf("[PUSH] No subscribers for source %d, skipping push", newsItem.SourceID)
 		return nil
 	}
 
@@ -109,10 +169,8 @@ func (s *PushNotificationService) SendNewsNotification(newsItem models.NewsItem)
 		},
 	}
 
-	log.Printf("[PUSH] Sending news notification for item %d: %s", newsItem.ID, newsItem.TitleRu)
-
-	// Send to all users
-	return s.SendToAll(message)
+	log.Printf("[PUSH] Sending targeted push for news %d to %d subscribers", newsItem.ID, len(tokens))
+	return s.SendToTokens(tokens, message)
 }
 
 // SendViaFCM sends notification using Firebase Cloud Messaging
@@ -126,38 +184,49 @@ func (s *PushNotificationService) SendViaFCM(tokens []string, message PushMessag
 		return nil
 	}
 
-	fcmMsg := FCMMessage{
-		RegistrationIDs: tokens,
-		Data:            message.Data,
+	// FCM has a limit of 1000 tokens per multicast request
+	const batchSize = 1000
+	for i := 0; i < len(tokens); i += batchSize {
+		end := i + batchSize
+		if end > len(tokens) {
+			end = len(tokens)
+		}
+		
+		batch := tokens[i:end]
+		
+		fcmMsg := FCMMessage{
+			RegistrationIDs: batch,
+			Data:            message.Data,
+		}
+		fcmMsg.Notification.Title = message.Title
+		fcmMsg.Notification.Body = message.Body
+		fcmMsg.Notification.ImageURL = message.ImageURL
+
+		jsonData, err := json.Marshal(fcmMsg)
+		if err != nil {
+			return fmt.Errorf("failed to marshal FCM message: %w", err)
+		}
+
+		req, err := http.NewRequest("POST", s.fcmURL, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return fmt.Errorf("failed to create FCM request: %w", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "key="+s.fcmServerKey)
+
+		resp, err := s.httpClient.Do(req)
+		if err != nil {
+			log.Printf("[PUSH] FCM batch send error: %v", err)
+			continue
+		}
+		
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("[PUSH] FCM batch returned status %d", resp.StatusCode)
+		}
+		resp.Body.Close()
 	}
-	fcmMsg.Notification.Title = message.Title
-	fcmMsg.Notification.Body = message.Body
-	fcmMsg.Notification.ImageURL = message.ImageURL
 
-	jsonData, err := json.Marshal(fcmMsg)
-	if err != nil {
-		return fmt.Errorf("failed to marshal FCM message: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", s.fcmURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to create FCM request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "key="+s.fcmServerKey)
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("FCM request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("FCM returned status %d", resp.StatusCode)
-	}
-
-	log.Printf("[PUSH] FCM notification sent successfully to %d tokens", len(tokens))
 	return nil
 }
 
@@ -167,20 +236,8 @@ func (s *PushNotificationService) SendViaExpo(tokens []string, message PushMessa
 		return nil
 	}
 
-	// Filter only Expo tokens
-	var expoTokens []string
-	for _, token := range tokens {
-		if len(token) > 20 && token[:20] == "ExponentPushToken[" {
-			expoTokens = append(expoTokens, token)
-		}
-	}
-
-	if len(expoTokens) == 0 {
-		return nil
-	}
-
 	expoMsg := ExpoMessage{
-		To:    expoTokens,
+		To:    tokens,
 		Title: message.Title,
 		Body:  message.Body,
 		Data:  message.Data,
@@ -211,7 +268,6 @@ func (s *PushNotificationService) SendViaExpo(tokens []string, message PushMessa
 		return fmt.Errorf("Expo returned status %d", resp.StatusCode)
 	}
 
-	log.Printf("[PUSH] Expo notification sent successfully to %d tokens", len(expoTokens))
 	return nil
 }
 

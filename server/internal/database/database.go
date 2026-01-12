@@ -49,11 +49,16 @@ func Connect() {
 		&models.Tag{}, &models.UserTag{},
 		// News models
 		&models.NewsSource{}, &models.NewsItem{},
+		&models.UserNewsSubscription{}, &models.UserNewsFavorite{},
 		// Sattva Market models
 		&models.Shop{}, &models.ShopReview{},
 		&models.Product{}, &models.ProductVariant{}, &models.ProductImage{},
 		&models.ProductReview{}, &models.ProductFavorite{},
 		&models.Order{}, &models.OrderItem{},
+		// Education models
+		&models.EducationCourse{}, &models.EducationModule{},
+		&models.ExamQuestion{}, &models.AnswerOption{},
+		&models.UserExamAttempt{}, &models.UserModuleProgress{},
 		// RAG models
 		&models.Document{}, &models.Chunk{},
 		&models.ChatSession{}, &models.ChatMessage{},
@@ -64,6 +69,7 @@ func Connect() {
 	log.Println("Database Migrated")
 	InitializeSuperAdmin()
 	SeedMarket()
+	SeedEducation()
 }
 
 func InitializeSuperAdmin() {

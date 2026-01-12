@@ -20,10 +20,10 @@ export default function LoginPage() {
 
         try {
             const response = await api.post('/login', { email, password });
-            const user = response.data.user;
+            const { user, token } = response.data;
 
             if (user.role === 'admin' || user.role === 'superadmin') {
-                localStorage.setItem('admin_data', JSON.stringify(user));
+                localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
                 router.push('/dashboard');
             } else {
                 setError('Access denied. Admin privileges required.');

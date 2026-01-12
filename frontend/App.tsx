@@ -43,7 +43,12 @@ import { CheckoutScreen } from './screens/portal/shops/CheckoutScreen';
 import { OrderSuccessScreen } from './screens/portal/shops/OrderSuccessScreen';
 import { MyOrdersScreen } from './screens/portal/shops/MyOrdersScreen';
 import { SellerOrdersScreen } from './screens/portal/shops/SellerOrdersScreen';
+import { MyProductsScreen } from './screens/portal/shops/MyProductsScreen';
 import { ShopsMapScreen } from './screens/portal/shops/ShopsMapScreen';
+
+import { EducationHomeScreen } from './screens/portal/education/EducationHomeScreen';
+import { CourseDetailsScreen } from './screens/portal/education/CourseDetailsScreen';
+import { ExamTrainerScreen } from './screens/portal/education/ExamTrainerScreen';
 
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -134,7 +139,7 @@ const AppContent = () => {
               <Stack.Screen name="SellerDashboard" component={SellerDashboardScreen} options={{ headerShown: true, title: t('market.myShop') }} />
               <Stack.Screen name="CreateProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.add') }} />
               <Stack.Screen name="EditProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.edit') }} />
-              <Stack.Screen name="MyProducts" component={SellerDashboardScreen} options={{ headerShown: true, title: t('market.seller.myProducts') }} />
+              <Stack.Screen name="MyProducts" component={MyProductsScreen} options={{ headerShown: true, title: t('market.seller.myProducts') }} />
               <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} options={{ headerShown: true, title: t('market.title').split(' ')[1] || t('market.title') }} />
               <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ headerShown: true, title: t('market.total') }} />
               <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ headerShown: false }} />
@@ -142,6 +147,11 @@ const AppContent = () => {
               <Stack.Screen name="OrderDetails" component={MyOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
               <Stack.Screen name="SellerOrders" component={SellerOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
               <Stack.Screen name="ShopsMap" component={ShopsMapScreen} options={{ headerShown: true, title: t('market.map.title') }} />
+
+              {/* Education Routes */}
+              <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />
+              <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: 'Курс' }} />
+              <Stack.Screen name="ExamTrainer" component={ExamTrainerScreen} options={{ headerShown: true, title: 'Тренажер' }} />
 
               <Stack.Screen name="Registration" component={RegistrationScreen} />
             </Stack.Group>

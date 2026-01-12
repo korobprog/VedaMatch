@@ -1,18 +1,19 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/handlers"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/services"
+	"strconv"
+
 	"rag-agent-server/internal/websocket"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	ws "github.com/gofiber/websocket/v2"
+	fiberwebsocket "github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
 )
 
@@ -74,12 +75,65 @@ func main() {
 	shopHandler := handlers.NewShopHandler()
 	productHandler := handlers.NewProductHandler()
 	orderHandler := handlers.NewOrderHandler()
+	educationHandler := handlers.NewEducationHandler(services.NewEducationService(database.DB))
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
 
 	// Routes
 	api := app.Group("/api")
+
+	// Library Routes
+	library := api.Group("/library")
+	library.Get("/books", handlers.GetLibraryBooks)
+	library.Get("/books/:id", handlers.GetLibraryBookDetails) // supports id or code
+	library.Get("/books/:bookCode/chapters", handlers.GetLibraryChapters)
+	library.Get("/verses", handlers.GetLibraryVerses) // ?bookCode=bg&chapter=1
+	library.Get("/search", handlers.SearchLibrary)
+
+	// Education Routes (Public)
+	education := api.Group("/education")
+	education.Get("/courses", educationHandler.GetCourses)
+	education.Get("/courses/:id", educationHandler.GetCourseDetails)
+
+	// Public News Routes
+	api.Get("/news", newsHandler.GetNews)
+	api.Get("/news/latest", newsHandler.GetLatestNews)
+	api.Get("/news/categories", newsHandler.GetNewsCategories)
+
+	// Public Shop Routes
+	api.Get("/shops", shopHandler.GetShops)
+	api.Get("/shops/categories", shopHandler.GetShopCategories) // Must come before /shops/:id
+	api.Get("/shops/:id", shopHandler.GetShop)
+	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
+
+	// Public Product Routes
+	api.Get("/products", productHandler.GetProducts)
+	api.Get("/products/categories", productHandler.GetProductCategories) // Must come before /products/:id
+	api.Get("/products/:id", productHandler.GetProduct)
+
+	// Protected Routes
+	protected := api.Group("/", middleware.Protected())
+
+	// Protected News Routes
+	protected.Post("/news/sources/:id/subscribe", newsHandler.SubscribeToSource)
+	protected.Delete("/news/sources/:id/subscribe", newsHandler.UnsubscribeFromSource)
+	protected.Get("/news/subscriptions", newsHandler.GetSubscriptions)
+	protected.Post("/news/sources/:id/favorite", newsHandler.AddToFavorites)
+	protected.Delete("/news/sources/:id/favorite", newsHandler.RemoveFromFavorites)
+	protected.Get("/news/favorites", newsHandler.GetFavorites)
+
+	// Public News Item (Wildcard) - Must come after specific paths
+	api.Get("/news/:id", newsHandler.GetNewsItem)
+
+	// Public Ads Routes
+	api.Get("/ads", adsHandler.GetAds)
+	api.Get("/ads/categories", adsHandler.GetAdCategories)
+	api.Get("/ads/cities", adsHandler.GetAdCities)
+	api.Get("/ads/stats", adsHandler.GetAdStats)
+	api.Get("/ads/:id", adsHandler.GetAd)
+
+	// Library Routes
 
 	// Admin Routes (Protected - should ideally have middleware)
 	admin := api.Group("/admin", middleware.AdminProtected())
@@ -144,6 +198,14 @@ func main() {
 	admin.Post("/news/:id/publish", newsHandler.PublishNews)
 	admin.Post("/news/:id/process", newsHandler.ProcessNewsAI)
 
+	// Admin Education Management Routes
+	admin.Get("/education/courses", educationHandler.AdminGetCourses)
+	admin.Post("/education/courses", educationHandler.CreateCourse)
+	admin.Put("/education/courses/:id", educationHandler.UpdateCourse)
+	admin.Post("/education/modules", educationHandler.CreateModule)
+	admin.Post("/education/questions", educationHandler.CreateQuestion)
+	admin.Get("/education/modules/:moduleId/exams", educationHandler.GetModuleExams)
+
 	// OpenRouter Management Routes
 	admin.Get("/openrouter/status", openRouterHandler.GetStatus)
 	admin.Get("/openrouter/models", openRouterHandler.GetModels)
@@ -161,72 +223,22 @@ func main() {
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
 
-	// WebSocket Route (with ID in URL) - Moved outside protected group
-	api.Get("/ws/:id", ws.New(func(c *ws.Conn) {
-		// userId from path parameter
-		userIdStr := c.Params("id")
-		var userId uint
-		fmt.Sscanf(userIdStr, "%d", &userId)
-
-		if userId == 0 {
-			c.Close()
-			return
-		}
-
-		client := &websocket.Client{
-			Hub:    hub,
-			Conn:   c,
-			UserID: userId,
-			Send:   make(chan websocket.WSMessage, 256),
-		}
-		hub.Register <- client
-
-		go client.WritePump()
-		client.ReadPump()
-	}))
-
 	// Public AI Routes (Legacy/Frontend Compat)
 	api.Post("/v1/chat/completions", chatHandler.HandleChat)
 	api.Get("/v1/models", aiHandler.GetClientModels)
 
-	api.Get("/ads", adsHandler.GetAds)
-	api.Get("/ads/categories", adsHandler.GetAdCategories)
-	api.Get("/ads/cities", adsHandler.GetAdCities)
-	api.Get("/ads/stats", adsHandler.GetAdStats)
-	api.Get("/ads/:id", adsHandler.GetAd)
-
-	// Public Shop Routes (Sattva Market)
-	api.Get("/shops", shopHandler.GetShops)
-	api.Get("/shops/categories", shopHandler.GetShopCategories)
-	api.Get("/shops/slug/:slug", shopHandler.GetShopBySlug)
-	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
-
-	// Public Product Routes (Sattva Market)
-	api.Get("/products", productHandler.GetProducts)
-	api.Get("/products/categories", productHandler.GetProductCategories)
-	api.Get("/products/:id/reviews", productHandler.GetProductReviews)
-
-	// Public News Routes
-	api.Get("/news", newsHandler.GetNews)
-	api.Get("/news/latest", newsHandler.GetLatestNews)
-	api.Get("/news/categories", newsHandler.GetNewsCategories)
-	api.Get("/news/:id", newsHandler.GetNewsItem)
-
-	// Library Routes
-	library := api.Group("/library")
-	library.Get("/books", handlers.GetLibraryBooks)
-	library.Get("/books/:id", handlers.GetLibraryBookDetails) // supports id or code
-	library.Get("/books/:bookCode/chapters", handlers.GetLibraryChapters)
-	library.Get("/verses", handlers.GetLibraryVerses) // ?bookCode=bg&chapter=1
-	library.Get("/search", handlers.SearchLibrary)
-
 	// Protected Routes
-	protected := api.Group("/", middleware.Protected())
+	protected = api.Group("/", middleware.Protected())
 
 	protected.Post("/messages", messageHandler.SendMessage)
 	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
 
+	// Education Routes (Protected)
+	protected.Get("/education/modules/:moduleId/exams", educationHandler.GetModuleExams)
+	protected.Post("/education/modules/:moduleId/submit", educationHandler.SubmitExam)
+
 	protected.Put("/update-profile", authHandler.UpdateProfile)
+	protected.Put("/update-push-token", authHandler.UpdatePushToken)
 	protected.Put("/update-location", authHandler.UpdateLocation)
 	protected.Put("/update-coordinates", authHandler.UpdateLocationCoordinates)
 	protected.Get("/location/nearby", authHandler.GetNearbyUsers)
@@ -338,11 +350,35 @@ func main() {
 	protected.Put("/orders/:id/status", orderHandler.UpdateOrderStatus)
 	protected.Get("/orders/:id/contact-buyer", orderHandler.ContactBuyer)
 
-	// Public Shop Routes (Wildcards) - Moved here to avoid conflicts with /shops/my
-	api.Get("/shops/:id", shopHandler.GetShop)
+	// WebSocket Route
+	api.Use("/ws", func(c *fiber.Ctx) error {
+		if fiberwebsocket.IsWebSocketUpgrade(c) {
+			c.Locals("allowed", true)
+			return c.Next()
+		}
+		return c.SendStatus(fiber.StatusUpgradeRequired)
+	})
 
-	// Public Product Routes (Wildcards)
-	api.Get("/products/:id", productHandler.GetProduct)
+	api.Get("/ws/:id", fiberwebsocket.New(func(c *fiberwebsocket.Conn) {
+		// Get userId from params
+		userIdParam := c.Params("id")
+		userId, err := strconv.ParseUint(userIdParam, 10, 32)
+		if err != nil {
+			log.Println("Invalid user ID for WebSocket:", userIdParam)
+			return
+		}
+
+		client := &websocket.Client{
+			Hub:    hub,
+			Conn:   c,
+			UserID: uint(userId),
+			Send:   make(chan websocket.WSMessage, 256),
+		}
+
+		client.Hub.Register <- client
+		go client.WritePump()
+		client.ReadPump()
+	}))
 
 	// Static files for avatars
 	app.Static("/uploads", "./uploads")

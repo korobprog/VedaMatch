@@ -44,6 +44,10 @@ export const NewsScreen = () => {
     const [selectedCategory, setSelectedCategory] = useState('');
     const [personalized, setPersonalized] = useState(true); // Default to personalized
 
+    // Subscription & Favorite states
+    const [subscriptions, setSubscriptions] = useState<number[]>([]);
+    const [favorites, setFavorites] = useState<number[]>([]);
+
     const loadNews = useCallback(async (pageNum: number = 1, reset: boolean = false) => {
         try {
             if (pageNum === 1) {
@@ -76,14 +80,53 @@ export const NewsScreen = () => {
         }
     }, [lang, selectedCategory, personalized]);
 
+    const loadUserPreferences = async () => {
+        try {
+            const [subs, favs] = await Promise.all([
+                newsService.getSubscriptions(),
+                newsService.getFavorites()
+            ]);
+            setSubscriptions(subs);
+            setFavorites(favs);
+        } catch (error) {
+            console.error('[NEWS] Error loading prefs:', error);
+        }
+    };
+
     useEffect(() => {
         loadNews(1, true);
+        loadUserPreferences();
     }, [loadNews, selectedCategory]);
 
     const handleRefresh = useCallback(() => {
         setRefreshing(true);
         loadNews(1, true);
+        loadUserPreferences();
     }, [loadNews]);
+
+    const toggleSubscription = async (sourceId: number) => {
+        const isSubscribed = subscriptions.includes(sourceId);
+        // Optimistic update
+        if (isSubscribed) {
+            setSubscriptions(prev => prev.filter(id => id !== sourceId));
+            await newsService.unsubscribe(sourceId);
+        } else {
+            setSubscriptions(prev => [...prev, sourceId]);
+            await newsService.subscribe(sourceId);
+        }
+    };
+
+    const toggleFavorite = async (sourceId: number) => {
+        const isFavorite = favorites.includes(sourceId);
+        // Optimistic update
+        if (isFavorite) {
+            setFavorites(prev => prev.filter(id => id !== sourceId));
+            await newsService.removeFavorite(sourceId);
+        } else {
+            setFavorites(prev => [...prev, sourceId]);
+            await newsService.addFavorite(sourceId);
+        }
+    };
 
     const handleLoadMore = useCallback(() => {
         if (!loading && hasMore) {
@@ -163,6 +206,8 @@ export const NewsScreen = () => {
 
     const renderNewsItem = ({ item, index }: { item: NewsItem; index: number }) => {
         const isHero = index === 0 && page === 1;
+        const isSubscribed = subscriptions.includes(item.sourceId);
+        const isFavorite = favorites.includes(item.sourceId);
 
         return (
             <TouchableOpacity
@@ -196,11 +241,28 @@ export const NewsScreen = () => {
                         style={styles.heroGradient}
                     >
                         <View style={styles.heroContent}>
-                            {item.isImportant && (
-                                <View style={styles.importantBadge}>
-                                    <Text style={styles.importantBadgeText}>⚡ {lang === 'en' ? 'Important' : 'Важное'}</Text>
+                            <View style={styles.heroTopActions}>
+                                {item.isImportant && (
+                                    <View style={styles.importantBadge}>
+                                        <Text style={styles.importantBadgeText}>⚡ {lang === 'en' ? 'Important' : 'Важное'}</Text>
+                                    </View>
+                                )}
+                                <View style={styles.sourceActions}>
+                                    <TouchableOpacity 
+                                        onPress={() => toggleFavorite(item.sourceId)}
+                                        style={styles.heroActionBtn}
+                                    >
+                                        <Text style={styles.actionEmoji}>{isFavorite ? '⭐' : '☆'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity 
+                                        onPress={() => toggleSubscription(item.sourceId)}
+                                        style={styles.heroActionBtn}
+                                    >
+                                        <Text style={styles.actionEmoji}>{isSubscribed ? '🔔' : '🔕'}</Text>
+                                    </TouchableOpacity>
                                 </View>
-                            )}
+                            </View>
+                            
                             <Text style={styles.heroTitle} numberOfLines={2}>{newsService.cleanText(item.title)}</Text>
                             <Text style={styles.heroSummary} numberOfLines={2}>{newsService.cleanText(item.summary)}</Text>
                             <View style={styles.heroMeta}>
@@ -217,13 +279,23 @@ export const NewsScreen = () => {
 
                 {!isHero && (
                     <View style={styles.cardContent}>
-                        <View style={styles.cardMeta}>
-                            <Text style={[styles.cardDate, { color: theme.subText }]}>
-                                {newsService.formatDate(item.publishedAt)}
-                            </Text>
-                            {item.isImportant && (
-                                <Text style={styles.importantIcon}>⚡</Text>
-                            )}
+                        <View style={styles.cardHeaderRow}>
+                            <View style={styles.cardMeta}>
+                                <Text style={[styles.cardDate, { color: theme.subText }]}>
+                                    {newsService.formatDate(item.publishedAt)}
+                                </Text>
+                                {item.isImportant && (
+                                    <Text style={styles.importantIcon}>⚡</Text>
+                                )}
+                            </View>
+                            <View style={styles.cardActions}>
+                                <TouchableOpacity onPress={() => toggleFavorite(item.sourceId)}>
+                                    <Text style={styles.cardActionEmoji}>{isFavorite ? '⭐' : '☆'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => toggleSubscription(item.sourceId)}>
+                                    <Text style={styles.cardActionEmoji}>{isSubscribed ? '🔔' : '🔕'}</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                         <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>
                             {newsService.cleanText(item.title)}
@@ -231,13 +303,20 @@ export const NewsScreen = () => {
                         <Text style={[styles.cardSummary, { color: theme.subText }]} numberOfLines={2}>
                             {newsService.cleanText(item.summary)}
                         </Text>
-                        {item.category && (
-                            <View style={[styles.categoryTag, { backgroundColor: theme.background }]}>
-                                <Text style={[styles.categoryTagText, { color: theme.subText }]}>
-                                    {item.category}
+                        <View style={styles.cardFooter}>
+                            {item.category && (
+                                <View style={[styles.categoryTag, { backgroundColor: theme.background }]}>
+                                    <Text style={[styles.categoryTagText, { color: theme.subText }]}>
+                                        {item.category}
+                                    </Text>
+                                </View>
+                            )}
+                            {item.sourceName && (
+                                <Text style={[styles.sourceName, { color: theme.accent || '#6366f1' }]}>
+                                    {item.sourceName}
                                 </Text>
-                            </View>
-                        )}
+                            )}
+                        </View>
                     </View>
                 )}
             </TouchableOpacity>
@@ -404,6 +483,28 @@ const styles = StyleSheet.create({
     heroContent: {
         padding: 16,
     },
+    heroTopActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    sourceActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    heroActionBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backdropBlur: 10,
+    },
+    actionEmoji: {
+        fontSize: 18,
+    },
     heroTitle: {
         fontSize: 20,
         fontWeight: 'bold',
@@ -440,7 +541,6 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         borderRadius: 12,
         alignSelf: 'flex-start',
-        marginBottom: 8,
     },
     importantBadgeText: {
         fontSize: 12,
@@ -474,10 +574,22 @@ const styles = StyleSheet.create({
         padding: 12,
         justifyContent: 'center',
     },
+    cardHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    cardActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    cardActionEmoji: {
+        fontSize: 16,
+    },
     cardMeta: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 4,
     },
     cardDate: {
         fontSize: 11,
@@ -496,16 +608,25 @@ const styles = StyleSheet.create({
         fontSize: 13,
         lineHeight: 18,
     },
-    categoryTag: {
+    cardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginTop: 8,
+    },
+    categoryTag: {
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 6,
-        alignSelf: 'flex-start',
     },
     categoryTagText: {
         fontSize: 11,
         fontWeight: '500',
+    },
+    sourceName: {
+        fontSize: 11,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
     },
 
     // Loading & Empty states
