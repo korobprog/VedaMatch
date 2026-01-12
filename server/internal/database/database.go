@@ -34,7 +34,19 @@ func Connect() {
 
 	log.Println("Connected to Database")
 
-	// Auto Migrate
+	// Auto Migrate - Stage 1: Independent Tables required for foreign keys
+	// We migrate ScriptureBook first so we can seed it before ScriptureVerse tries to create an FK to it
+	err = DB.AutoMigrate(
+		&models.ScriptureBook{},
+	)
+	if err != nil {
+		log.Printf("[Migration] Failed to migrate ScriptureBook: %v", err)
+	}
+
+	// Seed Library (Books) immediately so subsequent migrations with FKs succeed
+	SeedLibrary()
+
+	// Auto Migrate - Stage 2: All other tables
 	err = DB.AutoMigrate(
 		// Core models
 		&models.User{}, &models.Friend{}, &models.Message{}, &models.Block{},
@@ -44,7 +56,7 @@ func Connect() {
 		// Ads models
 		&models.Ad{}, &models.AdPhoto{}, &models.AdFavorite{}, &models.AdReport{},
 		// Library models
-		&models.ScriptureBook{}, &models.ScriptureVerse{},
+		&models.ScriptureVerse{}, // Dependent on ScriptureBook
 		// Tags
 		&models.Tag{}, &models.UserTag{},
 		// News models

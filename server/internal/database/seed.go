@@ -89,3 +89,62 @@ func SeedSystemSettings() {
 		}
 	}
 }
+
+// SeedLibrary populates the library with default books
+func SeedLibrary() {
+	books := []models.ScriptureBook{
+		{
+			Code:          "bg",
+			NameEn:        "Bhagavad Gita As It Is",
+			NameRu:        "Бхагавад-гита как она есть",
+			DescriptionEn: "The Song of God. A dialogue between Krishna and Arjuna before the battle.",
+			DescriptionRu: "Песнь Бога. Диалог между Кришной и Арджуной перед битвой на Курукшетре.",
+		},
+		{
+			Code:          "sb",
+			NameEn:        "Srimad Bhagavatam",
+			NameRu:        "Шримад-Бхагаватам",
+			DescriptionEn: "The beautiful story of the Personality of Godhead.",
+			DescriptionRu: "Прекрасная история о Личности Бога - амала-пурана.",
+		},
+		{
+			Code:          "cc",
+			NameEn:        "Sri Caitanya Caritamrta",
+			NameRu:        "Шри Чайтанья-чаритамрита",
+			DescriptionEn: "The life and teachings of Sri Caitanya Mahaprabhu.",
+			DescriptionRu: "Жизнь и учение Шри Чайтаньи Махапрабху.",
+		},
+		{
+			Code:          "iso",
+			NameEn:        "Sri Isopanisad",
+			NameRu:        "Шри Ишопанишад",
+			DescriptionEn: "Knowledge that brings one nearer to the Supreme Personality of Godhead.",
+			DescriptionRu: "Знание, приближающее к Верховной Личности Бога.",
+		},
+		{
+			Code:          "nod",
+			NameEn:        "Nectar of Devotion",
+			NameRu:        "Нектар преданности",
+			DescriptionEn: "The complete science of Bhakti-yoga.",
+			DescriptionRu: "Полная наука бхакти-йоги.",
+		},
+		{
+			Code:          "noi",
+			NameEn:        "Nectar of Instruction",
+			NameRu:        "Нектар наставлений",
+			DescriptionEn: "Eleven lessons in the ancient science of Bhakti-yoga.",
+			DescriptionRu: "Одиннадцать уроков древней науки бхакти-йоги.",
+		},
+	}
+
+	for _, b := range books {
+		var existing models.ScriptureBook
+		if err := DB.Where("code = ?", b.Code).First(&existing).Error; err != nil {
+			if err := DB.Create(&b).Error; err != nil {
+				log.Printf("[Seed] Error creating book %s: %v", b.Code, err)
+			} else {
+				log.Printf("[Seed] Created Scripture Book: %s", b.Code)
+			}
+		}
+	}
+}
