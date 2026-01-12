@@ -27,9 +27,13 @@ func (c *Client) ReadPump() {
 			break
 		}
 
+		log.Printf("[WS] Received message from User %d: Type=%s, Target=%d", c.UserID, msg.Type, msg.TargetID)
+
 		if msg.Type == "offer" || msg.Type == "answer" || msg.Type == "candidate" || msg.Type == "hangup" {
 			msg.SenderID = c.UserID
 			c.Hub.Signal <- msg
+		} else {
+			log.Printf("[WS] Ignored message type: %s", msg.Type)
 		}
 	}
 }

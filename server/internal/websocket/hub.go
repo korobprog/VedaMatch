@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"log"
 	"rag-agent-server/internal/models"
 	"sync"
 )
@@ -84,14 +85,19 @@ func (h *Hub) Run() {
 			}
 			h.mu.RUnlock()
 		case msg := <-h.Signal:
+			log.Printf("[Hub] Signaling: %s from %d to %d", msg.Type, msg.SenderID, msg.TargetID)
 			h.mu.RLock()
 			if target, ok := h.clients[msg.TargetID]; ok {
 				select {
 				case target.Send <- msg:
+					log.Printf("[Hub] Forwarded %s to User %d", msg.Type, msg.TargetID)
 				default:
+					log.Printf("[Hub] User %d channel full, closing", msg.TargetID)
 					close(target.Send)
 					delete(h.clients, msg.TargetID)
 				}
+			} else {
+				log.Printf("[Hub] Target User %d not connected", msg.TargetID)
 			}
 			h.mu.RUnlock()
 		}
