@@ -23,6 +23,8 @@ func main() {
 		log.Println("No .env file found")
 	}
 
+	log.Println("Server Version: 1.2 (Migration Fix Applied)")
+
 	// Initialize Database
 	database.Connect()
 
