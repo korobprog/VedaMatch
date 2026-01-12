@@ -41,6 +41,9 @@ api.interceptors.request.use((config) => {
             if (adminId) {
                 config.headers['X-Admin-ID'] = adminId;
             }
+            if (parsed.token) {
+                config.headers['Authorization'] = `Bearer ${parsed.token}`;
+            }
         }
     }
     return config;

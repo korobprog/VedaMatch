@@ -49,7 +49,12 @@ func main() {
 
 	// Middleware
 	app.Use(logger.New())
-	app.Use(cors.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "http://localhost:3000,http://localhost:3001,http://localhost:8081,https://vedamatch.ru,https://www.vedamatch.ru,https://api.vedamatch.ru,https://admin.vedamatch.ru",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With",
+		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
+		AllowCredentials: true,
+	}))
 
 	// Services
 	aiChatService := services.NewAiChatService()
