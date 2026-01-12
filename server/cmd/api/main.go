@@ -23,7 +23,7 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-	log.Println("Server Version: 1.2 (Migration Fix Applied)")
+	log.Println("Server Version: 1.3 (Auth Route Fix)")
 
 	// Initialize Database
 	database.Connect()
@@ -89,6 +89,10 @@ func main() {
 
 	// Routes
 	api := app.Group("/api")
+
+	// Auth Routes (Public)
+	api.Post("/register", authHandler.Register)
+	api.Post("/login", authHandler.Login)
 
 	// Library Routes
 	library := api.Group("/library")
@@ -226,9 +230,6 @@ func main() {
 	admin.Get("/shops", shopHandler.AdminGetShops)
 	admin.Get("/shops/stats", shopHandler.AdminGetShopStats)
 	admin.Put("/shops/:id/moderate", shopHandler.AdminModerateShop)
-
-	api.Post("/register", authHandler.Register)
-	api.Post("/login", authHandler.Login)
 
 	// Public AI Routes (Legacy/Frontend Compat)
 	api.Post("/v1/chat/completions", chatHandler.HandleChat)
