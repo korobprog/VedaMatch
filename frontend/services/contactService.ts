@@ -13,6 +13,8 @@ export interface UserContact {
     country: string;
     latitude?: number;
     longitude?: number;
+    yatra?: string;
+    timezone?: string;
 }
 
 const getAuthToken = async () => {

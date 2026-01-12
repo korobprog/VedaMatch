@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useUser } from './UserContext';
 import { WebSocketService } from '../services/websocketService';
+import { webRTCService } from '../services/webRTCService';
 
 interface WebSocketContextType {
     addListener: (listener: (msg: any) => void) => () => void;
@@ -17,9 +18,13 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     useEffect(() => {
         if (user?.ID) {
             wsServiceRef.current = new WebSocketService(user.ID, (msg) => {
+                if (['offer', 'answer', 'candidate', 'hangup'].includes(msg.type)) {
+                    webRTCService.handleSignalingMessage(msg);
+                }
                 listenersRef.current.forEach(listener => listener(msg));
             });
             wsServiceRef.current.connect();
+            webRTCService.setWebSocketService(wsServiceRef.current);
         }
 
         return () => {

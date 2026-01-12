@@ -16,20 +16,7 @@ const portraitCards = [
 ];
 
 // Features section data
-const features = [
-    {
-        title: 'Духовное Общение',
-        description: 'Общайтесь с единомышленниками, делитесь опытом и получайте поддержку в практике.',
-    },
-    {
-        title: 'ИИ Помощник',
-        description: 'Получайте ответы на вопросы о философии, практике и священных писаниях.',
-    },
-    {
-        title: 'База Знаний',
-        description: 'Доступ к огромной библиотеке ведических текстов, лекций и материалов.',
-    },
-];
+
 
 export function HeroSection() {
     return (
@@ -139,23 +126,7 @@ export function HeroSection() {
                 <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#faf9f6] to-transparent z-10 pointer-events-none" />
             </div>
 
-            {/* Features Section */}
-            <div className="container mx-auto px-4 mt-16 z-10">
-                <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                    {features.map((feature, idx) => (
-                        <motion.div
-                            key={idx}
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.8 + idx * 0.15 }}
-                            className="text-center p-6"
-                        >
-                            <h3 className="text-xl font-bold text-[#2c1810] mb-3">{feature.title}</h3>
-                            <p className="text-[#5c4d47] leading-relaxed text-sm">{feature.description}</p>
-                        </motion.div>
-                    ))}
-                </div>
-            </div>
+
         </section>
     );
 }

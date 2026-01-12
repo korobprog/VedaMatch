@@ -19,12 +19,17 @@ func (c *Client) ReadPump() {
 		c.Conn.Close()
 	}()
 	for {
-		_, _, err := c.Conn.ReadMessage()
-		if err != nil {
+		var msg SignalingMessage
+		if err := c.Conn.ReadJSON(&msg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("WebSocket error for User %d: %v", c.UserID, err)
 			}
 			break
+		}
+
+		if msg.Type == "offer" || msg.Type == "answer" || msg.Type == "candidate" || msg.Type == "hangup" {
+			msg.SenderID = c.UserID
+			c.Hub.Signal <- msg
 		}
 	}
 }

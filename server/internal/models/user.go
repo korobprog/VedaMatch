@@ -45,5 +45,7 @@ type User struct {
 	IsFlagged         bool     `json:"isFlagged" gorm:"default:false"`
 	FlagReason        string   `json:"flagReason"`
 	PushToken         string   `json:"pushToken"` // Expo or FCM token
+	Yatra             string   `json:"yatra"`     // Spiritual community/location
+	Timezone          string   `json:"timezone"`  // IANA timezone e.g. "Europe/Moscow"
 	Photos            []Media  `json:"photos" gorm:"foreignKey:UserID"`
 }

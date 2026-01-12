@@ -8,15 +8,18 @@ import {
 } from 'react-native';
 import { COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
+import { Phone } from 'lucide-react-native';
 
 interface ChatHeaderProps {
     title: string;
     onSettingsPress: () => void;
+    onCallPress?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
     title,
     onSettingsPress,
+    onCallPress,
 }) => {
     const { recipientUser } = useChat();
     const isDarkMode = useColorScheme() === 'dark';
@@ -59,8 +62,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     )}
                 </View>
 
-                {/* Gear removed as requested */}
-                <View style={{ width: 40 }} />
+                <View style={styles.rightActions}>
+                    {onCallPress && recipientUser && (
+                        <TouchableOpacity onPress={onCallPress} style={styles.actionButton}>
+                            <Phone color={theme.text} size={24} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
         </View>
     );
@@ -100,5 +108,12 @@ const styles = StyleSheet.create({
         width: 22,
         height: 3,
         borderRadius: 1.5,
+    },
+    rightActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    actionButton: {
+        padding: 8,
     },
 });

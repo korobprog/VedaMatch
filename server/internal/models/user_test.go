@@ -1,18 +1,18 @@
-package models
+package models_test
 
 import (
+	"rag-agent-server/internal/models"
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUserModelNetworkingFields(t *testing.T) {
-	user := User{
-		Intentions: "business,marriage",
-		Skills:     "Go,React,Yoga",
-		Industry:   "IT,Wellness",
+func TestUserModel_NewFields(t *testing.T) {
+	user := models.User{
+		Yatra:    "Moscow Yatra",
+		Timezone: "Europe/Moscow",
 	}
 
-	assert.Equal(t, "business,marriage", user.Intentions)
-	assert.Equal(t, "Go,React,Yoga", user.Skills)
-	assert.Equal(t, "IT,Wellness", user.Industry)
+	assert.Equal(t, "Moscow Yatra", user.Yatra)
+	assert.Equal(t, "Europe/Moscow", user.Timezone)
 }

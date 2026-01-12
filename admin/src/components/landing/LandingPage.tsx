@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { HeroSection } from './HeroSection';
+import { FeaturesSection } from './FeaturesSection';
 import { ScrollSection } from './ScrollSection';
 
 export default function LandingPage() {
@@ -38,6 +39,7 @@ export default function LandingPage() {
             {/* Main Content */}
             <main>
                 <HeroSection />
+                <FeaturesSection />
                 <ScrollSection />
             </main>
 

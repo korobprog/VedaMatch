@@ -63,6 +63,15 @@ export default {
             messageRequested: 'Продавец уведомлен о вашем желании написать сообщение.'
         }
     },
+    calls: {
+        title: 'Звонки',
+        history: 'История звонков',
+        incoming: 'Входящий',
+        outgoing: 'Исходящий',
+        missed: 'Пропущенный',
+        call: 'Позвонить',
+        callback: 'Перезвонить'
+    },
     market: {
         title: 'Sattva Market',
         subtitle: 'Находите товары преданных',

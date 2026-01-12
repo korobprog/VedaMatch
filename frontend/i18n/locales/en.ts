@@ -63,6 +63,15 @@ export default {
             messageRequested: 'The seller has been notified that you want to write them a message.'
         }
     },
+    calls: {
+        title: 'Calls',
+        history: 'Call History',
+        incoming: 'Incoming',
+        outgoing: 'Outgoing',
+        missed: 'Missed',
+        call: 'Call',
+        callback: 'Call back'
+    },
     market: {
         title: 'Sattva Market',
         subtitle: 'Discover products from the community',

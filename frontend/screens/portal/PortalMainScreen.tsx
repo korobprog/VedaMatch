@@ -24,13 +24,14 @@ import { LibraryHomeScreen } from '../library/LibraryHomeScreen';
 import { EducationHomeScreen } from './education/EducationHomeScreen';
 import { useUser } from '../../context/UserContext';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
+import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 
 const { width } = Dimensions.get('window');
 
 export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base' | 'library' | 'education'>(route.params?.initialTab || 'contacts');
+    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education'>(route.params?.initialTab || 'contacts');
 
     useEffect(() => {
         if (route.params?.initialTab) {
@@ -41,6 +42,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const tabs = [
         { id: 'contacts', label: t('settings.tabs.contacts'), icon: '👥' },
         { id: 'chat', label: t('settings.tabs.chat'), icon: '💬' },
+        { id: 'calls', label: t('settings.tabs.calls') || 'Звонки', icon: '📞' },
         { id: 'dating', label: t('settings.tabs.dating'), icon: '💖' },
         { id: 'shops', label: t('settings.tabs.shops'), icon: '🛍️' },
         { id: 'ads', label: t('settings.tabs.ads'), icon: '📢' },
@@ -54,6 +56,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         switch (activeTab) {
             case 'contacts': return <ContactsScreen />;
             case 'chat': return <PortalChatScreen />;
+            case 'calls': return <CallHistoryScreen />;
             case 'dating': return <DatingScreen />;
             case 'shops': return <MarketHomeScreen />;
             case 'ads': return <AdsScreen />;

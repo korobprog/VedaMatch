@@ -60,61 +60,72 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     };
 
 
+    const handleCallPress = () => {
+        if (recipientUser?.ID) {
+            navigation.navigate('CallScreen', {
+                targetId: recipientUser.ID,
+                isIncoming: false,
+                callerName: recipientUser.spiritualName || recipientUser.karmicName || 'User'
+            });
+        }
+    };
+
     return (
         <ProtectedScreen>
             <View style={[styles.container, { backgroundColor: theme.background }]}>
                 <ChatHeader
-                title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "Vedic AI"}
-                onSettingsPress={() => setIsSettingsOpen(true)}
-            />
+                    title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "Vedic AI"}
+                    onSettingsPress={() => setIsSettingsOpen(true)}
+                    onCallPress={handleCallPress}
+                />
 
-            <MessageList
-                onDownloadImage={downloadImage}
-                onShareImage={shareImage}
-                onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
-            />
+                <MessageList
+                    onDownloadImage={downloadImage}
+                    onShareImage={shareImage}
+                    onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
+                />
 
-            <ChatInput
-                onMenuOption={(option) => {
-                    if (option === 'contacts.viewProfile') {
-                        if (recipientUser) {
-                            navigation.navigate('ContactProfile', { userId: recipientUser.ID });
+                <ChatInput
+                    onMenuOption={(option) => {
+                        if (option === 'contacts.viewProfile') {
+                            if (recipientUser) {
+                                navigation.navigate('ContactProfile', { userId: recipientUser.ID });
+                            }
+                            setShowMenu(false);
+                            return;
                         }
-                        setShowMenu(false);
-                        return;
-                    }
-                    if (option === 'contacts.block') {
-                        handleBlockUser();
-                        return;
-                    }
-                    handleMenuOption(option,
-                        (tab) => navigation.navigate('Portal', { initialTab: tab as any })
-                    )
-                }}
-            />
+                        if (option === 'contacts.block') {
+                            handleBlockUser();
+                            return;
+                        }
+                        handleMenuOption(option,
+                            (tab) => navigation.navigate('Portal', { initialTab: tab as any })
+                        )
+                    }}
+                />
 
-            <SettingsDrawer
-                isVisible={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
-                isDarkMode={isDarkMode}
-                currentModel={currentModel}
-                onSelectModel={(model: any) => {
-                    selectModel(model.id, model.provider);
-                }}
-                onNavigateToPortal={(tab) => {
-                    setIsSettingsOpen(false);
-                    navigation.navigate('Portal', { initialTab: tab as any });
-                }}
-                onNavigateToSettings={() => {
-                    setIsSettingsOpen(false);
-                    navigation.navigate('AppSettings');
-                }}
-                onNavigateToRegistration={() => {
-                    setIsSettingsOpen(false);
-                    navigation.navigate('Registration', { isDarkMode });
-                }}
-            />
-        </View>
+                <SettingsDrawer
+                    isVisible={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
+                    isDarkMode={isDarkMode}
+                    currentModel={currentModel}
+                    onSelectModel={(model: any) => {
+                        selectModel(model.id, model.provider);
+                    }}
+                    onNavigateToPortal={(tab) => {
+                        setIsSettingsOpen(false);
+                        navigation.navigate('Portal', { initialTab: tab as any });
+                    }}
+                    onNavigateToSettings={() => {
+                        setIsSettingsOpen(false);
+                        navigation.navigate('AppSettings');
+                    }}
+                    onNavigateToRegistration={() => {
+                        setIsSettingsOpen(false);
+                        navigation.navigate('Registration', { isDarkMode });
+                    }}
+                />
+            </View>
         </ProtectedScreen>
     );
 };

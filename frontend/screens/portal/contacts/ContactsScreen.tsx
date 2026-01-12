@@ -11,6 +11,7 @@ import { useUser } from '../../../context/UserContext';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 import { useChat } from '../../../context/ChatContext';
+import { Phone, MessageCircle } from 'lucide-react-native';
 
 export const ContactsScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -159,7 +160,8 @@ export const ContactsScreen: React.FC = () => {
             return c.karmicName?.toLowerCase().includes(searchLower) ||
                 c.spiritualName?.toLowerCase().includes(searchLower) ||
                 c.city?.toLowerCase().includes(searchLower) ||
-                c.country?.toLowerCase().includes(searchLower);
+                c.country?.toLowerCase().includes(searchLower) ||
+                c.yatra?.toLowerCase().includes(searchLower);
         }
 
         return true;
@@ -172,6 +174,15 @@ export const ContactsScreen: React.FC = () => {
         }
         return 0;
     });
+
+    const getLocalTime = (timezone?: string) => {
+        if (!timezone) return '';
+        try {
+            return new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+        } catch (e) {
+            return '';
+        }
+    };
 
     const renderItem = ({ item }: { item: UserContact }) => {
         const avatarUrl = getMediaUrl(item.avatarUrl);
@@ -220,6 +231,8 @@ export const ContactsScreen: React.FC = () => {
                     </View>
                     <Text style={[styles.contactDesc, { color: theme.subText }]}>
                         {item.identity || 'Devotee'} • {item.country}, {item.city}
+                        {item.yatra ? ` • ${item.yatra}` : ''}
+                        {item.timezone ? ` • ${getLocalTime(item.timezone)}` : ''}
                     </Text>
                 </View>
                 {isBlocked ? (
@@ -230,7 +243,34 @@ export const ContactsScreen: React.FC = () => {
                         <Text style={[styles.unblockText, { color: theme.accent }]}>{t('contacts.unblock')}</Text>
                     </TouchableOpacity>
                 ) : (
-                    <Text style={{ color: theme.accent, fontSize: 18 }}>›</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {isFriend && (
+                            <TouchableOpacity
+                                style={[styles.callBtn, { backgroundColor: theme.button + '10' }]}
+                                onPress={() => {
+                                    navigation.navigate('CallScreen', {
+                                        targetId: item.ID,
+                                        isIncoming: false,
+                                        callerName: item.spiritualName || item.karmicName || 'User'
+                                    });
+                                }}
+                            >
+                                <Phone size={20} color={theme.primary} />
+                            </TouchableOpacity>
+                        )}
+                        {isFriend && (
+                            <TouchableOpacity
+                                style={[styles.callBtn, { backgroundColor: theme.button + '10' }]}
+                                onPress={() => {
+                                    setChatRecipient(item);
+                                    navigation.navigate('Chat');
+                                }}
+                            >
+                                <MessageCircle size={20} color={theme.primary} />
+                            </TouchableOpacity>
+                        )}
+                        <Text style={{ color: theme.accent, fontSize: 18, marginLeft: 10 }}>›</Text>
+                    </View>
                 )}
             </TouchableOpacity>
         );
@@ -707,5 +747,10 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    callBtn: {
+        padding: 8,
+        borderRadius: 20,
+        marginRight: 4,
     },
 });

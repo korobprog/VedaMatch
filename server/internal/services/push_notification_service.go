@@ -31,6 +31,7 @@ type PushMessage struct {
 	Body     string            `json:"body"`
 	Data     map[string]string `json:"data,omitempty"`
 	ImageURL string            `json:"imageUrl,omitempty"`
+	Priority string            `json:"priority,omitempty"`
 }
 
 // FCMMessage represents the FCM message format
@@ -42,17 +43,19 @@ type FCMMessage struct {
 		Body     string `json:"body"`
 		ImageURL string `json:"image,omitempty"`
 	} `json:"notification"`
-	Data map[string]string `json:"data,omitempty"`
+	Data     map[string]string `json:"data,omitempty"`
+	Priority string            `json:"priority,omitempty"`
 }
 
 // ExpoMessage represents the Expo Push notification format
 type ExpoMessage struct {
-	To    []string          `json:"to"`
-	Title string            `json:"title"`
-	Body  string            `json:"body"`
-	Data  map[string]string `json:"data,omitempty"`
-	Sound string            `json:"sound,omitempty"`
-	Badge int               `json:"badge,omitempty"`
+	To       []string          `json:"to"`
+	Title    string            `json:"title"`
+	Body     string            `json:"body"`
+	Data     map[string]string `json:"data,omitempty"`
+	Sound    string            `json:"sound,omitempty"`
+	Badge    int               `json:"badge,omitempty"`
+	Priority string            `json:"priority,omitempty"`
 }
 
 // NewPushNotificationService creates a new push notification service
@@ -173,6 +176,22 @@ func (s *PushNotificationService) SendNewsNotification(newsItem models.NewsItem)
 	return s.SendToTokens(tokens, message)
 }
 
+// SendCallNotification sends a VoIP push notification for incoming calls
+func (s *PushNotificationService) SendCallNotification(targetUserID uint, callerName string, roomID string, isVideo bool) error {
+	message := PushMessage{
+		Title:    "Incoming Call",
+		Body:     fmt.Sprintf("%s is calling...", callerName),
+		Priority: "high",
+		Data: map[string]string{
+			"type":       "voip_call",
+			"callerName": callerName,
+			"uuid":       roomID,
+			"hasVideo":   fmt.Sprintf("%v", isVideo),
+		},
+	}
+	return s.SendToUser(targetUserID, message)
+}
+
 // SendViaFCM sends notification using Firebase Cloud Messaging
 func (s *PushNotificationService) SendViaFCM(tokens []string, message PushMessage) error {
 	if s.fcmServerKey == "" {
@@ -191,12 +210,13 @@ func (s *PushNotificationService) SendViaFCM(tokens []string, message PushMessag
 		if end > len(tokens) {
 			end = len(tokens)
 		}
-		
+
 		batch := tokens[i:end]
-		
+
 		fcmMsg := FCMMessage{
 			RegistrationIDs: batch,
 			Data:            message.Data,
+			Priority:        message.Priority,
 		}
 		fcmMsg.Notification.Title = message.Title
 		fcmMsg.Notification.Body = message.Body
@@ -220,7 +240,7 @@ func (s *PushNotificationService) SendViaFCM(tokens []string, message PushMessag
 			log.Printf("[PUSH] FCM batch send error: %v", err)
 			continue
 		}
-		
+
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("[PUSH] FCM batch returned status %d", resp.StatusCode)
 		}
@@ -237,11 +257,12 @@ func (s *PushNotificationService) SendViaExpo(tokens []string, message PushMessa
 	}
 
 	expoMsg := ExpoMessage{
-		To:    tokens,
-		Title: message.Title,
-		Body:  message.Body,
-		Data:  message.Data,
-		Sound: "default",
+		To:       tokens,
+		Title:    message.Title,
+		Body:     message.Body,
+		Data:     message.Data,
+		Sound:    "default",
+		Priority: message.Priority,
 	}
 
 	jsonData, err := json.Marshal([]ExpoMessage{expoMsg})

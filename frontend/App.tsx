@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import RNCallKeep from 'react-native-callkeep';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ChatProvider } from './context/ChatContext';
@@ -19,6 +20,7 @@ import { KrishnaAssistant } from './components/KrishnaAssistant';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 
 import { RoomChatScreen } from './screens/portal/chat/RoomChatScreen';
+import { CallScreen } from './screens/calls/CallScreen';
 import { MediaLibraryScreen } from './screens/portal/dating/MediaLibraryScreen';
 import { EditDatingProfileScreen } from './screens/portal/dating/EditDatingProfileScreen';
 import { DatingFavoritesScreen } from './screens/portal/dating/DatingFavoritesScreen';
@@ -54,6 +56,7 @@ import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // Component to handle StatusBar styling based on theme context
 const ThemedStatusBar = () => {
@@ -73,6 +76,17 @@ const AppContent = () => {
   const { theme } = useSettings();
   const { isLoggedIn, isLoading } = useUser();
   const [showPreview, setShowPreview] = useState(true);
+
+  React.useEffect(() => {
+    const onAnswerCall = () => {
+      if (navigationRef.isReady()) {
+        // Navigate to CallScreen - user answered via native UI
+        navigationRef.navigate('CallScreen', { isIncoming: true });
+      }
+    };
+    RNCallKeep.addEventListener('answerCall', onAnswerCall);
+    return () => RNCallKeep.removeEventListener('answerCall');
+  }, []);
 
   // Show preview only for non-logged-in users
   if (showPreview && !isLoggedIn && !isLoading) {
@@ -94,7 +108,7 @@ const AppContent = () => {
       style={{ flex: 1, backgroundColor: theme.background }}
       edges={['top']}
     >
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <ThemedStatusBar />
         <Stack.Navigator
           screenOptions={{
@@ -106,6 +120,7 @@ const AppContent = () => {
             <Stack.Group>
               <Stack.Screen name="Portal" component={PortalMainScreen} />
               <Stack.Screen name="Chat" component={ChatScreen} />
+              <Stack.Screen name="CallScreen" component={CallScreen} options={{ headerShown: false }} />
               <Stack.Screen name="Plans" component={PlansScreen} />
               <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} />

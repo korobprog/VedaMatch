@@ -95,7 +95,15 @@ export class WebSocketService {
                 recipientId,
                 isTyping
             };
+            this.send(message);
+        }
+    }
+
+    send(message: any) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             this.socket.send(JSON.stringify(message));
+        } else {
+            console.warn('[WebSocket] Cannot send, socket not open');
         }
     }
 }

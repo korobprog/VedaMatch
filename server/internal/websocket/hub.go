@@ -33,6 +33,7 @@ func (t TypingWrapper) GetRoomID() uint      { return 0 }
 type Hub struct {
 	clients    map[uint]*Client
 	broadcast  chan WSMessage
+	Signal     chan SignalingMessage // Dedicated channel for direct signaling
 	Register   chan *Client
 	Unregister chan *Client
 	mu         sync.RWMutex
@@ -41,6 +42,7 @@ type Hub struct {
 func NewHub() *Hub {
 	return &Hub{
 		broadcast:  make(chan WSMessage, 256),
+		Signal:     make(chan SignalingMessage, 256),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
 		clients:    make(map[uint]*Client),
@@ -78,6 +80,17 @@ func (h *Hub) Run() {
 					case client.Send <- message:
 					default:
 					}
+				}
+			}
+			h.mu.RUnlock()
+		case msg := <-h.Signal:
+			h.mu.RLock()
+			if target, ok := h.clients[msg.TargetID]; ok {
+				select {
+				case target.Send <- msg:
+				default:
+					close(target.Send)
+					delete(h.clients, msg.TargetID)
 				}
 			}
 			h.mu.RUnlock()

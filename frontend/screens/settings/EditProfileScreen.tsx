@@ -11,7 +11,8 @@ import {
     StatusBar,
     SafeAreaView,
     TextInput,
-    Switch
+    Switch,
+    Modal
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
 import { useTranslation } from 'react-i18next';
@@ -74,6 +75,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [lookingForBusiness, setLookingForBusiness] = useState('');
     const [maritalStatus, setMaritalStatus] = useState('');
     const [birthTime, setBirthTime] = useState('');
+    const [yatra, setYatra] = useState('');
+    const [timezone, setTimezone] = useState('');
     const [datingEnabled, setDatingEnabled] = useState(false);
 
     const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -127,7 +130,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setSkills(userData.skills || '');
                 setIndustry(userData.industry || '');
                 setLookingForBusiness(userData.lookingForBusiness || '');
-                
+
                 // Parse intentions (stored as comma-separated string)
                 if (userData.intentions) {
                     setIntentions(userData.intentions.split(',').map((i: string) => i.trim()));
@@ -137,6 +140,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
                 setMaritalStatus(userData.maritalStatus || '');
                 setBirthTime(userData.birthTime || '');
+                setMaritalStatus(userData.maritalStatus || '');
+                setBirthTime(userData.birthTime || '');
+                setYatra(userData.yatra || '');
+                setTimezone(userData.timezone || '');
                 setDatingEnabled(userData.datingEnabled || false);
 
                 if (userData.dob) {
@@ -184,6 +191,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 lookingForBusiness,
                 maritalStatus,
                 birthTime,
+                yatra,
+                timezone,
                 datingEnabled
             };
 
@@ -251,7 +260,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-            
+
             {/* Header */}
             <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
@@ -289,7 +298,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
 
                 {/* Manage Photos Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.managePhotosBtn}
                     onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                 >
@@ -304,6 +313,24 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                         value={city}
                         onChangeText={setCity}
                         placeholder={t('registration.selectCity')}
+                        placeholderTextColor={theme.subText}
+                    />
+
+                    <Text style={[styles.label, { color: theme.text }]}>Yatra (Community)</Text>
+                    <TextInput
+                        style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        value={yatra}
+                        onChangeText={setYatra}
+                        placeholder="e.g. New Vrindavan"
+                        placeholderTextColor={theme.subText}
+                    />
+
+                    <Text style={[styles.label, { color: theme.text }]}>Timezone</Text>
+                    <TextInput
+                        style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                        value={timezone}
+                        onChangeText={setTimezone}
+                        placeholder="e.g. Europe/London"
                         placeholderTextColor={theme.subText}
                     />
 
@@ -336,9 +363,9 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 key={opt.key}
                                 style={[
                                     styles.chip,
-                                    { 
+                                    {
                                         backgroundColor: intentions.includes(opt.key) ? '#8D6E63' : theme.inputBackground,
-                                        borderColor: theme.borderColor 
+                                        borderColor: theme.borderColor
                                     }
                                 ]}
                                 onPress={() => toggleIntention(opt.key)}
@@ -354,7 +381,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     {intentions.includes('business') && (
                         <View style={{ marginBottom: 15, padding: 15, backgroundColor: 'rgba(141, 110, 99, 0.05)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(141, 110, 99, 0.2)' }}>
                             <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 5, color: '#8D6E63' }]}>Business Profile</Text>
-                            
+
                             <Text style={[styles.label, { color: theme.text, marginTop: 10 }]}>Skills</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: '#fff', color: theme.inputText, borderColor: theme.borderColor }]}

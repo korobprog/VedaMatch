@@ -45,4 +45,5 @@ export type RootStackParamList = {
     EducationHome: undefined;
     CourseDetails: { courseId: number };
     ExamTrainer: { moduleId: number; title: string };
+    CallScreen: { targetId?: number; isIncoming?: boolean; callerName?: string };
 };
