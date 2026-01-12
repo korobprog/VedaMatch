@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RNCallKeep from 'react-native-callkeep';
+import messaging from '@react-native-firebase/messaging';
+import { Platform, Alert } from 'react-native';
+import { sipService } from './services/sipService';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ChatProvider } from './context/ChatContext';
@@ -18,6 +21,23 @@ import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
 import { KrishnaAssistant } from './components/KrishnaAssistant';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
+
+let VoipPushNotification: any;
+if (Platform.OS === 'ios') {
+  try {
+    VoipPushNotification = require('react-native-voip-push-notification').default;
+  } catch (e) {
+    console.warn('VoipPushNotification not available', e);
+  }
+}
+
+const getUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 import { RoomChatScreen } from './screens/portal/chat/RoomChatScreen';
 import { CallScreen } from './screens/calls/CallScreen';
@@ -74,19 +94,89 @@ const ThemedStatusBar = () => {
 const AppContent = () => {
   const { t } = useTranslation();
   const { theme } = useSettings();
-  const { isLoggedIn, isLoading } = useUser();
+  const { isLoggedIn, isLoading, user } = useUser();
   const [showPreview, setShowPreview] = useState(true);
+  // Keep sipUser ref or state if needed to manage connection
 
   React.useEffect(() => {
-    const onAnswerCall = () => {
-      if (navigationRef.isReady()) {
-        // Navigate to CallScreen - user answered via native UI
-        navigationRef.navigate('CallScreen', { isIncoming: true });
+    const setupVoIP = async () => {
+      try {
+        const options = {
+          ios: { appName: 'VedaMatch VoIP' },
+          android: {
+            alertTitle: 'Permissions required',
+            alertDescription: 'This application needs to access your phone accounts',
+            selfManaged: true,
+          },
+        };
+        await RNCallKeep.setup(options);
+        RNCallKeep.setAvailable(true);
+      } catch (err) {
+        console.error('CallKeep setup failed', err);
       }
     };
+
+    setupVoIP();
+
+    const onAnswerCall = ({ callUUID }: { callUUID: string }) => {
+      // Accept SIP call if pending?
+      // For now, navigate to UI
+      if (navigationRef.isReady()) {
+        navigationRef.navigate('CallScreen', { isIncoming: true, callUUID });
+      }
+    };
+
+    // CallKeep events
     RNCallKeep.addEventListener('answerCall', onAnswerCall);
-    return () => RNCallKeep.removeEventListener('answerCall');
+    RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
+      // Handle end call
+    });
+
+    return () => {
+      RNCallKeep.removeEventListener('answerCall');
+      RNCallKeep.removeEventListener('endCall');
+    };
   }, []);
+
+  // Initialize SIP when logged in
+  React.useEffect(() => {
+    if (isLoggedIn && user?.ID) {
+      const initSip = async () => {
+        try {
+          // Using user ID as login
+          const sipLogin = user.ID.toString();
+          const sipPwd = 'password'; // TODO: Retrieve from secure storage
+
+          await sipService.init(sipLogin, sipPwd);
+
+          // Set delegate
+          sipService.onCallReceived = (callId) => {
+            const callUUID = getUUID();
+            RNCallKeep.displayIncomingCall(callUUID, '7000', 'Incoming Call', 'generic', true);
+            // Store callUUID to answer later?
+          };
+
+          // Register iOS VoIP Push
+          if (Platform.OS === 'ios' && VoipPushNotification) {
+            VoipPushNotification.registerVoipToken();
+            VoipPushNotification.onVoipNotification = (notif: any) => {
+              sipService.register();
+            };
+          }
+
+          // Android FCM
+          if (Platform.OS === 'android') {
+            const token = await messaging().getToken();
+            console.log('FCM Token:', token);
+          }
+
+        } catch (e) {
+          console.error('SIP Init failed', e);
+        }
+      };
+      initSip();
+    }
+  }, [isLoggedIn, user]);
 
   // Show preview only for non-logged-in users
   if (showPreview && !isLoggedIn && !isLoading) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
-import { webRTCService } from '../../services/webRTCService';
+import { sipService } from '../../services/sipService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff } from 'lucide-react-native';
@@ -23,19 +23,23 @@ export const CallScreen = () => {
     useEffect(() => {
         const init = async () => {
             try {
-                const stream = await webRTCService.startLocalStream();
-                setLocalStream(stream);
+                // Use the stream initialized in SipService
+                if (sipService.localStream) {
+                    setLocalStream(sipService.localStream);
+                } else {
+                    // Try to init if not ready? Usually App handles init.
+                    // Or retrieve it again? 
+                    // For now assume initialized
+                }
 
-                webRTCService.setOnRemoteStream((stream) => {
-                    setRemoteStream(stream);
-                    setStatus('Connected');
-                });
+                // Remote stream handling for SIP with SimpleUser is complex for Video.
+                // Audio is auto-played.
+                setStatus('Connected');
 
                 if (!isIncoming && targetId) {
-                    await webRTCService.startCall(targetId);
+                    await sipService.call(`sip:${targetId}@your-domain`);
                 } else if (isIncoming) {
-                    // Start process if needed, or wait for user action
-                    // For now, if we navigated here, we assume we want to answer or show ringing
+                    await sipService.answer();
                 }
             } catch (err) {
                 console.error("Failed to start call", err);
@@ -45,12 +49,13 @@ export const CallScreen = () => {
         init();
 
         return () => {
-            webRTCService.endCall();
+            // Do NOT clean up local stream globally if it's shared, but sipService manages it.
+            // sipService.hangup() handles session termination.
         };
     }, []);
 
-    const handleHangup = () => {
-        webRTCService.sendHangup();
+    const handleHangup = async () => {
+        await sipService.hangup();
         navigation.goBack();
     };
 

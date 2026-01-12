@@ -376,8 +376,8 @@ func (h *OrderHandler) notifySellerAboutOrder(order *models.Order) {
 
 		// TODO: Send message to tech room using room service
 		// For now, log the notification
-		fmt.Printf("[Order Notification] Shop %d: New order #%s from %s, Total: %.2f %s\n",
-			order.ShopID, order.OrderNumber, notification.BuyerName, notification.Total, notification.Currency)
+		fmt.Printf("[Order Notification] Shop %d: New order #%s (ID: %d) from %s (UserID: %d), %d items, Total: %.2f %s. DeepLink: %s\n",
+			order.ShopID, notification.OrderNumber, notification.OrderID, notification.BuyerName, notification.BuyerID, notification.ItemsCount, notification.Total, notification.Currency, notification.DeepLink)
 	}
 
 	// Mark notification as sent

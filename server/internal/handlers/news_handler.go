@@ -32,6 +32,7 @@ func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
 	category := c.Query("category", "")
 	tags := c.Query("tags", "")
 	search := c.Query("search", "")
+	madhParam := c.Query("madh", "")
 
 	personalized := c.Query("personalized", "false") == "true"
 
@@ -72,6 +73,9 @@ func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
 
 	if category != "" {
 		query = query.Where("category = ?", category)
+	}
+	if madhParam != "" {
+		query = query.Where("target_madh LIKE ?", "%"+madhParam+"%")
 	}
 	if tags != "" {
 		// Search for any of the provided tags
@@ -451,9 +455,10 @@ func (h *NewsHandler) GetSources(c *fiber.Ctx) error {
 	if sourceType != "" {
 		query = query.Where("source_type = ?", sourceType)
 	}
-	if isActive == "true" {
+	switch isActive {
+	case "true":
 		query = query.Where("is_active = ?", true)
-	} else if isActive == "false" {
+	case "false":
 		query = query.Where("is_active = ?", false)
 	}
 	if search != "" {

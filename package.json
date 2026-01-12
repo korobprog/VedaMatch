@@ -21,7 +21,7 @@
     "dev:usb": "pnpm run clean && pnpm run env:usb && node adb-reverse.js && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend:clean\" \"wait-on tcp:8082 && pnpm run device\" --names \"SERVER,ADMIN,METRO,ANDROID\" --prefix-colors \"blue,yellow,magenta,green\"",
     "android:setup": "cd frontend && copy .env.production .env",
     "android:bundle": "cd frontend && npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
-    "android:build": "cd frontend/android && gradlew.bat assembleRelease -x mergeDexRelease",
+    "android:build": "cd frontend/android && gradlew.bat assembleRelease",
     "android:copy": "copy frontend\\android\\app\\build\\outputs\\apk\\release\\app-release.apk ragagent-release.apk",
     "build:release": "pnpm run android:setup && pnpm run android:bundle && pnpm run android:build && pnpm run android:copy"
   },

@@ -6,13 +6,13 @@ import Image from 'next/image';
 
 // Portrait cards data with positioning for the arc/curve effect
 const portraitCards = [
-    { src: '/vaishnava_group.png', rotate: -15, x: -420, y: 60, scale: 0.7, z: 1 },
-    { src: '/krishnaAssistant.png', rotate: -10, x: -280, y: 30, scale: 0.85, z: 2 },
-    { src: '/krishna_bg.png', rotate: -5, x: -140, y: 10, scale: 0.95, z: 3 },
+    { src: '/portrait_meditation.png', rotate: -15, x: -420, y: 60, scale: 0.7, z: 1 },
+    { src: '/portrait_altar.png', rotate: -10, x: -280, y: 30, scale: 0.85, z: 2 },
+    { src: '/krishnaAssistant.png', rotate: -5, x: -140, y: 10, scale: 0.95, z: 3 },
     { src: '/vaishnava_portrait.png', rotate: 0, x: 0, y: 0, scale: 1, z: 4 }, // Center
     { src: '/vaishnava_group.png', rotate: 5, x: 140, y: 10, scale: 0.95, z: 3 },
-    { src: '/krishnaAssistant.png', rotate: 10, x: 280, y: 30, scale: 0.85, z: 2 },
-    { src: '/vaishnava_portrait.png', rotate: 15, x: 420, y: 60, scale: 0.7, z: 1 },
+    { src: '/krishna_bg.png', rotate: 10, x: 280, y: 30, scale: 0.85, z: 2 },
+    { src: '/portrait_gathering.png', rotate: 15, x: 420, y: 60, scale: 0.7, z: 1 },
 ];
 
 // Features section data

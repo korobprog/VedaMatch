@@ -28,6 +28,7 @@ export interface NewsFilters {
     category?: string;
     tags?: string;
     search?: string;
+    madh?: string;
     personalized?: boolean;
 }
 
@@ -61,8 +62,10 @@ class NewsService {
      */
     async getLatestNews(limit: number = 3, lang: string = 'ru'): Promise<NewsItem[]> {
         try {
+            const headers = await getAuthHeaders();
             const response = await axios.get(`${API_PATH}/news/latest`, {
-                params: { limit, lang }
+                params: { limit, lang },
+                headers
             });
             return response.data.news || [];
         } catch (error) {
@@ -76,8 +79,10 @@ class NewsService {
      */
     async getNewsItem(id: number, lang: string = 'ru'): Promise<NewsItem> {
         try {
+            const headers = await getAuthHeaders();
             const response = await axios.get(`${API_PATH}/news/${id}`, {
-                params: { lang }
+                params: { lang },
+                headers
             });
             return response.data;
         } catch (error) {
@@ -91,7 +96,8 @@ class NewsService {
      */
     async getCategories(): Promise<string[]> {
         try {
-            const response = await axios.get(`${API_PATH}/news/categories`);
+            const headers = await getAuthHeaders();
+            const response = await axios.get(`${API_PATH}/news/categories`, { headers });
             return response.data.categories || [];
         } catch (error) {
             console.error('Error fetching news categories:', error);

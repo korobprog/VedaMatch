@@ -9,6 +9,7 @@ import {
     ScrollView,
     Alert,
     Platform,
+    Image,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -115,7 +116,11 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
                     </TouchableOpacity>
                 </View>
 
-                <Text style={styles.headerTitle}>MAIN PORTAL</Text>
+                <Image
+                    source={require('../../assets/logo_tilak.png')}
+                    style={styles.logoImage}
+                    resizeMode="contain"
+                />
 
                 <View style={styles.headerRight}>
                     <TouchableOpacity style={styles.iconButton}>
@@ -162,12 +167,9 @@ const styles = StyleSheet.create({
         backgroundColor: ModernVedicTheme.colors.background,
         zIndex: 10,
     },
-    headerTitle: {
-        fontFamily: ModernVedicTheme.typography.subHeader.fontFamily, // Cinzel
-        fontSize: ModernVedicTheme.typography.subHeader.fontSize,
-        fontWeight: 'bold',
-        color: ModernVedicTheme.colors.primary,
-        letterSpacing: 1.5,
+    logoImage: {
+        width: 120,
+        height: 40,
     },
     headerLeft: {
         width: 40,

@@ -83,6 +83,7 @@ func main() {
 	productHandler := handlers.NewProductHandler()
 	orderHandler := handlers.NewOrderHandler()
 	educationHandler := handlers.NewEducationHandler(services.NewEducationService(database.DB))
+	turnHandler := handlers.NewTurnHandler()
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -261,6 +262,9 @@ func main() {
 	protected.Post("/blocks/add", authHandler.BlockUser)
 	protected.Post("/blocks/remove", authHandler.UnblockUser)
 	protected.Get("/blocks", authHandler.GetBlockedUsers)
+
+	// WebRTC Config
+	protected.Get("/turn-credentials", turnHandler.GetTurnCredentials)
 
 	// Tag Routes
 	protected.Get("/tags", tagHandler.SearchTags)

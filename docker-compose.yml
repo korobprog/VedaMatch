@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U raguser -d ragdb"]
+      test: [ "CMD-SHELL", "pg_isready -U raguser -d ragdb" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,6 +34,27 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  coturn:
+    image: coturn/coturn
+    container_name: rag-agent-turn
+    restart: always
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      # Min-Max port range for relay. In prod typically 49152-65535, but we limit for docker perf.
+      - "49152-49162:49152-49162/udp"
+    environment:
+      - LOGGING_LEVEL=N
+      - USERS=user:password # Simple static auth for testing, or use REST API
+      - REALM=localhost
+      - LISTENING_PORT=3478
+      - MIN_PORT=49152
+      - MAX_PORT=49162
+      - EXTERNAL_IP=127.0.0.1 # IMPORTANT: Change to public IP in production
+      # Secret for REST API (Time Limited Credentials)
+      - STATIC_AUTH_SECRET=p2psecretkey123
+
 volumes:
   postgres_data:
+
 

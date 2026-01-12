@@ -6,8 +6,11 @@ import {
     mediaDevices,
 } from 'react-native-webrtc';
 import { WebSocketService } from './websocketService';
+import { API_PATH } from '../config/api.config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
-const configuration = {
+let configuration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
     ],
@@ -20,6 +23,7 @@ class WebRTCService {
     onRemoteStream: ((stream: MediaStream) => void) | null = null;
     targetId: number | null = null;
     isInitiator: boolean = false;
+    private remoteCandidates: RTCIceCandidate[] = [];
 
     setWebSocketService(ws: WebSocketService) {
         this.wsService = ws;
@@ -31,9 +35,10 @@ class WebRTCService {
 
     async startLocalStream(isVideo: boolean = true) {
         const isFront = true;
-        const sourceInfos = await mediaDevices.enumerateDevices();
+        // Basic device enumeration logic...
+        const devices = await mediaDevices.enumerateDevices() as any[];
         let videoSourceId;
-        for (const source of sourceInfos) {
+        for (const source of devices) {
             if (source.kind === "videoinput" && source.facing === (isFront ? "user" : "environment")) {
                 videoSourceId = source.deviceId;
             }
@@ -42,13 +47,11 @@ class WebRTCService {
         const stream = await mediaDevices.getUserMedia({
             audio: true,
             video: isVideo ? {
-                mandatory: {
-                    minWidth: 500,
-                    minHeight: 300,
-                    minFrameRate: 30,
-                },
+                width: { min: 500 },
+                height: { min: 300 },
+                frameRate: { min: 30 },
                 facingMode: (isFront ? "user" : "environment"),
-                optional: videoSourceId ? [{ sourceId: videoSourceId }] : [],
+                deviceId: videoSourceId,
             } : false,
         });
 
@@ -56,14 +59,32 @@ class WebRTCService {
         return stream;
     }
 
+    async fetchTurnCredentials() {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            if (!token) return;
+
+            const response = await axios.get(`${API_PATH}/turn-credentials`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (response.data && response.data.iceServers) {
+                configuration = { iceServers: response.data.iceServers };
+            }
+        } catch (error) {
+            console.log('Using default STUN servers');
+        }
+    }
+
     createPeerConnection() {
         if (this.peerConnection) {
             this.peerConnection.close();
         }
+        this.remoteCandidates = []; // Reset buffer
 
         this.peerConnection = new RTCPeerConnection(configuration);
 
-        this.peerConnection.onicecandidate = (event) => {
+        (this.peerConnection as any).onicecandidate = (event: any) => {
             if (event.candidate && this.wsService && this.targetId) {
                 this.wsService.send({
                     type: 'candidate',
@@ -73,7 +94,7 @@ class WebRTCService {
             }
         };
 
-        this.peerConnection.ontrack = (event) => {
+        (this.peerConnection as any).ontrack = (event: any) => {
             // Depending on version, streams might be in event.streams
             // react-native-webrtc sending one stream per track usually
             if (event.streams && event.streams.length > 0) {
@@ -91,6 +112,7 @@ class WebRTCService {
     }
 
     async startCall(targetId: number) {
+        await this.fetchTurnCredentials(); // Get TURN config first
         this.targetId = targetId;
         this.isInitiator = true;
         this.createPeerConnection();
@@ -108,11 +130,13 @@ class WebRTCService {
     }
 
     async processOffer(message: any) {
+        await this.fetchTurnCredentials(); // Get TURN config first
         this.targetId = message.senderId;
         this.isInitiator = false;
         this.createPeerConnection();
 
         await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(message.payload));
+        this.processBufferedCandidates(); // Flush candidates
         const answer = await this.peerConnection!.createAnswer();
         await this.peerConnection!.setLocalDescription(answer);
 
@@ -128,13 +152,26 @@ class WebRTCService {
     async processAnswer(message: any) {
         if (this.peerConnection) {
             await this.peerConnection.setRemoteDescription(new RTCSessionDescription(message.payload));
+            this.processBufferedCandidates(); // Flush candidates
         }
     }
 
     async processCandidate(message: any) {
-        if (this.peerConnection && message.payload) {
-            await this.peerConnection.addIceCandidate(new RTCIceCandidate(message.payload));
+        const candidate = new RTCIceCandidate(message.payload);
+        if (this.peerConnection && this.peerConnection.remoteDescription) {
+            await this.peerConnection.addIceCandidate(candidate);
+        } else {
+            this.remoteCandidates.push(candidate);
         }
+    }
+
+    async processBufferedCandidates() {
+        for (const candidate of this.remoteCandidates) {
+            if (this.peerConnection) {
+                await this.peerConnection.addIceCandidate(candidate);
+            }
+        }
+        this.remoteCandidates = [];
     }
 
     async handleSignalingMessage(message: any) {

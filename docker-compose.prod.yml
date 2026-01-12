@@ -38,6 +38,8 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME}
       S3_PUBLIC_URL: ${S3_PUBLIC_URL}
+      TURN_SECRET: ${TURN_SECRET}
+      TURN_HOST: ${TURN_EXTERNAL_IP}
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,6 +53,21 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: rag-agent-admin
     restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn
+    container_name: rag-agent-turn
+    restart: always
+    network_mode: host # For better performance and NAT handling in production
+    environment:
+      - LOGGING_LEVEL=N
+      - USERS=${TURN_USER:-user}:${TURN_PASSWORD:-password}
+      - REALM=${TURN_REALM:-localhost}
+      - LISTENING_PORT=3478
+      - MIN_PORT=49152
+      - MAX_PORT=49162
+      - EXTERNAL_IP=${TURN_EXTERNAL_IP} # Must be set in environment variables
+      - STATIC_AUTH_SECRET=${TURN_SECRET}
 
 volumes:
   postgres_data:

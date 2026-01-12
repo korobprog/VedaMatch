@@ -21,11 +21,19 @@ const { width } = Dimensions.get('window');
 
 // Category pills for filtering
 const CATEGORIES = [
-    { id: '', label: 'Все', labelEn: 'All' },
+    { id: '', label: 'Все темы', labelEn: 'All Topics' },
     { id: 'spiritual', label: 'Духовное', labelEn: 'Spiritual' },
     { id: 'events', label: 'События', labelEn: 'Events' },
     { id: 'education', label: 'Образование', labelEn: 'Education' },
     { id: 'wellness', label: 'Здоровье', labelEn: 'Wellness' },
+];
+
+const MADH_FILTERS = [
+    { id: '', label: 'Все мадхи', labelEn: 'All Mathas' },
+    { id: 'iskcon', label: 'ISKCON', labelEn: 'ISKCON' },
+    { id: 'gaudiya', label: 'Gaudiya Math', labelEn: 'Gaudiya Math' },
+    { id: 'srivaishnava', label: 'Sri Vaishnava', labelEn: 'Sri Vaishnava' },
+    { id: 'vedic', label: 'VedicWorld', labelEn: 'VedicWorld' },
 ];
 
 export const NewsScreen = () => {
@@ -42,6 +50,7 @@ export const NewsScreen = () => {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [selectedCategory, setSelectedCategory] = useState('');
+    const [selectedMadh, setSelectedMadh] = useState('');
     const [personalized, setPersonalized] = useState(true); // Default to personalized
 
     // Subscription & Favorite states
@@ -60,6 +69,7 @@ export const NewsScreen = () => {
                 limit: 10,
                 lang,
                 category: selectedCategory || undefined,
+                madh: selectedMadh || undefined,
                 personalized: personalized // Pass preference
             });
 
@@ -96,7 +106,7 @@ export const NewsScreen = () => {
     useEffect(() => {
         loadNews(1, true);
         loadUserPreferences();
-    }, [loadNews, selectedCategory]);
+    }, [loadNews, selectedCategory, selectedMadh]);
 
     const handleRefresh = useCallback(() => {
         setRefreshing(true);
@@ -139,6 +149,11 @@ export const NewsScreen = () => {
         setPage(1);
     };
 
+    const handleMadhSelect = (madhId: string) => {
+        setSelectedMadh(madhId);
+        setPage(1);
+    };
+
     const renderCategoryPills = () => (
         <View style={styles.categoriesContainer}>
             {/* Personalized Toggle */}
@@ -167,6 +182,44 @@ export const NewsScreen = () => {
                 </TouchableOpacity>
             </View>
 
+            {/* Organizations/Mathas Filter */}
+            <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={MADH_FILTERS}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.categoriesList}
+                style={{ marginBottom: 8 }}
+                renderItem={({ item }) => (
+                    <TouchableOpacity
+                        onPress={() => handleMadhSelect(item.id)}
+                        style={[
+                            styles.categoryPill,
+                            {
+                                backgroundColor: selectedMadh === item.id
+                                    ? theme.accent || '#D67D3E'
+                                    : theme.header,
+                                borderColor: selectedMadh === item.id
+                                    ? 'transparent'
+                                    : theme.borderColor
+                            }
+                        ]}
+                    >
+                        <Text style={[
+                            styles.categoryPillText,
+                            {
+                                color: selectedMadh === item.id
+                                    ? '#fff'
+                                    : theme.text
+                            }
+                        ]}>
+                            {lang === 'en' ? item.labelEn : item.label}
+                        </Text>
+                    </TouchableOpacity>
+                )}
+            />
+
+            {/* Regular Categories Filter */}
             <FlatList
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -217,7 +270,7 @@ export const NewsScreen = () => {
                 ]}
                 activeOpacity={0.8}
                 onPress={() => {
-                    navigation.navigate('NewsDetail' as never, { newsId: item.id } as never);
+                    (navigation.navigate as any)('NewsDetail', { newsId: item.id });
                 }}
             >
                 {item.imageUrl ? (
@@ -248,13 +301,13 @@ export const NewsScreen = () => {
                                     </View>
                                 )}
                                 <View style={styles.sourceActions}>
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         onPress={() => toggleFavorite(item.sourceId)}
                                         style={styles.heroActionBtn}
                                     >
                                         <Text style={styles.actionEmoji}>{isFavorite ? '⭐' : '☆'}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         onPress={() => toggleSubscription(item.sourceId)}
                                         style={styles.heroActionBtn}
                                     >
@@ -262,7 +315,7 @@ export const NewsScreen = () => {
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                            
+
                             <Text style={styles.heroTitle} numberOfLines={2}>{newsService.cleanText(item.title)}</Text>
                             <Text style={styles.heroSummary} numberOfLines={2}>{newsService.cleanText(item.summary)}</Text>
                             <View style={styles.heroMeta}>
@@ -500,7 +553,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.2)',
         justifyContent: 'center',
         alignItems: 'center',
-        backdropBlur: 10,
     },
     actionEmoji: {
         fontSize: 18,
