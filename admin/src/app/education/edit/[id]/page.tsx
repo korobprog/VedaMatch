@@ -325,7 +325,7 @@ export default function EditCoursePage() {
             <div key={module.ID} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
               <div
                 className="p-4 flex items-center justify-between cursor-pointer hover:bg-[var(--secondary)]/30 transition-colors"
-                onClick={() => setExpandedModule(expandedModule === module.ID ? null : module.ID)}
+                onClick={() => setExpandedModule(expandedModule === module.ID ? null : (module.ID ?? null))}
               >
                 <div className="flex items-center gap-3">
                   {expandedModule === module.ID ? <ChevronDown className="w-5 h-5 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-5 h-5 text-[var(--muted-foreground)]" />}
