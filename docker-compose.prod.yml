@@ -38,8 +38,8 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME}
       S3_PUBLIC_URL: ${S3_PUBLIC_URL}
-      TURN_SECRET: ${TURN_SECRET}
-      TURN_HOST: ${TURN_EXTERNAL_IP}
+      TURN_SECRET: ${TURN_SECRET:-krishna1284radharamat145698uhgg}
+      TURN_HOST: ${TURN_EXTERNAL_IP:-45.150.9.229}
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,13 +61,13 @@ services:
     network_mode: host # For better performance and NAT handling in production
     environment:
       - LOGGING_LEVEL=N
-      - USERS=${TURN_USER:-user}:${TURN_PASSWORD:-password}
-      - REALM=${TURN_REALM:-localhost}
+      - USERS=${TURN_USER:-admin}:${TURN_PASSWORD:-krishna1284radha}
+      - REALM=${TURN_REALM:-vedamatch.ru}
       - LISTENING_PORT=3478
       - MIN_PORT=49152
       - MAX_PORT=49162
-      - EXTERNAL_IP=${TURN_EXTERNAL_IP} # Must be set in environment variables
-      - STATIC_AUTH_SECRET=${TURN_SECRET}
+      - EXTERNAL_IP=${TURN_EXTERNAL_IP:-45.150.9.229}
+      - STATIC_AUTH_SECRET=${TURN_SECRET:-krishna1284radharamat145698uhgg}
 
 volumes:
   postgres_data:

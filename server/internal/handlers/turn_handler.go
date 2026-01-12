@@ -19,7 +19,7 @@ type TurnHandler struct {
 func NewTurnHandler() *TurnHandler {
 	secret := os.Getenv("TURN_SECRET")
 	if secret == "" {
-		secret = "p2psecretkey123" // Default fallback matching docker-compose
+		secret = "krishna1284radharamat145698uhgg" // Default fallback matching docker-compose
 	}
 	return &TurnHandler{
 		secret: secret,
