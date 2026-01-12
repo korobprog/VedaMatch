@@ -150,3 +150,6 @@ Thumbs.db
 cache/
 sentence_transformers/
 node_modules
+
+# Android Build Outputs
+frontend/android/app/build/outputs/
