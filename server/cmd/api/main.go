@@ -23,7 +23,7 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-	log.Println("Server Version: 1.3 (Auth Route Fix)")
+	log.Println("Server Version: 1.4 (CORS Fix)")
 
 	// Initialize Database
 	database.Connect()
@@ -53,7 +53,7 @@ func main() {
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:3000,http://localhost:3001,http://localhost:8081,https://vedamatch.ru,https://www.vedamatch.ru,https://api.vedamatch.ru,https://admin.vedamatch.ru",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Admin-ID",
 		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
 		AllowCredentials: true,
 	}))
