@@ -57,6 +57,9 @@ func (h *TurnHandler) GetTurnCredentials(c *fiber.Ctx) error {
 	// We'll trust the env or default to localhost for now.
 	turnHost := os.Getenv("TURN_HOST")
 	if turnHost == "" {
+		turnHost = os.Getenv("TURN_EXTERNAL_IP")
+	}
+	if turnHost == "" {
 		turnHost = "127.0.0.1"
 	}
 	turnPort := "3478"

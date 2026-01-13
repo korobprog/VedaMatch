@@ -110,7 +110,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
         try {
             setLoading(true);
-            const response = await axios.get(`${API_PATH}/contacts`);
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.get(`${API_PATH}/contacts`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             const userData = response.data.find((u: any) => u.ID === user.ID);
 
             if (userData) {
@@ -196,7 +199,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 datingEnabled
             };
 
-            const response = await axios.put(`${API_PATH}/update-profile/${user.ID}`, profileData);
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.put(`${API_PATH}/update-profile`, profileData, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             const updatedUser = response.data.user;
 
             await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
