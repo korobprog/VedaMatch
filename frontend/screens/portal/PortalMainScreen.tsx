@@ -202,6 +202,8 @@ const styles = StyleSheet.create({
         height: 80,
         alignItems: 'center',
         justifyContent: 'center',
+        zIndex: 100,
+        elevation: 20,
     },
     glassBackground: {
         position: 'absolute',

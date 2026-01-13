@@ -100,47 +100,67 @@ class WebRTCService {
         this.debugLocalCandidates = 0;
         this.debugRemoteCandidates = 0;
 
+        // Always initialize a new remote stream for a new connection
+        this.remoteStream = new MediaStream();
+
+        console.log('Creating RTCPeerConnection with config:', JSON.stringify(configuration));
         this.peerConnection = new RTCPeerConnection(configuration);
 
         (this.peerConnection as any).onicecandidate = (event: any) => {
             if (event.candidate) {
                 this.debugLocalCandidates++;
                 const state = this.peerConnection?.iceConnectionState || 'gathering';
-                if (this.onIceStateChange) this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
-            }
-            if (event.candidate && this.wsService && this.targetId) {
-                this.wsService.send({
-                    type: 'candidate',
-                    targetId: this.targetId,
-                    payload: event.candidate,
-                });
+                if (this.onIceStateChange) {
+                    this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
+                }
+
+                if (this.wsService && this.targetId) {
+                    this.wsService.send({
+                        type: 'candidate',
+                        targetId: this.targetId,
+                        payload: event.candidate,
+                    });
+                }
             }
         };
 
         (this.peerConnection as any).oniceconnectionstatechange = () => {
             const state = this.peerConnection?.iceConnectionState || 'unknown';
-            console.log('ICE Connection State Check:', state);
+            console.log('ICE Connection State:', state);
             if (this.onIceStateChange) {
                 this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
             }
         };
 
         (this.peerConnection as any).ontrack = (event: any) => {
-            // Depending on version, streams might be in event.streams
-            // react-native-webrtc sending one stream per track usually
-            if (event.streams && event.streams.length > 0) {
-                this.remoteStream = event.streams[0]; // Save it!
-                console.log('Received remote track', this.remoteStream?.toURL());
+            console.log('Received remote track:', event.track.kind, 'Stream ID:', event.streams?.[0]?.id);
+            if (this.remoteStream && event.track) {
+                this.remoteStream.addTrack(event.track);
+
+                // Trigger callback so UI knows we have something new
                 if (this.onRemoteStream && this.remoteStream) {
                     this.onRemoteStream(this.remoteStream);
                 }
             }
         };
 
+        // Add legacy onaddstream just in case
+        (this.peerConnection as any).onaddstream = (event: any) => {
+            console.log('Received remote stream (legacy onaddstream)', event.stream.id);
+            this.remoteStream = event.stream;
+            if (this.onRemoteStream && this.remoteStream) {
+                this.onRemoteStream(this.remoteStream);
+            }
+        };
+
         if (this.localStream) {
-            this.localStream.getTracks().forEach(track => {
-                this.peerConnection?.addTrack(track, this.localStream!);
+            console.log('Adding local tracks to PeerConnection');
+            const stream = this.localStream;
+            stream.getTracks().forEach(track => {
+                this.peerConnection?.addTrack(track, stream);
             });
+        } else {
+            console.warn('No local stream available when creating PeerConnection!');
         }
     }
 
@@ -218,6 +238,7 @@ class WebRTCService {
 
     async processCandidate(message: any) {
         this.debugRemoteCandidates++;
+        console.log('Processing remote candidate', this.debugRemoteCandidates);
         const candidate = new RTCIceCandidate(message.payload);
         if (this.onIceStateChange) {
             const state = this.peerConnection?.iceConnectionState || 'active';
@@ -225,8 +246,14 @@ class WebRTCService {
         }
 
         if (this.peerConnection && this.peerConnection.remoteDescription) {
-            await this.peerConnection.addIceCandidate(candidate);
+            try {
+                await this.peerConnection.addIceCandidate(candidate);
+                console.log('ICE candidate added successfully');
+            } catch (e) {
+                console.error('Error adding ICE candidate:', e);
+            }
         } else {
+            console.log('Buffering ICE candidate (no remote description yet)');
             this.remoteCandidates.push(candidate);
         }
     }

@@ -506,7 +506,20 @@ export default {
         skillsPlaceholder: 'Go, React, Management...',
         industryPlaceholder: 'IT, Wellness, Art...',
         lookingForBusinessPlaceholder: 'Partners, Employees...',
-        maritalStatusPlaceholder: 'Single, Divorced, etc.'
+        maritalStatusPlaceholder: 'Single, Divorced, etc.',
+        yatra: 'Yatra (Community)',
+        yatraPlaceholder: 'e.g. New Vrindavan',
+        timezone: 'Timezone',
+        timezonePlaceholder: 'e.g. Europe/London',
+        dietOptions: {
+            vegan: 'Vegan',
+            vegetarian: 'Vegetarian',
+            prasad: 'Prasad'
+        },
+        genderOptions: {
+            male: 'Male',
+            female: 'Female'
+        }
     },
     profile: {
         editProfile: 'Edit Profile',
@@ -517,6 +530,7 @@ export default {
         yogaPractice: 'Yoga & Practice',
         avatar: 'Avatar',
         changeAvatar: 'Change Avatar',
+        datingProfile: 'Dating Profile',
         photoTip: 'Upload your best photos to the gallery so other users can view them in a slideshow.'
     }
 }

@@ -272,7 +272,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
                     <Text style={styles.headerButtonText}>{t('common.cancel') || 'Cancel'}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>{t('profile.datingProfile') || 'Dating Profile'}</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>{t('profile.datingProfile')}</Text>
                 <TouchableOpacity onPress={handleSave} style={styles.headerButton} disabled={saving}>
                     {saving ? (
                         <ActivityIndicator size="small" color={theme.accent} />
@@ -308,7 +308,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     style={styles.managePhotosBtn}
                     onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                 >
-                    <Text style={styles.managePhotosText}>📸 Manage Photos / Add New</Text>
+                    <Text style={styles.managePhotosText}>{t('dating.managePhotos')}</Text>
                 </TouchableOpacity>
 
                 {/* Main Profile Fields */}
@@ -322,21 +322,21 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                         placeholderTextColor={theme.subText}
                     />
 
-                    <Text style={[styles.label, { color: theme.text }]}>Yatra (Community)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.yatra')}</Text>
                     <TextInput
                         style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
                         value={yatra}
                         onChangeText={setYatra}
-                        placeholder="e.g. New Vrindavan"
+                        placeholder={t('dating.yatraPlaceholder')}
                         placeholderTextColor={theme.subText}
                     />
 
-                    <Text style={[styles.label, { color: theme.text }]}>Timezone</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.timezone')}</Text>
                     <TextInput
                         style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
                         value={timezone}
                         onChangeText={setTimezone}
-                        placeholder="e.g. Europe/London"
+                        placeholder={t('dating.timezonePlaceholder')}
                         placeholderTextColor={theme.subText}
                     />
 
@@ -356,13 +356,13 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                         style={[styles.textArea, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor, minHeight: 80 }]}
                         value={interests}
                         onChangeText={setInterests}
-                        placeholder="Yoga, kirtan, cooking..."
+                        placeholder={t('dating.interestsPlaceholder')}
                         placeholderTextColor={theme.subText}
                         multiline
                     />
 
                     {/* Intentions / Goals */}
-                    <Text style={[styles.label, { color: theme.text }]}>My Goals (Networking)</Text>
+                    <Text style={[styles.label, { color: theme.text }]}>{t('dating.goals')}</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
                         {INTENTION_OPTIONS.map((opt) => (
                             <TouchableOpacity
@@ -377,7 +377,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 onPress={() => toggleIntention(opt.key)}
                             >
                                 <Text style={{ color: intentions.includes(opt.key) ? '#fff' : theme.text, fontWeight: '500' }}>
-                                    {opt.label}
+                                    {t(`dating.intentions.${opt.key}`)}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -386,23 +386,23 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     {/* Business Section (Conditional) */}
                     {intentions.includes('business') && (
                         <View style={{ marginBottom: 15, padding: 15, backgroundColor: 'rgba(141, 110, 99, 0.05)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(141, 110, 99, 0.2)' }}>
-                            <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 5, color: '#8D6E63' }]}>Business Profile</Text>
+                            <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 5, color: '#8D6E63' }]}>{t('dating.businessProfile')}</Text>
 
-                            <Text style={[styles.label, { color: theme.text, marginTop: 10 }]}>Skills</Text>
+                            <Text style={[styles.label, { color: theme.text, marginTop: 10 }]}>{t('dating.skills')}</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: '#fff', color: theme.inputText, borderColor: theme.borderColor }]}
                                 value={skills}
                                 onChangeText={setSkills}
-                                placeholder="Go, React, Management..."
+                                placeholder={t('dating.skillsPlaceholder')}
                                 placeholderTextColor={theme.subText}
                             />
 
-                            <Text style={[styles.label, { color: theme.text }]}>Industry</Text>
+                            <Text style={[styles.label, { color: theme.text }]}>{t('dating.industry')}</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: '#fff', color: theme.inputText, borderColor: theme.borderColor }]}
                                 value={industry}
                                 onChangeText={setIndustry}
-                                placeholder="IT, Wellness, Art..."
+                                placeholder={t('dating.industryPlaceholder')}
                                 placeholderTextColor={theme.subText}
                             />
                         </View>

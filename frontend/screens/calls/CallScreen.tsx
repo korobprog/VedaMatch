@@ -48,11 +48,22 @@ export const CallScreen = () => {
 
         const connect = async () => {
             try {
+                // ENSURE local stream is ready BEFORE starting call
+                let currentLocalStream = webRTCService.localStream;
+                if (!currentLocalStream) {
+                    console.log('Local stream not ready, starting now...');
+                    currentLocalStream = await webRTCService.startLocalStream(true);
+                    if (mounted) setLocalStream(currentLocalStream);
+                }
+
                 // Setup Callbacks
                 webRTCService.setOnRemoteStream((rStream) => {
-                    console.log('Got remote stream in UI!', rStream.toURL());
+                    console.log('Got remote stream in UI!', rStream.toURL(), 'Tracks:', rStream.getTracks().length);
                     if (mounted) {
-                        setRemoteStream(rStream);
+                        // Create a new stream object reference to force React re-render
+                        // This ensures that when new tracks are added to the same stream, 
+                        // the RTCView updates correctly.
+                        setRemoteStream(new MediaStream(rStream));
                         setStatus('Connected');
                     }
                 });
@@ -69,7 +80,7 @@ export const CallScreen = () => {
                 // Note: Incoming call logic is now handled in handleAnswer via acceptCall()
 
             } catch (err) {
-                console.error("Failed to start call", err);
+                console.error("Failed to start/setup call", err);
                 if (mounted) setStatus('Failed');
             }
         };

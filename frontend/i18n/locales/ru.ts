@@ -526,7 +526,20 @@ export default {
         skillsPlaceholder: 'Go, React, Management...',
         industryPlaceholder: 'IT, Wellness, Art...',
         lookingForBusinessPlaceholder: 'Партнеры, сотрудники...',
-        maritalStatusPlaceholder: 'Не женат / Не замужем, в разводе и т.д.'
+        maritalStatusPlaceholder: 'Не женат / Не замужем, в разводе и т.д.',
+        yatra: 'Ятра (Община)',
+        yatraPlaceholder: 'напр. Нью Вриндаван',
+        timezone: 'Часовой пояс',
+        timezonePlaceholder: 'напр. Европа/Москва',
+        dietOptions: {
+            vegan: 'Веган',
+            vegetarian: 'Вегетарианец',
+            prasad: 'Прасад'
+        },
+        genderOptions: {
+            male: 'Мужской',
+            female: 'Женский'
+        }
     },
     profile: {
         editProfile: 'Редактировать профиль',
@@ -537,6 +550,7 @@ export default {
         yogaPractice: 'Йога и Практика',
         avatar: 'Аватар',
         changeAvatar: 'Изменить аватар',
+        datingProfile: 'Профиль знакомств',
         photoTip: 'Загружайте свои лучшие фотографии в галерею, чтобы другие пользователи могли просматривать их в слайд-шоу.'
     }
 }
