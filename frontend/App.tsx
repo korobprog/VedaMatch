@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RNCallKeep from 'react-native-callkeep';
-import messaging from '@react-native-firebase/messaging';
-import { Platform, Alert } from 'react-native';
-import { sipService } from './services/sipService';
+import { Platform, PermissionsAndroid } from 'react-native';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ChatProvider } from './context/ChatContext';
 import { UserProvider, useUser } from './context/UserContext';
-import { WebSocketProvider } from './context/WebSocketContext';
+import { WebSocketProvider, useWebSocket } from './context/WebSocketContext';
 import { ChatScreen } from './screens/ChatScreen';
 import RegistrationScreen from './screens/RegistrationScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -98,15 +96,38 @@ const AppContent = () => {
   const [showPreview, setShowPreview] = useState(true);
   // Keep sipUser ref or state if needed to manage connection
 
+  // Use WebSocket to listen for incoming WebRTC calls
+  const { addListener } = useWebSocket();
+
   React.useEffect(() => {
+    // 1. Setup VoIP (CallKeep)
     const setupVoIP = async () => {
       try {
+        if (Platform.OS === 'android') {
+          await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS,
+            PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            PermissionsAndroid.PERMISSIONS.CAMERA
+          ]);
+        }
+
         const options = {
           ios: { appName: 'VedaMatch VoIP' },
           android: {
             alertTitle: 'Permissions required',
             alertDescription: 'This application needs to access your phone accounts',
+            cancelButton: 'Cancel',
+            okButton: 'OK',
+            imageName: 'phone_account_icon',
+            additionalPermissions: [],
             selfManaged: true,
+            foregroundService: {
+              channelId: 'com.ragagent.voip',
+              channelName: 'VoIP Service',
+              notificationTitle: 'VedaMatch Call',
+              notificationIcon: 'ic_launcher',
+            },
           },
         };
         await RNCallKeep.setup(options);
@@ -119,64 +140,48 @@ const AppContent = () => {
     setupVoIP();
 
     const onAnswerCall = ({ callUUID }: { callUUID: string }) => {
-      // Accept SIP call if pending?
-      // For now, navigate to UI
       if (navigationRef.isReady()) {
+        // @ts-ignore
         navigationRef.navigate('CallScreen', { isIncoming: true, callUUID });
       }
     };
 
-    // CallKeep events
     RNCallKeep.addEventListener('answerCall', onAnswerCall);
     RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
       // Handle end call
     });
 
+    // 2. LISTEN FOR WEBRTC OFFERS
+    const removeLisener = addListener((msg: any) => {
+      if (msg.type === 'offer') {
+        const callerId = msg.senderId;
+        const callerName = `User ${callerId}`;
+        console.log('Incoming WebRTC Call from:', callerId);
+
+        // Use CallKeep to show native incoming call UI
+        const uuid = getUUID();
+        RNCallKeep.displayIncomingCall(uuid, String(callerId), callerName, 'generic', true);
+
+        // Also navigate to CallScreen directly if the app is in foreground? 
+        // Better to wait for user to accept via CallKeep UI or in-app UI.
+        // But for better UX in foreground, we often navigate calling screen immediately.
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('CallScreen', {
+            isIncoming: true,
+            targetId: callerId,
+            callerName: callerName,
+            callUUID: uuid // Pass UUID so we can end call in CallKeep later
+          });
+        }
+      }
+    });
+
     return () => {
       RNCallKeep.removeEventListener('answerCall');
       RNCallKeep.removeEventListener('endCall');
+      removeLisener();
     };
-  }, []);
-
-  // Initialize SIP when logged in
-  React.useEffect(() => {
-    if (isLoggedIn && user?.ID) {
-      const initSip = async () => {
-        try {
-          // Using user ID as login
-          const sipLogin = user.ID.toString();
-          const sipPwd = 'password'; // TODO: Retrieve from secure storage
-
-          await sipService.init(sipLogin, sipPwd);
-
-          // Set delegate
-          sipService.onCallReceived = (callId) => {
-            const callUUID = getUUID();
-            RNCallKeep.displayIncomingCall(callUUID, '7000', 'Incoming Call', 'generic', true);
-            // Store callUUID to answer later?
-          };
-
-          // Register iOS VoIP Push
-          if (Platform.OS === 'ios' && VoipPushNotification) {
-            VoipPushNotification.registerVoipToken();
-            VoipPushNotification.onVoipNotification = (notif: any) => {
-              sipService.register();
-            };
-          }
-
-          // Android FCM
-          if (Platform.OS === 'android') {
-            const token = await messaging().getToken();
-            console.log('FCM Token:', token);
-          }
-
-        } catch (e) {
-          console.error('SIP Init failed', e);
-        }
-      };
-      initSip();
-    }
-  }, [isLoggedIn, user]);
+  }, [addListener]);
 
   // Show preview only for non-logged-in users
   if (showPreview && !isLoggedIn && !isLoading) {
@@ -276,15 +281,15 @@ const AppContent = () => {
 function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <SettingsProvider>
-        <UserProvider>
+      <UserProvider>
+        <SettingsProvider>
           <WebSocketProvider>
             <ChatProvider>
               <AppContent />
             </ChatProvider>
           </WebSocketProvider>
-        </UserProvider>
-      </SettingsProvider>
+        </SettingsProvider>
+      </UserProvider>
     </SafeAreaProvider>
   );
 }

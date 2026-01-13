@@ -16,7 +16,7 @@ export const locationService = {
 	async getCountries(): Promise<Country[]> {
 		try {
 			const cached = await AsyncStorage.getItem(COUNTRIES_CACHE_KEY);
-			if (cached) {
+			if (cached && cached !== 'undefined' && cached !== 'null') {
 				const countries = JSON.parse(cached);
 				if (countries && countries.length > 0) {
 					console.log('[Location] Using cached countries:', countries.length);
@@ -61,7 +61,7 @@ export const locationService = {
 	async getCities(countryName: string): Promise<string[]> {
 		try {
 			const cached = await AsyncStorage.getItem(CITIES_CACHE_KEY);
-			if (cached) {
+			if (cached && cached !== 'undefined' && cached !== 'null') {
 				const citiesData: CityData = JSON.parse(cached);
 				if (citiesData[countryName]) {
 					console.log('[Location] Using cached cities for:', countryName);
@@ -92,7 +92,7 @@ export const locationService = {
 								.sort();
 
 							const cached = await AsyncStorage.getItem(CITIES_CACHE_KEY);
-							const citiesDataCache: CityData = cached ? JSON.parse(cached) : {};
+							const citiesDataCache: CityData = (cached && cached !== 'undefined' && cached !== 'null') ? JSON.parse(cached) : {};
 							citiesDataCache[countryName] = cities;
 
 							await AsyncStorage.setItem(CITIES_CACHE_KEY, JSON.stringify(citiesDataCache));
@@ -117,7 +117,7 @@ export const locationService = {
 	async cacheCities(countryName: string, cities: string[]) {
 		try {
 			const cached = await AsyncStorage.getItem(CITIES_CACHE_KEY);
-			const citiesData: CityData = cached ? JSON.parse(cached) : {};
+			const citiesData: CityData = (cached && cached !== 'undefined' && cached !== 'null') ? JSON.parse(cached) : {};
 			citiesData[countryName] = cities;
 			await AsyncStorage.setItem(CITIES_CACHE_KEY, JSON.stringify(citiesData));
 		} catch (e) {

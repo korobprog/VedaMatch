@@ -181,8 +181,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             let { user, token } = loginRes.data;
 
             if (!user.isProfileComplete) {
-                const updateRes = await axios.put(`${API_PATH}/update-profile/${user.ID}`, {
+                const updateRes = await axios.put(`${API_PATH}/update-profile`, {
                     ...devProfile
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
                 });
                 user = updateRes.data.user;
             }

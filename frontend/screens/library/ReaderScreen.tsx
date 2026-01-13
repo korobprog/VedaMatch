@@ -51,7 +51,7 @@ export const ReaderScreen = () => {
     const loadBookmarks = async () => {
         try {
             const saved = await AsyncStorage.getItem(bookmarkKey);
-            if (saved) setBookmarks(JSON.parse(saved));
+            if (saved && saved !== 'undefined' && saved !== 'null') setBookmarks(JSON.parse(saved));
         } catch (e) { console.error(e); }
     };
 

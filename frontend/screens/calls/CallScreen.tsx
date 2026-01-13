@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
-import { sipService } from '../../services/sipService';
+import { webRTCService } from '../../services/webRTCService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
-import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff } from 'lucide-react-native';
+import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff, Phone } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -14,54 +14,94 @@ export const CallScreen = () => {
     // @ts-ignore
     const { targetId, isIncoming, callerName } = route.params || {};
 
+    const [hasAccepted, setHasAccepted] = useState(!isIncoming); // If outgoing, auto-accepted. If incoming, wait.
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [status, setStatus] = useState<string>(isIncoming ? 'Incoming Call...' : 'Calling...');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
 
+    // Initial setup - only start camera preview, don't connect yet if incoming
     useEffect(() => {
-        const init = async () => {
+        let mounted = true;
+        const startPreview = async () => {
             try {
-                // Use the stream initialized in SipService
-                if (sipService.localStream) {
-                    setLocalStream(sipService.localStream);
-                } else {
-                    // Try to init if not ready? Usually App handles init.
-                    // Or retrieve it again? 
-                    // For now assume initialized
+                let stream = webRTCService.localStream;
+                if (!stream) {
+                    stream = await webRTCService.startLocalStream(true);
                 }
-
-                // Remote stream handling for SIP with SimpleUser is complex for Video.
-                // Audio is auto-played.
-                setStatus('Connected');
-
-                if (!isIncoming && targetId) {
-                    await sipService.call(`sip:${targetId}@your-domain`);
-                } else if (isIncoming) {
-                    await sipService.answer();
-                }
-            } catch (err) {
-                console.error("Failed to start call", err);
-                setStatus('Failed');
+                if (mounted) setLocalStream(stream);
+            } catch (e) {
+                console.error("Camera preview failed", e);
             }
         };
-        init();
+        startPreview();
+        return () => { mounted = false; };
+    }, []);
+
+    // Connection logic - only runs when call is accepted/outgoing
+    useEffect(() => {
+        if (!hasAccepted) return;
+
+        let mounted = true;
+
+        const connect = async () => {
+            try {
+                // Setup Callbacks
+                webRTCService.setOnRemoteStream((rStream) => {
+                    console.log('Got remote stream in UI!', rStream.toURL());
+                    if (mounted) {
+                        setRemoteStream(rStream);
+                        setStatus('Connected');
+                    }
+                });
+
+                if (!isIncoming && targetId) {
+                    // OUTGOING: Start call
+                    setStatus('Calling...');
+                    await webRTCService.startCall(targetId);
+                }
+                // Note: Incoming call logic is now handled in handleAnswer via acceptCall()
+
+            } catch (err) {
+                console.error("Failed to start call", err);
+                if (mounted) setStatus('Failed');
+            }
+        };
+
+        connect();
 
         return () => {
-            // Do NOT clean up local stream globally if it's shared, but sipService manages it.
-            // sipService.hangup() handles session termination.
+            mounted = false;
+        };
+    }, [hasAccepted, targetId, isIncoming]);
+
+
+    // Cleanup on unmount (end call)
+    useEffect(() => {
+        return () => {
+            // Only end call logic if we leave screen
+            // But we might want to keep call in background? For now, kill it.
+            webRTCService.endCall();
         };
     }, []);
 
-    const handleHangup = async () => {
-        await sipService.hangup();
+
+    const handleAnswer = async () => {
+        setHasAccepted(true);
+        setStatus('Connecting...');
+        await webRTCService.acceptCall();
+    };
+
+    const handleHangup = () => {
+        webRTCService.sendHangup();
         navigation.goBack();
     };
 
     const toggleMute = () => {
-        if (localStream) {
-            localStream.getAudioTracks().forEach(track => {
+        const stream = webRTCService.localStream;
+        if (stream) {
+            stream.getAudioTracks().forEach(track => {
                 track.enabled = !track.enabled;
             });
             setIsMuted(!isMuted);
@@ -69,8 +109,9 @@ export const CallScreen = () => {
     };
 
     const toggleVideo = () => {
-        if (localStream) {
-            localStream.getVideoTracks().forEach(track => {
+        const stream = webRTCService.localStream;
+        if (stream) {
+            stream.getVideoTracks().forEach(track => {
                 track.enabled = !track.enabled;
             });
             setIsVideoEnabled(!isVideoEnabled);
@@ -78,31 +119,80 @@ export const CallScreen = () => {
     };
 
     const switchCamera = () => {
-        if (localStream) {
-            localStream.getVideoTracks().forEach(track => {
+        const stream = webRTCService.localStream;
+        if (stream) {
+            stream.getVideoTracks().forEach(track => {
                 // @ts-ignore
-                track._switchCamera();
+                if (track._switchCamera) track._switchCamera();
             });
         }
     };
 
+    // --- RENDER INCOMING CALL SCREEN ---
+    if (isIncoming && !hasAccepted) {
+        return (
+            <View style={styles.container}>
+                <LinearGradient colors={['#1a1a2e', '#000']} style={styles.gradient} />
+
+                {/* Preview User's own face in background or blurred? Or just caller info */}
+                {localStream && (
+                    <RTCView
+                        streamURL={localStream.toURL()}
+                        style={StyleSheet.absoluteFill}
+                        objectFit="cover"
+                        zOrder={0}
+                        mirror={true}
+                    />
+                )}
+
+                <View style={[styles.remotePlaceholder, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+                    <Text style={styles.callerName}>{callerName || 'Unknown Caller'}</Text>
+                    <Text style={styles.statusText}>Incoming Video Call...</Text>
+                </View>
+
+                <View style={styles.incomingControls}>
+                    <TouchableOpacity onPress={handleHangup} style={[styles.btn, styles.hangupBtnLarge]}>
+                        <PhoneOff color="white" size={40} />
+                    </TouchableOpacity>
+
+                    <View style={{ width: 60 }} />
+
+                    <TouchableOpacity onPress={handleAnswer} style={[styles.btn, styles.answerBtnLarge]}>
+                        <Phone color="white" size={40} />
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
+    // --- RENDER ACTIVE CALL SCREEN ---
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradient} />
 
             {remoteStream ? (
-                <RTCView streamURL={remoteStream.toURL()} style={styles.remoteVideo} objectFit="cover" />
+                <RTCView
+                    streamURL={remoteStream.toURL()}
+                    style={styles.remoteVideo}
+                    objectFit="cover"
+                />
             ) : (
                 <View style={styles.remotePlaceholder}>
                     <Text style={styles.statusText}>{status}</Text>
-                    <Text style={styles.callerName}>{callerName || 'Unknown'}</Text>
+                    <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
                     <ActivityIndicator size="large" color="#e94560" style={{ marginTop: 20 }} />
                 </View>
             )}
 
             {localStream && (
                 <View style={styles.localVideoContainer}>
-                    <RTCView streamURL={localStream.toURL()} style={styles.localVideo} objectFit="cover" zOrder={1} />
+                    <RTCView
+                        streamURL={localStream.toURL()}
+                        style={styles.localVideo}
+                        objectFit="cover"
+                        zOrder={1}
+                        mirror={true}
+                    />
                 </View>
             )}
 
@@ -178,6 +268,14 @@ const styles = StyleSheet.create({
         justifyContent: 'space-evenly',
         alignItems: 'center',
     },
+    incomingControls: {
+        position: 'absolute',
+        bottom: 100,
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     btn: {
         width: 50,
         height: 50,
@@ -195,4 +293,16 @@ const styles = StyleSheet.create({
         height: 70,
         borderRadius: 35,
     },
+    hangupBtnLarge: {
+        backgroundColor: '#ff4d4d',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+    },
+    answerBtnLarge: {
+        backgroundColor: '#4cd137',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+    }
 });

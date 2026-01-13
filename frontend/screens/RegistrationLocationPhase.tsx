@@ -8,10 +8,10 @@ import { profileService } from '../services/profileService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface LocationData {
-	country: string;
-	city: string;
-	latitude?: number;
-	longitude?: number;
+    country: string;
+    city: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
@@ -47,7 +47,11 @@ export const RegistrationLocationPhase: React.FC<Props> = ({ navigation, route }
                 return;
             }
 
-            const user = JSON.parse(userStr);
+            const user = (userStr && userStr !== 'undefined' && userStr !== 'null') ? JSON.parse(userStr) : null;
+            if (!user) {
+                Alert.alert('Error', 'User data is corrupted. Please login again.');
+                return;
+            }
 
             // Обновляем только локацию
             const locationData: LocationData = {

@@ -24,13 +24,20 @@ class WebRTCService {
     targetId: number | null = null;
     isInitiator: boolean = false;
     private remoteCandidates: RTCIceCandidate[] = [];
+    private pendingOffer: any = null; // Store offer until user accepts
 
     setWebSocketService(ws: WebSocketService) {
         this.wsService = ws;
     }
 
+    remoteStream: MediaStream | null = null;
+
     setOnRemoteStream(callback: (stream: MediaStream) => void) {
         this.onRemoteStream = callback;
+        // If stream already exists, trigger callback immediately
+        if (this.remoteStream) {
+            callback(this.remoteStream);
+        }
     }
 
     async startLocalStream(isVideo: boolean = true) {
@@ -98,8 +105,9 @@ class WebRTCService {
             // Depending on version, streams might be in event.streams
             // react-native-webrtc sending one stream per track usually
             if (event.streams && event.streams.length > 0) {
-                if (this.onRemoteStream) {
-                    this.onRemoteStream(event.streams[0]);
+                this.remoteStream = event.streams[0]; // Save it!
+                if (this.onRemoteStream && this.remoteStream) {
+                    this.onRemoteStream(this.remoteStream);
                 }
             }
         };
@@ -130,22 +138,41 @@ class WebRTCService {
     }
 
     async processOffer(message: any) {
-        await this.fetchTurnCredentials(); // Get TURN config first
+        console.log('Received OFFER, storing as pending...');
+        this.pendingOffer = message;
         this.targetId = message.senderId;
         this.isInitiator = false;
-        this.createPeerConnection();
+        // Don't auto-answer. Wait for acceptCall().
+    }
 
-        await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(message.payload));
-        this.processBufferedCandidates(); // Flush candidates
-        const answer = await this.peerConnection!.createAnswer();
-        await this.peerConnection!.setLocalDescription(answer);
+    async acceptCall() {
+        if (!this.pendingOffer) {
+            console.error('No pending offer to accept');
+            return;
+        }
 
-        if (this.wsService) {
-            this.wsService.send({
-                type: 'answer',
-                targetId: this.targetId,
-                payload: answer,
-            });
+        console.log('Accepting call...');
+        await this.fetchTurnCredentials();
+        this.createPeerConnection(); // Will use existing localStream which UI should have started
+
+        try {
+            await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(this.pendingOffer.payload));
+            this.pendingOffer = null; // Clear used offer
+
+            await this.processBufferedCandidates(); // Flush candidates received while waiting
+
+            const answer = await this.peerConnection!.createAnswer();
+            await this.peerConnection!.setLocalDescription(answer);
+
+            if (this.wsService && this.targetId) {
+                this.wsService.send({
+                    type: 'answer',
+                    targetId: this.targetId,
+                    payload: answer,
+                });
+            }
+        } catch (e) {
+            console.error('Error accepting call:', e);
         }
     }
 
@@ -200,6 +227,7 @@ class WebRTCService {
             this.localStream.getTracks().forEach(track => track.stop());
             this.localStream = null;
         }
+        this.remoteStream = null;
         this.targetId = null;
         // Notify server/other user if needed via hangup message
     }

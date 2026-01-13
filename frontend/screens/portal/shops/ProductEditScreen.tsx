@@ -115,7 +115,7 @@ export const ProductEditScreen: React.FC = () => {
                 salePrice: v.salePrice,
                 stock: v.stock,
                 imageUrl: v.imageUrl,
-                attributes: JSON.parse(v.attributes || '{}'),
+                attributes: (v.attributes && v.attributes !== 'undefined' && v.attributes !== 'null') ? JSON.parse(v.attributes) : {},
             })));
         }
     };

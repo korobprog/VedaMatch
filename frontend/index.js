@@ -3,6 +3,7 @@
  */
 
 import 'react-native-gesture-handler';
+import '@react-native-firebase/app';
 import { AppRegistry, Platform } from 'react-native';
 let Config;
 try {

@@ -173,13 +173,19 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     password,
                 });
                 const user = response.data.user;
+                const token = response.data.token;
+
                 await AsyncStorage.setItem('user', JSON.stringify(user));
+                if (token) {
+                    await AsyncStorage.setItem('token', token);
+                }
+
                 // Move to phase 2
                 navigation.setParams({ phase: 'profile' });
             } else {
                 // Phase 2: Profile Update
                 const userStr = await AsyncStorage.getItem('user');
-                const user = (userStr && userStr !== 'undefined') ? JSON.parse(userStr) : null;
+                const user = (userStr && userStr !== 'undefined' && userStr !== 'null') ? JSON.parse(userStr) : null;
 
                 const profileData = {
                     country,
@@ -197,7 +203,12 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 };
 
                 console.log('Sending profile data:', JSON.stringify(profileData, null, 2));
-                const response = await axios.put(`${API_PATH}/update-profile/${user.ID}`, profileData);
+                const token = await AsyncStorage.getItem('token');
+                const response = await axios.put(`${API_PATH}/update-profile`, profileData, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 const updatedUser = response.data.user;
 
                 // Upload avatar if selected
@@ -242,7 +253,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     text: 'Skip',
                     onPress: async () => {
                         const userStr = await AsyncStorage.getItem('user');
-                        if (userStr && userStr !== 'undefined') {
+                        if (userStr && userStr !== 'undefined' && userStr !== 'null') {
                             await login(JSON.parse(userStr));
                         }
                     }

@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAvailableModels } from '../services/openaiService';
 import { modelsConfig } from '../config/models.config';
+import { useUser } from './UserContext';
 import { Alert, useColorScheme } from 'react-native';
 import { COLORS } from '../components/chat/ChatConstants';
 
@@ -50,6 +50,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const isDarkMode = colorScheme === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
+    const { isLoggedIn } = useUser();
+
     const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 
     const fetchModels = async (force: boolean = false) => {
@@ -60,8 +62,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             return;
         }
 
+        if (!isLoggedIn) {
+            console.log('Skipping model fetch: User not logged in');
+            return;
+        }
+
         setLoadingModels(true);
         try {
+            // Lazy import to avoid potential circular dependencies and ensure we have auth headers
+            const { getAvailableModels } = require('../services/openaiService');
             const data = await getAvailableModels();
 
             // Store ALL unique models, let UI handle categorization
@@ -119,7 +128,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 }
 
                 const autoMagic = await AsyncStorage.getItem('auto_magic_enabled');
-                if (autoMagic !== null) {
+                if (autoMagic !== null && autoMagic !== 'undefined' && autoMagic !== 'null') {
                     setIsAutoMagicEnabled(JSON.parse(autoMagic));
                 }
             } catch (e) {
@@ -127,8 +136,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             }
         };
         loadSettings();
-        fetchModels();
     }, []);
+
+    useEffect(() => {
+        if (isLoggedIn) {
+            fetchModels();
+        }
+    }, [isLoggedIn]);
 
     const setDefaultMenuTab = async (tab: 'portal' | 'history') => {
         setDefaultMenuTabState(tab);

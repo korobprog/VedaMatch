@@ -724,3 +724,39 @@ export default {
     }
   </script>
 </div>
+
+### 5. Реализация WebRTC видеозвонков (Январь 2026)
+*   **Архитектура**: P2P видеозвонки с использованием `react-native-webrtc` и собственного TURN сервера.
+*   **TURN Server**:
+    *   Используется `coturn`, запущенный в Docker контейнере.
+    *   Режим сети: `host` (для корректной работы UDP и NAT).
+    *   Авторизация: Эфемерные креды (TTL) с валидацией HMAC-SHA1.
+    *   Порты: 3478 (UDP/TCP), 49152-49162 (UDP Media).
+*   **Backend (Go)**:
+    *   Новый хендлер `turn_handler.go` для генерации временных паролей.
+    *   Endpoint `/api/turn-credentials` защищен JWT.
+*   **Signaling**:
+    *   Используется существующий WebSocket механизм (`Hub`).
+    *   Типы сообщений: `offer`, `answer`, `candidate`, `hangup`.
+*   **Client (React Native)**:
+    *   `webRTCService.ts`: Синглтон для управления PeerConnection.
+        *   Кэширование `remoteStream` для устранения race condition (когда видео приходит быстрее, чем открывается UI).
+        *   Автоматическая буферизация ICE кандидатов.
+    *   `App.tsx`: Глобальный слушатель входящих звонков (перехватывает `offer` и навигирует на экран звонка).
+    *   `CallScreen.tsx`:
+        *   Состояние `isIncoming`: Экран "Принять/Отклонить".
+        *   Автоматическое подключение только после принятия вызова.
+        
+        docker run -d \
+  --name rag-agent-turn \
+  --restart always \
+  --network host \
+  -e LOGGING_LEVEL=N \
+  -e USERS=admin: \
+  -e REALM=vedamatch.ru \
+  -e LISTENING_PORT=3478 \
+  -e MIN_PORT=49152 \
+  -e MAX_PORT=49162 \
+  -e EXTERNAL_IP=45.150.9.229 \
+  -e STATIC_AUTH_SECRET= \
+  coturn/coturn

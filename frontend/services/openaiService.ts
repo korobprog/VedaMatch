@@ -10,19 +10,18 @@ try {
 import { getModelConfig, ModelConfig } from '../config/models.config';
 
 import { API_PATH } from '../config/api.config';
+import { getAuthHeaders } from './contactService';
 
-const API_KEY = Config?.API_OPEN_AI || '';
+// Fallback if API_PATH is somehow still missing in some contexts
+const SAFE_API_PATH = typeof API_PATH !== 'undefined' ? API_PATH : 'http://localhost:8081/api';
 
-if (!API_KEY) {
-  console.warn('⚠️ API_OPEN_AI не установлен. Проверьте файл .env и пересоберите приложение');
-}
-
-// Инициализация OpenAI клиента с кастомным baseURL
+// Клиент инициализируется без ключа, так как прокси на бэкенде сам добавит ключ
 const openaiClient = new OpenAI({
-  apiKey: API_KEY,
-  baseURL: `${API_PATH}/v1`,
+  apiKey: 'not-needed-for-proxy',
+  baseURL: `${SAFE_API_PATH}/v1`,
   timeout: 180000,
   maxRetries: 2,
+  dangerouslyAllowBrowser: true // Для React Native это безопасно через прокси
 });
 
 export interface ChatMessage {
@@ -58,10 +57,6 @@ export const sendMessage = async (
   options: SendMessageOptions = {}
 ): Promise<ChatResponse> => {
   try {
-    if (!API_KEY) {
-      throw new Error('API ключ не установлен. Проверьте файл .env и пересоберите приложение');
-    }
-
     let model: string;
     let provider: string | undefined;
 
@@ -108,11 +103,11 @@ export const sendMessage = async (
 
     // Попробуем прямой fetch
     try {
-      const response = await fetch(`${API_PATH}/v1/chat/completions`, {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${SAFE_API_PATH}/v1/chat/completions`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
+          ...authHeaders,
         },
         body: JSON.stringify(requestBody),
         signal: options.signal,
@@ -222,16 +217,17 @@ export const sendMessage = async (
 export const getAvailableModels = async (provider?: string): Promise<any> => {
   try {
     const url = provider
-      ? `${API_PATH}/v1/models?provider=${provider}`
-      : `${API_PATH}/v1/models`;
+      ? `${SAFE_API_PATH}/v1/models?provider=${provider}`
+      : `${SAFE_API_PATH}/v1/models`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        ...authHeaders,
       },
       signal: controller.signal
     });
