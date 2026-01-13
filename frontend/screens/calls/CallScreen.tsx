@@ -15,6 +15,7 @@ export const CallScreen = () => {
     const { targetId, isIncoming, callerName } = route.params || {};
 
     const [hasAccepted, setHasAccepted] = useState(!isIncoming); // If outgoing, auto-accepted. If incoming, wait.
+    const [streamVersion, setStreamVersion] = useState(0);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [status, setStatus] = useState<string>(isIncoming ? 'Incoming Call...' : 'Calling...');
@@ -60,10 +61,8 @@ export const CallScreen = () => {
                 webRTCService.setOnRemoteStream((rStream) => {
                     console.log('Got remote stream in UI!', rStream.toURL(), 'Tracks:', rStream.getTracks().length);
                     if (mounted) {
-                        // Create a new stream object reference to force React re-render
-                        // This ensures that when new tracks are added to the same stream, 
-                        // the RTCView updates correctly.
-                        setRemoteStream(new MediaStream(rStream));
+                        setRemoteStream(rStream);
+                        setStreamVersion(v => v + 1);
                         setStatus('Connected');
                     }
                 });
@@ -104,6 +103,13 @@ export const CallScreen = () => {
 
 
     const handleAnswer = async () => {
+        // Ensure local stream is ready before accepting
+        let stream = webRTCService.localStream;
+        if (!stream) {
+            stream = await webRTCService.startLocalStream(true);
+            setLocalStream(stream);
+        }
+
         setHasAccepted(true);
         setStatus('Connecting...');
         await webRTCService.acceptCall();
@@ -189,10 +195,12 @@ export const CallScreen = () => {
 
             {remoteStream ? (
                 <RTCView
-                    key={remoteStream.id}
+                    key={`remote-${remoteStream.id}-${streamVersion}`}
                     streamURL={remoteStream.toURL()}
                     style={styles.remoteVideo}
                     objectFit="cover"
+                    zOrder={0}
+                    mirror={false}
                 />
             ) : (
                 <View style={styles.remotePlaceholder}>

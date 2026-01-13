@@ -78,17 +78,22 @@ class WebRTCService {
     async fetchTurnCredentials() {
         try {
             const token = await AsyncStorage.getItem('token');
-            if (!token) return;
+            if (!token) {
+                console.log('No auth token, using fallback STUN');
+                return;
+            }
 
+            console.log('Fetching TURN credentials from:', `${API_PATH}/turn-credentials`);
             const response = await axios.get(`${API_PATH}/turn-credentials`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             if (response.data && response.data.iceServers) {
+                console.log('Successfully fetched ICE Servers:', response.data.iceServers.length);
                 configuration = { iceServers: response.data.iceServers };
             }
-        } catch (error) {
-            console.log('Using default STUN servers');
+        } catch (error: any) {
+            console.warn('Error fetching TURN credentials, using defaults:', error.message);
         }
     }
 
@@ -134,13 +139,18 @@ class WebRTCService {
 
         (this.peerConnection as any).ontrack = (event: any) => {
             console.log('Received remote track:', event.track.kind, 'Stream ID:', event.streams?.[0]?.id);
-            if (this.remoteStream && event.track) {
-                this.remoteStream.addTrack(event.track);
 
-                // Trigger callback so UI knows we have something new
-                if (this.onRemoteStream && this.remoteStream) {
-                    this.onRemoteStream(this.remoteStream);
-                }
+            // If the event already provides a stream, use it as it's more reliable
+            if (event.streams && event.streams[0]) {
+                this.remoteStream = event.streams[0];
+            } else if (this.remoteStream && event.track) {
+                // Otherwise add to our manual stream
+                this.remoteStream.addTrack(event.track);
+            }
+
+            // Trigger callback with the latest stream object
+            if (this.onRemoteStream && this.remoteStream) {
+                this.onRemoteStream(this.remoteStream);
             }
         };
 
