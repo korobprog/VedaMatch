@@ -63,14 +63,13 @@ class WebRTCService {
         const stream = await mediaDevices.getUserMedia({
             audio: true,
             video: isVideo ? {
-                width: { min: 500 },
-                height: { min: 300 },
-                frameRate: { min: 30 },
                 facingMode: (isFront ? "user" : "environment"),
                 deviceId: videoSourceId,
+                frameRate: 30,
             } : false,
         });
 
+        console.log('Local stream obtained. Audio tracks:', stream.getAudioTracks().length, 'Video tracks:', stream.getVideoTracks().length);
         this.localStream = stream;
         return stream;
     }
@@ -191,7 +190,7 @@ class WebRTCService {
             });
         }
 
-        const offer = await this.peerConnection!.createOffer({
+        const offer = await (this.peerConnection as any).createOffer({
             offerToReceiveAudio: true,
             offerToReceiveVideo: true
         });
@@ -234,7 +233,7 @@ class WebRTCService {
 
             await this.processBufferedCandidates(); // Flush candidates received while waiting
 
-            const answer = await this.peerConnection!.createAnswer({
+            const answer = await (this.peerConnection as any).createAnswer({
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: true
             });

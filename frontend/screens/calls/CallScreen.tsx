@@ -5,6 +5,7 @@ import { webRTCService } from '../../services/webRTCService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff, Phone } from 'lucide-react-native';
+import InCallManager from 'react-native-incall-manager';
 
 const { width, height } = Dimensions.get('window');
 
