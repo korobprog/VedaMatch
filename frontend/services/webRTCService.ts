@@ -88,11 +88,18 @@ class WebRTCService {
             });
 
             if (response.data && response.data.iceServers) {
-                console.log('Successfully fetched ICE Servers:', response.data.iceServers.length);
+                console.warn(`[WebRTC] Fetched ${response.data.iceServers.length} ICE Servers from API`);
                 configuration = { iceServers: response.data.iceServers };
             }
         } catch (error: any) {
-            console.warn('Error fetching TURN credentials, using defaults:', error.message);
+            console.warn('[WebRTC] Error fetching TURN credentials, using defaults:', error.message);
+            // Ensure we at least have google stun
+            configuration = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            };
         }
     }
 
@@ -137,17 +144,25 @@ class WebRTCService {
         };
 
         (this.peerConnection as any).ontrack = (event: any) => {
-            console.log('Received remote track:', event.track.kind, 'Stream ID:', event.streams?.[0]?.id);
+            const kind = event.track.kind;
+            const streamId = event.streams?.[0]?.id;
+            console.warn(`[WebRTC] Received remote track: ${kind} from stream: ${streamId}`);
 
-            // If the event already provides a stream, use it as it's more reliable
-            if (event.streams && event.streams[0]) {
-                this.remoteStream = event.streams[0];
-            } else if (this.remoteStream && event.track) {
-                // Otherwise add to our manual stream
-                this.remoteStream.addTrack(event.track);
+            if (!this.remoteStream) {
+                if (event.streams && event.streams[0]) {
+                    this.remoteStream = event.streams[0];
+                } else {
+                    this.remoteStream = new MediaStream();
+                    this.remoteStream.addTrack(event.track);
+                }
+            } else {
+                // Already have a stream, just ensure track is in it
+                const existingTracks = this.remoteStream.getTracks();
+                if (!existingTracks.find(t => t.id === event.track.id)) {
+                    this.remoteStream.addTrack(event.track);
+                }
             }
 
-            // Trigger callback with the latest stream object
             if (this.onRemoteStream && this.remoteStream) {
                 this.onRemoteStream(this.remoteStream);
             }
@@ -163,7 +178,7 @@ class WebRTCService {
         };
 
         if (this.localStream) {
-            console.log('Adding local tracks to PeerConnection');
+            console.warn(`[WebRTC] Adding ${this.localStream.getTracks().length} local tracks to PC`);
             const stream = this.localStream;
             stream.getTracks().forEach(track => {
                 this.peerConnection?.addTrack(track, stream);
@@ -260,22 +275,22 @@ class WebRTCService {
 
     async processCandidate(message: any) {
         this.debugRemoteCandidates++;
-        console.log('Processing remote candidate', this.debugRemoteCandidates);
-        const candidate = new RTCIceCandidate(message.payload);
         if (this.onIceStateChange) {
             const state = this.peerConnection?.iceConnectionState || 'active';
             this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
         }
+        console.warn(`[WebRTC] Processing remote candidate #${this.debugRemoteCandidates}: ${message.payload?.candidate?.substring(0, 30)}...`);
+        const candidate = new RTCIceCandidate(message.payload);
 
         if (this.peerConnection && this.peerConnection.remoteDescription) {
             try {
                 await this.peerConnection.addIceCandidate(candidate);
-                console.log('ICE candidate added successfully');
+                console.warn('[WebRTC] ICE candidate added successfully');
             } catch (e) {
-                console.error('Error adding ICE candidate:', e);
+                console.error('[WebRTC] Error adding ICE candidate:', e);
             }
         } else {
-            console.log('Buffering ICE candidate (no remote description yet)');
+            console.warn('[WebRTC] Buffering ICE candidate (no remote description yet)');
             this.remoteCandidates.push(candidate);
         }
     }

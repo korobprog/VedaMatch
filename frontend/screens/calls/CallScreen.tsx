@@ -65,7 +65,7 @@ export const CallScreen = () => {
                 // Setup Callbacks
                 webRTCService.setOnRemoteStream((rStream) => {
                     const tracks = rStream.getTracks();
-                    console.log('Got remote stream in UI!', rStream.toURL(), 'Tracks:', tracks.length);
+                    console.warn(`[UI] Received remote stream: ${rStream.id}, url: ${rStream.toURL().substring(0, 30)}... Tracks: ${tracks.length}`);
                     if (mounted) {
                         setRemoteStream(rStream);
                         setStreamVersion(v => v + 1);
