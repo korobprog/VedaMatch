@@ -9,6 +9,7 @@ import { WebSocketService } from './websocketService';
 import { API_PATH } from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import InCallManager from 'react-native-incall-manager';
 
 let configuration = {
     iceServers: [
@@ -26,6 +27,9 @@ class WebRTCService {
     private remoteCandidates: RTCIceCandidate[] = [];
     private pendingOffer: any = null; // Store offer until user accepts
 
+    public debugLocalCandidates: number = 0;
+    public debugRemoteCandidates: number = 0;
+
     setWebSocketService(ws: WebSocketService) {
         this.wsService = ws;
     }
@@ -38,6 +42,11 @@ class WebRTCService {
         if (this.remoteStream) {
             callback(this.remoteStream);
         }
+    }
+
+    onIceStateChange: ((state: string) => void) | null = null;
+    setOnIceStateChange(callback: (state: string) => void) {
+        this.onIceStateChange = callback;
     }
 
     async startLocalStream(isVideo: boolean = true) {
@@ -88,10 +97,17 @@ class WebRTCService {
             this.peerConnection.close();
         }
         this.remoteCandidates = []; // Reset buffer
+        this.debugLocalCandidates = 0;
+        this.debugRemoteCandidates = 0;
 
         this.peerConnection = new RTCPeerConnection(configuration);
 
         (this.peerConnection as any).onicecandidate = (event: any) => {
+            if (event.candidate) {
+                this.debugLocalCandidates++;
+                const state = this.peerConnection?.iceConnectionState || 'gathering';
+                if (this.onIceStateChange) this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
+            }
             if (event.candidate && this.wsService && this.targetId) {
                 this.wsService.send({
                     type: 'candidate',
@@ -101,11 +117,20 @@ class WebRTCService {
             }
         };
 
+        (this.peerConnection as any).oniceconnectionstatechange = () => {
+            const state = this.peerConnection?.iceConnectionState || 'unknown';
+            console.log('ICE Connection State Check:', state);
+            if (this.onIceStateChange) {
+                this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
+            }
+        };
+
         (this.peerConnection as any).ontrack = (event: any) => {
             // Depending on version, streams might be in event.streams
             // react-native-webrtc sending one stream per track usually
             if (event.streams && event.streams.length > 0) {
                 this.remoteStream = event.streams[0]; // Save it!
+                console.log('Received remote track', this.remoteStream?.toURL());
                 if (this.onRemoteStream && this.remoteStream) {
                     this.onRemoteStream(this.remoteStream);
                 }
@@ -123,6 +148,10 @@ class WebRTCService {
         await this.fetchTurnCredentials(); // Get TURN config first
         this.targetId = targetId;
         this.isInitiator = true;
+
+        InCallManager.start({ media: 'video' });
+        InCallManager.setForceSpeakerphoneOn(true);
+
         this.createPeerConnection();
 
         const offer = await this.peerConnection!.createOffer();
@@ -153,6 +182,10 @@ class WebRTCService {
 
         console.log('Accepting call...');
         await this.fetchTurnCredentials();
+
+        InCallManager.start({ media: 'video' });
+        InCallManager.setForceSpeakerphoneOn(true);
+
         this.createPeerConnection(); // Will use existing localStream which UI should have started
 
         try {
@@ -184,7 +217,13 @@ class WebRTCService {
     }
 
     async processCandidate(message: any) {
+        this.debugRemoteCandidates++;
         const candidate = new RTCIceCandidate(message.payload);
+        if (this.onIceStateChange) {
+            const state = this.peerConnection?.iceConnectionState || 'active';
+            this.onIceStateChange(`${state} (L:${this.debugLocalCandidates} R:${this.debugRemoteCandidates})`);
+        }
+
         if (this.peerConnection && this.peerConnection.remoteDescription) {
             await this.peerConnection.addIceCandidate(candidate);
         } else {
@@ -227,8 +266,10 @@ class WebRTCService {
             this.localStream.getTracks().forEach(track => track.stop());
             this.localStream = null;
         }
+        InCallManager.stop();
         this.remoteStream = null;
         this.targetId = null;
+        this.onIceStateChange = null;
         // Notify server/other user if needed via hangup message
     }
 

@@ -55,12 +55,9 @@ func (h *TurnHandler) GetTurnCredentials(c *fiber.Ctx) error {
 	// Determine Host. In prod it should be the public domain/IP.
 	// For local dev with Android Emulator, '10.0.2.2' is host, but 'localhost' for web.
 	// We'll trust the env or default to localhost for now.
-	turnHost := os.Getenv("TURN_HOST")
+	turnHost := os.Getenv("TURN_EXTERNAL_IP")
 	if turnHost == "" {
-		turnHost = os.Getenv("TURN_EXTERNAL_IP")
-	}
-	if turnHost == "" {
-		turnHost = "127.0.0.1"
+		turnHost = "45.150.9.229" // Explicit fallback to known public IP
 	}
 	turnPort := "3478"
 

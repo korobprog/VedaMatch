@@ -18,6 +18,7 @@ export const CallScreen = () => {
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [status, setStatus] = useState<string>(isIncoming ? 'Incoming Call...' : 'Calling...');
+    const [iceState, setIceState] = useState<string>('new');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
 
@@ -54,6 +55,10 @@ export const CallScreen = () => {
                         setRemoteStream(rStream);
                         setStatus('Connected');
                     }
+                });
+
+                webRTCService.setOnIceStateChange((state) => {
+                    if (mounted) setIceState(state);
                 });
 
                 if (!isIncoming && targetId) {
@@ -137,6 +142,7 @@ export const CallScreen = () => {
                 {/* Preview User's own face in background or blurred? Or just caller info */}
                 {localStream && (
                     <RTCView
+                        key={localStream.id}
                         streamURL={localStream.toURL()}
                         style={StyleSheet.absoluteFill}
                         objectFit="cover"
@@ -172,6 +178,7 @@ export const CallScreen = () => {
 
             {remoteStream ? (
                 <RTCView
+                    key={remoteStream.id}
                     streamURL={remoteStream.toURL()}
                     style={styles.remoteVideo}
                     objectFit="cover"
@@ -179,6 +186,7 @@ export const CallScreen = () => {
             ) : (
                 <View style={styles.remotePlaceholder}>
                     <Text style={styles.statusText}>{status}</Text>
+                    <Text style={styles.debugText}>ICE: {iceState}</Text>
                     <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
                     <ActivityIndicator size="large" color="#e94560" style={{ marginTop: 20 }} />
                 </View>
@@ -187,6 +195,7 @@ export const CallScreen = () => {
             {localStream && (
                 <View style={styles.localVideoContainer}>
                     <RTCView
+                        key={localStream.toURL()}
                         streamURL={localStream.toURL()}
                         style={styles.localVideo}
                         objectFit="cover"
@@ -304,5 +313,11 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
+    },
+    debugText: {
+        color: '#ffeb3b',
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginBottom: 5,
     }
 });
