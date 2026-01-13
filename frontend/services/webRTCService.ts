@@ -184,7 +184,17 @@ class WebRTCService {
 
         this.createPeerConnection();
 
-        const offer = await this.peerConnection!.createOffer();
+        // Extra check: ensure tracks are added
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => {
+                console.log(`Adding track to PC: ${track.kind}`);
+            });
+        }
+
+        const offer = await this.peerConnection!.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+        });
         await this.peerConnection!.setLocalDescription(offer);
 
         if (this.wsService) {
@@ -224,7 +234,10 @@ class WebRTCService {
 
             await this.processBufferedCandidates(); // Flush candidates received while waiting
 
-            const answer = await this.peerConnection!.createAnswer();
+            const answer = await this.peerConnection!.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
             await this.peerConnection!.setLocalDescription(answer);
 
             if (this.wsService && this.targetId) {

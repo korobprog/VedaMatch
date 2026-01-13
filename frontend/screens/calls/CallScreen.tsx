@@ -32,7 +32,11 @@ export const CallScreen = () => {
                 if (!stream) {
                     stream = await webRTCService.startLocalStream(true);
                 }
-                if (mounted) setLocalStream(stream);
+                if (mounted) {
+                    setLocalStream(stream);
+                    const tracks = stream.getTracks().map(t => t.kind[0].toUpperCase()).join('/');
+                    console.log(`Local stream ready: ${tracks}`);
+                }
             } catch (e) {
                 console.error("Camera preview failed", e);
             }
@@ -59,17 +63,23 @@ export const CallScreen = () => {
 
                 // Setup Callbacks
                 webRTCService.setOnRemoteStream((rStream) => {
-                    console.log('Got remote stream in UI!', rStream.toURL(), 'Tracks:', rStream.getTracks().length);
+                    const tracks = rStream.getTracks();
+                    console.log('Got remote stream in UI!', rStream.toURL(), 'Tracks:', tracks.length);
                     if (mounted) {
                         setRemoteStream(rStream);
                         setStreamVersion(v => v + 1);
-                        setStatus('Connected');
+                        // Show track types in status for debug
+                        const trackInfo = tracks.map(t => t.kind[0].toUpperCase()).join('/');
+                        setStatus(`Connected (${trackInfo})`);
                     }
                 });
 
                 webRTCService.setOnIceStateChange((state) => {
                     if (mounted) setIceState(state);
                 });
+
+                // Keep screen on
+                InCallManager.setKeepScreenOn(true);
 
                 if (!isIncoming && targetId) {
                     // OUTGOING: Start call
