@@ -26,10 +26,17 @@ func (h *RoomHandler) CreateRoom(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check requirements
 	if room.Name == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Room name is required",
 		})
+	}
+
+	// Initialize reading state if book is selected
+	if room.BookCode != "" {
+		room.CurrentChapter = 1
+		room.CurrentVerse = 1
 	}
 
 	// Save room to DB
@@ -244,15 +251,16 @@ func (h *RoomHandler) UpdateRoomImage(c *fiber.Ctx) error {
 func (h *RoomHandler) UpdateRoom(c *fiber.Ctx) error {
 	roomID := c.Params("id")
 
-	var updates map[string]interface{}
+	var updates models.Room
 	if err := c.BodyParser(&updates); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
 		})
 	}
 
-	// Update room in database
-	if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Updates(updates).Error; err != nil {
+	// Update room in database using struct (handles JSON tags -> DB columns)
+	// Note: This ignores zero values (0, "", false). Use map if you need to set to zero/null.
+	if err := database.DB.Model(&models.Room{}).Where("id = ?", roomID).Updates(&updates).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not update room",
 		})
@@ -265,8 +273,18 @@ func (h *RoomHandler) UpdateRoomSettings(c *fiber.Ctx) error {
 	roomID := c.Params("id")
 
 	var body struct {
-		IsPublic  *bool `json:"isPublic"`
-		AiEnabled *bool `json:"aiEnabled"`
+		Name           *string `json:"name"`
+		Description    *string `json:"description"`
+		StartTime      *string `json:"startTime"`
+		IsPublic       *bool   `json:"isPublic"`
+		AiEnabled      *bool   `json:"aiEnabled"`
+		BookCode       *string `json:"bookCode"`
+		CurrentChapter *int    `json:"currentChapter"`
+		CurrentVerse   *int    `json:"currentVerse"`
+		Language       *string `json:"language"`
+		ShowPurport    *bool   `json:"showPurport"`
+		ImageUrl       *string `json:"imageUrl"`
+		Location       *string `json:"location"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -276,11 +294,42 @@ func (h *RoomHandler) UpdateRoomSettings(c *fiber.Ctx) error {
 	}
 
 	updates := make(map[string]interface{})
+	if body.Name != nil {
+		updates["name"] = *body.Name
+	}
+	if body.Description != nil {
+		updates["description"] = *body.Description
+	}
+	if body.StartTime != nil {
+		updates["start_time"] = *body.StartTime
+		updates["notification_sent"] = false
+	}
 	if body.IsPublic != nil {
 		updates["is_public"] = *body.IsPublic
 	}
 	if body.AiEnabled != nil {
 		updates["ai_enabled"] = *body.AiEnabled
+	}
+	if body.BookCode != nil {
+		updates["book_code"] = *body.BookCode
+	}
+	if body.CurrentChapter != nil {
+		updates["current_chapter"] = *body.CurrentChapter
+	}
+	if body.CurrentVerse != nil {
+		updates["current_verse"] = *body.CurrentVerse
+	}
+	if body.Language != nil {
+		updates["language"] = *body.Language
+	}
+	if body.ImageUrl != nil {
+		updates["image_url"] = *body.ImageUrl
+	}
+	if body.Location != nil {
+		updates["location"] = *body.Location
+	}
+	if body.ShowPurport != nil {
+		updates["show_purport"] = *body.ShowPurport
 	}
 
 	if len(updates) == 0 {

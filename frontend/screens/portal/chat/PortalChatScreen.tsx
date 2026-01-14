@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, ActivityIndicator, RefreshControl, Alert, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
@@ -17,6 +18,7 @@ import { RootStackParamList } from '../../../types/navigation';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 const EMOJI_MAP: any = {
+    'krishna': '🕉️',
     'om': '🕉️',
     'japa': '📿',
     'kirtan': '🪈',
@@ -25,7 +27,6 @@ const EMOJI_MAP: any = {
     'tulasi': '🌿',
     'deity': '🙏',
     'peacock': '🦚',
-    // Fallback для старых комнат
     'general': '🕉️',
 };
 
@@ -55,10 +56,15 @@ export const PortalChatScreen: React.FC = () => {
         }
 
         try {
-            const response = await fetch(`${API_PATH}/rooms`);
+            const token = await AsyncStorage.getItem('token');
+            const response = await fetch(`${API_PATH}/rooms`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (response.ok) {
                 const data = await response.json();
                 setRooms(data);
+            } else {
+                console.log('Fetch rooms failed', await response.text());
             }
         } catch (error) {
             console.error('Error fetching rooms:', error);
@@ -80,16 +86,17 @@ export const PortalChatScreen: React.FC = () => {
     };
 
     const renderItem = ({ item }: { item: any }) => {
-        const mediaUrl = getMediaUrl(item.imageUrl);
+        const isPreset = !!EMOJI_MAP[item.imageUrl];
+        const mediaUrl = !isPreset ? getMediaUrl(item.imageUrl) : null;
         const emoji = EMOJI_MAP[item.imageUrl] || EMOJI_MAP['general'];
 
         return (
             <TouchableOpacity
                 style={[styles.chatItem, { borderBottomColor: theme.borderColor }]}
-                onPress={() => navigation.navigate('RoomChat', { roomId: item.id, roomName: item.name })}
+                onPress={() => navigation.navigate('RoomChat', { roomId: item.ID, roomName: item.name })}
                 onLongPress={() => {
                     // Admins only or everyone? Let's say everyone can invite for now
-                    setSelectedRoomId(item.id);
+                    setSelectedRoomId(item.ID);
                     Alert.alert(
                         item.name,
                         t('chat.roomOptions'),
@@ -97,7 +104,7 @@ export const PortalChatScreen: React.FC = () => {
                             {
                                 text: t('chat.editImage'),
                                 onPress: () => {
-                                    setSelectedRoomId(item.id);
+                                    setSelectedRoomId(item.ID);
                                     setSelectedRoomImageUrl(item.imageUrl || 'general');
                                     setEditImageVisible(true);
                                 }

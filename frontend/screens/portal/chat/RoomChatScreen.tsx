@@ -14,7 +14,9 @@ import {
     Image,
     Linking,
     Alert,
+    ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
@@ -26,12 +28,16 @@ import { InviteFriendModal } from './InviteFriendModal';
 import { RoomSettingsModal } from './RoomSettingsModal';
 import { AudioPlayer } from '../../../components/chat/AudioPlayer';
 import { mediaService } from '../../../services/mediaService';
+import { useSettings } from '../../../context/SettingsContext';
+import { Video, ArrowLeft, ArrowRight, Settings, UserPlus, Send, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react-native';
+import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const { roomId, roomName } = route.params;
     const { t, i18n } = useTranslation();
+    const { vTheme } = useSettings();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user } = useUser();
@@ -42,10 +48,112 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [loading, setLoading] = useState(true);
     const [inviteVisible, setInviteVisible] = useState(false);
     const [settingsVisible, setSettingsVisible] = useState(false);
+    const [isCallActive, setIsCallActive] = useState(false);
+
+    const [roomDetails, setRoomDetails] = useState<any>(null);
+    const [currentVerse, setCurrentVerse] = useState<any>(null);
+    const [chapters, setChapters] = useState<any[]>([]);
+    const [versesInChapter, setVersesInChapter] = useState<any[]>([]);
+    const [isExpanded, setIsExpanded] = useState(true);
+    const [readerFontSize, setReaderFontSize] = useState(16);
+    const [readerFontBold, setReaderFontBold] = useState(false);
+
+    const fetchRoomDetails = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await fetch(`${API_PATH}/rooms`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const currentRoom = data.find((r: any) => r.ID == roomId);
+                if (currentRoom) {
+                    setRoomDetails(currentRoom);
+                    // Fetch chapters if changed
+                    if (currentRoom.bookCode) {
+                        fetchChapters(currentRoom.bookCode);
+                        fetchVerse(currentRoom.bookCode, currentRoom.currentChapter, currentRoom.currentVerse, currentRoom.language || 'ru');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching room details:', error);
+        }
+    };
+
+    const fetchVerse = async (bookCode: string, chapter: number, verseNum: number, lang: string = 'ru') => {
+        try {
+            const response = await fetch(`${API_PATH}/library/verses?bookCode=${bookCode}&chapter=${chapter}&language=${lang}`);
+            if (response.ok) {
+                const verses = await response.json();
+                setVersesInChapter(verses);
+                const verse = verses.find((v: any) => parseInt(v.verse) === verseNum);
+                setCurrentVerse(verse || verses[0]);
+            }
+        } catch (err) {
+            console.error('Error fetching verse', err);
+        }
+    }
+
+    const fetchFontSettings = async () => {
+        try {
+            const size = await AsyncStorage.getItem('reader_font_size');
+            const bold = await AsyncStorage.getItem('reader_font_bold');
+            const expanded = await AsyncStorage.getItem('chat_reader_expanded');
+
+            if (size) setReaderFontSize(parseInt(size));
+            if (bold) setReaderFontBold(bold === 'true');
+            if (expanded !== null) setIsExpanded(expanded === 'true');
+        } catch (e) {
+            console.error('Failed to load font settings', e);
+        }
+    };
+
+    const fetchChapters = async (bookCode: string) => {
+        try {
+            const response = await fetch(`${API_PATH}/library/books/${bookCode}/chapters`);
+            if (response.ok) {
+                const data = await response.json();
+                setChapters(data);
+            }
+        } catch (err) {
+            console.error('Error fetching chapters', err);
+        }
+    }
+
+    const handleJumpToVerse = async (chapter: number, verse: number) => {
+        if (!roomDetails) return;
+
+        // Optimistic update
+        const updatedRoom = { ...roomDetails, currentChapter: chapter, currentVerse: verse };
+        setRoomDetails(updatedRoom);
+        fetchVerse(roomDetails.bookCode, chapter, verse, roomDetails.language || 'ru');
+
+        try {
+            const token = await AsyncStorage.getItem('token');
+            // Also save locally for the user's history
+            const lastReadKey = `last_read_${roomDetails.bookCode}_${user?.ID || 'guest'}`;
+            await AsyncStorage.setItem(lastReadKey, verse.toString());
+
+            await fetch(`${API_PATH}/rooms/${roomId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ currentChapter: chapter, currentVerse: verse })
+            });
+        } catch (error) {
+            console.error('Failed to update room reading state', error);
+        }
+    };
 
     const fetchMessages = async () => {
         try {
-            const response = await fetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`);
+            const token = await AsyncStorage.getItem('token');
+            const response = await fetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (response.ok) {
                 const data = await response.json();
                 const formattedMessages = data.map((m: any) => ({
@@ -70,6 +178,8 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     useEffect(() => {
         fetchMessages();
+        fetchRoomDetails();
+        fetchFontSettings();
 
         const removeListener = addListener((msg: any) => {
             // Check if message belongs to this room
@@ -98,10 +208,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             headerRight: () => (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <TouchableOpacity onPress={() => setInviteVisible(true)} style={{ marginRight: 15 }}>
-                        <Text style={{ fontSize: 24, color: theme.text }}>👤+</Text>
+                        <UserPlus size={24} color={theme.text} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setSettingsVisible(true)} style={{ marginRight: 10 }}>
-                        <Text style={{ fontSize: 24, color: theme.text }}>⋮</Text>
+                        <Settings size={24} color={theme.text} />
                     </TouchableOpacity>
                 </View>
             )
@@ -109,6 +219,41 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
         return () => removeListener();
     }, [navigation, roomName, roomId, user?.ID]);
+
+    const handleNextVerse = async () => {
+        if (!roomDetails || !versesInChapter) return;
+
+        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse) === roomDetails.currentVerse);
+        if (currentVerseIdx !== -1 && currentVerseIdx < versesInChapter.length - 1) {
+            // Move to next verse in same chapter
+            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx + 1].verse));
+        } else {
+            // Check if next chapter exists
+            const currentChapterIdx = chapters.findIndex(ch => ch.chapter === roomDetails.currentChapter);
+            if (currentChapterIdx !== -1 && currentChapterIdx < chapters.length - 1) {
+                // Move to first verse of next chapter
+                handleJumpToVerse(chapters[currentChapterIdx + 1].chapter, 1);
+            }
+        }
+    };
+
+    const handlePrevVerse = async () => {
+        if (!roomDetails || !versesInChapter) return;
+
+        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse) === roomDetails.currentVerse);
+        if (currentVerseIdx > 0) {
+            // Move to previous verse in same chapter
+            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx - 1].verse));
+        } else {
+            // Check if previous chapter exists
+            const currentChapterIdx = chapters.findIndex(ch => ch.chapter === roomDetails.currentChapter);
+            if (currentChapterIdx > 0) {
+                // Move to last verse of previous chapter - but for simplicity, just first verse
+                // Better: fetch previous chapter verses and go to last one, but let's just go to ch start
+                handleJumpToVerse(chapters[currentChapterIdx - 1].chapter, 1);
+            }
+        }
+    };
 
     const handleSendMessage = async () => {
         if (!inputText.trim()) return;
@@ -123,10 +268,12 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         setInputText('');
 
         try {
+            const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/messages`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(newMessage),
             });
@@ -196,20 +343,222 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             >
-                {loading ? (
-                    <ActivityIndicator size="large" color={theme.accent} style={styles.center} />
-                ) : (
-                    <FlatList
-                        data={messages}
-                        keyExtractor={item => item.id}
-                        renderItem={renderMessage}
-                        contentContainerStyle={styles.list}
-                        ListEmptyComponent={
-                            <View style={styles.center}>
-                                <Text style={{ color: theme.subText }}>{t('chat.noHistory')}</Text>
-                            </View>
-                        }
+
+                {isCallActive && (
+                    <RoomVideoBar
+                        roomId={roomId}
+                        onClose={() => setIsCallActive(false)}
                     />
+                )}
+
+                <View style={[
+                    styles.readingPanel,
+                    {
+                        backgroundColor: vTheme.colors.surface,
+                        borderRadius: vTheme.layout.borderRadius.md,
+                        margin: vTheme.layout.spacing.md,
+                        ...vTheme.shadows.medium,
+                        borderBottomWidth: 0,
+                        flex: isExpanded ? 1 : 0,
+                    }
+                ]}>
+                    <View style={styles.readingHeader}>
+                        <Text style={[styles.bookTitle, { color: vTheme.colors.primary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
+                            {roomDetails?.bookCode
+                                ? `📖 ${roomDetails.bookCode.toUpperCase()} ${roomDetails.currentChapter}.${roomDetails.currentVerse}`
+                                : (roomName || t('chat.publicRoom'))}
+                        </Text>
+                        {!isCallActive && (
+                            <TouchableOpacity
+                                style={[
+                                    styles.joinCallBtn,
+                                    {
+                                        backgroundColor: vTheme.colors.primary,
+                                        borderRadius: vTheme.layout.borderRadius.lg,
+                                        paddingHorizontal: 16,
+                                        paddingVertical: 8,
+                                        ...vTheme.shadows.soft,
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        gap: 6
+                                    }
+                                ]}
+                                onPress={() => setIsCallActive(true)}
+                            >
+                                <Video size={18} color={vTheme.colors.textLight} />
+                                <Text style={{ color: vTheme.colors.textLight, fontWeight: 'bold' }}>{t('chat.joinCall')}</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                            onPress={async () => {
+                                const newState = !isExpanded;
+                                setIsExpanded(newState);
+                                await AsyncStorage.setItem('chat_reader_expanded', newState.toString());
+                            }}
+                            style={{ padding: 8 }}
+                        >
+                            {isExpanded ? (
+                                <Minimize2 size={20} color={vTheme.colors.primary} />
+                            ) : (
+                                <Maximize2 size={20} color={vTheme.colors.primary} />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+
+                    {roomDetails?.bookCode && isExpanded && (
+                        <View style={styles.navHeaderCard}>
+                            <View style={styles.navBarRow}>
+                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter - 1, 1)} disabled={roomDetails.currentChapter <= 1} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                    <ChevronLeft size={20} color={roomDetails.currentChapter <= 1 ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                </TouchableOpacity>
+                                <View style={{ width: 50, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.03)', height: '100%', justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: vTheme.colors.primary }}>{t('reader.chapter').substring(0, 6).toUpperCase()}</Text>
+                                </View>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
+                                    {chapters.length > 0 ? chapters.map((ch) => (
+                                        <TouchableOpacity
+                                            key={`${ch.canto}-${ch.chapter}`}
+                                            style={[styles.navItem, roomDetails.currentChapter === ch.chapter && styles.navItemActive]}
+                                            onPress={() => handleJumpToVerse(ch.chapter, 1)}
+                                        >
+                                            <Text style={[styles.navItemText, roomDetails.currentChapter === ch.chapter && styles.navItemTextActive]}>
+                                                {ch.chapter}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )) : (
+                                        <View style={styles.navItem}>
+                                            <Text style={styles.navItemText}>{roomDetails.currentChapter}</Text>
+                                        </View>
+                                    )}
+                                </ScrollView>
+                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter + 1, 1)} disabled={roomDetails.currentChapter >= chapters.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                    <ChevronRight size={20} color={roomDetails.currentChapter >= chapters.length ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={[styles.navBarRow, { borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' }]}>
+                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter, roomDetails.currentVerse - 1)} disabled={roomDetails.currentVerse <= 1} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                    <ChevronLeft size={20} color={roomDetails.currentVerse <= 1 ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                </TouchableOpacity>
+                                <View style={{ width: 50, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.03)', height: '100%', justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: vTheme.colors.primary }}>{t('reader.verse').substring(0, 5).toUpperCase()}</Text>
+                                </View>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
+                                    {versesInChapter.map((v) => (
+                                        <TouchableOpacity
+                                            key={v.id}
+                                            style={[styles.verseNavItem, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemActive]}
+                                            onPress={() => handleJumpToVerse(roomDetails.currentChapter, parseInt(v.verse))}
+                                        >
+                                            <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemTextActive]}>
+                                                {v.verse}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter, roomDetails.currentVerse + 1)} disabled={roomDetails.currentVerse >= versesInChapter.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                    <ChevronRight size={20} color={roomDetails.currentVerse >= versesInChapter.length ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    {currentVerse ? (
+                        <View style={{ flex: 1 }}>
+                            <ScrollView
+                                style={{ flex: 1 }}
+                                showsVerticalScrollIndicator={true}
+                                contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
+                            >
+                                <Text style={[
+                                    styles.sanskritText,
+                                    {
+                                        color: vTheme.colors.text,
+                                        fontSize: readerFontSize * 1.2,
+                                        fontWeight: readerFontBold ? 'bold' : 'normal',
+                                        lineHeight: (readerFontSize * 1.2) * 1.4
+                                    }
+                                ]}>
+                                    {currentVerse.devanagari || currentVerse.text_sanskrit}
+                                </Text>
+                                <Text style={[
+                                    styles.translationText,
+                                    {
+                                        color: vTheme.colors.textSecondary,
+                                        fontSize: readerFontSize,
+                                        fontWeight: readerFontBold ? '600' : 'normal',
+                                        lineHeight: readerFontSize * 1.5
+                                    }
+                                ]}>
+                                    {currentVerse.translation}
+                                </Text>
+
+                                {roomDetails?.showPurport && currentVerse.purport && (
+                                    <View style={styles.purportContainer}>
+                                        <Text style={[styles.purportHeader, { color: vTheme.colors.primary }]}>
+                                            {t('reader.purport') || 'Purport'}
+                                        </Text>
+                                        <Text style={[
+                                            styles.purportText,
+                                            {
+                                                color: vTheme.colors.textSecondary,
+                                                fontSize: readerFontSize * 0.95,
+                                                fontWeight: readerFontBold ? '500' : 'normal',
+                                                lineHeight: (readerFontSize * 0.95) * 1.6
+                                            }
+                                        ]}>
+                                            {currentVerse.purport}
+                                        </Text>
+                                    </View>
+                                )}
+                            </ScrollView>
+
+                            {isExpanded && (
+                                <View style={styles.readingControls}>
+                                    <TouchableOpacity
+                                        style={{ padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                        onPress={handlePrevVerse}
+                                    >
+                                        <ArrowLeft size={16} color={vTheme.colors.textSecondary} />
+                                        <Text style={{ color: vTheme.colors.textSecondary }}>{t('reader.prevVerse')}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={{ padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                        onPress={handleNextVerse}
+                                    >
+                                        <Text style={{ color: vTheme.colors.primary, fontWeight: 'bold' }}>{t('reader.nextVerse')}</Text>
+                                        <ArrowRight size={16} color={vTheme.colors.primary} />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+                    ) : (
+                        <TouchableOpacity onPress={() => setSettingsVisible(true)}>
+                            <Text style={{ color: vTheme.colors.primary, textAlign: 'center', marginVertical: 10, fontStyle: 'italic', textDecorationLine: 'underline' }}>
+                                {t('reader.settings')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {!isExpanded && (
+                    <>
+                        {loading ? (
+                            <ActivityIndicator size="large" color={theme.accent} style={styles.center} />
+                        ) : (
+                            <FlatList
+                                data={messages}
+                                keyExtractor={item => item.id}
+                                renderItem={renderMessage}
+                                contentContainerStyle={styles.list}
+                                ListEmptyComponent={
+                                    <View style={styles.center}>
+                                        <Text style={{ color: theme.subText }}>{t('chat.noHistory')}</Text>
+                                    </View>
+                                }
+                            />
+                        )}
+                    </>
                 )}
 
                 <View style={[styles.inputContainer, { backgroundColor: theme.header, borderTopColor: theme.borderColor }]}>
@@ -221,10 +570,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                         placeholderTextColor={theme.subText}
                     />
                     <TouchableOpacity onPress={handleSendMessage} style={[styles.sendButton, { backgroundColor: theme.accent }]}>
-                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>→</Text>
+                        <Send size={20} color="#fff" />
                     </TouchableOpacity>
                 </View>
-            </KeyboardAvoidingView>
+            </KeyboardAvoidingView >
 
             <InviteFriendModal
                 visible={inviteVisible}
@@ -234,11 +583,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
             <RoomSettingsModal
                 visible={settingsVisible}
-                onClose={() => setSettingsVisible(false)}
+                onClose={() => {
+                    setSettingsVisible(false);
+                    fetchRoomDetails();
+                    fetchFontSettings();
+                }}
                 roomId={roomId}
                 roomName={roomName}
             />
-        </SafeAreaView>
+        </SafeAreaView >
     );
 };
 
@@ -305,4 +658,121 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    readingPanel: {
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#333',
+    },
+    readingHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    readingControls: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 12,
+        paddingTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
+    },
+    navHeaderCard: {
+        backgroundColor: 'rgba(0,0,0,0.02)',
+        borderRadius: 8,
+        marginHorizontal: 12,
+        marginBottom: 8,
+        overflow: 'hidden',
+    },
+    navBarRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        height: 36,
+    },
+    navScroll: {
+        flex: 1,
+    },
+    navItem: {
+        paddingHorizontal: 10,
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    navItemActive: {
+        borderBottomWidth: 2,
+        borderBottomColor: '#FF8000',
+    },
+    navItemText: {
+        fontSize: 12,
+        color: '#666',
+    },
+    navItemTextActive: {
+        color: '#FF8000',
+        fontWeight: 'bold',
+    },
+    verseNavItem: {
+        width: 34,
+        height: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginHorizontal: 2,
+    },
+    verseNavItemActive: {
+        backgroundColor: '#FF8000',
+        borderRadius: 4,
+    },
+    verseNavItemText: {
+        fontSize: 11,
+        color: '#888',
+    },
+    verseNavItemTextActive: {
+        color: '#FFF',
+        fontWeight: 'bold',
+    },
+    bookTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    joinCallBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    sanskritText: {
+        fontSize: 16,
+        fontStyle: 'italic',
+        textAlign: 'center',
+        marginBottom: 8,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    },
+    translationText: {
+        fontSize: 14,
+        marginBottom: 8,
+        lineHeight: 20,
+    },
+    purportContainer: {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
+    },
+    purportHeader: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginBottom: 6,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    purportText: {
+        fontSize: 13,
+        lineHeight: 18,
+        fontStyle: 'italic',
+    },
+    readingControls: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 8,
+    }
 });

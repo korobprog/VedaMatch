@@ -11,9 +11,12 @@ import {
     Alert,
     TextInput,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
+import { X, Link2, UserPlus, ShieldCheck, UserMinus, Search, User as UserIcon } from 'lucide-react-native';
 import { COLORS } from '../../../components/chat/ChatConstants';
+import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 
@@ -27,6 +30,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const { t } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const vTheme = ModernVedicTheme;
     const { user } = useUser();
 
     const [friends, setFriends] = useState<any[]>([]);
@@ -39,9 +43,12 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const fetchFriends = async () => {
         if (!user) return;
         try {
+            const token = await AsyncStorage.getItem('token');
+            const authHeader = { 'Authorization': `Bearer ${token}` };
+
             const [friendsResponse, membersResponse] = await Promise.all([
-                fetch(`${API_PATH}/friends/${user.ID}`),
-                fetch(`${API_PATH}/rooms/${roomId}/members`)
+                fetch(`${API_PATH}/friends`, { headers: authHeader }),
+                fetch(`${API_PATH}/rooms/${roomId}/members`, { headers: authHeader })
             ]);
 
             if (friendsResponse.ok) {
@@ -67,18 +74,21 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     };
 
     useEffect(() => {
-        if (visible) {
+        if (visible && user) {
+            setLoading(true);
             fetchFriends();
         }
-    }, [visible]);
+    }, [visible, user]);
 
     const handleInvite = async (friendId: number) => {
         setInvitingId(friendId);
         try {
+            const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/invite`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     roomId: roomId,
@@ -89,7 +99,9 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             if (response.ok) {
                 Alert.alert(t('common.success'), t('chat.invite') + ' ' + t('common.success'));
                 // Refetch members to get proper data
-                const membersResponse = await fetch(`${API_PATH}/rooms/${roomId}/members`);
+                const membersResponse = await fetch(`${API_PATH}/rooms/${roomId}/members`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
                 if (membersResponse.ok) {
                     const members = await membersResponse.json();
                     setRoomMembers(members);
@@ -110,10 +122,12 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleRemove = async (friendId: number) => {
         setInvitingId(friendId);
         try {
+            const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/remove`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     roomId: roomId,
@@ -138,10 +152,12 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleMakeAdmin = async (friendId: number) => {
         setInvitingId(friendId);
         try {
+            const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/role`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     roomId: roomId,
@@ -171,10 +187,12 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
         Alert.alert(t('common.success'), 'Link copied to clipboard');
     };
 
-    const filteredFriends = friends.filter(friend =>
-        friend.karmicName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        friend.email.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredFriends = friends
+        .filter((v, i, a) => a.findIndex(t => t.ID === v.ID) === i) // Ensure unique IDs
+        .filter(friend =>
+            friend.karmicName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            friend.email.toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
     const renderItem = ({ item }: any) => {
         const memberRecord = roomMembers.find(m => m.user?.ID === item.ID);
@@ -183,37 +201,35 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
         const canManage = currentUserRole === 'admin';
 
         return (
-            <View style={[styles.friendItem, { borderBottomColor: theme.borderColor }]}>
-                <View style={[styles.avatar, { backgroundColor: theme.header }]}>
-                    <Text style={{ fontSize: 18 }}>👤</Text>
+            <View style={[styles.friendItem, { borderBottomColor: vTheme.colors.divider }]}>
+                <View style={[styles.avatar, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
+                    <UserIcon size={20} color={vTheme.colors.primary} />
                 </View>
                 <View style={styles.friendInfo}>
-                    <Text style={[styles.friendName, { color: theme.text }]}>
+                    <Text style={[styles.friendName, { color: vTheme.colors.text }]}>
                         {item.karmicName} {isAdmin && '👑'}
                     </Text>
-                    <Text style={[styles.friendEmail, { color: theme.subText }]}>{item.email}</Text>
+                    <Text style={[styles.friendEmail, { color: vTheme.colors.textSecondary }]}>{item.email}</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                     {isMember && canManage && !isAdmin && (
                         <TouchableOpacity
                             style={[
-                                styles.inviteButton,
-                                { backgroundColor: theme.header, borderWidth: 1, borderColor: theme.accent }
+                                styles.iconButton,
+                                { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.primary, borderWidth: 1 }
                             ]}
                             onPress={() => handleMakeAdmin(item.ID)}
                             disabled={invitingId === item.ID}
                         >
-                            <Text style={[styles.inviteButtonText, { color: theme.accent }]}>
-                                Admin
-                            </Text>
+                            <ShieldCheck size={18} color={vTheme.colors.primary} />
                         </TouchableOpacity>
                     )}
 
                     <TouchableOpacity
                         style={[
                             styles.inviteButton,
-                            { backgroundColor: isMember ? '#ff4444' : theme.accent }
+                            { backgroundColor: isMember ? vTheme.colors.accent : vTheme.colors.primary }
                         ]}
                         onPress={() => isMember ? (canManage ? handleRemove(item.ID) : null) : handleInvite(item.ID)}
                         disabled={invitingId === item.ID || (isMember && !canManage)}
@@ -221,9 +237,16 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                         {invitingId === item.ID ? (
                             <ActivityIndicator size="small" color="#fff" />
                         ) : (
-                            <Text style={styles.inviteButtonText}>
-                                {isMember ? 'Remove' : t('chat.invite')}
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                {isMember ? (
+                                    <UserMinus size={16} color="#fff" />
+                                ) : (
+                                    <UserPlus size={16} color="#fff" />
+                                )}
+                                <Text style={styles.inviteButtonText}>
+                                    {isMember ? (canManage ? t('common.remove') || 'Remove' : 'Member') : t('chat.invite')}
+                                </Text>
+                            </View>
                         )}
                     </TouchableOpacity>
                 </View>
@@ -239,25 +262,29 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <View style={[styles.modalContent, { backgroundColor: vTheme.colors.background }]}>
                     <View style={styles.headerRow}>
-                        <Text style={[styles.modalTitle, { color: theme.text, marginBottom: 0 }]}>{t('chat.inviteFriends')}</Text>
-                        <TouchableOpacity onPress={copyRoomLink} style={styles.linkButton}>
-                            <Text style={{ fontSize: 20 }}>🔗</Text>
+                        <TouchableOpacity onPress={onClose} style={styles.headerIcon}>
+                            <X size={26} color={vTheme.colors.text} />
+                        </TouchableOpacity>
+                        <Text style={[styles.modalTitle, { color: vTheme.colors.text }]}>
+                            {t('chat.inviteFriends')}
+                        </Text>
+                        <TouchableOpacity onPress={copyRoomLink} style={styles.headerIcon}>
+                            <Link2 size={24} color={vTheme.colors.primary} />
                         </TouchableOpacity>
                     </View>
 
-                    <TextInput
-                        style={[styles.searchInput, {
-                            color: theme.text,
-                            backgroundColor: theme.header,
-                            borderColor: theme.borderColor
-                        }]}
-                        placeholder={t('common.search') || "Search friends..."}
-                        placeholderTextColor={theme.subText}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
+                    <View style={[styles.searchContainer, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }]}>
+                        <Search size={18} color={vTheme.colors.textSecondary} style={{ marginLeft: 12 }} />
+                        <TextInput
+                            style={[styles.searchInput, { color: vTheme.colors.text }]}
+                            placeholder={t('common.search') || "Search friends..."}
+                            placeholderTextColor={vTheme.colors.textSecondary}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                    </View>
 
                     {loading ? (
                         <ActivityIndicator size="large" color={theme.accent} style={{ margin: 20 }} />
@@ -268,7 +295,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                             renderItem={renderItem}
                             ListEmptyComponent={
                                 <View style={styles.emptyContainer}>
-                                    <Text style={{ color: theme.subText }}>
+                                    <Text style={{ color: vTheme.colors.textSecondary }}>
                                         {friends.length === 0 ? t('chat.noHistory') : 'No matching friends found'}
                                     </Text>
                                 </View>
@@ -276,10 +303,6 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                             style={{ maxHeight: 400 }}
                         />
                     )}
-
-                    <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                        <Text style={[styles.closeButtonText, { color: theme.text }]}>{t('common.cancel')}</Text>
-                    </TouchableOpacity>
                 </View>
             </View>
         </Modal>
@@ -356,16 +379,33 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
     },
-    linkButton: {
+    headerIcon: {
         padding: 5,
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 12,
+        borderWidth: 1,
+        marginBottom: 16,
     },
     searchInput: {
-        height: 40,
-        borderRadius: 8,
+        flex: 1,
+        height: 44,
         paddingHorizontal: 12,
-        marginBottom: 16,
-        borderWidth: 1,
+        fontSize: 16,
+    },
+    iconButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
     }
 });

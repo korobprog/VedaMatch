@@ -45,6 +45,8 @@ func main() {
 
 	// Start News Scheduler (background job for fetching news from sources)
 	services.StartNewsScheduler()
+	// Start Room Notification Scheduler
+	services.StartRoomNotificationScheduler()
 
 	// Initialize Fiber App
 	app := fiber.New()
@@ -84,6 +86,7 @@ func main() {
 	orderHandler := handlers.NewOrderHandler()
 	educationHandler := handlers.NewEducationHandler(services.NewEducationService(database.DB))
 	turnHandler := handlers.NewTurnHandler()
+	// bookHandler removed, using library functions directly
 
 	// Restore scheduler state from database
 	aiHandler.RestoreScheduler()
@@ -101,6 +104,7 @@ func main() {
 	library.Get("/books/:id", handlers.GetLibraryBookDetails) // supports id or code
 	library.Get("/books/:bookCode/chapters", handlers.GetLibraryChapters)
 	library.Get("/verses", handlers.GetLibraryVerses) // ?bookCode=bg&chapter=1
+	library.Post("/init", handlers.SeeInitialBooks)   // Temporary for seeding
 	library.Get("/search", handlers.SearchLibrary)
 
 	// Education Routes (Public)

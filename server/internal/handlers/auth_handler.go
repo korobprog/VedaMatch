@@ -329,6 +329,13 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
+	// Check if already friends
+	var count int64
+	database.DB.Model(&models.Friend{}).Where("user_id = ? AND friend_id = ?", userId, body.FriendID).Count(&count)
+	if count > 0 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Already friends"})
+	}
+
 	friendship := models.Friend{
 		UserID:   userId,
 		FriendID: body.FriendID,

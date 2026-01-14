@@ -96,7 +96,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.content}>
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Profile Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
                     <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('settings.profile') || 'Profile'}</Text>

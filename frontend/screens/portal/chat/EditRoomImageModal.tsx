@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 
 interface EditRoomImageModalProps {
@@ -92,11 +93,13 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                 type,
             } as any);
 
+            const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/${roomId}/image`, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'Content-Type': 'multipart/form-data',
+                    'Authorization': `Bearer ${token}`
                 },
             });
 
@@ -121,12 +124,14 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
         // Для пресетов просто обновляем imageUrl на выбранный ID
         setUploading(true);
         try {
+            const token = await AsyncStorage.getItem('token');
             // Создаем пустой файл или отправляем preset ID
             // В данном случае, сохраним preset как строку
             const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     imageUrl: selectedPreset,

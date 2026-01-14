@@ -283,7 +283,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 )}
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 <View style={styles.logoHeaderContainer}>
                     <View style={styles.logoWrapper}>
                         <Image
