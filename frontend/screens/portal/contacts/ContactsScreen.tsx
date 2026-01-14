@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, useColorScheme, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
+
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { contactService, UserContact } from '../../../services/contactService';
-import { API_BASE_URL, API_PATH } from '../../../config/api.config';
+import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 import { useChat } from '../../../context/ChatContext';
-import { Phone, MessageCircle } from 'lucide-react-native';
+import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, UserMinus } from 'lucide-react-native';
 
 export const ContactsScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -19,6 +21,8 @@ export const ContactsScreen: React.FC = () => {
     const { setChatRecipient } = useChat();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const vTheme = ModernVedicTheme; // Use Vedic theme for consistent light-themed hub
+
     const { user: currentUser } = useUser();
 
     const [search, setSearch] = useState('');
@@ -33,43 +37,21 @@ export const ContactsScreen: React.FC = () => {
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [showCityPicker, setShowCityPicker] = useState(false);
     const [citySearchQuery, setCitySearchQuery] = useState('');
-    const [friendIds, setFriendIds] = useState<number[]>([]);
+    const [now, setNow] = useState(new Date());
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setNow(new Date());
+        }, 30000); // Update relative time every 30 seconds
+        return () => clearInterval(interval);
+    }, []);
+
 
     useEffect(() => {
         fetchContacts();
     }, []);
 
-    useEffect(() => {
-        // We don't set the city filter automatically anymore to avoid confusion when no users are in the same city
-        /*
-        if (currentUser?.city) {
-            setFilterCities([currentUser.city]);
-        }
-        */
-    }, [currentUser?.city]);
 
-    const fetchCities = async () => {
-        try {
-            const token = await contactService.getAuthToken();
-            const response = await axios.get(`${API_PATH}/dating/cities`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            console.log('Cities from API:', response.data);
-            setAvailableCities(response.data);
-        } catch (error) {
-            console.error('Failed to fetch cities:', error);
-            // Extract unique cities from contacts
-            const citiesFromContacts = new Set<string>();
-            allContacts.forEach(contact => {
-                if (contact.city) {
-                    citiesFromContacts.add(contact.city);
-                }
-            });
-            const cities = Array.from(citiesFromContacts).sort();
-            setAvailableCities(cities);
-            console.log('Fallback cities from contacts:', cities);
-        }
-    };
 
     const fetchContacts = async () => {
         try {
@@ -131,10 +113,28 @@ export const ContactsScreen: React.FC = () => {
     const isOnline = (lastSeen: string) => {
         if (!lastSeen) return false;
         const lastSeenDate = new Date(lastSeen);
-        const now = new Date();
         const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / 60000;
         return diffMinutes < 5; // Online if active in last 5 minutes
     };
+
+    const formatLastSeen = (lastSeen: string) => {
+        if (!lastSeen) return '';
+        const date = new Date(lastSeen);
+
+        // Simple localization based on user's device settings
+        const isToday = new Date().toDateString() === date.toDateString();
+
+        if (isToday) {
+            return t('contacts.lastSeenToday', {
+                time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }) || `last seen today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+            return t('contacts.lastSeenDate', {
+                date: date.toLocaleDateString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            }) || `last seen ${date.toLocaleDateString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+        }
+    };
+
 
     const displayedContacts = (
         filter === 'all' ? allContacts :
@@ -187,12 +187,17 @@ export const ContactsScreen: React.FC = () => {
     const renderItem = ({ item }: { item: UserContact }) => {
         const avatarUrl = getMediaUrl(item.avatarUrl);
         const online = isOnline(item.lastSeen);
+        const lastSeenText = !online ? formatLastSeen(item.lastSeen) : '';
         const isBlocked = filter === 'blocked';
         const isFriend = friends.some(f => f.ID === item.ID);
 
+
         return (
             <TouchableOpacity
-                style={[styles.contactItem, { borderBottomColor: theme.borderColor }]}
+                style={[styles.contactItem, {
+                    backgroundColor: vTheme.colors.backgroundSecondary,
+                    borderColor: vTheme.colors.divider
+                }, vTheme.shadows.soft]}
                 onPress={() => {
                     if (isBlocked) return;
                     if (isFriend) {
@@ -218,7 +223,7 @@ export const ContactsScreen: React.FC = () => {
                 </View>
                 <View style={styles.contactInfo}>
                     <View style={styles.nameRow}>
-                        <Text style={[styles.contactName, { color: theme.text }]}>
+                        <Text style={[styles.contactName, { color: vTheme.colors.text }]}>
                             {item.spiritualName || item.karmicName}
                         </Text>
                         {isFriend && !isBlocked && (
@@ -229,10 +234,12 @@ export const ContactsScreen: React.FC = () => {
                             </View>
                         )}
                     </View>
-                    <Text style={[styles.contactDesc, { color: theme.subText }]}>
-                        {item.identity || 'Devotee'} • {item.country}, {item.city}
-                        {item.yatra ? ` • ${item.yatra}` : ''}
-                        {item.timezone ? ` • ${getLocalTime(item.timezone)}` : ''}
+                    <Text style={[styles.contactDesc, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>
+                        {online ? (
+                            `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`
+                        ) : (
+                            lastSeenText || `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`
+                        )}
                     </Text>
                 </View>
                 {isBlocked ? (
@@ -269,7 +276,7 @@ export const ContactsScreen: React.FC = () => {
                                 <MessageCircle size={20} color={theme.primary} />
                             </TouchableOpacity>
                         )}
-                        <Text style={{ color: theme.accent, fontSize: 18, marginLeft: 10 }}>›</Text>
+                        <ChevronRight size={20} color={theme.accent} style={{ marginLeft: 10 }} />
                     </View>
                 )}
             </TouchableOpacity>
@@ -299,45 +306,52 @@ export const ContactsScreen: React.FC = () => {
 
     return (
         <ProtectedScreen requireCompleteProfile={false}>
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
                 <View style={styles.filterBar}>
                     <TouchableOpacity
                         onPress={() => setFilter('all')}
                         style={[styles.filterBtn, filter === 'all' && { borderBottomColor: theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: filter === 'all' ? theme.text : theme.subText }]}>All ({displayedContacts.length})</Text>
+                        <Text style={[styles.filterText, { color: filter === 'all' ? theme.text : theme.subText }]}>
+                            {t('contacts.all')} ({displayedContacts.length})
+                        </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilter('friends')}
                         style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: filter === 'friends' ? theme.text : theme.subText }]}>Friends ({friends.length})</Text>
+                        <Text style={[styles.filterText, { color: filter === 'friends' ? theme.text : theme.subText }]}>
+                            {t('contacts.friends')} ({friends.length})
+                        </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilter('blocked')}
                         style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: filter === 'blocked' ? theme.text : theme.subText }]}>{t('contacts.blocked')}</Text>
+                        <Text style={[styles.filterText, { color: filter === 'blocked' ? theme.text : theme.subText }]}>
+                            {t('contacts.blocked')}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Location Filters */}
                 {filter === 'all' && (
-                    <View style={[styles.filtersContainer, { backgroundColor: theme.header }]}>
+                    <View style={[styles.filtersContainer, { backgroundColor: 'transparent', borderBottomColor: vTheme.colors.divider }]}>
                         {/* City Filter */}
                         <TouchableOpacity
                             style={[styles.filterChip, filterCities.length > 0 && { backgroundColor: theme.accent + '30', borderColor: theme.accent }]}
                             onPress={() => setShowCityPicker(true)}
                         >
-                            <Text style={[styles.filterChipText, { color: filterCities.length > 0 ? theme.accent : theme.subText }]}>
-                                {filterCities.length > 0 ? `🏙️ ${filterCities.length} cities` : '🏙️ City'}
+                            <Text style={[styles.filterChipText, { color: filterCities.length > 0 ? theme.accent : theme.text }]}>
+                                {filterCities.length > 0 ? `${filterCities.length} ${t('contacts.cities')}` : t('contacts.city')}
                             </Text>
+                            <ChevronDown size={14} color={filterCities.length > 0 ? theme.accent : theme.subText} style={{ marginLeft: 6 }} />
                             {filterCities.length > 0 && (
                                 <TouchableOpacity
                                     onPress={clearCityFilters}
                                     style={styles.clearFilterBtn}
                                 >
-                                    <Text style={{ color: theme.accent, fontSize: 12 }}>✕</Text>
+                                    <X size={14} color={theme.accent} />
                                 </TouchableOpacity>
                             )}
                         </TouchableOpacity>
@@ -345,24 +359,27 @@ export const ContactsScreen: React.FC = () => {
                         {/* Stats */}
                         <View style={styles.statsContainer}>
                             <Text style={[styles.statsText, { color: theme.subText }]}>
-                                {uniqueCities.length} cities • {uniqueCountries.length} countries
+                                {uniqueCities.length} {t('contacts.cities')} • {uniqueCountries.length} {t('contacts.countries')}
                             </Text>
                         </View>
                     </View>
                 )}
 
-                <View style={[styles.searchContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
-                    <Text style={{ color: theme.subText, marginRight: 8 }}>🔍</Text>
+                <View style={[styles.searchContainer, {
+                    backgroundColor: vTheme.colors.backgroundSecondary,
+                    borderColor: vTheme.colors.divider
+                }]}>
+                    <Search size={18} color={theme.subText} style={{ marginRight: 8 }} />
                     <TextInput
                         style={[styles.searchInput, { color: theme.inputText }]}
-                        placeholder={filterCities.length > 0 ? `Searching in ${filterCities.length} cities` : "Search by name, city or country"}
+                        placeholder={filterCities.length > 0 ? t('contacts.searchingIn', { count: filterCities.length }) : t('contacts.searchBy')}
                         placeholderTextColor={theme.subText}
                         value={search}
                         onChangeText={setSearch}
                     />
                     {search ? (
                         <TouchableOpacity onPress={() => setSearch('')}>
-                            <Text style={{ color: theme.accent, fontSize: 18 }}>✕</Text>
+                            <X size={20} color={theme.accent} />
                         </TouchableOpacity>
                     ) : null}
                 </View>
@@ -385,12 +402,12 @@ export const ContactsScreen: React.FC = () => {
                             ) : (
                                 <>
                                     <Text style={[styles.empty, { color: theme.subText }]}>
-                                        {search ? `No results for "${search}"` : 'No contacts found'}
+                                        {search ? t('contacts.noResults', { search }) : t('contacts.noContacts')}
                                     </Text>
                                     {filter === 'all' && filterCities.length > 0 && (
                                         <TouchableOpacity onPress={clearCityFilters}>
                                             <Text style={[styles.clearFilterLink, { color: theme.accent }]}>
-                                                Clear city filter ({filterCities.length})
+                                                {t('contacts.clearCityFilter', { count: filterCities.length })}
                                             </Text>
                                         </TouchableOpacity>
                                     )}
@@ -410,13 +427,13 @@ export const ContactsScreen: React.FC = () => {
                         <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '70%' }]}>
                             <View style={styles.modalHeader}>
                                 <Text style={[styles.modalTitle, { color: theme.text }]}>
-                                    Select Cities ({filterCities.length} selected)
+                                    {t('contacts.selectCities', { count: filterCities.length })}
                                 </Text>
                                 <TouchableOpacity
                                     onPress={() => setShowCityPicker(false)}
                                     style={styles.closeModalBtn}
                                 >
-                                    <Text style={{ color: theme.subText, fontSize: 24 }}>✕</Text>
+                                    <X size={24} color={theme.subText} />
                                 </TouchableOpacity>
                             </View>
 
@@ -424,7 +441,7 @@ export const ContactsScreen: React.FC = () => {
                                 style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 10 }]}
                                 value={citySearchQuery}
                                 onChangeText={setCitySearchQuery}
-                                placeholder="Search city..."
+                                placeholder={t('dating.searchCity')}
                                 placeholderTextColor={theme.subText}
                             />
 
@@ -434,7 +451,7 @@ export const ContactsScreen: React.FC = () => {
                                     style={[styles.clearAllBtn, { backgroundColor: theme.accent + '20' }]}
                                 >
                                     <Text style={[styles.clearAllBtnText, { color: theme.accent }]}>
-                                        Clear all ({filterCities.length})
+                                        {t('contacts.clearAll', { count: filterCities.length })}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -442,7 +459,7 @@ export const ContactsScreen: React.FC = () => {
                             <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                                 {filteredCities.length === 0 ? (
                                     <Text style={[styles.noResults, { color: theme.subText }]}>
-                                        No cities found
+                                        {t('contacts.noCitiesFound')}
                                     </Text>
                                 ) : (
                                     filteredCities.map((city: string, index: number) => {
@@ -469,7 +486,9 @@ export const ContactsScreen: React.FC = () => {
                                                             <Text style={styles.checkboxCheck}>✓</Text>
                                                         )}
                                                     </View>
-                                                    <Text style={[styles.cityName, { color: theme.text }]}>{city}</Text>
+                                                    <Text style={[styles.cityName, { color: theme.text }]} numberOfLines={1}>
+                                                        {city.split(',')[0].trim()}
+                                                    </Text>
                                                 </View>
                                                 <Text style={[styles.cityCount, { color: theme.subText, fontSize: 12 }]}>{count}</Text>
                                             </TouchableOpacity>
@@ -483,7 +502,7 @@ export const ContactsScreen: React.FC = () => {
                                 onPress={() => setShowCityPicker(false)}
                             >
                                 <Text style={styles.applyBtnText}>
-                                    Apply Filter ({filterCities.length})
+                                    {t('contacts.applyFilter', { count: filterCities.length })}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -521,11 +540,12 @@ const styles = StyleSheet.create({
     filterChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'transparent',
+        borderColor: '#E0E0E0',
+        backgroundColor: '#FFFFFF',
         marginRight: 8,
     },
     filterChipText: {
@@ -544,10 +564,11 @@ const styles = StyleSheet.create({
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        margin: 16,
+        marginHorizontal: 16,
+        marginVertical: 12,
         paddingHorizontal: 16,
-        height: 44,
-        borderRadius: 22,
+        height: 48,
+        borderRadius: 24,
         borderWidth: 1,
     },
     searchInput: {
@@ -559,9 +580,12 @@ const styles = StyleSheet.create({
     contactItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 14,
         paddingHorizontal: 16,
-        borderBottomWidth: 0.5,
+        marginHorizontal: 16,
+        marginVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
     },
     avatarContainer: {
         width: 50,

@@ -11,6 +11,18 @@ import { marketService } from '../../../services/marketService';
 import { ShopCategory, ShopCategoryConfig } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
+import {
+    Store,
+    Image as ImageIcon,
+    Tag,
+    MapPin,
+    Phone,
+    Mail,
+    Send,
+    Instagram,
+    Globe,
+    Camera
+} from 'lucide-react-native';
 
 type RouteParams = {
     CreateShop: { shopId?: number };
@@ -198,7 +210,7 @@ export const CreateShopScreen: React.FC = () => {
     if (!canCreate) {
         return (
             <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                <Text style={styles.errorIcon}>🏪</Text>
+                <Store size={64} color={colors.textSecondary} opacity={0.5} style={{ marginBottom: 16 }} />
                 <Text style={[styles.errorTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
                     {t('market.shop.cannotCreate') || 'Cannot Create Shop'}
                 </Text>
@@ -240,7 +252,7 @@ export const CreateShopScreen: React.FC = () => {
                                     <Image source={{ uri: getMediaUrl(existingLogo) || '' }} style={styles.logoPreview} />
                                 ) : (
                                     <View style={styles.logoPlaceholder}>
-                                        <Text style={{ fontSize: 32 }}>🏪</Text>
+                                        <Store size={32} color={colors.primary} />
                                         <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>{t('market.shop.logo') || 'Logo'}</Text>
                                     </View>
                                 )}
@@ -253,7 +265,7 @@ export const CreateShopScreen: React.FC = () => {
                                     <Image source={{ uri: getMediaUrl(existingCover) || '' }} style={styles.coverPreview} />
                                 ) : (
                                     <View style={styles.coverPlaceholder}>
-                                        <Text style={{ fontSize: 24 }}>🖼️</Text>
+                                        <ImageIcon size={24} color={colors.primary} />
                                         <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>{t('market.shop.cover') || 'Cover'}</Text>
                                     </View>
                                 )}
@@ -279,7 +291,7 @@ export const CreateShopScreen: React.FC = () => {
                                     ]}
                                     onPress={() => setSelectedCategory(cat.id)}
                                 >
-                                    <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+                                    <Tag size={16} color={selectedCategory === cat.id ? '#fff' : colors.primary} style={{ marginRight: 6 }} />
                                     <Text style={[
                                         styles.categoryLabel,
                                         { color: selectedCategory === cat.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }
@@ -297,9 +309,12 @@ export const CreateShopScreen: React.FC = () => {
                             {t('market.shop.basicInfo') || 'Basic Information'}
                         </Text>
 
-                        <Text style={[styles.label, { color: colors.textSecondary }]}>
-                            {t('market.shop.name') || 'Shop Name'} *
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                            <Store size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                                {t('market.shop.name') || 'Shop Name'} *
+                            </Text>
+                        </View>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
                             value={name}
@@ -323,9 +338,12 @@ export const CreateShopScreen: React.FC = () => {
                             maxLength={2000}
                         />
 
-                        <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>
-                            {t('market.shop.city') || 'City'} *
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6 }}>
+                            <MapPin size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                                {t('market.shop.city') || 'City'} *
+                            </Text>
+                        </View>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
                             value={city}
@@ -352,9 +370,12 @@ export const CreateShopScreen: React.FC = () => {
                             {t('market.shop.contactInfo') || 'Contact Information'}
                         </Text>
 
-                        <Text style={[styles.label, { color: colors.textSecondary }]}>
-                            {t('market.shop.phone') || 'Phone'}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                            <Phone size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                                {t('market.shop.phone') || 'Phone'}
+                            </Text>
+                        </View>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
                             value={phone}
@@ -364,9 +385,12 @@ export const CreateShopScreen: React.FC = () => {
                             keyboardType="phone-pad"
                         />
 
-                        <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>
-                            {t('market.shop.email') || 'Email'}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6 }}>
+                            <Mail size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                                {t('market.shop.email') || 'Email'}
+                            </Text>
+                        </View>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
                             value={email}
@@ -377,9 +401,12 @@ export const CreateShopScreen: React.FC = () => {
                             autoCapitalize="none"
                         />
 
-                        <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>
-                            {t('market.shop.telegram') || 'Telegram'}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6 }}>
+                            <Send size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                                {t('market.shop.telegram') || 'Telegram'}
+                            </Text>
+                        </View>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
                             value={telegram}
@@ -389,9 +416,12 @@ export const CreateShopScreen: React.FC = () => {
                             autoCapitalize="none"
                         />
 
-                        <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>
-                            {t('market.shop.instagram') || 'Instagram'}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6 }}>
+                            <Instagram size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                                {t('market.shop.instagram') || 'Instagram'}
+                            </Text>
+                        </View>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
                             value={instagram}
@@ -401,9 +431,12 @@ export const CreateShopScreen: React.FC = () => {
                             autoCapitalize="none"
                         />
 
-                        <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>
-                            {t('market.shop.website') || 'Website'}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6 }}>
+                            <Globe size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                            <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 0 }]}>
+                                {t('market.shop.website') || 'Website'}
+                            </Text>
+                        </View>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
                             value={website}

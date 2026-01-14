@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../components/chat/ChatConstants';
+import { Book } from 'lucide-react-native';
 
 interface KnowledgeItem {
     id: string;
@@ -25,7 +26,7 @@ const MOCK_KNOWLEDGE: KnowledgeItem[] = [
         title: 'Библиотека',
         category: 'Священные Писания',
         summary: 'Основополагающее философское произведение ведической мудрости, беседа Кришны и Арджуны.',
-        icon: '📚'
+        icon: 'book'
     }
 ];
 
@@ -37,7 +38,7 @@ export const KnowledgeBaseScreen = () => {
     const renderItem = ({ item }: { item: KnowledgeItem }) => (
         <TouchableOpacity style={[styles.card, { backgroundColor: theme.header, borderColor: theme.borderColor }]}>
             <View style={styles.iconContainer}>
-                <Text style={styles.icon}>{item.icon}</Text>
+                {item.icon === 'book' ? <Book size={30} color={theme.accent} /> : <Text style={styles.icon}>{item.icon}</Text>}
             </View>
             <View style={styles.cardContent}>
                 <Text style={[styles.category, { color: theme.accent }]}>{item.category}</Text>

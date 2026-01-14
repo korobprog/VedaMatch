@@ -10,6 +10,7 @@ import {
     RefreshControl,
     ScrollView
 } from 'react-native';
+import { Book } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
@@ -57,7 +58,7 @@ export const EducationHomeScreen: React.FC = () => {
             onPress={() => navigation.navigate('CourseDetails', { courseId: item.ID })}
         >
             <View style={styles.courseImagePlaceholder}>
-                <Text style={styles.courseEmoji}>📚</Text>
+                <Book size={40} color={ModernVedicTheme.colors.primary} />
             </View>
             <View style={styles.courseInfo}>
                 <Text style={styles.courseOrg}>{item.organization}</Text>

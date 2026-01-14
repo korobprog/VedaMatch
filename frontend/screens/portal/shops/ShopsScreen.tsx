@@ -9,6 +9,15 @@ import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme'
 import { marketService } from '../../../services/marketService';
 import { Shop, ShopCategoryConfig, ShopFilters } from '../../../types/market';
 import { getMediaUrl } from '../../../utils/url';
+import {
+    Store,
+    Star,
+    MapPin,
+    Search,
+    Tag,
+    X,
+    Search as SearchIcon
+} from 'lucide-react-native';
 
 export const ShopsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -125,8 +134,8 @@ export const ShopsScreen: React.FC = () => {
                 {item.logoUrl ? (
                     <Image source={{ uri: getMediaUrl(item.logoUrl) || '' }} style={styles.shopLogo} />
                 ) : (
-                    <View style={[styles.shopLogoPlaceholder, { backgroundColor: colors.primary + '30' }]}>
-                        <Text style={{ fontSize: 40 }}>🏪</Text>
+                    <View style={[styles.shopLogoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
+                        <Store size={40} color={colors.primary} />
                     </View>
                 )}
             </View>
@@ -143,7 +152,8 @@ export const ShopsScreen: React.FC = () => {
                 <View style={styles.shopMeta}>
                     {item.rating > 0 ? (
                         <View style={styles.ratingContainer}>
-                            <Text style={styles.ratingText}>★ {item.rating.toFixed(1)}</Text>
+                            <Star size={12} color="#FFA000" fill="#FFA000" style={{ marginRight: 2 }} />
+                            <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
                             <Text style={[styles.reviewsCount, { color: isDarkMode ? '#888' : colors.textSecondary }]}>
                                 ({item.reviewsCount})
                             </Text>
@@ -152,9 +162,12 @@ export const ShopsScreen: React.FC = () => {
                         <Text style={[styles.newShop, { color: colors.primary }]}>{t('market.new')}</Text>
                     )}
 
-                    <Text style={[styles.shopCity, { color: isDarkMode ? '#888' : colors.textSecondary }]}>
-                        📍 {item.city}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <MapPin size={12} color={colors.textSecondary} style={{ marginRight: 2 }} />
+                        <Text style={[styles.shopCity, { color: isDarkMode ? '#888' : colors.textSecondary }]}>
+                            {item.city}
+                        </Text>
+                    </View>
                 </View>
 
                 <Text style={[styles.productsCount, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
@@ -168,20 +181,38 @@ export const ShopsScreen: React.FC = () => {
         <View>
             {/* Search Bar */}
             <View style={styles.searchContainer}>
-                <TextInput
-                    style={[styles.searchInput, {
-                        backgroundColor: isDarkMode ? '#333' : '#f5f5f5',
-                        color: isDarkMode ? '#fff' : colors.text
-                    }]}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder={t('market.searchShops')}
-                    placeholderTextColor={isDarkMode ? '#888' : colors.textSecondary}
-                    onSubmitEditing={handleSearch}
-                    returnKeyType="search"
-                />
+                <View style={[styles.searchInputWrapper, {
+                    backgroundColor: isDarkMode ? '#333' : '#f5f5f5',
+                    flex: 1,
+                    height: 44,
+                    borderRadius: 22,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 12
+                }]}>
+                    <SearchIcon size={18} color={isDarkMode ? '#888' : colors.textSecondary} style={{ marginRight: 8 }} />
+                    <TextInput
+                        style={[styles.searchInput, {
+                            flex: 1,
+                            color: isDarkMode ? '#fff' : colors.text,
+                            height: '100%',
+                            fontSize: 15,
+                        }]}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        placeholder={t('market.searchShops')}
+                        placeholderTextColor={isDarkMode ? '#888' : colors.textSecondary}
+                        onSubmitEditing={handleSearch}
+                        returnKeyType="search"
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => { setSearchQuery(''); loadShops(1, true); }}>
+                            <X size={18} color={isDarkMode ? '#888' : colors.textSecondary} />
+                        </TouchableOpacity>
+                    )}
+                </View>
                 <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colors.primary }]} onPress={handleSearch}>
-                    <Text style={{ color: '#fff', fontSize: 16 }}>🔍</Text>
+                    <SearchIcon size={20} color="#fff" />
                 </TouchableOpacity>
             </View>
 
@@ -199,11 +230,13 @@ export const ShopsScreen: React.FC = () => {
                                 backgroundColor: selectedCategory === item.id
                                     ? colors.primary
                                     : (isDarkMode ? '#333' : '#f0f0f0'),
+                                borderColor: selectedCategory === item.id ? colors.primary : 'rgba(0,0,0,0.05)',
+                                borderWidth: 1
                             }
                         ]}
                         onPress={() => handleCategorySelect(item.id)}
                     >
-                        <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+                        <Tag size={14} color={selectedCategory === item.id ? '#fff' : colors.primary} style={{ marginRight: 6 }} />
                         <Text style={[
                             styles.categoryLabel,
                             { color: selectedCategory === item.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }
@@ -252,7 +285,7 @@ export const ShopsScreen: React.FC = () => {
                 ListFooterComponent={renderFooter}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyIcon}>🏪</Text>
+                        <Store size={48} color={colors.textSecondary} style={{ marginBottom: 12 }} />
                         <Text style={[styles.emptyText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
                             {t('market.noShops')}
                         </Text>

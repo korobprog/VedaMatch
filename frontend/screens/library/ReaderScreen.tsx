@@ -2,8 +2,21 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, Alert, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { libraryService } from '../../services/libraryService';
 import { ScriptureVerse, ChapterInfo } from '../../types/library';
+import {
+    Bookmark,
+    Settings,
+    Trash2,
+    Share2,
+    Star,
+    ChevronLeft,
+    ChevronRight,
+    ArrowLeft,
+    ArrowRight,
+    X
+} from 'lucide-react-native';
 
 import { useUser } from '../../context/UserContext';
 import { useTranslation } from 'react-i18next';
@@ -117,10 +130,10 @@ export const ReaderScreen = () => {
             headerRight: () => (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <TouchableOpacity onPress={() => setShowBookmarksList(true)} style={{ padding: 8 }}>
-                        <Text style={{ fontSize: 22 }}>🔖</Text>
+                        <Bookmark size={22} color={ModernVedicTheme.colors.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setShowSettings(true)} style={{ padding: 8 }}>
-                        <Text style={{ fontSize: 22 }}>⚙️</Text>
+                        <Settings size={22} color={ModernVedicTheme.colors.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={toggleLanguage} style={{ padding: 8 }}>
                         <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FF8000' }}>
@@ -257,7 +270,7 @@ export const ReaderScreen = () => {
                         <View style={styles.settingsHeader}>
                             <Text style={styles.settingsTitle}>{t('reader.settings', 'Настройки чтения')}</Text>
                             <TouchableOpacity onPress={() => setShowSettings(false)} style={styles.closeBtn}>
-                                <Text style={styles.closeBtnText}>✕</Text>
+                                <X size={24} color="#999" />
                             </TouchableOpacity>
                         </View>
 
@@ -341,7 +354,7 @@ export const ReaderScreen = () => {
                         <View style={styles.settingsHeader}>
                             <Text style={styles.settingsTitle}>{t('reader.bookmarks', 'Ваши закладки')}</Text>
                             <TouchableOpacity onPress={() => setShowBookmarksList(false)} style={styles.closeBtn}>
-                                <Text style={styles.closeBtnText}>✕</Text>
+                                <X size={24} color="#999" />
                             </TouchableOpacity>
                         </View>
                         <ScrollView>
@@ -365,7 +378,7 @@ export const ReaderScreen = () => {
                                                 {t('reader.chapter')} {ch}, {t('reader.text')} {v}
                                             </Text>
                                             <TouchableOpacity onPress={() => toggleBookmark({ chapter: parseInt(ch), verse: v } as any)}>
-                                                <Text style={{ fontSize: 18 }}>🗑️</Text>
+                                                <Trash2 size={18} color="#FF5252" />
                                             </TouchableOpacity>
                                         </TouchableOpacity>
                                     )
@@ -391,7 +404,7 @@ export const ReaderScreen = () => {
                         disabled={!canGoPrevious()}
                         style={[styles.navButton, !canGoPrevious() && styles.navButtonDisabled]}
                     >
-                        <Text style={[styles.navButtonText, !canGoPrevious() && styles.navButtonTextDisabled]}>◀</Text>
+                        <ChevronLeft size={24} color={ModernVedicTheme.colors.primary} />
                     </TouchableOpacity>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll}>
                         {chapters.map((ch) => (
@@ -418,7 +431,7 @@ export const ReaderScreen = () => {
                         disabled={!canGoNext()}
                         style={[styles.navButton, !canGoNext() && styles.navButtonDisabled]}
                     >
-                        <Text style={[styles.navButtonText, !canGoNext() && styles.navButtonTextDisabled]}>▶</Text>
+                        <ChevronRight size={24} color={ModernVedicTheme.colors.primary} />
                     </TouchableOpacity>
                 </View>
 
@@ -494,10 +507,10 @@ export const ReaderScreen = () => {
                                     ]}>{t('reader.text', 'Text')} {v.verse}</Text>
                                     <View style={{ flexDirection: 'row' }}>
                                         <TouchableOpacity onPress={() => shareVerse(v)} style={{ padding: 5, marginRight: 10 }}>
-                                            <Text style={{ fontSize: 16 }}>📤</Text>
+                                            <Share2 size={18} color={ModernVedicTheme.colors.primary} />
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={() => toggleBookmark(v)} style={{ padding: 5 }}>
-                                            <Text style={{ fontSize: 18 }}>{isBookmarked ? '⭐' : '☆'}</Text>
+                                            <Star size={20} color={isBookmarked ? '#FFD700' : ModernVedicTheme.colors.textSecondary} fill={isBookmarked ? '#FFD700' : 'transparent'} />
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -563,7 +576,9 @@ export const ReaderScreen = () => {
                                 styles.footerBtnText,
                                 readerTheme === 'dark' && { color: '#FF8000' },
                                 readerTheme === 'ancient' && { color: '#BF360C' }
-                            ]}>← {t('reader.prev', 'Prev')}</Text>
+                            ]}>
+                                <ArrowLeft size={16} color={readerTheme === 'dark' ? '#FF8000' : readerTheme === 'ancient' ? '#BF360C' : ModernVedicTheme.colors.primary} /> {t('reader.prev', 'Prev')}
+                            </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={goToNextChapter}
@@ -579,7 +594,9 @@ export const ReaderScreen = () => {
                                 styles.footerBtnText,
                                 readerTheme === 'dark' && { color: '#FF8000' },
                                 readerTheme === 'ancient' && { color: '#BF360C' }
-                            ]}>{t('reader.next', 'Next')} →</Text>
+                            ]}>
+                                {t('reader.next', 'Next')} <ArrowRight size={16} color={readerTheme === 'dark' ? '#FF8000' : readerTheme === 'ancient' ? '#BF360C' : ModernVedicTheme.colors.primary} />
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>

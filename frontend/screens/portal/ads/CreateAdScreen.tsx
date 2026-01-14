@@ -13,6 +13,7 @@ import { CategoryPills } from '../../../components/ads/CategoryPills';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../../types/navigation';
 import { getMediaUrl } from '../../../utils/url';
+import { Plus, X, Search, Package, Image as ImageIcon, Camera } from 'lucide-react-native';
 
 export const CreateAdScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -126,13 +127,13 @@ export const CreateAdScreen: React.FC = () => {
                         <Text style={[styles.label, { color: colors.textSecondary }]}>{t('ads.create.photos')}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoList}>
                             <TouchableOpacity style={[styles.addPhotoBtn, { borderColor: colors.primary }]} onPress={handleImagePick}>
-                                <Text style={{ fontSize: 24, color: colors.primary }}>+</Text>
+                                <Plus size={32} color={colors.primary} />
                             </TouchableOpacity>
                             {existingPhotos.map((p, i) => (
                                 <View key={`ext-${i}`} style={styles.photoContainer}>
                                     <Image source={{ uri: getMediaUrl(p.photoUrl) || '' }} style={styles.photoThumb} />
                                     <TouchableOpacity style={styles.removePhoto} onPress={() => setExistingPhotos(prev => prev.filter((_, idx) => idx !== i))}>
-                                        <Text style={{ color: '#fff', fontSize: 10 }}>✕</Text>
+                                        <X size={12} color="#fff" />
                                     </TouchableOpacity>
                                 </View>
                             ))}
@@ -140,7 +141,7 @@ export const CreateAdScreen: React.FC = () => {
                                 <View key={`new-${i}`} style={styles.photoContainer}>
                                     <Image source={{ uri: p.uri }} style={styles.photoThumb} />
                                     <TouchableOpacity style={styles.removePhoto} onPress={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}>
-                                        <Text style={{ color: '#fff', fontSize: 10 }}>✕</Text>
+                                        <X size={12} color="#fff" />
                                     </TouchableOpacity>
                                 </View>
                             ))}

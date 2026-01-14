@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-
 import { useTranslation } from 'react-i18next';
 import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
 import { AdType } from '../../types/ads';
+import { Search, Gift, User } from 'lucide-react-native';
 
 interface AdTabSwitcherProps {
     activeTab: AdType;
@@ -28,7 +29,7 @@ export const AdTabSwitcher: React.FC<AdTabSwitcherProps> = ({ activeTab, onTabCh
                     ]}
                     onPress={() => onTabChange('looking')}
                 >
-                    <Text style={{ marginRight: 6 }}>🔍</Text>
+                    <Search size={18} color={activeTab === 'looking' ? colors.primary : colors.textSecondary} style={{ marginRight: 6 }} />
                     <Text
                         style={[
                             styles.tabText,
@@ -47,7 +48,7 @@ export const AdTabSwitcher: React.FC<AdTabSwitcherProps> = ({ activeTab, onTabCh
                     ]}
                     onPress={() => onTabChange('offering')}
                 >
-                    <Text style={{ marginRight: 6 }}>🎁</Text>
+                    <Gift size={18} color={activeTab === 'offering' ? '#fff' : colors.primary} style={{ marginRight: 6 }} />
                     <Text
                         style={[
                             styles.tabText,
@@ -66,7 +67,7 @@ export const AdTabSwitcher: React.FC<AdTabSwitcherProps> = ({ activeTab, onTabCh
                     ]}
                     onPress={() => onTabChange('my')}
                 >
-                    <Text style={{ marginRight: 6 }}>👤</Text>
+                    <User size={18} color={activeTab === 'my' ? colors.primary : colors.textSecondary} style={{ marginRight: 6 }} />
                     <Text
                         style={[
                             styles.tabText,

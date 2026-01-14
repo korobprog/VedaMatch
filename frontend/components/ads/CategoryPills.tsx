@@ -3,19 +3,50 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Animated, useColorScheme
 import { useTranslation } from 'react-i18next';
 import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
 import { AdCategory } from '../../types/ads';
+import {
+    Flame,
+    Wind,
+    Leaf,
+    Package,
+    Wrench,
+    Home,
+    Armchair,
+    Sun,
+    BookOpen,
+    Tickets,
+    Heart,
+    HandHelping
+} from 'lucide-react-native';
 
-export const CATEGORIES: { id: AdCategory | 'all', emoji: string }[] = [
-    { id: 'all', emoji: '🔥' },
-    { id: 'yoga_wellness', emoji: '🧘' },
-    { id: 'ayurveda', emoji: '🌿' },
-    { id: 'goods', emoji: '📦' },
-    { id: 'services', emoji: '🛠️' },
-    { id: 'housing', emoji: '🏠' },
-    { id: 'furniture', emoji: '🪑' },
-    { id: 'spiritual', emoji: '🕉️' },
-    { id: 'education', emoji: '📚' },
-    { id: 'events', emoji: '🎭' },
-    { id: 'charity', emoji: '💝' },
+const getCategoryIcon = (id: AdCategory | 'all', color: string, size: number = 18) => {
+    switch (id) {
+        case 'all': return <Flame size={size} color={color} />;
+        case 'yoga_wellness': return <Wind size={size} color={color} />;
+        case 'ayurveda': return <Leaf size={size} color={color} />;
+        case 'goods': return <Package size={size} color={color} />;
+        case 'services': return <Wrench size={size} color={color} />;
+        case 'housing': return <Home size={size} color={color} />;
+        case 'furniture': return <Armchair size={size} color={color} />;
+        case 'spiritual': return <Sun size={size} color={color} />;
+        case 'education': return <BookOpen size={size} color={color} />;
+        case 'events': return <Tickets size={size} color={color} />;
+        case 'charity': return <HandHelping size={size} color={color} />;
+        default: return <Package size={size} color={color} />;
+    }
+};
+
+export const CATEGORIES: { id: AdCategory | 'all' }[] = [
+    { id: 'all' },
+    { id: 'yoga_wellness' },
+    { id: 'ayurveda' },
+    { id: 'goods' },
+    { id: 'services' },
+    { id: 'housing' },
+    { id: 'furniture' },
+    { id: 'spiritual' },
+    { id: 'education' },
+    { id: 'events' },
+    { id: 'charity' },
 ];
 
 interface CategoryPillsProps {
@@ -92,7 +123,9 @@ export const CategoryPills: React.FC<CategoryPillsProps> = ({ selectedCategory, 
                                 }
                             ]}
                         >
-                            <Text style={styles.emoji}>{cat.emoji}</Text>
+                            <View style={{ marginRight: 6 }}>
+                                {getCategoryIcon(cat.id, isSelected ? '#fff' : colors.primary)}
+                            </View>
                             <Text
                                 style={[
                                     styles.label,

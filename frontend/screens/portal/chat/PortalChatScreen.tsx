@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, ActivityIndicator, RefreshControl, Alert, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
+import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { COLORS } from '../../../components/chat/ChatConstants';
+
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 
@@ -32,6 +34,8 @@ export const PortalChatScreen: React.FC = () => {
     const { t } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const vTheme = ModernVedicTheme;
+
     const { user } = useUser();
 
     const [rooms, setRooms] = useState<any[]>([]);
@@ -119,12 +123,12 @@ export const PortalChatScreen: React.FC = () => {
                 </View>
                 <View style={styles.chatInfo}>
                     <View style={styles.chatHeaderRow}>
-                        <Text style={[styles.chatName, { color: theme.text }]}>{item.name}</Text>
-                        <Text style={[styles.chatTime, { color: theme.subText }]}>
+                        <Text style={[styles.chatName, { color: vTheme.colors.text }]}>{item.name}</Text>
+                        <Text style={[styles.chatTime, { color: vTheme.colors.textSecondary }]}>
                             {new Date(item.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </Text>
                     </View>
-                    <Text style={[styles.lastMsg, { color: theme.subText }]} numberOfLines={1}>
+                    <Text style={[styles.lastMsg, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>
                         {item.description || t('chat.noDescription')}
                     </Text>
                 </View>
@@ -142,7 +146,7 @@ export const PortalChatScreen: React.FC = () => {
 
     return (
         <ProtectedScreen>
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
                 <FlatList
                     data={rooms}
                     keyExtractor={item => item.ID.toString()}

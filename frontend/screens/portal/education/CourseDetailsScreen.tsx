@@ -15,7 +15,7 @@ import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { educationService } from '../../../services/educationService';
 import { EducationCourse, EducationModule } from '../../../types/education';
 import { useTranslation } from 'react-i18next';
-import { BookOpen } from 'lucide-react-native';
+import { BookOpen, ChevronRight } from 'lucide-react-native';
 
 type CourseDetailsRouteProp = RouteProp<RootStackParamList, 'CourseDetails'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'CourseDetails'>;
@@ -61,9 +61,9 @@ export const CourseDetailsScreen: React.FC = () => {
 
     const handleOpenBook = () => {
         if (course.scripture_book) {
-            navigation.navigate('Reader', { 
-                bookCode: course.scripture_book.code, 
-                title: course.scripture_book.name_ru || course.scripture_book.name_en 
+            navigation.navigate('Reader', {
+                bookCode: course.scripture_book.code,
+                title: course.scripture_book.name_ru || course.scripture_book.name_en
             });
         }
     };
@@ -75,9 +75,9 @@ export const CourseDetailsScreen: React.FC = () => {
                     <Text style={styles.orgBadge}>{course.organization}</Text>
                     <Text style={styles.title}>{course.title}</Text>
                     <Text style={styles.description}>{course.description}</Text>
-                    
+
                     {course.scripture_book && (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.bookButton}
                             onPress={handleOpenBook}
                         >
@@ -102,7 +102,7 @@ export const CourseDetailsScreen: React.FC = () => {
                                 <Text style={styles.moduleTitle}>{module.title}</Text>
                                 <Text style={styles.moduleDesc} numberOfLines={1}>{module.description}</Text>
                             </View>
-                            <Text style={styles.arrow}>→</Text>
+                            <ChevronRight size={20} color={ModernVedicTheme.colors.primary} />
                         </TouchableOpacity>
                     ))}
                 </View>

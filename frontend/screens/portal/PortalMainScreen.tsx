@@ -12,6 +12,19 @@ import {
     Image,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import {
+    Users,
+    MessageCircle,
+    Phone,
+    Sparkles,
+    ShoppingBag,
+    Megaphone,
+    Book,
+    GraduationCap,
+    Newspaper,
+    User,
+    Bell
+} from 'lucide-react-native';
 
 
 
@@ -41,15 +54,15 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     }, [route.params?.initialTab]);
 
     const tabs = [
-        { id: 'contacts', label: t('settings.tabs.contacts'), icon: '👥' },
-        { id: 'chat', label: t('settings.tabs.chat'), icon: '💬' },
-        { id: 'calls', label: t('settings.tabs.calls') || 'Звонки', icon: '📞' },
-        { id: 'dating', label: t('settings.tabs.dating'), icon: '💖' },
-        { id: 'shops', label: t('settings.tabs.shops'), icon: '🛍️' },
-        { id: 'ads', label: t('settings.tabs.ads'), icon: '📢' },
-        { id: 'library', label: 'Библиотека', icon: '📚' },
-        { id: 'education', label: 'Обучение', icon: '🎓' },
-        { id: 'news', label: t('settings.tabs.news'), icon: '📰' },
+        { id: 'contacts', label: t('settings.tabs.contacts'), icon: 'Users' },
+        { id: 'chat', label: t('settings.tabs.chat'), icon: 'MessageCircle' },
+        { id: 'calls', label: t('settings.tabs.calls') || 'Звонки', icon: 'Phone' },
+        { id: 'dating', label: t('settings.tabs.dating'), icon: 'Sparkles' },
+        { id: 'shops', label: t('settings.tabs.shops'), icon: 'ShoppingBag' },
+        { id: 'ads', label: t('settings.tabs.ads'), icon: 'Megaphone' },
+        { id: 'library', label: 'Библиотека', icon: 'Book' },
+        { id: 'education', label: 'Обучение', icon: 'GraduationCap' },
+        { id: 'news', label: t('settings.tabs.news'), icon: 'Newspaper' },
     ];
 
 
@@ -70,6 +83,26 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
 
     const TabButton = ({ tab }: { tab: any }) => {
         const isActive = activeTab === tab.id;
+
+        const renderIcon = (iconName: string, active: boolean) => {
+            const size = active ? 28 : 24;
+            const color = active ? ModernVedicTheme.colors.primary : ModernVedicTheme.colors.text;
+            const opacity = active ? 1 : 0.7;
+
+            switch (iconName) {
+                case 'Users': return <Users size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                case 'MessageCircle': return <MessageCircle size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                case 'Phone': return <Phone size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                case 'Sparkles': return <Sparkles size={size} color={color} style={{ opacity }} fill={active ? color : 'transparent'} strokeWidth={active ? 1.5 : 2} />;
+                case 'ShoppingBag': return <ShoppingBag size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                case 'Megaphone': return <Megaphone size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                case 'Book': return <Book size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                case 'GraduationCap': return <GraduationCap size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                case 'Newspaper': return <Newspaper size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
+                default: return <Users size={size} color={color} />;
+            }
+        };
+
         return (
             <TouchableOpacity
                 key={tab.id}
@@ -93,9 +126,8 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
                 style={styles.tabItem}
             >
                 <View style={[styles.iconContainer, isActive && styles.activeIconContainer]}>
-                    <Text style={[styles.tabIcon, isActive && styles.activeTabIcon]}>{tab.icon}</Text>
+                    {renderIcon(tab.icon, isActive)}
                 </View>
-                {isActive && <View style={styles.activeDot} />}
             </TouchableOpacity>
         );
     };
@@ -112,7 +144,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
                         onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.replace('Chat')}
                         style={styles.avatarButton}
                     >
-                        <Text style={{ fontSize: 20 }}>👤</Text>
+                        <User size={20} color={ModernVedicTheme.colors.primary} />
                     </TouchableOpacity>
                 </View>
 
@@ -124,7 +156,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
 
                 <View style={styles.headerRight}>
                     <TouchableOpacity style={styles.iconButton}>
-                        <Text style={{ fontSize: 20 }}>🔔</Text>
+                        <Bell size={22} color={ModernVedicTheme.colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -239,23 +271,13 @@ const styles = StyleSheet.create({
         borderRadius: 22,
     },
     activeIconContainer: {
-        backgroundColor: 'rgba(214, 125, 62, 0.15)',
+        backgroundColor: 'rgba(214, 125, 62, 0.1)',
+        borderWidth: 2,
+        borderColor: ModernVedicTheme.colors.primary,
     },
     tabIcon: {
         fontSize: 26,
         opacity: 0.5,
         color: ModernVedicTheme.colors.textSecondary,
-    },
-    activeTabIcon: {
-        opacity: 1,
-        fontSize: 28,
-        color: ModernVedicTheme.colors.primary,
-    },
-    activeDot: {
-        width: 5,
-        height: 5,
-        borderRadius: 2.5,
-        backgroundColor: ModernVedicTheme.colors.primary,
-        marginTop: 2,
     },
 });

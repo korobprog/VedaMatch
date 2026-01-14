@@ -9,6 +9,15 @@ import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme'
 import { marketService } from '../../../services/marketService';
 import { Shop, ShopFilters } from '../../../types/market';
 import { getMediaUrl } from '../../../utils/url';
+import {
+    Store,
+    MapPin,
+    Star,
+    Compass,
+    Map,
+    Navigation,
+    ShoppingBag
+} from 'lucide-react-native';
 
 // Note: For full map integration, install react-native-maps:
 // npm install react-native-maps
@@ -136,11 +145,11 @@ export const ShopsMapScreen: React.FC = () => {
     const renderShop = ({ item }: { item: Shop }) => (
         <View style={[styles.shopCard, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}>
             <TouchableOpacity style={styles.shopContent} onPress={() => handleShopPress(item)}>
-                <View style={[styles.shopLogo, { backgroundColor: colors.primary + '20' }]}>
+                <View style={[styles.shopLogo, { backgroundColor: colors.primary + '15' }]}>
                     {item.logoUrl ? (
                         <Image source={{ uri: getMediaUrl(item.logoUrl) || '' }} style={styles.logoImage} />
                     ) : (
-                        <Text style={{ fontSize: 28 }}>🏪</Text>
+                        <Store size={24} color={colors.primary} />
                     )}
                 </View>
 
@@ -148,15 +157,21 @@ export const ShopsMapScreen: React.FC = () => {
                     <Text style={[styles.shopName, { color: isDarkMode ? '#fff' : colors.text }]} numberOfLines={1}>
                         {item.name}
                     </Text>
-                    <Text style={[styles.shopAddress, { color: colors.textSecondary }]} numberOfLines={2}>
-                        📍 {item.address || item.city}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                        <MapPin size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                        <Text style={[styles.shopAddress, { color: colors.textSecondary, marginTop: 0 }]} numberOfLines={2}>
+                            {item.address || item.city}
+                        </Text>
+                    </View>
 
                     <View style={styles.shopMeta}>
                         {item.rating > 0 && (
-                            <Text style={{ color: '#FFA000', fontSize: 13 }}>
-                                ★ {item.rating.toFixed(1)}
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Star size={12} color="#FFA000" fill="#FFA000" style={{ marginRight: 2 }} />
+                                <Text style={{ color: '#FFA000', fontSize: 13, fontWeight: '600' }}>
+                                    {item.rating.toFixed(1)}
+                                </Text>
+                            </View>
                         )}
                         {item.distance && (
                             <Text style={[styles.distance, { color: colors.primary }]}>
@@ -178,7 +193,7 @@ export const ShopsMapScreen: React.FC = () => {
                     style={[styles.mapBtn, { backgroundColor: colors.primary }]}
                     onPress={() => openInMaps(item)}
                 >
-                    <Text style={styles.mapBtnIcon}>📍</Text>
+                    <Navigation size={16} color="#fff" />
                     <Text style={styles.mapBtnText}>{t('market.map.openMap')}</Text>
                 </TouchableOpacity>
 
@@ -186,7 +201,7 @@ export const ShopsMapScreen: React.FC = () => {
                     style={[styles.mapBtn, { backgroundColor: '#4CAF50' }]}
                     onPress={() => openDirections(item)}
                 >
-                    <Text style={styles.mapBtnIcon}>🧭</Text>
+                    <Compass size={16} color="#fff" />
                     <Text style={styles.mapBtnText}>{t('market.map.openRoute')}</Text>
                 </TouchableOpacity>
             </View>
@@ -195,9 +210,9 @@ export const ShopsMapScreen: React.FC = () => {
 
     const renderHeader = () => (
         <View style={styles.header}>
-            <View style={[styles.mapPlaceholder, { backgroundColor: isDarkMode ? '#333' : '#e0e0e0' }]}>
-                <Text style={styles.mapPlaceholderIcon}>🗺️</Text>
-                <Text style={[styles.mapPlaceholderText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+            <View style={[styles.mapPlaceholder, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5' }]}>
+                <Map size={48} color={isDarkMode ? '#555' : '#ddd'} style={{ marginBottom: 12 }} />
+                <Text style={[styles.mapPlaceholderText, { color: isDarkMode ? '#fff' : colors.text }]}>
                     {t('market.map.viewNearby')}
                 </Text>
                 <Text style={[styles.mapPlaceholderHint, { color: colors.textSecondary }]}>
@@ -230,7 +245,7 @@ export const ShopsMapScreen: React.FC = () => {
                 ListHeaderComponent={renderHeader}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyIcon}>🏪</Text>
+                        <Store size={48} color={colors.textSecondary} style={{ marginBottom: 12 }} opacity={0.5} />
                         <Text style={[styles.emptyText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
                             {t('market.map.noShops')}
                         </Text>

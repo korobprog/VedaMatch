@@ -6,6 +6,14 @@ import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
 import { Ad } from '../../types/ads';
 import { getMediaUrl } from '../../utils/url';
 import { useUser } from '../../context/UserContext';
+import {
+    Search,
+    Package,
+    Heart,
+    Edit,
+    Clock,
+    MapPin
+} from 'lucide-react-native';
 
 // Fallback if expo-linear-gradient is not available
 const Gradient = ({ children, colors, style }: any) => {
@@ -74,7 +82,11 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
                     <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
                 ) : (
                     <View style={[styles.imagePlaceholder, { backgroundColor: isDarkMode ? '#333' : '#F0E6D2' }]}>
-                        <Text style={{ fontSize: 40 }}>{ad.adType === 'looking' ? '🔍' : '📦'}</Text>
+                        {ad.adType === 'looking' ? (
+                            <Search size={48} color={colors.primary} />
+                        ) : (
+                            <Package size={48} color={colors.primary} />
+                        )}
                     </View>
                 )}
 
@@ -83,7 +95,6 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
                     <Text style={styles.priceText}>{formattedPrice}</Text>
                 </View>
 
-                {/* Favorite Button */}
                 <TouchableOpacity
                     style={styles.favoriteBtn}
                     onPress={(e) => {
@@ -91,7 +102,7 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
                         onFavorite();
                     }}
                 >
-                    <Text style={{ fontSize: 18 }}>{ad.isFavorite ? '❤️' : '🤍'}</Text>
+                    <Heart size={18} color={ad.isFavorite ? '#FF5252' : '#fff'} fill={ad.isFavorite ? '#FF5252' : 'transparent'} />
                 </TouchableOpacity>
 
                 {/* Edit Button for Owner */}
@@ -103,7 +114,7 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
                             onEdit();
                         }}
                     >
-                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                        <Edit size={16} color={colors.primary} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -115,7 +126,7 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
                         {t(`ads.categories.${ad.category}`).toUpperCase()}
                     </Text>
                     <View style={styles.timeContainer}>
-                        <Text style={{ fontSize: 10, color: colors.textSecondary, marginRight: 4 }}>🕒</Text>
+                        <Clock size={10} color={colors.textSecondary} style={{ marginRight: 4 }} />
                         <Text style={[styles.timeText, { color: colors.textSecondary }]}>{timeAgo(ad.CreatedAt)}</Text>
                     </View>
                 </View>
@@ -130,7 +141,7 @@ export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit 
 
                 <View style={styles.footer}>
                     <View style={styles.locationContainer}>
-                        <Text style={{ fontSize: 12, marginRight: 4 }}>📍</Text>
+                        <MapPin size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
                         <Text style={[styles.locationText, { color: colors.textSecondary }]} numberOfLines={1}>
                             {ad.city}, {ad.district || 'Center'}
                         </Text>

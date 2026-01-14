@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, useColorScheme } from 
 import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
 import { Product } from '../../types/market';
 import { getMediaUrl } from '../../utils/url';
+import { Package, Store, Star } from 'lucide-react-native';
 
 interface ProductCardProps {
     item: Product;
@@ -30,8 +31,8 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
                         resizeMode="cover"
                     />
                 ) : (
-                    <View style={[styles.productPlaceholder, { backgroundColor: colors.primary + '20' }]}>
-                        <Text style={{ fontSize: 32 }}>📦</Text>
+                    <View style={[styles.productPlaceholder, { backgroundColor: colors.primary + '10' }]}>
+                        <Package size={32} color={colors.primary} />
                     </View>
                 )}
                 {isOnSale && (
@@ -52,9 +53,12 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
                 </Text>
 
                 {item.shopInfo && (
-                    <Text style={[styles.shopName, { color: isDarkMode ? '#aaa' : colors.textSecondary }]} numberOfLines={1}>
-                        🏪 {item.shopInfo.name}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                        <Store size={10} color={isDarkMode ? '#aaa' : colors.textSecondary} style={{ marginRight: 4 }} />
+                        <Text style={[styles.shopName, { color: isDarkMode ? '#aaa' : colors.textSecondary, marginBottom: 0 }]} numberOfLines={1}>
+                            {item.shopInfo.name}
+                        </Text>
+                    </View>
                 )}
 
                 <View style={styles.priceRow}>
@@ -70,9 +74,12 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
 
                 <View style={styles.statsRow}>
                     {item.rating > 0 && (
-                        <Text style={[styles.rating, { color: '#FFA000' }]}>
-                            ★ {item.rating.toFixed(1)}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Star size={10} color="#FFA000" fill="#FFA000" style={{ marginRight: 2 }} />
+                            <Text style={[styles.rating, { color: '#FFA000' }]}>
+                                {item.rating.toFixed(1)}
+                            </Text>
+                        </View>
                     )}
                     <Text style={[styles.sales, { color: isDarkMode ? '#888' : colors.textSecondary }]}>
                         {item.salesCount} sold

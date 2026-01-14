@@ -9,6 +9,14 @@ import { Ad } from '../../../types/ads';
 import { RootStackParamList } from '../../../types/navigation';
 import { getMediaUrl } from '../../../utils/url';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
+import {
+    Image as ImageIcon,
+    MapPin,
+    MessageCircle,
+    Heart,
+    Flag,
+    User
+} from 'lucide-react-native';
 
 type AdDetailRouteProp = RouteProp<RootStackParamList, 'AdDetail'>;
 
@@ -124,8 +132,8 @@ export const AdDetailScreen: React.FC = () => {
                             />
                         ))
                     ) : (
-                        <View style={[styles.placeholder, { width: width, backgroundColor: isDarkMode ? '#333' : '#eee' }]}>
-                            <Text style={{ fontSize: 50 }}>🖼️</Text>
+                        <View style={[styles.placeholder, { width: width, backgroundColor: isDarkMode ? '#333' : '#f5f5f5' }]}>
+                            <ImageIcon size={64} color={isDarkMode ? '#555' : '#ddd'} />
                         </View>
                     )}
                 </ScrollView>
@@ -142,7 +150,7 @@ export const AdDetailScreen: React.FC = () => {
 
                     {/* Location */}
                     <View style={styles.row}>
-                        <Text style={{ marginRight: 5 }}>📍</Text>
+                        <MapPin size={18} color={colors.textSecondary} style={{ marginRight: 6 }} />
                         <Text style={{ color: colors.textSecondary }}>{ad.city}{ad.district ? `, ${ad.district}` : ''}</Text>
                     </View>
 
@@ -171,18 +179,22 @@ export const AdDetailScreen: React.FC = () => {
 
                     {/* Actions */}
                     <View style={styles.actions}>
-                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.secondary }]} onPress={handleChat}>
-                            <Text style={styles.btnText}>💬 Message</Text>
+                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleChat}>
+                            <MessageCircle size={20} color="#fff" style={{ marginRight: 8 }} />
+                            <Text style={styles.btnText}>{t('ads.detail.message') || 'Message'}</Text>
                         </TouchableOpacity>
                     </View>
 
                     <TouchableOpacity style={styles.favoriteBtn} onPress={handleFavorite}>
-                        <Text style={{ marginRight: 8 }}>{ad.isFavorite ? '❤️' : '🤍'}</Text>
-                        <Text style={{ color: isDarkMode ? '#fff' : colors.text }}>{ad.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</Text>
+                        <Heart size={20} color={ad.isFavorite ? '#FF5252' : colors.textSecondary} fill={ad.isFavorite ? '#FF5252' : 'transparent'} style={{ marginRight: 8 }} />
+                        <Text style={{ color: isDarkMode ? '#fff' : colors.text }}>
+                            {ad.isFavorite ? t('ads.detail.removeFromFavorites') || 'Remove from Favorites' : t('ads.detail.addToFavorites') || 'Add to Favorites'}
+                        </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.reportBtn} onPress={handleReport}>
-                        <Text style={{ color: 'red' }}>🚩 Report Ad</Text>
+                        <Flag size={16} color="#FF5252" style={{ marginRight: 8 }} />
+                        <Text style={{ color: '#FF5252' }}>{t('ads.detail.report') || 'Report Ad'}</Text>
                     </TouchableOpacity>
 
                     <View style={{ height: 40 }} />
@@ -208,8 +220,8 @@ const styles = StyleSheet.create({
     avatar: { width: 50, height: 50, borderRadius: 25 },
     authorName: { fontSize: 16, fontWeight: 'bold' },
     actions: { flexDirection: 'row', justifyContent: 'center', marginBottom: 20 }, // Changed justifyContent
-    actionBtn: { flex: 1, padding: 15, borderRadius: 30, alignItems: 'center', marginHorizontal: 5, elevation: 2 },
+    actionBtn: { flex: 1, flexDirection: 'row', padding: 15, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5, elevation: 2 },
     btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
     favoriteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, marginBottom: 10 },
-    reportBtn: { alignItems: 'center', padding: 10 },
+    reportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 10 },
 });

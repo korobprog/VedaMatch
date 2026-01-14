@@ -30,6 +30,28 @@ import { RootStackParamList } from '../../../types/navigation';
 import LinearGradient from 'react-native-linear-gradient';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
+import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
+import {
+    BarChart2,
+    Filter,
+    UserPen,
+    Eye,
+    Image as ImageIcon,
+    Heart,
+    ChevronLeft,
+    ChevronRight,
+    LayoutGrid,
+    Briefcase,
+    Users,
+    Flower2,
+    MapPin,
+    Sparkles,
+    Users2,
+    Share2,
+    User,
+    Wrench,
+    CircleHelp
+} from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -437,16 +459,21 @@ export const DatingScreen = () => {
                                     onPress={handleToggleFavorite}
                                     disabled={favoritingInProgress}
                                 >
-                                    <Text style={{ fontSize: 24 }}>
-                                        {isFavorited ? '❤️' : '🤍'}
-                                    </Text>
+                                    <Heart
+                                        size={24}
+                                        color={isFavorited ? ModernVedicTheme.colors.accent : '#FFF'}
+                                        fill={isFavorited ? ModernVedicTheme.colors.accent : 'transparent'}
+                                    />
                                 </TouchableOpacity>
                             )}
 
                             {/* Likes Counter - Below favorite button */}
                             {!isPreview && likesCount > 0 && (
                                 <View style={styles.likesCounter}>
-                                    <Text style={styles.likesText}>❤️ {likesCount}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Heart size={12} color="#fff" fill="#fff" style={{ marginRight: 4 }} />
+                                        <Text style={styles.likesText}>{likesCount}</Text>
+                                    </View>
                                 </View>
                             )}
 
@@ -456,7 +483,7 @@ export const DatingScreen = () => {
                                     style={styles.shareButton}
                                     onPress={handleShare}
                                 >
-                                    <Text style={{ fontSize: 20 }}>📤</Text>
+                                    <Share2 size={20} color="#FFF" />
                                 </TouchableOpacity>
                             )}
 
@@ -486,7 +513,7 @@ export const DatingScreen = () => {
                         </View>
                     ) : (
                         <View style={[styles.avatarPlaceholder, { backgroundColor: theme.background }]}>
-                            <Text style={{ fontSize: 60 }}>👤</Text>
+                            <User size={60} color={theme.subText} strokeWidth={1} />
                             <Text style={{ color: theme.subText, marginTop: 10 }}>{t('dating.noPhotos')}</Text>
                         </View>
                     )}
@@ -509,7 +536,7 @@ export const DatingScreen = () => {
                                     style={{ padding: 8 }}
                                     onPress={handleShare}
                                 >
-                                    <Text style={{ fontSize: 20 }}>📤</Text>
+                                    <Share2 size={20} color={theme.subText} />
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -517,10 +544,14 @@ export const DatingScreen = () => {
                                     onPress={handleToggleFavorite}
                                     disabled={favoritingInProgress}
                                 >
-                                    <Text style={{ fontSize: 20 }}>{isFavorited ? '❤️' : '🤍'}</Text>
+                                    <Heart
+                                        size={20}
+                                        color={isFavorited ? ModernVedicTheme.colors.accent : theme.subText}
+                                        fill={isFavorited ? ModernVedicTheme.colors.accent : 'transparent'}
+                                    />
                                 </TouchableOpacity>
                                 {likesCount > 0 && (
-                                    <Text style={{ fontSize: 11, color: theme.subText }}>{likesCount}</Text>
+                                    <Text style={{ fontSize: 11, color: theme.subText, marginLeft: 2 }}>{likesCount}</Text>
                                 )}
                             </View>
                         )}
@@ -528,8 +559,18 @@ export const DatingScreen = () => {
 
                     {mode === 'business' ? (
                         <View style={{ marginTop: 5 }}>
-                            {item.industry && <Text style={[styles.path, { color: theme.accent }]}>💼 {item.industry}</Text>}
-                            {item.skills && <Text style={[styles.skillsText, { color: theme.text }]}>🛠️ {item.skills}</Text>}
+                            {item.industry && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                    <Briefcase size={14} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                                    <Text style={[styles.path, { color: theme.accent, marginBottom: 0 }]}>{item.industry}</Text>
+                                </View>
+                            )}
+                            {item.skills && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Wrench size={14} color={theme.text} style={{ marginRight: 6 }} />
+                                    <Text style={[styles.skillsText, { color: theme.text, marginBottom: 0 }]}>{item.skills}</Text>
+                                </View>
+                            )}
                         </View>
                     ) : (
                         <Text style={[styles.path, { color: theme.accent }]}>{item.madh}</Text>
@@ -561,82 +602,92 @@ export const DatingScreen = () => {
             <View style={[styles.container, { backgroundColor: theme.background }]}>
                 <View style={[styles.topMenu, { borderBottomColor: theme.borderColor, alignItems: 'center' }]}>
                     {/* Left Arrow */}
-                    <Text style={{ fontSize: 18, color: theme.subText, marginRight: 5 }}>‹</Text>
+                    <ChevronLeft size={20} color={theme.subText} style={{ marginRight: 5 }} />
 
                     <TouchableOpacity
-                        style={[styles.iconBtn, { backgroundColor: theme.inputBackground, marginRight: 5 }]}
+                        style={[styles.iconBtn, { backgroundColor: ModernVedicTheme.colors.backgroundSecondary }, ModernVedicTheme.shadows.soft]}
                         onPress={() => setShowStats(!showStats)}
                     >
-                        <Text style={{ fontSize: 14 }}>{showStats ? '📊 ▲' : '📊 ▼'}</Text>
+                        <BarChart2 size={18} color={showStats ? ModernVedicTheme.colors.primary : ModernVedicTheme.colors.textSecondary} />
                     </TouchableOpacity>
 
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         style={{ flex: 1 }}
-                        contentContainerStyle={{ alignItems: 'center', paddingVertical: 10, paddingHorizontal: 5 }}
+                        contentContainerStyle={{ alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 }}
                     >
                         <TouchableOpacity
-                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => setShowFilters(true)}
                         >
-                            <Text style={{ color: theme.text }}>{t('dating.filter')}</Text>
+                            <Filter size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Text style={styles.premiumMenuBtnText}>{t('dating.filter')}</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
-                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
                         >
-                            <Text style={{ color: theme.text }}>{t('dating.editProfile')}</Text>
+                            <UserPen size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Text style={styles.premiumMenuBtnText}>{t('dating.editProfile')}</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
-                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => fetchPreviewProfile()}
                         >
-                            <Text style={{ color: theme.text }}>👁️ {t('settings.tabs.chat').replace('Чат', 'Превью') || 'Preview'}</Text>
+                            <Eye size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Text style={styles.premiumMenuBtnText}>{t('settings.tabs.chat').replace('Чат', 'Превью') || 'Preview'}</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
-                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                         >
-                            <Text style={{ color: theme.text }}>🖼️ Media</Text>
+                            <ImageIcon size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Text style={styles.premiumMenuBtnText}>Media</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
-                            style={[styles.menuBtn, { backgroundColor: theme.inputBackground, marginRight: 10 }]}
+                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => navigation.navigate('DatingFavorites')}
                         >
-                            <Text style={{ color: theme.text }}>{t('dating.favorites')}</Text>
+                            <Heart size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Text style={styles.premiumMenuBtnText}>{t('dating.favorites')}</Text>
                         </TouchableOpacity>
                     </ScrollView>
 
                     {/* Right Arrow */}
-                    <Text style={{ fontSize: 18, color: theme.subText, marginLeft: 5 }}>›</Text>
+                    <ChevronRight size={20} color={theme.subText} style={{ marginLeft: 5 }} />
                 </View>
 
                 {/* Mode Switcher */}
-                <View style={{ backgroundColor: theme.background, paddingVertical: 10 }}>
+                <View style={{ backgroundColor: theme.background, paddingVertical: 12 }}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
                         {[
-                            { key: 'family', label: 'Family', emoji: '💍' },
-                            { key: 'business', label: 'Business', emoji: '💼' },
-                            { key: 'friendship', label: 'Friends', emoji: '🤝' },
-                            { key: 'seva', label: 'Seva', emoji: '🪷' }
+                            { key: 'family', label: 'Family', icon: <Heart size={18} color={mode === 'family' ? '#fff' : ModernVedicTheme.colors.primary} /> },
+                            { key: 'business', label: 'Business', icon: <Briefcase size={18} color={mode === 'business' ? '#fff' : ModernVedicTheme.colors.primary} /> },
+                            { key: 'friendship', label: 'Friends', icon: <Users size={18} color={mode === 'friendship' ? '#fff' : ModernVedicTheme.colors.primary} /> },
+                            { key: 'seva', label: 'Seva', icon: <Flower2 size={18} color={mode === 'seva' ? '#fff' : ModernVedicTheme.colors.primary} /> }
                         ].map((m) => (
                             <TouchableOpacity
                                 key={m.key}
                                 style={[
                                     styles.modeChip,
                                     {
-                                        backgroundColor: mode === m.key ? theme.accent : theme.inputBackground,
-                                        borderColor: theme.borderColor
-                                    }
+                                        backgroundColor: mode === m.key ? ModernVedicTheme.colors.primary : ModernVedicTheme.colors.backgroundSecondary,
+                                        borderColor: mode === m.key ? ModernVedicTheme.colors.primary : 'rgba(214, 125, 62, 0.2)',
+                                    },
+                                    ModernVedicTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     setMode(m.key as any);
                                     setLoading(true);
                                 }}
                             >
-                                <Text style={{ fontSize: 16, marginRight: 5 }}>{m.emoji}</Text>
-                                <Text style={{ color: mode === m.key ? '#fff' : theme.text, fontWeight: 'bold' }}>{m.label}</Text>
+                                <View style={{ marginRight: 6 }}>{m.icon}</View>
+                                <Text style={{ color: mode === m.key ? '#fff' : ModernVedicTheme.colors.text, fontWeight: '700', fontSize: 13 }}>{m.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
@@ -649,7 +700,8 @@ export const DatingScreen = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.statItem,
-                                    { backgroundColor: (!filterCity && !filterNew) ? theme.accent : theme.inputBackground }
+                                    { backgroundColor: (!filterCity && !filterNew) ? ModernVedicTheme.colors.accent : ModernVedicTheme.colors.backgroundSecondary },
+                                    ModernVedicTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     setFilterCity('');
@@ -657,7 +709,7 @@ export const DatingScreen = () => {
                                     fetchCandidates();
                                 }}
                             >
-                                <Text style={styles.statEmoji}>👥</Text>
+                                <Users2 size={20} color={(!filterCity && !filterNew) ? '#fff' : ModernVedicTheme.colors.accent} style={{ marginRight: 8 }} />
                                 <View>
                                     <Text style={[styles.statValue, { color: (!filterCity && !filterNew) ? '#fff' : theme.text }]}>{stats.total}</Text>
                                     <Text style={[styles.statLabel, { color: (!filterCity && !filterNew) ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.totalProfiles', 'Всего анкет')}</Text>
@@ -666,7 +718,8 @@ export const DatingScreen = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.statItem,
-                                    { backgroundColor: (filterCity === user?.city && filterCity !== '') ? theme.accent : theme.inputBackground }
+                                    { backgroundColor: (filterCity === user?.city && filterCity !== '') ? ModernVedicTheme.colors.accent : ModernVedicTheme.colors.backgroundSecondary },
+                                    ModernVedicTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     if (user?.city) {
@@ -680,7 +733,7 @@ export const DatingScreen = () => {
                                     }
                                 }}
                             >
-                                <Text style={styles.statEmoji}>📍</Text>
+                                <MapPin size={20} color={(filterCity === user?.city && filterCity !== '') ? '#fff' : ModernVedicTheme.colors.accent} style={{ marginRight: 8 }} />
                                 <View>
                                     <Text style={[styles.statValue, { color: (filterCity === user?.city && filterCity !== '') ? '#fff' : theme.text }]}>{stats.city}</Text>
                                     <Text style={[styles.statLabel, { color: (filterCity === user?.city && filterCity !== '') ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.inYourCity', 'В вашем городе')}</Text>
@@ -689,7 +742,8 @@ export const DatingScreen = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.statItem,
-                                    { backgroundColor: filterNew ? theme.accent : theme.inputBackground }
+                                    { backgroundColor: filterNew ? ModernVedicTheme.colors.accent : ModernVedicTheme.colors.backgroundSecondary },
+                                    ModernVedicTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     setFilterNew(!filterNew);
@@ -697,7 +751,7 @@ export const DatingScreen = () => {
                                     fetchCandidates();
                                 }}
                             >
-                                <Text style={styles.statEmoji}>✨</Text>
+                                <Sparkles size={20} color={filterNew ? '#fff' : ModernVedicTheme.colors.accent} style={{ marginRight: 8 }} />
                                 <View>
                                     <Text style={[styles.statValue, { color: filterNew ? '#fff' : theme.text }]}>{stats.new}</Text>
                                     <Text style={[styles.statLabel, { color: filterNew ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.newLast24h', 'Новые (24ч)')}</Text>
@@ -1142,12 +1196,30 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 20,
     },
+    premiumMenuBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 25,
+        marginRight: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(214, 125, 62, 0.15)', // Subtle primary color border
+    },
+    premiumMenuBtnText: {
+        color: '#2A2A2A',
+        fontSize: 14,
+        fontWeight: '600',
+    },
     iconBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(214, 125, 62, 0.1)',
     },
     statsBar: {
         paddingVertical: 10,
@@ -1156,11 +1228,13 @@ const styles = StyleSheet.create({
     statItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 15,
-        marginRight: 10,
-        minWidth: 100,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        marginRight: 12,
+        minWidth: 120,
+        borderWidth: 1,
+        borderColor: 'rgba(154, 42, 42, 0.1)',
     },
     statEmoji: {
         fontSize: 18,

@@ -11,6 +11,19 @@ import { Product, ProductVariant } from '../../../types/market';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
 import { getMediaUrl } from '../../../utils/url';
+import {
+    Package,
+    Heart,
+    Store,
+    MapPin,
+    Star,
+    ShoppingCart,
+    MessageCircle,
+    ChevronRight,
+    Minus,
+    Plus,
+    User
+} from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -292,8 +305,8 @@ export const ProductDetailsScreen: React.FC = () => {
                                 resizeMode="cover"
                             />
                         )) : (
-                            <View style={[styles.mainImage, styles.placeholderImage, { backgroundColor: colors.primary + '20' }]}>
-                                <Text style={{ fontSize: 80 }}>📦</Text>
+                            <View style={[styles.mainImage, styles.placeholderImage, { backgroundColor: colors.primary + '10' }]}>
+                                <Package size={80} color={colors.primary} opacity={0.3} />
                             </View>
                         )}
                     </ScrollView>
@@ -315,7 +328,7 @@ export const ProductDetailsScreen: React.FC = () => {
 
                     {/* Favorite button */}
                     <TouchableOpacity style={styles.favoriteBtn} onPress={handleToggleFavorite}>
-                        <Text style={{ fontSize: 24 }}>{isFavorite ? '❤️' : '🤍'}</Text>
+                        <Heart size={24} color={isFavorite ? '#FF5252' : '#fff'} fill={isFavorite ? '#FF5252' : 'transparent'} />
                     </TouchableOpacity>
 
                     {/* Sale badge */}
@@ -332,22 +345,29 @@ export const ProductDetailsScreen: React.FC = () => {
                     {/* Shop info */}
                     {product.shopInfo && (
                         <TouchableOpacity style={[styles.shopCard, { backgroundColor: isDarkMode ? '#252525' : '#f5f5f5' }]} onPress={handleShopPress}>
-                            <View style={[styles.shopLogo, { backgroundColor: colors.primary + '30' }]}>
+                            <View style={[styles.shopLogo, { backgroundColor: colors.primary + '15' }]}>
                                 {product.shopInfo.logoUrl ? (
                                     <Image source={{ uri: getMediaUrl(product.shopInfo.logoUrl) || '' }} style={styles.shopLogoImage} />
                                 ) : (
-                                    <Text style={{ fontSize: 20 }}>🏪</Text>
+                                    <Store size={20} color={colors.primary} />
                                 )}
                             </View>
                             <View style={styles.shopInfo}>
                                 <Text style={[styles.shopName, { color: isDarkMode ? '#fff' : colors.text }]}>
                                     {product.shopInfo.name}
                                 </Text>
-                                <Text style={[styles.shopCity, { color: colors.textSecondary }]}>
-                                    📍 {product.shopInfo.city} • ★ {product.shopInfo.rating.toFixed(1)}
-                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                                    <MapPin size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                                    <Text style={[styles.shopCity, { color: colors.textSecondary, marginTop: 0 }]}>
+                                        {product.shopInfo.city} •
+                                    </Text>
+                                    <Star size={12} color="#FFA000" fill="#FFA000" style={{ marginHorizontal: 4 }} />
+                                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                                        {product.shopInfo.rating.toFixed(1)}
+                                    </Text>
+                                </View>
                             </View>
-                            <Text style={{ color: colors.primary }}>→</Text>
+                            <ChevronRight size={20} color={colors.primary} />
                         </TouchableOpacity>
                     )}
 
@@ -371,7 +391,8 @@ export const ProductDetailsScreen: React.FC = () => {
                     <View style={styles.statsRow}>
                         {product.rating > 0 && (
                             <View style={styles.statItem}>
-                                <Text style={{ color: '#FFA000' }}>★ {product.rating.toFixed(1)}</Text>
+                                <Star size={14} color="#FFA000" fill="#FFA000" />
+                                <Text style={{ color: '#FFA000', fontWeight: '700' }}>{product.rating.toFixed(1)}</Text>
                                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
                                     ({product.reviewsCount})
                                 </Text>
@@ -438,7 +459,7 @@ export const ProductDetailsScreen: React.FC = () => {
                                 onPress={() => handleQuantityChange(-1)}
                                 disabled={quantity <= 1}
                             >
-                                <Text style={[styles.quantityBtnText, { color: quantity <= 1 ? '#999' : colors.text }]}>−</Text>
+                                <Minus size={20} color={quantity <= 1 ? '#999' : colors.text} />
                             </TouchableOpacity>
                             <Text style={[styles.quantityValue, { color: isDarkMode ? '#fff' : colors.text }]}>
                                 {quantity}
@@ -448,7 +469,7 @@ export const ProductDetailsScreen: React.FC = () => {
                                 onPress={() => handleQuantityChange(1)}
                                 disabled={quantity >= getStock()}
                             >
-                                <Text style={[styles.quantityBtnText, { color: quantity >= getStock() ? '#999' : colors.text }]}>+</Text>
+                                <Plus size={20} color={quantity >= getStock() ? '#999' : colors.text} />
                             </TouchableOpacity>
                             <Text style={[styles.stockInfo, { color: colors.textSecondary }]}>
                                 {isInStock() ? `${getStock()} ${t('market.available')}` : t('market.outOfStock')}
@@ -505,8 +526,8 @@ export const ProductDetailsScreen: React.FC = () => {
                             reviews.map((review) => (
                                 <View key={review.ID} style={[styles.reviewCard, { borderBottomColor: isDarkMode ? '#333' : '#eee' }]}>
                                     <View style={styles.reviewUserRow}>
-                                        <View style={[styles.userAvatar, { backgroundColor: colors.primary + '20' }]}>
-                                            <Text style={{ fontSize: 12 }}>👤</Text>
+                                        <View style={[styles.userAvatar, { backgroundColor: colors.primary + '15' }]}>
+                                            <User size={16} color={colors.primary} />
                                         </View>
                                         <View style={styles.reviewUserInfo}>
                                             <Text style={[styles.reviewUserName, { color: isDarkMode ? '#fff' : colors.text }]}>
@@ -539,7 +560,7 @@ export const ProductDetailsScreen: React.FC = () => {
                             ))
                         ) : (
                             <EmptyState
-                                icon="💭"
+                                icon={<MessageCircle size={64} color={colors.textSecondary} opacity={0.3} />}
                                 title={t('market.noReviewsTitle')}
                                 message={t('market.noReviewsMsg')}
                                 actionLabel={"+ " + t('market.addReview')}
@@ -559,7 +580,7 @@ export const ProductDetailsScreen: React.FC = () => {
                         style={[styles.contactBtn, { borderColor: colors.primary, marginTop: 24 }]}
                         onPress={handleContactSeller}
                     >
-                        <Text style={{ fontSize: 18 }}>💬</Text>
+                        <MessageCircle size={20} color={colors.primary} />
                         <Text style={[styles.contactBtnText, { color: colors.primary }]}>
                             {t('market.contactSeller')}
                         </Text>
@@ -582,7 +603,7 @@ export const ProductDetailsScreen: React.FC = () => {
                         onPress={handleAddToCart}
                         disabled={!isInStock()}
                     >
-                        <Text style={{ fontSize: 20 }}>🛒</Text>
+                        <ShoppingCart size={24} color={!isInStock() ? '#999' : colors.text} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.buyBtn, { backgroundColor: isInStock() ? colors.gradientStart : '#ccc' }]}

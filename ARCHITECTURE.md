@@ -725,38 +725,88 @@ export default {
   </script>
 </div>
 
-### 5. Реализация WebRTC видеозвонков (Январь 2026)
-*   **Архитектура**: P2P видеозвонки с использованием `react-native-webrtc` и собственного TURN сервера.
-*   **TURN Server**:
-    *   Используется `coturn`, запущенный в Docker контейнере.
-    *   Режим сети: `host` (для корректной работы UDP и NAT).
-    *   Авторизация: Эфемерные креды (TTL) с валидацией HMAC-SHA1.
-    *   Порты: 3478 (UDP/TCP), 49152-49162 (UDP Media).
-*   **Backend (Go)**:
-    *   Новый хендлер `turn_handler.go` для генерации временных паролей.
-    *   Endpoint `/api/turn-credentials` защищен JWT.
-*   **Signaling**:
-    *   Используется существующий WebSocket механизм (`Hub`).
-    *   Типы сообщений: `offer`, `answer`, `candidate`, `hangup`.
-*   **Client (React Native)**:
-    *   `webRTCService.ts`: Синглтон для управления PeerConnection.
-        *   Кэширование `remoteStream` для устранения race condition (когда видео приходит быстрее, чем открывается UI).
-        *   Автоматическая буферизация ICE кандидатов.
-    *   `App.tsx`: Глобальный слушатель входящих звонков (перехватывает `offer` и навигирует на экран звонка).
-    *   `CallScreen.tsx`:
-        *   Состояние `isIncoming`: Экран "Принять/Отклонить".
-        *   Автоматическое подключение только после принятия вызова.
-        
-        docker run -d \
-  --name rag-agent-turn \
-  --restart always \
-  --network host \
-  -e LOGGING_LEVEL=N \
-  -e USERS=admin: \
-  -e REALM=vedamatch.ru \
-  -e LISTENING_PORT=3478 \
-  -e MIN_PORT=49152 \
-  -e MAX_PORT=49162 \
-  -e EXTERNAL_IP=45.150.9.229 \
-  -e STATIC_AUTH_SECRET= \
-  coturn/coturn
+## Архитектура WebRTC Видеозвонков (Январь 2026)
+
+Система видеозвонков в Rag Agent построена на базе протокола WebRTC и обеспечивает P2P связь между пользователями с гарантированным обходом NAT через собственный TURN-сервер.
+
+### 1. Стек технологий
+- **Клиент**: `react-native-webrtc` для захвата медиа и управления PeerConnection.
+- **Аудио**: `react-native-incall-manager` для управления режимами динамика/гарнитуры.
+- **Сигналинг**: WebSocket (существующий Hub в Go backend).
+- **Relay**: Coturn (STUN/TURN сервер) для пробивки NAT.
+- **Backend**: Go (Fiber) для генерации временных учетных данных TURN (REST API).
+
+### 2. Схема взаимодействия
+
+```
+┌──────────────┐          ┌──────────────┐          ┌──────────────┐
+│   Caller     │          │   Backend    │          │   Callee     │
+│ (App/React)  │          │ (Go/Socket)  │          │ (App/React)  │
+└──────┬───────┘          └──────┬───────┘          └──────┬───────┘
+       │                         │                         │
+       │ 1. Get TURN Credentials │                         │
+       ├────────────────────────>│                         │
+       │ <──────────────────────┤│                         │
+       │                         │                         │
+       │ 2. Send OFFER (WS)      │                         │
+       ├────────────────────────>│                         │
+       │                         │ 3. Forward OFFER (WS)   │
+       │                         ├────────────────────────>│
+       │                         │                         │
+       │                         │ 4. ACCEPT & Create Ans. │
+       │                         │<────────────────────────┤
+       │ 5. Forward ANSWER (WS)  │                         │
+       │<────────────────────────┤                         │
+       │                         │                         │
+       │ 6. Exchange ICE Cand.   │                         │
+       │<───────────────────────>│<───────────────────────>│
+       │                         │                         │
+       │         7. P2P Direct Media (UDP)                 │
+       │<═════════════════════════════════════════════════>│
+       │         (or via TURN: 45.150.9.229)               │
+```
+
+### 3. Компоненты системы
+
+#### A. Signaling (WebSocket Hub)
+Передает JSON-сообщения между участниками звонка:
+- `offer`: Содержит SDP оффера.
+- `answer`: Содержит SDP ответа.
+- `candidate`: ICE-кандидаты для поиска оптимального пути связи.
+- `hangup`: Завершение вызова.
+
+#### B. TURN Server (Coturn)
+- **IP**: `45.150.9.229` (Порт 3478 UDP/TCP).
+- **AUTH**: REST API Auth (Time-limited credentials). 
+- **Secret**: Задан в `.env` (бэкенд) и `docker-compose.prod.yml`.
+- **Режим**: `network_mode: host` в Docker для прямой работы с портами 49152-49162.
+
+#### C. Backend Logic (`server/internal/handlers/turn_handler.go`)
+Реализует генерацию HMAC-SHA1 подписи для временных пользователей:
+- Формат Username: `timestamp:userID`
+- Пароль: HMAC-SHA1 от Username с использованием `TURN_SECRET`.
+
+#### D. Client Logic (`webRTCService.ts`)
+- **Multi-STUN Strategy**: Используется список из Google и российских серверов (Sipnet, Chathelp, Comtube) для обхода региональных блокировок.
+- **Track Handling**: Автоматическое объединение приходящих аудио и видео треков в один `MediaStream`.
+- **Race Condition Prevention**: Буферизация ICE-кандидатов до установки `RemoteDescription`.
+
+### 4. Оптимизация для РФ
+В связи с нестабильностью Google STUN (stun.l.google.com), в конфигурацию ICE добавлены локальные узлы:
+- `stun:stun.sipnet.ru:3478`
+- `stun:stun.chathelp.ru:3478`
+- `stun:stun.comtube.ru:3478`
+
+### 5. Конфигурация Docker (Coturn)
+```yaml
+  coturn:
+    image: coturn/coturn
+    network_mode: host
+    environment:
+      - EXTERNAL_IP=45.150.9.229
+      - LISTENING_PORT=3478
+      - MIN_PORT=49152
+      - MAX_PORT=49162
+      - STATIC_AUTH_SECRET=${TURN_SECRET}
+      - REALM=vedamatch.ru
+```

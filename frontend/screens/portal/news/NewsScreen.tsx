@@ -16,6 +16,29 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { newsService, NewsItem } from '../../../services/newsService';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
+import {
+    LayoutGrid,
+    Sun,
+    Calendar,
+    GraduationCap,
+    Heart,
+    Users,
+    Wind,
+    Globe,
+    Building2,
+    Sparkles,
+    Star,
+    Bell,
+    BellOff,
+    Newspaper,
+    Zap,
+    Inbox,
+    AlertCircle,
+    Compass,
+    Rss,
+    Bookmark
+} from 'lucide-react-native';
+import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +63,7 @@ export const NewsScreen = () => {
     const { t, i18n } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const colors = vedicTheme.colors;
     const navigation = useNavigation();
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
@@ -162,10 +186,11 @@ export const NewsScreen = () => {
                     onPress={() => setPersonalized(true)}
                     style={[
                         styles.toggleButton,
-                        personalized && { backgroundColor: theme.primary || '#6366f1' }
+                        personalized && { backgroundColor: colors.primary, borderColor: colors.primary }
                     ]}
                 >
-                    <Text style={[styles.toggleText, personalized && { color: '#fff' }]}>
+                    <Rss size={14} color={personalized ? '#fff' : colors.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.toggleText, { color: personalized ? '#fff' : colors.textSecondary }]}>
                         {lang === 'en' ? 'My Feed' : 'Моя лента'}
                     </Text>
                 </TouchableOpacity>
@@ -173,10 +198,11 @@ export const NewsScreen = () => {
                     onPress={() => setPersonalized(false)}
                     style={[
                         styles.toggleButton,
-                        !personalized && { backgroundColor: theme.primary || '#6366f1' }
+                        !personalized && { backgroundColor: colors.textSecondary, borderColor: colors.textSecondary }
                     ]}
                 >
-                    <Text style={[styles.toggleText, !personalized && { color: '#fff' }]}>
+                    <Globe size={14} color={!personalized ? '#fff' : colors.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.toggleText, { color: !personalized ? '#fff' : colors.textSecondary }]}>
                         {lang === 'en' ? 'All' : 'Все'}
                     </Text>
                 </TouchableOpacity>
@@ -197,20 +223,21 @@ export const NewsScreen = () => {
                             styles.categoryPill,
                             {
                                 backgroundColor: selectedMadh === item.id
-                                    ? theme.accent || '#D67D3E'
-                                    : theme.header,
+                                    ? '#8D6E63'
+                                    : '#fff',
                                 borderColor: selectedMadh === item.id
-                                    ? 'transparent'
-                                    : theme.borderColor
+                                    ? '#8D6E63'
+                                    : '#ddd'
                             }
                         ]}
                     >
+                        {item.id === '' && <Building2 size={14} color={selectedMadh === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
                         <Text style={[
                             styles.categoryPillText,
                             {
                                 color: selectedMadh === item.id
                                     ? '#fff'
-                                    : theme.text
+                                    : '#333'
                             }
                         ]}>
                             {lang === 'en' ? item.labelEn : item.label}
@@ -233,20 +260,25 @@ export const NewsScreen = () => {
                             styles.categoryPill,
                             {
                                 backgroundColor: selectedCategory === item.id
-                                    ? theme.primary || '#6366f1'
-                                    : theme.header,
+                                    ? colors.primary
+                                    : '#fff',
                                 borderColor: selectedCategory === item.id
-                                    ? 'transparent'
-                                    : theme.borderColor
+                                    ? colors.primary
+                                    : '#ddd'
                             }
                         ]}
                     >
+                        {item.id === '' && <LayoutGrid size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
+                        {item.id === 'spiritual' && <Sun size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
+                        {item.id === 'events' && <Calendar size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
+                        {item.id === 'education' && <GraduationCap size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
+                        {item.id === 'wellness' && <Heart size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
                         <Text style={[
                             styles.categoryPillText,
                             {
                                 color: selectedCategory === item.id
                                     ? '#fff'
-                                    : theme.text
+                                    : '#333'
                             }
                         ]}>
                             {lang === 'en' ? item.labelEn : item.label}
@@ -284,7 +316,7 @@ export const NewsScreen = () => {
                         colors={isDarkMode ? ['#1e293b', '#334155'] : ['#e0e7ff', '#c7d2fe']}
                         style={isHero ? styles.heroImage : styles.cardImage}
                     >
-                        <Text style={styles.placeholderEmoji}>📰</Text>
+                        <Newspaper size={isHero ? 64 : 32} color={isDarkMode ? '#475569' : '#94a3b8'} />
                     </LinearGradient>
                 )}
 
@@ -297,7 +329,8 @@ export const NewsScreen = () => {
                             <View style={styles.heroTopActions}>
                                 {item.isImportant && (
                                     <View style={styles.importantBadge}>
-                                        <Text style={styles.importantBadgeText}>⚡ {lang === 'en' ? 'Important' : 'Важное'}</Text>
+                                        <Zap size={12} color="#fff" style={{ marginRight: 4 }} />
+                                        <Text style={styles.importantBadgeText}>{lang === 'en' ? 'Important' : 'Важное'}</Text>
                                     </View>
                                 )}
                                 <View style={styles.sourceActions}>
@@ -305,13 +338,13 @@ export const NewsScreen = () => {
                                         onPress={() => toggleFavorite(item.sourceId)}
                                         style={styles.heroActionBtn}
                                     >
-                                        <Text style={styles.actionEmoji}>{isFavorite ? '⭐' : '☆'}</Text>
+                                        <Star size={18} color={isFavorite ? '#fcd34d' : '#fff'} fill={isFavorite ? '#fcd34d' : 'transparent'} />
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={() => toggleSubscription(item.sourceId)}
                                         style={styles.heroActionBtn}
                                     >
-                                        <Text style={styles.actionEmoji}>{isSubscribed ? '🔔' : '🔕'}</Text>
+                                        {isSubscribed ? <Bell size={18} color="#fff" /> : <BellOff size={18} color="#fff" />}
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -338,15 +371,15 @@ export const NewsScreen = () => {
                                     {newsService.formatDate(item.publishedAt)}
                                 </Text>
                                 {item.isImportant && (
-                                    <Text style={styles.importantIcon}>⚡</Text>
+                                    <Zap size={12} color="#f59e0b" style={{ marginLeft: 6 }} />
                                 )}
                             </View>
                             <View style={styles.cardActions}>
                                 <TouchableOpacity onPress={() => toggleFavorite(item.sourceId)}>
-                                    <Text style={styles.cardActionEmoji}>{isFavorite ? '⭐' : '☆'}</Text>
+                                    <Star size={16} color={isFavorite ? '#f59e0b' : colors.textSecondary} fill={isFavorite ? '#f59e0b' : 'transparent'} />
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => toggleSubscription(item.sourceId)}>
-                                    <Text style={styles.cardActionEmoji}>{isSubscribed ? '🔔' : '🔕'}</Text>
+                                    {isSubscribed ? <Bell size={16} color={colors.primary} /> : <BellOff size={16} color={colors.textSecondary} />}
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -371,8 +404,9 @@ export const NewsScreen = () => {
                             )}
                         </View>
                     </View>
-                )}
-            </TouchableOpacity>
+                )
+                }
+            </TouchableOpacity >
         );
     };
 
@@ -389,7 +423,7 @@ export const NewsScreen = () => {
         if (loading) return null;
         return (
             <View style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>📭</Text>
+                <Inbox size={64} color={colors.textSecondary} style={{ marginBottom: 16, opacity: 0.5 }} />
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
                     {lang === 'en' ? 'No news yet' : 'Новостей пока нет'}
                 </Text>
@@ -416,7 +450,7 @@ export const NewsScreen = () => {
     if (error && news.length === 0) {
         return (
             <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-                <Text style={styles.errorEmoji}>😕</Text>
+                <AlertCircle size={48} color={theme.primary} style={{ marginBottom: 16 }} />
                 <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
                 <TouchableOpacity
                     style={[styles.retryButton, { backgroundColor: theme.primary || '#6366f1' }]}
@@ -480,12 +514,14 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     toggleButton: {
+        flexDirection: 'row',
         paddingHorizontal: 16,
-        paddingVertical: 6,
-        borderRadius: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.1)',
-        backgroundColor: 'rgba(0,0,0,0.05)',
+        borderColor: '#ddd',
+        backgroundColor: '#f5f5f5',
+        alignItems: 'center',
     },
     toggleText: {
         fontSize: 13,
@@ -497,11 +533,18 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     categoryPill: {
+        flexDirection: 'row',
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
         marginRight: 8,
+        alignItems: 'center',
+        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
     },
     categoryPillText: {
         fontSize: 14,
@@ -593,6 +636,8 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         borderRadius: 12,
         alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     importantBadgeText: {
         fontSize: 12,

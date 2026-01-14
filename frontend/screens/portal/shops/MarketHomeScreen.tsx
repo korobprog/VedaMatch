@@ -12,6 +12,20 @@ import { getMediaUrl } from '../../../utils/url';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
 import { ProductCard } from '../../../components/market/ProductCard';
+import {
+    ShoppingBag,
+    Store,
+    Map,
+    BarChart3,
+    Search,
+    Tag,
+    Book,
+    Shirt,
+    Salad,
+    ChevronRight,
+    Search as SearchIcon,
+    X
+} from 'lucide-react-native';
 
 export const MarketHomeScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -132,6 +146,16 @@ export const MarketHomeScreen: React.FC = () => {
         navigation.navigate('ProductDetails', { productId: product.ID });
     };
 
+    const getCategoryIcon = (emoji: string, size = 16, color = '#666') => {
+        switch (emoji) {
+            case '📚': return <Book size={size} color={color} />;
+            case '👕': return <Shirt size={size} color={color} />;
+            case '🍲': return <Salad size={size} color={color} />;
+            case '🏷️': return <Tag size={size} color={color} />;
+            default: return <Tag size={size} color={color} />;
+        }
+    };
+
     const handleShopsPress = () => {
         navigation.navigate('Shops');
     };
@@ -160,21 +184,27 @@ export const MarketHomeScreen: React.FC = () => {
     const renderHeader = () => (
         <View>
             {/* Hero Section */}
-            <View style={[styles.heroSection, { backgroundColor: colors.gradientStart }]}>
-                <Text style={styles.heroTitle}>🛍️ {t('market.title')}</Text>
+            <View style={[styles.heroSection, { backgroundColor: colors.primary }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <ShoppingBag size={32} color="#fff" style={{ marginRight: 12 }} />
+                    <Text style={styles.heroTitle}>{t('market.title')}</Text>
+                </View>
                 <Text style={styles.heroSubtitle}>
                     {t('market.subtitle')}
                 </Text>
 
                 <View style={styles.heroButtons}>
                     <TouchableOpacity style={styles.heroBtn} onPress={handleShopsPress}>
-                        <Text style={styles.heroBtnText}>🏪 {t('market.shops')}</Text>
+                        <Store size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.heroBtnText}>{t('market.shops')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.heroBtn} onPress={() => navigation.navigate('ShopsMap')}>
-                        <Text style={styles.heroBtnText}>🗺️ {t('market.map.title')}</Text>
+                        <Map size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.heroBtnText}>{t('market.map.title')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.heroBtn} onPress={handleSellerDashboard}>
-                        <Text style={styles.heroBtnText}>📊 {t('market.myShop')}</Text>
+                        <BarChart3 size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.heroBtnText}>{t('market.myShop')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -182,6 +212,7 @@ export const MarketHomeScreen: React.FC = () => {
             {/* Search Bar */}
             <View style={styles.searchContainer}>
                 <View style={[styles.searchInputWrapper, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5' }]}>
+                    <Search size={18} color={isDarkMode ? '#888' : colors.textSecondary} style={{ marginRight: 8 }} />
                     <TextInput
                         style={[styles.searchInput, { color: isDarkMode ? '#fff' : colors.text }]}
                         value={searchQuery}
@@ -193,12 +224,12 @@ export const MarketHomeScreen: React.FC = () => {
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => { setSearchQuery(''); loadProducts(1, true); }}>
-                            <Text style={{ marginRight: 10 }}>✕</Text>
+                            <X size={18} color={isDarkMode ? '#888' : colors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
                 <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colors.primary }]} onPress={handleSearch}>
-                    <Text style={{ color: '#fff', fontSize: 16 }}>🔍</Text>
+                    <SearchIcon size={20} color="#fff" />
                 </TouchableOpacity>
             </View>
 
@@ -217,11 +248,15 @@ export const MarketHomeScreen: React.FC = () => {
                                     backgroundColor: selectedCategory === item.id
                                         ? colors.primary
                                         : (isDarkMode ? '#333' : '#f0f0f0'),
+                                    borderColor: selectedCategory === item.id ? colors.primary : 'rgba(0,0,0,0.05)',
+                                    borderWidth: 1
                                 }
                             ]}
                             onPress={() => handleCategorySelect(item.id)}
                         >
-                            <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+                            <View style={{ marginRight: 6 }}>
+                                {getCategoryIcon(item.emoji, 14, selectedCategory === item.id ? '#fff' : colors.primary)}
+                            </View>
                             <Text style={[
                                 styles.categoryLabel,
                                 { color: selectedCategory === item.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }
@@ -265,7 +300,7 @@ export const MarketHomeScreen: React.FC = () => {
                 ListFooterComponent={renderFooter}
                 ListEmptyComponent={
                     <EmptyState
-                        icon="🏜️"
+                        icon={<ShoppingBag size={64} color={isDarkMode ? '#555' : colors.textSecondary} opacity={0.5} />}
                         title={t('market.noProductsTitle')}
                         message={t('market.noProductsMsg')}
                         actionLabel={t('market.clearFilters')}
@@ -321,10 +356,14 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     heroBtn: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 16,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        paddingHorizontal: 14,
         paddingVertical: 10,
         borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
     },
     heroBtnText: {
         color: '#fff',

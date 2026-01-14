@@ -13,6 +13,13 @@ import { AdCard } from '../../../components/ads/AdCard';
 import { CategoryPills } from '../../../components/ads/CategoryPills';
 import { AdTabSwitcher } from '../../../components/ads/AdTabSwitcher';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
+import {
+    Search,
+    X,
+    SlidersHorizontal,
+    Inbox,
+    Plus
+} from 'lucide-react-native';
 
 export const AdsScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -107,8 +114,8 @@ export const AdsScreen: React.FC = () => {
             <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
                 {/* Search Bar */}
                 <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                    <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? '#333' : '#fff', borderColor: colors.textSecondary }]}>
-                        <Text style={{ marginRight: 8 }}>🔍</Text>
+                    <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? '#333' : '#fff', borderColor: 'rgba(0,0,0,0.1)' }]}>
+                        <Search size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                         <TextInput
                             style={[styles.searchInput, { color: isDarkMode ? '#fff' : colors.text }]}
                             placeholder={t('ads.searchPlaceholder')}
@@ -119,14 +126,14 @@ export const AdsScreen: React.FC = () => {
                         />
                         {searchQuery !== '' && (
                             <TouchableOpacity onPress={() => { setSearchQuery(''); fetchAds(true); }}>
-                                <Text style={{ fontSize: 16, color: colors.textSecondary }}>✕</Text>
+                                <X size={18} color={colors.textSecondary} />
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity
                             style={styles.filterBtn}
                             onPress={() => navigation.navigate('AdsFilters')}
                         >
-                            <Text>🕵️‍♂️</Text>
+                            <SlidersHorizontal size={18} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -158,7 +165,7 @@ export const AdsScreen: React.FC = () => {
                     ListEmptyComponent={
                         !loading ? (
                             <View style={styles.emptyContainer}>
-                                <Text style={{ fontSize: 40, marginBottom: 10 }}>📭</Text>
+                                <Inbox size={64} color={colors.textSecondary} opacity={0.3} style={{ marginBottom: 16 }} />
                                 <Text style={{ color: colors.textSecondary }}>{t('ads.noAds')}</Text>
                             </View>
                         ) : null
@@ -173,7 +180,7 @@ export const AdsScreen: React.FC = () => {
                     style={[styles.fab, { backgroundColor: colors.gradientStart }]}
                     onPress={() => navigation.navigate('CreateAd')}
                 >
-                    <Text style={styles.fabText}>+</Text>
+                    <Plus size={32} color="#fff" />
                 </TouchableOpacity>
             </View>
         </ProtectedScreen>

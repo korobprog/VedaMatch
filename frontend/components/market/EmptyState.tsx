@@ -2,8 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
 import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
 
+import { ShoppingBag } from 'lucide-react-native';
+
 interface EmptyStateProps {
-    icon?: string;
+    icon?: string | React.ReactNode;
     title: string;
     message: string;
     actionLabel?: string;
@@ -22,7 +24,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     return (
         <View style={styles.container}>
-            <Text style={styles.icon}>{icon}</Text>
+            <View style={styles.iconContainer}>
+                {typeof icon === 'string' ? (
+                    <Text style={styles.icon}>{icon}</Text>
+                ) : (
+                    icon || <ShoppingBag size={64} color={colors.textSecondary} opacity={0.5} />
+                )}
+            </View>
             <Text style={[styles.title, { color: isDarkMode ? '#fff' : colors.text }]}>
                 {title}
             </Text>
@@ -49,9 +57,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    iconContainer: {
+        marginBottom: 16,
+    },
     icon: {
         fontSize: 64,
-        marginBottom: 16,
     },
     title: {
         fontSize: 20,

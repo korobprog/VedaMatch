@@ -8,6 +8,7 @@ import { RootStackParamList } from '../../../types/navigation';
 import { CategoryPills } from '../../../components/ads/CategoryPills';
 import { AdCategory } from '../../../types/ads';
 import { adsService } from '../../../services/adsService';
+import { X } from 'lucide-react-native';
 
 export const AdsFiltersScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -43,9 +44,9 @@ export const AdsFiltersScreen: React.FC = () => {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Text style={{ fontSize: 18, color: colors.text }}>✕</Text>
+            <View style={[styles.header, { borderBottomColor: 'rgba(0,0,0,0.05)' }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
+                    <X size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.title, { color: colors.text }]}>{t('ads.filters.title')}</Text>
                 <TouchableOpacity onPress={handleReset}>
@@ -117,7 +118,8 @@ export const AdsFiltersScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+    closeBtn: { padding: 4 },
     title: { fontSize: 18, fontWeight: 'bold' },
     content: { padding: 16 },
     label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },

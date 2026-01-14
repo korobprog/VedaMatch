@@ -5,6 +5,8 @@ import { libraryService } from '../../services/libraryService';
 import { ScriptureBook } from '../../types/library';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
+import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
+import { Book } from 'lucide-react-native';
 
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -36,8 +38,8 @@ export const LibraryHomeScreen = () => {
             style={styles.card}
             onPress={() => handleBookPress(item)}
         >
-            <View style={styles.iconContainer}>
-                <Text style={{ fontSize: 30 }}>📚</Text>
+            <View style={[styles.iconContainer, { backgroundColor: ModernVedicTheme.colors.primary + '10' }]}>
+                <Book size={32} color={ModernVedicTheme.colors.primary} />
             </View>
             <View style={styles.textContainer}>
                 <Text style={styles.cardTitle}>{item.name_ru || item.name_en}</Text>
@@ -69,7 +71,7 @@ export const LibraryHomeScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA', // Light background
+        backgroundColor: ModernVedicTheme.colors.background,
     },
     center: {
         justifyContent: 'center',
@@ -107,14 +109,15 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     cardTitle: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 4,
+        color: ModernVedicTheme.colors.text,
+        marginBottom: 6,
+        fontFamily: 'Playfair Display',
     },
     cardDescription: {
-        fontSize: 12,
-        color: '#666',
-        lineHeight: 18,
+        fontSize: 13,
+        color: ModernVedicTheme.colors.textSecondary,
+        lineHeight: 20,
     },
 });
