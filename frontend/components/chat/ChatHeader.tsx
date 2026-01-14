@@ -5,11 +5,14 @@ import {
     TouchableOpacity,
     StyleSheet,
     useColorScheme,
+    Image,
+    Platform,
 } from 'react-native';
 import { COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
 import { Phone, Menu, ChevronLeft } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
+import { getMediaUrl } from '../../utils/url';
 
 interface ChatHeaderProps {
     title: string;
@@ -32,22 +35,48 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     const displayTitle = recipientUser
         ? (recipientUser.spiritualName || recipientUser.karmicName)
         : title;
+
+    // Updated logic: Show ONLY Country + City to save space
+    const locationParts = [];
+    if (recipientUser?.country) locationParts.push(recipientUser.country);
+    if (recipientUser?.city) locationParts.push(recipientUser.city);
     const subTitle = recipientUser
-        ? `${recipientUser.identity || t('common.devotee')} • ${recipientUser.country}, ${recipientUser.city}`
+        ? locationParts.join(', ')
         : null;
 
     return (
         <View style={{
-            backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.85)' : 'rgba(255, 255, 255, 0.9)',
+            backgroundColor: theme.header,
             borderBottomColor: theme.borderColor,
             borderBottomWidth: 0.5,
-            height: 56, // Slightly taller for better touch targets
+            height: 60,
+            justifyContent: 'center',
+            ...Platform.select({
+                ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+                android: { elevation: 2 }
+            })
         }}>
             <View style={styles.headerContent}>
                 {recipientUser ? (
-                    <TouchableOpacity onPress={onBackPress} style={styles.menuButton}>
-                        <ChevronLeft color={theme.text} size={28} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
+                            <ChevronLeft color={theme.text} size={28} />
+                        </TouchableOpacity>
+
+                        {/* Avatar Addition for "System" feel */}
+                        <View style={[styles.avatarContainer, { backgroundColor: theme.inputBackground }]}>
+                            {recipientUser.avatarUrl ? (
+                                <Image
+                                    source={{ uri: getMediaUrl(recipientUser.avatarUrl) }}
+                                    style={styles.avatar}
+                                />
+                            ) : (
+                                <Text style={{ fontSize: 16 }}>
+                                    {(recipientUser.spiritualName?.[0] || recipientUser.karmicName?.[0] || '?').toUpperCase()}
+                                </Text>
+                            )}
+                        </View>
+                    </View>
                 ) : (
                     <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton}>
                         <Menu color={theme.text} size={24} />
@@ -56,12 +85,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
                 <View style={styles.titleContainer}>
                     {recipientUser ? (
-                        <>
-                            <Text style={[styles.title, { color: theme.text }]}>{displayTitle}</Text>
-                            {subTitle && (
-                                <Text style={[styles.subTitle, { color: theme.subText }]}>{subTitle}</Text>
-                            )}
-                        </>
+                        <View>
+                            <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{displayTitle}</Text>
+                            {subTitle ? (
+                                <Text style={[styles.subTitle, { color: theme.subText }]} numberOfLines={1}>
+                                    {subTitle}
+                                </Text>
+                            ) : null}
+                        </View>
                     ) : (
                         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
                     )}
@@ -100,9 +131,26 @@ const styles = StyleSheet.create({
     settingsButton: {
         padding: 8,
     },
+    backButton: {
+        padding: 4,
+        marginRight: 4,
+    },
     menuButton: {
         padding: 8,
         marginRight: 8,
+    },
+    avatarContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginRight: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    avatar: {
+        width: '100%',
+        height: '100%',
     },
     sticksContainer: {
         flexDirection: 'column',

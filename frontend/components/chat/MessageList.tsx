@@ -76,7 +76,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         const result: (Message | { type: 'header', title: string, id: string })[] = [];
         let lastDate = '';
 
-        messages.forEach(msg => {
+        messages.forEach((msg, index) => {
             const date = msg.createdAt ? new Date(msg.createdAt) : new Date();
             const dateStr = date.toDateString();
             if (dateStr !== lastDate) {
@@ -86,7 +86,8 @@ export const MessageList: React.FC<MessageListProps> = ({
                 if (dateStr === today) title = t('chat.today');
                 else if (dateStr === yesterday) title = t('chat.yesterday');
 
-                result.push({ type: 'header', title, id: `header-${dateStr}` });
+                // Append index to key to ensure uniqueness even if dateStr repeats unexpectedly or across re-renders
+                result.push({ type: 'header', title, id: `header-${dateStr}-${index}` });
                 lastDate = dateStr;
             }
             result.push(msg);

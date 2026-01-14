@@ -62,7 +62,10 @@ export const messageService = {
         try {
             await axios.delete(url, { headers });
         } catch (error: any) {
-            console.error('[messageService] Delete failed', error.response?.status);
+            // Don't log 404 as error, as it's handled gracefully (message already gone)
+            if (error.response?.status !== 404) {
+                console.error('[messageService] Delete failed', error.response?.status);
+            }
             throw error;
         }
     },

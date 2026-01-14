@@ -6,20 +6,55 @@ import {
 	StyleSheet,
 	useColorScheme,
 	ActivityIndicator,
+	Animated,
 } from 'react-native';
 import { useChat } from '../../context/ChatContext';
 import { COLORS } from './ChatConstants';
+import { ChevronUp, Lock, Trash2, Send } from 'lucide-react-native';
 
-export const AudioRecorder: React.FC = () => {
+interface AudioRecorderProps {
+	isLocked?: boolean;
+	onSend?: () => void;
+	onCancel?: () => void;
+}
+
+export const AudioRecorder: React.FC<AudioRecorderProps> = ({
+	isLocked = false,
+	onSend,
+	onCancel,
+}) => {
 	const isDarkMode = useColorScheme() === 'dark';
 	const theme = isDarkMode ? COLORS.dark : COLORS.light;
 	const {
 		isRecording,
 		recordingDuration: duration,
 		cancelRecording,
-		stopRecording,
+		stopRecording, // Default context fallback
 		isUploading: isSending,
 	} = useChat();
+
+	const slideAnim = useRef(new Animated.Value(0)).current;
+
+	useEffect(() => {
+		if (isRecording && !isLocked) {
+			Animated.loop(
+				Animated.sequence([
+					Animated.timing(slideAnim, {
+						toValue: -10,
+						duration: 600,
+						useNativeDriver: true,
+					}),
+					Animated.timing(slideAnim, {
+						toValue: 0,
+						duration: 600,
+						useNativeDriver: true,
+					}),
+				])
+			).start();
+		} else {
+			slideAnim.setValue(0);
+		}
+	}, [isRecording, isLocked]);
 
 	const formatTime = (seconds: number): string => {
 		const mins = Math.floor(seconds / 60);
@@ -27,30 +62,56 @@ export const AudioRecorder: React.FC = () => {
 		return `${mins}:${secs.toString().padStart(2, '0')}`;
 	};
 
+	// Determine handlers based on lock state
+	// If locked, we rely on the passed props (which handle styling/state in parent) or context defaults
+	const handleSend = onSend || stopRecording;
+	const handleCancel = onCancel || cancelRecording;
+
+	if (!isRecording) return null;
+
+	if (!isRecording) return null;
+
 	return (
 		<View style={styles.container}>
-			{isRecording ? (
-				<View style={[styles.recordingIndicator, { backgroundColor: theme.botBubble }]}>
-					<TouchableOpacity onPress={cancelRecording} style={styles.cancelButton}>
-						<Text style={[styles.cancelText, { color: theme.error }]}>✕</Text>
+			{isLocked ? (
+				<View style={[styles.lockedContainer, { backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF' }]}>
+					<TouchableOpacity onPress={handleCancel} style={styles.actionButton}>
+						<Trash2 size={24} color="#FF3B30" />
 					</TouchableOpacity>
 
-					<View style={styles.recordingInfo}>
-						<View style={styles.recordingDot} />
-						<Text style={[styles.recordingText, { color: theme.text }]}>
+					<View style={styles.timerContainer}>
+						<Animated.View style={[styles.recordingDot, {
+							opacity: slideAnim.interpolate({
+								inputRange: [-10, 0],
+								outputRange: [0.5, 1]
+							})
+						}]} />
+						<Text style={[styles.timerText, { color: theme.text }]}>
 							{formatTime(duration)}
 						</Text>
 					</View>
 
-					{isSending ? (
-						<ActivityIndicator size="small" color={theme.primary} />
-					) : (
-						<TouchableOpacity onPress={stopRecording} style={styles.sendButton}>
-							<Text style={[styles.sendButtonText, { color: theme.primary }]}>✓</Text>
-						</TouchableOpacity>
-					)}
+					<TouchableOpacity onPress={handleSend} style={styles.actionButton}>
+						<Send size={24} color={theme.primary} style={{ marginLeft: 2 }} />
+					</TouchableOpacity>
 				</View>
-			) : null}
+			) : (
+				<View style={styles.holdingContainer}>
+					<View style={styles.lockHintWrapper}>
+						<Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
+							<ChevronUp size={20} color="#FFFFFF" />
+						</Animated.View>
+						<Lock size={14} color="#FFFFFF" style={{ marginTop: 2, opacity: 0.8 }} />
+					</View>
+
+					<View style={[styles.holdingIndicator, { backgroundColor: theme.botBubble }]}>
+						<View style={styles.recordingDot} />
+						<Text style={[styles.timerText, { color: theme.text }]}>
+							{formatTime(duration)}
+						</Text>
+					</View>
+				</View>
+			)}
 		</View>
 	);
 };
@@ -58,64 +119,69 @@ export const AudioRecorder: React.FC = () => {
 const styles = StyleSheet.create({
 	container: {
 		position: 'absolute',
-		bottom: 100,
+		bottom: 120,
 		left: 0,
 		right: 0,
 		alignItems: 'center',
 		zIndex: 1000,
 	},
-	recordingIndicator: {
+	lockedContainer: {
 		flexDirection: 'row',
 		alignItems: 'center',
+		justifyContent: 'space-between',
 		paddingHorizontal: 20,
 		paddingVertical: 12,
-		borderRadius: 24,
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.25,
-		shadowRadius: 3.84,
-		elevation: 5,
+		borderRadius: 30,
+		width: 280,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.15,
+		shadowRadius: 12,
+		elevation: 8,
+	},
+	holdingContainer: {
+		alignItems: 'center',
 		gap: 16,
 	},
-	recordingInfo: {
+	lockHintWrapper: {
+		alignItems: 'center',
+		justifyContent: 'center',
+		backgroundColor: 'rgba(0,0,0,0.6)',
+		paddingVertical: 8,
+		paddingHorizontal: 12,
+		borderRadius: 20,
+		marginBottom: 4,
+	},
+	holdingIndicator: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		paddingHorizontal: 16,
+		paddingVertical: 10,
+		borderRadius: 20,
+		gap: 8,
+	},
+	timerContainer: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 8,
 	},
 	recordingDot: {
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: '#FF5252',
+		width: 10,
+		height: 10,
+		borderRadius: 5,
+		backgroundColor: '#FF3B30',
 	},
-	recordingText: {
+	timerText: {
 		fontSize: 16,
 		fontWeight: '600',
-		minWidth: 40,
-		textAlign: 'center',
+		fontVariant: ['tabular-nums'],
+		minWidth: 45,
 	},
-	cancelButton: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: '#FFEBEE',
-		justifyContent: 'center',
+	actionButton: {
+		padding: 8,
+	},
+	lockHint: {
 		alignItems: 'center',
-	},
-	cancelText: {
-		fontSize: 18,
-		fontWeight: 'bold',
-	},
-	sendButton: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: '#E8F5E9',
-		justifyContent: 'center',
-		alignItems: 'center',
-	},
-	sendButtonText: {
-		fontSize: 18,
-		fontWeight: 'bold',
+		marginBottom: 10,
 	},
 });

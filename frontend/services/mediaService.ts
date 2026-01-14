@@ -325,6 +325,10 @@ export const mediaService = {
 			formData.append('type', media.type);
 			formData.append('senderId', senderId.toString());
 
+			if (media.duration) {
+				formData.append('duration', media.duration.toString());
+			}
+
 			if (recipientId) {
 				formData.append('recipientId', recipientId.toString());
 			}

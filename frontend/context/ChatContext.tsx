@@ -56,13 +56,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const [inputText, setInputText] = useState('');
     const [showMenu, setShowMenu] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            text: t('chat.welcome'),
-            sender: 'bot',
-        },
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [history, setHistory] = useState<ChatHistory[]>([]);
     const [currentChatId, setCurrentChatId] = useState<string | null>(null);
     const [recipientId, setRecipientId] = useState<number | null>(null);
@@ -100,13 +94,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     // Auto-save messages to current chat or create new one (only for AI chats)
     useEffect(() => {
         if (isFirstRun.current || recipientId) return;
-        if (messages.length <= 1 && !currentChatId) return;
+        if (messages.length === 0 && !currentChatId) return;
 
         const saveMessages = async () => {
             let updatedHistory = [...history];
             let chatId = currentChatId;
 
-            if (!chatId && messages.length > 1) {
+            if (!chatId && messages.length > 0) {
                 // Create new session
                 chatId = Date.now().toString();
                 setCurrentChatId(chatId);
@@ -270,6 +264,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setRecipientId(user.ID);
         setRecipientUser(user);
         setCurrentChatId(null); // Clear AI chat context
+        setMessages([]); // Clear previous messages immediately
     };
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -497,6 +492,11 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 createdAt: savedMessage.CreatedAt,
             };
 
+            // Preserve duration from local media if server didn't return it
+            if (media.type === 'audio' && !finalMessage.duration && media.duration) {
+                finalMessage.duration = media.duration;
+            }
+
             console.log('🔄 Updating message from temp to final:', finalMessage);
 
             setMessages(prev => {
@@ -619,14 +619,31 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             cancelRecording,
             deleteMessage: async (messageId: string) => {
                 try {
+                    console.log(`🗑️ Attempting to delete message: ${messageId}`);
                     // Only try to delete from server if it's a numeric ID (P2P message)
                     const numericId = parseInt(messageId, 10);
+
                     if (!isNaN(numericId) && recipientId) {
-                        await messageService.deleteMessage(numericId);
+                        console.log(`🌐 Deleting from server via API. ID: ${numericId}`);
+                        try {
+                            await messageService.deleteMessage(numericId);
+                            console.log('✅ Server delete successful');
+                        } catch (serverError: any) {
+                            // If 404, it's already gone, so we can ignore and just remove locally
+                            if (serverError.response?.status === 404) {
+                                console.log('ℹ️ Message not found on server (404), removing locally anyway');
+                            } else {
+                                // Re-throw other errors to be caught by outer block
+                                throw serverError;
+                            }
+                        }
+                    } else {
+                        console.log('Local delete only (NaN ID or no recipient)');
                     }
+
                     // Always remove from local state
                     setMessages(prev => prev.filter(m => m.id !== messageId));
-                } catch (error) {
+                } catch (error: any) {
                     console.error('Failed to delete message', error);
                     Alert.alert('Error', 'Could not delete message');
                 }
