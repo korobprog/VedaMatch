@@ -38,7 +38,7 @@ import {
     Rss,
     Bookmark
 } from 'lucide-react-native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -61,9 +61,8 @@ const MADH_FILTERS = [
 
 export const NewsScreen = () => {
     const { t, i18n } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { vTheme, isDarkMode } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const colors = vedicTheme.colors;
     const navigation = useNavigation();
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
@@ -179,18 +178,19 @@ export const NewsScreen = () => {
     };
 
     const renderCategoryPills = () => (
-        <View style={styles.categoriesContainer}>
+        <View style={[styles.categoriesContainer, { backgroundColor: vTheme.colors.background }]}>
             {/* Personalized Toggle */}
             <View style={styles.personalizedToggleContainer}>
                 <TouchableOpacity
                     onPress={() => setPersonalized(true)}
                     style={[
                         styles.toggleButton,
-                        personalized && { backgroundColor: colors.primary, borderColor: colors.primary }
+                        { borderColor: vTheme.colors.divider },
+                        personalized && { backgroundColor: vTheme.colors.primary, borderColor: vTheme.colors.primary }
                     ]}
                 >
-                    <Rss size={14} color={personalized ? '#fff' : colors.textSecondary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.toggleText, { color: personalized ? '#fff' : colors.textSecondary }]}>
+                    <Rss size={14} color={personalized ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.toggleText, { color: personalized ? '#fff' : vTheme.colors.textSecondary }]}>
                         {lang === 'en' ? 'My Feed' : 'Моя лента'}
                     </Text>
                 </TouchableOpacity>
@@ -198,11 +198,12 @@ export const NewsScreen = () => {
                     onPress={() => setPersonalized(false)}
                     style={[
                         styles.toggleButton,
-                        !personalized && { backgroundColor: colors.textSecondary, borderColor: colors.textSecondary }
+                        { borderColor: vTheme.colors.divider },
+                        !personalized && { backgroundColor: isDarkMode ? '#334155' : '#cbd5e1', borderColor: isDarkMode ? '#334155' : '#cbd5e1' }
                     ]}
                 >
-                    <Globe size={14} color={!personalized ? '#fff' : colors.textSecondary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.toggleText, { color: !personalized ? '#fff' : colors.textSecondary }]}>
+                    <Globe size={14} color={!personalized ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.toggleText, { color: !personalized ? '#fff' : vTheme.colors.textSecondary }]}>
                         {lang === 'en' ? 'All' : 'Все'}
                     </Text>
                 </TouchableOpacity>
@@ -224,20 +225,20 @@ export const NewsScreen = () => {
                             {
                                 backgroundColor: selectedMadh === item.id
                                     ? '#8D6E63'
-                                    : '#fff',
+                                    : (isDarkMode ? '#2C2C2E' : '#fff'),
                                 borderColor: selectedMadh === item.id
                                     ? '#8D6E63'
-                                    : '#ddd'
+                                    : (isDarkMode ? '#3A3A3C' : '#ddd')
                             }
                         ]}
                     >
-                        {item.id === '' && <Building2 size={14} color={selectedMadh === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
+                        {item.id === '' && <Building2 size={14} color={selectedMadh === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
                         <Text style={[
                             styles.categoryPillText,
                             {
                                 color: selectedMadh === item.id
                                     ? '#fff'
-                                    : '#333'
+                                    : vTheme.colors.text
                             }
                         ]}>
                             {lang === 'en' ? item.labelEn : item.label}
@@ -260,25 +261,25 @@ export const NewsScreen = () => {
                             styles.categoryPill,
                             {
                                 backgroundColor: selectedCategory === item.id
-                                    ? colors.primary
-                                    : '#fff',
+                                    ? vTheme.colors.primary
+                                    : (isDarkMode ? '#2C2C2E' : '#fff'),
                                 borderColor: selectedCategory === item.id
-                                    ? colors.primary
-                                    : '#ddd'
+                                    ? vTheme.colors.primary
+                                    : (isDarkMode ? '#3A3A3C' : '#ddd')
                             }
                         ]}
                     >
-                        {item.id === '' && <LayoutGrid size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
-                        {item.id === 'spiritual' && <Sun size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
-                        {item.id === 'events' && <Calendar size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
-                        {item.id === 'education' && <GraduationCap size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
-                        {item.id === 'wellness' && <Heart size={14} color={selectedCategory === item.id ? '#fff' : '#666'} style={{ marginRight: 6 }} />}
+                        {item.id === '' && <LayoutGrid size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
+                        {item.id === 'spiritual' && <Sun size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
+                        {item.id === 'events' && <Calendar size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
+                        {item.id === 'education' && <GraduationCap size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
+                        {item.id === 'wellness' && <Heart size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
                         <Text style={[
                             styles.categoryPillText,
                             {
                                 color: selectedCategory === item.id
                                     ? '#fff'
-                                    : '#333'
+                                    : vTheme.colors.text
                             }
                         ]}>
                             {lang === 'en' ? item.labelEn : item.label}
@@ -297,8 +298,7 @@ export const NewsScreen = () => {
         return (
             <TouchableOpacity
                 style={[
-                    isHero ? styles.heroCard : styles.card,
-                    { backgroundColor: theme.header }
+                    isHero ? styles.heroCard : [styles.card, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, borderWidth: 1 }],
                 ]}
                 activeOpacity={0.8}
                 onPress={() => {
@@ -367,7 +367,7 @@ export const NewsScreen = () => {
                     <View style={styles.cardContent}>
                         <View style={styles.cardHeaderRow}>
                             <View style={styles.cardMeta}>
-                                <Text style={[styles.cardDate, { color: theme.subText }]}>
+                                <Text style={[styles.cardDate, { color: vTheme.colors.textSecondary }]}>
                                     {newsService.formatDate(item.publishedAt)}
                                 </Text>
                                 {item.isImportant && (
@@ -376,37 +376,36 @@ export const NewsScreen = () => {
                             </View>
                             <View style={styles.cardActions}>
                                 <TouchableOpacity onPress={() => toggleFavorite(item.sourceId)}>
-                                    <Star size={16} color={isFavorite ? '#f59e0b' : colors.textSecondary} fill={isFavorite ? '#f59e0b' : 'transparent'} />
+                                    <Star size={16} color={isFavorite ? '#f59e0b' : vTheme.colors.textSecondary} fill={isFavorite ? '#f59e0b' : 'transparent'} />
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => toggleSubscription(item.sourceId)}>
-                                    {isSubscribed ? <Bell size={16} color={colors.primary} /> : <BellOff size={16} color={colors.textSecondary} />}
+                                    {isSubscribed ? <Bell size={16} color={vTheme.colors.primary} /> : <BellOff size={16} color={vTheme.colors.textSecondary} />}
                                 </TouchableOpacity>
                             </View>
                         </View>
-                        <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>
+                        <Text style={[styles.cardTitle, { color: vTheme.colors.text }]} numberOfLines={2}>
                             {newsService.cleanText(item.title)}
                         </Text>
-                        <Text style={[styles.cardSummary, { color: theme.subText }]} numberOfLines={2}>
+                        <Text style={[styles.cardSummary, { color: vTheme.colors.textSecondary }]} numberOfLines={2}>
                             {newsService.cleanText(item.summary)}
                         </Text>
                         <View style={styles.cardFooter}>
                             {item.category && (
-                                <View style={[styles.categoryTag, { backgroundColor: theme.background }]}>
-                                    <Text style={[styles.categoryTagText, { color: theme.subText }]}>
+                                <View style={[styles.categoryTag, { backgroundColor: vTheme.colors.background }]}>
+                                    <Text style={[styles.categoryTagText, { color: vTheme.colors.textSecondary }]}>
                                         {item.category}
                                     </Text>
                                 </View>
                             )}
                             {item.sourceName && (
-                                <Text style={[styles.sourceName, { color: theme.accent || '#6366f1' }]}>
+                                <Text style={[styles.sourceName, { color: vTheme.colors.primary }]}>
                                     {item.sourceName}
                                 </Text>
                             )}
                         </View>
                     </View>
-                )
-                }
-            </TouchableOpacity >
+                )}
+            </TouchableOpacity>
         );
     };
 
@@ -422,8 +421,8 @@ export const NewsScreen = () => {
     const renderEmpty = () => {
         if (loading) return null;
         return (
-            <View style={styles.emptyContainer}>
-                <Inbox size={64} color={colors.textSecondary} style={{ marginBottom: 16, opacity: 0.5 }} />
+            <View style={[styles.emptyContainer, { backgroundColor: vTheme.colors.background }]}>
+                <Inbox size={64} color={vTheme.colors.textSecondary} style={{ marginBottom: 16, opacity: 0.5 }} />
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
                     {lang === 'en' ? 'No news yet' : 'Новостей пока нет'}
                 </Text>
@@ -519,8 +518,6 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#ddd',
-        backgroundColor: '#f5f5f5',
         alignItems: 'center',
     },
     toggleText: {

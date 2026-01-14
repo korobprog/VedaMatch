@@ -12,6 +12,8 @@ import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+import { Play, Pause } from 'lucide-react-native';
+
 interface AudioPlayerProps {
 	url: string;
 	duration?: number;
@@ -26,30 +28,23 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 	onError,
 }) => {
 	const theme = isDarkMode ? COLORS.dark : COLORS.light;
-	// Initialize the player directly to avoid it being null
 	const audioRecorderPlayerRef = useRef<any>(new AudioRecorderPlayer());
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [currentPosition, setCurrentPosition] = useState(0);
 	const [totalDuration, setTotalDuration] = useState(duration > 0 ? duration * 1000 : 0);
-
-	// Track if we have already loaded the file to avoid reloading on every play
 	const isLoaded = useRef(false);
 
 	useEffect(() => {
-		// Cleanup function
 		return () => {
 			if (audioRecorderPlayerRef.current) {
 				try {
 					audioRecorderPlayerRef.current.stopPlayer();
 					audioRecorderPlayerRef.current.removePlayBackListener();
-				} catch (e) {
-					console.log('Error stopping player on unmount', e);
-				}
+				} catch (e) { }
 			}
 		};
 	}, []);
 
-	// Update duration if prop changes
 	useEffect(() => {
 		if (duration > 0 && totalDuration === 0) {
 			setTotalDuration(duration * 1000);
@@ -65,46 +60,26 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 	};
 
 	const handlePlayPause = async () => {
-		if (!audioRecorderPlayerRef.current) {
-			audioRecorderPlayerRef.current = new AudioRecorderPlayer();
-		}
-
 		try {
 			if (isPlaying) {
-				try {
-					await audioRecorderPlayerRef.current.pausePlayer();
-				} catch (err: any) {
-					console.log('Pause error (ignoring):', err.message);
-				}
+				await audioRecorderPlayerRef.current.pausePlayer();
 				setIsPlaying(false);
 			} else {
-				// Prevent duplicate listeners
 				audioRecorderPlayerRef.current.removePlayBackListener();
-
-				// If not loaded or finished, start again
 				if (!isLoaded.current || currentPosition >= totalDuration) {
-					console.log('Starting playback:', url);
 					await audioRecorderPlayerRef.current.startPlayer(url);
 					isLoaded.current = true;
 				} else {
-					console.log('Resuming playback');
 					await audioRecorderPlayerRef.current.resumePlayer();
 				}
 
 				audioRecorderPlayerRef.current.addPlayBackListener((e: any) => {
-					// Safe update (prevent memory leaks if unmounted)
 					if (e.currentPosition < 0) return;
-
 					setCurrentPosition(e.currentPosition);
-
-					// Update duration if we didn't have it or it changed (and is valid)
 					if (e.duration > 0 && Math.abs(totalDuration - e.duration) > 1000) {
 						setTotalDuration(e.duration);
 					}
-
-					// Approximate finish check (within 100ms or if position exceeds duration)
 					if (e.currentPosition > 0 && e.duration > 0 && Math.abs(e.currentPosition - e.duration) < 200) {
-						console.log('Playback finished');
 						audioRecorderPlayerRef.current.stopPlayer();
 						audioRecorderPlayerRef.current.removePlayBackListener();
 						setIsPlaying(false);
@@ -112,34 +87,23 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 						isLoaded.current = false;
 					}
 				});
-
 				setIsPlaying(true);
 			}
 		} catch (error) {
-			console.error('Error playing/pausing audio:', error);
-			// Reset state on critical error
 			setIsPlaying(false);
 			isLoaded.current = false;
-			if (onError) {
-				onError();
-			}
+			if (onError) onError();
 		}
 	};
 
 	const handleSliderChange = async (value: number) => {
 		if (!audioRecorderPlayerRef.current || !totalDuration) return;
-
 		try {
 			const position = Math.floor(value * totalDuration);
 			await audioRecorderPlayerRef.current.seekToPlayer(position);
 			setCurrentPosition(position);
-			// Resume if it was playing to keep UI consistent
-			if (isPlaying) {
-				await audioRecorderPlayerRef.current.resumePlayer();
-			}
-		} catch (error) {
-			console.error('Error seeking audio:', error);
-		}
+			if (isPlaying) await audioRecorderPlayerRef.current.resumePlayer();
+		} catch (error) { }
 	};
 
 	const progress = totalDuration > 0 ? Math.min(Math.max(currentPosition / totalDuration, 0), 1) : 0;
@@ -148,35 +112,31 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 		<View style={styles.container}>
 			<TouchableOpacity
 				onPress={handlePlayPause}
-				style={[styles.playButton, { backgroundColor: theme.button }]}
+				style={[styles.playButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
 			>
-				<Text style={[styles.playButtonText, { color: theme.buttonText }]}>
-					{isPlaying ? '⏸' : '▶'}
-				</Text>
+				{isPlaying ? (
+					<Pause size={20} color={theme.primary} fill={theme.primary} />
+				) : (
+					<Play size={20} color={theme.primary} fill={theme.primary} style={{ marginLeft: 3 }} />
+				)}
 			</TouchableOpacity>
 
-			<View style={styles.timeContainer}>
-				<Text style={[styles.timeText, { color: theme.subText }]}>
-					{formatTime(currentPosition)}
-				</Text>
-			</View>
-
-			<Slider
-				style={styles.slider}
-				value={progress}
-				onValueChange={handleSliderChange}
-				minimumValue={0}
-				maximumValue={1}
-				minimumTrackTintColor={theme.primary}
-				maximumTrackTintColor={theme.borderColor}
-				thumbTintColor={theme.primary}
-				disabled={!url}
-			/>
-
-			<View style={styles.timeContainer}>
-				<Text style={[styles.timeText, { color: theme.subText }]}>
-					{formatTime(totalDuration)}
-				</Text>
+			<View style={styles.content}>
+				<Slider
+					style={styles.slider}
+					value={progress}
+					onValueChange={handleSliderChange}
+					minimumValue={0}
+					maximumValue={1}
+					minimumTrackTintColor={theme.primary}
+					maximumTrackTintColor={isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}
+					thumbTintColor={theme.primary}
+					disabled={!url}
+				/>
+				<View style={styles.timeRow}>
+					<Text style={[styles.timeText, { color: theme.subText }]}>{formatTime(currentPosition)}</Text>
+					<Text style={[styles.timeText, { color: theme.subText }]}>{formatTime(totalDuration)}</Text>
+				</View>
 			</View>
 		</View>
 	);
@@ -186,29 +146,32 @@ const styles = StyleSheet.create({
 	container: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		paddingVertical: 8,
-		gap: 12,
+		paddingVertical: 4,
+		width: 240, // Fixed width for chat bubble
 	},
 	playButton: {
-		width: 40,
-		height: 40,
-		borderRadius: 20,
+		width: 38,
+		height: 38,
+		borderRadius: 19,
 		justifyContent: 'center',
 		alignItems: 'center',
+		marginRight: 10,
 	},
-	playButtonText: {
-		fontSize: 16,
-		fontWeight: 'bold',
-	},
-	timeContainer: {
-		minWidth: 40,
-		alignItems: 'center',
-	},
-	timeText: {
-		fontSize: 12,
+	content: {
+		flex: 1,
+		justifyContent: 'center',
 	},
 	slider: {
-		flex: 1,
-		height: 40,
+		height: 20,
+		marginHorizontal: -8, // Reduce internal horizontal padding of slider
+	},
+	timeRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		marginTop: -2,
+	},
+	timeText: {
+		fontSize: 10,
+		fontWeight: '500',
 	},
 });

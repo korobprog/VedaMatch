@@ -6,6 +6,7 @@ import {
     useColorScheme,
     Alert,
     Platform,
+    BackHandler,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -33,6 +34,23 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation();
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    useEffect(() => {
+        const backAction = () => {
+            if (!navigation.canGoBack()) {
+                navigation.navigate('Portal', { initialTab: 'contacts' });
+                return true;
+            }
+            return false;
+        };
+
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            backAction
+        );
+
+        return () => backHandler.remove();
+    }, [navigation]);
 
     const handleBlockUser = () => {
         if (!currentUser?.ID || !recipientUser?.ID) return;
@@ -77,6 +95,13 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                     title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "Vedic AI"}
                     onSettingsPress={() => setIsSettingsOpen(true)}
                     onCallPress={handleCallPress}
+                    onBackPress={() => {
+                        if (navigation.canGoBack()) {
+                            navigation.goBack();
+                        } else {
+                            navigation.navigate('Portal');
+                        }
+                    }}
                 />
 
                 <MessageList

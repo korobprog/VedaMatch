@@ -8,19 +8,23 @@ import {
 } from 'react-native';
 import { COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
-import { Phone } from 'lucide-react-native';
+import { Phone, Menu, ChevronLeft } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 interface ChatHeaderProps {
     title: string;
     onSettingsPress: () => void;
     onCallPress?: () => void;
+    onBackPress?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
     title,
     onSettingsPress,
     onCallPress,
+    onBackPress,
 }) => {
+    const { t } = useTranslation();
     const { recipientUser } = useChat();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
@@ -29,25 +33,26 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         ? (recipientUser.spiritualName || recipientUser.karmicName)
         : title;
     const subTitle = recipientUser
-        ? `${recipientUser.identity || 'Devotee'} • ${recipientUser.country}, ${recipientUser.city}`
+        ? `${recipientUser.identity || t('common.devotee')} • ${recipientUser.country}, ${recipientUser.city}`
         : null;
 
     return (
         <View style={{
-            backgroundColor: theme.header,
+            backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.85)' : 'rgba(255, 255, 255, 0.9)',
             borderBottomColor: theme.borderColor,
             borderBottomWidth: 0.5,
-            height: 44,
+            height: 56, // Slightly taller for better touch targets
         }}>
             <View style={styles.headerContent}>
-                <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton}>
-                    {/* 3 Vertical Sticks */}
-                    <View style={styles.sticksContainer}>
-                        <View style={[styles.stick, { backgroundColor: theme.text }]} />
-                        <View style={[styles.stick, { backgroundColor: theme.text }]} />
-                        <View style={[styles.stick, { backgroundColor: theme.text }]} />
-                    </View>
-                </TouchableOpacity>
+                {recipientUser ? (
+                    <TouchableOpacity onPress={onBackPress} style={styles.menuButton}>
+                        <ChevronLeft color={theme.text} size={28} />
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton}>
+                        <Menu color={theme.text} size={24} />
+                    </TouchableOpacity>
+                )}
 
                 <View style={styles.titleContainer}>
                     {recipientUser ? (

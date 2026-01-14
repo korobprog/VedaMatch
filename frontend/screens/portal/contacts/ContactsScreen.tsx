@@ -13,15 +13,15 @@ import { useUser } from '../../../context/UserContext';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 import { useChat } from '../../../context/ChatContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, UserMinus } from 'lucide-react-native';
 
 export const ContactsScreen: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { setChatRecipient } = useChat();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { vTheme, isDarkMode } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const vTheme = ModernVedicTheme; // Use Vedic theme for consistent light-themed hub
 
     const { user: currentUser } = useUser();
 
@@ -126,12 +126,12 @@ export const ContactsScreen: React.FC = () => {
 
         if (isToday) {
             return t('contacts.lastSeenToday', {
-                time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }) || `last seen today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                time: date.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
+            });
         } else {
             return t('contacts.lastSeenDate', {
-                date: date.toLocaleDateString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-            }) || `last seen ${date.toLocaleDateString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+                date: date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            });
         }
     };
 

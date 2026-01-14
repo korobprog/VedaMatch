@@ -11,8 +11,26 @@ import {
     FlatList,
     Alert,
     Image,
-    Platform
+    Platform,
+    StatusBar
 } from 'react-native';
+import {
+    Users,
+    MessageCircle,
+    Heart,
+    ShoppingBag,
+    Megaphone,
+    Newspaper,
+    Book,
+    MessageSquare,
+    Plus,
+    Trash2,
+    Settings,
+    User as UserIcon,
+    LogIn,
+    ChevronRight,
+    Sparkles
+} from 'lucide-react-native';
 import { useSettings } from './context/SettingsContext';
 import { useUser } from './context/UserContext';
 import { useChat } from './context/ChatContext';
@@ -42,7 +60,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     onNavigateToSettings,
     onNavigateToRegistration
 }) => {
-    const { fetchModels, defaultMenuTab } = useSettings();
+    const { fetchModels, defaultMenuTab, vTheme } = useSettings();
     const { user, isLoggedIn } = useUser();
     const { history, loadChat, deleteChat, handleNewChat, currentChatId } = useChat();
     const { t } = useTranslation();
@@ -122,86 +140,100 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         <View style={styles.menuContainer}>
             {/* Contacts */}
             <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, ...vTheme.shadows.soft }]}
                 onPress={() => onNavigateToPortal('contacts')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>👥</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.contacts')}</Text>
+                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+                        <Users size={22} color="#3B82F6" strokeWidth={2} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>{t('settings.tabs.contacts')}</Text>
                 </View>
-                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+                <ChevronRight size={18} color={vTheme.colors.textSecondary} />
             </TouchableOpacity>
 
             {/* Portal Chat */}
             <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, ...vTheme.shadows.soft }]}
                 onPress={() => onNavigateToPortal('chat')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>💬</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.chat')}</Text>
+                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(107, 114, 128, 0.1)' }]}>
+                        <MessageCircle size={22} color={vTheme.colors.textSecondary} strokeWidth={2} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>{t('settings.tabs.chat')}</Text>
                 </View>
-                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+                <ChevronRight size={18} color={vTheme.colors.textSecondary} />
             </TouchableOpacity>
 
             {/* Dating */}
             <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, ...vTheme.shadows.soft }]}
                 onPress={() => onNavigateToPortal('dating')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>💖</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.dating')}</Text>
+                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}>
+                        <Heart size={22} color="#EC4899" fill="#EC4899" strokeWidth={1} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>{t('settings.tabs.dating')}</Text>
                 </View>
-                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+                <ChevronRight size={18} color={vTheme.colors.textSecondary} />
             </TouchableOpacity>
 
             {/* Shops */}
             <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, ...vTheme.shadows.soft }]}
                 onPress={() => onNavigateToPortal('shops')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>🛍️</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.shops')}</Text>
+                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(214, 125, 62, 0.1)' }]}>
+                        <ShoppingBag size={22} color={vTheme.colors.primary} strokeWidth={2} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>{t('settings.tabs.shops')}</Text>
                 </View>
-                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+                <ChevronRight size={18} color={vTheme.colors.textSecondary} />
             </TouchableOpacity>
 
             {/* Ads */}
             <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, ...vTheme.shadows.soft }]}
                 onPress={() => onNavigateToPortal('ads')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>📢</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.ads')}</Text>
+                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                        <Megaphone size={22} color="#EF4444" strokeWidth={2} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>{t('settings.tabs.ads')}</Text>
                 </View>
-                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+                <ChevronRight size={18} color={vTheme.colors.textSecondary} />
             </TouchableOpacity>
 
             {/* News */}
             <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, ...vTheme.shadows.soft }]}
                 onPress={() => onNavigateToPortal('news')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>📰</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('settings.tabs.news')}</Text>
+                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(107, 114, 128, 0.1)' }]}>
+                        <Newspaper size={22} color={vTheme.colors.textSecondary} strokeWidth={2} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>{t('settings.tabs.news')}</Text>
                 </View>
-                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+                <ChevronRight size={18} color={vTheme.colors.textSecondary} />
             </TouchableOpacity>
 
             {/* Library */}
             <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: theme.border, backgroundColor: theme.menuItemBg }]}
+                style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, ...vTheme.shadows.soft }]}
                 onPress={() => onNavigateToPortal('library')}
             >
                 <View style={styles.menuItemLeft}>
-                    <Text style={{ fontSize: 22, marginRight: 15 }}>📚</Text>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>Библиотека</Text>
+                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(67, 160, 71, 0.1)' }]}>
+                        <Book size={22} color="#43A047" strokeWidth={2} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>Библиотека</Text>
                 </View>
-                <Text style={{ color: theme.text, opacity: 0.5 }}>›</Text>
+                <ChevronRight size={18} color={vTheme.colors.textSecondary} />
             </TouchableOpacity>
         </View>
     );
@@ -209,14 +241,14 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     const renderChatHistory = () => (
         <View style={styles.historyContainer}>
             <TouchableOpacity
-                style={[styles.newChatButton, { backgroundColor: theme.sectionBg }]}
+                style={[styles.newChatButton, { backgroundColor: vTheme.colors.primary, borderColor: vTheme.colors.primary }]}
                 onPress={() => {
                     handleNewChat();
                     handleClose();
                 }}
             >
-                <Text style={{ fontSize: 20, marginRight: 10 }}>➕</Text>
-                <Text style={[styles.newChatButtonText, { color: theme.text }]}>{t('chat.newChatBtn')}</Text>
+                <Plus size={20} color="#fff" style={{ marginRight: 10 }} strokeWidth={3} />
+                <Text style={[styles.newChatButtonText, { color: '#fff' }]}>{t('chat.newChatBtn')}</Text>
             </TouchableOpacity>
 
             <FlatList
@@ -231,18 +263,20 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                 handleClose();
                             }}
                         >
-                            <Text style={{ fontSize: 20, marginRight: 15 }}>💬</Text>
+                            <View style={[styles.historyIcon, { backgroundColor: vTheme.colors.background }]}>
+                                <MessageSquare size={20} color={vTheme.colors.primary} />
+                            </View>
                             <View style={{ flex: 1 }}>
                                 <Text
                                     style={[
                                         styles.historyItemTitle,
-                                        { color: theme.text, fontWeight: currentChatId === item.id ? 'bold' : 'normal' }
+                                        { color: vTheme.colors.text, fontWeight: currentChatId === item.id ? 'bold' : 'normal' }
                                     ]}
                                     numberOfLines={1}
                                 >
                                     {item.title}
                                 </Text>
-                                <Text style={[styles.historyItemDate, { color: theme.text, opacity: 0.5 }]}>
+                                <Text style={[styles.historyItemDate, { color: vTheme.colors.textSecondary }]}>
                                     {new Date(item.timestamp).toLocaleDateString()}
                                 </Text>
                             </View>
@@ -260,7 +294,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             }}
                             style={styles.deleteBtn}
                         >
-                            <Text style={{ color: '#FF4444', fontSize: 18 }}>🗑️</Text>
+                            <Trash2 size={18} color="#FF4444" />
                         </TouchableOpacity>
                     </View>
                 )}
@@ -297,7 +331,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     style={[
                         styles.drawer,
                         {
-                            backgroundColor: theme.background,
+                            backgroundColor: vTheme.colors.background,
                             transform: [{ translateX: slideAnim }],
                             width: DRAWER_WIDTH
                         }
@@ -305,18 +339,18 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 >
                     <View style={styles.tabBar}>
                         <TouchableOpacity
-                            style={[styles.tab, activeTab === 'history' && { borderBottomColor: theme.text, borderBottomWidth: 2 }]}
+                            style={[styles.tab, activeTab === 'history' && { borderBottomColor: vTheme.colors.primary, borderBottomWidth: 3 }]}
                             onPress={() => setActiveTab('history')}
                         >
-                            <Text style={[styles.tabText, { color: theme.text, opacity: activeTab === 'history' ? 1 : 0.5 }]}>
+                            <Text style={[styles.tabText, { color: vTheme.colors.text, opacity: activeTab === 'history' ? 1 : 0.5 }]}>
                                 {t('chat.history')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.tab, activeTab === 'portal' && { borderBottomColor: theme.text, borderBottomWidth: 2 }]}
+                            style={[styles.tab, activeTab === 'portal' && { borderBottomColor: vTheme.colors.primary, borderBottomWidth: 3 }]}
                             onPress={() => setActiveTab('portal')}
                         >
-                            <Text style={[styles.tabText, { color: theme.text, opacity: activeTab === 'portal' ? 1 : 0.5 }]}>
+                            <Text style={[styles.tabText, { color: vTheme.colors.text, opacity: activeTab === 'portal' ? 1 : 0.5 }]}>
                                 {t('settings.title')}
                             </Text>
                         </TouchableOpacity>
@@ -327,46 +361,46 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     </View>
 
                     {/* Footer Section */}
-                    <View style={[styles.footer, { borderTopColor: theme.border }]}>
+                    <View style={[styles.footer, { borderTopColor: vTheme.colors.divider, backgroundColor: vTheme.colors.backgroundSecondary }]}>
                         {isLoggedIn ? (
                             <View style={styles.profileSection}>
-                                <View style={[styles.avatarCircle, { backgroundColor: theme.sectionBg }]}>
+                                <View style={[styles.avatarCircle, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider }]}>
                                     {user?.avatar ? (
                                         <Image source={{ uri: getMediaUrl(user.avatar) || '' }} style={styles.avatarImage} />
                                     ) : (
-                                        <Text style={{ fontSize: 20 }}>👤</Text>
+                                        <UserIcon size={22} color={vTheme.colors.textSecondary} />
                                     )}
                                 </View>
                                 <View style={styles.userInfo}>
-                                    <Text style={[styles.userName, { color: theme.text }]} numberOfLines={1}>
+                                    <Text style={[styles.userName, { color: vTheme.colors.text }]} numberOfLines={1}>
                                         {user?.spiritualName || user?.karmicName}
                                     </Text>
-                                    <Text style={[styles.userStatus, { color: theme.text, opacity: 0.6 }]}>
+                                    <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>
                                         {t('auth.profile')}
                                     </Text>
                                 </View>
                             </View>
                         ) : (
                             <TouchableOpacity
-                                style={[styles.footerButton, { backgroundColor: theme.sectionBg }]}
+                                style={[styles.footerButton, { backgroundColor: vTheme.colors.primary }]}
                                 onPress={() => {
                                     handleClose();
                                     onNavigateToRegistration();
                                 }}
                             >
-                                <Text style={{ fontSize: 20, marginRight: 10 }}>🔑</Text>
-                                <Text style={[styles.footerButtonText, { color: theme.text }]}>{t('auth.login')}</Text>
+                                <LogIn size={20} color="#fff" style={{ marginRight: 10 }} />
+                                <Text style={[styles.footerButtonText, { color: '#fff' }]}>{t('auth.login')}</Text>
                             </TouchableOpacity>
                         )}
 
                         <TouchableOpacity
-                            style={[styles.settingsIconBtn, { backgroundColor: theme.sectionBg }]}
+                            style={[styles.settingsIconBtn, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider, borderWidth: 1 }]}
                             onPress={() => {
                                 handleClose();
                                 onNavigateToSettings();
                             }}
                         >
-                            <Text style={{ fontSize: 24 }}>⚙️</Text>
+                            <Settings size={22} color={vTheme.colors.text} />
                         </TouchableOpacity>
                     </View>
 
@@ -479,10 +513,26 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
+        padding: 12,
+        borderRadius: 16,
+        marginBottom: 10,
+        borderWidth: 1,
+    },
+    iconWrapper: {
+        width: 40,
+        height: 40,
         borderRadius: 12,
-        marginBottom: 8,
-        borderBottomWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    historyIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
     },
     menuItemLeft: {
         flexDirection: 'row',

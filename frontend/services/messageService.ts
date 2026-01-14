@@ -55,4 +55,15 @@ export const messageService = {
             throw error;
         }
     },
+
+    async deleteMessage(messageId: number): Promise<void> {
+        const url = `${API_BASE_URL}/api/messages/${messageId}`;
+        const headers = await getAuthHeaders();
+        try {
+            await axios.delete(url, { headers });
+        } catch (error: any) {
+            console.error('[messageService] Delete failed', error.response?.status);
+            throw error;
+        }
+    },
 };

@@ -4,6 +4,9 @@ import { modelsConfig } from '../config/models.config';
 import { useUser } from './UserContext';
 import { Alert, useColorScheme } from 'react-native';
 import { COLORS } from '../components/chat/ChatConstants';
+import { VedicLightTheme, VedicDarkTheme } from '../theme/ModernVedicTheme';
+
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 interface Model {
     id: string;
@@ -28,7 +31,10 @@ interface SettingsContextType {
     defaultMenuTab: 'portal' | 'history';
     setDefaultMenuTab: (tab: 'portal' | 'history') => void;
     theme: typeof COLORS.dark;
+    vTheme: typeof VedicLightTheme;
     isDarkMode: boolean;
+    themeMode: ThemeMode;
+    setThemeMode: (mode: ThemeMode) => void;
     isAutoMagicEnabled: boolean;
     toggleAutoMagic: () => void;
 }
@@ -45,10 +51,17 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [imagePosition, setImagePosition] = useState<'left' | 'center' | 'right'>('left');
     const [defaultMenuTab, setDefaultMenuTabState] = useState<'portal' | 'history'>('portal');
     const [isAutoMagicEnabled, setIsAutoMagicEnabled] = useState<boolean>(true);
+    const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
 
     const colorScheme = useColorScheme();
-    const isDarkMode = colorScheme === 'dark';
+
+    // Resolve dark mode based on setting or system
+    const isDarkMode = themeMode === 'system'
+        ? colorScheme === 'dark'
+        : themeMode === 'dark';
+
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const vTheme = isDarkMode ? VedicDarkTheme : VedicLightTheme;
 
     const { isLoggedIn } = useUser();
 
@@ -131,6 +144,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 if (autoMagic !== null && autoMagic !== 'undefined' && autoMagic !== 'null') {
                     setIsAutoMagicEnabled(JSON.parse(autoMagic));
                 }
+
+                const savedThemeMode = await AsyncStorage.getItem('theme_mode');
+                if (savedThemeMode === 'light' || savedThemeMode === 'dark' || savedThemeMode === 'system') {
+                    setThemeModeState(savedThemeMode as ThemeMode);
+                }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
             }
@@ -143,6 +161,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             fetchModels();
         }
     }, [isLoggedIn]);
+
+    const setThemeMode = async (mode: ThemeMode) => {
+        setThemeModeState(mode);
+        try {
+            await AsyncStorage.setItem('theme_mode', mode);
+        } catch (e) {
+            console.error('Failed to save theme setting', e);
+        }
+    };
 
     const setDefaultMenuTab = async (tab: 'portal' | 'history') => {
         setDefaultMenuTabState(tab);
@@ -168,7 +195,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             defaultMenuTab,
             setDefaultMenuTab,
             theme,
+            vTheme,
             isDarkMode,
+            themeMode,
+            setThemeMode,
             isAutoMagicEnabled,
             toggleAutoMagic,
         }}>

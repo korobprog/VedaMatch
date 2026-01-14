@@ -33,7 +33,10 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         defaultMenuTab,
         setDefaultMenuTab,
         isAutoMagicEnabled,
-        toggleAutoMagic
+        toggleAutoMagic,
+        vTheme,
+        themeMode,
+        setThemeMode,
     } = useSettings();
 
     const { logout } = useUser();
@@ -85,34 +88,34 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
     const anyFilterActive = Object.values(activeFilters).some(v => v);
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+            <View style={[styles.header, { backgroundColor: vTheme.colors.background, borderBottomColor: vTheme.colors.divider }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Text style={[styles.backText, { color: theme.text }]}>← {t('settings.appSettings')}</Text>
+                    <Text style={[styles.backText, { color: vTheme.colors.text }]}>← {t('settings.appSettings')}</Text>
                 </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.content}>
                 {/* Profile Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.profile') || 'Profile'}</Text>
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
+                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('settings.profile') || 'Profile'}</Text>
                     <TouchableOpacity
                         style={[
                             styles.actionButton,
-                            { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }
+                            { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }
                         ]}
                         onPress={() => navigation.navigate('EditProfile' as any)}
                     >
                         <View style={styles.actionContent}>
-                            <Text style={[styles.actionTitle, { color: theme.text }]}>
+                            <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
                                 {t('profile.editProfile') || 'Edit Profile'}
                             </Text>
-                            <Text style={[styles.actionDescription, { color: theme.subText }]}>
+                            <Text style={[styles.actionDescription, { color: vTheme.colors.textSecondary }]}>
                                 {t('profile.editProfileDesc') || 'Update your personal information'}
                             </Text>
                         </View>
-                        <Text style={{ color: theme.subText }}>→</Text>
+                        <Text style={{ color: vTheme.colors.textSecondary }}>→</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -134,6 +137,30 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 onPress={() => setImageSize(s)}
                             >
                                 <Text style={{ color: imageSize === s ? theme.buttonText : theme.text }}>{s}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Theme Settings Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
+                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('settings.theme.title')}</Text>
+                    <View style={styles.sizeOptions}>
+                        {(['light', 'dark', 'system'] as const).map(mode => (
+                            <TouchableOpacity
+                                key={mode}
+                                style={[
+                                    styles.sizeBtn,
+                                    {
+                                        backgroundColor: themeMode === mode ? vTheme.colors.primary : vTheme.colors.backgroundSecondary,
+                                        borderColor: vTheme.colors.divider
+                                    }
+                                ]}
+                                onPress={() => setThemeMode(mode)}
+                            >
+                                <Text style={{ color: themeMode === mode ? '#fff' : vTheme.colors.text, fontWeight: '500' }}>
+                                    {t(`settings.theme.${mode}`)}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>

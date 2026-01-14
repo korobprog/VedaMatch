@@ -45,6 +45,7 @@ interface ChatContextType {
     startRecording: () => Promise<void>;
     stopRecording: () => Promise<void>;
     cancelRecording: () => Promise<void>;
+    deleteMessage: (messageId: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -196,6 +197,15 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     } else {
                         setIsTyping(false);
                     }
+                }
+                return;
+            }
+
+            // Handle deletion events
+            if (msg.type === 'delete_message') {
+                const deletedId = msg.messageId?.toString();
+                if (deletedId) {
+                    setMessages(prev => prev.filter(m => m.id !== deletedId));
                 }
                 return;
             }
@@ -607,6 +617,20 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             startRecording,
             stopRecording,
             cancelRecording,
+            deleteMessage: async (messageId: string) => {
+                try {
+                    // Only try to delete from server if it's a numeric ID (P2P message)
+                    const numericId = parseInt(messageId, 10);
+                    if (!isNaN(numericId) && recipientId) {
+                        await messageService.deleteMessage(numericId);
+                    }
+                    // Always remove from local state
+                    setMessages(prev => prev.filter(m => m.id !== messageId));
+                } catch (error) {
+                    console.error('Failed to delete message', error);
+                    Alert.alert('Error', 'Could not delete message');
+                }
+            },
         }}>
             {children}
         </ChatContext.Provider>

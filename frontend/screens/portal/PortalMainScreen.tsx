@@ -37,7 +37,7 @@ import { DatingScreen } from './dating/DatingScreen';
 import { LibraryHomeScreen } from '../library/LibraryHomeScreen';
 import { EducationHomeScreen } from './education/EducationHomeScreen';
 import { useUser } from '../../context/UserContext';
-import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
+import { useSettings } from '../../context/SettingsContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 
 const { width } = Dimensions.get('window');
@@ -45,6 +45,7 @@ const { width } = Dimensions.get('window');
 export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
+    const { vTheme, isDarkMode } = useSettings();
     const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education'>(route.params?.initialTab || 'contacts');
 
     useEffect(() => {
@@ -84,10 +85,26 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     const TabButton = ({ tab }: { tab: any }) => {
         const isActive = activeTab === tab.id;
 
+        const getTabColor = (id: string) => {
+            switch (id) {
+                case 'contacts': return '#3B82F6';
+                case 'chat': return vTheme.colors.textSecondary;
+                case 'dating': return '#EC4899';
+                case 'shops': return vTheme.colors.primary;
+                case 'ads': return '#EF4444';
+                case 'news': return vTheme.colors.textSecondary;
+                case 'library': return '#43A047';
+                case 'education': return '#8B5CF6';
+                default: return vTheme.colors.primary;
+            }
+        };
+
+        const tabColor = getTabColor(tab.id);
+
         const renderIcon = (iconName: string, active: boolean) => {
-            const size = active ? 28 : 24;
-            const color = active ? ModernVedicTheme.colors.primary : ModernVedicTheme.colors.text;
-            const opacity = active ? 1 : 0.7;
+            const size = active ? 24 : 22;
+            const color = active ? tabColor : vTheme.colors.textSecondary;
+            const opacity = active ? 1 : 0.6;
 
             switch (iconName) {
                 case 'Users': return <Users size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
@@ -125,7 +142,10 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
                 }}
                 style={styles.tabItem}
             >
-                <View style={[styles.iconContainer, isActive && styles.activeIconContainer]}>
+                <View style={[
+                    styles.iconContainer,
+                    isActive && { backgroundColor: `${tabColor}15`, borderColor: `${tabColor}40`, borderWidth: 1 }
+                ]}>
                     {renderIcon(tab.icon, isActive)}
                 </View>
             </TouchableOpacity>
@@ -133,30 +153,30 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={ModernVedicTheme.colors.background} />
+        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+            <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={vTheme.colors.background} />
 
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
                 <View style={styles.headerLeft}>
                     {/* User Avatar Placeholder or Back */}
                     <TouchableOpacity
-                        onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.replace('Chat')}
-                        style={styles.avatarButton}
+                        onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Chat')}
+                        style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
                     >
-                        <User size={20} color={ModernVedicTheme.colors.primary} />
+                        <User size={20} color={vTheme.colors.primary} />
                     </TouchableOpacity>
                 </View>
 
                 <Image
                     source={require('../../assets/logo_tilak.png')}
-                    style={styles.logoImage}
+                    style={[styles.logoImage, isDarkMode && { tintColor: vTheme.colors.primary }]}
                     resizeMode="contain"
                 />
 
                 <View style={styles.headerRight}>
                     <TouchableOpacity style={styles.iconButton}>
-                        <Bell size={22} color={ModernVedicTheme.colors.textSecondary} />
+                        <Bell size={22} color={vTheme.colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -169,7 +189,7 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             {/* Floating Bottom Navigation */}
             <View style={styles.bottomNavContainer}>
                 {/* Glassmorphic Background */}
-                <View style={styles.glassBackground}>
+                <View style={[styles.glassBackground, { backgroundColor: vTheme.colors.glass, borderColor: vTheme.colors.glassBorder, ...vTheme.shadows.soft }]}>
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -187,7 +207,6 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: ModernVedicTheme.colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -196,7 +215,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: Platform.OS === 'ios' ? 60 : 20,
         paddingBottom: 20,
-        backgroundColor: ModernVedicTheme.colors.background,
         zIndex: 10,
     },
     logoImage: {
@@ -214,10 +232,8 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: ModernVedicTheme.colors.backgroundSecondary,
         justifyContent: 'center',
         alignItems: 'center',
-        ...ModernVedicTheme.shadows.soft,
     },
     iconButton: {
         padding: 5,
@@ -243,12 +259,9 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 70,
-        backgroundColor: ModernVedicTheme.colors.glass,
         borderRadius: 35,
         borderWidth: 1,
-        borderColor: ModernVedicTheme.colors.glassBorder,
         overflow: 'hidden',
-        ...ModernVedicTheme.shadows.soft,
     },
     sideScroll: {
         flex: 1,
@@ -273,11 +286,9 @@ const styles = StyleSheet.create({
     activeIconContainer: {
         backgroundColor: 'rgba(214, 125, 62, 0.1)',
         borderWidth: 2,
-        borderColor: ModernVedicTheme.colors.primary,
     },
     tabIcon: {
         fontSize: 26,
         opacity: 0.5,
-        color: ModernVedicTheme.colors.textSecondary,
     },
 });

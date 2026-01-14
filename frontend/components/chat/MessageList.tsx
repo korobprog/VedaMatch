@@ -13,7 +13,9 @@ import {
     TouchableOpacity,
     Alert,
     Linking,
+    Platform,
 } from 'react-native';
+import { FileText, File, Download, Music, Video, Image as ImageIcon } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
 import { ChatImage } from '../ChatImage';
@@ -37,64 +39,95 @@ export const MessageList: React.FC<MessageListProps> = ({
     onShareImage,
     onNavigateToTab,
 }) => {
-    const { t } = useTranslation();
-    const { messages, isLoading, isTyping, recipientUser } = useChat();
+    const { t, i18n } = useTranslation();
+    const { messages, isLoading, isTyping, recipientUser, deleteMessage } = useChat();
     const { imageSize } = useSettings();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const flatListRef = useRef<FlatList>(null);
 
+    const formatMessageTime = (dateStr?: string) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const groupMessagesByDate = (msgs: Message[]) => {
+        const groups: { title: string; data: Message[] }[] = [];
+        msgs.forEach(msg => {
+            const date = msg.createdAt ? new Date(msg.createdAt) : new Date();
+            const dateStr = date.toDateString();
+            const today = new Date().toDateString();
+            const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+            let title = dateStr;
+            if (dateStr === today) title = t('chat.today');
+            else if (dateStr === yesterday) title = t('chat.yesterday');
+
+            const group = groups.find(g => g.title === title);
+            if (group) group.data.push(msg);
+            else groups.push({ title, data: [msg] });
+        });
+        return groups;
+    };
+
+    // Flatten messages with date headers
+    const messagesWithHeaders = (() => {
+        const result: (Message | { type: 'header', title: string, id: string })[] = [];
+        let lastDate = '';
+
+        messages.forEach(msg => {
+            const date = msg.createdAt ? new Date(msg.createdAt) : new Date();
+            const dateStr = date.toDateString();
+            if (dateStr !== lastDate) {
+                const today = new Date().toDateString();
+                const yesterday = new Date(Date.now() - 86400000).toDateString();
+                let title = date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'long' });
+                if (dateStr === today) title = t('chat.today');
+                else if (dateStr === yesterday) title = t('chat.yesterday');
+
+                result.push({ type: 'header', title, id: `header-${dateStr}` });
+                lastDate = dateStr;
+            }
+            result.push(msg);
+        });
+        return result;
+    })();
+
     const openImage = (uri: string) => {
         Alert.alert(
-            'Просмотр изображения',
-            'Что вы хотите сделать с изображением?',
+            t('chat.viewImage'),
+            t('chat.viewImagePrompt'),
             [
-                { text: 'Отмена', style: 'cancel' },
-                { text: 'Скачать', onPress: () => onDownloadImage(uri) },
-                { text: 'Поделиться', onPress: () => onShareImage(uri) },
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('chat.download'), onPress: () => onDownloadImage(uri) },
+                { text: t('chat.share'), onPress: () => onShareImage(uri) },
             ]
         );
     };
 
     const openDocument = (url: string, fileName?: string) => {
         Alert.alert(
-            'Документ',
-            `Скачать файл: ${fileName || 'Документ'}?`,
+            t('chat.document'),
+            t('chat.downloadFilePrompt', { fileName: fileName || t('chat.document') }),
             [
-                { text: 'Отмена', style: 'cancel' },
-                { text: 'Скачать', onPress: () => Linking.openURL(url) },
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('chat.download'), onPress: () => Linking.openURL(url) },
             ]
         );
     };
 
-    const markdownStyles: any = {
-        body: {
-            color: theme.text,
-            fontSize: 16,
-            lineHeight: 22,
-        },
-        paragraph: {
-            marginTop: 0,
-            marginBottom: 8,
-        },
-        imageContainer: {
-            marginVertical: 8,
-            alignItems: 'center' as const,
-        },
-        markdownImage: {
-            width: '100%',
-            maxWidth: 300,
-            height: 200,
-            borderRadius: 8,
-            marginBottom: 8,
-        },
+    const mdStyles: any = {
+        body: { color: theme.text, fontSize: 16, lineHeight: 22 },
+        paragraph: { marginTop: 0, marginBottom: 8 },
+        imageContainer: { marginVertical: 8, alignItems: 'center' as const },
+        markdownImage: { width: '100%', maxWidth: 300, height: 200, borderRadius: 8, marginBottom: 8 },
     };
 
-    const markdownRules = {
+    const mdRules = {
         image: (node: any) => {
             const imageUrl = node.attributes?.src || '';
             const altText = node.attributes?.alt || 'Изображение';
-
             return (
                 <ChatImage
                     key={node.key}
@@ -108,7 +141,15 @@ export const MessageList: React.FC<MessageListProps> = ({
         },
     };
 
-    // Helper to render audio player using WebView
+    const getFileIcon = (fileName: string) => {
+        const ext = fileName.split('.').pop()?.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <ImageIcon size={24} color={theme.primary} />;
+        if (['mp3', 'wav', 'm4a', 'aac'].includes(ext || '')) return <Music size={24} color={theme.primary} />;
+        if (['mp4', 'mov', 'avi', 'mkv'].includes(ext || '')) return <Video size={24} color={theme.primary} />;
+        if (['pdf', 'doc', 'docx', 'txt'].includes(ext || '')) return <FileText size={24} color={theme.primary} />;
+        return <File size={24} color={theme.primary} />;
+    };
+
     const renderAudioPlayer = (url: string, key: string | number) => {
         const html = `
             <!DOCTYPE html>
@@ -130,7 +171,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         `;
 
         return (
-            <View key={key} style={{ height: 60, width: 260, marginVertical: 5, borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent' }}>
+            <View key={key} style={{ height: 60, width: 220, marginVertical: 5, borderRadius: 12, overflow: 'hidden', backgroundColor: 'transparent' }}>
                 <WebView
                     originWhitelist={['*']}
                     source={{ html }}
@@ -148,231 +189,176 @@ export const MessageList: React.FC<MessageListProps> = ({
         );
     };
 
-    const renderMessage = ({ item }: { item: Message }) => {
+    const handleDeleteMessage = (msg: Message) => {
+        if (msg.sender !== 'user') return;
+        Alert.alert(
+            t('chat.deleteTitle'),
+            t('chat.deleteMsg'),
+            [
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('chat.delete'), style: 'destructive', onPress: () => deleteMessage(msg.id) }
+            ]
+        );
+    };
+
+    const renderMessage = ({ item: rawItem }: { item: any }) => {
+        if (rawItem.type === 'header') {
+            return (
+                <View style={styles.dateHeader}>
+                    <View style={[styles.dateLine, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
+                    <Text style={[styles.dateText, { color: theme.subText }]}>{rawItem.title}</Text>
+                    <View style={[styles.dateLine, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
+                </View>
+            );
+        }
+
+        const item = rawItem as Message;
         const isUser = item.sender === 'user';
         const text = item.text || '';
         const isImageOnly = !isUser && text.trim().startsWith('![') && text.trim().endsWith(')') && !text.trim().includes('\n', 2);
+        const time = formatMessageTime(item.createdAt);
 
-        // Handle uploading state
+        const bubbleStyle = [
+            styles.bubble,
+            isUser ? styles.userBubble : styles.botBubble,
+            {
+                backgroundColor: isUser
+                    ? (isDarkMode ? 'rgba(214, 125, 62, 0.25)' : 'rgba(214, 125, 62, 0.15)')
+                    : (isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)'),
+                borderColor: isUser
+                    ? 'rgba(214, 125, 62, 0.3)'
+                    : (isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'),
+                borderWidth: 1,
+            }
+        ];
+
+        const MessageWrapper = ({ children }: { children: React.ReactNode }) => (
+            <TouchableOpacity
+                activeOpacity={0.9}
+                onLongPress={() => handleDeleteMessage(item)}
+                delayLongPress={500}
+                style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}
+            >
+                {children}
+            </TouchableOpacity>
+        );
+
         if (item.uploading) {
             return (
-                <View style={[styles.messageRow, styles.userRow]}>
-                    <View style={[styles.bubble, styles.textBubble, { backgroundColor: theme.userBubble }]}>
+                <MessageWrapper>
+                    <View style={bubbleStyle}>
                         <View style={styles.uploadingContainer}>
-                            <ActivityIndicator size="small" color={theme.iconColor} />
-                            <Text style={[styles.uploadingText, { color: isDarkMode ? '#FFF' : '#3E2723' }]}>
-                                Загрузка...
-                            </Text>
+                            <ActivityIndicator size="small" color={theme.primary} />
+                            <Text style={[styles.uploadingText, { color: theme.text }]}>{t('chat.uploading')}</Text>
                         </View>
                     </View>
-                </View>
+                </MessageWrapper>
             );
         }
-
-        // Handle media messages
-        if (item.type === 'image' && item.content) {
-            const content = item.content;
-            return (
-                <View style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}>
-                    {!isUser && (
-                        <View style={styles.avatar}>
-                            <Image
-                                source={require('../../assets/krishnaAssistant.png')}
-                                style={{ width: '100%', height: '100%' }}
-                                resizeMode="cover"
-                            />
-                        </View>
-                    )}
-                    <TouchableOpacity onPress={() => openImage(content)}>
-                        <Image
-                            source={{ uri: content }}
-                            style={styles.messageImage}
-                            resizeMode="cover"
-                        />
-                    </TouchableOpacity>
-                </View>
-            );
-        }
-
-        if (item.type === 'audio' && item.content) {
-            const content = item.content;
-            return (
-                <View style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}>
-                    {!isUser && (
-                        <View style={styles.avatar}>
-                            <Image
-                                source={require('../../assets/krishnaAssistant.png')}
-                                style={{ width: '100%', height: '100%' }}
-                                resizeMode="cover"
-                            />
-                        </View>
-                    )}
-                    <View style={[styles.bubble, styles.textBubble, { backgroundColor: isUser ? theme.userBubble : theme.botBubble }]}>
-                        <AudioPlayer
-                            url={content}
-                            duration={item.duration}
-                            isDarkMode={isDarkMode}
-                            onError={() => Alert.alert('Ошибка', 'Не удалось воспроизвести аудио')}
-                        />
-                    </View>
-                </View>
-            );
-        }
-
-        if ((item.type === 'document' || item.type === 'file') && item.content) {
-            const content = item.content;
-            return (
-                <View style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}>
-                    {!isUser && (
-                        <View style={styles.avatar}>
-                            <Image
-                                source={require('../../assets/krishnaAssistant.png')}
-                                style={{ width: '100%', height: '100%' }}
-                                resizeMode="cover"
-                            />
-                        </View>
-                    )}
-                    <TouchableOpacity
-                        style={[styles.bubble, styles.textBubble, { backgroundColor: isUser ? theme.userBubble : theme.botBubble }]}
-                        onPress={() => openDocument(content, item.fileName)}
-                    >
-                        <View style={styles.documentContainer}>
-                            <Text style={styles.documentIcon}>📎</Text>
-                            <View style={styles.documentInfo}>
-                                <Text style={[styles.documentName, { color: isDarkMode ? '#FFF' : '#3E2723' }]} numberOfLines={1}>
-                                    {item.fileName}
-                                </Text>
-                                <Text style={[styles.documentSize, { color: isDarkMode ? '#CCC' : '#757575' }]}>
-                                    {item.fileSize ? mediaService.formatFileSize(item.fileSize) : '0 B'}
-                                </Text>
-                            </View>
-                            <Text style={styles.downloadIcon}>⬇</Text>
-                        </View>
-                    </TouchableOpacity>
-                </View>
-            );
-        }
-
-        // Parse content looking for <audio> tags
-        // Regex finds <audio ... src="...">...</audio> or just open tag if it's not closed properly (though usually LLM closes it)
-        // We assume valid HTML <audio ...></audio>
-        const textContent = item.text || '';
-        const parts = textContent.split(/(<audio\s+[^>]*src="[^"]+"[^>]*>.*?<\/audio>)/gi);
 
         return (
-            <View
-                style={[
-                    styles.messageRow,
-                    isUser ? styles.userRow : styles.botRow,
-                ]}
-            >
-                {isUser ? (
-                    <View style={[styles.bubble, styles.textBubble, { backgroundColor: theme.userBubble }]}>
-                        <Text style={[styles.messageText, { color: isDarkMode ? '#FFF' : '#3E2723' }]}>{item.text}</Text>
-                    </View>
-                ) : (
-                    <View style={[
-                        { width: '100%', alignItems: 'flex-start' },
-                        isImageOnly ? { flexDirection: 'column' } : { flexDirection: 'row', paddingHorizontal: 16 }
-                    ]}>
-                        <View style={[
-                            styles.avatar,
-                            {
-                                backgroundColor: isDarkMode ? 'transparent' : '#FFF',
-                                borderColor: theme.borderColor,
-                                borderWidth: 0,
-                                marginBottom: isImageOnly ? 6 : 0,
-                                marginRight: isImageOnly ? 0 : 8,
-                                overflow: 'hidden',
-                            }
-                        ]}>
-                            <Image
-                                source={require('../../assets/krishnaAssistant.png')}
-                                style={{ width: '100%', height: '100%' }}
-                                resizeMode="cover"
-                            />
-                        </View>
-                        <View style={[
-                            styles.bubble,
-                            isImageOnly ? styles.imageOnlyBubble : styles.textBubble,
-                            {
-                                backgroundColor: theme.botBubble,
-                                borderColor: theme.borderColor,
-                                borderWidth: isDarkMode ? 0 : 1,
-                                width: isImageOnly ? Math.min(imageSize + 14, SCREEN_WIDTH - 40) : undefined,
-                                maxWidth: '100%',
-                            }
-                        ]}>
-                            {parts.map((part, index) => {
-                                // Check if this part is an audio tag
-                                const audioMatch = part.match(/<audio\s+[^>]*src="([^"]+)"[^>]*>/i);
-                                if (audioMatch) {
-                                    return renderAudioPlayer(audioMatch[1], index);
-                                }
-
-                                // Skip empty strings resulting from split
-                                if (!part.trim() && parts.length > 1) return null;
-
-                                return (
-                                    <Markdown
-                                        key={index}
-                                        style={markdownStyles}
-                                        rules={markdownRules}
-                                    >
-                                        {part}
-                                    </Markdown>
-                                );
-                            })}
-
-                            {item.navTab && (
-                                <TouchableOpacity
-                                    style={[styles.navButton, { backgroundColor: theme.button }]}
-                                    onPress={() => onNavigateToTab(item.navTab)}
-                                >
-                                    <Text style={[styles.navButtonText, { color: theme.buttonText }]}>
-                                        {t('chat.goToSection')}
-                                    </Text>
-                                    <Text style={{ fontSize: 14, color: theme.buttonText, marginLeft: 8 }}>→</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
+            <MessageWrapper>
+                {!isUser && (
+                    <View style={styles.avatar}>
+                        <Image
+                            source={require('../../assets/krishnaAssistant.png')}
+                            style={styles.avatarImage}
+                        />
                     </View>
                 )}
-            </View>
+                <View style={bubbleStyle}>
+                    {item.type === 'image' && item.content ? (
+                        <TouchableOpacity onPress={() => openImage(item.content!)}>
+                            <Image source={{ uri: item.content }} style={styles.messageImage} />
+                        </TouchableOpacity>
+                    ) : item.type === 'audio' && item.content ? (
+                        <AudioPlayer url={item.content} duration={item.duration} isDarkMode={isDarkMode} />
+                    ) : (item.type === 'document' || item.type === 'file') && item.content ? (
+                        <TouchableOpacity onPress={() => openDocument(item.content!, item.fileName)} style={styles.documentCard}>
+                            <View style={[styles.documentIconContainer, { backgroundColor: theme.primary + '20' }]}>
+                                {getFileIcon(item.fileName || '')}
+                            </View>
+                            <View style={styles.documentInfo}>
+                                <Text style={[styles.documentName, { color: theme.text }]} numberOfLines={1}>{item.fileName || t('chat.document')}</Text>
+                                <View style={styles.documentMeta}>
+                                    <Text style={[styles.documentSize, { color: theme.subText }]}>
+                                        {item.fileSize ? mediaService.formatFileSize(item.fileSize) : 'File'}
+                                    </Text>
+                                    <View style={styles.extensionBadge}>
+                                        <Text style={styles.extensionText}>{(item.fileName?.split('.').pop() || 'FILE').toUpperCase()}</Text>
+                                    </View>
+                                </View>
+                            </View>
+                            <View style={[styles.downloadBtn, { backgroundColor: theme.primary }]}>
+                                <Download size={16} color="#FFF" />
+                            </View>
+                        </TouchableOpacity>
+                    ) : (
+                        <View>
+                            {/* Text content split by audio player if present */}
+                            {text.split(/(<audio\s+[^>]*src="[^"]+"[^>]*>.*?<\/audio>)/gi).map((part, index) => {
+                                const audioMatch = part.match(/<audio\s+[^>]*src="([^"]+)"[^>]*>/i);
+                                if (audioMatch) return renderAudioPlayer(audioMatch[1], index);
+                                if (!part.trim() && index > 0) return null;
+                                return (
+                                    <View key={index} style={{ flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap', maxWidth: '100%' }}>
+                                        <Markdown style={mdStyles} rules={mdRules}>
+                                            {part}
+                                        </Markdown>
+                                        <Text style={[styles.timeText, { color: theme.subText, marginLeft: 6, marginBottom: 2 }]}>{time}</Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {!text && !item.uploading && (
+                        <View style={styles.timeOverlay}>
+                            <Text style={[styles.timeText, { color: theme.subText }]}>{time}</Text>
+                        </View>
+                    )}
+
+                    {item.navTab && (
+                        <TouchableOpacity
+                            style={[styles.navButton, { backgroundColor: theme.primary }]}
+                            onPress={() => onNavigateToTab(item.navTab)}
+                        >
+                            <Text style={[styles.navButtonText, { color: '#FFF' }]}>{t('chat.goToSection')}</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </MessageWrapper>
         );
     };
 
     return (
-        <View style={[styles.chatContainer, { backgroundColor: theme.background }]}>
+        <View style={styles.chatContainer}>
             <ImageBackground
                 source={require('../../assets/krishna_bg.png')}
-                style={{ flex: 1, justifyContent: "center" }}
+                style={StyleSheet.absoluteFill}
                 resizeMode="cover"
             >
-                <View style={{ flex: 1, backgroundColor: isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.6)' }}>
+                <View style={[styles.overlay, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.65)' }]}>
                     <FlatList
                         ref={flatListRef}
-                        data={messages}
+                        data={messagesWithHeaders}
                         renderItem={renderMessage}
-                        keyExtractor={(item) => item.id}
-                        contentContainerStyle={[styles.listContent, { flexGrow: 1 }]}
+                        keyExtractor={(item: any) => item.id}
+                        contentContainerStyle={styles.listContent}
                         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
                         onScrollBeginDrag={() => Keyboard.dismiss()}
-                        keyboardShouldPersistTaps="handled"
                     />
                     {isLoading && (
-                        <View style={styles.loadingIndicator}>
-                            <ActivityIndicator size="small" color={theme.iconColor} />
-                            <Text style={[styles.loadingText, { color: theme.subText }]}>
-                                Отправка...
-                            </Text>
+                        <View style={styles.statusBox}>
+                            <ActivityIndicator size="small" color={theme.primary} />
+                            <Text style={[styles.statusText, { color: theme.subText }]}>Отправка...</Text>
                         </View>
                     )}
                     {isTyping && recipientUser && (
-                        <View style={styles.typingIndicator}>
-                            <ActivityIndicator size="small" color={theme.iconColor} />
-                            <Text style={[styles.typingText, { color: theme.subText }]}>
-                                {recipientUser.spiritualName || recipientUser.karmicName} печатает...
+                        <View style={styles.statusBox}>
+                            <ActivityIndicator size="small" color={theme.primary} />
+                            <Text style={[styles.statusText, { color: theme.subText }]}>
+                                {recipientUser.spiritualName || recipientUser.karmicName} {t('chat.isTyping')}
                             </Text>
                         </View>
                     )}
@@ -383,129 +369,46 @@ export const MessageList: React.FC<MessageListProps> = ({
 };
 
 const styles = StyleSheet.create({
-    chatContainer: {
-        flex: 1,
-    },
-    listContent: {
-        paddingVertical: 20,
-        paddingHorizontal: 0, // Убираем общий паддинг, будем задавать его строкам
-        paddingBottom: 40,
-        flexGrow: 1,
-    },
-    messageRow: {
-        marginBottom: 16,
-        width: '100%',
-    },
-    userRow: {
-        alignItems: 'flex-end',
-    },
-    botRow: {
-        alignItems: 'flex-start',
-        paddingRight: 20, // Add padding to prevent clipping on the right
-    },
+    chatContainer: { flex: 1 },
+    overlay: { flex: 1 },
+    listContent: { paddingVertical: 20, paddingHorizontal: 16, paddingBottom: 40 },
+    messageRow: { marginBottom: 12, flexDirection: 'row', width: '100%', alignItems: 'flex-end' },
+    userRow: { justifyContent: 'flex-end' },
+    botRow: { justifyContent: 'flex-start' },
     bubble: {
-        borderRadius: 18,
-        maxWidth: '85%',
-    },
-    textBubble: {
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        marginRight: 10, // Extra margin to ensure no overlap/clip
-    },
-    imageOnlyBubble: {
-        paddingVertical: 6,
-        paddingHorizontal: 6,
         borderRadius: 20,
-        // Shadow and elevation for the "box" effect
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    messageText: {
-        fontSize: 16,
-        lineHeight: 22,
-    },
-    avatar: {
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 8,
-    },
-    loadingIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        maxWidth: '85%',
         paddingVertical: 8,
-        paddingHorizontal: 16,
+        paddingHorizontal: 12,
+        ...Platform.select({
+            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+            android: { elevation: 2 }
+        })
     },
-    loadingText: {
-        marginLeft: 8,
-        fontSize: 14,
-    },
-    typingIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-    },
-    typingText: {
-        marginLeft: 8,
-        fontSize: 14,
-    },
-    navButton: {
-        marginTop: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 12,
-        alignSelf: 'flex-start',
-    },
-    navButtonText: {
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    messageImage: {
-        width: 200,
-        height: 200,
-        borderRadius: 12,
-    },
-    documentContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
-    documentIcon: {
-        fontSize: 24,
-        marginRight: 12,
-    },
-    documentInfo: {
-        flex: 1,
-    },
-    documentName: {
-        fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 4,
-    },
-    documentSize: {
-        fontSize: 12,
-    },
-    downloadIcon: {
-        fontSize: 18,
-        marginLeft: 8,
-    },
-    uploadingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
-    uploadingText: {
-        marginLeft: 8,
-        fontSize: 14,
-    },
+    userBubble: { borderBottomRightRadius: 4 },
+    botBubble: { borderBottomLeftRadius: 4 },
+    timeText: { fontSize: 10, fontWeight: '500' },
+    timeOverlay: { position: 'absolute', bottom: 6, right: 12 },
+    avatar: { width: 34, height: 34, borderRadius: 10, marginRight: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.2)' },
+    avatarImage: { width: '100%', height: '100%' },
+    messageText: { fontSize: 16, lineHeight: 22 },
+    dateHeader: { flexDirection: 'row', alignItems: 'center', marginVertical: 20, paddingHorizontal: 20 },
+    dateLine: { flex: 1, height: 1, borderRadius: 0.5 },
+    dateText: { marginHorizontal: 12, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+    statusBox: { flexDirection: 'row', alignItems: 'center', padding: 12 },
+    statusText: { marginLeft: 8, fontSize: 13 },
+    messageImage: { width: 240, height: 240, borderRadius: 12, marginBottom: 4 },
+    documentCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 12, padding: 8, marginVertical: 4, width: 250 },
+    documentIconContainer: { width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+    documentInfo: { flex: 1, marginRight: 8 },
+    documentMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+    documentName: { fontSize: 13, fontWeight: '600' },
+    documentSize: { fontSize: 11 },
+    extensionBadge: { marginLeft: 6, paddingHorizontal: 4, paddingVertical: 1, backgroundColor: 'rgba(128,128,128,0.2)', borderRadius: 4 },
+    extensionText: { fontSize: 8, fontWeight: 'bold', color: '#666' },
+    downloadBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    navButton: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center' },
+    navButtonText: { fontSize: 13, fontWeight: 'bold' },
+    uploadingContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+    uploadingText: { marginLeft: 8, fontSize: 14 }
 });

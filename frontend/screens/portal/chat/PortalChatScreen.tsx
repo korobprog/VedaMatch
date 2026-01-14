@@ -31,7 +31,7 @@ const EMOJI_MAP: any = {
 
 export const PortalChatScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const vTheme = ModernVedicTheme;
@@ -125,7 +125,7 @@ export const PortalChatScreen: React.FC = () => {
                     <View style={styles.chatHeaderRow}>
                         <Text style={[styles.chatName, { color: vTheme.colors.text }]}>{item.name}</Text>
                         <Text style={[styles.chatTime, { color: vTheme.colors.textSecondary }]}>
-                            {new Date(item.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(item.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}
                         </Text>
                     </View>
                     <Text style={[styles.lastMsg, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>

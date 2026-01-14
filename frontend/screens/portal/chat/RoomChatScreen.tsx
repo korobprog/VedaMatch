@@ -31,7 +31,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const { roomId, roomName } = route.params;
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user } = useUser();
@@ -55,9 +55,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     fileName: m.fileName,
                     fileSize: m.fileSize,
                     duration: m.duration,
-                    sender: m.senderId === user?.ID ? (user?.karmicName || 'Me') : (m.senderId === 0 ? 'AI' : 'Other'),
+                    sender: m.senderId === user?.ID ? (user?.spiritualName || user?.karmicName || t('common.me')) : (m.senderId === 0 ? t('chat.aiAssistant') : m.senderName || t('common.other')),
                     isMe: m.senderId === user?.ID,
-                    time: new Date(m.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    time: new Date(m.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
                 }));
                 setMessages(formattedMessages);
             }
@@ -81,9 +81,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     fileName: msg.fileName,
                     fileSize: msg.fileSize,
                     duration: msg.duration,
-                    sender: msg.senderId === user?.ID ? (user?.karmicName || 'Me') : (msg.senderId === 0 ? 'AI' : 'Other'),
+                    sender: msg.senderId === user?.ID ? (user?.spiritualName || user?.karmicName || t('common.me')) : (msg.senderId === 0 ? t('chat.aiAssistant') : msg.senderName || t('common.other')),
                     isMe: msg.senderId === user?.ID,
-                    time: new Date(msg.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    time: new Date(msg.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
                 };
                 setMessages(prev => {
                     // Avoid duplicates (e.g. if we sent it and it came back via WS)
