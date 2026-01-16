@@ -1,6 +1,6 @@
 {
   "name": "rag-agent-proxy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Прокси-сервер для добавления параметра provider в запросы Roo Code Nightly",
   "main": "proxy-server.js",
   "scripts": {

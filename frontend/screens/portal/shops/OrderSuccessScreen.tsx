@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useSettings } from '../../../context/SettingsContext';
 import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 
 type RouteParams = {
@@ -21,8 +22,8 @@ export const OrderSuccessScreen: React.FC = () => {
     const orderId = route.params?.orderId;
     const orderNumber = route.params?.orderNumber;
 
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode, vTheme } = useSettings();
+    const colors = vTheme.colors;
 
     const handleViewOrder = () => {
         navigation.replace('OrderDetails', { orderId });

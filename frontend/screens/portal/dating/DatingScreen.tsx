@@ -22,6 +22,7 @@ import axios from 'axios';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useChat } from '../../../context/ChatContext';
 import { datingService } from '../../../services/datingService';
 import { useNavigation } from '@react-navigation/native';
@@ -78,8 +79,7 @@ export const DatingScreen = () => {
     const { user } = useUser();
     const { setChatRecipient } = useChat();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { isDarkMode, theme, vTheme } = useSettings();
 
     const [candidates, setCandidates] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
@@ -461,8 +461,8 @@ export const DatingScreen = () => {
                                 >
                                     <Heart
                                         size={24}
-                                        color={isFavorited ? ModernVedicTheme.colors.accent : '#FFF'}
-                                        fill={isFavorited ? ModernVedicTheme.colors.accent : 'transparent'}
+                                        color={isFavorited ? vTheme.colors.accent : '#FFF'}
+                                        fill={isFavorited ? vTheme.colors.accent : 'transparent'}
                                     />
                                 </TouchableOpacity>
                             )}
@@ -546,8 +546,8 @@ export const DatingScreen = () => {
                                 >
                                     <Heart
                                         size={20}
-                                        color={isFavorited ? ModernVedicTheme.colors.accent : theme.subText}
-                                        fill={isFavorited ? ModernVedicTheme.colors.accent : 'transparent'}
+                                        color={isFavorited ? vTheme.colors.accent : theme.subText}
+                                        fill={isFavorited ? vTheme.colors.accent : 'transparent'}
                                     />
                                 </TouchableOpacity>
                                 {likesCount > 0 && (
@@ -561,7 +561,7 @@ export const DatingScreen = () => {
                         <View style={{ marginTop: 5 }}>
                             {item.industry && (
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                    <Briefcase size={14} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                                    <Briefcase size={14} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
                                     <Text style={[styles.path, { color: theme.accent, marginBottom: 0 }]}>{item.industry}</Text>
                                 </View>
                             )}
@@ -605,10 +605,10 @@ export const DatingScreen = () => {
                     <ChevronLeft size={20} color={theme.subText} style={{ marginRight: 5 }} />
 
                     <TouchableOpacity
-                        style={[styles.iconBtn, { backgroundColor: ModernVedicTheme.colors.backgroundSecondary }, ModernVedicTheme.shadows.soft]}
+                        style={[styles.iconBtn, { backgroundColor: vTheme.colors.backgroundSecondary }, vTheme.shadows.soft]}
                         onPress={() => setShowStats(!showStats)}
                     >
-                        <BarChart2 size={18} color={showStats ? ModernVedicTheme.colors.primary : ModernVedicTheme.colors.textSecondary} />
+                        <BarChart2 size={18} color={showStats ? vTheme.colors.primary : vTheme.colors.textSecondary} />
                     </TouchableOpacity>
 
                     <ScrollView
@@ -621,7 +621,7 @@ export const DatingScreen = () => {
                             style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => setShowFilters(true)}
                         >
-                            <Filter size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Filter size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
                             <Text style={styles.premiumMenuBtnText}>{t('dating.filter')}</Text>
                         </TouchableOpacity>
 
@@ -629,7 +629,7 @@ export const DatingScreen = () => {
                             style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
                         >
-                            <UserPen size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <UserPen size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
                             <Text style={styles.premiumMenuBtnText}>{t('dating.editProfile')}</Text>
                         </TouchableOpacity>
 
@@ -637,7 +637,7 @@ export const DatingScreen = () => {
                             style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => fetchPreviewProfile()}
                         >
-                            <Eye size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Eye size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
                             <Text style={styles.premiumMenuBtnText}>{t('settings.tabs.chat').replace('Чат', 'Превью') || 'Preview'}</Text>
                         </TouchableOpacity>
 
@@ -645,7 +645,7 @@ export const DatingScreen = () => {
                             style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                         >
-                            <ImageIcon size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <ImageIcon size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
                             <Text style={styles.premiumMenuBtnText}>Media</Text>
                         </TouchableOpacity>
 
@@ -653,7 +653,7 @@ export const DatingScreen = () => {
                             style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
                             onPress={() => navigation.navigate('DatingFavorites')}
                         >
-                            <Heart size={16} color={ModernVedicTheme.colors.primary} style={{ marginRight: 6 }} />
+                            <Heart size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
                             <Text style={styles.premiumMenuBtnText}>{t('dating.favorites')}</Text>
                         </TouchableOpacity>
                     </ScrollView>
@@ -666,20 +666,20 @@ export const DatingScreen = () => {
                 <View style={{ backgroundColor: theme.background, paddingVertical: 12 }}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
                         {[
-                            { key: 'family', label: 'Family', icon: <Heart size={18} color={mode === 'family' ? '#fff' : ModernVedicTheme.colors.primary} /> },
-                            { key: 'business', label: 'Business', icon: <Briefcase size={18} color={mode === 'business' ? '#fff' : ModernVedicTheme.colors.primary} /> },
-                            { key: 'friendship', label: 'Friends', icon: <Users size={18} color={mode === 'friendship' ? '#fff' : ModernVedicTheme.colors.primary} /> },
-                            { key: 'seva', label: 'Seva', icon: <Flower2 size={18} color={mode === 'seva' ? '#fff' : ModernVedicTheme.colors.primary} /> }
+                            { key: 'family', label: 'Family', icon: <Heart size={18} color={mode === 'family' ? '#fff' : vTheme.colors.primary} /> },
+                            { key: 'business', label: 'Business', icon: <Briefcase size={18} color={mode === 'business' ? '#fff' : vTheme.colors.primary} /> },
+                            { key: 'friendship', label: 'Friends', icon: <Users size={18} color={mode === 'friendship' ? '#fff' : vTheme.colors.primary} /> },
+                            { key: 'seva', label: 'Seva', icon: <Flower2 size={18} color={mode === 'seva' ? '#fff' : vTheme.colors.primary} /> }
                         ].map((m) => (
                             <TouchableOpacity
                                 key={m.key}
                                 style={[
                                     styles.modeChip,
                                     {
-                                        backgroundColor: mode === m.key ? ModernVedicTheme.colors.primary : ModernVedicTheme.colors.backgroundSecondary,
-                                        borderColor: mode === m.key ? ModernVedicTheme.colors.primary : 'rgba(214, 125, 62, 0.2)',
+                                        backgroundColor: mode === m.key ? vTheme.colors.primary : vTheme.colors.backgroundSecondary,
+                                        borderColor: mode === m.key ? vTheme.colors.primary : 'rgba(214, 125, 62, 0.2)',
                                     },
-                                    ModernVedicTheme.shadows.soft
+                                    vTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     setMode(m.key as any);
@@ -700,8 +700,8 @@ export const DatingScreen = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.statItem,
-                                    { backgroundColor: (!filterCity && !filterNew) ? ModernVedicTheme.colors.accent : ModernVedicTheme.colors.backgroundSecondary },
-                                    ModernVedicTheme.shadows.soft
+                                    { backgroundColor: (!filterCity && !filterNew) ? vTheme.colors.accent : vTheme.colors.backgroundSecondary },
+                                    vTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     setFilterCity('');
@@ -709,7 +709,7 @@ export const DatingScreen = () => {
                                     fetchCandidates();
                                 }}
                             >
-                                <Users2 size={20} color={(!filterCity && !filterNew) ? '#fff' : ModernVedicTheme.colors.accent} style={{ marginRight: 8 }} />
+                                <Users2 size={20} color={(!filterCity && !filterNew) ? '#fff' : vTheme.colors.accent} style={{ marginRight: 8 }} />
                                 <View>
                                     <Text style={[styles.statValue, { color: (!filterCity && !filterNew) ? '#fff' : theme.text }]}>{stats.total}</Text>
                                     <Text style={[styles.statLabel, { color: (!filterCity && !filterNew) ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.totalProfiles', 'Всего анкет')}</Text>
@@ -718,8 +718,8 @@ export const DatingScreen = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.statItem,
-                                    { backgroundColor: (filterCity === user?.city && filterCity !== '') ? ModernVedicTheme.colors.accent : ModernVedicTheme.colors.backgroundSecondary },
-                                    ModernVedicTheme.shadows.soft
+                                    { backgroundColor: (filterCity === user?.city && filterCity !== '') ? vTheme.colors.accent : vTheme.colors.backgroundSecondary },
+                                    vTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     if (user?.city) {
@@ -733,7 +733,7 @@ export const DatingScreen = () => {
                                     }
                                 }}
                             >
-                                <MapPin size={20} color={(filterCity === user?.city && filterCity !== '') ? '#fff' : ModernVedicTheme.colors.accent} style={{ marginRight: 8 }} />
+                                <MapPin size={20} color={(filterCity === user?.city && filterCity !== '') ? '#fff' : vTheme.colors.accent} style={{ marginRight: 8 }} />
                                 <View>
                                     <Text style={[styles.statValue, { color: (filterCity === user?.city && filterCity !== '') ? '#fff' : theme.text }]}>{stats.city}</Text>
                                     <Text style={[styles.statLabel, { color: (filterCity === user?.city && filterCity !== '') ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.inYourCity', 'В вашем городе')}</Text>
@@ -742,8 +742,8 @@ export const DatingScreen = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.statItem,
-                                    { backgroundColor: filterNew ? ModernVedicTheme.colors.accent : ModernVedicTheme.colors.backgroundSecondary },
-                                    ModernVedicTheme.shadows.soft
+                                    { backgroundColor: filterNew ? vTheme.colors.accent : vTheme.colors.backgroundSecondary },
+                                    vTheme.shadows.soft
                                 ]}
                                 onPress={() => {
                                     setFilterNew(!filterNew);
@@ -751,7 +751,7 @@ export const DatingScreen = () => {
                                     fetchCandidates();
                                 }}
                             >
-                                <Sparkles size={20} color={filterNew ? '#fff' : ModernVedicTheme.colors.accent} style={{ marginRight: 8 }} />
+                                <Sparkles size={20} color={filterNew ? '#fff' : vTheme.colors.accent} style={{ marginRight: 8 }} />
                                 <View>
                                     <Text style={[styles.statValue, { color: filterNew ? '#fff' : theme.text }]}>{stats.new}</Text>
                                     <Text style={[styles.statLabel, { color: filterNew ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.newLast24h', 'Новые (24ч)')}</Text>

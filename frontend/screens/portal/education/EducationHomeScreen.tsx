@@ -18,6 +18,7 @@ import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { educationService } from '../../../services/educationService';
 import { EducationCourse } from '../../../types/education';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'EducationHome'>;
@@ -26,6 +27,7 @@ export const EducationHomeScreen: React.FC = () => {
     const navigation = useNavigation<NavigationProp>();
     const { user } = useUser();
     const { t } = useTranslation();
+    const { vTheme, isDarkMode } = useSettings();
     const [courses, setCourses] = useState<EducationCourse[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -54,16 +56,16 @@ export const EducationHomeScreen: React.FC = () => {
 
     const renderCourseItem = ({ item }: { item: EducationCourse }) => (
         <TouchableOpacity
-            style={styles.courseCard}
+            style={[styles.courseCard, { backgroundColor: vTheme.colors.surface }]}
             onPress={() => navigation.navigate('CourseDetails', { courseId: item.ID })}
         >
-            <View style={styles.courseImagePlaceholder}>
-                <Book size={40} color={ModernVedicTheme.colors.primary} />
+            <View style={[styles.courseImagePlaceholder, { backgroundColor: isDarkMode ? '#2C2C2E' : '#F5F5F5' }]}>
+                <Book size={40} color={vTheme.colors.primary} />
             </View>
             <View style={styles.courseInfo}>
-                <Text style={styles.courseOrg}>{item.organization}</Text>
-                <Text style={styles.courseTitle}>{item.title}</Text>
-                <Text style={styles.courseDesc} numberOfLines={2}>
+                <Text style={[styles.courseOrg, { color: vTheme.colors.primary }]}>{item.organization}</Text>
+                <Text style={[styles.courseTitle, { color: vTheme.colors.text }]}>{item.title}</Text>
+                <Text style={[styles.courseDesc, { color: vTheme.colors.textSecondary }]} numberOfLines={2}>
                     {item.description}
                 </Text>
             </View>
@@ -75,25 +77,25 @@ export const EducationHomeScreen: React.FC = () => {
 
     if (loading && !refreshing) {
         return (
-            <View style={styles.center}>
-                <ActivityIndicator size="large" color={ModernVedicTheme.colors.primary} />
+            <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
+                <ActivityIndicator size="large" color={vTheme.colors.primary} />
             </View>
         );
     }
 
     return (
         <ScrollView
-            style={styles.container}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            style={[styles.container, { backgroundColor: vTheme.colors.background }]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={vTheme.colors.primary} />}
         >
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>{t('education.title')}</Text>
-                <Text style={styles.headerSub}>{t('education.subtitle')}</Text>
+            <View style={[styles.header, { backgroundColor: vTheme.colors.surface, borderBottomColor: vTheme.colors.divider }]}>
+                <Text style={[styles.headerTitle, { color: vTheme.colors.primary }]}>{t('education.title')}</Text>
+                <Text style={[styles.headerSub, { color: vTheme.colors.textSecondary }]}>{t('education.subtitle')}</Text>
             </View>
 
             {filteredCourses.length > 0 && (
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('education.recommended')} ({user?.madh})</Text>
+                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('education.recommended')} ({user?.madh})</Text>
                     {filteredCourses.map(course => (
                         <View key={course.ID}>
                             {renderCourseItem({ item: course })}
@@ -103,7 +105,7 @@ export const EducationHomeScreen: React.FC = () => {
             )}
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('education.allCourses')}</Text>
+                <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('education.allCourses')}</Text>
                 {otherCourses.length > 0 ? (
                     otherCourses.map(course => (
                         <View key={course.ID}>
@@ -111,7 +113,7 @@ export const EducationHomeScreen: React.FC = () => {
                         </View>
                     ))
                 ) : (
-                    filteredCourses.length === 0 && <Text style={styles.emptyText}>{t('education.noCourses')}</Text>
+                    filteredCourses.length === 0 && <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>{t('education.noCourses')}</Text>
                 )}
             </View>
         </ScrollView>

@@ -69,6 +69,17 @@ func (h *RoomHandler) GetRooms(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(rooms)
 }
 
+func (h *RoomHandler) GetRoom(c *fiber.Ctx) error {
+	roomID := c.Params("id")
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Room not found",
+		})
+	}
+	return c.JSON(room)
+}
+
 func (h *RoomHandler) InviteUser(c *fiber.Ctx) error {
 	var body struct {
 		RoomID uint `json:"roomId"`

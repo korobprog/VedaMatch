@@ -3,11 +3,15 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { libraryService } from '../../services/libraryService';
 import { ScriptureBook } from '../../types/library';
+import { useSettings } from '../../context/SettingsContext';
+import { useTranslation } from 'react-i18next';
 
 export const BookListScreen = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { category, title } = route.params;
+    const { vTheme, isDarkMode } = useSettings();
+    const { t } = useTranslation();
     const [books, setBooks] = useState<ScriptureBook[]>([]);
 
     useEffect(() => {
@@ -27,18 +31,18 @@ export const BookListScreen = () => {
 
     const renderItem = ({ item }: { item: ScriptureBook }) => (
         <TouchableOpacity
-            style={styles.item}
+            style={[styles.item, { backgroundColor: vTheme.colors.surface }]}
             onPress={() => navigation.navigate('Reader', { bookCode: item.code, title: item.name_ru || item.name_en })}
         >
             <View>
-                <Text style={styles.title}>{item.name_ru || item.name_en}</Text>
-                <Text style={styles.subtitle}>{item.description_ru || item.description_en}</Text>
+                <Text style={[styles.title, { color: vTheme.colors.text }]}>{item.name_ru || item.name_en}</Text>
+                <Text style={[styles.subtitle, { color: vTheme.colors.textSecondary }]}>{item.description_ru || item.description_en}</Text>
             </View>
         </TouchableOpacity>
     );
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <FlatList
                 data={books}
                 renderItem={renderItem}

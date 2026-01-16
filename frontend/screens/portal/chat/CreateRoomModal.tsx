@@ -202,7 +202,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
         >
             <View style={styles.modalOverlay}>
                 <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                    <ScrollView showsVerticalScrollIndicator={false}>
+                    <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                         <Text style={[styles.modalTitle, { color: theme.text }]}>{t('chat.createRoom')}</Text>
 
                         <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 10 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
@@ -375,6 +375,7 @@ const styles = StyleSheet.create({
     },
     modalContent: {
         width: '100%',
+        maxHeight: '90%',
         borderRadius: 20,
         padding: 24,
         elevation: 5,

@@ -4,10 +4,12 @@ import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { ArrowDownLeft, ArrowUpRight, PhoneMissed, Phone } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSettings } from '../../context/SettingsContext';
 
 export const CallHistoryScreen = () => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
+    const { vTheme, isDarkMode } = useSettings();
 
     // Mock data with User IDs for call back
     const calls = [
@@ -21,7 +23,7 @@ export const CallHistoryScreen = () => {
             case 'incoming': return <ArrowDownLeft size={20} color="#4CAF50" />;
             case 'outgoing': return <ArrowUpRight size={20} color="#2196F3" />;
             case 'missed': return <PhoneMissed size={20} color="#F44336" />;
-            default: return <Phone size={20} color={ModernVedicTheme.colors.textSecondary} />;
+            default: return <Phone size={20} color={vTheme.colors.textSecondary} />;
         }
     };
 
@@ -34,15 +36,15 @@ export const CallHistoryScreen = () => {
     };
 
     const renderItem = ({ item }: { item: any }) => (
-        <View style={styles.callItem}>
-            <View style={styles.iconContainer}>
+        <View style={[styles.callItem, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
+            <View style={[styles.iconContainer, { backgroundColor: vTheme.colors.background }]}>
                 {getIcon(item.type)}
             </View>
             <View style={styles.infoContainer}>
-                <Text style={styles.name}>{item.name}</Text>
+                <Text style={[styles.name, { color: vTheme.colors.text }]}>{item.name}</Text>
                 <View style={styles.typeContainer}>
-                    <Text style={styles.time}>{item.time}</Text>
-                    <Text style={[styles.typeText, { color: item.type === 'missed' ? '#F44336' : ModernVedicTheme.colors.textSecondary }]}>
+                    <Text style={[styles.time, { color: vTheme.colors.textSecondary }]}>{item.time}</Text>
+                    <Text style={[styles.typeText, { color: item.type === 'missed' ? '#F44336' : vTheme.colors.textSecondary }]}>
                         • {t(`calls.${item.type}`)}
                     </Text>
                 </View>
@@ -51,15 +53,15 @@ export const CallHistoryScreen = () => {
                 style={styles.callButton}
                 onPress={() => handleCall(item)}
             >
-                <Phone size={20} color={ModernVedicTheme.colors.primary} />
+                <Phone size={20} color={vTheme.colors.primary} />
             </TouchableOpacity>
         </View>
     );
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <View style={styles.headerContainer}>
-                <Text style={styles.header}>{t('calls.history')}</Text>
+                <Text style={[styles.header, { color: vTheme.colors.text }]}>{t('calls.history')}</Text>
             </View>
 
             <FlatList

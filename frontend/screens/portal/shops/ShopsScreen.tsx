@@ -5,15 +5,14 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
+import { useSettings } from '../../../context/SettingsContext';
 import { Shop, ShopCategoryConfig, ShopFilters } from '../../../types/market';
 import { getMediaUrl } from '../../../utils/url';
 import {
     Store,
     Star,
     MapPin,
-    Search,
     Tag,
     X,
     Search as SearchIcon
@@ -24,8 +23,8 @@ export const ShopsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
 
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode, vTheme } = useSettings();
+    const colors = vTheme.colors;
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -275,7 +274,7 @@ export const ShopsScreen: React.FC = () => {
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+        <View style={{ flex: 1, backgroundColor: isDarkMode ? vTheme.colors.background : colors.background }}>
             <FlatList
                 data={shops}
                 renderItem={renderShop}
@@ -312,6 +311,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         gap: 8,
+    },
+    searchInputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        borderRadius: 22,
+        height: 44,
     },
     searchInput: {
         flex: 1,

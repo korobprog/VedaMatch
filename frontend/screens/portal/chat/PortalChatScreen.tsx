@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
+import { useSettings } from '../../../context/SettingsContext';
 
 const EMOJI_MAP: any = {
     'krishna': '🕉️',
@@ -33,9 +34,8 @@ const EMOJI_MAP: any = {
 export const PortalChatScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { t, i18n } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { isDarkMode, vTheme } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const vTheme = ModernVedicTheme;
 
     const { user } = useUser();
 

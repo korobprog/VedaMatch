@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, useColorScheme } from 
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
+import { useSettings } from '../../context/SettingsContext';
 import { Ad } from '../../types/ads';
 import { getMediaUrl } from '../../utils/url';
 import { useUser } from '../../context/UserContext';
@@ -36,8 +37,8 @@ interface AdCardProps {
 export const AdCard: React.FC<AdCardProps> = ({ ad, onPress, onFavorite, onEdit }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode, vTheme } = useSettings();
+    const colors = vTheme.colors;
 
     const isOwner = user && user.ID === ad.userId;
 

@@ -120,13 +120,10 @@ func main() {
 	// Public Shop Routes
 	api.Get("/shops", shopHandler.GetShops)
 	api.Get("/shops/categories", shopHandler.GetShopCategories) // Must come before /shops/:id
-	api.Get("/shops/:id", shopHandler.GetShop)
-	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
 
 	// Public Product Routes
 	api.Get("/products", productHandler.GetProducts)
 	api.Get("/products/categories", productHandler.GetProductCategories) // Must come before /products/:id
-	api.Get("/products/:id", productHandler.GetProduct)
 
 	// Protected Routes
 	protected := api.Group("/", middleware.Protected())
@@ -282,6 +279,7 @@ func main() {
 	// Room Routes
 	protected.Post("/rooms", roomHandler.CreateRoom)
 	protected.Get("/rooms", roomHandler.GetRooms)
+	protected.Get("/rooms/:id", roomHandler.GetRoom)
 	protected.Post("/rooms/invite", roomHandler.InviteUser)
 	protected.Post("/rooms/remove", roomHandler.RemoveUser)
 	protected.Post("/rooms/role", roomHandler.UpdateMemberRole)
@@ -365,6 +363,11 @@ func main() {
 	protected.Get("/orders/seller", orderHandler.GetSellerOrders)
 	protected.Put("/orders/:id/status", orderHandler.UpdateOrderStatus)
 	protected.Get("/orders/:id/contact-buyer", orderHandler.ContactBuyer)
+
+	// Public Parameterized Routes (Moved here to avoid shadowing specific routes like /my)
+	api.Get("/shops/:id", shopHandler.GetShop)
+	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
+	api.Get("/products/:id", productHandler.GetProduct)
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {

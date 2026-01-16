@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
+import { useSettings } from '../../../context/SettingsContext';
 import { Product, ProductCategoryConfig, ProductFilters } from '../../../types/market';
 import { getMediaUrl } from '../../../utils/url';
 import { Skeleton } from '../../../components/market/Skeleton';
@@ -32,8 +33,8 @@ export const MarketHomeScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
 
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode, vTheme } = useSettings();
+    const colors = vTheme.colors;
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -290,7 +291,7 @@ export const MarketHomeScreen: React.FC = () => {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+        <View style={{ flex: 1, backgroundColor: isDarkMode ? vTheme.colors.background : colors.background }}>
             <FlatList
                 data={loading ? ([1, 2, 3, 4] as any) : products}
                 renderItem={loading ? renderSkeleton : renderProduct}

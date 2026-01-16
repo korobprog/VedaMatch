@@ -91,25 +91,25 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
 
     const fetchSettings = async () => {
         try {
-            const response = await fetch(`${API_PATH}/rooms`);
+            const token = await AsyncStorage.getItem('token');
+            const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (response.ok) {
-                const rooms = await response.json();
-                const currentRoom = rooms.find((r: any) => r.ID === roomId);
-                if (currentRoom) {
-                    setIsPublic(currentRoom.isPublic);
-                    setAiEnabled(currentRoom.aiEnabled);
-                    setBookCode(currentRoom.bookCode || '');
-                    setChapter(currentRoom.currentChapter || 1);
-                    setVerse(currentRoom.currentVerse || 1);
-                    setReadingLanguage(currentRoom.language || 'ru');
-                    setShowPurport(currentRoom.showPurport || false);
-                    setEditName(currentRoom.name || roomName);
-                    setEditDescription(currentRoom.description || '');
-                    setEditLocation(currentRoom.location || '');
-                    setRoomImage(currentRoom.imageUrl || null);
-                    if (currentRoom.startTime) {
-                        setStartTime(new Date(currentRoom.startTime));
-                    }
+                const currentRoom = await response.json();
+                setIsPublic(currentRoom.isPublic);
+                setAiEnabled(currentRoom.aiEnabled);
+                setBookCode(currentRoom.bookCode || '');
+                setChapter(currentRoom.currentChapter || 1);
+                setVerse(currentRoom.currentVerse || 1);
+                setReadingLanguage(currentRoom.language || 'ru');
+                setShowPurport(currentRoom.showPurport || false);
+                setEditName(currentRoom.name || roomName);
+                setEditDescription(currentRoom.description || '');
+                setEditLocation(currentRoom.location || '');
+                setRoomImage(currentRoom.imageUrl || null);
+                if (currentRoom.startTime) {
+                    setStartTime(new Date(currentRoom.startTime));
                 }
             }
         } catch (error) {
@@ -160,7 +160,8 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             });
 
             if (!response.ok) {
-                Alert.alert(t('common.error'), 'Failed to update settings');
+                const errorData = await response.json().catch(() => ({}));
+                Alert.alert(t('common.error'), errorData.error || 'Failed to update settings');
             }
         } catch (error) {
             Alert.alert(t('common.error'), 'Network error');
@@ -638,6 +639,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     settingsContainer: {
+        flex: 1,
         marginBottom: 8,
     },
     settingItem: {

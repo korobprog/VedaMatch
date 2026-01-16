@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../components/chat/ChatConstants';
+import { useSettings } from '../../../context/SettingsContext';
 import { Book } from 'lucide-react-native';
 
 interface KnowledgeItem {
@@ -32,7 +33,7 @@ const MOCK_KNOWLEDGE: KnowledgeItem[] = [
 
 export const KnowledgeBaseScreen = () => {
     const { t } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { isDarkMode, vTheme } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const renderItem = ({ item }: { item: KnowledgeItem }) => (

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Image, ActivityIndicator, useColorScheme, Dimensions, Alert
+    Image, ActivityIndicator, Dimensions, Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
-import { Product, ProductVariant } from '../../../types/market';
+import { useSettings } from '../../../context/SettingsContext';
+import { Product, CartItem, ProductVariant } from '../../../types/market';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
 import { getMediaUrl } from '../../../utils/url';
@@ -37,8 +38,8 @@ export const ProductDetailsScreen: React.FC = () => {
     const route = useRoute<RouteProp<RouteParams, 'ProductDetails'>>();
     const productId = route.params.productId;
 
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode, vTheme } = useSettings();
+    const colors = vTheme.colors;
 
     const [loading, setLoading] = useState(true);
     const [product, setProduct] = useState<Product | null>(null);

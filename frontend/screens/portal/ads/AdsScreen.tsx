@@ -8,6 +8,7 @@ import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme'
 import { adsService } from '../../../services/adsService';
 import { Ad, AdCategory, AdType } from '../../../types/ads';
 import { RootStackParamList } from '../../../types/navigation';
+import { useSettings } from '../../../context/SettingsContext';
 
 import { AdCard } from '../../../components/ads/AdCard';
 import { CategoryPills } from '../../../components/ads/CategoryPills';
@@ -23,8 +24,8 @@ import {
 
 export const AdsScreen: React.FC = () => {
     const { t } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode, vTheme } = useSettings();
+    const colors = vTheme.colors;
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const [activeTab, setActiveTab] = useState<AdType>('looking');
@@ -111,9 +112,9 @@ export const AdsScreen: React.FC = () => {
 
     return (
         <ProtectedScreen>
-            <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
+            <View style={[styles.container, { backgroundColor: isDarkMode ? vTheme.colors.background : colors.background }]}>
                 {/* Search Bar */}
-                <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
+                <View style={[styles.header, { backgroundColor: isDarkMode ? vTheme.colors.background : colors.background }]}>
                     <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? '#333' : '#fff', borderColor: 'rgba(0,0,0,0.1)' }]}>
                         <Search size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                         <TextInput

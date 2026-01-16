@@ -15,6 +15,7 @@ import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { educationService } from '../../../services/educationService';
 import { EducationCourse, EducationModule } from '../../../types/education';
 import { useTranslation } from 'react-i18next';
+import { useSettings } from '../../../context/SettingsContext';
 import { BookOpen, ChevronRight } from 'lucide-react-native';
 
 type CourseDetailsRouteProp = RouteProp<RootStackParamList, 'CourseDetails'>;
@@ -25,6 +26,7 @@ export const CourseDetailsScreen: React.FC = () => {
     const route = useRoute<CourseDetailsRouteProp>();
     const { courseId } = route.params;
     const { t } = useTranslation();
+    const { vTheme, isDarkMode } = useSettings();
 
     const [course, setCourse] = useState<EducationCourse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -45,16 +47,16 @@ export const CourseDetailsScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <View style={styles.center}>
-                <ActivityIndicator size="large" color={ModernVedicTheme.colors.primary} />
+            <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
+                <ActivityIndicator size="large" color={vTheme.colors.primary} />
             </View>
         );
     }
 
     if (!course) {
         return (
-            <View style={styles.center}>
-                <Text>{t('education.courseNotFound')}</Text>
+            <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
+                <Text style={{ color: vTheme.colors.text }}>{t('education.courseNotFound')}</Text>
             </View>
         );
     }
@@ -69,40 +71,40 @@ export const CourseDetailsScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <ScrollView contentContainerStyle={styles.scrollContent}>
-                <View style={styles.header}>
-                    <Text style={styles.orgBadge}>{course.organization}</Text>
-                    <Text style={styles.title}>{course.title}</Text>
-                    <Text style={styles.description}>{course.description}</Text>
+                <View style={[styles.header, { backgroundColor: vTheme.colors.surface }]}>
+                    <Text style={[styles.orgBadge, { backgroundColor: vTheme.colors.primary + '20', color: vTheme.colors.primary }]}>{course.organization}</Text>
+                    <Text style={[styles.title, { color: vTheme.colors.text }]}>{course.title}</Text>
+                    <Text style={[styles.description, { color: vTheme.colors.textSecondary }]}>{course.description}</Text>
 
                     {course.scripture_book && (
                         <TouchableOpacity
-                            style={styles.bookButton}
+                            style={[styles.bookButton, { backgroundColor: vTheme.colors.primary + '10', borderColor: vTheme.colors.primary + '30' }]}
                             onPress={handleOpenBook}
                         >
-                            <BookOpen size={20} color={ModernVedicTheme.colors.primary} />
-                            <Text style={styles.bookButtonText}>Читать оригинал</Text>
+                            <BookOpen size={20} color={vTheme.colors.primary} />
+                            <Text style={[styles.bookButtonText, { color: vTheme.colors.primary }]}>Читать оригинал</Text>
                         </TouchableOpacity>
                     )}
                 </View>
 
                 <View style={styles.moduleSection}>
-                    <Text style={styles.sectionTitle}>{t('education.courseProgram')}</Text>
+                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('education.courseProgram')}</Text>
                     {course.modules?.map((module, index) => (
                         <TouchableOpacity
                             key={module.ID}
-                            style={styles.moduleCard}
+                            style={[styles.moduleCard, { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }]}
                             onPress={() => navigation.navigate('ExamTrainer', { moduleId: module.ID, title: module.title })}
                         >
-                            <View style={styles.moduleNumberContainer}>
+                            <View style={[styles.moduleNumberContainer, { backgroundColor: vTheme.colors.primary }]}>
                                 <Text style={styles.moduleNumber}>{index + 1}</Text>
                             </View>
                             <View style={styles.moduleInfo}>
-                                <Text style={styles.moduleTitle}>{module.title}</Text>
-                                <Text style={styles.moduleDesc} numberOfLines={1}>{module.description}</Text>
+                                <Text style={[styles.moduleTitle, { color: vTheme.colors.text }]}>{module.title}</Text>
+                                <Text style={[styles.moduleDesc, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>{module.description}</Text>
                             </View>
-                            <ChevronRight size={20} color={ModernVedicTheme.colors.primary} />
+                            <ChevronRight size={20} color={vTheme.colors.primary} />
                         </TouchableOpacity>
                     ))}
                 </View>

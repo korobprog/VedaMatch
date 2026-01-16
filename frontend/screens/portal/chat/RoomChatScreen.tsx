@@ -37,8 +37,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const { roomId, roomName } = route.params;
     const { t, i18n } = useTranslation();
-    const { vTheme } = useSettings();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { isDarkMode, vTheme } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user } = useUser();
     const { addListener } = useWebSocket();
@@ -61,19 +60,16 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const fetchRoomDetails = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms`, {
+            const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
-                const data = await response.json();
-                const currentRoom = data.find((r: any) => r.ID == roomId);
-                if (currentRoom) {
-                    setRoomDetails(currentRoom);
-                    // Fetch chapters if changed
-                    if (currentRoom.bookCode) {
-                        fetchChapters(currentRoom.bookCode);
-                        fetchVerse(currentRoom.bookCode, currentRoom.currentChapter, currentRoom.currentVerse, currentRoom.language || 'ru');
-                    }
+                const currentRoom = await response.json();
+                setRoomDetails(currentRoom);
+                // Fetch chapters if changed
+                if (currentRoom.bookCode) {
+                    fetchChapters(currentRoom.bookCode);
+                    fetchVerse(currentRoom.bookCode, currentRoom.currentChapter, currentRoom.currentVerse, currentRoom.language || 'ru');
                 }
             }
         } catch (error) {
@@ -770,9 +766,4 @@ const styles = StyleSheet.create({
         lineHeight: 18,
         fontStyle: 'italic',
     },
-    readingControls: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 8,
-    }
 });

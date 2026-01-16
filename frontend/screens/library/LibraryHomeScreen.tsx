@@ -7,9 +7,11 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { Book } from 'lucide-react-native';
+import { useSettings } from '../../context/SettingsContext';
 
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const { vTheme, isDarkMode } = useSettings();
     const [books, setBooks] = useState<ScriptureBook[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -35,29 +37,29 @@ export const LibraryHomeScreen = () => {
 
     const renderBookItem = ({ item }: { item: ScriptureBook }) => (
         <TouchableOpacity
-            style={styles.card}
+            style={[styles.card, { backgroundColor: vTheme.colors.surface }]}
             onPress={() => handleBookPress(item)}
         >
-            <View style={[styles.iconContainer, { backgroundColor: ModernVedicTheme.colors.primary + '10' }]}>
-                <Book size={32} color={ModernVedicTheme.colors.primary} />
+            <View style={[styles.iconContainer, { backgroundColor: vTheme.colors.primary + '10' }]}>
+                <Book size={32} color={vTheme.colors.primary} />
             </View>
             <View style={styles.textContainer}>
-                <Text style={styles.cardTitle}>{item.name_ru || item.name_en}</Text>
-                <Text style={styles.cardDescription} numberOfLines={3}>{item.description_ru || item.description_en}</Text>
+                <Text style={[styles.cardTitle, { color: vTheme.colors.text }]}>{item.name_ru || item.name_en}</Text>
+                <Text style={[styles.cardDescription, { color: vTheme.colors.textSecondary }]} numberOfLines={3}>{item.description_ru || item.description_en}</Text>
             </View>
         </TouchableOpacity>
     );
 
     if (loading) {
         return (
-            <View style={[styles.container, styles.center]}>
-                <ActivityIndicator size="large" color="#D67D3E" />
+            <View style={[styles.container, styles.center, { backgroundColor: vTheme.colors.background }]}>
+                <ActivityIndicator size="large" color={vTheme.colors.primary} />
             </View>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <FlatList<ScriptureBook>
                 data={books}
                 renderItem={renderBookItem}

@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, useColorScheme } from 'react-native';
 import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
+import { useSettings } from '../../context/SettingsContext';
 import { Product } from '../../types/market';
 import { getMediaUrl } from '../../utils/url';
 import { Package, Store, Star } from 'lucide-react-native';
@@ -11,8 +12,8 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) => {
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode, vTheme } = useSettings();
+    const colors = vTheme.colors;
 
     const currentPrice = item.salePrice && item.salePrice > 0 ? item.salePrice : item.basePrice;
     const isOnSale = item.salePrice && item.salePrice > 0 && item.salePrice < item.basePrice;
