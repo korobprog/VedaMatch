@@ -9,7 +9,7 @@
     - [x] Подзадача: Логика маршрутизации сигнальных сообщений между пирами.
 - [x] Задача: Поддержка VoIP Push-уведомлений.
     - [x] Подзадача: Добавить тип пуша `voip_call` с payload для CallKeep.
-- [ ] Задача: Conductor - User Manual Verification 'Backend Signaling' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Backend Signaling' (Protocol in workflow.md)
 
 ## Фаза 2: Мобильное Приложение - Ядро WebRTC (React Native)
 - [x] Задача: Установка зависимостей.
@@ -22,7 +22,7 @@
 - [x] Задача: UI Экрана звонка.
     - [x] Подзадача: Компонент `CallScreen` (Видео, Кнопки Mute/End/Switch Camera).
     - [x] Подзадача: Обработка состояний (Calling, Ringing, Connected, Ended).
-- [ ] Задача: Conductor - User Manual Verification 'WebRTC Core' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'WebRTC Core' (Protocol in workflow.md)
 
 ## Фаза 3: Мобильное Приложение - Нативные Звонки (CallKeep)
 - [x] Задача: Интеграция CallKeep.
@@ -31,7 +31,7 @@
 - [x] Задача: UI Истории и Запуска.
     - [x] Подзадача: Кнопки звонка в хедере чата.
     - [x] Подзадача: Вкладка "Звонки" с историей.
-- [ ] Задача: Conductor - User Manual Verification 'Native Calls' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Native Calls' (Protocol in workflow.md)
 
 ## Фаза 4: Профиль и Совместное чтение (Подготовка)
 - [x] Задача: Редактирование профиля.
@@ -39,4 +39,4 @@
 - [x] Задача: Улучшение поиска контактов.
     - [x] Подзадача: Фильтр по Ятре.
     - [x] Подзадача: Отображение локального времени пользователя в профиле.
-- [ ] Задача: Conductor - User Manual Verification 'Profile & Sanga' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Profile & Sanga' (Protocol in workflow.md)

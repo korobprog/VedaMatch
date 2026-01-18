@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -23,10 +23,13 @@ import {
     GraduationCap,
     Newspaper,
     User,
-    Bell
+    Bell,
+    Menu,
+    LayoutGrid,
+    List,
+    Settings,
+    MessageSquare,
 } from 'lucide-react-native';
-
-
 
 import { ContactsScreen } from './contacts/ContactsScreen';
 import { PortalChatScreen } from './chat/PortalChatScreen';
@@ -39,14 +42,20 @@ import { EducationHomeScreen } from './education/EducationHomeScreen';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
+import { PortalLayoutProvider, usePortalLayout } from '../../context/PortalLayoutContext';
+import { PortalGrid } from '../../components/portal';
 
 const { width } = Dimensions.get('window');
 
-export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
+type ServiceTab = 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education';
+
+// Inner component that uses portal layout context
+const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const { vTheme, isDarkMode } = useSettings();
-    const [activeTab, setActiveTab] = useState<'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education'>(route.params?.initialTab || 'contacts');
+    const { vTheme, isDarkMode, setIsMenuOpen, setIsPortalOpen, setDefaultMenuTab } = useSettings();
+    const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     useEffect(() => {
         if (route.params?.initialTab) {
@@ -54,18 +63,33 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
         }
     }, [route.params?.initialTab]);
 
-    const tabs = [
-        { id: 'contacts', label: t('settings.tabs.contacts'), icon: 'Users' },
-        { id: 'chat', label: t('settings.tabs.chat'), icon: 'MessageCircle' },
-        { id: 'calls', label: t('settings.tabs.calls') || 'Звонки', icon: 'Phone' },
-        { id: 'dating', label: t('settings.tabs.dating'), icon: 'Sparkles' },
-        { id: 'shops', label: t('settings.tabs.shops'), icon: 'ShoppingBag' },
-        { id: 'ads', label: t('settings.tabs.ads'), icon: 'Megaphone' },
-        { id: 'library', label: 'Библиотека', icon: 'Book' },
-        { id: 'education', label: 'Обучение', icon: 'GraduationCap' },
-        { id: 'news', label: t('settings.tabs.news'), icon: 'Newspaper' },
-    ];
+    const handleServicePress = useCallback((serviceId: string) => {
+        if (serviceId === 'settings') {
+            navigation.navigate('AppSettings');
+            return;
+        }
+        if (serviceId === 'history') {
+            setDefaultMenuTab('history');
+            setIsMenuOpen(true);
+            return;
+        }
 
+        if (!user?.isProfileComplete) {
+            Alert.alert(
+                'Profile Incomplete',
+                'Please complete your registration to access this service.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Complete Profile',
+                        onPress: () => navigation.navigate('Registration', { isDarkMode: false, phase: 'profile' })
+                    }
+                ]
+            );
+            return;
+        }
+        setActiveTab(serviceId as ServiceTab);
+    }, [user, navigation]);
 
     const renderContent = () => {
         switch (activeTab) {
@@ -78,103 +102,116 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             case 'library': return <LibraryHomeScreen />;
             case 'education': return <EducationHomeScreen />;
             case 'news': return <NewsScreen />;
-            default: return <ContactsScreen />;
+            default: return null;
         }
     };
 
-    const TabButton = ({ tab }: { tab: any }) => {
-        const isActive = activeTab === tab.id;
-
-        const getTabColor = (id: string) => {
-            switch (id) {
-                case 'contacts': return '#3B82F6';
-                case 'chat': return vTheme.colors.textSecondary;
-                case 'dating': return '#EC4899';
-                case 'shops': return vTheme.colors.primary;
-                case 'ads': return '#EF4444';
-                case 'news': return vTheme.colors.textSecondary;
-                case 'library': return '#43A047';
-                case 'education': return '#8B5CF6';
-                default: return vTheme.colors.primary;
-            }
-        };
-
-        const tabColor = getTabColor(tab.id);
-
-        const renderIcon = (iconName: string, active: boolean) => {
-            const size = active ? 24 : 22;
-            const color = active ? tabColor : vTheme.colors.textSecondary;
-            const opacity = active ? 1 : 0.6;
-
-            switch (iconName) {
-                case 'Users': return <Users size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                case 'MessageCircle': return <MessageCircle size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                case 'Phone': return <Phone size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                case 'Sparkles': return <Sparkles size={size} color={color} style={{ opacity }} fill={active ? color : 'transparent'} strokeWidth={active ? 1.5 : 2} />;
-                case 'ShoppingBag': return <ShoppingBag size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                case 'Megaphone': return <Megaphone size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                case 'Book': return <Book size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                case 'GraduationCap': return <GraduationCap size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                case 'Newspaper': return <Newspaper size={size} color={color} style={{ opacity }} strokeWidth={active ? 2.5 : 2} />;
-                default: return <Users size={size} color={color} />;
-            }
-        };
-
+    // Show grid view if no active tab
+    if (!activeTab) {
         return (
-            <TouchableOpacity
-                key={tab.id}
-                onPress={() => {
-                    if (!user?.isProfileComplete) {
-                        Alert.alert(
-                            'Profile Incomplete',
-                            'Please complete your registration to access this service.',
-                            [
-                                { text: 'Cancel', style: 'cancel' },
-                                {
-                                    text: 'Complete Profile',
-                                    onPress: () => navigation.navigate('Registration', { isDarkMode: false, phase: 'profile' })
-                                }
-                            ]
-                        );
-                        return;
-                    }
-                    setActiveTab(tab.id as any);
-                }}
-                style={styles.tabItem}
-            >
-                <View style={[
-                    styles.iconContainer,
-                    isActive && { backgroundColor: `${tabColor}15`, borderColor: `${tabColor}40`, borderWidth: 1 }
-                ]}>
-                    {renderIcon(tab.icon, isActive)}
-                </View>
-            </TouchableOpacity>
-        );
-    };
+            <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={vTheme.colors.background} />
 
+                {/* Header */}
+                <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+                    <View style={styles.headerLeft}>
+                        <TouchableOpacity
+                            onPress={() => setIsPortalOpen(true)}
+                            style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
+                        >
+                            <Menu size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.logoContainer}>
+                        <TouchableOpacity onPress={() => setActiveTab(null)} activeOpacity={0.7}>
+                            <Image
+                                source={require('../../assets/logo_tilak.png')}
+                                style={[styles.logoImage, isDarkMode && { tintColor: vTheme.colors.primary }]}
+                                resizeMode="contain"
+                            />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.headerRight}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setDefaultMenuTab('history');
+                                setIsMenuOpen(true);
+                            }}
+                            style={styles.iconButton}
+                        >
+                            <MessageSquare size={22} color={vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('AppSettings')}
+                            style={styles.iconButton}
+                        >
+                            <Settings size={22} color={vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.iconButton}>
+                            <Bell size={22} color={vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Grid View */}
+                <View style={styles.gridContent}>
+                    <PortalGrid onServicePress={handleServicePress} />
+                </View>
+
+                {/* Hint text */}
+                <View style={styles.hintContainer}>
+                    <Text style={[styles.hintText, { color: vTheme.colors.textSecondary }]}>
+                        Удерживайте для редактирования
+                    </Text>
+                </View>
+            </View>
+        );
+    }
+
+    // Show service content with back button
     return (
         <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={vTheme.colors.background} />
 
-            {/* Header */}
+            {/* Header with back */}
             <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
                 <View style={styles.headerLeft}>
-                    {/* User Avatar Placeholder or Back */}
                     <TouchableOpacity
-                        onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Chat')}
+                        onPress={() => setIsPortalOpen(true)}
                         style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
                     >
-                        <User size={20} color={vTheme.colors.primary} />
+                        <Menu size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
                     </TouchableOpacity>
                 </View>
 
-                <Image
-                    source={require('../../assets/logo_tilak.png')}
-                    style={[styles.logoImage, isDarkMode && { tintColor: vTheme.colors.primary }]}
-                    resizeMode="contain"
-                />
+                <View style={styles.logoContainer}>
+                    <TouchableOpacity onPress={() => setActiveTab(null)} activeOpacity={0.7}>
+                        <Image
+                            source={require('../../assets/logo_tilak.png')}
+                            style={[styles.logoImage, isDarkMode && { tintColor: vTheme.colors.primary }]}
+                            resizeMode="contain"
+                        />
+                    </TouchableOpacity>
+                </View>
 
                 <View style={styles.headerRight}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            setDefaultMenuTab('history');
+                            setIsMenuOpen(true);
+                        }}
+                        style={styles.iconButton}
+                    >
+                        <MessageSquare size={22} color={vTheme.colors.textSecondary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('AppSettings')}
+                        style={styles.iconButton}
+                    >
+                        <Settings size={22} color={vTheme.colors.textSecondary} />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.iconButton}>
                         <Bell size={22} color={vTheme.colors.textSecondary} />
                     </TouchableOpacity>
@@ -185,22 +222,16 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
             <View style={styles.content}>
                 {renderContent()}
             </View>
-
-            {/* Floating Bottom Navigation */}
-            <View style={styles.bottomNavContainer}>
-                {/* Glassmorphic Background */}
-                <View style={[styles.glassBackground, { backgroundColor: vTheme.colors.glass, borderColor: vTheme.colors.glassBorder, ...vTheme.shadows.soft }]}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.sideScroll}
-                        contentContainerStyle={styles.sideScrollContent}
-                    >
-                        {tabs.map(tab => <TabButton key={tab.id} tab={tab} />)}
-                    </ScrollView>
-                </View>
-            </View>
         </View>
+    );
+};
+
+// Main export with provider
+export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
+    return (
+        <PortalLayoutProvider>
+            <PortalContent navigation={navigation} route={route} />
+        </PortalLayoutProvider>
     );
 };
 
@@ -214,7 +245,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingTop: Platform.OS === 'ios' ? 60 : 20,
-        paddingBottom: 20,
+        paddingBottom: 12,
         zIndex: 10,
     },
     logoImage: {
@@ -222,11 +253,20 @@ const styles = StyleSheet.create({
         height: 40,
     },
     headerLeft: {
-        width: 40,
+        flex: 1,
+        alignItems: 'flex-start',
+    },
+    logoContainer: {
+        flex: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerRight: {
-        width: 40,
-        alignItems: 'flex-end',
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 8,
     },
     avatarButton: {
         width: 40,
@@ -240,55 +280,20 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        paddingBottom: 100, // Space for bottom nav
     },
-    bottomNavContainer: {
-        position: 'absolute',
-        bottom: 30,
-        left: 20,
-        right: 20,
-        height: 80,
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 100,
-        elevation: 20,
+    gridContent: {
+        flex: 1,
+        paddingBottom: 60,
     },
-    glassBackground: {
+    hintContainer: {
         position: 'absolute',
-        bottom: 0,
+        bottom: 20,
         left: 0,
         right: 0,
-        height: 70,
-        borderRadius: 35,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    sideScroll: {
-        flex: 1,
-    },
-    sideScrollContent: {
         alignItems: 'center',
-        paddingHorizontal: 15,
     },
-    tabItem: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 70,
-        height: '100%',
-    },
-    iconContainer: {
-        width: 44,
-        height: 44,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: 22,
-    },
-    activeIconContainer: {
-        backgroundColor: 'rgba(214, 125, 62, 0.1)',
-        borderWidth: 2,
-    },
-    tabIcon: {
-        fontSize: 26,
-        opacity: 0.5,
+    hintText: {
+        fontSize: 12,
+        opacity: 0.6,
     },
 });

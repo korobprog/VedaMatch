@@ -37,6 +37,10 @@ interface SettingsContextType {
     setThemeMode: (mode: ThemeMode) => void;
     isAutoMagicEnabled: boolean;
     toggleAutoMagic: () => void;
+    isMenuOpen: boolean;
+    setIsMenuOpen: (isOpen: boolean) => void;
+    isPortalOpen: boolean;
+    setIsPortalOpen: (isOpen: boolean) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -52,6 +56,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [defaultMenuTab, setDefaultMenuTabState] = useState<'portal' | 'history'>('portal');
     const [isAutoMagicEnabled, setIsAutoMagicEnabled] = useState<boolean>(true);
     const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
+    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+    const [isPortalOpen, setIsPortalOpen] = useState<boolean>(false);
 
     const colorScheme = useColorScheme();
 
@@ -201,6 +207,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             setThemeMode,
             isAutoMagicEnabled,
             toggleAutoMagic,
+            isMenuOpen,
+            setIsMenuOpen,
+            isPortalOpen,
+            setIsPortalOpen,
         }}>
             {children}
         </SettingsContext.Provider>

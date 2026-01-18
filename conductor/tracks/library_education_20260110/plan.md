@@ -13,7 +13,7 @@
 - [x] Задача: API для образовательной платформы с фильтрацией.
     - [x] Подзадача: Эндпоинты `GET /api/v1/education/exams` с автоматической фильтрацией под организацию пользователя из его профиля.
     - [x] Подзадача: Логика проверки ответов и сохранения результатов.
-- [ ] Задача: Conductor - User Manual Verification 'Multi-Matha Backend' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Multi-Matha Backend' (Protocol in workflow.md)
 
 ## Фаза 2: Мобильное Приложение - Персонализированный Тренажер (React Native)
 - [x] Задача: Динамическое отображение контента на основе профиля.
@@ -22,10 +22,10 @@
 - [x] Задача: Реализация интерактивного Тренажера.
     - [x] Подзадача: Режимы Теста и Подготовки (со ссылками на шлоки).
     - [x] Подзадача: Визуализация прогресса в рамках выбранной духовной школы.
-- [ ] Задача: Conductor - User Manual Verification 'Personalized Education UI' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Personalized Education UI' (Protocol in workflow.md)
 
 ## Фаза 3: Администрирование (Next.js)
 - [x] Задача: Панель управления контентом для разных организаций.
     - [x] Подзадача: Возможность администраторам фильтровать и создавать вопросы для конкретных Матхов. (Реализовано создание курсов с выбором организации)
     - [x] Подзадача: Управление доступом: редакторы ИСККОН правят только свой контент. (Базовая реализация через фильтры)
-- [ ] Задача: Conductor - User Manual Verification 'Admin Controls' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Admin Controls' (Protocol in workflow.md)

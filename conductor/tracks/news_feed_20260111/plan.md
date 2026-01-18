@@ -21,7 +21,7 @@
     - Реализовать получение постов из публичных групп ВК и ТГ-каналов.
 - [x] **Task 4: Фоновый планировщик задач** ✅
     - Настроить периодический запуск парсеров (например, через cron или внутренний воркер).
-- [ ] **Task: Conductor - User Manual Verification 'Phase 2: Система парсинга' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Phase 2: Система парсинга' (Protocol in workflow.md)**
 
 ## Phase 3: AI Pipeline - Обработка контента (Python/Go)
 - [x] **Task 1: Интеграция с LLM (Summarization & Style Transfer)** ✅
@@ -30,7 +30,7 @@
     - Реализовать классификатор тем и автоматический перевод контента (RU <-> EN).
 - [x] **Task 3: Оркестрация пайплайна** ✅
     - Связать парсер с AI-сервисом: сохранение "сырого" контента -> обработка ИИ -> сохранение результата/черновика.
-- [ ] **Task: Conductor - User Manual Verification 'Phase 3: AI Pipeline - Обработка контента' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Phase 3: AI Pipeline - Обработка контента' (Protocol in workflow.md)**
 
 ## Phase 4: Панель администратора (Next.js)
 - [x] **Task 1: Интерфейс управления источниками** ✅
@@ -38,7 +38,7 @@
 - [x] **Task 2: Модерация новостей** ✅
     - Реализовать список черновиков с возможностью предпросмотра, редактирования и публикации.
     - Реализовать редактор новостей (Markdown/Rich Text).
-- [ ] **Task: Conductor - User Manual Verification 'Phase 4: Панель администратора' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Phase 4: Панель администратора' (Protocol in workflow.md)**
 
 ## Phase 5: Мобильное приложение (React Native)
 - [x] **Task 1: Реальная лента новостей** ✅
@@ -57,9 +57,9 @@
 ## Phase 6: Финализация и Push-уведомления
 - [x] **Task 1: Интеграция Push-уведомлений** ✅
     - Реализовать отправку уведомлений при публикации новости с флагом "Важное".
-- [ ] **Task 2: Нагрузочное тестирование и оптимизация** (❗ Опционально)
+- [x] **Task 2: Нагрузочное тестирование и оптимизация** (❗ Опционально)
     - Проверить работу парсеров под нагрузкой и кэширование запросов новостей.
-- [ ] **Task: Conductor - User Manual Verification 'Phase 6: Финализация и Push-уведомления' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Phase 6: Финализация и Push-уведомления' (Protocol in workflow.md)**
 
 ## Phase 7: Персонализация (Подписки и Избранное)
 - [x] **Task 1: Бэкенд - Модели и API** ✅
@@ -72,4 +72,4 @@
 - [x] **Task 3: Мобильное приложение - UI Подписок** ✅
     - Добавить кнопку "Колокольчик" (Push) и "Звездочку" (Избранное) в карточку новости или источника.
     - Создать экран управления подписками (список всех источников с переключателями).
-- [ ] **Task: Conductor - User Manual Verification 'Phase 7: Персонализация'**
+- [x] **Task: Conductor - User Manual Verification 'Phase 7: Персонализация'**

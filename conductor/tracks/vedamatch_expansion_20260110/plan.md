@@ -26,4 +26,4 @@
 ## Фаза 4: UI Поиска и Карточек (Фронтенд)
 - [x] Задача: Реализовать переключатель режимов на экране знакомств (Семья | Бизнес | Друзья). (b513094)
     - [x] Подзадача: Адаптация карточки пользователя (показывать релевантные данные в зависимости от режима).
-- [ ] Задача: Conductor - User Manual Verification 'Search UI' (Protocol in workflow.md)
+- [x] Задача: Conductor - User Manual Verification 'Search UI' (Protocol in workflow.md)

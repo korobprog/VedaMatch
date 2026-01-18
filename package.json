@@ -23,6 +23,10 @@
     "android:bundle": "cd frontend && npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
     "android:build": "cd frontend/android && gradlew.bat assembleRelease",
     "android:copy": "copy frontend\\android\\app\\build\\outputs\\apk\\release\\app-release.apk ragagent-release.apk",
+    "ios": "cd frontend && pnpm run ios",
+    "env:ios": "cd frontend && copy /Y .env.ios .env",
+    "emulator:ios": "node start-ios.js",
+    "dev:ios": "pnpm run clean && pnpm run env:ios && node start-ios.js && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run ios\" --names \"SERVER,ADMIN,METRO,IOS\" --prefix-colors \"blue,yellow,magenta,green\"",
     "build:release": "pnpm run android:setup && pnpm run android:bundle && pnpm run android:build && pnpm run android:copy"
   },
   "dependencies": {

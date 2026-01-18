@@ -17,7 +17,7 @@
 - [x] Task: Public Discovery API (TDD) ✅
     - [x] Subtask: Write tests for filtering (City, Category, Price). (Implemented in ProductService.GetProducts)
     - [x] Subtask: Implement Search/Filter endpoints.
-- [ ] Task: Conductor - User Manual Verification 'Backend Core' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Backend Core' (Protocol in workflow.md)
 
 ## Phase 2: Seller Experience (Mobile Frontend)
 Интерфейс для создания магазина и управления товарами.
@@ -33,7 +33,7 @@
     - [x] Subtask: Create `ProductEditScreen`.
     - [x] Subtask: Implement SKU builder (Variants: Color/Size etc.).
     - [x] Subtask: Image Gallery picker implementation.
-- [ ] Task: Conductor - User Manual Verification 'Seller Experience' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Seller Experience' (Protocol in workflow.md)
 
 ## Phase 3: Buyer Experience & Orders (Mobile Frontend + Backend)
 Интерфейс покупателя, корзина и процессинг заказов с уведомлениями.
@@ -51,7 +51,7 @@
     - [x] Subtask: Mobile: Checkout Screen & "Order Success" flow. ✅
     - [x] Subtask: Mobile: MyOrdersScreen (buyer) + SellerOrdersScreen (seller). ✅
     - [x] Subtask: Navigation: All routes registered in App.tsx + types/navigation.ts. ✅
-- [ ] Task: Conductor - User Manual Verification 'Buyer Experience' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Buyer Experience' (Protocol in workflow.md)
 
 ## Phase 4: Geolocation & Maps
 Визуализация на карте и навигация.
@@ -61,7 +61,7 @@
 - [x] Task: Mobile Map Integration ✅
     - [x] Subtask: Create `ShopsMapScreen` (Markers for shops). ✅ (List view with map placeholder, full map requires react-native-maps)
     - [x] Subtask: Implement "Get Directions" button (linking to Google/Yandex Maps). ✅
-- [ ] Task: Conductor - User Manual Verification 'Geolocation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Geolocation' (Protocol in workflow.md)
 
 - [x] Phase 5: AI Integration (Python RAG & Go) ✅
     - [x] Task: Data Sync Pipeline
@@ -69,7 +69,7 @@
     - [x] Task: AI Tools Implementation
         - [x] Subtask: Define `search_products` tool for the LLM. (Integrated search into AiChatService)
         - [x] Subtask: Update System Prompt to handle shopping intents.
-- [ ] Task: Conductor - User Manual Verification 'AI Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'AI Integration' (Protocol in workflow.md)
 
 - [x] Phase 6: Polish & Reviews ✅
     - [x] Task: Reviews System
@@ -78,4 +78,4 @@
     - [x] Task: Final System Polish ✅
         - [x] Subtask: Performance tuning (Image caching, List optimization implemented with memo and FlatList props).
         - [x] Subtask: UI/UX refinement (Empty states, Loading skeletons added to all major screens).
-- [ ] Task: Conductor - User Manual Verification 'Polish & Reviews' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Polish & Reviews' (Protocol in workflow.md)

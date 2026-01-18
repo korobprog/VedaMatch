@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { SettingsDrawer } from '../SettingsDrawer';
 import { useSettings } from '../context/SettingsContext';
 import { ChatProvider, useChat } from '../context/ChatContext';
 import { useUser } from '../context/UserContext';
@@ -28,12 +27,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const { currentModel, currentProvider, selectModel } = useSettings();
+    const { setIsMenuOpen } = useSettings();
     const { handleMenuOption, recipientUser, setShowMenu } = useChat();
     const { user: currentUser, isLoggedIn } = useUser();
     const { t } = useTranslation();
 
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     useEffect(() => {
         const backAction = () => {
@@ -93,7 +91,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
             <View style={[styles.container, { backgroundColor: theme.background }]}>
                 <ChatHeader
                     title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "Vedic AI"}
-                    onSettingsPress={() => setIsSettingsOpen(true)}
+                    onSettingsPress={() => setIsMenuOpen(true)}
                     onCallPress={handleCallPress}
                     onBackPress={() => {
                         if (navigation.canGoBack()) {
@@ -129,27 +127,6 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                     }}
                 />
 
-                <SettingsDrawer
-                    isVisible={isSettingsOpen}
-                    onClose={() => setIsSettingsOpen(false)}
-                    isDarkMode={isDarkMode}
-                    currentModel={currentModel}
-                    onSelectModel={(model: any) => {
-                        selectModel(model.id, model.provider);
-                    }}
-                    onNavigateToPortal={(tab) => {
-                        setIsSettingsOpen(false);
-                        navigation.navigate('Portal', { initialTab: tab as any });
-                    }}
-                    onNavigateToSettings={() => {
-                        setIsSettingsOpen(false);
-                        navigation.navigate('AppSettings');
-                    }}
-                    onNavigateToRegistration={() => {
-                        setIsSettingsOpen(false);
-                        navigation.navigate('Registration', { isDarkMode });
-                    }}
-                />
             </View>
         </ProtectedScreen>
     );
