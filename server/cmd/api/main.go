@@ -52,7 +52,9 @@ func main() {
 	services.StartRoomNotificationScheduler()
 
 	// Initialize Fiber App
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		StrictRouting: false, // Allow /path and /path/ to be treated the same
+	})
 
 	// Custom CORS Middleware (Manual implementation for stability)
 	app.Use(func(c *fiber.Ctx) error {
