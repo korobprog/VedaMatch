@@ -154,3 +154,7 @@ node_modules
 # Android Build Outputs
 frontend/android/app/build/outputs/
 *.apk
+
+# Next.js
+.next/
+out/
