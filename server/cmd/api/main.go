@@ -41,7 +41,7 @@ func main() {
 	database.SeedDemoAds()
 
 	// Seed map test data (users, shops, ads with coordinates)
-	database.SeedMapTestData()
+	// database.SeedMapTestData()
 
 	// Initialize Services
 	services.InitScheduler()
@@ -283,6 +283,7 @@ func main() {
 	// Admin Map Management Routes
 	admin.Get("/map/markers", mapHandler.AdminGetAllMarkers)
 	admin.Get("/map/config", mapHandler.GetMarkerConfig)
+	admin.Post("/geocode-users", adminHandler.GeocodeAllUsers)
 
 	// Admin Shop Management Routes
 	admin.Get("/shops", shopHandler.AdminGetShops)

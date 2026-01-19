@@ -9,6 +9,7 @@ import (
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/services"
 	"strings"
 	"time"
 
@@ -390,4 +391,85 @@ func (h *AdminHandler) CreateGeminiCorpus(c *fiber.Ctx) error {
 	json.Unmarshal(respBody, &data)
 
 	return c.JSON(data)
+}
+
+// GeocodeAllUsers geocodes all users who have a city but no coordinates
+// POST /api/admin/geocode-users
+func (h *AdminHandler) GeocodeAllUsers(c *fiber.Ctx) error {
+	mapService := services.NewMapService(database.DB)
+
+	// Find all users with city but without coordinates
+	var users []models.User
+	if err := database.DB.Where("city IS NOT NULL AND city != '' AND (latitude IS NULL OR longitude IS NULL)").Find(&users).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch users"})
+	}
+
+	if len(users) == 0 {
+		return c.JSON(fiber.Map{
+			"message":  "No users need geocoding",
+			"geocoded": 0,
+			"failed":   0,
+		})
+	}
+
+	geocoded := 0
+	failed := 0
+	results := make([]fiber.Map, 0)
+
+	for _, user := range users {
+		result, err := mapService.GeocodeCity(user.City)
+		if err != nil {
+			failed++
+			results = append(results, fiber.Map{
+				"userId": user.ID,
+				"email":  user.Email,
+				"city":   user.City,
+				"status": "failed",
+				"error":  err.Error(),
+			})
+			continue
+		}
+
+		// Update user with coordinates
+		user.City = result.City
+		if user.Country == "" {
+			user.Country = result.Country
+		}
+		user.Latitude = &result.Latitude
+		user.Longitude = &result.Longitude
+
+		if err := database.DB.Save(&user).Error; err != nil {
+			failed++
+			results = append(results, fiber.Map{
+				"userId": user.ID,
+				"email":  user.Email,
+				"city":   user.City,
+				"status": "db_error",
+				"error":  err.Error(),
+			})
+			continue
+		}
+
+		geocoded++
+		results = append(results, fiber.Map{
+			"userId":    user.ID,
+			"email":     user.Email,
+			"city":      result.City,
+			"country":   result.Country,
+			"latitude":  result.Latitude,
+			"longitude": result.Longitude,
+			"status":    "success",
+		})
+
+		// Small delay to avoid rate limiting
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "Geocoding complete",
+		"total":    len(users),
+		"geocoded": geocoded,
+		"failed":   failed,
+		"results":  results,
+	})
 }
