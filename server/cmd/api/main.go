@@ -7,11 +7,11 @@ import (
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 
 	"rag-agent-server/internal/websocket"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	fiberwebsocket "github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
@@ -23,7 +23,7 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-	log.Println("Server Version: 1.4 (CORS Fix)")
+	log.Println("Server Version: 1.6 (Manual CORS Fix)")
 
 	// Initialize Database
 	database.Connect()
@@ -40,6 +40,9 @@ func main() {
 	// Seed demo ads if not present
 	database.SeedDemoAds()
 
+	// Seed map test data (users, shops, ads with coordinates)
+	database.SeedMapTestData()
+
 	// Initialize Services
 	services.InitScheduler()
 
@@ -51,14 +54,47 @@ func main() {
 	// Initialize Fiber App
 	app := fiber.New()
 
-	// Middleware
+	// Custom CORS Middleware (Manual implementation for stability)
+	app.Use(func(c *fiber.Ctx) error {
+		origin := c.Get("Origin")
+
+		// List of allowed origins
+		allowedOrigins := map[string]bool{
+			"http://localhost:3000":      true,
+			"http://localhost:3001":      true,
+			"http://localhost:3005":      true,
+			"http://127.0.0.1:3005":      true,
+			"http://[::1]:3005":          true,
+			"http://localhost:8081":      true,
+			"https://vedamatch.ru":       true,
+			"https://www.vedamatch.ru":   true,
+			"https://api.vedamatch.ru":   true,
+			"https://admin.vedamatch.ru": true,
+		}
+
+		if allowedOrigins[origin] {
+			c.Set("Access-Control-Allow-Origin", origin)
+		} else if origin != "" {
+			// For debug: allow any localhost/127.0.0.1 origin during development
+			if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+				c.Set("Access-Control-Allow-Origin", origin)
+				log.Printf("[CORS] Dynamically allowed local origin: %s", origin)
+			}
+		}
+
+		c.Set("Access-Control-Allow-Methods", "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS")
+		c.Set("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Admin-ID")
+		c.Set("Access-Control-Allow-Credentials", "true")
+
+		// Handle Preflight (OPTIONS)
+		if c.Method() == "OPTIONS" {
+			return c.SendStatus(fiber.StatusNoContent)
+		}
+
+		return c.Next()
+	})
+
 	app.Use(logger.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000,http://localhost:3001,http://localhost:8081,https://vedamatch.ru,https://www.vedamatch.ru,https://api.vedamatch.ru,https://admin.vedamatch.ru",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Admin-ID",
-		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
-		AllowCredentials: true,
-	}))
 
 	// Services
 	aiChatService := services.NewAiChatService()
@@ -79,13 +115,15 @@ func main() {
 	promptHandler := handlers.NewPromptHandler()
 	adsHandler := handlers.NewAdsHandler()
 	tagHandler := handlers.NewTagHandler()
-	openRouterHandler := handlers.NewOpenRouterHandler()
+	polzaHandler := handlers.NewPolzaHandler()
 	newsHandler := handlers.NewNewsHandler()
 	shopHandler := handlers.NewShopHandler()
 	productHandler := handlers.NewProductHandler()
 	orderHandler := handlers.NewOrderHandler()
 	educationHandler := handlers.NewEducationHandler(services.NewEducationService(database.DB))
 	turnHandler := handlers.NewTurnHandler()
+	userHandler := handlers.NewUserHandler()
+	mapHandler := handlers.NewMapHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler state from database
@@ -139,6 +177,14 @@ func main() {
 	// Public News Item (Wildcard) - Must come after specific paths
 	api.Get("/news/:id", newsHandler.GetNewsItem)
 
+	// Public Map Routes
+	mapRoutes := api.Group("/map")
+	mapRoutes.Get("/markers", mapHandler.GetMarkers)
+	mapRoutes.Get("/summary", mapHandler.GetSummary)
+	mapRoutes.Get("/config", mapHandler.GetTileConfig)
+	mapRoutes.Get("/autocomplete", mapHandler.Autocomplete)
+	mapRoutes.Post("/route", mapHandler.GetRoute)
+
 	// Public Ads Routes
 	api.Get("/ads", adsHandler.GetAds)
 	api.Get("/ads/categories", adsHandler.GetAdCategories)
@@ -166,6 +212,12 @@ func main() {
 
 	// AI Model Management Routes
 	admin.Get("/ai-models", aiHandler.GetAdminModels)
+
+	// Admin Map Routes
+	admin.Get("/map/markers", mapHandler.AdminGetAllMarkers)
+	admin.Get("/map/config", mapHandler.GetMarkerConfig)
+	admin.Post("/map/config", mapHandler.UpdateMarkerConfig)
+	admin.Post("/map/markers/:type/:id/toggle", mapHandler.ToggleMarkerVisibility)
 	admin.Post("/ai-models/sync", aiHandler.SyncModels)
 	admin.Put("/ai-models/:id", aiHandler.UpdateModel)
 	admin.Delete("/ai-models/:id", aiHandler.DeleteModel)
@@ -219,14 +271,18 @@ func main() {
 	admin.Post("/education/questions", educationHandler.CreateQuestion)
 	admin.Get("/education/modules/:moduleId/exams", educationHandler.GetModuleExams)
 
-	// OpenRouter Management Routes
-	admin.Get("/openrouter/status", openRouterHandler.GetStatus)
-	admin.Get("/openrouter/models", openRouterHandler.GetModels)
-	admin.Get("/openrouter/settings", openRouterHandler.GetSettings)
-	admin.Put("/openrouter/settings", openRouterHandler.UpdateSettings)
-	admin.Post("/openrouter/test", openRouterHandler.TestConnection)
-	admin.Post("/openrouter/test-routing", openRouterHandler.TestSmartRouting)
-	admin.Get("/openrouter/recommendations", openRouterHandler.GetModelRecommendations)
+	// Polza AI Management Routes (replaced OpenRouter)
+	admin.Get("/polza/status", polzaHandler.GetStatus)
+	admin.Get("/polza/models", polzaHandler.GetModels)
+	admin.Get("/polza/settings", polzaHandler.GetSettings)
+	admin.Put("/polza/settings", polzaHandler.UpdateSettings)
+	admin.Post("/polza/test", polzaHandler.TestConnection)
+	admin.Post("/polza/test-routing", polzaHandler.TestSmartRouting)
+	admin.Get("/polza/recommendations", polzaHandler.GetModelRecommendations)
+
+	// Admin Map Management Routes
+	admin.Get("/map/markers", mapHandler.AdminGetAllMarkers)
+	admin.Get("/map/config", mapHandler.GetMarkerConfig)
 
 	// Admin Shop Management Routes
 	admin.Get("/shops", shopHandler.AdminGetShops)
@@ -266,6 +322,13 @@ func main() {
 
 	// WebRTC Config
 	protected.Get("/turn-credentials", turnHandler.GetTurnCredentials)
+
+	// User Portal Layout Routes
+	protected.Get("/user/portal-layout", userHandler.GetPortalLayout)
+	protected.Put("/user/portal-layout", userHandler.SavePortalLayout)
+
+	// User Profile Route (public profile by ID)
+	protected.Get("/users/:id", userHandler.GetUserById)
 
 	// Tag Routes
 	protected.Get("/tags", tagHandler.SearchTags)

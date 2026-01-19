@@ -15,6 +15,7 @@ import PlansScreen from './screens/PlansScreen';
 import { RootStackParamList } from './types/navigation';
 // Portal Main Screen
 import { PortalMainScreen } from './screens/portal/PortalMainScreen';
+import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
 import { KrishnaAssistant } from './components/KrishnaAssistant';
@@ -22,6 +23,7 @@ import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileSc
 import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
 import { PortalDrawer } from './components/PortalDrawer';
+import { PortalLayoutProvider } from './context/PortalLayoutContext';
 
 let VoipPushNotification: any;
 if (Platform.OS === 'ios') {
@@ -68,6 +70,7 @@ import { MyOrdersScreen } from './screens/portal/shops/MyOrdersScreen';
 import { SellerOrdersScreen } from './screens/portal/shops/SellerOrdersScreen';
 import { MyProductsScreen } from './screens/portal/shops/MyProductsScreen';
 import { ShopsMapScreen } from './screens/portal/shops/ShopsMapScreen';
+import { MapGeoapifyScreen } from './screens/portal/map/MapGeoapifyScreen';
 
 import { EducationHomeScreen } from './screens/portal/education/EducationHomeScreen';
 import { CourseDetailsScreen } from './screens/portal/education/CourseDetailsScreen';
@@ -207,120 +210,126 @@ const AppContent = () => {
       edges={['top']}
     >
       <GlobalGestureHandler>
-        <NavigationContainer ref={navigationRef}>
-          <ThemedStatusBar />
-          <Stack.Navigator
-            screenOptions={{
-              headerShown: false,
-              animation: 'slide_from_right',
-            }}
-          >
-            {isLoggedIn ? (
-              <Stack.Group>
-                <Stack.Screen name="Portal" component={PortalMainScreen} />
-                <Stack.Screen name="Chat" component={ChatScreen} />
-                <Stack.Screen name="CallScreen" component={CallScreen} options={{ headerShown: false }} />
-                <Stack.Screen name="Plans" component={PlansScreen} />
-                <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
-                <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-                <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
-                <Stack.Screen
-                  name="RoomChat"
-                  component={RoomChatScreen}
-                  options={{ headerShown: true }}
-                />
-                <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
-                <Stack.Screen name="EditDatingProfile" component={EditDatingProfileScreen} />
-                <Stack.Screen name="DatingFavorites" component={DatingFavoritesScreen} />
+        <PortalLayoutProvider>
+          <NavigationContainer ref={navigationRef}>
+            <ThemedStatusBar />
+            <Stack.Navigator
+              screenOptions={{
+                headerShown: false,
+                animation: 'slide_from_right',
+              }}
+            >
+              {isLoggedIn ? (
+                <Stack.Group>
+                  <Stack.Screen name="Portal" component={PortalMainScreen} />
+                  <Stack.Screen name="WidgetSelection" component={WidgetSelectionScreen} />
+                  <Stack.Screen name="Chat" component={ChatScreen} />
+                  <Stack.Screen name="CallScreen" component={CallScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="Plans" component={PlansScreen} />
+                  <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+                  <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                  <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
+                  <Stack.Screen
+                    name="RoomChat"
+                    component={RoomChatScreen}
+                    options={{ headerShown: true }}
+                  />
+                  <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
+                  <Stack.Screen name="EditDatingProfile" component={EditDatingProfileScreen} />
+                  <Stack.Screen name="DatingFavorites" component={DatingFavoritesScreen} />
 
-                {/* Ads Routes */}
-                <Stack.Screen name="Ads" component={AdsScreen} />
-                <Stack.Screen name="CreateAd" component={CreateAdScreen} />
-                <Stack.Screen name="AdDetail" component={AdDetailScreen} />
-                <Stack.Screen name="AdsFilters" component={AdsFiltersScreen} options={{ presentation: 'modal' }} />
+                  {/* Ads Routes */}
+                  <Stack.Screen name="Ads" component={AdsScreen} />
+                  <Stack.Screen name="CreateAd" component={CreateAdScreen} />
+                  <Stack.Screen name="AdDetail" component={AdDetailScreen} />
+                  <Stack.Screen name="AdsFilters" component={AdsFiltersScreen} options={{ presentation: 'modal' }} />
 
-                {/* Library Routes */}
-                <Stack.Screen name="BookList" component={BookListScreen} options={{ headerShown: true, title: 'Книги' }} />
-                <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: 'Чтение' }} />
-                <Stack.Screen name="NewsDetail" component={NewsDetailScreen} options={{ headerShown: false }} />
+                  {/* Library Routes */}
+                  <Stack.Screen name="BookList" component={BookListScreen} options={{ headerShown: true, title: 'Книги' }} />
+                  <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: true, title: 'Чтение' }} />
+                  <Stack.Screen name="NewsDetail" component={NewsDetailScreen} options={{ headerShown: false }} />
 
-                {/* Market Routes */}
-                <Stack.Screen name="MarketHome" component={MarketHomeScreen} options={{ headerShown: true, title: t('market.title') }} />
-                <Stack.Screen name="Shops" component={ShopsScreen} options={{ headerShown: true, title: t('market.shops') }} />
-                <Stack.Screen name="ShopDetails" component={ShopsScreen} options={{ headerShown: true, title: t('market.shops').slice(0, -1) }} />
-                <Stack.Screen name="CreateShop" component={CreateShopScreen} options={{ headerShown: true, title: t('market.shop.create') }} />
-                <Stack.Screen name="EditShop" component={CreateShopScreen} options={{ headerShown: true, title: t('market.product.edit') }} />
-                <Stack.Screen name="SellerDashboard" component={SellerDashboardScreen} options={{ headerShown: true, title: t('market.myShop') }} />
-                <Stack.Screen name="CreateProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.add') }} />
-                <Stack.Screen name="EditProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.edit') }} />
-                <Stack.Screen name="MyProducts" component={MyProductsScreen} options={{ headerShown: true, title: t('market.seller.myProducts') }} />
-                <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} options={{ headerShown: true, title: t('market.title').split(' ')[1] || t('market.title') }} />
-                <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ headerShown: true, title: t('market.total') }} />
-                <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ headerShown: false }} />
-                <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
-                <Stack.Screen name="OrderDetails" component={MyOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
-                <Stack.Screen name="SellerOrders" component={SellerOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
-                <Stack.Screen name="ShopsMap" component={ShopsMapScreen} options={{ headerShown: true, title: t('market.map.title') }} />
+                  {/* Market Routes */}
+                  <Stack.Screen name="MarketHome" component={MarketHomeScreen} options={{ headerShown: true, title: t('market.title') }} />
+                  <Stack.Screen name="Shops" component={ShopsScreen} options={{ headerShown: true, title: t('market.shops') }} />
+                  <Stack.Screen name="ShopDetails" component={ShopsScreen} options={{ headerShown: true, title: t('market.shops').slice(0, -1) }} />
+                  <Stack.Screen name="CreateShop" component={CreateShopScreen} options={{ headerShown: true, title: t('market.shop.create') }} />
+                  <Stack.Screen name="EditShop" component={CreateShopScreen} options={{ headerShown: true, title: t('market.product.edit') }} />
+                  <Stack.Screen name="SellerDashboard" component={SellerDashboardScreen} options={{ headerShown: true, title: t('market.myShop') }} />
+                  <Stack.Screen name="CreateProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.add') }} />
+                  <Stack.Screen name="EditProduct" component={ProductEditScreen} options={{ headerShown: true, title: t('market.product.edit') }} />
+                  <Stack.Screen name="MyProducts" component={MyProductsScreen} options={{ headerShown: true, title: t('market.seller.myProducts') }} />
+                  <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} options={{ headerShown: true, title: t('market.title').split(' ')[1] || t('market.title') }} />
+                  <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ headerShown: true, title: t('market.total') }} />
+                  <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
+                  <Stack.Screen name="OrderDetails" component={MyOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
+                  <Stack.Screen name="SellerOrders" component={SellerOrdersScreen} options={{ headerShown: true, title: t('market.seller.orders') }} />
+                  <Stack.Screen name="ShopsMap" component={ShopsMapScreen} options={{ headerShown: true, title: t('market.map.title') }} />
 
-                {/* Education Routes */}
-                <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />
-                <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: 'Курс' }} />
-                <Stack.Screen name="ExamTrainer" component={ExamTrainerScreen} options={{ headerShown: true, title: 'Тренажер' }} />
+                  {/* Map Routes */}
+                  <Stack.Screen name="MapGeoapify" component={MapGeoapifyScreen} options={{ headerShown: false }} />
 
-                <Stack.Screen name="Registration" component={RegistrationScreen} />
-              </Stack.Group>
-            ) : (
-              <Stack.Group>
-                <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="Registration" component={RegistrationScreen} />
-              </Stack.Group>
-            )}
-          </Stack.Navigator>
-          {isLoggedIn && <KrishnaAssistant />}
-          <SettingsDrawer
-            isVisible={isMenuOpen}
-            onClose={() => setIsMenuOpen(false)}
-            isDarkMode={isDarkMode}
-            currentModel={currentModel}
-            onSelectModel={(model: any) => {
-              selectModel(model.id, model.provider);
-            }}
-            onNavigateToPortal={(tab) => {
-              setIsMenuOpen(false);
-              if (navigationRef.isReady()) {
-                // @ts-ignore
-                navigationRef.navigate('Portal', { initialTab: tab as any });
-              }
-            }}
-            onNavigateToSettings={() => {
-              setIsMenuOpen(false);
-              if (navigationRef.isReady()) {
-                // @ts-ignore
-                navigationRef.navigate('AppSettings');
-              }
-            }}
-            onNavigateToRegistration={() => {
-              setIsMenuOpen(false);
-              if (navigationRef.isReady()) {
-                // @ts-ignore
-                navigationRef.navigate('Registration', { isDarkMode });
-              }
-            }}
-          />
-          {isLoggedIn && (
-            <PortalDrawer
-              isVisible={isPortalOpen}
-              onClose={() => setIsPortalOpen(false)}
-              onServicePress={(serviceId) => {
-                setIsPortalOpen(false);
+                  {/* Education Routes */}
+                  <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />
+                  <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: 'Курс' }} />
+                  <Stack.Screen name="ExamTrainer" component={ExamTrainerScreen} options={{ headerShown: true, title: 'Тренажер' }} />
+
+                  <Stack.Screen name="Registration" component={RegistrationScreen} />
+                </Stack.Group>
+              ) : (
+                <Stack.Group>
+                  <Stack.Screen name="Login" component={LoginScreen} />
+                  <Stack.Screen name="Registration" component={RegistrationScreen} />
+                </Stack.Group>
+              )}
+            </Stack.Navigator>
+            {isLoggedIn && <KrishnaAssistant />}
+            <SettingsDrawer
+              isVisible={isMenuOpen}
+              onClose={() => setIsMenuOpen(false)}
+              isDarkMode={isDarkMode}
+              currentModel={currentModel}
+              onSelectModel={(model: any) => {
+                selectModel(model.id, model.provider);
+              }}
+              onNavigateToPortal={(tab) => {
+                setIsMenuOpen(false);
                 if (navigationRef.isReady()) {
                   // @ts-ignore
-                  navigationRef.navigate('Portal', { initialTab: serviceId });
+                  navigationRef.navigate('Portal', { initialTab: tab as any });
+                }
+              }}
+              onNavigateToSettings={() => {
+                setIsMenuOpen(false);
+                if (navigationRef.isReady()) {
+                  // @ts-ignore
+                  navigationRef.navigate('AppSettings');
+                }
+              }}
+              onNavigateToRegistration={() => {
+                setIsMenuOpen(false);
+                if (navigationRef.isReady()) {
+                  // @ts-ignore
+                  navigationRef.navigate('Registration', { isDarkMode });
                 }
               }}
             />
-          )}
-        </NavigationContainer>
+            {isLoggedIn && (
+              <PortalDrawer
+                isVisible={isPortalOpen}
+                onClose={() => setIsPortalOpen(false)}
+                onServicePress={(serviceId) => {
+                  setIsPortalOpen(false);
+                  if (navigationRef.isReady()) {
+                    // @ts-ignore
+                    navigationRef.navigate('Portal', { initialTab: serviceId });
+                  }
+                }}
+              />
+            )}
+          </NavigationContainer>
+        </PortalLayoutProvider>
       </GlobalGestureHandler>
     </SafeAreaView>
   );

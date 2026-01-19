@@ -9,7 +9,8 @@ export type RootStackParamList = {
     Registration: { isDarkMode: boolean, phase?: 'initial' | 'profile' };
     Login: undefined;
     Plans: undefined;
-    Portal: { initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' } | undefined;
+    Portal: { initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map' } | undefined;
+    MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
     ContactProfile: { userId: number };
     AppSettings: undefined;
     EditProfile: undefined;
@@ -46,4 +47,5 @@ export type RootStackParamList = {
     CourseDetails: { courseId: number };
     ExamTrainer: { moduleId: number; title: string };
     CallScreen: { targetId?: number; isIncoming?: boolean; callerName?: string; callUUID?: string };
+    WidgetSelection: undefined;
 };

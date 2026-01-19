@@ -11,9 +11,13 @@ import {
     StatusBar,
     ScrollView,
     Switch,
-    Alert
+    Alert,
+    Image as RNImage,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { launchImageLibrary } from 'react-native-image-picker';
+import LinearGradient from 'react-native-linear-gradient';
+import { Palette, Image as ImageIcon } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
@@ -37,6 +41,9 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         vTheme,
         themeMode,
         setThemeMode,
+        portalBackground,
+        portalBackgroundType,
+        setPortalBackground,
     } = useSettings();
 
     const { logout } = useUser();
@@ -64,6 +71,29 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
             [section]: !prev[section]
         }));
     };
+
+    const handlePickImage = async () => {
+        const result = await launchImageLibrary({
+            mediaType: 'photo',
+            quality: 0.8,
+        });
+
+        if (result.assets && result.assets.length > 0) {
+            const uri = result.assets[0].uri;
+            if (uri) {
+                setPortalBackground(uri, 'image');
+            }
+        }
+    };
+
+    const PRESET_COLORS = ['#ffffff', '#f5f5f5', '#1a1a1a', '#2c3e50', '#8e44ad', '#e67e22'];
+    const PRESET_GRADIENTS = [
+        '#FF9D6C|#FF4D4D', // Sunset
+        '#4facfe|#00f2fe', // Cool Blue
+        '#43e97b|#38f9d7', // Forest
+        '#fa709a|#fee140', // Peach
+        '#6a11cb|#2575fc', // Deep Sea
+    ];
 
     const renderModelItem = (item: any) => (
         <TouchableOpacity
@@ -213,6 +243,70 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             trackColor={{ false: theme.inputBackground, true: theme.button }}
                             thumbColor={isAutoMagicEnabled ? '#fff' : '#f4f3f4'}
                         />
+                    </View>
+                </View>
+
+                {/* Portal Appearance Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
+                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Вид портала</Text>
+
+                    <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary }]}>Цвета</Text>
+                    <View style={styles.presetsGrid}>
+                        {PRESET_COLORS.map(color => (
+                            <TouchableOpacity
+                                key={color}
+                                style={[
+                                    styles.presetItem,
+                                    { backgroundColor: color, borderColor: vTheme.colors.divider },
+                                    portalBackground === color && styles.selectedPreset
+                                ]}
+                                onPress={() => setPortalBackground(color, 'color')}
+                            />
+                        ))}
+                    </View>
+
+                    <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary, marginTop: 15 }]}>Градиенты</Text>
+                    <View style={styles.presetsGrid}>
+                        {PRESET_GRADIENTS.map(grad => (
+                            <TouchableOpacity
+                                key={grad}
+                                onPress={() => setPortalBackground(grad, 'gradient')}
+                                style={[
+                                    styles.presetItem,
+                                    portalBackground === grad && styles.selectedPreset
+                                ]}
+                            >
+                                <LinearGradient
+                                    colors={grad.split('|')}
+                                    style={styles.gradientPreset}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary, marginTop: 15 }]}>Свой фон</Text>
+                    <View style={styles.imageRow}>
+                        <TouchableOpacity
+                            style={[
+                                styles.imagePickerBtn,
+                                { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }
+                            ]}
+                            onPress={handlePickImage}
+                        >
+                            <ImageIcon size={24} color={vTheme.colors.primary} />
+                            <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>Выбрать из галереи</Text>
+                        </TouchableOpacity>
+
+                        {portalBackgroundType === 'image' && (
+                            <View style={styles.previewContainer}>
+                                <RNImage source={{ uri: portalBackground }} style={styles.imagePreview} />
+                                <View style={styles.checkOverlay}>
+                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
+                                </View>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -388,7 +482,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         </Text>
                     </TouchableOpacity>
                 </View>
-            </ScrollView>
+            </ScrollView >
         </SafeAreaView >
     );
 };
@@ -515,5 +609,68 @@ const styles = StyleSheet.create({
     },
     actionDescription: {
         fontSize: 14,
+    },
+    presetsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 5,
+    },
+    presetItem: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 2,
+        borderColor: 'transparent',
+        overflow: 'hidden',
+    },
+    selectedPreset: {
+        borderColor: '#FF9933',
+        transform: [{ scale: 1.1 }],
+    },
+    gradientPreset: {
+        flex: 1,
+    },
+    imageRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 15,
+        marginTop: 5,
+    },
+    imagePickerBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        gap: 10,
+        flex: 1,
+    },
+    imagePickerText: {
+        fontSize: 15,
+        fontWeight: '500',
+    },
+    previewContainer: {
+        width: 50,
+        height: 50,
+        borderRadius: 10,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#FF9933',
+    },
+    imagePreview: {
+        width: '100%',
+        height: '100%',
+    },
+    checkOverlay: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        backgroundColor: 'rgba(255,153,51,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

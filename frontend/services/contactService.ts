@@ -131,5 +131,21 @@ export const contactService = {
             body: JSON.stringify({ userId, blockedId }),
         });
         if (!response.ok) throw new Error('Failed to unblock user');
+    },
+
+    // Get a user profile by ID (for viewing profiles from map, etc.)
+    getUserById: async (userId: number): Promise<UserContact | null> => {
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_PATH}/users/${userId}`, { headers });
+            if (!response.ok) {
+                console.error(`Failed to fetch user ${userId}: ${response.status}`);
+                return null;
+            }
+            return response.json();
+        } catch (error) {
+            console.error('Error fetching user by ID:', error);
+            return null;
+        }
     }
 };

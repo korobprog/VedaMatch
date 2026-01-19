@@ -96,7 +96,7 @@ func SeedLibrary() {
 		{
 			Code:          "bg",
 			NameEn:        "Bhagavad Gita As It Is",
-			NameRu:        "Бхагавад-гита как она есть",
+			NameRu:        "Бхагавад-гита",
 			DescriptionEn: "The Song of God. A dialogue between Krishna and Arjuna before the battle.",
 			DescriptionRu: "Песнь Бога. Диалог между Кришной и Арджуной перед битвой на Курукшетре.",
 		},

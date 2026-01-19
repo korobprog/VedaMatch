@@ -10,8 +10,10 @@ import {
     Alert,
     Platform,
     Image,
+    ImageBackground,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import LinearGradient from 'react-native-linear-gradient';
 import {
     Users,
     MessageCircle,
@@ -45,20 +47,62 @@ import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { PortalLayoutProvider, usePortalLayout } from '../../context/PortalLayoutContext';
 import { PortalGrid } from '../../components/portal';
 
+
 const { width } = Dimensions.get('window');
 
-type ServiceTab = 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education';
+type ServiceTab = 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education' | 'map';
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const { vTheme, isDarkMode, setIsMenuOpen, setIsPortalOpen, setDefaultMenuTab } = useSettings();
+    const { vTheme, isDarkMode, setIsMenuOpen, setIsPortalOpen, setDefaultMenuTab, portalBackground, portalBackgroundType } = useSettings();
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+    // Background wrapper as inner function
+    const BackgroundWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+        if (portalBackgroundType === 'image' && portalBackground) {
+            return (
+                <ImageBackground
+                    source={{ uri: portalBackground }}
+                    style={styles.container}
+                    resizeMode="cover"
+                >
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                        {children}
+                    </View>
+                </ImageBackground>
+            );
+        }
+
+        if (portalBackgroundType === 'gradient' && portalBackground) {
+            const colors = portalBackground.split('|');
+            return (
+                <LinearGradient
+                    colors={colors}
+                    style={styles.container}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                >
+                    {children}
+                </LinearGradient>
+            );
+        }
+
+        return (
+            <View style={[styles.container, { backgroundColor: portalBackground || vTheme.colors.background }]}>
+                {children}
+            </View>
+        );
+    };
+
     useEffect(() => {
-        if (route.params?.initialTab) {
+        if (route.params?.initialTab === 'map') {
+            navigation.navigate('MapGeoapify');
+            // Reset params to prevent infinite loop or re-triggering
+            navigation.setParams({ initialTab: null });
+        } else if (route.params?.initialTab) {
             setActiveTab(route.params.initialTab);
         }
     }, [route.params?.initialTab]);
@@ -71,6 +115,10 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         if (serviceId === 'history') {
             setDefaultMenuTab('history');
             setIsMenuOpen(true);
+            return;
+        }
+        if (serviceId === 'map') {
+            navigation.navigate('MapGeoapify');
             return;
         }
 
@@ -109,18 +157,13 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
     // Show grid view if no active tab
     if (!activeTab) {
         return (
-            <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
-                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={vTheme.colors.background} />
+            <BackgroundWrapper>
+                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
                 {/* Header */}
-                <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+                <View style={[styles.header, { backgroundColor: 'transparent' }]}>
                     <View style={styles.headerLeft}>
-                        <TouchableOpacity
-                            onPress={() => setIsPortalOpen(true)}
-                            style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
-                        >
-                            <Menu size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
-                        </TouchableOpacity>
+                        {/* Menu button hidden on portal main screen as per user request */}
                     </View>
 
                     <View style={styles.logoContainer}>
@@ -162,27 +205,27 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
                 {/* Hint text */}
                 <View style={styles.hintContainer}>
-                    <Text style={[styles.hintText, { color: vTheme.colors.textSecondary }]}>
+                    <Text style={[styles.hintText, { color: portalBackgroundType === 'color' && portalBackground === '#ffffff' ? vTheme.colors.textSecondary : '#ffffff' }]}>
                         Удерживайте для редактирования
                     </Text>
                 </View>
-            </View>
+            </BackgroundWrapper>
         );
     }
 
     // Show service content with back button
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
-            <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={vTheme.colors.background} />
+        <BackgroundWrapper>
+            <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             {/* Header with back */}
-            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+            <View style={[styles.header, { backgroundColor: 'transparent' }]}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity
-                        onPress={() => setIsPortalOpen(true)}
+                        onPress={() => setActiveTab(null)}
                         style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
                     >
-                        <Menu size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
+                        <List size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
                     </TouchableOpacity>
                 </View>
 
@@ -222,16 +265,14 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             <View style={styles.content}>
                 {renderContent()}
             </View>
-        </View>
+        </BackgroundWrapper>
     );
 };
 
 // Main export with provider
 export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
     return (
-        <PortalLayoutProvider>
-            <PortalContent navigation={navigation} route={route} />
-        </PortalLayoutProvider>
+        <PortalContent navigation={navigation} route={route} />
     );
 };
 

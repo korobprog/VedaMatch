@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { libraryService } from '../../services/libraryService';
+import { offlineBookService } from '../../services/offlineBookService';
 import { ScriptureVerse, ChapterInfo } from '../../types/library';
 import {
     Bookmark,
@@ -110,15 +111,22 @@ export const ReaderScreen = () => {
         }
     }, [activeVerseIndex, verses.length]);
 
-    // Default language logic: User Profile -> App Language -> English
-    const getDefaultLanguage = () => {
-        if (user?.language) {
-            return user.language === 'ru' ? 'ru' : 'en';
-        }
+    // Default language logic: Use app language (i18n) as the source
+    const getDefaultLanguage = (): 'ru' | 'en' => {
+        // Use i18n.language which is set in AppSettings
         return i18n.language.startsWith('ru') ? 'ru' : 'en';
     };
 
     const [language, setLanguage] = useState<'ru' | 'en'>(getDefaultLanguage());
+
+    // Update language when app language changes in settings
+    useEffect(() => {
+        const newLang = i18n.language.startsWith('ru') ? 'ru' : 'en';
+        if (newLang !== language) {
+            console.log('Updating reader language from app settings:', newLang);
+            setLanguage(newLang);
+        }
+    }, [i18n.language]);
 
     useEffect(() => {
         loadChapters();
@@ -160,7 +168,13 @@ export const ReaderScreen = () => {
             const data = await libraryService.getChapters(bookCode);
             setChapters(data);
         } catch (error) {
-            console.error('Failed to load chapters', error);
+            console.error('Failed to load chapters from network, trying offline', error);
+            // Fallback to offline data
+            const offlineData = await offlineBookService.getOfflineChapters(bookCode);
+            if (offlineData.length > 0) {
+                setChapters(offlineData);
+                console.log('Loaded chapters from offline storage:', offlineData.length);
+            }
         }
     };
 
@@ -169,15 +183,26 @@ export const ReaderScreen = () => {
         console.log('Loading verses for chapter', chapter, 'in language', language);
         try {
             const data = await libraryService.getVerses(bookCode, chapter, undefined, language);
-            console.log('Loaded', data.length, 'verses');
+            console.log('Loaded', data.length, 'verses from network');
             setVerses(data);
             setCurrentChapter(chapter);
             setActiveVerseIndex(0);
             versePositions.current = {};
-            // Scroll to top when chapter changes
             mainScrollRef.current?.scrollTo({ y: 0, animated: false });
         } catch (error) {
-            console.error('Failed to load verses', error);
+            console.error('Failed to load verses from network, trying offline', error);
+            // Fallback to offline data
+            const offlineData = await offlineBookService.getOfflineVerses(bookCode, chapter, language);
+            if (offlineData.length > 0) {
+                console.log('Loaded', offlineData.length, 'verses from offline storage');
+                setVerses(offlineData);
+                setCurrentChapter(chapter);
+                setActiveVerseIndex(0);
+                versePositions.current = {};
+                mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+            } else {
+                console.error('No offline data available for this chapter');
+            }
         } finally {
             setLoading(false);
         }

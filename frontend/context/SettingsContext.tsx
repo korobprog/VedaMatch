@@ -41,6 +41,9 @@ interface SettingsContextType {
     setIsMenuOpen: (isOpen: boolean) => void;
     isPortalOpen: boolean;
     setIsPortalOpen: (isOpen: boolean) => void;
+    portalBackground: string;
+    portalBackgroundType: 'color' | 'gradient' | 'image';
+    setPortalBackground: (bg: string, type: 'color' | 'gradient' | 'image') => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -58,6 +61,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     const [isPortalOpen, setIsPortalOpen] = useState<boolean>(false);
+    const [portalBackground, setPortalBackgroundState] = useState<string>('#ffffff');
+    const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
 
     const colorScheme = useColorScheme();
 
@@ -155,6 +160,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 if (savedThemeMode === 'light' || savedThemeMode === 'dark' || savedThemeMode === 'system') {
                     setThemeModeState(savedThemeMode as ThemeMode);
                 }
+
+                const savedBg = await AsyncStorage.getItem('portal_background');
+                const savedBgType = await AsyncStorage.getItem('portal_background_type');
+                if (savedBg) setPortalBackgroundState(savedBg);
+                if (savedBgType === 'color' || savedBgType === 'gradient' || savedBgType === 'image') {
+                    setPortalBackgroundType(savedBgType);
+                }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
             }
@@ -186,6 +198,17 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const setPortalBackground = async (bg: string, type: 'color' | 'gradient' | 'image') => {
+        setPortalBackgroundState(bg);
+        setPortalBackgroundType(type);
+        try {
+            await AsyncStorage.setItem('portal_background', bg);
+            await AsyncStorage.setItem('portal_background_type', type);
+        } catch (e) {
+            console.error('Failed to save portal background', e);
+        }
+    };
+
     return (
         <SettingsContext.Provider value={{
             models,
@@ -211,6 +234,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             setIsMenuOpen,
             isPortalOpen,
             setIsPortalOpen,
+            portalBackground,
+            portalBackgroundType,
+            setPortalBackground,
         }}>
             {children}
         </SettingsContext.Provider>

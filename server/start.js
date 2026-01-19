@@ -47,7 +47,7 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 (async () => {
   await sleep(3000);
-  
+
   // Установка зависимостей
   console.log('📥 Устанавливаю зависимости Go...');
   try {
@@ -57,11 +57,25 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     process.exit(1);
   }
 
-  // Запуск сервера
+  // Запуск сервера (ВСЕГДА используем go run в dev-режиме для актуального кода)
   console.log('🔥 Запускаю сервер на http://localhost:8081');
   console.log('');
 
-  const serverProcess = spawn('go', ['run', 'cmd/api/main.go'], {
+  const fs = require('fs');
+  const serverExePath = serverDir + '/server.exe';
+  const mainExePath = serverDir + '/main.exe';
+
+  // Предупреждение о наличии скомпилированных файлов
+  if (fs.existsSync(serverExePath) || fs.existsSync(mainExePath)) {
+    console.log('⚠️  Найдены скомпилированные файлы (server.exe / main.exe).');
+    console.log('   В dev-режиме они НЕ используются — запускаем go run для актуального кода.');
+    console.log('   Для production используйте: go build -o server.exe ./cmd/api/main.go');
+    console.log('');
+  }
+
+  // Всегда используем go run для development
+  console.log('📦 Запускаю через go run (dev-режим)');
+  const serverProcess = spawn('go', ['run', './cmd/api/main.go'], {
     stdio: 'inherit',
     shell: true,
     cwd: serverDir

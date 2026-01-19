@@ -67,7 +67,7 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
-      <service android:name="io.wazo.callkeep.VoiceConnectionService"
+    <service android:name="io.wazo.callkeep.VoiceConnectionService"
         android:label="Wazo"
         android:exported="true"
         android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
@@ -75,7 +75,7 @@
         <intent-filter>
             <action android:name="android.telecom.ConnectionService" />
         </intent-filter>
-      </service>
-    </application>
+    </service>
+  </application>
 </manifest>
 

@@ -42,7 +42,7 @@ PARSER_CONFIG = {
     "books": {
         "bg": {
             "name": "Bhagavad-gita As It Is",
-            "name_ru": "Бхагавад-гита как она есть",
+            "name_ru": "Бхагавад-гита",
             "chapters": 18,
             "has_cantos": False,
         },

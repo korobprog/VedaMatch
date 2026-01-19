@@ -106,6 +106,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                     onDownloadImage={downloadImage}
                     onShareImage={shareImage}
                     onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
+                    onNavigateToMap={(mapData) => {
+                        // Navigate to map screen with mapData params
+                        navigation.navigate('MapGeoapify', {
+                            focusMarker: mapData?.markers?.[0] ? {
+                                id: mapData.markers[0].id,
+                                type: mapData.markers[0].type,
+                                latitude: mapData.markers[0].latitude,
+                                longitude: mapData.markers[0].longitude,
+                            } : undefined,
+                        });
+                    }}
                 />
 
                 <ChatInput

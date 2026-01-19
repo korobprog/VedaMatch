@@ -1,23 +1,19 @@
 package services
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strings"
-	"time"
 )
 
 type AiChatService struct {
 	apiURL     string
 	ragService *RAGPipelineService
+	geoService *GeoIntentService
 }
 
 func NewAiChatService() *AiChatService {
@@ -26,9 +22,12 @@ func NewAiChatService() *AiChatService {
 		apiURL = "https://rvlautoai.ru/webhook/v1/chat/completions"
 	}
 
+	mapService := NewMapService(database.DB)
+
 	return &AiChatService{
 		apiURL:     apiURL,
 		ragService: NewRAGPipelineService(database.DB),
+		geoService: NewGeoIntentService(mapService),
 	}
 }
 
@@ -117,142 +116,52 @@ func (s *AiChatService) getFallbackModels(failedModelID string) []models.AiModel
 	return models
 }
 
-// makeRequest handles the actual API call logic
+// makeRequest handles the actual API call logic - uses Polza.ai only
 func (s *AiChatService) makeRequest(modelID string, messages []map[string]string) (string, error) {
-	provider := s.getProvider(modelID)
-
-	// OpenRouter models - use worker proxy with smart routing
-	if provider == "OpenRouter" || strings.Contains(modelID, "/") {
-		openRouterService := GetOpenRouterService()
-		if openRouterService.HasWorkerURL() {
-			log.Printf("[AiChatService] Using OpenRouter worker for model: %s", modelID)
-			content, err := openRouterService.SendMessage(modelID, messages)
-			if err == nil {
-				return content, nil
-			}
-			log.Printf("[AiChatService] OpenRouter failed for %s: %v. Falling back.", modelID, err)
+	// Use Polza.ai as the only LM provider
+	polzaService := GetPolzaService()
+	if polzaService.HasApiKey() {
+		log.Printf("[AiChatService] Using Polza.ai for model: %s", modelID)
+		content, err := polzaService.SendMessage(modelID, messages)
+		if err == nil {
+			return content, nil
 		}
+		log.Printf("[AiChatService] Polza.ai failed for %s: %v", modelID, err)
+		return "", fmt.Errorf("Polza.ai error: %v", err)
 	}
 
-	// Check if this is a Gemini model - use direct Gemini API to avoid content_type issues
-	if strings.HasPrefix(modelID, "gemini") || provider == "Google" {
-		geminiService := GetGeminiService()
-		if geminiService.HasKeys() {
-			log.Printf("[AiChatService] Using direct Gemini API for model: %s", modelID)
-			content, err := geminiService.SendMessage(modelID, messages)
-			if err == nil {
-				return content, nil
-			}
-			log.Printf("[AiChatService] Direct Gemini API failed for %s: %v. Falling back to proxy.", modelID, err)
-			// Continue to proxy fallback
-		}
-	}
-
-	// Fix for provider specific model names if needed
-	apiModelID := modelID
-	if apiModelID == "gpt5" {
-		apiModelID = "gpt4o"
-	}
-
-	// Ensure provider is not empty
-	if provider == "" {
-		provider = "OpenAI" // Default fallback
-		log.Printf("[AiChatService] Warning: Provider was empty for model %s, using default: %s", modelID, provider)
-	}
-
-	apiKey := s.getApiKey(provider)
-	if apiKey == "" {
-		return "", fmt.Errorf("API Key not found for provider: %s", provider)
-	}
-
-	requestBody := map[string]interface{}{
-		"model":        apiModelID,
-		"messages":     messages,
-		"provider":     provider,
-		"content_type": "text", // Explicitly specify content type to avoid auto-detection as 'audio'
-	}
-
-	// Determine the API URL - use Routeway URL for Routeway provider
-	apiURL := s.apiURL
-	if provider == "Routeway" {
-		var setting models.SystemSetting
-		if err := database.DB.Where("key = ?", "ROUTEWAY_API_URL").First(&setting).Error; err == nil && setting.Value != "" {
-			apiURL = setting.Value
-		} else {
-			apiURL = "https://api.routeway.ai/v1/chat/completions"
-		}
-		// Routeway uses OpenAI-compatible format, no need for provider field
-		delete(requestBody, "provider")
-		delete(requestBody, "content_type")
-	}
-
-	log.Printf("[AiChatService] Making request: model=%s, provider=%s, url=%s", apiModelID, provider, apiURL)
-
-	jsonBody, _ := json.Marshal(requestBody)
-	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	client := &http.Client{
-		Timeout: 45 * time.Second, // Increased timeout for safety
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("[AiChatService] Request failed for model %s: %v", modelID, err)
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode != 200 {
-		log.Printf("[AiChatService] Error from API (Model: %s): %s", modelID, string(bodyBytes))
-		// Check for specific error codes like "credits_exhausted" if possible, but
-		// for now any non-200 is a failure warranting fallback.
-		return "", fmt.Errorf("status %d", resp.StatusCode)
-	}
-
-	var response struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Error interface{} `json:"error"`
-	}
-
-	if err := json.Unmarshal(bodyBytes, &response); err != nil {
-		return "", err
-	}
-
-	if len(response.Choices) > 0 {
-		return response.Choices[0].Message.Content, nil
-	}
-
-	if response.Error != nil {
-		errJSON, _ := json.Marshal(response.Error)
-		return "", fmt.Errorf("API error: %s", string(errJSON))
-	}
-
-	return "", fmt.Errorf("empty response")
+	return "", fmt.Errorf("Polza API key not configured. Please set it in admin panel.")
 }
 
-func (s *AiChatService) GenerateReply(room models.Room, lastMessages []models.Message) (string, error) {
+func (s *AiChatService) GenerateReply(roomName string, lastMessages []models.Message) (string, map[string]interface{}, error) {
+	// Construct message history for AI
 	var messages []map[string]string
 
-	// Add system prompt
-	systemPrompt := fmt.Sprintf("You are an AI assistant in the chat room '%s'. %s. Be helpful and concise.", room.Name, room.Description)
+	systemPrompt := "You are a helpful AI assistant in a Vedic community app. Your name is Krishna Assistant. You help users with knowledge about Vedas, Yoga, and community features."
+	systemPrompt += "\nUse simple, friendly language. If asked about spiritual topics, provide wisdom from Vedic scriptures."
 
-	// Detect shopping intent and add product context if necessary
+	// Extract last user message to augment system prompt with RAG
 	lastUserMsg := ""
-	if len(lastMessages) > 0 {
-		lastUserMsg = lastMessages[len(lastMessages)-1].Content
+	for i := len(lastMessages) - 1; i >= 0; i-- {
+		if lastMessages[i].SenderID != 0 { // Assuming 0 is system/AI
+			lastUserMsg = lastMessages[i].Content
+			break
+		}
 	}
 
+	// 0. Check for Geo/Map Intent
+	if lastUserMsg != "" {
+		geoIntent, err := s.geoService.DetectGeoIntent(context.Background(), lastUserMsg)
+		if err == nil && geoIntent != nil {
+			response, mapData := s.geoService.FormatMapResponse(geoIntent)
+			if response != "" {
+				log.Printf("[AiChatService] Geo intent detected: %s", lastUserMsg)
+				return response, mapData, nil
+			}
+		}
+	}
+
+	// 0.5 Check for shopping intent (RAG)
 	shoppingKeywords := []string{"купить", "цена", "товар", "магазин", "есть ли", "заказать", "прайс", "buy", "price", "product", "shop", "stock"}
 	isShoppingQuery := false
 	for _, kw := range shoppingKeywords {
@@ -291,7 +200,7 @@ func (s *AiChatService) GenerateReply(room models.Room, lastMessages []models.Me
 
 	content, err := s.makeRequest(defaultModelID, messages)
 	if err == nil {
-		return content, nil
+		return content, nil, nil
 	}
 
 	log.Printf("[AiChatService] Primary model %s failed: %v. Initiating fallback...", defaultModelID, err)
@@ -303,12 +212,12 @@ func (s *AiChatService) GenerateReply(room models.Room, lastMessages []models.Me
 		content, err := s.makeRequest(fbModel.ModelID, messages)
 		if err == nil {
 			log.Printf("[AiChatService] Fallback successful with model: %s", fbModel.ModelID)
-			return content, nil
+			return content, nil, nil
 		}
 		log.Printf("[AiChatService] Fallback model %s failed: %v", fbModel.ModelID, err)
 	}
 
-	return "", fmt.Errorf("all AI models failed to generate a response")
+	return "", nil, fmt.Errorf("all AI models failed to generate a response")
 }
 
 func (s *AiChatService) GetSummary(roomName string, lastMessages []models.Message) (string, error) {

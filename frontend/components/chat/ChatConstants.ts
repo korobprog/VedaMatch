@@ -57,6 +57,27 @@ export type Message = {
     roomId?: number;
     createdAt?: string;
     navTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'knowledge_base';
+    // Map integration for AI geo-intents
+    mapData?: {
+        markers?: Array<{
+            id: number;
+            type: 'user' | 'shop' | 'ad';
+            title: string;
+            latitude: number;
+            longitude: number;
+        }>;
+        filters?: {
+            showUsers?: boolean;
+            showShops?: boolean;
+            showAds?: boolean;
+        };
+        searchQuery?: string;
+        focusLocation?: {
+            latitude: number;
+            longitude: number;
+            zoom?: number;
+        };
+    };
 };
 
 export const MENU_OPTIONS = [

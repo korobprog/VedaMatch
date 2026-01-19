@@ -31,3 +31,7 @@ export interface ChapterInfo {
     canto: number;
     chapter: number;
 }
+
+// Re-export from offlineBookService for convenience
+export type { SavedBookInfo } from '../services/offlineBookService';
+

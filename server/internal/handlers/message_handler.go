@@ -71,6 +71,7 @@ func (h *MessageHandler) handleAiResponse(roomID uint) {
 	}
 
 	var reply string
+	var mapData map[string]interface{}
 	var err error
 
 	// Check if the last message is asking about news
@@ -94,14 +95,14 @@ func (h *MessageHandler) handleAiResponse(roomID uint) {
 			if err != nil {
 				log.Printf("[AI] News query error: %v", err)
 				// Fall back to regular AI response
-				reply, err = h.aiService.GenerateReply(room, lastMessages)
+				reply, mapData, err = h.aiService.GenerateReply(room.Name, lastMessages)
 			}
 		} else {
 			// Regular AI response
-			reply, err = h.aiService.GenerateReply(room, lastMessages)
+			reply, mapData, err = h.aiService.GenerateReply(room.Name, lastMessages)
 		}
 	} else {
-		reply, err = h.aiService.GenerateReply(room, lastMessages)
+		reply, mapData, err = h.aiService.GenerateReply(room.Name, lastMessages)
 	}
 
 	if err != nil {
@@ -113,6 +114,7 @@ func (h *MessageHandler) handleAiResponse(roomID uint) {
 		SenderID: 0, // 0 for AI/System
 		RoomID:   roomID,
 		Content:  reply,
+		MapData:  mapData,
 		Type:     "text",
 	}
 	database.DB.Create(&aiMsg)

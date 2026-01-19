@@ -17,6 +17,8 @@ interface UserProfile {
     identity?: string;
     datingEnabled?: boolean;
     language?: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 interface UserContextType {

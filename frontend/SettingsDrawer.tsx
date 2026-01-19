@@ -24,6 +24,7 @@ import {
     Megaphone,
     Newspaper,
     Book,
+    Map,
     ChevronRight,
     User,
     LogIn,
@@ -102,7 +103,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         { id: 'shops', icon: ShoppingBag, color: vTheme.colors.primary, label: t('settings.tabs.shops') },
         { id: 'ads', icon: Megaphone, color: '#EF4444', label: t('settings.tabs.ads') },
         { id: 'news', icon: Newspaper, color: vTheme.colors.textSecondary, label: t('settings.tabs.news') },
-        { id: 'library', icon: Book, color: '#43A047', label: 'Библиотека' },
+        { id: 'map', icon: Map, color: '#7C3AED', label: t('settings.tabs.map') },
+        { id: 'library', icon: Book, color: '#43A047', label: t('settings.tabs.library') },
     ];
 
     return (

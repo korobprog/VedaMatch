@@ -82,7 +82,7 @@ func SeedMarket() {
 		},
 		{
 			ShopID:           shops[1].ID,
-			Name:             "Бхагавад-гита как она есть",
+			Name:             "Бхагавад-гита",
 			Slug:             "bhagavad-gita-as-it-is",
 			ShortDescription: "Полное издание с комментариями Шрилы Прабхупады",
 			Category:         "books",

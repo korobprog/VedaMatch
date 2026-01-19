@@ -19,11 +19,13 @@ import (
 
 type AuthHandler struct {
 	ragService *services.RAGService
+	mapService *services.MapService
 }
 
 func NewAuthHandler() *AuthHandler {
 	return &AuthHandler{
 		ragService: services.NewRAGService(),
+		mapService: services.NewMapService(database.DB),
 	}
 }
 
@@ -164,7 +166,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
-	var updateData models.User
+	var updateData struct {
+		models.User
+		// Additional fields for coordinates from frontend
+		Latitude  *float64 `json:"latitude"`
+		Longitude *float64 `json:"longitude"`
+	}
 	if err := c.BodyParser(&updateData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
@@ -184,6 +191,9 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			"error": "User not found",
 		})
 	}
+
+	// Check if city changed
+	cityChanged := updateData.City != "" && updateData.City != user.City
 
 	// Update fields
 	user.KarmicName = updateData.KarmicName
@@ -205,7 +215,36 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.Skills = updateData.Skills
 	user.Industry = updateData.Industry
 	user.LookingForBusiness = updateData.LookingForBusiness
-	user.IsProfileComplete = true // Mark as complete since we are updating profile
+	user.DatingEnabled = updateData.DatingEnabled
+	user.Yatra = updateData.Yatra
+	user.Timezone = updateData.Timezone
+	user.MaritalStatus = updateData.MaritalStatus
+	user.BirthTime = updateData.BirthTime
+	user.IsProfileComplete = true
+
+	// Handle coordinates
+	if updateData.Latitude != nil && updateData.Longitude != nil {
+		// Use coordinates from frontend (from autocomplete)
+		user.Latitude = updateData.Latitude
+		user.Longitude = updateData.Longitude
+		log.Printf("[Profile] Using coordinates from frontend: %f, %f", *updateData.Latitude, *updateData.Longitude)
+	} else if cityChanged && h.mapService != nil {
+		// City changed but no coordinates provided - geocode it
+		geocoded, err := h.mapService.GeocodeCity(updateData.City)
+		if err != nil {
+			log.Printf("[Profile] Geocoding failed for city '%s': %v", updateData.City, err)
+			// Don't fail the request, just log the error
+		} else {
+			// Use normalized city name and coordinates
+			user.City = geocoded.City
+			if updateData.Country == "" {
+				user.Country = geocoded.Country
+			}
+			user.Latitude = &geocoded.Latitude
+			user.Longitude = &geocoded.Longitude
+			log.Printf("[Profile] Geocoded city '%s' -> '%s' (%f, %f)", updateData.City, geocoded.City, geocoded.Latitude, geocoded.Longitude)
+		}
+	}
 
 	if err := database.DB.Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

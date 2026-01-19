@@ -32,13 +32,30 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const fetchContactData = async () => {
         try {
             setLoading(true);
-            const allContacts = await contactService.getContacts();
-            const found = allContacts.find(c => c.ID === userId);
+
+            // First try to find in contacts list
+            let found: UserContact | null = null;
+            try {
+                const allContacts = await contactService.getContacts();
+                found = allContacts.find(c => c.ID === userId) || null;
+            } catch (err) {
+                console.log('Could not fetch contacts list, trying direct fetch');
+            }
+
+            // If not found in contacts, try to fetch directly by ID
+            if (!found) {
+                found = await contactService.getUserById(userId);
+            }
+
             if (found) {
                 setContact(found);
                 if (currentUser?.ID) {
-                    const friends = await contactService.getFriends(currentUser.ID);
-                    setIsFriend(friends.some(f => f.ID === userId));
+                    try {
+                        const friends = await contactService.getFriends(currentUser.ID);
+                        setIsFriend(friends.some(f => f.ID === userId));
+                    } catch (err) {
+                        console.log('Could not fetch friends list');
+                    }
                 }
             }
         } catch (error) {

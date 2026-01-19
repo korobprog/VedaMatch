@@ -15,7 +15,7 @@ import {
     Linking,
     Platform,
 } from 'react-native';
-import { FileText, File, Download, Music, Video, Image as ImageIcon } from 'lucide-react-native';
+import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
 import { ChatImage } from '../ChatImage';
@@ -30,6 +30,7 @@ interface MessageListProps {
     onDownloadImage: (imageUrl: string, imageName?: string) => void;
     onShareImage: (url: string) => void;
     onNavigateToTab: (tab: any) => void;
+    onNavigateToMap?: (mapData: Message['mapData']) => void;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -38,6 +39,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     onDownloadImage,
     onShareImage,
     onNavigateToTab,
+    onNavigateToMap,
 }) => {
     const { t, i18n } = useTranslation();
     const { messages, isLoading, isTyping, recipientUser, deleteMessage } = useChat();
@@ -327,6 +329,19 @@ export const MessageList: React.FC<MessageListProps> = ({
                             <Text style={[styles.navButtonText, { color: '#FFF' }]}>{t('chat.goToSection')}</Text>
                         </TouchableOpacity>
                     )}
+
+                    {/* Map button for AI geo-intents */}
+                    {item.mapData && onNavigateToMap && (
+                        <TouchableOpacity
+                            style={[styles.mapButton, { backgroundColor: '#059669' }]}
+                            onPress={() => onNavigateToMap(item.mapData)}
+                        >
+                            <MapPin size={16} color="#FFF" />
+                            <Text style={[styles.navButtonText, { color: '#FFF', marginLeft: 6 }]}>
+                                {t('chat.showOnMap', 'Показать на карте')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </MessageWrapper>
         );
@@ -410,6 +425,7 @@ const styles = StyleSheet.create({
     downloadBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
     navButton: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center' },
     navButtonText: { fontSize: 13, fontWeight: 'bold' },
+    mapButton: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
     uploadingContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
     uploadingText: { marginLeft: 8, fontSize: 14 }
 });

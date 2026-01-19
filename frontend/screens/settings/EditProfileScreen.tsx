@@ -22,6 +22,7 @@ import { API_PATH } from '../../config/api.config';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
+import { mapService } from '../../services/mapService';
 import {
     DATING_TRADITIONS,
     YOGA_STYLES,
@@ -78,6 +79,13 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [yatra, setYatra] = useState('');
     const [timezone, setTimezone] = useState('');
     const [datingEnabled, setDatingEnabled] = useState(false);
+    const [latitude, setLatitude] = useState<number | undefined>(undefined);
+    const [longitude, setLongitude] = useState<number | undefined>(undefined);
+
+    // City autocomplete
+    const [citySearchQuery, setCitySearchQuery] = useState('');
+    const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+    const [showCitySuggestions, setShowCitySuggestions] = useState(false);
 
     const [showCountryPicker, setShowCountryPicker] = useState(false);
     // const [showCityPicker, setShowCityPicker] = useState(false);
@@ -196,7 +204,9 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 birthTime,
                 yatra,
                 timezone,
-                datingEnabled
+                datingEnabled,
+                latitude,
+                longitude
             };
 
             const token = await AsyncStorage.getItem('token');
@@ -228,6 +238,48 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         setCountry(cData.name.common);
         setShowCountryPicker(false);
         await fetchCities(cData.name.common);
+    };
+
+    // City autocomplete search
+    const searchCities = async (query: string) => {
+        setCitySearchQuery(query);
+        setCity(query); // Update city as user types
+
+        if (query.length < 2) {
+            setCitySuggestions([]);
+            setShowCitySuggestions(false);
+            return;
+        }
+
+        try {
+            const result = await mapService.autocomplete(query, undefined, undefined, 5);
+            if (result?.features) {
+                // Filter to show only cities/localities
+                const cities = result.features
+                    .filter((f: any) => f.properties?.city || f.properties?.name)
+                    .map((f: any) => ({
+                        city: f.properties.city || f.properties.name,
+                        country: f.properties.country,
+                        lat: f.properties.lat,
+                        lon: f.properties.lon,
+                        formatted: f.properties.formatted
+                    }));
+                setCitySuggestions(cities);
+                setShowCitySuggestions(cities.length > 0);
+            }
+        } catch (error) {
+            console.error('[EditProfile] City search error:', error);
+        }
+    };
+
+    const handleCitySelect = (suggestion: any) => {
+        setCity(suggestion.city);
+        setCitySearchQuery(suggestion.city);
+        setCountry(suggestion.country || country);
+        setLatitude(suggestion.lat);
+        setLongitude(suggestion.lon);
+        setShowCitySuggestions(false);
+        console.log('[EditProfile] Selected city:', suggestion.city, 'coords:', suggestion.lat, suggestion.lon);
     };
 
     const toggleIntention = (key: string) => {
@@ -314,13 +366,30 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 {/* Main Profile Fields */}
                 <View style={styles.section}>
                     <Text style={[styles.label, { color: theme.text }]}>{t('registration.city') || 'Current City'}</Text>
-                    <TextInput
-                        style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
-                        value={city}
-                        onChangeText={setCity}
-                        placeholder={t('registration.selectCity')}
-                        placeholderTextColor={theme.subText}
-                    />
+                    <View style={{ position: 'relative', zIndex: 100 }}>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                            value={city}
+                            onChangeText={searchCities}
+                            placeholder={t('registration.selectCity')}
+                            placeholderTextColor={theme.subText}
+                            onFocus={() => city.length >= 2 && setShowCitySuggestions(citySuggestions.length > 0)}
+                        />
+                        {showCitySuggestions && (
+                            <View style={[styles.suggestionsContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+                                {citySuggestions.map((suggestion, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={[styles.suggestionItem, { borderBottomColor: theme.borderColor }]}
+                                        onPress={() => handleCitySelect(suggestion)}
+                                    >
+                                        <Text style={{ color: theme.text, fontSize: 15 }}>{suggestion.city}</Text>
+                                        <Text style={{ color: theme.subText, fontSize: 12 }}>{suggestion.country}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
 
                     <Text style={[styles.label, { color: theme.text }]}>{t('dating.yatra')}</Text>
                     <TextInput
@@ -634,5 +703,24 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         marginRight: 8,
         marginBottom: 10,
+    },
+    suggestionsContainer: {
+        position: 'absolute',
+        top: 54,
+        left: 0,
+        right: 0,
+        borderWidth: 1,
+        borderRadius: 10,
+        maxHeight: 200,
+        zIndex: 1000,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+    },
+    suggestionItem: {
+        padding: 12,
+        borderBottomWidth: 0.5,
     },
 });

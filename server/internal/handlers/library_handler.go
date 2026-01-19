@@ -13,7 +13,7 @@ func SeeInitialBooks(c *fiber.Ctx) error {
 	database.DB.Model(&models.ScriptureBook{}).Count(&count)
 	if count == 0 {
 		books := []models.ScriptureBook{
-			{Code: "bg", NameEn: "Bhagavad Gita As It Is", NameRu: "Бхагавад-гита как она есть", DescriptionEn: "The universal message of Lord Krishna.", DescriptionRu: "Универсальное послание Господа Кришны."},
+			{Code: "bg", NameEn: "Bhagavad Gita As It Is", NameRu: "Бхагавад-гита", DescriptionEn: "The universal message of Lord Krishna.", DescriptionRu: "Универсальное послание Господа Кришны."},
 			{Code: "sb", NameEn: "Srimad Bhagavatam", NameRu: "Шримад Бхагаватам", DescriptionEn: "The ripened fruit of the tree of Vedic knowledge.", DescriptionRu: "Зрелый плод древа ведического знания."},
 		}
 		database.DB.Create(&books)
@@ -43,7 +43,7 @@ func GetLibraryBooks(c *fiber.Ctx) error {
 	database.DB.Model(&models.ScriptureBook{}).Count(&count)
 	if count == 0 {
 		books := []models.ScriptureBook{
-			{Code: "bg", NameEn: "Bhagavad Gita As It Is", NameRu: "Бхагавад-гита как она есть", DescriptionEn: "The universal message of Lord Krishna.", DescriptionRu: "Универсальное послание Господа Кришны."},
+			{Code: "bg", NameEn: "Bhagavad Gita As It Is", NameRu: "Бхагавад-гита", DescriptionEn: "The universal message of Lord Krishna.", DescriptionRu: "Универсальное послание Господа Кришны."},
 			{Code: "sb", NameEn: "Srimad Bhagavatam", NameRu: "Шримад Бхагаватам", DescriptionEn: "The ripened fruit of the tree of Vedic knowledge.", DescriptionRu: "Зрелый плод древа ведического знания."},
 		}
 		database.DB.Create(&books)

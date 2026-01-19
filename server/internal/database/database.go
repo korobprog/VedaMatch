@@ -52,7 +52,7 @@ func Connect() {
 		&models.User{}, &models.Friend{}, &models.Message{}, &models.Block{},
 		&models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{},
 		&models.SystemSetting{}, &models.DatingFavorite{}, &models.DatingCompatibility{},
-		&models.AIPrompt{},
+		&models.AIPrompt{}, &models.UserPortalLayout{},
 		// Ads models
 		&models.Ad{}, &models.AdPhoto{}, &models.AdFavorite{}, &models.AdReport{},
 		// Library models

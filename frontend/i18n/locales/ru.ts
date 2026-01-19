@@ -383,8 +383,6 @@ export default {
         setStartTime: 'Установить время начала',
         notificationHint: 'Друзья получат уведомление за 15 минут',
         selectStartTime: 'Выберите время начала',
-        roomImage: 'Изображение комнаты',
-        upload: 'Загрузить',
         readingSettings: 'Настройки чтения',
         locationPlaceholder: 'Местоположение (Город, Ятра)',
         selectScripture: 'Выберите Писание:',
@@ -467,6 +465,8 @@ export default {
             shops: 'Магазины',
             ads: 'Объявления',
             news: 'Новости',
+            map: 'Карта',
+            library: 'Библиотека',
             knowledge_base: 'База знаний'
         },
         language: 'Язык',

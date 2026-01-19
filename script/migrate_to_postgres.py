@@ -49,7 +49,7 @@ def migrate_books():
         for code_tuple in codes:
             code = code_tuple[0]
             if code == 'bg':
-                books.append(('bg', 'Bhagavad-gita As It Is', 'Бхагавад-гита как она есть', 'The Song of God', 'Песнь Бога'))
+                books.append(('bg', 'Bhagavad-gita As It Is', 'Бхагавад-гита', 'The Song of God', 'Песнь Бога'))
             else:
                  books.append((code, f'Book {code}', f'Книга {code}', '', ''))
     
