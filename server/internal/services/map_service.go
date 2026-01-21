@@ -49,12 +49,13 @@ func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarker
 			models.MarkerTypeUser,
 			models.MarkerTypeShop,
 			models.MarkerTypeAd,
+			models.MarkerTypeCafe,
 		}
-		categoryCount = 3
+		categoryCount = 4
 	}
 	limitPerCategory := limit / categoryCount
 
-	var truncatedUsers, truncatedShops, truncatedAds int
+	var truncatedUsers, truncatedShops, truncatedAds, truncatedCafes int
 
 	for _, cat := range req.Categories {
 		switch cat {
@@ -70,6 +71,10 @@ func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarker
 			adMarkers, truncated := s.getAdMarkers(req.MapBoundingBox, req.UserLat, req.UserLng, limitPerCategory)
 			markers = append(markers, adMarkers...)
 			truncatedAds = truncated
+		case models.MarkerTypeCafe:
+			cafeMarkers, truncated := s.getCafeMarkers(req.MapBoundingBox, req.UserLat, req.UserLng, limitPerCategory)
+			markers = append(markers, cafeMarkers...)
+			truncatedCafes = truncated
 		}
 	}
 
@@ -79,6 +84,7 @@ func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarker
 		TruncatedU: truncatedUsers,
 		TruncatedS: truncatedShops,
 		TruncatedA: truncatedAds,
+		TruncatedC: truncatedCafes,
 	}, nil
 }
 
@@ -275,6 +281,68 @@ func (s *MapService) getAdMarkers(bbox models.MapBoundingBox, userLat, userLng *
 	return markers, truncated
 }
 
+// getCafeMarkers retrieves cafe markers from the database
+func (s *MapService) getCafeMarkers(bbox models.MapBoundingBox, userLat, userLng *float64, limit int) ([]models.MapMarker, int) {
+	var cafes []models.Cafe
+	var totalCount int64
+
+	query := s.db.Model(&models.Cafe{}).
+		Where("latitude IS NOT NULL AND longitude IS NOT NULL").
+		Where("latitude >= ? AND latitude <= ?", bbox.LatMin, bbox.LatMax).
+		Where("longitude >= ? AND longitude <= ?", bbox.LngMin, bbox.LngMax).
+		Where("status = ?", models.CafeStatusActive)
+
+	query.Count(&totalCount)
+
+	if userLat != nil && userLng != nil {
+		query = query.Order(fmt.Sprintf(
+			"((%f - latitude) * (%f - latitude) + (%f - longitude) * (%f - longitude)) ASC",
+			*userLat, *userLat, *userLng, *userLng,
+		))
+	}
+
+	query.Limit(limit).Find(&cafes)
+
+	markers := make([]models.MapMarker, 0, len(cafes))
+	for _, cafe := range cafes {
+		if cafe.Latitude == nil || cafe.Longitude == nil {
+			continue
+		}
+
+		var distance float64
+		if userLat != nil && userLng != nil {
+			distance = haversineDistance(*userLat, *userLng, *cafe.Latitude, *cafe.Longitude)
+		}
+
+		markers = append(markers, models.MapMarker{
+			ID:        cafe.ID,
+			Type:      models.MarkerTypeCafe,
+			Title:     cafe.Name,
+			Subtitle:  cafe.Address,
+			Latitude:  *cafe.Latitude,
+			Longitude: *cafe.Longitude,
+			AvatarURL: cafe.LogoURL,
+			Category:  "cafe",
+			Rating:    cafe.Rating,
+			Distance:  distance,
+			Status:    string(cafe.Status),
+			Data: map[string]any{
+				"hasDelivery": cafe.HasDelivery,
+				"hasTakeaway": cafe.HasTakeaway,
+				"hasDineIn":   cafe.HasDineIn,
+				"avgPrepTime": cafe.AvgPrepTime,
+			},
+		})
+	}
+
+	truncated := 0
+	if int(totalCount) > limit {
+		truncated = int(totalCount) - limit
+	}
+
+	return markers, truncated
+}
+
 // GetSummary retrieves cluster summary by cities
 func (s *MapService) GetSummary() (*models.MapSummaryResponse, error) {
 	log.Println("[MapService] GetSummary called")
@@ -384,6 +452,38 @@ func (s *MapService) GetSummary() (*models.MapSummaryResponse, error) {
 			}
 		}
 		clusters[key].AdCount = stat.Count
+		clusters[key].TotalCount += stat.Count
+	}
+
+	// Get cafe counts by city
+	var cafeStats []struct {
+		City      string
+		Latitude  float64
+		Longitude float64
+		Count     int
+	}
+
+	s.db.Model(&models.Cafe{}).
+		Select("city, AVG(latitude) as latitude, AVG(longitude) as longitude, COUNT(*) as count").
+		Where("city IS NOT NULL AND city != ''").
+		Where("latitude IS NOT NULL AND longitude IS NOT NULL").
+		Where("status = ?", models.CafeStatusActive).
+		Group("city").
+		Scan(&cafeStats)
+
+	for _, stat := range cafeStats {
+		if stat.City == "" {
+			continue
+		}
+		key := strings.ToLower(stat.City)
+		if _, exists := clusters[key]; !exists {
+			clusters[key] = &models.MapCluster{
+				City:      stat.City,
+				Latitude:  stat.Latitude,
+				Longitude: stat.Longitude,
+			}
+		}
+		clusters[key].CafeCount = stat.Count
 		clusters[key].TotalCount += stat.Count
 	}
 
@@ -560,6 +660,70 @@ func (s *MapService) GeocodeCity(cityName string) (*GeocodedCity, error) {
 
 	return &GeocodedCity{
 		City:      normalizedCity,
+		Country:   feature.Country,
+		Latitude:  feature.Lat,
+		Longitude: feature.Lon,
+	}, nil
+}
+
+// GeocodedLocation represents the result of geocoding an address/location
+type GeocodedLocation struct {
+	Formatted string
+	City      string
+	Country   string
+	Latitude  float64
+	Longitude float64
+}
+
+// GeocodeLocation geocodes an address string and returns coordinates
+func (s *MapService) GeocodeLocation(query string) (*GeocodedLocation, error) {
+	if query == "" {
+		return nil, fmt.Errorf("query is empty")
+	}
+
+	// Use Geoapify geocoding API without type restriction
+	url := fmt.Sprintf(
+		"https://api.geoapify.com/v1/geocode/search?text=%s&limit=1&apiKey=%s",
+		strings.ReplaceAll(query, " ", "%20"),
+		s.geoapifyAPIKey,
+	)
+
+	resp, err := s.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to geocode location: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read geocode response: %w", err)
+	}
+
+	var result struct {
+		Features []struct {
+			Properties struct {
+				Formatted string  `json:"formatted"`
+				City      string  `json:"city"`
+				Country   string  `json:"country"`
+				Lat       float64 `json:"lat"`
+				Lon       float64 `json:"lon"`
+			} `json:"properties"`
+		} `json:"features"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse geocode response: %w", err)
+	}
+
+	if len(result.Features) == 0 {
+		return nil, fmt.Errorf("location not found: %s", query)
+	}
+
+	feature := result.Features[0].Properties
+
+	return &GeocodedLocation{
+		Formatted: feature.Formatted,
+		City:      feature.City,
 		Country:   feature.Country,
 		Latitude:  feature.Lat,
 		Longitude: feature.Lon,

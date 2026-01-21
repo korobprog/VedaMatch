@@ -115,7 +115,7 @@ export const AdDetailScreen: React.FC = () => {
 
     const priceText = ad.isFree
         ? t('ads.price.free')
-        : `${ad.price} ${ad.currency}`;
+        : (ad.price ? `${ad.price} ${ad.currency}` : '');
 
     return (
         <ProtectedScreen>

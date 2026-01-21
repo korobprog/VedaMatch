@@ -15,10 +15,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type AdsHandler struct{}
+type AdsHandler struct {
+	mapService *services.MapService
+}
 
 func NewAdsHandler() *AdsHandler {
-	return &AdsHandler{}
+	return &AdsHandler{
+		mapService: services.NewMapService(database.DB),
+	}
 }
 
 // GetAds returns a paginated list of ads with filters
@@ -267,6 +271,19 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 		Email:        req.Email,
 		Status:       models.AdStatusActive, // Auto-approve for now, can add moderation later
 		ExpiresAt:    expiresAt,
+		Latitude:     req.Latitude,
+		Longitude:    req.Longitude,
+	}
+
+	// Geocode city if coordinates are missing
+	if (ad.Latitude == nil || ad.Longitude == nil) && ad.City != "" && h.mapService != nil {
+		geocoded, err := h.mapService.GeocodeCity(ad.City)
+		if err == nil {
+			ad.Latitude = &geocoded.Latitude
+			ad.Longitude = &geocoded.Longitude
+			// Normalize city name
+			ad.City = geocoded.City
+		}
 	}
 
 	if err := database.DB.Create(&ad).Error; err != nil {
@@ -347,6 +364,26 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not update ad",
 		})
+	}
+
+	// Re-geocode if city changed and coordinates not provided
+	cityChanged := req.City != "" && req.City != ad.City
+	if cityChanged || (req.Latitude == nil && ad.Latitude == nil) {
+		if (req.Latitude == nil || req.Longitude == nil) && ad.City != "" && h.mapService != nil {
+			geocoded, err := h.mapService.GeocodeCity(ad.City)
+			if err == nil {
+				database.DB.Model(&ad).Updates(map[string]interface{}{
+					"latitude":  geocoded.Latitude,
+					"longitude": geocoded.Longitude,
+					"city":      geocoded.City,
+				})
+			}
+		} else if req.Latitude != nil && req.Longitude != nil {
+			database.DB.Model(&ad).Updates(map[string]interface{}{
+				"latitude":  req.Latitude,
+				"longitude": req.Longitude,
+			})
+		}
 	}
 
 	// Update photos if provided

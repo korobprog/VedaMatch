@@ -41,6 +41,7 @@ import { NewsScreen } from './news/NewsScreen';
 import { DatingScreen } from './dating/DatingScreen';
 import { LibraryHomeScreen } from '../library/LibraryHomeScreen';
 import { EducationHomeScreen } from './education/EducationHomeScreen';
+import { CafeListScreen } from './cafe';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
@@ -50,7 +51,7 @@ import { PortalGrid } from '../../components/portal';
 
 const { width } = Dimensions.get('window');
 
-type ServiceTab = 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education' | 'map';
+type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'knowledge_base' | 'library' | 'education' | 'map';
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
@@ -145,6 +146,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             case 'chat': return <PortalChatScreen />;
             case 'calls': return <CallHistoryScreen />;
             case 'dating': return <DatingScreen />;
+            case 'cafe': return <CafeListScreen />;
             case 'shops': return <MarketHomeScreen />;
             case 'ads': return <AdsScreen />;
             case 'library': return <LibraryHomeScreen />;

@@ -74,6 +74,13 @@ func Connect() {
 		// RAG models
 		&models.Document{}, &models.Chunk{},
 		&models.ChatSession{}, &models.ChatMessage{},
+		// Cafe models
+		&models.Cafe{}, &models.CafeStaff{}, &models.CafeTable{},
+		&models.CafeReview{}, &models.WaiterCall{},
+		&models.DishCategory{}, &models.Dish{},
+		&models.DishIngredient{}, &models.DishModifier{},
+		&models.CafeOrder{}, &models.CafeOrderItem{},
+		&models.CafeOrderItemModifier{}, &models.TableReservation{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)

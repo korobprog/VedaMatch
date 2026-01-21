@@ -97,6 +97,17 @@ func (s *ShopService) CreateShop(userID uint, userRole string, req models.ShopCr
 		Status:       models.ShopStatusPending, // Requires moderation
 	}
 
+	// Geocode if coordinates missing
+	if (shop.Latitude == nil || shop.Longitude == nil) && shop.City != "" {
+		mapService := NewMapService(database.DB)
+		geocoded, err := mapService.GeocodeCity(shop.City)
+		if err == nil {
+			shop.Latitude = &geocoded.Latitude
+			shop.Longitude = &geocoded.Longitude
+			shop.City = geocoded.City
+		}
+	}
+
 	if err := database.DB.Create(&shop).Error; err != nil {
 		return nil, err
 	}
@@ -168,6 +179,21 @@ func (s *ShopService) UpdateShop(shopID uint, userID uint, userRole string, req 
 
 	if err := database.DB.Save(&shop).Error; err != nil {
 		return nil, err
+	}
+	// Re-geocode if city changed and no coordinates provided
+	cityChanged := req.City != nil && *req.City != shop.City
+	if cityChanged || (req.Latitude == nil && shop.Latitude == nil) {
+		if (req.Latitude == nil || req.Longitude == nil) && shop.City != "" {
+			mapService := NewMapService(database.DB)
+			geocoded, err := mapService.GeocodeCity(shop.City)
+			if err == nil {
+				database.DB.Model(&shop).Updates(map[string]interface{}{
+					"latitude":  geocoded.Latitude,
+					"longitude": geocoded.Longitude,
+					"city":      geocoded.City,
+				})
+			}
+		}
 	}
 
 	return shop, nil

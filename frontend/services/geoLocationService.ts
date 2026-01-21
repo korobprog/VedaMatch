@@ -1,4 +1,5 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, Alert } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 
 interface LocationCoords {
 	latitude: number;
@@ -14,9 +15,90 @@ interface LocationData {
 
 export const geoLocationService = {
 	async detectLocation(): Promise<LocationData | null> {
-		// TODO: Restore lost implementation.
-		// Requires a geolocation library or logic using PermissionsAndroid/navigator.geolocation
-		return null;
+		const hasPermission = await this.requestLocationPermission();
+		if (!hasPermission) {
+			throw new Error('Location permission denied');
+		}
+
+		return new Promise((resolve, reject) => {
+			Geolocation.getCurrentPosition(
+				async (position) => {
+					const { latitude, longitude } = position.coords;
+					try {
+						const locationData = await this.reverseGeocode(latitude, longitude);
+						resolve(locationData);
+					} catch (error) {
+						console.error('Reverse geocoding failed, returning coords only', error);
+						resolve({
+							country: '',
+							city: '',
+							latitude,
+							longitude,
+						});
+					}
+				},
+				(error) => {
+					console.error('Geolocation error:', error);
+					reject(new Error(error.message));
+				},
+				{ enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+			);
+		});
+	},
+
+	async requestLocationPermission(): Promise<boolean> {
+		if (Platform.OS === 'ios') {
+			Geolocation.requestAuthorization();
+			return true; // iOS permissions are handled by the OS prompt flow mostly
+		}
+
+		try {
+			const granted = await PermissionsAndroid.request(
+				PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+				{
+					title: 'Location Permission',
+					message: 'App needs access to your location to find nearby users and places.',
+					buttonNeutral: 'Ask Me Later',
+					buttonNegative: 'Cancel',
+					buttonPositive: 'OK',
+				}
+			);
+			return granted === PermissionsAndroid.RESULTS.GRANTED;
+		} catch (err) {
+			console.warn(err);
+			return false;
+		}
+	},
+
+	async reverseGeocode(lat: number, lon: number): Promise<LocationData> {
+		try {
+			const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
+			const response = await fetch(url, {
+				headers: {
+					'User-Agent': 'RagAgent/1.0', // Nominatim requires User-Agent
+					'Accept-Language': 'en-US,en;q=0.9',
+				}
+			});
+
+			if (!response.ok) throw new Error('Network response was not ok');
+
+			const data = await response.json();
+			const address = data.address || {};
+
+			// Try to find city in various fields
+			const city = address.city || address.town || address.village || address.municipality || address.state_district || '';
+			const country = address.country || '';
+
+			return {
+				country,
+				city,
+				latitude: lat,
+				longitude: lon
+			};
+		} catch (error) {
+			console.error('Reverse geocode error:', error);
+			throw error;
+		}
 	},
 
 	async getNearbyUsers(
@@ -27,7 +109,6 @@ export const geoLocationService = {
 		// Базовый фильтр по координатам
 		// На сервере будет более точный расчет
 		const userIDs: number[] = [];
-
 		return userIDs;
 	},
 
@@ -38,6 +119,7 @@ export const geoLocationService = {
 
 			const response = await fetch(url, {
 				headers: {
+					'User-Agent': 'RagAgent/1.0',
 					'Accept-Language': 'en-US,en;q=0.9',
 				},
 			});

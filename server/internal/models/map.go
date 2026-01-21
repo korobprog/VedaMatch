@@ -7,6 +7,7 @@ const (
 	MarkerTypeUser MarkerType = "user"
 	MarkerTypeShop MarkerType = "shop"
 	MarkerTypeAd   MarkerType = "ad"
+	MarkerTypeCafe MarkerType = "cafe"
 )
 
 // MapMarker represents a single marker on the map
@@ -33,6 +34,7 @@ type MapCluster struct {
 	UserCount  int     `json:"userCount"`
 	ShopCount  int     `json:"shopCount"`
 	AdCount    int     `json:"adCount"`
+	CafeCount  int     `json:"cafeCount"`
 	TotalCount int     `json:"totalCount"`
 }
 
@@ -60,6 +62,7 @@ type MapMarkersResponse struct {
 	TruncatedU int         `json:"truncatedUsers,omitempty"`
 	TruncatedS int         `json:"truncatedShops,omitempty"`
 	TruncatedA int         `json:"truncatedAds,omitempty"`
+	TruncatedC int         `json:"truncatedCafes,omitempty"`
 }
 
 // MapSummaryResponse represents the cluster summary response

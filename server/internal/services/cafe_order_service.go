@@ -1,0 +1,665 @@
+package services
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/websocket"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// CafeOrderService handles cafe order-related operations
+type CafeOrderService struct {
+	db          *gorm.DB
+	dishService *DishService
+}
+
+// NewCafeOrderService creates a new cafe order service instance
+func NewCafeOrderService(db *gorm.DB, dishService *DishService) *CafeOrderService {
+	return &CafeOrderService{
+		db:          db,
+		dishService: dishService,
+	}
+}
+
+// ===== Order CRUD =====
+
+// CreateOrder creates a new cafe order
+func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCreateRequest) (*models.CafeOrder, error) {
+	// Validate order type requirements
+	if req.OrderType == models.CafeOrderTypeDineIn && req.TableID == nil {
+		return nil, errors.New("table ID required for dine-in orders")
+	}
+	if req.OrderType == models.CafeOrderTypeDelivery && req.DeliveryAddress == "" {
+		return nil, errors.New("delivery address required for delivery orders")
+	}
+
+	// Calculate order totals
+	var items []models.CafeOrderItem
+	var subtotal float64
+	dishIDs := make([]uint, 0)
+
+	for _, itemReq := range req.Items {
+		dish, err := s.dishService.GetDish(itemReq.DishID)
+		if err != nil {
+			return nil, fmt.Errorf("dish %d not found", itemReq.DishID)
+		}
+
+		if !dish.IsAvailable {
+			return nil, fmt.Errorf("dish %s is currently unavailable", dish.Name)
+		}
+
+		itemTotal := dish.Price * float64(itemReq.Quantity)
+
+		// Handle modifiers
+		var modifiers []models.CafeOrderItemModifier
+		for _, modReq := range itemReq.Modifiers {
+			var modifier models.DishModifier
+			if err := s.db.First(&modifier, modReq.ModifierID).Error; err != nil {
+				return nil, fmt.Errorf("modifier %d not found", modReq.ModifierID)
+			}
+
+			qty := modReq.Quantity
+			if qty == 0 {
+				qty = 1
+			}
+
+			modTotal := modifier.Price * float64(qty)
+			itemTotal += modTotal
+
+			modifiers = append(modifiers, models.CafeOrderItemModifier{
+				ModifierID:   modifier.ID,
+				ModifierName: modifier.Name,
+				Price:        modifier.Price,
+				Quantity:     qty,
+				Total:        modTotal,
+			})
+		}
+
+		// Handle removed ingredients
+		removedIngredientsJSON := ""
+		if len(itemReq.RemovedIngredients) > 0 {
+			jsonBytes, _ := json.Marshal(itemReq.RemovedIngredients)
+			removedIngredientsJSON = string(jsonBytes)
+		}
+
+		items = append(items, models.CafeOrderItem{
+			DishID:             dish.ID,
+			DishName:           dish.Name,
+			ImageURL:           dish.ImageURL,
+			UnitPrice:          dish.Price,
+			Quantity:           itemReq.Quantity,
+			Total:              itemTotal,
+			RemovedIngredients: removedIngredientsJSON,
+			CustomerNote:       itemReq.Note,
+			Status:             "pending",
+			Modifiers:          modifiers,
+		})
+
+		subtotal += itemTotal
+		dishIDs = append(dishIDs, dish.ID)
+	}
+
+	// Get cafe for delivery fee
+	var cafe models.Cafe
+	if err := s.db.First(&cafe, req.CafeID).Error; err != nil {
+		return nil, errors.New("cafe not found")
+	}
+
+	deliveryFee := 0.0
+	if req.OrderType == models.CafeOrderTypeDelivery {
+		deliveryFee = cafe.DeliveryFee
+	}
+
+	total := subtotal + deliveryFee
+
+	// Generate order number
+	orderNumber := s.generateOrderNumber(req.CafeID)
+
+	// Calculate estimated ready time
+	estimatedReadyAt := time.Now().Add(time.Duration(cafe.AvgPrepTime) * time.Minute)
+
+	order := &models.CafeOrder{
+		OrderNumber:       orderNumber,
+		CafeID:            req.CafeID,
+		CustomerID:        customerID,
+		CustomerName:      req.CustomerName,
+		OrderType:         req.OrderType,
+		TableID:           req.TableID,
+		DeliveryAddress:   req.DeliveryAddress,
+		DeliveryLatitude:  req.DeliveryLat,
+		DeliveryLongitude: req.DeliveryLng,
+		DeliveryPhone:     req.DeliveryPhone,
+		Status:            models.CafeOrderStatusNew,
+		ItemsCount:        len(items),
+		Subtotal:          subtotal,
+		DeliveryFee:       deliveryFee,
+		Total:             total,
+		Currency:          "RUB",
+		PaymentMethod:     req.PaymentMethod,
+		CustomerNote:      req.CustomerNote,
+		EstimatedReadyAt:  &estimatedReadyAt,
+		Items:             items,
+	}
+
+	// Create order in transaction
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+
+		// If dine-in, update table status
+		if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
+			now := time.Now()
+			if err := tx.Model(&models.CafeTable{}).Where("id = ?", *req.TableID).Updates(map[string]interface{}{
+				"is_occupied":      true,
+				"current_order_id": order.ID,
+				"occupied_since":   now,
+			}).Error; err != nil {
+				return err
+			}
+		}
+
+		// Increment dish order counts
+		s.dishService.IncrementDishOrders(dishIDs)
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Send WebSocket notification to cafe staff
+	websocket.NotifyNewOrder(order.CafeID, map[string]interface{}{
+		"orderId":      order.ID,
+		"orderNumber":  order.OrderNumber,
+		"orderType":    order.OrderType,
+		"tableId":      order.TableID,
+		"itemsCount":   order.ItemsCount,
+		"total":        order.Total,
+		"customerName": order.CustomerName,
+	}, customerID)
+
+	return order, nil
+}
+
+// GetOrder returns an order by ID
+func (s *CafeOrderService) GetOrder(orderID uint) (*models.CafeOrderResponse, error) {
+	var order models.CafeOrder
+	err := s.db.Preload("Items").
+		Preload("Items.Modifiers").
+		Preload("Customer").
+		Preload("Cafe").
+		Preload("Table").
+		First(&order, orderID).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	response := &models.CafeOrderResponse{CafeOrder: order}
+
+	if order.Customer != nil {
+		response.CustomerInfo = &models.CafeOrderCustomerInfo{
+			ID:            order.Customer.ID,
+			SpiritualName: order.Customer.SpiritualName,
+			KarmicName:    order.Customer.KarmicName,
+			AvatarURL:     order.Customer.AvatarURL,
+		}
+	}
+
+	if order.Cafe != nil {
+		response.CafeInfo = &models.CafeOrderCafeInfo{
+			ID:      order.Cafe.ID,
+			Name:    order.Cafe.Name,
+			LogoURL: order.Cafe.LogoURL,
+			Address: order.Cafe.Address,
+		}
+	}
+
+	if order.Table != nil {
+		response.TableInfo = &models.CafeOrderTableInfo{
+			ID:     order.Table.ID,
+			Number: order.Table.Number,
+			Name:   order.Table.Name,
+		}
+	}
+
+	return response, nil
+}
+
+// ListOrders returns a paginated list of orders
+func (s *CafeOrderService) ListOrders(filters models.CafeOrderFilters) (*models.CafeOrderListResponse, error) {
+	query := s.db.Model(&models.CafeOrder{})
+
+	// Apply filters
+	if filters.CafeID != 0 {
+		query = query.Where("cafe_id = ?", filters.CafeID)
+	}
+	if filters.CustomerID != nil {
+		query = query.Where("customer_id = ?", *filters.CustomerID)
+	}
+	if filters.Status != "" {
+		query = query.Where("status = ?", filters.Status)
+	}
+	if filters.OrderType != "" {
+		query = query.Where("order_type = ?", filters.OrderType)
+	}
+	if filters.TableID != nil {
+		query = query.Where("table_id = ?", *filters.TableID)
+	}
+	if filters.IsPaid != nil {
+		query = query.Where("is_paid = ?", *filters.IsPaid)
+	}
+	if filters.DateFrom != nil {
+		query = query.Where("created_at >= ?", *filters.DateFrom)
+	}
+	if filters.DateTo != nil {
+		query = query.Where("created_at <= ?", *filters.DateTo)
+	}
+	if filters.Search != "" {
+		query = query.Where("order_number ILIKE ?", "%"+filters.Search+"%")
+	}
+
+	// Count total
+	var total int64
+	query.Count(&total)
+
+	// Pagination
+	page := filters.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := filters.Limit
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	// Sorting
+	switch filters.Sort {
+	case "oldest":
+		query = query.Order("created_at ASC")
+	default:
+		query = query.Order("created_at DESC")
+	}
+
+	var orders []models.CafeOrder
+	err := query.Preload("Items").
+		Preload("Customer").
+		Preload("Cafe").
+		Preload("Table").
+		Offset(offset).Limit(limit).
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Build response
+	responses := make([]models.CafeOrderResponse, len(orders))
+	for i, order := range orders {
+		responses[i] = models.CafeOrderResponse{CafeOrder: order}
+		if order.Customer != nil {
+			responses[i].CustomerInfo = &models.CafeOrderCustomerInfo{
+				ID:            order.Customer.ID,
+				SpiritualName: order.Customer.SpiritualName,
+				KarmicName:    order.Customer.KarmicName,
+				AvatarURL:     order.Customer.AvatarURL,
+			}
+		}
+		if order.Cafe != nil {
+			responses[i].CafeInfo = &models.CafeOrderCafeInfo{
+				ID:      order.Cafe.ID,
+				Name:    order.Cafe.Name,
+				LogoURL: order.Cafe.LogoURL,
+			}
+		}
+		if order.Table != nil {
+			responses[i].TableInfo = &models.CafeOrderTableInfo{
+				ID:     order.Table.ID,
+				Number: order.Table.Number,
+				Name:   order.Table.Name,
+			}
+		}
+	}
+
+	totalPages := int(total) / limit
+	if int(total)%limit > 0 {
+		totalPages++
+	}
+
+	return &models.CafeOrderListResponse{
+		Orders:     responses,
+		Total:      total,
+		Page:       page,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// GetActiveOrders returns active orders grouped by status
+func (s *CafeOrderService) GetActiveOrders(cafeID uint) (*models.ActiveOrdersResponse, error) {
+	activeStatuses := []models.CafeOrderStatus{
+		models.CafeOrderStatusNew,
+		models.CafeOrderStatusConfirmed,
+		models.CafeOrderStatusPreparing,
+		models.CafeOrderStatusReady,
+	}
+
+	var orders []models.CafeOrder
+	err := s.db.Where("cafe_id = ? AND status IN ?", cafeID, activeStatuses).
+		Preload("Items").
+		Preload("Customer").
+		Preload("Table").
+		Order("created_at ASC").
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+
+	response := &models.ActiveOrdersResponse{
+		New:       make([]models.CafeOrderResponse, 0),
+		Preparing: make([]models.CafeOrderResponse, 0),
+		Ready:     make([]models.CafeOrderResponse, 0),
+	}
+
+	for _, order := range orders {
+		orderResp := models.CafeOrderResponse{CafeOrder: order}
+		if order.Customer != nil {
+			orderResp.CustomerInfo = &models.CafeOrderCustomerInfo{
+				ID:            order.Customer.ID,
+				SpiritualName: order.Customer.SpiritualName,
+				KarmicName:    order.Customer.KarmicName,
+				AvatarURL:     order.Customer.AvatarURL,
+			}
+		}
+		if order.Table != nil {
+			orderResp.TableInfo = &models.CafeOrderTableInfo{
+				ID:     order.Table.ID,
+				Number: order.Table.Number,
+				Name:   order.Table.Name,
+			}
+		}
+
+		switch order.Status {
+		case models.CafeOrderStatusNew:
+			response.New = append(response.New, orderResp)
+		case models.CafeOrderStatusConfirmed, models.CafeOrderStatusPreparing:
+			response.Preparing = append(response.Preparing, orderResp)
+		case models.CafeOrderStatusReady:
+			response.Ready = append(response.Ready, orderResp)
+		}
+	}
+
+	response.Total = len(orders)
+	return response, nil
+}
+
+// UpdateOrderStatus updates the status of an order
+func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrderStatus, staffUserID uint) error {
+	now := time.Now()
+	updates := map[string]interface{}{"status": status}
+
+	switch status {
+	case models.CafeOrderStatusConfirmed:
+		updates["confirmed_at"] = now
+		updates["accepted_by"] = staffUserID
+	case models.CafeOrderStatusPreparing:
+		updates["preparing_at"] = now
+		updates["prepared_by"] = staffUserID
+	case models.CafeOrderStatusReady:
+		updates["ready_at"] = now
+	case models.CafeOrderStatusServed:
+		updates["served_at"] = now
+		updates["served_by"] = staffUserID
+	case models.CafeOrderStatusDelivering:
+		updates["delivered_by"] = staffUserID
+	case models.CafeOrderStatusCompleted:
+		updates["completed_at"] = now
+	}
+
+	err := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(updates).Error
+	if err != nil {
+		return err
+	}
+
+	// Get order for WebSocket notification
+	var order models.CafeOrder
+	s.db.First(&order, orderID)
+
+	// Send WebSocket notification
+	websocket.NotifyOrderStatusUpdate(order.CafeID, orderID, string(status), order.CustomerID)
+
+	// If completed and was dine-in, free the table
+	if status == models.CafeOrderStatusCompleted {
+		if order.TableID != nil {
+			s.db.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
+				"is_occupied":      false,
+				"current_order_id": nil,
+				"occupied_since":   nil,
+			})
+		}
+
+		// Update cafe orders count
+		s.db.Model(&models.Cafe{}).Where("id = ?", order.CafeID).
+			UpdateColumn("orders_count", gorm.Expr("orders_count + 1"))
+	}
+
+	return nil
+}
+
+// CancelOrder cancels an order
+func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string) error {
+	now := time.Now()
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var order models.CafeOrder
+		if err := tx.First(&order, orderID).Error; err != nil {
+			return err
+		}
+
+		// Can't cancel already completed or cancelled orders
+		if order.Status == models.CafeOrderStatusCompleted || order.Status == models.CafeOrderStatusCancelled {
+			return errors.New("order cannot be cancelled")
+		}
+
+		// Update order
+		if err := tx.Model(&order).Updates(map[string]interface{}{
+			"status":        models.CafeOrderStatusCancelled,
+			"cancelled_at":  now,
+			"cancelled_by":  userID,
+			"cancel_reason": reason,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Free table if was dine-in
+		if order.TableID != nil {
+			tx.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
+				"is_occupied":      false,
+				"current_order_id": nil,
+				"occupied_since":   nil,
+			})
+		}
+
+		return nil
+	})
+
+	return err
+}
+
+// MarkAsPaid marks an order as paid
+func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error {
+	now := time.Now()
+	return s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+		"is_paid":        true,
+		"paid_at":        now,
+		"payment_method": paymentMethod,
+	}).Error
+}
+
+// ===== Order Item Status =====
+
+// UpdateItemStatus updates the status of an order item
+func (s *CafeOrderService) UpdateItemStatus(itemID uint, status string) error {
+	updates := map[string]interface{}{"status": status}
+	if status == "ready" {
+		now := time.Now()
+		updates["prepared_at"] = &now
+	}
+	return s.db.Model(&models.CafeOrderItem{}).Where("id = ?", itemID).Updates(updates).Error
+}
+
+// ===== Stats =====
+
+// GetOrderStats returns order statistics for a cafe
+func (s *CafeOrderService) GetOrderStats(cafeID uint) (*models.CafeOrderStatsResponse, error) {
+	today := time.Now().Truncate(24 * time.Hour)
+
+	var todayOrders int64
+	var todayRevenue float64
+	var pendingOrders int64
+	var totalOrders int64
+	var totalRevenue float64
+
+	// Today's orders
+	s.db.Model(&models.CafeOrder{}).
+		Where("cafe_id = ? AND created_at >= ? AND status != ?", cafeID, today, models.CafeOrderStatusCancelled).
+		Count(&todayOrders)
+
+	// Today's revenue
+	s.db.Model(&models.CafeOrder{}).
+		Where("cafe_id = ? AND created_at >= ? AND status = ?", cafeID, today, models.CafeOrderStatusCompleted).
+		Select("COALESCE(SUM(total), 0)").Scan(&todayRevenue)
+
+	// Pending orders
+	s.db.Model(&models.CafeOrder{}).
+		Where("cafe_id = ? AND status IN ?", cafeID,
+			[]models.CafeOrderStatus{models.CafeOrderStatusNew, models.CafeOrderStatusConfirmed, models.CafeOrderStatusPreparing}).
+		Count(&pendingOrders)
+
+	// Total orders
+	s.db.Model(&models.CafeOrder{}).
+		Where("cafe_id = ? AND status = ?", cafeID, models.CafeOrderStatusCompleted).
+		Count(&totalOrders)
+
+	// Total revenue
+	s.db.Model(&models.CafeOrder{}).
+		Where("cafe_id = ? AND status = ?", cafeID, models.CafeOrderStatusCompleted).
+		Select("COALESCE(SUM(total), 0)").Scan(&totalRevenue)
+
+	// Average preparation time
+	var avgPrepTime float64
+	s.db.Model(&models.CafeOrder{}).
+		Where("cafe_id = ? AND confirmed_at IS NOT NULL AND ready_at IS NOT NULL", cafeID).
+		Select("COALESCE(AVG(EXTRACT(EPOCH FROM (ready_at - confirmed_at)) / 60), 0)").
+		Scan(&avgPrepTime)
+
+	return &models.CafeOrderStatsResponse{
+		TodayOrders:   int(todayOrders),
+		TodayRevenue:  todayRevenue,
+		PendingOrders: int(pendingOrders),
+		AvgPrepTime:   avgPrepTime,
+		TotalOrders:   int(totalOrders),
+		TotalRevenue:  totalRevenue,
+	}, nil
+}
+
+// ===== Customer History =====
+
+// GetCustomerOrderHistory returns order history for a customer
+func (s *CafeOrderService) GetCustomerOrderHistory(customerID uint, limit int) ([]models.CafeOrderResponse, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	var orders []models.CafeOrder
+	err := s.db.Where("customer_id = ?", customerID).
+		Preload("Items").
+		Preload("Cafe").
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]models.CafeOrderResponse, len(orders))
+	for i, order := range orders {
+		responses[i] = models.CafeOrderResponse{CafeOrder: order}
+		if order.Cafe != nil {
+			responses[i].CafeInfo = &models.CafeOrderCafeInfo{
+				ID:      order.Cafe.ID,
+				Name:    order.Cafe.Name,
+				LogoURL: order.Cafe.LogoURL,
+				Address: order.Cafe.Address,
+			}
+		}
+	}
+
+	return responses, nil
+}
+
+// RepeatOrder creates a new order based on a previous order
+func (s *CafeOrderService) RepeatOrder(customerID, previousOrderID uint) (*models.CafeOrder, error) {
+	var prevOrder models.CafeOrder
+	err := s.db.Preload("Items").Preload("Items.Modifiers").First(&prevOrder, previousOrderID).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Build new order request from previous order
+	items := make([]models.CafeOrderItemRequest, len(prevOrder.Items))
+	for i, item := range prevOrder.Items {
+		modifiers := make([]models.CafeOrderModifierRequest, len(item.Modifiers))
+		for j, mod := range item.Modifiers {
+			modifiers[j] = models.CafeOrderModifierRequest{
+				ModifierID: mod.ModifierID,
+				Quantity:   mod.Quantity,
+			}
+		}
+
+		var removedIngredients []string
+		if item.RemovedIngredients != "" {
+			json.Unmarshal([]byte(item.RemovedIngredients), &removedIngredients)
+		}
+
+		items[i] = models.CafeOrderItemRequest{
+			DishID:             item.DishID,
+			Quantity:           item.Quantity,
+			RemovedIngredients: removedIngredients,
+			Modifiers:          modifiers,
+			Note:               item.CustomerNote,
+		}
+	}
+
+	req := models.CafeOrderCreateRequest{
+		CafeID:       prevOrder.CafeID,
+		OrderType:    prevOrder.OrderType,
+		TableID:      prevOrder.TableID,
+		Items:        items,
+		CustomerNote: prevOrder.CustomerNote,
+	}
+
+	return s.CreateOrder(&customerID, req)
+}
+
+// ===== Helpers =====
+
+func (s *CafeOrderService) generateOrderNumber(cafeID uint) string {
+	// Format: CAFE-ID-YYMMDD-XXXX
+	now := time.Now()
+	dateStr := now.Format("060102")
+
+	// Get today's order count for this cafe
+	todayStart := now.Truncate(24 * time.Hour)
+	var count int64
+	s.db.Model(&models.CafeOrder{}).
+		Where("cafe_id = ? AND created_at >= ?", cafeID, todayStart).
+		Count(&count)
+
+	return fmt.Sprintf("C%d-%s-%04d", cafeID, dateStr, count+1)
+}

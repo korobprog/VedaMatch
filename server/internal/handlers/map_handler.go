@@ -80,6 +80,8 @@ func (h *MapHandler) GetMarkers(c *fiber.Ctx) error {
 				req.Categories = append(req.Categories, models.MarkerTypeShop)
 			case "ad":
 				req.Categories = append(req.Categories, models.MarkerTypeAd)
+			case "cafe":
+				req.Categories = append(req.Categories, models.MarkerTypeCafe)
 			}
 		}
 	}
@@ -222,6 +224,7 @@ func (h *MapHandler) GetMarkerConfig(c *fiber.Ctx) error {
 			"user": fiber.Map{"icon": "account", "color": "#7C3AED"},
 			"shop": fiber.Map{"icon": "store", "color": "#059669"},
 			"ad":   fiber.Map{"icon": "tag", "color": "#DC2626"},
+			"cafe": fiber.Map{"icon": "coffee", "color": "#EA580C"},
 		},
 		"cluster": fiber.Map{
 			"minSize": 24,
@@ -298,6 +301,8 @@ func (h *MapHandler) AdminGetAllMarkers(c *fiber.Ctx) error {
 				req.Categories = append(req.Categories, models.MarkerTypeShop)
 			case "ad":
 				req.Categories = append(req.Categories, models.MarkerTypeAd)
+			case "cafe":
+				req.Categories = append(req.Categories, models.MarkerTypeCafe)
 			}
 		}
 	}

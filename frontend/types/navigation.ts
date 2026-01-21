@@ -42,6 +42,25 @@ export type RootStackParamList = {
     ShopsMap: undefined;
     Messages: undefined;
 
+    // Cafe Routes
+    CreateCafe: { cafeId?: number } | undefined;
+    EditCafe: { cafeId: number };
+    CafesMap: undefined;
+    CafeDetail: { cafeId: number; tableId?: number; tableNumber?: string };
+    DishDetail: { cafeId: number; dishId: number; cafeName?: string };
+    CafeCart: undefined;
+    CafeOrderSuccess: { orderId: number; orderNumber: string }; // Renamed from CafeOrderSuccess
+    OrderTracking: { orderId: number };
+    QRScanner: undefined;
+    StaffOrderBoard: { cafeId: number; cafeName: string };
+    StaffWaiterCalls: { cafeId: number; cafeName: string };
+    StaffStopList: { cafeId: number; cafeName: string };
+    StaffTableEditor: { cafeId: number; cafeName: string };
+    StaffOrderHistory: { cafeId: number; cafeName: string };
+    StaffMenuEditor: { cafeId: number; cafeName: string };
+    StaffStats: { cafeId: number; cafeName: string };
+    CafeSettings: { cafeId: number; cafeName: string };
+
     // Education Routes
     EducationHome: undefined;
     CourseDetails: { courseId: number };

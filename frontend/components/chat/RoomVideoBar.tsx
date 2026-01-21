@@ -1,0 +1,210 @@
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ScrollView } from 'react-native';
+import { RTCView, MediaStream } from 'react-native-webrtc';
+import { webRTCService } from '../../services/webRTCService';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Camera } from 'lucide-react-native';
+import { useSettings } from '../../context/SettingsContext';
+
+interface RoomVideoBarProps {
+    roomId: number;
+    onClose: () => void;
+}
+
+export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) => {
+    const { vTheme } = useSettings();
+    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [status, setStatus] = useState('Connecting...');
+
+    useEffect(() => {
+        let mounted = true;
+
+        const startCall = async () => {
+            try {
+                // 1. Get Local Stream
+                let stream = webRTCService.localStream;
+                if (!stream) {
+                    stream = await webRTCService.startLocalStream(true);
+                }
+                if (mounted) setLocalStream(stream);
+
+                // 2. Setup Listeners
+                webRTCService.setOnRemoteStream((rStream) => {
+                    if (mounted) {
+                        console.log('[RoomVideoBar] Received remote stream');
+                        setRemoteStream(rStream);
+                        setStatus('Connected');
+                    }
+                });
+
+                // 3. Start Connection (using roomId as targetId for now)
+                await webRTCService.startCall(roomId);
+
+            } catch (err) {
+                console.error('[RoomVideoBar] Failed to start call:', err);
+                if (mounted) setStatus('Connection Failed');
+            }
+        };
+
+        startCall();
+
+        return () => {
+            mounted = false;
+            webRTCService.endCall();
+        };
+    }, [roomId]);
+
+    const toggleMute = () => {
+        if (localStream) {
+            localStream.getAudioTracks().forEach(t => t.enabled = !t.enabled);
+            setIsMuted(!isMuted);
+        }
+    };
+
+    const toggleVideo = () => {
+        if (localStream) {
+            localStream.getVideoTracks().forEach(t => t.enabled = !t.enabled);
+            setIsVideoEnabled(!isVideoEnabled);
+        }
+    };
+
+    const switchCamera = () => {
+        if (localStream) {
+            // @ts-ignore - _switchCamera is a specific method on the MediaStream in react-native-webrtc
+            localStream.getVideoTracks().forEach(track => track._switchCamera());
+        }
+    };
+
+    return (
+        <View style={[styles.container, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }]}>
+
+            <ScrollView horizontal style={styles.streamContainer} contentContainerStyle={{ alignItems: 'center' }}>
+                {/* Local User */}
+                <View style={styles.videoWrapper}>
+                    {localStream ? (
+                        <RTCView
+                            streamURL={localStream.toURL()}
+                            style={styles.video}
+                            objectFit="cover"
+                            mirror={true}
+                        />
+                    ) : (
+                        <View style={[styles.videoPlaceholder, { backgroundColor: vTheme.colors.surface }]}>
+                            <Text style={{ color: vTheme.colors.textSecondary }}>Checking camera...</Text>
+                        </View>
+                    )}
+                    <Text style={[styles.userName, { backgroundColor: vTheme.colors.glass, color: vTheme.colors.text }]}>You</Text>
+                    {!isVideoEnabled && (
+                        <View style={styles.videoOffOverlay}>
+                            <VideoOff size={20} color={vTheme.colors.textSecondary} />
+                        </View>
+                    )}
+                </View>
+
+                {/* Remote User (Room) */}
+                {remoteStream && (
+                    <View style={styles.videoWrapper}>
+                        <RTCView
+                            streamURL={remoteStream.toURL()}
+                            style={styles.video}
+                            objectFit="cover"
+                        />
+                        <Text style={[styles.userName, { backgroundColor: vTheme.colors.glass, color: vTheme.colors.text }]}>Room</Text>
+                    </View>
+                )}
+            </ScrollView>
+
+            {/* Controls */}
+            <View style={[styles.controls, { borderTopColor: vTheme.colors.divider }]}>
+                <Text style={{ color: vTheme.colors.primary, fontSize: 12, marginRight: 'auto', paddingLeft: 10 }}>
+                    {status}
+                </Text>
+
+                <TouchableOpacity onPress={toggleVideo} style={styles.iconButton}>
+                    {isVideoEnabled ? <Video size={20} color={vTheme.colors.text} /> : <VideoOff size={20} color={vTheme.colors.error || 'red'} />}
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={toggleMute} style={styles.iconButton}>
+                    {isMuted ? <MicOff size={20} color={vTheme.colors.error || 'red'} /> : <Mic size={20} color={vTheme.colors.text} />}
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={switchCamera} style={styles.iconButton}>
+                    <Camera size={20} color={vTheme.colors.text} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={onClose}
+                    style={[styles.disconnectButton, { backgroundColor: vTheme.colors.error || '#ff4444' }]}
+                >
+                    <PhoneOff size={20} color="white" />
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: {
+        height: 160,
+        borderBottomWidth: 1,
+        marginBottom: 8,
+    },
+    streamContainer: {
+        flex: 1,
+        padding: 8,
+    },
+    videoWrapper: {
+        width: 100,
+        height: 100,
+        borderRadius: 12,
+        overflow: 'hidden',
+        marginRight: 8,
+        position: 'relative',
+        backgroundColor: '#000',
+    },
+    video: {
+        width: '100%',
+        height: '100%',
+    },
+    videoPlaceholder: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    userName: {
+        position: 'absolute',
+        bottom: 4,
+        left: 4,
+        fontSize: 10,
+        paddingHorizontal: 4,
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    videoOffOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    controls: {
+        height: 50,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 8,
+        borderTopWidth: 1,
+    },
+    iconButton: {
+        padding: 8,
+        marginHorizontal: 4,
+    },
+    disconnectButton: {
+        padding: 8,
+        borderRadius: 20,
+        marginLeft: 8,
+        marginRight: 4,
+    }
+});

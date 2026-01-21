@@ -143,6 +143,8 @@ type AdCreateRequest struct {
 	IsFree       bool       `json:"isFree"`
 	City         string     `json:"city" binding:"required"`
 	District     string     `json:"district"`
+	Latitude     *float64   `json:"latitude"`
+	Longitude    *float64   `json:"longitude"`
 	ShowProfile  bool       `json:"showProfile"`
 	Phone        string     `json:"phone"`
 	Email        string     `json:"email"`

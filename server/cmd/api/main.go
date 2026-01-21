@@ -126,6 +126,8 @@ func main() {
 	turnHandler := handlers.NewTurnHandler()
 	userHandler := handlers.NewUserHandler()
 	mapHandler := handlers.NewMapHandler()
+	cafeHandler := handlers.NewCafeHandler()
+	cafeOrderHandler := handlers.NewCafeOrderHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler state from database
@@ -156,28 +158,21 @@ func main() {
 	api.Get("/news", newsHandler.GetNews)
 	api.Get("/news/latest", newsHandler.GetLatestNews)
 	api.Get("/news/categories", newsHandler.GetNewsCategories)
+	api.Get("/news/:id", newsHandler.GetNewsItem)
 
 	// Public Shop Routes
+	api.Get("/shops/my", middleware.Protected(), shopHandler.GetMyShop)
 	api.Get("/shops", shopHandler.GetShops)
 	api.Get("/shops/categories", shopHandler.GetShopCategories) // Must come before /shops/:id
+	api.Get("/shops/:id", shopHandler.GetShop)
+	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
 
 	// Public Product Routes
+	api.Get("/products/my", middleware.Protected(), productHandler.GetMyProducts)
 	api.Get("/products", productHandler.GetProducts)
 	api.Get("/products/categories", productHandler.GetProductCategories) // Must come before /products/:id
-
-	// Protected Routes
-	protected := api.Group("/", middleware.Protected())
-
-	// Protected News Routes
-	protected.Post("/news/sources/:id/subscribe", newsHandler.SubscribeToSource)
-	protected.Delete("/news/sources/:id/subscribe", newsHandler.UnsubscribeFromSource)
-	protected.Get("/news/subscriptions", newsHandler.GetSubscriptions)
-	protected.Post("/news/sources/:id/favorite", newsHandler.AddToFavorites)
-	protected.Delete("/news/sources/:id/favorite", newsHandler.RemoveFromFavorites)
-	protected.Get("/news/favorites", newsHandler.GetFavorites)
-
-	// Public News Item (Wildcard) - Must come after specific paths
-	api.Get("/news/:id", newsHandler.GetNewsItem)
+	api.Get("/products/:id", productHandler.GetProduct)
+	api.Get("/products/:id/reviews", productHandler.GetProductReviews)
 
 	// Public Map Routes
 	mapRoutes := api.Group("/map")
@@ -194,7 +189,33 @@ func main() {
 	api.Get("/ads/stats", adsHandler.GetAdStats)
 	api.Get("/ads/:id", adsHandler.GetAd)
 
-	// Library Routes
+	// Public Cafe Routes (Sattva Cafe)
+	api.Get("/cafes/my", middleware.Protected(), cafeHandler.GetMyCafe)
+	api.Get("/cafes", cafeHandler.ListCafes)
+	api.Get("/cafes/scan/:qrCode", cafeHandler.ScanQRCode)
+	api.Get("/cafes/slug/:slug", cafeHandler.GetCafeBySlug)
+	api.Get("/cafes/:id", cafeHandler.GetCafe)
+	api.Get("/cafes/:id/menu", cafeHandler.GetMenu)
+	api.Get("/cafes/:id/featured", cafeHandler.GetFeaturedDishes)
+	api.Get("/cafes/:id/tables", cafeHandler.GetTables)
+	api.Get("/cafes/:id/categories", cafeHandler.GetCategories)
+	api.Get("/cafes/:id/dishes", cafeHandler.ListDishes)
+	api.Get("/cafes/:id/dishes/:dishId", cafeHandler.GetDish)
+
+	// Public AI Routes (Legacy/Frontend Compat)
+	api.Post("/v1/chat/completions", chatHandler.HandleChat)
+	api.Get("/v1/models", aiHandler.GetClientModels)
+
+	// Protected Routes (Apply Protected middleware to all following routes)
+	protected := api.Group("/", middleware.Protected())
+
+	// Protected News Routes
+	protected.Post("/news/sources/:id/subscribe", newsHandler.SubscribeToSource)
+	protected.Delete("/news/sources/:id/subscribe", newsHandler.UnsubscribeFromSource)
+	protected.Get("/news/subscriptions", newsHandler.GetSubscriptions)
+	protected.Post("/news/sources/:id/favorite", newsHandler.AddToFavorites)
+	protected.Delete("/news/sources/:id/favorite", newsHandler.RemoveFromFavorites)
+	protected.Get("/news/favorites", newsHandler.GetFavorites)
 
 	// Admin Routes (Protected - should ideally have middleware)
 	admin := api.Group("/admin", middleware.AdminProtected())
@@ -292,13 +313,7 @@ func main() {
 	admin.Get("/shops/stats", shopHandler.AdminGetShopStats)
 	admin.Put("/shops/:id/moderate", shopHandler.AdminModerateShop)
 
-	// Public AI Routes (Legacy/Frontend Compat)
-	api.Post("/v1/chat/completions", chatHandler.HandleChat)
-	api.Get("/v1/models", aiHandler.GetClientModels)
-
-	// Protected Routes
-	protected = api.Group("/", middleware.Protected())
-
+	// Other Protected Routes
 	protected.Post("/messages", messageHandler.SendMessage)
 	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
 
@@ -403,7 +418,6 @@ func main() {
 	// Shop Routes (Sattva Market - Seller)
 	protected.Post("/shops/upload-logo", shopHandler.UploadShopPhoto)
 	protected.Post("/shops/upload-cover", shopHandler.UploadShopPhoto)
-	protected.Get("/shops/my", shopHandler.GetMyShop)
 	protected.Get("/shops/can-create", shopHandler.CanCreateShop)
 	protected.Post("/shops", shopHandler.CreateShop)
 	protected.Put("/shops/:id", shopHandler.UpdateShop)
@@ -411,7 +425,6 @@ func main() {
 
 	// Product Routes (Sattva Market - Seller)
 	protected.Post("/products/upload-photo", productHandler.UploadProductPhoto)
-	protected.Get("/products/my", productHandler.GetMyProducts)
 	protected.Post("/products", productHandler.CreateProduct)
 	protected.Put("/products/:id", productHandler.UpdateProduct)
 	protected.Delete("/products/:id", productHandler.DeleteProduct)
@@ -430,10 +443,44 @@ func main() {
 	protected.Put("/orders/:id/status", orderHandler.UpdateOrderStatus)
 	protected.Get("/orders/:id/contact-buyer", orderHandler.ContactBuyer)
 
-	// Public Parameterized Routes (Moved here to avoid shadowing specific routes like /my)
-	api.Get("/shops/:id", shopHandler.GetShop)
-	api.Get("/shops/:shopId/products", productHandler.GetShopProducts)
-	api.Get("/products/:id", productHandler.GetProduct)
+	// Cafe Routes (Sattva Cafe - Owner/Admin)
+	protected.Post("/cafes/upload", cafeHandler.UploadCafePhoto)
+	protected.Post("/cafes", cafeHandler.CreateCafe)
+	protected.Put("/cafes/:id", cafeHandler.UpdateCafe)
+	protected.Delete("/cafes/:id", cafeHandler.DeleteCafe)
+	// Cafe Tables
+	protected.Post("/cafes/:id/tables", cafeHandler.CreateTable)
+	protected.Put("/cafes/:id/tables/:tableId", cafeHandler.UpdateTable)
+	protected.Delete("/cafes/:id/tables/:tableId", cafeHandler.DeleteTable)
+	protected.Put("/cafes/:id/floor-layout", cafeHandler.UpdateFloorLayout)
+	// Cafe Menu Management
+	protected.Post("/cafes/:id/categories", cafeHandler.CreateCategory)
+	protected.Put("/cafes/:id/categories/:categoryId", cafeHandler.UpdateCategory)
+	protected.Delete("/cafes/:id/categories/:categoryId", cafeHandler.DeleteCategory)
+	protected.Post("/cafes/:id/dishes", cafeHandler.CreateDish)
+	protected.Put("/cafes/:id/dishes/:dishId", cafeHandler.UpdateDish)
+	protected.Delete("/cafes/:id/dishes/:dishId", cafeHandler.DeleteDish)
+	protected.Get("/cafes/:id/stop-list", cafeHandler.GetStopList)
+	protected.Post("/cafes/:id/stop-list", cafeHandler.UpdateStopList)
+	// Waiter Calls
+	protected.Post("/cafes/:id/waiter-call", cafeHandler.CreateWaiterCall)
+	protected.Get("/cafes/:id/waiter-calls", cafeHandler.GetActiveWaiterCalls)
+	protected.Post("/cafes/:id/waiter-calls/:callId/acknowledge", cafeHandler.AcknowledgeWaiterCall)
+	protected.Post("/cafes/:id/waiter-calls/:callId/complete", cafeHandler.CompleteWaiterCall)
+
+	// Cafe Orders (Sattva Cafe)
+	protected.Post("/cafe-orders", cafeOrderHandler.CreateOrder)
+	protected.Get("/cafe-orders/my", cafeOrderHandler.GetMyOrders)
+	protected.Get("/cafe-orders/:id", cafeOrderHandler.GetOrder)
+	protected.Put("/cafe-orders/:id/status", cafeOrderHandler.UpdateOrderStatus)
+	protected.Post("/cafe-orders/:id/cancel", cafeOrderHandler.CancelOrder)
+	protected.Post("/cafe-orders/:id/pay", cafeOrderHandler.MarkAsPaid)
+	protected.Post("/cafe-orders/:id/repeat", cafeOrderHandler.RepeatOrder)
+	protected.Put("/cafe-orders/:id/items/:itemId/status", cafeOrderHandler.UpdateItemStatus)
+	// Cafe Orders for Staff
+	protected.Get("/cafes/:id/orders", cafeOrderHandler.ListOrders)
+	protected.Get("/cafes/:id/orders/active", cafeOrderHandler.GetActiveOrders)
+	protected.Get("/cafes/:id/orders/stats", cafeOrderHandler.GetOrderStats)
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {
@@ -467,8 +514,6 @@ func main() {
 
 	// Static files for avatars
 	app.Static("/uploads", "./uploads")
-
-	// chatHandler initialization moved up
 
 	// Start Server
 	port := ":8081"

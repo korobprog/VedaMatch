@@ -39,8 +39,24 @@ func (h *AuthHandler) UpdateLocation(c *fiber.Ctx) error {
 
 	user.Country = strings.TrimSpace(updateData.Country)
 	user.City = strings.TrimSpace(updateData.City)
-	user.Latitude = updateData.Latitude
-	user.Longitude = updateData.Longitude
+
+	// If coordinates are provided from frontend, use them
+	if updateData.Latitude != nil && updateData.Longitude != nil {
+		user.Latitude = updateData.Latitude
+		user.Longitude = updateData.Longitude
+	} else if user.City != "" && h.mapService != nil {
+		// Otherwise try to geocode based on city
+		geocoded, err := h.mapService.GeocodeCity(user.City)
+		if err == nil {
+			user.Latitude = &geocoded.Latitude
+			user.Longitude = &geocoded.Longitude
+			// Optionally update city name to geocoded one
+			user.City = geocoded.City
+			if user.Country == "" {
+				user.Country = geocoded.Country
+			}
+		}
+	}
 
 	if err := database.DB.Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

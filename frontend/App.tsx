@@ -76,6 +76,28 @@ import { EducationHomeScreen } from './screens/portal/education/EducationHomeScr
 import { CourseDetailsScreen } from './screens/portal/education/CourseDetailsScreen';
 import { ExamTrainerScreen } from './screens/portal/education/ExamTrainerScreen';
 
+import {
+  CafeListScreen,
+  CafeDetailScreen,
+  DishDetailScreen,
+  CafeCartScreen,
+  OrderSuccessScreen as CafeOrderSuccessScreen,
+  OrderTrackingScreen,
+  QRScannerScreen,
+  CafesMapScreen,
+  CreateCafeScreen,
+  CafeAdminDashboardScreen,
+  StaffOrderBoardScreen,
+  StaffWaiterCallsScreen,
+  StaffStopListScreen,
+  StaffTableEditorScreen,
+  StaffOrderHistoryScreen,
+  StaffMenuEditorScreen,
+  StaffStatsScreen,
+  CafeSettingsScreen,
+} from './screens/portal/cafe';
+import { CafeCartProvider } from './contexts/CafeCartContext';
+
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -270,6 +292,25 @@ const AppContent = () => {
                   {/* Map Routes */}
                   <Stack.Screen name="MapGeoapify" component={MapGeoapifyScreen} options={{ headerShown: false }} />
 
+                  {/* Cafe Routes */}
+                  <Stack.Screen name="CafesMap" component={CafesMapScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="CreateCafe" component={CreateCafeScreen} options={{ headerShown: true, title: t('cafe.create') }} />
+                  <Stack.Screen name="EditCafe" component={CafeAdminDashboardScreen} options={{ headerShown: true, title: t('cafe.dashboard.title') }} />
+                  <Stack.Screen name="CafeDetail" component={CafeDetailScreen} options={{ headerShown: true, title: t('cafe.detail.title') }} />
+                  <Stack.Screen name="DishDetail" component={DishDetailScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="CafeCart" component={CafeCartScreen} options={{ headerShown: true, title: t('cafe.cart.title') }} />
+                  <Stack.Screen name="CafeOrderSuccess" component={CafeOrderSuccessScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} options={{ headerShown: true, title: t('cafe.order.tracking') }} />
+                  <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="StaffOrderBoard" component={StaffOrderBoardScreen} options={{ headerShown: true, title: t('cafe.staff.board.title') }} />
+                  <Stack.Screen name="StaffWaiterCalls" component={StaffWaiterCallsScreen} options={{ headerShown: true, title: t('cafe.staff.waiterCalls.title') }} />
+                  <Stack.Screen name="StaffStopList" component={StaffStopListScreen} options={{ headerShown: true, title: t('cafe.staff.stopList.title') }} />
+                  <Stack.Screen name="StaffTableEditor" component={StaffTableEditorScreen} options={{ headerShown: true, title: t('cafe.staff.tables.title') }} />
+                  <Stack.Screen name="StaffOrderHistory" component={StaffOrderHistoryScreen} options={{ headerShown: true, title: t('cafe.staff.history.title') }} />
+                  <Stack.Screen name="StaffMenuEditor" component={StaffMenuEditorScreen} options={{ headerShown: true, title: t('cafe.dashboard.menu') }} />
+                  <Stack.Screen name="StaffStats" component={StaffStatsScreen} options={{ headerShown: true, title: t('cafe.dashboard.stats') }} />
+                  <Stack.Screen name="CafeSettings" component={CafeSettingsScreen} options={{ headerShown: true, title: t('cafe.dashboard.settings') }} />
+
                   {/* Education Routes */}
                   <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />
                   <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: 'Курс' }} />
@@ -342,7 +383,9 @@ function App(): React.JSX.Element {
         <SettingsProvider>
           <WebSocketProvider>
             <ChatProvider>
-              <AppContent />
+              <CafeCartProvider>
+                <AppContent />
+              </CafeCartProvider>
             </ChatProvider>
           </WebSocketProvider>
         </SettingsProvider>

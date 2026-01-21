@@ -810,3 +810,71 @@ export default {
       - STATIC_AUTH_SECRET=${TURN_SECRET}
       - REALM=vedamatch.ru
 ```
+
+## Сервис Карт (Map Service)
+
+В январе 2026 года в проект был интегрирован сервис карт на собственной архитектуре, заменивший зависимость от Google Maps. Это решение обеспечивает независимость от вендора, совместимость с web-технологиями и гибкую настройку отображения.
+
+### 1. Стек технологий
+
+- **Frontend (Map View)**: `react-native-webview` + Leaflet.js
+- **Map Provider**: Geoapify (Tile Layer, Autocomplete, Reverse Geocoding)
+- **Backend Proxy**: Go (Fiber) для проксирования запросов к Geoapify API
+- **Map Library**: Leaflet.js 1.9.4 (загружается через CDN)
+- **Clustering**: Leaflet.markercluster (для группировки маркеров)
+
+### 2. Архитектура взаимодействия
+
+```
+┌─────────────────┐       HTTPS       ┌─────────────────┐       HTTPS       ┌─────────────────┐
+│ React Native    │ <───────────────> │    Go Backend   │ <───────────────> │  Geoapify API   │
+│ (WebView)       │    API Proxy      │ (map_handler.go)│    API Key        │ (Maps/Search)   │
+└────────┬────────┘                   └────────┬────────┘                   └─────────────────┘
+         │                                     │
+         │ JS Injection (postMessage)          │
+         ▼                                     │
+┌─────────────────┐                            │
+│ Leaflet Map     │                            │
+│ (HTML/CS/JS)    │                            │
+└─────────────────┘                            │
+                                               │
+                                      ┌────────┴────────┐
+                                      │   PostgreSQL    │
+                                      │ (Marker Data)   │
+                                      └─────────────────┘
+```
+
+### 3. Компоненты
+
+#### A. Frontend (`frontend/screens/portal/map/MapGeoapifyScreen.tsx`)
+- **WebView**: Отрисовывает HTML-контент карты.
+- **Двусторонняя связь**:
+    - **App -> Map**: `injectJavaScript()` (смещение камеры, обновление фильтров, результаты поиска).
+    - **Map -> App**: `onMessage()` (клики по маркерам, изменение границ карты map bounds).
+- **Поиск**: Реализован через нативный `TextInput` поверх карты. При выборе результата карта программно перемещается (`map.setView`) и ставит временный маркер.
+
+#### B. Backend Proxy (`server/internal/handlers/map_handler.go`)
+Backend выступает шлюзом для всех гео-запросов, скрывая API ключ Geoapify от клиента.
+
+- `GET /api/map/config`: Возвращает URL тайлов и атрибуцию.
+- `GET /api/map/summary`: Агрегированные данные для кластеризации (оптимизация производительности).
+- `GET /api/map/markers`: Детальная информация о маркерах в видимой области (viewport).
+- `GET /api/map/autocomplete`: Прокси для поиска адресов (Geoapify Autocomplete API).
+
+#### C. Geoapify Integration (`server/internal/services/map_service.go`)
+- **Tiles**: Используется стиль `osm-bright` (или `osm-carto` как fallback).
+- **Autocomplete**: Поиск с поддержкой `bias=proximity` (приоритет результатов рядом с пользователем).
+- **Geocoding**: Автоматическое определение координат по названию города для профилей пользователей.
+
+### 4. Особенности реализации
+
+*   **Кластеризация**: Все маркеры группируются на клиенте (Leaflet) для производительности. Цвета кластеров динамически меняются в зависимости от преобладающего типа контента (Users=Фиолетовый, Shops=Зеленый, Ads=Красный).
+*   **Search UX**:
+    *   Поиск реализован нативно ("над картой").
+    *   При выборе адреса ставится временный оранжевый маркер.
+    *   Клик в любое место карты очищает поиск.
+*   **Оффлайн-устойчивость**: Базовая конфигурация карты кешируется, но тайлы требуют интернета.
+
+### 5. Переменные окружения (Backend)
+- `MAP_GEOAPIFY_KEY`: API ключ от Geoapify Project.
+- `MAP_STYLE`: Стиль карты (по умолчанию `osm-bright`).
