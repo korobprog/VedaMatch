@@ -158,7 +158,8 @@ func main() {
 	api.Get("/news", newsHandler.GetNews)
 	api.Get("/news/latest", newsHandler.GetLatestNews)
 	api.Get("/news/categories", newsHandler.GetNewsCategories)
-	api.Get("/news/:id", newsHandler.GetNewsItem)
+	// Public News Item moved after protected routes to avoid conflict with /subscriptions and /favorites
+	// api.Get("/news/:id", newsHandler.GetNewsItem)
 
 	// Public Shop Routes
 	api.Get("/shops/my", middleware.Protected(), shopHandler.GetMyShop)
@@ -216,6 +217,9 @@ func main() {
 	protected.Post("/news/sources/:id/favorite", newsHandler.AddToFavorites)
 	protected.Delete("/news/sources/:id/favorite", newsHandler.RemoveFromFavorites)
 	protected.Get("/news/favorites", newsHandler.GetFavorites)
+
+	// Public News Item (Must come after specified routes like subscriptions/favorites)
+	api.Get("/news/:id", newsHandler.GetNewsItem)
 
 	// Admin Routes (Protected - should ideally have middleware)
 	admin := api.Group("/admin", middleware.AdminProtected())

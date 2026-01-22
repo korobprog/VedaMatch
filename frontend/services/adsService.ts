@@ -167,8 +167,12 @@ class AdsService {
             const headers = await this.getHeaders();
             const response = await axios.post(`${API_PATH}/ads/${id}/contact`, { method }, { headers });
             return response.data;
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error contacting seller for ad ${id}:`, error);
+            if (error.response) {
+                console.error('Response data:', error.response.data);
+                console.error('Response status:', error.response.status);
+            }
             throw error;
         }
     }

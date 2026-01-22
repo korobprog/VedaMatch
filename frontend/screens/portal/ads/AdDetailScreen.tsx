@@ -9,6 +9,7 @@ import { Ad } from '../../../types/ads';
 import { RootStackParamList } from '../../../types/navigation';
 import { getMediaUrl } from '../../../utils/url';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
+import { useUser } from '../../../context/UserContext';
 import {
     Image as ImageIcon,
     MapPin,
@@ -29,6 +30,7 @@ export const AdDetailScreen: React.FC = () => {
     const isDarkMode = useColorScheme() === 'dark';
     const colors = vedicTheme.colors;
     const { adId } = route.params;
+    const { user } = useUser();
 
     const [ad, setAd] = useState<Ad | null>(null);
     const [loading, setLoading] = useState(true);
@@ -70,8 +72,10 @@ export const AdDetailScreen: React.FC = () => {
             } else {
                 Alert.alert(t('ads.detail.contactSuccess'), t('ads.detail.messageRequested'));
             }
-        } catch (error) {
-            Alert.alert('Error', 'Failed to start chat');
+        } catch (error: any) {
+            console.error('Chat error:', error);
+            const errorMessage = error.response?.data?.error || 'Failed to start chat';
+            Alert.alert('Error', errorMessage);
         }
     };
 
@@ -116,6 +120,8 @@ export const AdDetailScreen: React.FC = () => {
     const priceText = ad.isFree
         ? t('ads.price.free')
         : (ad.price ? `${ad.price} ${ad.currency}` : '');
+
+    const isOwner = user?.ID === ad.userId;
 
     return (
         <ProtectedScreen>
@@ -179,10 +185,12 @@ export const AdDetailScreen: React.FC = () => {
 
                     {/* Actions */}
                     <View style={styles.actions}>
-                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleChat}>
-                            <MessageCircle size={20} color="#fff" style={{ marginRight: 8 }} />
-                            <Text style={styles.btnText}>{t('ads.detail.message') || 'Message'}</Text>
-                        </TouchableOpacity>
+                        {!isOwner && (
+                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleChat}>
+                                <MessageCircle size={20} color="#fff" style={{ marginRight: 8 }} />
+                                <Text style={styles.btnText}>{t('ads.detail.message') || 'Message'}</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                     <TouchableOpacity style={styles.favoriteBtn} onPress={handleFavorite}>
