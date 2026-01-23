@@ -90,7 +90,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
         <ProtectedScreen>
             <View style={[styles.container, { backgroundColor: theme.background }]}>
                 <ChatHeader
-                    title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "Vedic AI"}
+                    title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "VedaMatch"}
                     onSettingsPress={() => setIsMenuOpen(true)}
                     onCallPress={handleCallPress}
                     onBackPress={() => {

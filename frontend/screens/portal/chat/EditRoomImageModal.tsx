@@ -15,6 +15,7 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { useSettings } from '../../../context/SettingsContext';
 
 interface EditRoomImageModalProps {
     visible: boolean;
@@ -43,7 +44,7 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
     onImageUpdated,
 }) => {
     const { t } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { isDarkMode, vTheme } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const [selectedPreset, setSelectedPreset] = useState<string>(currentImageUrl || 'general');
@@ -98,35 +99,30 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'Content-Type': 'multipart/form-data',
                     'Authorization': `Bearer ${token}`
                 },
             });
 
             if (response.ok) {
-                const data = await response.json();
-                Alert.alert(t('chat.success'), t('chat.imageUpdated'));
+                Alert.alert(t('common.success'), t('chat.imageUpdated'));
                 onImageUpdated();
                 onClose();
             } else {
                 const errorData = await response.json();
-                Alert.alert(t('chat.error'), errorData.error || t('chat.uploadError'));
+                Alert.alert(t('common.error'), errorData.error || t('chat.uploadError'));
             }
         } catch (error) {
             console.error('Error uploading image:', error);
-            Alert.alert(t('chat.error'), t('chat.uploadError'));
+            Alert.alert(t('common.error'), t('chat.uploadError'));
         } finally {
             setUploading(false);
         }
     };
 
     const handleSavePreset = async () => {
-        // Для пресетов просто обновляем imageUrl на выбранный ID
         setUploading(true);
         try {
             const token = await AsyncStorage.getItem('token');
-            // Создаем пустой файл или отправляем preset ID
-            // В данном случае, сохраним preset как строку
             const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
                 method: 'PUT',
                 headers: {
@@ -139,16 +135,16 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
             });
 
             if (response.ok) {
-                Alert.alert(t('chat.success'), t('chat.imageUpdated'));
+                Alert.alert(t('common.success'), t('chat.imageUpdated'));
                 onImageUpdated();
                 onClose();
             } else {
                 const errorData = await response.json();
-                Alert.alert(t('chat.error'), errorData.error || t('chat.updateError'));
+                Alert.alert(t('common.error'), errorData.error || t('chat.updateError'));
             }
         } catch (error) {
             console.error('Error updating preset:', error);
-            Alert.alert(t('chat.error'), t('chat.updateError'));
+            Alert.alert(t('common.error'), t('chat.updateError'));
         } finally {
             setUploading(false);
         }
@@ -162,14 +158,14 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
-                    <Text style={[styles.title, { color: theme.text }]}>
+                <View style={[styles.modalContainer, { backgroundColor: vTheme.colors.background }]}>
+                    <Text style={[styles.title, { color: vTheme.colors.text }]}>
                         {t('chat.editRoomImage')}
                     </Text>
 
-                    <ScrollView style={styles.content}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                         {/* Preset Images */}
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                        <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>
                             {t('chat.presetImages')}
                         </Text>
                         <View style={styles.presetGrid}>
@@ -179,7 +175,7 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                                     style={[
                                         styles.presetItem,
                                         {
-                                            backgroundColor: theme.inputBackground,
+                                            backgroundColor: vTheme.colors.backgroundSecondary,
                                             borderColor: selectedPreset === preset.id ? theme.accent : 'transparent',
                                             borderWidth: 2,
                                         },
@@ -187,7 +183,7 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                                     onPress={() => handlePresetSelect(preset.id)}
                                 >
                                     <Text style={styles.presetEmoji}>{preset.emoji}</Text>
-                                    <Text style={[styles.presetLabel, { color: theme.subText }]}>
+                                    <Text style={[styles.presetLabel, { color: vTheme.colors.textSecondary }]}>
                                         {t(`chat.presets.${preset.id}`)}
                                     </Text>
                                 </TouchableOpacity>
@@ -195,11 +191,11 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                         </View>
 
                         {/* Custom Upload */}
-                        <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 20 }]}>
+                        <Text style={[styles.sectionTitle, { color: vTheme.colors.text, marginTop: 20 }]}>
                             {t('chat.customImage')}
                         </Text>
                         <TouchableOpacity
-                            style={[styles.uploadButton, { backgroundColor: theme.inputBackground }]}
+                            style={[styles.uploadButton, { backgroundColor: vTheme.colors.backgroundSecondary }]}
                             onPress={handleUploadCustomImage}
                             disabled={uploading}
                         >
@@ -212,12 +208,12 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                     {/* Action Buttons */}
                     <View style={styles.buttonRow}>
                         <TouchableOpacity
-                            style={[styles.button, styles.cancelButton, { backgroundColor: theme.inputBackground }]}
+                            style={[styles.button, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, borderWidth: 1 }]}
                             onPress={onClose}
                             disabled={uploading}
                         >
-                            <Text style={[styles.buttonText, { color: theme.text }]}>
-                                {t('chat.cancel')}
+                            <Text style={[styles.buttonText, { color: vTheme.colors.text }]}>
+                                {t('common.cancel')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -229,7 +225,7 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                                 <ActivityIndicator color="#fff" />
                             ) : (
                                 <Text style={[styles.buttonText, { color: '#fff' }]}>
-                                    {t('chat.save')}
+                                    {t('common.save') || 'Save'}
                                 </Text>
                             )}
                         </TouchableOpacity>

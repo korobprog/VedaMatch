@@ -31,6 +31,9 @@ import {
     List,
     Settings,
     MessageSquare,
+    Coffee,
+    Utensils,
+    Map,
 } from 'lucide-react-native';
 
 import { ContactsScreen } from './contacts/ContactsScreen';
@@ -70,7 +73,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     style={styles.container}
                     resizeMode="cover"
                 >
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' }}>
                         {children}
                     </View>
                 </ImageBackground>
@@ -186,16 +189,16 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                             }}
                             style={styles.iconButton}
                         >
-                            <MessageSquare size={22} color={vTheme.colors.textSecondary} />
+                            <MessageSquare size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
                             style={styles.iconButton}
                         >
-                            <Settings size={22} color={vTheme.colors.textSecondary} />
+                            <Settings size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.iconButton}>
-                            <Bell size={22} color={vTheme.colors.textSecondary} />
+                            <Bell size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -249,16 +252,16 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                         }}
                         style={styles.iconButton}
                     >
-                        <MessageSquare size={22} color={vTheme.colors.textSecondary} />
+                        <MessageSquare size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => navigation.navigate('AppSettings')}
                         style={styles.iconButton}
                     >
-                        <Settings size={22} color={vTheme.colors.textSecondary} />
+                        <Settings size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.iconButton}>
-                        <Bell size={22} color={vTheme.colors.textSecondary} />
+                        <Bell size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
             </View>

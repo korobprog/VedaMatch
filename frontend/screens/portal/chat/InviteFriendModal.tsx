@@ -19,6 +19,7 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 
 interface InviteFriendModalProps {
     visible: boolean;
@@ -28,9 +29,8 @@ interface InviteFriendModalProps {
 
 export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, onClose, roomId }) => {
     const { t } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { isDarkMode, vTheme } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const vTheme = ModernVedicTheme;
     const { user } = useUser();
 
     const [friends, setFriends] = useState<any[]>([]);

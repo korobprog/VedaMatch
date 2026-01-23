@@ -20,6 +20,7 @@ import DatePicker from 'react-native-date-picker';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 
 interface CreateRoomModalProps {
     visible: boolean;
@@ -40,7 +41,7 @@ const PRESET_IMAGES = [
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClose, onRoomCreated }) => {
     const { t, i18n } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
+    const { isDarkMode, vTheme } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user } = useUser();
 
@@ -56,6 +57,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
     const [startTime, setStartTime] = useState<Date | null>(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [selectedBook, setSelectedBook] = useState<string>('bg');
+    const [enableReading, setEnableReading] = useState(true);
     const [books, setBooks] = useState<any[]>([]);
 
     // Load books on mount
@@ -92,10 +94,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                     description,
                     isPublic,
                     ownerId: user.ID,
-                    imageUrl,
-                    location,
-                    startTime: startTime ? startTime.toISOString() : '',
-                    bookCode: selectedBook,
+                    location: enableReading ? location : '',
+                    startTime: (enableReading && startTime) ? startTime.toISOString() : '',
+                    bookCode: enableReading ? selectedBook : '',
                 }),
             });
 
@@ -154,34 +155,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
 
         setUploadingImage(true);
         try {
-            const token = await AsyncStorage.getItem('token');
-            const formData = new FormData();
-            formData.append('image', {
-                uri: asset.uri,
-                type: asset.type,
-                name: asset.fileName || 'temp_room_image.jpg',
-            } as any);
-
-            // We need a roomId to use the existing POST /rooms/:id/image endpoint
-            // But we haven't created the room yet. 
-            // Alternative: Use a generic upload endpoint if exists, or upload after creation.
-            // Actually, the server has UpdateRoomImage(c *fiber.Ctx) which takes :id.
-
-            // For CreateRoom, we might want to just store the uri locally 
-            // and upload AFTER room is created, or have a general upload endpoint.
-
-            // Let's check if there is a general upload endpoint.
-            // auth_handler has UpdateAvatar but it's for user.
-
-            // Simplest for now: The user might want to see the preview. 
-            // Since we don't have a general "upload temp image" endpoint,
-            // let's just use the selected image for now or I can add a general upload.
-
-            // Actually, I can just create the room first, then upload the image.
-            // Let's change the flow: 
-            // 1. handleCreate creates the room.
-            // 2. If a custom local image URI is set, upload it to the new room.
-
             setCustomImageUri(asset.uri);
             setImageUrl('custom'); // Flag that we have a custom image
         } catch (error) {
@@ -201,18 +174,18 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                    <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                        <Text style={[styles.modalTitle, { color: theme.text }]}>{t('chat.createRoom')}</Text>
+                <View style={[styles.modalContent, { backgroundColor: vTheme.colors.background }]}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                        <Text style={[styles.modalTitle, { color: vTheme.colors.text }]}>{t('chat.createRoom')}</Text>
 
-                        <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 10 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
+                        <Text style={[styles.sectionTitle, { color: vTheme.colors.text, marginTop: 10 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
 
                         <View style={styles.imageSelectionContainer}>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScrollContent}>
                                 <TouchableOpacity
                                     style={[
                                         styles.presetItem,
-                                        { backgroundColor: theme.header, borderColor: imageUrl === 'custom' ? theme.accent : 'transparent' }
+                                        { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: imageUrl === 'custom' ? theme.accent : 'transparent' }
                                     ]}
                                     onPress={handleUploadImage}
                                 >
@@ -220,8 +193,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                                         <Image source={{ uri: customImageUri }} style={styles.customImagePreview} />
                                     ) : (
                                         <>
-                                            <Camera size={26} color={theme.subText} />
-                                            <Text style={[styles.presetLabel, { color: theme.subText }]}>
+                                            <Camera size={26} color={vTheme.colors.textSecondary} />
+                                            <Text style={[styles.presetLabel, { color: vTheme.colors.textSecondary }]}>
                                                 {t('chat.upload')}
                                             </Text>
                                         </>
@@ -233,7 +206,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                                         key={preset.id}
                                         style={[
                                             styles.presetItem,
-                                            { backgroundColor: theme.header },
+                                            { backgroundColor: vTheme.colors.backgroundSecondary },
                                             imageUrl === preset.id && { borderColor: theme.accent }
                                         ]}
                                         onPress={() => {
@@ -242,7 +215,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                                         }}
                                     >
                                         <Text style={styles.presetEmoji}>{preset.emoji}</Text>
-                                        <Text style={[styles.presetLabel, { color: theme.subText }]}>
+                                        <Text style={[styles.presetLabel, { color: vTheme.colors.textSecondary }]}>
                                             {t(`chat.presets.${preset.id}`)}
                                         </Text>
                                     </TouchableOpacity>
@@ -251,86 +224,92 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                         </View>
 
                         <TextInput
-                            style={[styles.input, { color: theme.text, borderColor: theme.borderColor }]}
+                            style={[styles.input, { color: vTheme.colors.text, borderColor: vTheme.colors.divider }]}
                             placeholder={t('chat.roomName')}
-                            placeholderTextColor={theme.subText}
+                            placeholderTextColor={vTheme.colors.textSecondary}
                             value={name}
                             onChangeText={setName}
                         />
 
                         <TextInput
-                            style={[styles.input, { color: theme.text, borderColor: theme.borderColor, height: 80 }]}
+                            style={[styles.input, { color: vTheme.colors.text, borderColor: vTheme.colors.divider, height: 80 }]}
                             placeholder={t('chat.roomDesc')}
-                            placeholderTextColor={theme.subText}
+                            placeholderTextColor={vTheme.colors.textSecondary}
                             value={description}
                             onChangeText={setDescription}
                             multiline
                         />
 
                         <View style={styles.switchRow}>
-                            <Text style={{ color: theme.text }}>{t('chat.isPublic')}</Text>
+                            <Text style={[styles.switchLabel, { color: vTheme.colors.text }]}>
+                                {t('chat.enableReading') || 'Enable Scripture Reading'}
+                            </Text>
                             <Switch
-                                value={isPublic}
-                                onValueChange={setIsPublic}
-                                trackColor={{ false: '#767577', true: theme.accent }}
+                                value={enableReading}
+                                onValueChange={setEnableReading}
+                                trackColor={{ false: vTheme.colors.divider, true: theme.accent }}
                             />
                         </View>
 
-                        {/* Shared Reading Fields */}
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('chat.readingSettings')}</Text>
+                        {enableReading && (
+                            <>
+                                {/* Shared Reading Fields */}
+                                <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('chat.readingSettings')}</Text>
 
-                        <TextInput
-                            style={[styles.input, { color: theme.text, borderColor: theme.borderColor }]}
-                            placeholder={t('chat.locationPlaceholder')}
-                            placeholderTextColor={theme.subText}
-                            value={location}
-                            onChangeText={setLocation}
-                        />
+                                <TextInput
+                                    style={[styles.input, { color: vTheme.colors.text, borderColor: vTheme.colors.divider }]}
+                                    placeholder={t('chat.locationPlaceholder')}
+                                    placeholderTextColor={vTheme.colors.textSecondary}
+                                    value={location}
+                                    onChangeText={setLocation}
+                                />
 
-                        <View style={{ marginBottom: 16 }}>
-                            <Text style={{ color: theme.subText, marginBottom: 8 }}>{t('chat.selectScripture')}</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 50 }}>
-                                {books.map((book) => (
-                                    <TouchableOpacity
-                                        key={book.id}
-                                        style={[
-                                            styles.bookItem,
-                                            selectedBook === book.code && { backgroundColor: theme.accent, borderColor: theme.accent }
-                                        ]}
-                                        onPress={() => setSelectedBook(book.code === selectedBook ? '' : book.code)}
-                                    >
-                                        <Text style={[
-                                            styles.bookText,
-                                            { color: selectedBook === book.code ? '#fff' : theme.text }
-                                        ]}>
-                                            {i18n.language === 'ru' ? (book.name_ru || book.name_en) : (book.name_en || book.name_ru)}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
+                                <View style={{ marginBottom: 16 }}>
+                                    <Text style={{ color: vTheme.colors.textSecondary, marginBottom: 8 }}>{t('chat.selectScripture')}</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 50 }}>
+                                        {books.map((book) => (
+                                            <TouchableOpacity
+                                                key={book.id}
+                                                style={[
+                                                    styles.bookItem,
+                                                    selectedBook === book.code && { backgroundColor: theme.accent, borderColor: theme.accent }
+                                                ]}
+                                                onPress={() => setSelectedBook(book.code === selectedBook ? '' : book.code)}
+                                            >
+                                                <Text style={[
+                                                    styles.bookText,
+                                                    { color: selectedBook === book.code ? '#fff' : vTheme.colors.text }
+                                                ]}>
+                                                    {i18n.language === 'ru' ? (book.name_ru || book.name_en) : (book.name_en || book.name_ru)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
 
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('chat.readingSchedule') || 'Reading Schedule'}</Text>
-                        <TouchableOpacity
-                            style={[styles.scheduleButton, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-                            onPress={() => setShowDatePicker(true)}
-                        >
-                            <Bell size={18} color={theme.accent} />
-                            <Text style={[styles.scheduleValue, { color: startTime ? theme.text : theme.subText }]}>
-                                {startTime ? startTime.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : t('chat.setStartTime') || 'Set Start Time'}
-                            </Text>
-                            {startTime && (
-                                <TouchableOpacity onPress={(e) => { e.stopPropagation(); setStartTime(null); }}>
-                                    <Text style={{ color: theme.accent, fontSize: 12 }}>{t('common.clear') || 'Clear'}</Text>
+                                <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('chat.readingSchedule') || 'Reading Schedule'}</Text>
+                                <TouchableOpacity
+                                    style={[styles.scheduleButton, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }]}
+                                    onPress={() => setShowDatePicker(true)}
+                                >
+                                    <Bell size={18} color={theme.accent} />
+                                    <Text style={[styles.scheduleValue, { color: startTime ? vTheme.colors.text : vTheme.colors.textSecondary }]}>
+                                        {startTime ? startTime.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : t('chat.setStartTime') || 'Set Start Time'}
+                                    </Text>
+                                    {startTime && (
+                                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); setStartTime(null); }}>
+                                            <Text style={{ color: theme.accent, fontSize: 12 }}>{t('common.clear') || 'Clear'}</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </TouchableOpacity>
-                            )}
-                        </TouchableOpacity>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 }}>
-                            <Info size={12} color={theme.subText} />
-                            <Text style={[styles.scheduleSubLabel, { color: theme.subText }]}>
-                                {t('chat.notificationHint') || 'Friends will be notified 15 minutes before'}
-                            </Text>
-                        </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 }}>
+                                    <Info size={12} color={vTheme.colors.textSecondary} />
+                                    <Text style={[styles.scheduleSubLabel, { color: vTheme.colors.textSecondary }]}>
+                                        {t('chat.notificationHint') || 'Friends will be notified 15 minutes before'}
+                                    </Text>
+                                </View>
+                            </>
+                        )}
 
                         <DatePicker
                             modal
@@ -397,7 +376,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 12,
+    },
+    switchLabel: {
+        fontSize: 15,
+        fontWeight: '500',
     },
     sectionTitle: {
         fontSize: 14,

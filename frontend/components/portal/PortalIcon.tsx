@@ -28,6 +28,8 @@ import {
     Settings,
     MessageSquare,
     Map,
+    Coffee,
+    Utensils,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -61,6 +63,8 @@ const IconComponents: Record<string, any> = {
     Settings,
     MessageSquare,
     Map,
+    Coffee,
+    Utensils,
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({
@@ -72,7 +76,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     badge,
     onLayout,
 }) => {
-    const { vTheme } = useSettings();
+    const { vTheme, portalBackgroundType } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
 
@@ -133,8 +137,8 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: `${service.color}15`,
-                            borderColor: `${service.color}30`,
+                            backgroundColor: portalBackgroundType === 'image' ? `${service.color}40` : `${service.color}15`,
+                            borderColor: portalBackgroundType === 'image' ? `${service.color}60` : `${service.color}30`,
                         },
                     ]}
                 >
@@ -156,7 +160,10 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         styles.label,
                         {
                             fontSize: sizeConfig.fontSize,
-                            color: vTheme.colors.text,
+                            color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
+                            textShadowColor: portalBackgroundType === 'image' ? 'rgba(0,0,0,0.5)' : 'transparent',
+                            textShadowOffset: portalBackgroundType === 'image' ? { width: 0, height: 1 } : { width: 0, height: 0 },
+                            textShadowRadius: portalBackgroundType === 'image' ? 2 : 0,
                         },
                     ]}
                     numberOfLines={1}

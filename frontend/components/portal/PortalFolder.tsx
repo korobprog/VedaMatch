@@ -64,7 +64,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
     size = 'medium',
     onLayout,
 }) => {
-    const { vTheme, isDarkMode } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
 
@@ -144,10 +144,14 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: isDarkMode
-                                ? `${folder.color}30`
-                                : `${folder.color}20`,
-                            borderColor: `${folder.color}50`,
+                            backgroundColor: portalBackgroundType === 'image'
+                                ? `${folder.color}50`
+                                : isDarkMode
+                                    ? `${folder.color}30`
+                                    : `${folder.color}20`,
+                            borderColor: portalBackgroundType === 'image'
+                                ? `${folder.color}80`
+                                : `${folder.color}50`,
                         },
                     ]}
                 >
@@ -173,7 +177,10 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                         styles.label,
                         {
                             fontSize: sizeConfig.fontSize,
-                            color: vTheme.colors.text,
+                            color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
+                            textShadowColor: portalBackgroundType === 'image' ? 'rgba(0,0,0,0.5)' : 'transparent',
+                            textShadowOffset: portalBackgroundType === 'image' ? { width: 0, height: 1 } : { width: 0, height: 0 },
+                            textShadowRadius: portalBackgroundType === 'image' ? 2 : 0,
                         },
                     ]}
                     numberOfLines={1}

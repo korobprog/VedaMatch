@@ -294,22 +294,22 @@ const AppContent = () => {
 
                   {/* Cafe Routes */}
                   <Stack.Screen name="CafesMap" component={CafesMapScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="CreateCafe" component={CreateCafeScreen} options={{ headerShown: true, title: t('cafe.create') }} />
-                  <Stack.Screen name="EditCafe" component={CafeAdminDashboardScreen} options={{ headerShown: true, title: t('cafe.dashboard.title') }} />
-                  <Stack.Screen name="CafeDetail" component={CafeDetailScreen} options={{ headerShown: true, title: t('cafe.detail.title') }} />
+                  <Stack.Screen name="CreateCafe" component={CreateCafeScreen} options={{ headerShown: false, title: t('cafe.create') }} />
+                  <Stack.Screen name="EditCafe" component={CafeAdminDashboardScreen} options={{ headerShown: false, title: t('cafe.dashboard.title') }} />
+                  <Stack.Screen name="CafeDetail" component={CafeDetailScreen} options={{ headerShown: false, title: t('cafe.detail.title') }} />
                   <Stack.Screen name="DishDetail" component={DishDetailScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="CafeCart" component={CafeCartScreen} options={{ headerShown: true, title: t('cafe.cart.title') }} />
+                  <Stack.Screen name="CafeCart" component={CafeCartScreen} options={{ headerShown: false, title: t('cafe.cart.title') }} />
                   <Stack.Screen name="CafeOrderSuccess" component={CafeOrderSuccessScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} options={{ headerShown: true, title: t('cafe.order.tracking') }} />
+                  <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} options={{ headerShown: false, title: t('cafe.order.tracking') }} />
                   <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ headerShown: false }} />
-                  <Stack.Screen name="StaffOrderBoard" component={StaffOrderBoardScreen} options={{ headerShown: true, title: t('cafe.staff.board.title') }} />
-                  <Stack.Screen name="StaffWaiterCalls" component={StaffWaiterCallsScreen} options={{ headerShown: true, title: t('cafe.staff.waiterCalls.title') }} />
-                  <Stack.Screen name="StaffStopList" component={StaffStopListScreen} options={{ headerShown: true, title: t('cafe.staff.stopList.title') }} />
-                  <Stack.Screen name="StaffTableEditor" component={StaffTableEditorScreen} options={{ headerShown: true, title: t('cafe.staff.tables.title') }} />
-                  <Stack.Screen name="StaffOrderHistory" component={StaffOrderHistoryScreen} options={{ headerShown: true, title: t('cafe.staff.history.title') }} />
-                  <Stack.Screen name="StaffMenuEditor" component={StaffMenuEditorScreen} options={{ headerShown: true, title: t('cafe.dashboard.menu') }} />
-                  <Stack.Screen name="StaffStats" component={StaffStatsScreen} options={{ headerShown: true, title: t('cafe.dashboard.stats') }} />
-                  <Stack.Screen name="CafeSettings" component={CafeSettingsScreen} options={{ headerShown: true, title: t('cafe.dashboard.settings') }} />
+                  <Stack.Screen name="StaffOrderBoard" component={StaffOrderBoardScreen} options={{ headerShown: false, title: t('cafe.staff.board.title') }} />
+                  <Stack.Screen name="StaffWaiterCalls" component={StaffWaiterCallsScreen} options={{ headerShown: false, title: t('cafe.staff.waiterCalls.title') }} />
+                  <Stack.Screen name="StaffStopList" component={StaffStopListScreen} options={{ headerShown: false, title: t('cafe.staff.stopList.title') }} />
+                  <Stack.Screen name="StaffTableEditor" component={StaffTableEditorScreen} options={{ headerShown: false, title: t('cafe.staff.tables.title') }} />
+                  <Stack.Screen name="StaffOrderHistory" component={StaffOrderHistoryScreen} options={{ headerShown: false, title: t('cafe.staff.history.title') }} />
+                  <Stack.Screen name="StaffMenuEditor" component={StaffMenuEditorScreen} options={{ headerShown: false, title: t('cafe.dashboard.menu') }} />
+                  <Stack.Screen name="StaffStats" component={StaffStatsScreen} options={{ headerShown: false, title: t('cafe.dashboard.stats') }} />
+                  <Stack.Screen name="CafeSettings" component={CafeSettingsScreen} options={{ headerShown: false, title: t('cafe.dashboard.settings') }} />
 
                   {/* Education Routes */}
                   <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />

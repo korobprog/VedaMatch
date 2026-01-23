@@ -347,33 +347,230 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     />
                 )}
 
-                <View style={[
-                    styles.readingPanel,
-                    {
-                        backgroundColor: vTheme.colors.surface,
-                        borderRadius: vTheme.layout.borderRadius.md,
-                        margin: vTheme.layout.spacing.md,
-                        ...vTheme.shadows.medium,
-                        borderBottomWidth: 0,
-                        flex: isExpanded ? 1 : 0,
-                    }
-                ]}>
-                    <View style={styles.readingHeader}>
-                        <Text style={[styles.bookTitle, { color: vTheme.colors.primary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
-                            {roomDetails?.bookCode
-                                ? `📖 ${roomDetails.bookCode.toUpperCase()} ${roomDetails.currentChapter}.${roomDetails.currentVerse}`
-                                : (roomName || t('chat.publicRoom'))}
-                        </Text>
+                {roomDetails?.bookCode ? (
+                    <View style={[
+                        styles.readingPanel,
+                        {
+                            backgroundColor: vTheme.colors.surface,
+                            borderRadius: vTheme.layout.borderRadius.md,
+                            margin: vTheme.layout.spacing.md,
+                            ...vTheme.shadows.medium,
+                            borderBottomWidth: 0,
+                            flex: isExpanded ? 1 : 0,
+                            overflow: 'hidden'
+                        }
+                    ]}>
+                        <View style={styles.readingHeader}>
+                            <Text style={[styles.bookTitle, { color: vTheme.colors.primary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
+                                {roomDetails?.bookCode
+                                    ? `📖 ${roomDetails.bookCode.toUpperCase()} ${roomDetails.currentChapter}.${roomDetails.currentVerse}`
+                                    : (roomName || t('chat.publicRoom'))}
+                            </Text>
+                            {!isCallActive && (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.joinCallBtn,
+                                        {
+                                            backgroundColor: vTheme.colors.primary,
+                                            borderRadius: vTheme.layout.borderRadius.lg,
+                                            paddingHorizontal: 16,
+                                            paddingVertical: 8,
+                                            ...vTheme.shadows.soft,
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 6
+                                        }
+                                    ]}
+                                    onPress={() => setIsCallActive(true)}
+                                >
+                                    <Video size={18} color={vTheme.colors.textLight} />
+                                    <Text style={{ color: vTheme.colors.textLight, fontWeight: 'bold' }}>{t('chat.joinCall')}</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    const newState = !isExpanded;
+                                    setIsExpanded(newState);
+                                    await AsyncStorage.setItem('chat_reader_expanded', newState.toString());
+                                }}
+                                style={{ padding: 8 }}
+                            >
+                                {isExpanded ? (
+                                    <Minimize2 size={20} color={vTheme.colors.primary} />
+                                ) : (
+                                    <Maximize2 size={20} color={vTheme.colors.primary} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
+
+                        {roomDetails?.bookCode && isExpanded && (
+                            <View style={styles.navHeaderCard}>
+                                <View style={styles.navBarRow}>
+                                    <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter - 1, 1)} disabled={roomDetails.currentChapter <= 1} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                        <ChevronLeft size={20} color={roomDetails.currentChapter <= 1 ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                    </TouchableOpacity>
+                                    <View style={{ width: 50, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.03)', height: '100%', justifyContent: 'center' }}>
+                                        <Text style={{ fontSize: 9, fontWeight: '900', color: vTheme.colors.primary }}>{t('reader.chapter').substring(0, 6).toUpperCase()}</Text>
+                                    </View>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
+                                        {chapters.length > 0 ? chapters.map((ch) => (
+                                            <TouchableOpacity
+                                                key={`${ch.canto}-${ch.chapter}`}
+                                                style={[styles.navItem, roomDetails.currentChapter === ch.chapter && styles.navItemActive]}
+                                                onPress={() => handleJumpToVerse(ch.chapter, 1)}
+                                            >
+                                                <Text style={[styles.navItemText, roomDetails.currentChapter === ch.chapter && styles.navItemTextActive]}>
+                                                    {ch.chapter}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )) : (
+                                            <View style={styles.navItem}>
+                                                <Text style={styles.navItemText}>{roomDetails.currentChapter}</Text>
+                                            </View>
+                                        )}
+                                    </ScrollView>
+                                    <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter + 1, 1)} disabled={roomDetails.currentChapter >= chapters.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                        <ChevronRight size={20} color={roomDetails.currentChapter >= chapters.length ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={[styles.navBarRow, { borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' }]}>
+                                    <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter, roomDetails.currentVerse - 1)} disabled={roomDetails.currentVerse <= 1} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                        <ChevronLeft size={20} color={roomDetails.currentVerse <= 1 ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                    </TouchableOpacity>
+                                    <View style={{ width: 50, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.03)', height: '100%', justifyContent: 'center' }}>
+                                        <Text style={{ fontSize: 9, fontWeight: '900', color: vTheme.colors.primary }}>{t('reader.verse').substring(0, 5).toUpperCase()}</Text>
+                                    </View>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
+                                        {versesInChapter.map((v) => (
+                                            <TouchableOpacity
+                                                key={v.id}
+                                                style={[styles.verseNavItem, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemActive]}
+                                                onPress={() => handleJumpToVerse(roomDetails.currentChapter, parseInt(v.verse))}
+                                            >
+                                                <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemTextActive]}>
+                                                    {v.verse}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                    <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter, roomDetails.currentVerse + 1)} disabled={roomDetails.currentVerse >= versesInChapter.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                        <ChevronRight size={20} color={roomDetails.currentVerse >= versesInChapter.length ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        {currentVerse ? (
+                            <View style={{ flex: 1 }}>
+                                <ScrollView
+                                    style={{ flex: 1 }}
+                                    showsVerticalScrollIndicator={true}
+                                    contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
+                                >
+                                    <Text style={[
+                                        styles.sanskritText,
+                                        {
+                                            color: vTheme.colors.text,
+                                            fontSize: readerFontSize * 1.2,
+                                            fontWeight: readerFontBold ? 'bold' : 'normal',
+                                            lineHeight: (readerFontSize * 1.2) * 1.4
+                                        }
+                                    ]}>
+                                        {currentVerse.devanagari || currentVerse.text_sanskrit}
+                                    </Text>
+                                    <Text style={[
+                                        styles.translationText,
+                                        {
+                                            color: vTheme.colors.textSecondary,
+                                            fontSize: readerFontSize,
+                                            fontWeight: readerFontBold ? '600' : 'normal',
+                                            lineHeight: readerFontSize * 1.5
+                                        }
+                                    ]}>
+                                        {currentVerse.translation}
+                                    </Text>
+
+                                    {roomDetails?.showPurport && currentVerse.purport && (
+                                        <View style={styles.purportContainer}>
+                                            <Text style={[styles.purportHeader, { color: vTheme.colors.primary }]}>
+                                                {t('reader.purport') || 'Purport'}
+                                            </Text>
+                                            <Text style={[
+                                                styles.purportText,
+                                                {
+                                                    color: vTheme.colors.textSecondary,
+                                                    fontSize: readerFontSize * 0.95,
+                                                    fontWeight: readerFontBold ? '500' : 'normal',
+                                                    lineHeight: (readerFontSize * 0.95) * 1.6
+                                                }
+                                            ]}>
+                                                {currentVerse.purport}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </ScrollView>
+
+                                {isExpanded && (
+                                    <View style={styles.readingControls}>
+                                        <TouchableOpacity
+                                            style={{ padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                            onPress={handlePrevVerse}
+                                        >
+                                            <ArrowLeft size={16} color={vTheme.colors.textSecondary} />
+                                            <Text style={{ color: vTheme.colors.textSecondary }}>{t('reader.prevVerse')}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                            onPress={handleNextVerse}
+                                        >
+                                            <Text style={{ color: vTheme.colors.primary, fontWeight: 'bold' }}>{t('reader.nextVerse')}</Text>
+                                            <ArrowRight size={16} color={vTheme.colors.primary} />
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+                        ) : (
+                            <TouchableOpacity onPress={() => setSettingsVisible(true)} style={{ padding: 10 }}>
+                                <Text style={{ color: vTheme.colors.primary, textAlign: 'center', fontStyle: 'italic', textDecorationLine: 'underline' }}>
+                                    {t('reader.settings')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                ) : (
+                    <View style={[
+                        styles.minimalHeader,
+                        {
+                            backgroundColor: vTheme.colors.surface,
+                            borderBottomWidth: 1,
+                            borderBottomColor: vTheme.colors.divider,
+                            paddingHorizontal: 16,
+                            paddingVertical: 12,
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }
+                    ]}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.bookTitle, { color: vTheme.colors.primary }]} numberOfLines={1}>
+                                {roomName || t('chat.publicRoom')}
+                            </Text>
+                            {roomDetails?.description ? (
+                                <Text style={{ color: vTheme.colors.textSecondary, fontSize: 12 }} numberOfLines={1}>
+                                    {roomDetails.description}
+                                </Text>
+                            ) : null}
+                        </View>
                         {!isCallActive && (
                             <TouchableOpacity
                                 style={[
                                     styles.joinCallBtn,
                                     {
                                         backgroundColor: vTheme.colors.primary,
-                                        borderRadius: vTheme.layout.borderRadius.lg,
+                                        borderRadius: 20,
                                         paddingHorizontal: 16,
                                         paddingVertical: 8,
-                                        ...vTheme.shadows.soft,
                                         flexDirection: 'row',
                                         alignItems: 'center',
                                         gap: 6
@@ -381,164 +578,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 ]}
                                 onPress={() => setIsCallActive(true)}
                             >
-                                <Video size={18} color={vTheme.colors.textLight} />
-                                <Text style={{ color: vTheme.colors.textLight, fontWeight: 'bold' }}>{t('chat.joinCall')}</Text>
+                                <Video size={18} color="#fff" />
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('chat.joinCall')}</Text>
                             </TouchableOpacity>
                         )}
-                        <TouchableOpacity
-                            onPress={async () => {
-                                const newState = !isExpanded;
-                                setIsExpanded(newState);
-                                await AsyncStorage.setItem('chat_reader_expanded', newState.toString());
-                            }}
-                            style={{ padding: 8 }}
-                        >
-                            {isExpanded ? (
-                                <Minimize2 size={20} color={vTheme.colors.primary} />
-                            ) : (
-                                <Maximize2 size={20} color={vTheme.colors.primary} />
-                            )}
-                        </TouchableOpacity>
                     </View>
+                )}
 
-                    {roomDetails?.bookCode && isExpanded && (
-                        <View style={styles.navHeaderCard}>
-                            <View style={styles.navBarRow}>
-                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter - 1, 1)} disabled={roomDetails.currentChapter <= 1} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
-                                    <ChevronLeft size={20} color={roomDetails.currentChapter <= 1 ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
-                                </TouchableOpacity>
-                                <View style={{ width: 50, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.03)', height: '100%', justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 9, fontWeight: '900', color: vTheme.colors.primary }}>{t('reader.chapter').substring(0, 6).toUpperCase()}</Text>
-                                </View>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
-                                    {chapters.length > 0 ? chapters.map((ch) => (
-                                        <TouchableOpacity
-                                            key={`${ch.canto}-${ch.chapter}`}
-                                            style={[styles.navItem, roomDetails.currentChapter === ch.chapter && styles.navItemActive]}
-                                            onPress={() => handleJumpToVerse(ch.chapter, 1)}
-                                        >
-                                            <Text style={[styles.navItemText, roomDetails.currentChapter === ch.chapter && styles.navItemTextActive]}>
-                                                {ch.chapter}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )) : (
-                                        <View style={styles.navItem}>
-                                            <Text style={styles.navItemText}>{roomDetails.currentChapter}</Text>
-                                        </View>
-                                    )}
-                                </ScrollView>
-                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter + 1, 1)} disabled={roomDetails.currentChapter >= chapters.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
-                                    <ChevronRight size={20} color={roomDetails.currentChapter >= chapters.length ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={[styles.navBarRow, { borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' }]}>
-                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter, roomDetails.currentVerse - 1)} disabled={roomDetails.currentVerse <= 1} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
-                                    <ChevronLeft size={20} color={roomDetails.currentVerse <= 1 ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
-                                </TouchableOpacity>
-                                <View style={{ width: 50, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.03)', height: '100%', justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 9, fontWeight: '900', color: vTheme.colors.primary }}>{t('reader.verse').substring(0, 5).toUpperCase()}</Text>
-                                </View>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
-                                    {versesInChapter.map((v) => (
-                                        <TouchableOpacity
-                                            key={v.id}
-                                            style={[styles.verseNavItem, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemActive]}
-                                            onPress={() => handleJumpToVerse(roomDetails.currentChapter, parseInt(v.verse))}
-                                        >
-                                            <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemTextActive]}>
-                                                {v.verse}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                                <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter, roomDetails.currentVerse + 1)} disabled={roomDetails.currentVerse >= versesInChapter.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
-                                    <ChevronRight size={20} color={roomDetails.currentVerse >= versesInChapter.length ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-
-                    {currentVerse ? (
-                        <View style={{ flex: 1 }}>
-                            <ScrollView
-                                style={{ flex: 1 }}
-                                showsVerticalScrollIndicator={true}
-                                contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
-                            >
-                                <Text style={[
-                                    styles.sanskritText,
-                                    {
-                                        color: vTheme.colors.text,
-                                        fontSize: readerFontSize * 1.2,
-                                        fontWeight: readerFontBold ? 'bold' : 'normal',
-                                        lineHeight: (readerFontSize * 1.2) * 1.4
-                                    }
-                                ]}>
-                                    {currentVerse.devanagari || currentVerse.text_sanskrit}
-                                </Text>
-                                <Text style={[
-                                    styles.translationText,
-                                    {
-                                        color: vTheme.colors.textSecondary,
-                                        fontSize: readerFontSize,
-                                        fontWeight: readerFontBold ? '600' : 'normal',
-                                        lineHeight: readerFontSize * 1.5
-                                    }
-                                ]}>
-                                    {currentVerse.translation}
-                                </Text>
-
-                                {roomDetails?.showPurport && currentVerse.purport && (
-                                    <View style={styles.purportContainer}>
-                                        <Text style={[styles.purportHeader, { color: vTheme.colors.primary }]}>
-                                            {t('reader.purport') || 'Purport'}
-                                        </Text>
-                                        <Text style={[
-                                            styles.purportText,
-                                            {
-                                                color: vTheme.colors.textSecondary,
-                                                fontSize: readerFontSize * 0.95,
-                                                fontWeight: readerFontBold ? '500' : 'normal',
-                                                lineHeight: (readerFontSize * 0.95) * 1.6
-                                            }
-                                        ]}>
-                                            {currentVerse.purport}
-                                        </Text>
-                                    </View>
-                                )}
-                            </ScrollView>
-
-                            {isExpanded && (
-                                <View style={styles.readingControls}>
-                                    <TouchableOpacity
-                                        style={{ padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                                        onPress={handlePrevVerse}
-                                    >
-                                        <ArrowLeft size={16} color={vTheme.colors.textSecondary} />
-                                        <Text style={{ color: vTheme.colors.textSecondary }}>{t('reader.prevVerse')}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={{ padding: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                                        onPress={handleNextVerse}
-                                    >
-                                        <Text style={{ color: vTheme.colors.primary, fontWeight: 'bold' }}>{t('reader.nextVerse')}</Text>
-                                        <ArrowRight size={16} color={vTheme.colors.primary} />
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                        </View>
-                    ) : (
-                        <TouchableOpacity onPress={() => setSettingsVisible(true)}>
-                            <Text style={{ color: vTheme.colors.primary, textAlign: 'center', marginVertical: 10, fontStyle: 'italic', textDecorationLine: 'underline' }}>
-                                {t('reader.settings')}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                {!isExpanded && (
-                    <>
+                {(roomDetails?.bookCode ? !isExpanded : true) && (
+                    <View style={{ flex: 1 }}>
                         {loading ? (
                             <ActivityIndicator size="large" color={theme.accent} style={styles.center} />
                         ) : (
@@ -554,7 +602,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 }
                             />
                         )}
-                    </>
+                    </View>
                 )}
 
                 <View style={[styles.inputContainer, { backgroundColor: theme.header, borderTopColor: theme.borderColor }]}>
@@ -593,6 +641,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
+    minimalHeader: {
+        width: '100%',
+        zIndex: 10,
+    },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     list: { padding: 16 },
     messageBubble: {

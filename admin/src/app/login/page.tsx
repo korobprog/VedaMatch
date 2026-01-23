@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Lock, Mail, Loader2, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, Loader2, Heart } from 'lucide-react';
+import Link from 'next/link';
 import api from '@/lib/api';
 
 export default function LoginPage() {
@@ -22,11 +23,12 @@ export default function LoginPage() {
             const response = await api.post('/login', { email, password });
             const { user, token } = response.data;
 
+            localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
+
             if (user.role === 'admin' || user.role === 'superadmin') {
-                localStorage.setItem('admin_data', JSON.stringify({ ...user, token }));
                 router.push('/dashboard');
             } else {
-                setError('Access denied. Admin privileges required.');
+                router.push('/user/dashboard');
             }
         } catch (err: any) {
             setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
@@ -50,13 +52,13 @@ export default function LoginPage() {
                 <div className="bg-[var(--card)] p-8 rounded-2xl border border-[var(--border)] shadow-2xl relative overflow-hidden">
                     <div className="flex justify-center mb-8">
                         <div className="p-4 bg-[var(--primary)]/10 rounded-2xl">
-                            <ShieldCheck className="w-12 h-12 text-[var(--primary)]" />
+                            <Heart className="w-12 h-12 text-[var(--primary)]" />
                         </div>
                     </div>
 
                     <div className="text-center mb-8">
-                        <h1 className="text-3xl font-bold tracking-tight mb-2">Admin Portal</h1>
-                        <p className="text-[var(--muted-foreground)]">Enter your credentials to manage the system</p>
+                        <h1 className="text-3xl font-bold tracking-tight mb-2">VedaMatch</h1>
+                        <p className="text-[var(--muted-foreground)]">Sign in to your account</p>
                     </div>
 
                     {error && (
@@ -107,6 +109,15 @@ export default function LoginPage() {
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
                         </button>
+
+                        <div className="text-center mt-6">
+                            <p className="text-sm text-[var(--muted-foreground)]">
+                                Don't have an account?{' '}
+                                <Link href="/register" className="text-[var(--primary)] font-bold hover:underline">
+                                    Sign Up
+                                </Link>
+                            </p>
+                        </div>
                     </form>
                 </div>
             </motion.div>

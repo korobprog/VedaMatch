@@ -45,7 +45,7 @@ interface PortalGridProps {
 
 export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseDrawer }) => {
     const navigation = useNavigation<any>();
-    const { vTheme, isDarkMode } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const {
         layout,
         isEditMode,
@@ -310,7 +310,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                         {
                             backgroundColor: index === currentPage
                                 ? vTheme.colors.primary
-                                : vTheme.colors.textSecondary,
+                                : portalBackgroundType === 'image' ? 'rgba(255,255,255,0.5)' : vTheme.colors.textSecondary,
                         },
                         index === currentPage && styles.activePageDot,
                     ]}
@@ -333,9 +333,9 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                         ]
                     );
                 }}
-                style={[styles.addPageButton, { borderColor: vTheme.colors.textSecondary }]}
+                style={[styles.addPageButton, { borderColor: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary }]}
             >
-                <Plus size={10} color={vTheme.colors.textSecondary} />
+                <Plus size={10} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
             </TouchableOpacity>
         </View>
     );

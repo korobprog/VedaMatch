@@ -51,10 +51,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
-        if (!data && pathname !== '/login' && pathname !== '/') {
-            router.push('/login');
-        } else if (data) {
-            setAdmin(JSON.parse(data));
+        if (!data) {
+            if (pathname !== '/login' && pathname !== '/' && pathname !== '/register') {
+                router.push('/login');
+            }
+        } else {
+            const parsedData = JSON.parse(data);
+            setAdmin(parsedData);
+
+            // Protect admin routes
+            const isAdmin = parsedData.role === 'admin' || parsedData.role === 'superadmin';
+
+            // List of routes that are EXCLUSIVELY for admins
+            const exclusiveAdminRoutes = [
+                '/dashboard',
+                '/users',
+                '/admins',
+                '/settings',
+                '/polza',
+                '/ai-prompts'
+            ];
+
+            if (!isAdmin && exclusiveAdminRoutes.some(route => pathname.startsWith(route))) {
+                router.push('/');
+            }
         }
     }, [pathname, router]);
 
@@ -63,66 +83,82 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         router.push('/login');
     };
 
-    if (pathname === '/login' || pathname === '/') return <>{children}</>;
+    const isPublicRoute = pathname === '/login' || pathname === '/' || pathname === '/register' || pathname === '/admin-login';
+    const isUserDashboard = pathname === '/user/dashboard';
+
+    // Shared routes that both admins and users can access, but with different layouts
+    const sharedRoutes = ['/library', '/dating', '/ads', '/map', '/news', '/education', '/ai-models', '/contacts', '/chat', '/calls', '/shops'];
+    const isSharedRoute = sharedRoutes.some(route => pathname.startsWith(route));
+
+    // For regular users, we don't want the admin sidebar/layout on dashboard and shared portal routes
+    const isAdmin = admin?.role === 'admin' || admin?.role === 'superadmin';
+
+    if (isPublicRoute || isUserDashboard || (!isAdmin && isSharedRoute)) return <>{children}</>;
 
     return (
         <div className="min-h-screen bg-[var(--background)] flex">
             {/* Sidebar - Desktop */}
-            <aside
-                className={`hidden md:flex flex-col border-r border-[var(--border)] bg-[var(--card)] transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'
-                    }`}
-            >
-                <div className="p-6 flex items-center gap-3">
-                    <div className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center shrink-0">
-                        <ShieldAlert className="w-5 h-5 text-white" />
+            {isAdmin && (
+                <aside
+                    className={`hidden md:flex flex-col border-r border-[var(--border)] bg-[var(--card)] transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'
+                        }`}
+                >
+                    <div className="p-6 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center shrink-0">
+                            <ShieldAlert className="w-5 h-5 text-white" />
+                        </div>
+                        {isSidebarOpen && <span className="font-bold text-xl tracking-tight">VedicAI</span>}
                     </div>
-                    {isSidebarOpen && <span className="font-bold text-xl tracking-tight">VedicAI</span>}
-                </div>
 
-                <nav className="flex-1 px-3 space-y-1">
-                    {menuItems.map((item) => (
+                    <nav className="flex-1 px-3 space-y-1">
+                        {menuItems.map((item) => (
+                            <button
+                                key={item.path}
+                                onClick={() => router.push(item.path)}
+                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all ${pathname === item.path
+                                    ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                                    : 'text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]'
+                                    }`}
+                            >
+                                <item.icon className="w-5 h-5 shrink-0" />
+                                {isSidebarOpen && <span className="font-medium">{item.label}</span>}
+                            </button>
+                        ))}
+                    </nav>
+
+                    <div className="p-4 border-t border-[var(--border)]">
                         <button
-                            key={item.path}
-                            onClick={() => router.push(item.path)}
-                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${pathname === item.path
-                                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
-                                : 'text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]'
-                                }`}
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer transition-all font-medium"
                         >
-                            <item.icon className="w-5 h-5 shrink-0" />
-                            {isSidebarOpen && <span className="font-medium">{item.label}</span>}
+                            <LogOut className="w-5 h-5 shrink-0" />
+                            {isSidebarOpen && <span>Logout</span>}
                         </button>
-                    ))}
-                </nav>
-
-                <div className="p-4 border-t border-[var(--border)]">
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all font-medium"
-                    >
-                        <LogOut className="w-5 h-5 shrink-0" />
-                        {isSidebarOpen && <span>Logout</span>}
-                    </button>
-                </div>
-            </aside>
+                    </div>
+                </aside>
+            )}
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
                 <header className="h-16 border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-4 md:px-8">
                     <div className="flex items-center gap-4">
-                        <button
-                            className="md:hidden p-2 hover:bg-[var(--secondary)] rounded-lg"
-                            onClick={() => setIsMobileMenuOpen(true)}
-                        >
-                            <Menu className="w-6 h-6" />
-                        </button>
-                        <button
-                            className="hidden md:p-2 hover:bg-[var(--secondary)] rounded-lg"
-                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        >
-                            {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                        </button>
+                        {isAdmin && (
+                            <>
+                                <button
+                                    className="md:hidden p-2 hover:bg-[var(--secondary)] rounded-lg"
+                                    onClick={() => setIsMobileMenuOpen(true)}
+                                >
+                                    <Menu className="w-6 h-6" />
+                                </button>
+                                <button
+                                    className="hidden md:p-2 hover:bg-[var(--secondary)] rounded-lg"
+                                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                >
+                                    {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                                </button>
+                            </>
+                        )}
                         <div className="relative hidden sm:block">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
                             <input
@@ -134,7 +170,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </div>
 
                     <div className="flex items-center gap-3 md:gap-6">
-                        <button className="relative p-2 hover:bg-[var(--secondary)] rounded-full transition-all">
+                        <button className="relative p-2 hover:bg-[var(--secondary)] rounded-full cursor-pointer transition-all">
                             <Bell className="w-5 h-5" />
                             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-[var(--card)]"></span>
                         </button>
@@ -195,7 +231,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                             router.push(item.path);
                                             setIsMobileMenuOpen(false);
                                         }}
-                                        className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${pathname === item.path
+                                        className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl cursor-pointer transition-all ${pathname === item.path
                                             ? 'bg-[var(--primary)] text-white'
                                             : 'text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
                                             }`}
