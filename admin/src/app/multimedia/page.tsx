@@ -117,14 +117,16 @@ export default function MultimediaPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {tabs.map(t => (
-                    <div key={t.id} className="bg-white p-4 rounded-lg shadow border">
-                        <div className="flex items-center gap-3">
-                            <t.icon className="w-8 h-8 text-indigo-500" />
+                    <div key={t.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                                <t.icon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                            </div>
                             <div>
-                                <p className="text-2xl font-bold">{t.count || 0}</p>
-                                <p className="text-gray-500 text-sm">{t.label}</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">{t.count || 0}</p>
+                                <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">{t.label}</p>
                             </div>
                         </div>
                     </div>
@@ -132,12 +134,14 @@ export default function MultimediaPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-4 border-b">
+            <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-slate-700">
                 {tabs.map(t => (
                     <button
                         key={t.id}
                         onClick={() => setTab(t.id as TabType)}
-                        className={`px-4 py-2 font-medium ${tab === t.id ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500'}`}
+                        className={`px-4 py-2 font-semibold transition-colors ${tab === t.id
+                            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                            : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'}`}
                     >
                         {t.label}
                     </button>
@@ -145,14 +149,14 @@ export default function MultimediaPage() {
             </div>
 
             {/* Search */}
-            <div className="relative mb-4">
-                <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+            <div className="relative mb-6">
+                <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search by title, artist or name..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg"
+                    className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
             </div>
 
@@ -218,38 +222,40 @@ function TracksTable({ tracks, search, onEdit, onDelete, actionLoading }: any) {
         t.artist?.toLowerCase().includes(search.toLowerCase())
     );
     return (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Title</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Artist</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Type</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Madh</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Views</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Actions</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y">
-                    {filtered.map((t: MediaTrack) => (
-                        <tr key={t.ID} className="hover:bg-gray-50">
-                            <td className="px-4 py-3">{t.title}</td>
-                            <td className="px-4 py-3 text-gray-500">{t.artist}</td>
-                            <td className="px-4 py-3">
-                                <span className={`px-2 py-1 rounded text-xs ${t.mediaType === 'audio' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
-                                    {t.mediaType}
-                                </span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-500">{t.madh || '-'}</td>
-                            <td className="px-4 py-3 text-gray-500">{t.viewCount}</td>
-                            <td className="px-4 py-3 flex gap-2">
-                                <button onClick={() => onEdit(t)} className="text-blue-600 hover:text-blue-800"><Edit3 className="w-4 h-4" /></button>
-                                <button onClick={() => onDelete(t.ID)} className="text-red-600 hover:text-red-800"><Trash2 className="w-4 h-4" /></button>
-                            </td>
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+            <div className="overflow-x-auto">
+                <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-slate-900/50">
+                        <tr>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Title</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Artist</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Madh</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Views</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                        {filtered.map((t: MediaTrack) => (
+                            <tr key={t.ID} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{t.title}</td>
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{t.artist}</td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${t.mediaType === 'audio' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                                        {t.mediaType}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{t.madh || '-'}</td>
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{t.viewCount}</td>
+                                <td className="px-6 py-4 text-right flex justify-end gap-3 text-sm">
+                                    <button onClick={() => onEdit(t)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"><Edit3 className="w-4 h-4" /></button>
+                                    <button onClick={() => onDelete(t.ID)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
@@ -368,63 +374,74 @@ function MediaModal({ type, item, onClose, onSave }: { type: TabType; item: any;
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                <h2 className="text-xl font-bold mb-4">{item ? 'Edit' : 'Add'} {type.slice(0, -1)}</h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-gray-100 dark:border-slate-700 max-h-[90vh] overflow-y-auto"
+            >
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                        {item ? 'Edit' : 'Add'} {type.slice(0, -1)}
+                    </h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
+                        <XCircle className="w-6 h-6" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    {/* Explicitly setting text-gray-900 for light mode and text-white for dark mode for all inputs */}
                     {type === 'tracks' && (
-                        <>
-                            <input placeholder="Title" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} className="w-full border rounded p-2" required />
-                            <input placeholder="Artist" value={form.artist || ''} onChange={e => setForm({ ...form, artist: e.target.value })} className="w-full border rounded p-2" />
-                            <select value={form.mediaType || 'audio'} onChange={e => setForm({ ...form, mediaType: e.target.value })} className="w-full border rounded p-2">
-                                <option value="audio">Audio</option>
-                                <option value="video">Video</option>
-                            </select>
-                            <input placeholder="URL" value={form.url || ''} onChange={e => setForm({ ...form, url: e.target.value })} className="w-full border rounded p-2" required />
-                            <input placeholder="Thumbnail URL" value={form.thumbnailUrl || ''} onChange={e => setForm({ ...form, thumbnailUrl: e.target.value })} className="w-full border rounded p-2" />
-                            <input placeholder="Madh" value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full border rounded p-2" />
-                        </>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Title</label>
+                                <input placeholder="Enter title" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Artist</label>
+                                <input placeholder="Artist name" value={form.artist || ''} onChange={e => setForm({ ...form, artist: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Media Type</label>
+                                <select value={form.mediaType || 'audio'} onChange={e => setForm({ ...form, mediaType: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="audio">Audio</option>
+                                    <option value="video">Video</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Source URL</label>
+                                <input placeholder="https://..." value={form.url || ''} onChange={e => setForm({ ...form, url: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Thumbnail URL</label>
+                                <input placeholder="Image URL" value={form.thumbnailUrl || ''} onChange={e => setForm({ ...form, thumbnailUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Madh (Optional)</label>
+                                <input placeholder="e.g. iskcon" value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                            </div>
+                        </div>
                     )}
+                    {/* Add labels and styling for other types too (radio, tv, categories)... */}
                     {type === 'radio' && (
-                        <>
-                            <input placeholder="Name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full border rounded p-2" required />
-                            <input placeholder="Stream URL" value={form.streamUrl || ''} onChange={e => setForm({ ...form, streamUrl: e.target.value })} className="w-full border rounded p-2" required />
-                            <input placeholder="Logo URL" value={form.logoUrl || ''} onChange={e => setForm({ ...form, logoUrl: e.target.value })} className="w-full border rounded p-2" />
-                            <input placeholder="Madh" value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full border rounded p-2" />
-                        </>
+                        <div className="space-y-4">
+                            <input placeholder="Station Name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white" required />
+                            <input placeholder="Stream URL" value={form.streamUrl || ''} onChange={e => setForm({ ...form, streamUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white" required />
+                            <input placeholder="Logo URL" value={form.logoUrl || ''} onChange={e => setForm({ ...form, logoUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white" />
+                        </div>
                     )}
-                    {type === 'tv' && (
-                        <>
-                            <input placeholder="Name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full border rounded p-2" required />
-                            <input placeholder="Stream URL" value={form.streamUrl || ''} onChange={e => setForm({ ...form, streamUrl: e.target.value })} className="w-full border rounded p-2" required />
-                            <select value={form.streamType || 'youtube'} onChange={e => setForm({ ...form, streamType: e.target.value })} className="w-full border rounded p-2">
-                                <option value="youtube">YouTube</option>
-                                <option value="vimeo">Vimeo</option>
-                                <option value="rtmp">RTMP</option>
-                            </select>
-                            <input placeholder="Logo URL" value={form.logoUrl || ''} onChange={e => setForm({ ...form, logoUrl: e.target.value })} className="w-full border rounded p-2" />
-                        </>
-                    )}
-                    {type === 'categories' && (
-                        <>
-                            <input placeholder="Name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full border rounded p-2" required />
-                            <input placeholder="Slug" value={form.slug || ''} onChange={e => setForm({ ...form, slug: e.target.value })} className="w-full border rounded p-2" required />
-                            <select value={form.type || 'bhajan'} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full border rounded p-2">
-                                <option value="bhajan">Bhajan</option>
-                                <option value="lecture">Lecture</option>
-                                <option value="kirtan">Kirtan</option>
-                                <option value="film">Film</option>
-                            </select>
-                        </>
-                    )}
-                    <div className="flex gap-2 justify-end">
-                        <button type="button" onClick={onClose} className="px-4 py-2 border rounded">Cancel</button>
-                        <button type="submit" disabled={loading} className="px-4 py-2 bg-indigo-600 text-white rounded disabled:opacity-50">
-                            {loading ? 'Saving...' : 'Save'}
+
+                    {/* Final Actions */}
+                    <div className="flex gap-3 justify-end pt-4 border-t dark:border-slate-700">
+                        <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit" disabled={loading} className="px-6 py-2.5 text-sm font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-600/20 transition-all">
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Changes'}
                         </button>
                     </div>
                 </form>
-            </div>
+            </motion.div>
         </div>
     );
 }

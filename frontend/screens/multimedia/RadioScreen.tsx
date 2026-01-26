@@ -12,9 +12,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Radio as RadioIcon, Play, Loader2, ArrowLeft } from 'lucide-react-native';
 import { multimediaService, RadioStation } from '../../services/multimediaService';
+import { useSettings } from '../../context/SettingsContext';
 
 export const RadioScreen: React.FC = () => {
     const navigation = useNavigation<any>();
+    const { vTheme, isDarkMode } = useSettings();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [stations, setStations] = useState<RadioStation[]>([]);
@@ -37,53 +39,53 @@ export const RadioScreen: React.FC = () => {
 
     const renderStation = ({ item }: { item: RadioStation }) => (
         <TouchableOpacity
-            style={styles.stationCard}
+            style={[styles.stationCard, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}
             onPress={() => navigation.navigate('RadioPlayer', { station: item })}
         >
             {item.logoUrl ? (
                 <Image source={{ uri: item.logoUrl }} style={styles.logo} />
             ) : (
-                <View style={styles.logoPlaceholder}>
-                    <RadioIcon size={32} color="#6366F1" />
+                <View style={[styles.logoPlaceholder, { backgroundColor: `${vTheme.colors.primary}10` }]}>
+                    <RadioIcon size={32} color={vTheme.colors.primary} />
                 </View>
             )}
             <View style={styles.info}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.description} numberOfLines={2}>
+                <Text style={[styles.name, { color: vTheme.colors.text }]}>{item.name}</Text>
+                <Text style={[styles.description, { color: vTheme.colors.textSecondary }]} numberOfLines={2}>
                     {item.description || 'Духовное радио вещание'}
                 </Text>
                 <View style={styles.meta}>
                     {item.isLive && (
-                        <View style={styles.liveBadge}>
-                            <View style={styles.liveDot} />
-                            <Text style={styles.liveText}>В ЭФИРЕ</Text>
+                        <View style={[styles.liveBadge, { backgroundColor: `${vTheme.colors.accent}15` }]}>
+                            <View style={[styles.liveDot, { backgroundColor: vTheme.colors.accent }]} />
+                            <Text style={[styles.liveText, { color: vTheme.colors.accent }]}>В ЭФИРЕ</Text>
                         </View>
                     )}
                     {item.viewerCount > 0 && (
-                        <Text style={styles.viewerCount}>👥 {item.viewerCount}</Text>
+                        <Text style={[styles.viewerCount, { color: vTheme.colors.textSecondary }]}>👥 {item.viewerCount}</Text>
                     )}
                 </View>
             </View>
-            <View style={styles.playButton}>
-                <Play size={24} color="#6366F1" fill="#6366F1" />
+            <View style={[styles.playButton, { backgroundColor: `${vTheme.colors.primary}10` }]}>
+                <Play size={24} color={vTheme.colors.primary} fill={vTheme.colors.primary} />
             </View>
         </TouchableOpacity>
     );
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
+        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#333" />
+                    <ArrowLeft size={24} color={vTheme.colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Онлайн-радио</Text>
-                <View style={{ width: 40 }} />
+                <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Онлайн-радио</Text>
+                <div style={{ width: 40 }} />
             </View>
 
             {loading ? (
                 <View style={styles.center}>
-                    <Loader2 size={32} color="#6366F1" />
-                    <Text style={styles.loadingText}>Загрузка станций...</Text>
+                    <Loader2 size={32} color={vTheme.colors.primary} />
+                    <Text style={[styles.loadingText, { color: vTheme.colors.textSecondary }]}>Загрузка станций...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -92,12 +94,12 @@ export const RadioScreen: React.FC = () => {
                     keyExtractor={(item) => item.ID.toString()}
                     contentContainerStyle={styles.list}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadStations(); }} />
+                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadStations(); }} tintColor={vTheme.colors.primary} />
                     }
                     ListEmptyComponent={
                         <View style={styles.center}>
-                            <RadioIcon size={48} color="#ccc" />
-                            <Text style={styles.emptyText}>Радиостанции пока не добавлены</Text>
+                            <RadioIcon size={48} color={vTheme.colors.textSecondary} style={{ opacity: 0.3 }} />
+                            <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>Радиостанции пока не добавлены</Text>
                         </View>
                     }
                 />
@@ -109,7 +111,6 @@ export const RadioScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
     },
     header: {
         flexDirection: 'row',
@@ -118,9 +119,6 @@ const styles = StyleSheet.create({
         paddingTop: 50,
         paddingBottom: 15,
         paddingHorizontal: 16,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
     },
     backButton: {
         width: 40,
@@ -129,36 +127,28 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 'bold',
-        color: '#111827',
     },
     list: {
-        padding: 16,
+        padding: 20,
     },
     stationCard: {
         flexDirection: 'row',
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 12,
+        borderRadius: 20,
+        padding: 16,
         marginBottom: 16,
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
     },
     logo: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
+        width: 76,
+        height: 76,
+        borderRadius: 14,
     },
     logoPlaceholder: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#EEF2FF',
+        width: 76,
+        height: 76,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -168,14 +158,12 @@ const styles = StyleSheet.create({
         marginRight: 8,
     },
     name: {
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: 'bold',
-        color: '#111827',
         marginBottom: 4,
     },
     description: {
-        fontSize: 12,
-        color: '#6B7280',
+        fontSize: 13,
         marginBottom: 8,
     },
     meta: {
@@ -185,33 +173,28 @@ const styles = StyleSheet.create({
     liveBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FEF2F2',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
         marginRight: 10,
     },
     liveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#EF4444',
-        marginRight: 4,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 6,
     },
     liveText: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 'bold',
-        color: '#EF4444',
     },
     viewerCount: {
-        fontSize: 11,
-        color: '#6B7280',
+        fontSize: 12,
     },
     playButton: {
-        width: 40,
-        height: 40,
-        backgroundColor: '#EEF2FF',
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -224,12 +207,10 @@ const styles = StyleSheet.create({
     loadingText: {
         marginTop: 12,
         fontSize: 14,
-        color: '#6B7280',
     },
     emptyText: {
         marginTop: 12,
         fontSize: 16,
-        color: '#9CA3AF',
         textAlign: 'center',
     },
 });
