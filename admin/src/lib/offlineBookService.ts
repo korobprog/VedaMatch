@@ -72,10 +72,11 @@ class OfflineBookService {
 
     async saveBookOffline(
         book: ScriptureBook,
+        languages: string[] = ['ru', 'en'],
         onProgress?: (progress: number, status: string) => void
     ): Promise<boolean> {
         try {
-            onProgress?.(0, 'Загрузка структуры...');
+            onProgress?.(5, 'Загрузка структуры...');
             const chapters = await libraryService.getChapters(book.code);
             if (!chapters || chapters.length === 0) {
                 onProgress?.(100, 'Книга не содержит глав');
@@ -88,55 +89,32 @@ class OfflineBookService {
                 verses: { ru: {}, en: {} }
             };
 
-            const totalTasks = chapters.length * 2;
-            let finishedTasks = 0;
             let totalVerses = 0;
 
-            // Функция для обработки одной задачи (загрузки главы на конкретном языке)
-            const downloadChapterTask = async (chapterNum: number, lang: 'ru' | 'en') => {
-                try {
-                    const verses = await libraryService.getVerses(book.code, chapterNum, undefined, lang);
-                    bookData.verses[lang][chapterNum] = verses;
+            // Используем пакетную загрузку (Batch API) для каждого выбранного языка
+            for (let i = 0; i < languages.length; i++) {
+                const lang = languages[i] as 'ru' | 'en';
+                const displayLang = lang.toUpperCase();
+                onProgress?.(10 + (i * 40), `Загрузка данных (${displayLang})...`);
 
-                    finishedTasks++;
-                    totalVerses += verses.length;
+                const allVerses = await libraryService.exportBook(book.code, lang);
 
-                    const progress = Math.round((finishedTasks / totalTasks) * 90);
-                    onProgress?.(progress, `Загрузка: ${finishedTasks}/${totalTasks} (Гл. ${chapterNum} ${lang.toUpperCase()})`);
-                } catch (e) {
-                    console.error(`Error downloading chapter ${chapterNum} ${lang}:`, e);
-                }
-            };
-
-            // Создаем очередь задач
-            const tasks: Array<() => Promise<void>> = [];
-            for (const chapter of chapters) {
-                tasks.push(() => downloadChapterTask(chapter.chapter, 'ru'));
-                tasks.push(() => downloadChapterTask(chapter.chapter, 'en'));
-            }
-
-            // Выполняем задачи параллельно с ограничением (Concurrent pool)
-            const CONCURRENCY_LIMIT = 10;
-            const executing = new Set<Promise<void>>();
-
-            for (const task of tasks) {
-                const p = task().then(() => {
-                    executing.delete(p);
+                // Распределяем стихи по главам в структуре bookData
+                allVerses.forEach(verse => {
+                    if (!bookData.verses[lang]) bookData.verses[lang] = {};
+                    if (!bookData.verses[lang][verse.chapter]) {
+                        bookData.verses[lang][verse.chapter] = [];
+                    }
+                    bookData.verses[lang][verse.chapter].push(verse);
                 });
-                executing.add(p);
 
-                if (executing.size >= CONCURRENCY_LIMIT) {
-                    await Promise.race(executing);
-                }
+                totalVerses += allVerses.length;
             }
-            await Promise.all(executing);
 
             onProgress?.(92, 'Сохранение данных...');
             const db = await this.getDB();
 
-            // Определяем примерный размер (для информации в интерфейсе)
-            // Так как мы убрали stringify, точный размер посчитать сложнее без сериализации,
-            // но для UI мы можем использовать примерную оценку.
+            // Используем JSON.stringify только для оценки размера в UI
             const estimatedBytes = JSON.stringify(bookData).length;
 
             const bookInfo: SavedBookInfo = {

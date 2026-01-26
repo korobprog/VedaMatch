@@ -18,6 +18,7 @@ import { libraryService, ScriptureBook } from '@/lib/libraryService';
 import { offlineBookService, SavedBookInfo } from '@/lib/offlineBookService';
 import { bookmarkService } from '@/lib/bookmarkService';
 import { BookCard } from '@/components/library/BookCard';
+import { LanguageSelectionModal } from '@/components/library/LanguageSelectionModal';
 
 export default function LibraryPage() {
     const [books, setBooks] = useState<ScriptureBook[]>([]);
@@ -88,13 +89,22 @@ export default function LibraryPage() {
         }
     };
 
-    const handleSaveBook = async (book: ScriptureBook) => {
-        if (savingBook) return;
+    const [selectedBookForLang, setSelectedBookForLang] = useState<ScriptureBook | null>(null);
+
+    const handleSaveBook = (book: ScriptureBook) => {
+        setSelectedBookForLang(book);
+    };
+
+    const confirmSaveBook = async (languages: string[]) => {
+        const book = selectedBookForLang;
+        if (!book || savingBook) return;
+
+        setSelectedBookForLang(null);
         setSavingBook(book.code);
         setSaveProgress(0);
         setSaveStatus('Загрузка...');
 
-        const success = await offlineBookService.saveBookOffline(book, (progress, status) => {
+        const success = await offlineBookService.saveBookOffline(book, languages, (progress, status) => {
             setSaveProgress(progress);
             setSaveStatus(status);
         });
@@ -223,6 +233,13 @@ export default function LibraryPage() {
                     </div>
                 )}
             </div>
+
+            <LanguageSelectionModal
+                isOpen={!!selectedBookForLang}
+                onClose={() => setSelectedBookForLang(null)}
+                onConfirm={confirmSaveBook}
+                bookTitle={selectedBookForLang?.name_ru || selectedBookForLang?.name_en || ''}
+            />
         </div>
     );
 }

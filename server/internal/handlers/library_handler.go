@@ -126,6 +126,25 @@ func GetLibraryVerses(c *fiber.Ctx) error {
 	return c.JSON(verses)
 }
 
+// ExportLibraryBook returns all verses for a book, optionally filtered by language
+func ExportLibraryBook(c *fiber.Ctx) error {
+	bookCode := c.Params("bookCode")
+	language := c.Query("language") // "ru", "en", or empty for both
+
+	query := database.DB.Model(&models.ScriptureVerse{}).Where("book_code = ?", bookCode)
+
+	if language != "" {
+		query = query.Where("language = ?", language)
+	}
+
+	var verses []models.ScriptureVerse
+	if err := query.Order("canto asc, chapter asc, id asc").Find(&verses).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to export book data"})
+	}
+
+	return c.JSON(verses)
+}
+
 // SearchLibrary searches through verses
 func SearchLibrary(c *fiber.Ctx) error {
 	q := c.Query("q")

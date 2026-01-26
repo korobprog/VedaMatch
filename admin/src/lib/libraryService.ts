@@ -90,6 +90,17 @@ class LibraryService {
             throw error;
         }
     }
+    async exportBook(bookCode: string, language?: string): Promise<ScriptureVerse[]> {
+        try {
+            const params: any = {};
+            if (language) params.language = language;
+            const response = await api.get(`/library/books/${bookCode}/export`, { params });
+            return response.data;
+        } catch (error) {
+            console.error(`Error exporting book ${bookCode}:`, error);
+            throw error;
+        }
+    }
 }
 
 export const libraryService = new LibraryService();

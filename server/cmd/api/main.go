@@ -146,7 +146,8 @@ func main() {
 	library.Get("/books/:id", handlers.GetLibraryBookDetails) // supports id or code
 	library.Get("/books/:bookCode/chapters", handlers.GetLibraryChapters)
 	library.Get("/verses", handlers.GetLibraryVerses) // ?bookCode=bg&chapter=1
-	library.Post("/init", handlers.SeeInitialBooks)   // Temporary for seeding
+	library.Get("/books/:bookCode/export", handlers.ExportLibraryBook)
+	library.Post("/init", handlers.SeeInitialBooks) // Temporary for seeding
 	library.Get("/search", handlers.SearchLibrary)
 
 	// Education Routes (Public)
