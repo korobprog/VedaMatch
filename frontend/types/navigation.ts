@@ -67,4 +67,15 @@ export type RootStackParamList = {
     ExamTrainer: { moduleId: number; title: string };
     CallScreen: { targetId?: number; isIncoming?: boolean; callerName?: string; callUUID?: string };
     WidgetSelection: undefined;
+
+    // Multimedia Routes
+    MultimediaHub: undefined;
+    RadioScreen: undefined;
+    AudioScreen: undefined;
+    VideoScreen: undefined;
+    TVScreen: undefined;
+    RadioPlayer: { station: any };
+    AudioPlayer: { track: any };
+    VideoPlayer: { video: any };
+    TVPlayer: { channel: any };
 };

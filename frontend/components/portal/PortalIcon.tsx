@@ -30,6 +30,7 @@ import {
     Map,
     Coffee,
     Utensils,
+    Music,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -65,6 +66,7 @@ const IconComponents: Record<string, any> = {
     Map,
     Coffee,
     Utensils,
+    Music,
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({

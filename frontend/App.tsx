@@ -24,6 +24,16 @@ import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
 import { PortalDrawer } from './components/PortalDrawer';
 import { PortalLayoutProvider } from './context/PortalLayoutContext';
+import { MultimediaHubScreen } from './screens/multimedia/MultimediaHubScreen';
+import { RadioScreen } from './screens/multimedia/RadioScreen';
+import { AudioScreen } from './screens/multimedia/AudioScreen';
+import { VideoScreen } from './screens/multimedia/VideoScreen';
+import { TVScreen } from './screens/multimedia/TVScreen';
+import { AudioPlayerScreen } from './screens/multimedia/AudioPlayerScreen';
+import { RadioPlayerScreen } from './screens/multimedia/RadioPlayerScreen';
+import { VideoPlayerScreen } from './screens/multimedia/VideoPlayerScreen';
+import { TVPlayerScreen } from './screens/multimedia/TVPlayerScreen';
+
 
 let VoipPushNotification: any;
 if (Platform.OS === 'ios') {
@@ -315,6 +325,19 @@ const AppContent = () => {
                   <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />
                   <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: 'Курс' }} />
                   <Stack.Screen name="ExamTrainer" component={ExamTrainerScreen} options={{ headerShown: true, title: 'Тренажер' }} />
+
+                  {/* Multimedia Routes */}
+                  <Stack.Screen name="MultimediaHub" component={MultimediaHubScreen} />
+                  <Stack.Screen name="RadioScreen" component={RadioScreen} />
+                  <Stack.Screen name="AudioScreen" component={AudioScreen} />
+                  <Stack.Screen name="VideoScreen" component={VideoScreen} />
+                  <Stack.Screen name="TVScreen" component={TVScreen} />
+
+                  {/* Player Screens */}
+                  <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="RadioPlayer" component={RadioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="TVPlayer" component={TVPlayerScreen} options={{ headerShown: false }} />
 
                   <Stack.Screen name="Registration" component={RegistrationScreen} />
                 </Stack.Group>

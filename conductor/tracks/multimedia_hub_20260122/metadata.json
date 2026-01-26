@@ -1,8 +1,25 @@
 {
   "track_id": "multimedia_hub_20260122",
   "type": "feature",
-  "status": "new",
+  "status": "in_progress",
   "created_at": "2026-01-22T19:08:00Z",
-  "updated_at": "2026-01-22T19:08:00Z",
-  "description": "Мультимедиа: Единый плеер с бхаджанами, вайшнавский кинотеатр, онлайн-радио и круглосуточное духовное ТВ."
+  "updated_at": "2026-01-26T13:10:00Z",
+  "description": "Мультимедиа: Единый плеер с бхаджанами, вайшнавский кинотеатр, онлайн-радио и круглосуточное духовное ТВ.",
+  "scope": "mvp",
+  "phases": {
+    "phase_1_backend": "pending",
+    "phase_2_admin": "pending",
+    "phase_3_frontend": "pending",
+    "phase_4_audio": "pending",
+    "phase_5_video": "pending",
+    "phase_x_verify": "pending"
+  },
+  "deferred": [
+    "offline_mode",
+    "playlists",
+    "sleep_timer",
+    "playback_speed",
+    "ugc_moderation",
+    "rtmp_streaming"
+  ]
 }

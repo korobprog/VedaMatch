@@ -49,6 +49,7 @@
     "react-native-safe-area-context": "^4.14.1",
     "react-native-screens": "^3.35.0",
     "react-native-svg": "^15.15.1",
+    "react-native-track-player": "^4.1.2",
     "react-native-video": "^6.18.0",
     "react-native-vision-camera": "^4.6.3",
     "react-native-voip-push-notification": "^3.3.3",

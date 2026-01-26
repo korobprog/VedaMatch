@@ -128,6 +128,7 @@ func main() {
 	mapHandler := handlers.NewMapHandler()
 	cafeHandler := handlers.NewCafeHandler()
 	cafeOrderHandler := handlers.NewCafeOrderHandler()
+	multimediaHandler := handlers.NewMultimediaHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler state from database
@@ -203,6 +204,16 @@ func main() {
 	api.Get("/cafes/:id/categories", cafeHandler.GetCategories)
 	api.Get("/cafes/:id/dishes", cafeHandler.ListDishes)
 	api.Get("/cafes/:id/dishes/:dishId", cafeHandler.GetDish)
+
+	// Public Multimedia Hub Routes (Sattva Media)
+	multimedia := api.Group("/multimedia")
+	multimedia.Get("/categories", multimediaHandler.GetCategories)
+	multimedia.Get("/tracks", multimediaHandler.GetTracks)
+	multimedia.Get("/tracks/:id", multimediaHandler.GetTrack)
+	multimedia.Get("/radio", multimediaHandler.GetRadioStations)
+	multimedia.Get("/radio/:id", multimediaHandler.GetRadioStation)
+	multimedia.Get("/tv", multimediaHandler.GetTVChannels)
+	multimedia.Get("/tv/:id", multimediaHandler.GetTVChannel)
 
 	// Public AI Routes (Legacy/Frontend Compat)
 	api.Post("/v1/chat/completions", chatHandler.HandleChat)
@@ -318,6 +329,28 @@ func main() {
 	admin.Get("/shops/stats", shopHandler.AdminGetShopStats)
 	admin.Put("/shops/:id/moderate", shopHandler.AdminModerateShop)
 
+	// Admin Multimedia Hub Management Routes
+	admin.Get("/multimedia/stats", multimediaHandler.GetStats)
+	admin.Get("/multimedia/suggestions", multimediaHandler.GetPendingSuggestions)
+	admin.Post("/multimedia/suggestions/:id/review", multimediaHandler.ReviewSuggestion)
+	admin.Post("/multimedia/upload", multimediaHandler.UploadMedia)
+	// Categories
+	admin.Post("/multimedia/categories", multimediaHandler.CreateCategory)
+	admin.Put("/multimedia/categories/:id", multimediaHandler.UpdateCategory)
+	admin.Delete("/multimedia/categories/:id", multimediaHandler.DeleteCategory)
+	// Tracks
+	admin.Post("/multimedia/tracks", multimediaHandler.CreateTrack)
+	admin.Put("/multimedia/tracks/:id", multimediaHandler.UpdateTrack)
+	admin.Delete("/multimedia/tracks/:id", multimediaHandler.DeleteTrack)
+	// Radio
+	admin.Post("/multimedia/radio", multimediaHandler.CreateRadioStation)
+	admin.Put("/multimedia/radio/:id", multimediaHandler.UpdateRadioStation)
+	admin.Delete("/multimedia/radio/:id", multimediaHandler.DeleteRadioStation)
+	// TV
+	admin.Post("/multimedia/tv", multimediaHandler.CreateTVChannel)
+	admin.Put("/multimedia/tv/:id", multimediaHandler.UpdateTVChannel)
+	admin.Delete("/multimedia/tv/:id", multimediaHandler.DeleteTVChannel)
+
 	// Other Protected Routes
 	protected.Post("/messages", messageHandler.SendMessage)
 	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
@@ -408,6 +441,12 @@ func main() {
 	protected.Get("/rag/statistics", ragHandler.GetStatistics)
 	protected.Post("/rag/sessions", ragHandler.CreateChatSession)
 	protected.Get("/rag/sessions", ragHandler.ListChatSessions)
+
+	// Multimedia Routes (Protected - User Features)
+	protected.Post("/multimedia/suggest", multimediaHandler.CreateSuggestion)
+	protected.Get("/multimedia/favorites", multimediaHandler.GetFavorites)
+	protected.Post("/multimedia/tracks/:id/favorite", multimediaHandler.AddToFavorites)
+	protected.Delete("/multimedia/tracks/:id/favorite", multimediaHandler.RemoveFromFavorites)
 
 	// Ads Routes
 	protected.Post("/ads/upload-photo", adsHandler.UploadAdPhoto)

@@ -22,13 +22,15 @@ import {
     Newspaper,
     GraduationCap,
     Library,
-    MapPin
+    MapPin,
+    Music
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Users', path: '/users' },
+    { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
     { icon: Heart, label: 'Dating', path: '/dating' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: MapPin, label: 'Map', path: '/map' },
@@ -69,7 +71,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 '/admins',
                 '/settings',
                 '/polza',
-                '/ai-prompts'
+                '/ai-prompts',
+                '/multimedia'
             ];
 
             if (!isAdmin && exclusiveAdminRoutes.some(route => pathname.startsWith(route))) {

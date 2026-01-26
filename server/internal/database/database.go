@@ -81,6 +81,11 @@ func Connect() {
 		&models.DishIngredient{}, &models.DishModifier{},
 		&models.CafeOrder{}, &models.CafeOrderItem{},
 		&models.CafeOrderItemModifier{}, &models.TableReservation{},
+		// Multimedia Hub models
+		&models.MediaCategory{}, &models.MediaTrack{},
+		&models.RadioStation{}, &models.TVChannel{},
+		&models.UserMediaSuggestion{}, &models.UserMediaFavorite{},
+		&models.UserMediaHistory{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
@@ -89,6 +94,7 @@ func Connect() {
 	InitializeSuperAdmin()
 	SeedMarket()
 	SeedEducation()
+	SeedMultimedia()
 }
 
 func InitializeSuperAdmin() {
