@@ -75,7 +75,7 @@ class OfflineBookService {
         onProgress?: (progress: number, status: string) => void
     ): Promise<boolean> {
         try {
-            onProgress?.(0, 'Загрузка глав...');
+            onProgress?.(0, 'Загрузка структуры...');
             const chapters = await libraryService.getChapters(book.code);
             if (!chapters || chapters.length === 0) {
                 onProgress?.(100, 'Книга не содержит глав');
@@ -88,34 +88,56 @@ class OfflineBookService {
                 verses: { ru: {}, en: {} }
             };
 
+            const totalTasks = chapters.length * 2;
+            let finishedTasks = 0;
             let totalVerses = 0;
-            const totalSteps = chapters.length * 2;
-            let currentStep = 0;
 
+            // Функция для обработки одной задачи (загрузки главы на конкретном языке)
+            const downloadChapterTask = async (chapterNum: number, lang: 'ru' | 'en') => {
+                try {
+                    const verses = await libraryService.getVerses(book.code, chapterNum, undefined, lang);
+                    bookData.verses[lang][chapterNum] = verses;
+
+                    finishedTasks++;
+                    totalVerses += verses.length;
+
+                    const progress = Math.round((finishedTasks / totalTasks) * 90);
+                    onProgress?.(progress, `Загрузка: ${finishedTasks}/${totalTasks} (Гл. ${chapterNum} ${lang.toUpperCase()})`);
+                } catch (e) {
+                    console.error(`Error downloading chapter ${chapterNum} ${lang}:`, e);
+                }
+            };
+
+            // Создаем очередь задач
+            const tasks: Array<() => Promise<void>> = [];
             for (const chapter of chapters) {
-                // Russian
-                try {
-                    onProgress?.(Math.round((currentStep / totalSteps) * 90), `Глава ${chapter.chapter} (RU)...`);
-                    const versesRu = await libraryService.getVerses(book.code, chapter.chapter, undefined, 'ru');
-                    bookData.verses.ru[chapter.chapter] = versesRu;
-                    totalVerses += versesRu.length;
-                } catch (e) { console.error(e); }
-                currentStep++;
-
-                // English
-                try {
-                    onProgress?.(Math.round((currentStep / totalSteps) * 90), `Глава ${chapter.chapter} (EN)...`);
-                    const versesEn = await libraryService.getVerses(book.code, chapter.chapter, undefined, 'en');
-                    bookData.verses.en[chapter.chapter] = versesEn;
-                    totalVerses += versesEn.length;
-                } catch (e) { console.error(e); }
-                currentStep++;
+                tasks.push(() => downloadChapterTask(chapter.chapter, 'ru'));
+                tasks.push(() => downloadChapterTask(chapter.chapter, 'en'));
             }
 
-            onProgress?.(92, 'Сохранение в браузер...');
+            // Выполняем задачи параллельно с ограничением (Concurrent pool)
+            const CONCURRENCY_LIMIT = 10;
+            const executing = new Set<Promise<void>>();
+
+            for (const task of tasks) {
+                const p = task().then(() => {
+                    executing.delete(p);
+                });
+                executing.add(p);
+
+                if (executing.size >= CONCURRENCY_LIMIT) {
+                    await Promise.race(executing);
+                }
+            }
+            await Promise.all(executing);
+
+            onProgress?.(92, 'Сохранение данных...');
             const db = await this.getDB();
-            const dataStr = JSON.stringify(bookData);
-            const sizeBytes = dataStr.length;
+
+            // Определяем примерный размер (для информации в интерфейсе)
+            // Так как мы убрали stringify, точный размер посчитать сложнее без сериализации,
+            // но для UI мы можем использовать примерную оценку.
+            const estimatedBytes = JSON.stringify(bookData).length;
 
             const bookInfo: SavedBookInfo = {
                 code: book.code,
@@ -124,7 +146,7 @@ class OfflineBookService {
                 description_ru: book.description_ru,
                 description_en: book.description_en,
                 savedAt: new Date().toISOString(),
-                sizeBytes,
+                sizeBytes: estimatedBytes,
                 chaptersCount: chapters.length,
                 versesCount: totalVerses
             };
