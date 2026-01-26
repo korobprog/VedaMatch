@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Lock, Mail, Loader2, Heart } from 'lucide-react';
@@ -13,6 +13,18 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const router = useRouter();
+
+    useEffect(() => {
+        const data = localStorage.getItem('admin_data');
+        if (data) {
+            const user = JSON.parse(data);
+            if (user.role === 'admin' || user.role === 'superadmin') {
+                router.replace('/dashboard');
+            } else {
+                router.replace('/user/dashboard');
+            }
+        }
+    }, [router]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();

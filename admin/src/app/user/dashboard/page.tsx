@@ -36,9 +36,13 @@ export default function UserDashboard() {
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         const data = localStorage.getItem('admin_data');
-        if (data) setUser(JSON.parse(data));
+        if (data) {
+            setUser(JSON.parse(data));
+        } else {
+            router.replace('/login');
+        }
         return () => clearInterval(timer);
-    }, []);
+    }, [router]);
 
     const handleLogout = () => {
         localStorage.removeItem('admin_data');
