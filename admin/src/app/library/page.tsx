@@ -224,7 +224,7 @@ export default function LibraryPage() {
                                     saveProgress={saveProgress}
                                     saveStatus={saveStatus}
                                     bookSize={bookSizes[book.code]}
-                                    onPress={(b) => router.push(`/library/${b.code}`)}
+                                    onPress={(b) => router.push(`/library/reader?code=${b.code}`)}
                                     onSave={handleSaveBook}
                                     onRemove={handleRemoveBook}
                                 />

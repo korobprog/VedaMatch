@@ -24,10 +24,10 @@ import { libraryService, ScriptureVerse, ChapterInfo, ScriptureBook } from '@/li
 import { offlineBookService } from '@/lib/offlineBookService';
 import { bookmarkService } from '@/lib/bookmarkService';
 
-export default function ReaderPage({ params }: { params: Promise<{ bookCode: string }> }) {
-    const { bookCode } = use(params);
+export default function ReaderPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const bookCode = searchParams.get('code');
 
     const [book, setBook] = useState<ScriptureBook | null>(null);
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);

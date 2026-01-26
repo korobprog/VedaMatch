@@ -102,7 +102,7 @@ export default function BookmarksPage() {
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: i * 0.03 }}
                                     className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 hover:bg-white/10 transition-all cursor-pointer group flex items-center justify-between gap-6"
-                                    onClick={() => router.push(`/library/${b.bookCode}?chapter=${b.chapter}&verse=${b.verse}`)}
+                                    onClick={() => router.push(`/library/reader?code=${b.bookCode}&chapter=${b.chapter}&verse=${b.verse}`)}
                                 >
                                     <div className="flex-grow">
                                         <div className="flex items-center gap-3 mb-2">
