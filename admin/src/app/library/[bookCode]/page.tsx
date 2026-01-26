@@ -18,7 +18,7 @@ import {
     Moon,
     Coffee
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { libraryService, ScriptureVerse, ChapterInfo, ScriptureBook } from '@/lib/libraryService';
 import { offlineBookService } from '@/lib/offlineBookService';
@@ -27,6 +27,7 @@ import { bookmarkService } from '@/lib/bookmarkService';
 export default function ReaderPage({ params }: { params: Promise<{ bookCode: string }> }) {
     const { bookCode } = use(params);
     const router = useRouter();
+    const searchParams = useSearchParams();
 
     const [book, setBook] = useState<ScriptureBook | null>(null);
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);
@@ -124,9 +125,8 @@ export default function ReaderPage({ params }: { params: Promise<{ bookCode: str
             if (bookInfo) setBook(bookInfo);
             if (chapterList) setChapters(chapterList);
 
-            if (chapterList.length > 0) {
-                const params = new URLSearchParams(window.location.search);
-                const chapterParam = params.get('chapter');
+            if (chapterList && chapterList.length > 0) {
+                const chapterParam = searchParams.get('chapter');
                 if (chapterParam) {
                     setCurrentChapter(parseInt(chapterParam));
                 } else {
@@ -148,17 +148,18 @@ export default function ReaderPage({ params }: { params: Promise<{ bookCode: str
             setActiveVerseIndex(0);
 
             // Check for verse in URL search params
-            const params = new URLSearchParams(window.location.search);
-            const verseToScroll = params.get('verse');
+            const verseToScroll = searchParams.get('verse');
 
-            if (verseToScroll) {
+            if (verseToScroll && data) {
                 // Wait for render
                 setTimeout(() => {
                     const index = data.findIndex(v => v.verse === verseToScroll);
                     if (index !== -1) scrollToVerse(index, data);
                 }, 800);
             } else {
-                window.scrollTo({ top: 0, behavior: 'instant' as any });
+                if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
             }
         } catch (e) {
             console.error('Failed to load verses', e);
@@ -168,9 +169,9 @@ export default function ReaderPage({ params }: { params: Promise<{ bookCode: str
     };
 
     const scrollToVerse = (index: number, data?: ScriptureVerse[]) => {
-        const verseList = data || verses;
+        const verseList = data || verses || [];
         const verse = verseList[index];
-        if (!verse) return;
+        if (!verse || !verse.id) return;
 
         const el = document.getElementById(`verse-${verse.id}`);
         if (el) {
@@ -243,8 +244,11 @@ export default function ReaderPage({ params }: { params: Promise<{ bookCode: str
                 {/* Chapter Navigation */}
                 <nav className={`border-b px-6 py-3 flex items-center justify-between ${readerTheme === 'dark' ? 'bg-[#222]/90 border-white/5' : 'bg-white/90 border-black/5'}`}>
                     <button
-                        disabled={chapters.findIndex(c => c.chapter === currentChapter) <= 0}
-                        onClick={() => setCurrentChapter(chapters[chapters.findIndex(c => c.chapter === currentChapter) - 1].chapter)}
+                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter) <= 0}
+                        onClick={() => {
+                            const idx = chapters.findIndex(c => c.chapter === currentChapter);
+                            if (idx > 0) setCurrentChapter(chapters[idx - 1].chapter);
+                        }}
                         className="p-2 disabled:opacity-20 hover:scale-110 transition-transform cursor-pointer"
                     >
                         <ChevronLeft className="w-5 h-5" />
@@ -266,8 +270,13 @@ export default function ReaderPage({ params }: { params: Promise<{ bookCode: str
                     </div>
 
                     <button
-                        disabled={chapters.findIndex(c => c.chapter === currentChapter) >= chapters.length - 1}
-                        onClick={() => setCurrentChapter(chapters[chapters.findIndex(c => c.chapter === currentChapter) + 1].chapter)}
+                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter) >= chapters.length - 1}
+                        onClick={() => {
+                            const idx = chapters.findIndex(c => c.chapter === currentChapter);
+                            if (idx !== -1 && idx < chapters.length - 1) {
+                                setCurrentChapter(chapters[idx + 1].chapter);
+                            }
+                        }}
                         className="p-2 disabled:opacity-20 hover:scale-110 transition-transform cursor-pointer"
                     >
                         <ChevronRight className="w-5 h-5" />

@@ -114,8 +114,8 @@ class OfflineBookService {
             onProgress?.(92, 'Сохранение данных...');
             const db = await this.getDB();
 
-            // Используем JSON.stringify только для оценки размера в UI
-            const estimatedBytes = JSON.stringify(bookData).length;
+            // Грубая оценка размера (чтобы избежать JSON.stringify на огромных данных)
+            const estimatedBytes = totalVerses * 1000;
 
             const bookInfo: SavedBookInfo = {
                 code: book.code,
