@@ -1,8 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Monitor } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 // Portrait cards data with positioning for the arc/curve effect
 const portraitCards = [
@@ -14,9 +15,6 @@ const portraitCards = [
     { src: '/krishna_bg.png', rotate: 10, x: 280, y: 30, scale: 0.85, z: 2 },
     { src: '/portrait_gathering.png', rotate: 15, x: 420, y: 60, scale: 0.7, z: 1 },
 ];
-
-// Features section data
-
 
 export function HeroSection() {
     return (
@@ -91,6 +89,17 @@ export function HeroSection() {
                             <div className="text-sm font-semibold leading-tight">RuStore</div>
                         </div>
                     </button>
+
+                    {/* PWA (Web App) */}
+                    <Link href="/register" className="flex items-center gap-3 bg-gradient-to-r from-orange-500 to-red-600 text-white px-5 py-2.5 rounded-full hover:from-orange-600 hover:to-red-700 transition-all hover:scale-105 active:scale-95 border border-white/10 shadow-lg group">
+                        <div className="w-7 h-7 flex items-center justify-center">
+                            <Monitor className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                            <div className="text-[9px] opacity-70 leading-tight">USE AS</div>
+                            <div className="text-sm font-semibold leading-tight">Web PWA</div>
+                        </div>
+                    </Link>
                 </motion.div>
             </div>
 
@@ -125,8 +134,6 @@ export function HeroSection() {
                 {/* Curved bottom fade */}
                 <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#faf9f6] to-transparent z-10 pointer-events-none" />
             </div>
-
-
         </section>
     );
 }

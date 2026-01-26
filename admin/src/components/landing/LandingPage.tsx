@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { HeroSection } from './HeroSection';
 import { FeaturesSection } from './FeaturesSection';
 import { ScrollSection } from './ScrollSection';
-import { LogOut, User as UserIcon, Grid } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { LogOut, User as UserIcon, Grid, ArrowRight, MessageCircle } from 'lucide-react';
 
 export default function LandingPage() {
     const [user, setUser] = useState<any>(null);
@@ -94,6 +95,50 @@ export default function LandingPage() {
             <main>
                 <HeroSection />
                 <FeaturesSection />
+
+                {/* Community Section */}
+                <section className="py-24 bg-[#faf9f6] relative overflow-hidden">
+                    <div className="container mx-auto px-4 relative z-10">
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="max-w-4xl mx-auto bg-[#2c1810] rounded-[3rem] p-12 md:p-16 text-center text-[#faf9f6] shadow-2xl relative overflow-hidden group"
+                        >
+                            {/* Decorative background elements */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
+                            <div className="absolute bottom-0 left-0 w-64 h-64 bg-red-500/10 rounded-full blur-3xl -ml-32 -mb-32" />
+
+                            <div className="relative z-10">
+                                <motion.div
+                                    initial={{ scale: 0.8, opacity: 0 }}
+                                    whileInView={{ scale: 1, opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                    className="w-20 h-20 bg-[#faf9f6]/10 rounded-2xl flex items-center justify-center mx-auto mb-8 border border-[#faf9f6]/20 backdrop-blur-sm"
+                                >
+                                    <MessageCircle className="w-10 h-10 text-orange-400" />
+                                </motion.div>
+
+                                <h2 className="text-4xl md:text-5xl font-serif mb-6">Присоединяйтесь к <span className="text-orange-400">Сообществу</span></h2>
+
+                                <p className="text-xl text-[#faf9f6]/70 mb-10 max-w-2xl mx-auto leading-relaxed">
+                                    Обсуждайте развитие проекта, предлагайте свои идеи и общайтесь с единомышленниками в нашем Telegram-канале. Вместе мы создаем технологии будущего для преданных.
+                                </p>
+
+                                <a
+                                    href="https://t.me/vedamatch"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-3 bg-[#faf9f6] text-[#2c1810] px-10 py-5 rounded-2xl font-bold text-lg hover:bg-orange-400 hover:text-white transition-all hover:scale-105 active:scale-95 shadow-xl"
+                                >
+                                    Перейти в Telegram
+                                    <ArrowRight className="w-5 h-5" />
+                                </a>
+                            </div>
+                        </motion.div>
+                    </div>
+                </section>
+
                 <ScrollSection />
             </main>
 
