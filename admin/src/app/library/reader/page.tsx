@@ -51,22 +51,28 @@ export default function ReaderPage() {
     const observer = useRef<IntersectionObserver | null>(null);
 
     useEffect(() => {
+        if (!bookCode) {
+            router.push('/library');
+            return;
+        }
         loadBaseData();
         refreshBookmarks();
     }, [bookCode]);
 
     useEffect(() => {
-        if (currentChapter) {
+        if (currentChapter && bookCode) {
             loadVerses(currentChapter);
         }
     }, [currentChapter, language, bookCode]);
 
     const refreshBookmarks = () => {
+        if (!bookCode) return;
         const bookmarks = bookmarkService.getBookmarks();
         setBookmarkedVerses(bookmarks.filter(b => b.bookCode === bookCode).map(b => `${b.chapter}-${b.verse}`));
     };
 
     const handleToggleBookmark = (verse: ScriptureVerse) => {
+        if (!bookCode) return;
         const isAdded = bookmarkService.toggleBookmark({
             bookCode,
             chapter: verse.chapter,
@@ -111,6 +117,7 @@ export default function ReaderPage() {
     }, [verses, loading]);
 
     const loadBaseData = async () => {
+        if (!bookCode) return;
         try {
             const [bookInfo, chapterList] = await Promise.all([
                 libraryService.getBookDetails(bookCode).catch(async () => {
@@ -139,6 +146,7 @@ export default function ReaderPage() {
     };
 
     const loadVerses = async (chapter: number) => {
+        if (!bookCode) return;
         setLoading(true);
         try {
             let data = await libraryService.getVerses(bookCode, chapter, undefined, language).catch(async () => {
