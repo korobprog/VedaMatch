@@ -152,12 +152,6 @@ export const LibraryHomeScreen = () => {
                 onLongPress={() => handleLongPress(item)}
                 delayLongPress={500}
             >
-                {/* Saved badge */}
-                {isSaved && (
-                    <View style={[styles.savedBadge, { backgroundColor: '#4CAF50' }]}>
-                        <CheckCircle size={10} color="#FFF" />
-                    </View>
-                )}
 
                 {/* Book icon */}
                 <View style={[styles.iconContainer, { backgroundColor: vTheme.colors.primary + '10' }]}>
@@ -197,17 +191,26 @@ export const LibraryHomeScreen = () => {
                     )}
                 </View>
 
-                {/* Download indicator for unsaved books */}
-                {!isSaved && !isSaving && (
-                    <View style={styles.downloadHint}>
-                        <Download size={18} color={vTheme.colors.textSecondary} />
-                    </View>
-                )}
-
-                {/* Loading indicator while saving */}
-                {isSaving && (
-                    <ActivityIndicator size="small" color={vTheme.colors.primary} style={styles.loadingIndicator} />
-                )}
+                {/* Action buttons (Right side) */}
+                <View style={styles.actions}>
+                    {isSaving ? (
+                        <ActivityIndicator size="small" color={vTheme.colors.primary} />
+                    ) : isSaved ? (
+                        <TouchableOpacity
+                            onPress={() => handleRemoveBook(item)}
+                            style={[styles.actionButton, { backgroundColor: '#4CAF5015' }]}
+                        >
+                            <CheckCircle size={22} color="#4CAF50" />
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            onPress={() => handleSaveBook(item)}
+                            style={[styles.actionButton, { backgroundColor: vTheme.colors.primary + '15' }]}
+                        >
+                            <Download size={22} color={vTheme.colors.primary} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </TouchableOpacity>
         );
     };
@@ -324,11 +327,14 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         paddingHorizontal: 4,
     },
-    downloadHint: {
-        padding: 8,
-        opacity: 0.5,
+    actions: {
+        marginLeft: 8,
     },
-    loadingIndicator: {
-        padding: 8,
+    actionButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

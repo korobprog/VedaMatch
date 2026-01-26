@@ -27,7 +27,7 @@ export interface SavedBookInfo {
 export interface OfflineBookData {
     book: ScriptureBook;
     chapters: ChapterInfo[];
-    verses: { [language: string]: { [chapter: number]: ScriptureVerse[] } };
+    verses: { [language: string]: { [chapterKey: string]: ScriptureVerse[] } };
 }
 
 class OfflineBookService {
@@ -102,7 +102,7 @@ class OfflineBookService {
         try {
             await this.ensureDirectory();
 
-            onProgress?.(0, 'Загрузка глав...');
+            onProgress?.(5, 'Загрузка структуры...');
 
             // Get chapters
             const chapters = await libraryService.getChapters(book.code);
@@ -122,62 +122,44 @@ class OfflineBookService {
             };
 
             let totalVerses = 0;
-            const totalSteps = chapters.length * 2; // Two languages per chapter
-            let currentStep = 0;
+            const languages = ['ru', 'en'];
 
-            // Download verses for each chapter in both languages
-            for (const chapter of chapters) {
-                // Russian
-                try {
-                    onProgress?.(
-                        Math.round((currentStep / totalSteps) * 90), // Reserve 10% for saving
-                        `Глава ${chapter.chapter} (RU)...`
-                    );
-                    const versesRu = await libraryService.getVerses(
-                        book.code,
-                        chapter.chapter,
-                        chapter.canto || undefined,
-                        'ru'
-                    );
-                    bookData.verses.ru[chapter.chapter] = versesRu;
-                    totalVerses += versesRu.length;
-                } catch (e) {
-                    console.error(`[OfflineBookService] Error loading RU chapter ${chapter.chapter}:`, e);
-                }
-                currentStep++;
+            // Download verses for each language using batch export API
+            for (let i = 0; i < languages.length; i++) {
+                const lang = languages[i] as 'ru' | 'en';
+                const displayLang = lang.toUpperCase();
+                onProgress?.(10 + (i * 40), `Загрузка данных (${displayLang})...`);
 
-                // English
                 try {
-                    onProgress?.(
-                        Math.round((currentStep / totalSteps) * 90),
-                        `Глава ${chapter.chapter} (EN)...`
-                    );
-                    const versesEn = await libraryService.getVerses(
-                        book.code,
-                        chapter.chapter,
-                        chapter.canto || undefined,
-                        'en'
-                    );
-                    bookData.verses.en[chapter.chapter] = versesEn;
-                    totalVerses += versesEn.length;
+                    const allVerses = await libraryService.exportBook(book.code, lang);
+
+                    // Distribute verses into bookData
+                    allVerses.forEach(verse => {
+                        const key = `${verse.canto || 0}-${verse.chapter}`;
+                        if (!bookData.verses[lang][key]) {
+                            bookData.verses[lang][key] = [];
+                        }
+                        bookData.verses[lang][key].push(verse);
+                    });
+
+                    totalVerses += allVerses.length;
                 } catch (e) {
-                    console.error(`[OfflineBookService] Error loading EN chapter ${chapter.chapter}:`, e);
+                    console.error(`[OfflineBookService] Error loading batch ${displayLang} for ${book.code}:`, e);
                 }
-                currentStep++;
             }
 
             onProgress?.(92, 'Сохранение на устройство...');
 
-            // Write book data to file system instead of AsyncStorage
+            // Write book data to file system
             const bookDataStr = JSON.stringify(bookData);
-            const sizeBytes = bookDataStr.length; // Approximate size
+            const sizeBytes = bookDataStr.length;
 
             const filePath = this.getBookFilePath(book.code);
             await RNFS.writeFile(filePath, bookDataStr, 'utf8');
 
             onProgress?.(97, 'Обновление индекса...');
 
-            // Update saved books list in AsyncStorage (small metadata only)
+            // Update saved books list in AsyncStorage
             const savedBooks = await this.getSavedBooks();
             const existingIndex = savedBooks.findIndex(b => b.code === book.code);
 
@@ -262,12 +244,14 @@ class OfflineBookService {
     async getOfflineVerses(
         bookCode: string,
         chapter: number,
+        canto: number = 0,
         language: string = 'ru'
     ): Promise<ScriptureVerse[]> {
         try {
             const bookData = await this.getBookData(bookCode);
             if (bookData && bookData.verses[language]) {
-                return bookData.verses[language][chapter] || [];
+                const key = `${canto}-${chapter}`;
+                return bookData.verses[language][key] || [];
             }
             return [];
         } catch (error) {

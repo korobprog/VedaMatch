@@ -20,7 +20,7 @@ export interface SavedBookInfo {
 export interface OfflineBookData {
     book: ScriptureBook;
     chapters: ChapterInfo[];
-    verses: { [language: string]: { [chapter: number]: ScriptureVerse[] } };
+    verses: { [language: string]: { [chapterKey: string]: ScriptureVerse[] } };
 }
 
 class OfflineBookService {
@@ -102,10 +102,11 @@ class OfflineBookService {
                 // Распределяем стихи по главам в структуре bookData
                 allVerses.forEach(verse => {
                     if (!bookData.verses[lang]) bookData.verses[lang] = {};
-                    if (!bookData.verses[lang][verse.chapter]) {
-                        bookData.verses[lang][verse.chapter] = [];
+                    const key = `${verse.canto || 0}-${verse.chapter}`;
+                    if (!bookData.verses[lang][key]) {
+                        bookData.verses[lang][key] = [];
                     }
-                    bookData.verses[lang][verse.chapter].push(verse);
+                    bookData.verses[lang][key].push(verse);
                 });
 
                 totalVerses += allVerses.length;
@@ -169,10 +170,11 @@ class OfflineBookService {
         });
     }
 
-    async getOfflineVerses(bookCode: string, chapter: number, language: string = 'ru'): Promise<ScriptureVerse[]> {
+    async getOfflineVerses(bookCode: string, chapter: number, canto: number = 0, language: string = 'ru'): Promise<ScriptureVerse[]> {
         const bookData = await this.getBookData(bookCode);
         if (bookData && bookData.verses[language]) {
-            return bookData.verses[language][chapter] || [];
+            const key = `${canto}-${chapter}`;
+            return bookData.verses[language][key] || [];
         }
         return [];
     }

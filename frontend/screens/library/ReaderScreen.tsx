@@ -31,6 +31,7 @@ export const ReaderScreen = () => {
     const { bookCode, title } = route.params;
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);
     const [currentChapter, setCurrentChapter] = useState<number>(1);
+    const [currentCanto, setCurrentCanto] = useState<number>(0);
     const [verses, setVerses] = useState<ScriptureVerse[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeVerseIndex, setActiveVerseIndex] = useState(0);
@@ -154,8 +155,8 @@ export const ReaderScreen = () => {
     }, [language, bookmarks.length]);
 
     useEffect(() => {
-        loadVerses(currentChapter);
-    }, [language, currentChapter]);
+        loadVerses(currentChapter, currentCanto);
+    }, [language, currentChapter, currentCanto]);
 
     const toggleLanguage = () => {
         const newLang = language === 'ru' ? 'en' : 'ru';
@@ -178,25 +179,27 @@ export const ReaderScreen = () => {
         }
     };
 
-    const loadVerses = async (chapter: number) => {
+    const loadVerses = async (chapter: number, canto: number = 0) => {
         setLoading(true);
-        console.log('Loading verses for chapter', chapter, 'in language', language);
+        console.log('Loading verses for', bookCode, 'Chapter', chapter, 'Canto', canto, 'in language', language);
         try {
-            const data = await libraryService.getVerses(bookCode, chapter, undefined, language);
+            const data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language);
             console.log('Loaded', data.length, 'verses from network');
             setVerses(data);
             setCurrentChapter(chapter);
+            setCurrentCanto(canto);
             setActiveVerseIndex(0);
             versePositions.current = {};
             mainScrollRef.current?.scrollTo({ y: 0, animated: false });
         } catch (error) {
             console.error('Failed to load verses from network, trying offline', error);
             // Fallback to offline data
-            const offlineData = await offlineBookService.getOfflineVerses(bookCode, chapter, language);
+            const offlineData = await offlineBookService.getOfflineVerses(bookCode, chapter, canto, language);
             if (offlineData.length > 0) {
                 console.log('Loaded', offlineData.length, 'verses from offline storage');
                 setVerses(offlineData);
                 setCurrentChapter(chapter);
+                setCurrentCanto(canto);
                 setActiveVerseIndex(0);
                 versePositions.current = {};
                 mainScrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -239,26 +242,28 @@ export const ReaderScreen = () => {
     };
 
     const goToPreviousChapter = () => {
-        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter);
+        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter && (ch.canto || 0) === currentCanto);
         if (currentIndex > 0) {
-            loadVerses(chapters[currentIndex - 1].chapter);
+            const prev = chapters[currentIndex - 1];
+            loadVerses(prev.chapter, prev.canto);
         }
     };
 
     const goToNextChapter = () => {
-        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter);
+        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter && (ch.canto || 0) === currentCanto);
         if (currentIndex < chapters.length - 1) {
-            loadVerses(chapters[currentIndex + 1].chapter);
+            const next = chapters[currentIndex + 1];
+            loadVerses(next.chapter, next.canto);
         }
     };
 
     const canGoPrevious = () => {
-        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter);
+        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter && (ch.canto || 0) === currentCanto);
         return currentIndex > 0;
     };
 
     const canGoNext = () => {
-        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter);
+        const currentIndex = chapters.findIndex(ch => ch.chapter === currentChapter && (ch.canto || 0) === currentCanto);
         return currentIndex < chapters.length - 1;
     };
 
@@ -435,16 +440,16 @@ export const ReaderScreen = () => {
                         {chapters.map((ch) => (
                             <TouchableOpacity
                                 key={`${ch.canto}-${ch.chapter}`}
-                                style={[styles.chapterBtn, currentChapter === ch.chapter && styles.activeBtn]}
-                                onPress={() => loadVerses(ch.chapter)}
+                                style={[styles.chapterBtn, currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && styles.activeBtn]}
+                                onPress={() => loadVerses(ch.chapter, ch.canto)}
                             >
                                 <Text style={[
                                     styles.chapterText,
-                                    currentChapter === ch.chapter && styles.activeText,
+                                    currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && styles.activeText,
                                     readerTheme === 'dark' && { color: '#888' },
                                     readerTheme === 'ancient' && { color: '#5D4037' },
-                                    currentChapter === ch.chapter && readerTheme === 'dark' && { color: '#FF8000' },
-                                    currentChapter === ch.chapter && readerTheme === 'ancient' && { color: '#BF360C' }
+                                    currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && readerTheme === 'dark' && { color: '#FF8000' },
+                                    currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && readerTheme === 'ancient' && { color: '#BF360C' }
                                 ]}>
                                     {t('reader.chapter', 'Chapter')} {ch.chapter}
                                 </Text>

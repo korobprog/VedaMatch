@@ -32,6 +32,7 @@ export default function ReaderPage() {
     const [book, setBook] = useState<ScriptureBook | null>(null);
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);
     const [currentChapter, setCurrentChapter] = useState<number>(1);
+    const [currentCanto, setCurrentCanto] = useState<number>(0);
     const [verses, setVerses] = useState<ScriptureVerse[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeVerseIndex, setActiveVerseIndex] = useState(0);
@@ -60,10 +61,10 @@ export default function ReaderPage() {
     }, [bookCode]);
 
     useEffect(() => {
-        if (currentChapter && bookCode) {
-            loadVerses(currentChapter);
+        if (currentChapter !== undefined && bookCode) {
+            loadVerses(currentChapter, currentCanto);
         }
-    }, [currentChapter, language, bookCode]);
+    }, [currentChapter, currentCanto, language, bookCode]);
 
     const refreshBookmarks = () => {
         if (!bookCode) return;
@@ -136,8 +137,11 @@ export default function ReaderPage() {
                 const chapterParam = searchParams.get('chapter');
                 if (chapterParam) {
                     setCurrentChapter(parseInt(chapterParam));
+                    const cantoParam = searchParams.get('canto');
+                    if (cantoParam) setCurrentCanto(parseInt(cantoParam));
                 } else {
                     setCurrentChapter(chapterList[0].chapter);
+                    setCurrentCanto(chapterList[0].canto || 0);
                 }
             }
         } catch (e) {
@@ -145,14 +149,16 @@ export default function ReaderPage() {
         }
     };
 
-    const loadVerses = async (chapter: number) => {
+    const loadVerses = async (chapter: number, canto: number = 0) => {
         if (!bookCode) return;
         setLoading(true);
         try {
-            let data = await libraryService.getVerses(bookCode, chapter, undefined, language).catch(async () => {
-                return await offlineBookService.getOfflineVerses(bookCode, chapter, language);
+            let data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language).catch(async () => {
+                return await offlineBookService.getOfflineVerses(bookCode, chapter, canto, language);
             });
             setVerses(data);
+            setCurrentChapter(chapter);
+            setCurrentCanto(canto);
             setActiveVerseIndex(0);
 
             // Check for verse in URL search params
@@ -252,10 +258,13 @@ export default function ReaderPage() {
                 {/* Chapter Navigation */}
                 <nav className={`border-b px-6 py-3 flex items-center justify-between ${readerTheme === 'dark' ? 'bg-[#222]/90 border-white/5' : 'bg-white/90 border-black/5'}`}>
                     <button
-                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter) <= 0}
+                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto) <= 0}
                         onClick={() => {
-                            const idx = chapters.findIndex(c => c.chapter === currentChapter);
-                            if (idx > 0) setCurrentChapter(chapters[idx - 1].chapter);
+                            const idx = chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
+                            if (idx > 0) {
+                                setCurrentChapter(chapters[idx - 1].chapter);
+                                setCurrentCanto(chapters[idx - 1].canto || 0);
+                            }
                         }}
                         className="p-2 disabled:opacity-20 hover:scale-110 transition-transform cursor-pointer"
                     >
@@ -263,12 +272,15 @@ export default function ReaderPage() {
                     </button>
 
                     <div className="flex overflow-x-auto gap-2 px-4 no-scrollbar max-w-[70%]">
-                        {chapters.map((ch) => (
+                        {chapters.map((ch, idx) => (
                             <button
-                                key={ch.chapter}
-                                onClick={() => setCurrentChapter(ch.chapter)}
+                                key={`${ch.canto || 0}-${ch.chapter}`}
+                                onClick={() => {
+                                    setCurrentChapter(ch.chapter);
+                                    setCurrentCanto(ch.canto || 0);
+                                }}
                                 className={`px-4 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer
-                                    ${currentChapter === ch.chapter
+                                    ${currentChapter === ch.chapter && (ch.canto || 0) === currentCanto
                                         ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
                                         : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-50'}`}
                             >
@@ -278,11 +290,12 @@ export default function ReaderPage() {
                     </div>
 
                     <button
-                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter) >= chapters.length - 1}
+                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto) >= chapters.length - 1}
                         onClick={() => {
-                            const idx = chapters.findIndex(c => c.chapter === currentChapter);
+                            const idx = chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
                             if (idx !== -1 && idx < chapters.length - 1) {
                                 setCurrentChapter(chapters[idx + 1].chapter);
+                                setCurrentCanto(chapters[idx + 1].canto || 0);
                             }
                         }}
                         className="p-2 disabled:opacity-20 hover:scale-110 transition-transform cursor-pointer"
@@ -345,10 +358,10 @@ export default function ReaderPage() {
                                     </div>
                                 </div>
 
-                                {showSanskrit && v.devanagari && (
+                                {showSanskrit && (v.devanagari || v.transliteration) && (
                                     <div className="mb-8 text-center leading-relaxed">
-                                        <p className="text-2xl md:text-3xl font-medium mb-4">{v.devanagari}</p>
-                                        <p className="italic opacity-70 text-lg">{v.transliteration}</p>
+                                        {v.devanagari && <p className="text-2xl md:text-3xl font-medium mb-4">{v.devanagari}</p>}
+                                        {v.transliteration && <p className="italic opacity-70 text-lg">{v.transliteration}</p>}
                                     </div>
                                 )}
 
@@ -381,16 +394,24 @@ export default function ReaderPage() {
                         {/* Footer navigation inside content */}
                         <div className="pt-24 pb-12 flex justify-between gap-6">
                             <button
-                                disabled={chapters.findIndex(c => c.chapter === currentChapter) <= 0}
-                                onClick={() => setCurrentChapter(chapters[chapters.findIndex(c => c.chapter === currentChapter) - 1].chapter)}
+                                disabled={chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto) <= 0}
+                                onClick={() => {
+                                    const idx = chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
+                                    if (idx > 0) {
+                                        setCurrentChapter(chapters[idx - 1].chapter);
+                                        setCurrentCanto(chapters[idx - 1].canto || 0);
+                                    }
+                                }}
                                 className="flex-1 p-6 rounded-[32px] border border-current border-opacity-10 hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center justify-center gap-4 disabled:opacity-10"
                             >
                                 <ArrowLeft /> Назад
                             </button>
                             <button
                                 onClick={() => {
-                                    if (chapters.findIndex(c => c.chapter === currentChapter) < chapters.length - 1) {
-                                        setCurrentChapter(chapters[chapters.findIndex(c => c.chapter === currentChapter) + 1].chapter);
+                                    const idx = chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
+                                    if (idx !== -1 && idx < chapters.length - 1) {
+                                        setCurrentChapter(chapters[idx + 1].chapter);
+                                        setCurrentCanto(chapters[idx + 1].canto || 0);
                                     } else {
                                         router.push('/library');
                                     }
