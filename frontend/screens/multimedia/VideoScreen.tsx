@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Film, Search, Play, Loader2, ArrowLeft } from 'lucide-react-native';
+import { ScrollView } from 'react-native';
 import { multimediaService, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -20,12 +21,21 @@ export const VideoScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [videos, setVideos] = useState<MediaTrack[]>([]);
+    const [selectedMadh, setSelectedMadh] = useState<string | undefined>();
     const [search, setSearch] = useState('');
+
+    const MADH_OPTIONS = [
+        { id: 'iskcon', label: 'ISKCON' },
+        { id: 'gaudiya', label: 'Gaudiya' },
+        { id: 'srivaishnava', label: 'Sri Vaishnava' },
+        { id: 'vedic', label: 'Vedic' },
+    ];
 
     const loadVideos = async () => {
         try {
             const data = await multimediaService.getTracks({
                 type: 'video',
+                madh: selectedMadh,
                 search: search.length > 2 ? search : undefined
             });
             setVideos(data.tracks);
@@ -39,7 +49,7 @@ export const VideoScreen: React.FC = () => {
 
     useEffect(() => {
         loadVideos();
-    }, []);
+    }, [selectedMadh]);
 
     const renderVideo = ({ item }: { item: MediaTrack }) => (
         <TouchableOpacity
@@ -89,6 +99,35 @@ export const VideoScreen: React.FC = () => {
                     onChangeText={setSearch}
                     onSubmitEditing={() => { setLoading(true); loadVideos(); }}
                 />
+            </View>
+
+            {/* Matth Filter */}
+            <View style={styles.filterSection}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
+                    <TouchableOpacity
+                        style={[
+                            styles.filterChip,
+                            !selectedMadh ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                        ]}
+                        onPress={() => setSelectedMadh(undefined)}
+                    >
+                        <Text style={[styles.filterText, !selectedMadh ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>Все Традиции</Text>
+                    </TouchableOpacity>
+                    {MADH_OPTIONS.map((m) => (
+                        <TouchableOpacity
+                            key={m.id}
+                            style={[
+                                styles.filterChip,
+                                selectedMadh === m.id ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                            ]}
+                            onPress={() => setSelectedMadh(m.id)}
+                        >
+                            <Text style={[styles.filterText, selectedMadh === m.id ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>
+                                {m.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
             {loading ? (
@@ -152,6 +191,23 @@ const styles = StyleSheet.create({
         height: 50,
         marginLeft: 8,
         fontSize: 15,
+    },
+    filterSection: {
+        paddingBottom: 16,
+    },
+    filterList: {
+        paddingHorizontal: 16,
+        gap: 8,
+    },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+    },
+    filterText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     list: {
         padding: 16,

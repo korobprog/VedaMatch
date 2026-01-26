@@ -74,7 +74,7 @@ export const TVScreen: React.FC = () => {
                     <ArrowLeft size={24} color={vTheme.colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Духовное ТВ</Text>
-                <div style={{ width: 40 }} />
+                <View style={{ width: 40 }} />
             </View>
 
             {loading ? (

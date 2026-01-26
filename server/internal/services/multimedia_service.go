@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -328,7 +329,7 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 	_, err = s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
-		Body:        strings.NewReader(string(content)),
+		Body:        bytes.NewReader(content),
 		ContentType: aws.String(contentType),
 		ACL:         "public-read",
 	})

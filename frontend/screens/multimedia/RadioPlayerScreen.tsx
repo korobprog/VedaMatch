@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -7,6 +7,7 @@ import {
     Image,
     Dimensions,
     SafeAreaView,
+    StatusBar,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
@@ -15,19 +16,24 @@ import {
     ChevronDown,
     Volume2,
     Share2,
-    Activity
+    Radio
 } from 'lucide-react-native';
-import { usePlaybackState, State } from 'react-native-track-player';
+import TrackPlayer, { usePlaybackState, State } from 'react-native-track-player';
+import LinearGradient from 'react-native-linear-gradient';
+import Slider from '@react-native-community/slider';
 import { audioPlayerService } from '../../services/audioPlayerService';
 import { RadioStation } from '../../services/multimediaService';
+import { useSettings } from '../../context/SettingsContext';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export const RadioPlayerScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation();
+    const { vTheme, isDarkMode } = useSettings();
     const playbackState = usePlaybackState();
     const { station } = route.params as { station: RadioStation };
+    const [volume, setVolume] = useState(0.7);
 
     const isPlaying = playbackState.state === State.Playing;
 
@@ -35,10 +41,13 @@ export const RadioPlayerScreen: React.FC = () => {
         if (station) {
             audioPlayerService.playRadio(station.name, station.streamUrl, station.logoUrl);
         }
-        return () => {
-            // Option: stop radio on exit, or keep playing in background
-        };
+        initVolume();
     }, [station]);
+
+    const initVolume = async () => {
+        const vol = await TrackPlayer.getVolume();
+        setVolume(vol);
+    };
 
     const togglePlayback = async () => {
         if (isPlaying) {
@@ -48,66 +57,96 @@ export const RadioPlayerScreen: React.FC = () => {
         }
     };
 
+    const handleVolumeChange = async (value: number) => {
+        setVolume(value);
+        await TrackPlayer.setVolume(value);
+    };
+
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <ChevronDown size={28} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Прямой эфир</Text>
-                <TouchableOpacity>
-                    <Share2 size={24} color="#333" />
-                </TouchableOpacity>
-            </View>
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" transparent />
+            <LinearGradient
+                colors={isDarkMode ? ['#1a1c2c', '#4a192c'] : [vTheme.colors.primary, '#f8fafc']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            />
 
-            <View style={styles.content}>
-                <View style={styles.logoContainer}>
-                    {station.logoUrl ? (
-                        <Image source={{ uri: station.logoUrl }} style={styles.logo} />
-                    ) : (
-                        <View style={styles.logoPlaceholder}>
-                            <Activity size={80} color="#6366F1" />
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        onPress={() => navigation.goBack()}
+                        style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
+                    >
+                        <ChevronDown size={28} color="#fff" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Прямой эфир</Text>
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                        <Share2 size={24} color="#fff" />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.content}>
+                    <View style={[styles.logoContainer, vTheme.shadows.soft]}>
+                        {station.logoUrl ? (
+                            <Image source={{ uri: station.logoUrl }} style={styles.logo} />
+                        ) : (
+                            <View style={[styles.logoPlaceholder, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                                <Radio size={width * 0.3} color="#fff" />
+                            </View>
+                        )}
+                        <View style={[styles.liveBadge, { backgroundColor: vTheme.colors.accent }]}>
+                            <Text style={styles.liveText}>LIVE</Text>
                         </View>
-                    )}
-                    <View style={styles.liveBadge}>
-                        <Text style={styles.liveText}>LIVE</Text>
+                    </View>
+
+                    <View style={styles.infoContainer}>
+                        <Text style={[styles.name, { color: '#fff' }]}>{station.name}</Text>
+                        <Text style={[styles.description, { color: 'rgba(255,255,255,0.7)' }]}>
+                            {station.description || 'Радиостанция духовного вещания'}
+                        </Text>
+                    </View>
+
+                    <View style={styles.controlsContainer}>
+                        <TouchableOpacity
+                            style={[styles.playButton, { backgroundColor: '#fff' }]}
+                            onPress={togglePlayback}
+                        >
+                            {isPlaying ? (
+                                <Pause size={42} color={vTheme.colors.primary} fill={vTheme.colors.primary} />
+                            ) : (
+                                <Play size={42} color={vTheme.colors.primary} fill={vTheme.colors.primary} style={{ marginLeft: 6 }} />
+                            )}
+                        </TouchableOpacity>
                     </View>
                 </View>
 
-                <Text style={styles.name}>{station.name}</Text>
-                <Text style={styles.description}>{station.description || 'Радиостанция духовного вещания'}</Text>
-
-                {isPlaying && (
-                    <View style={styles.visualizer}>
-                        {[1, 2, 3, 4, 5].map(i => (
-                            <View key={i} style={[styles.visBar, { height: 10 + Math.random() * 30 }]} />
-                        ))}
+                <View style={styles.footer}>
+                    <View style={[styles.volumeContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                        <Volume2 size={20} color={isDarkMode ? '#fff' : vTheme.colors.text} style={{ opacity: 0.8 }} />
+                        <Slider
+                            style={styles.volumeSlider}
+                            minimumValue={0}
+                            maximumValue={1}
+                            value={volume}
+                            onValueChange={handleVolumeChange}
+                            minimumTrackTintColor={vTheme.colors.primary}
+                            maximumTrackTintColor={isDarkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)'}
+                            thumbTintColor={vTheme.colors.primary}
+                        />
                     </View>
-                )}
-
-                <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
-                    {isPlaying ? (
-                        <Pause size={40} color="#fff" fill="#fff" />
-                    ) : (
-                        <Play size={40} color="#fff" fill="#fff" style={{ marginLeft: 6 }} />
-                    )}
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.footer}>
-                <Volume2 size={24} color="#6B7280" />
-                <View style={styles.volumeTrack}>
-                    <View style={[styles.volumeLevel, { width: '70%' }]} />
                 </View>
-            </View>
-        </SafeAreaView>
+            </SafeAreaView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+    },
+    safeArea: {
+        flex: 1,
     },
     header: {
         flexDirection: 'row',
@@ -116,32 +155,42 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 10,
     },
+    iconButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     headerTitle: {
         fontSize: 14,
-        fontWeight: '600',
-        color: '#6B7280',
+        fontWeight: '700',
+        color: '#fff',
         textTransform: 'uppercase',
+        letterSpacing: 1.2,
     },
     content: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 40,
+        paddingHorizontal: 30,
     },
     logoContainer: {
         position: 'relative',
         marginBottom: 40,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 35,
+        padding: 5,
     },
     logo: {
-        width: width * 0.6,
-        height: width * 0.6,
+        width: width * 0.75,
+        height: width * 0.75,
         borderRadius: 30,
     },
     logoPlaceholder: {
-        width: width * 0.6,
-        height: width * 0.6,
+        width: width * 0.75,
+        height: width * 0.75,
         borderRadius: 30,
-        backgroundColor: '#F3F4F6',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -149,72 +198,68 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 20,
         right: -10,
-        backgroundColor: '#EF4444',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 12,
-        elevation: 4,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
     },
     liveText: {
         color: '#fff',
         fontSize: 12,
         fontWeight: 'bold',
+        letterSpacing: 1,
+    },
+    infoContainer: {
+        alignItems: 'center',
+        marginBottom: 50,
     },
     name: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#111827',
+        fontSize: 32,
+        fontWeight: '800',
         textAlign: 'center',
+        marginBottom: 10,
+        letterSpacing: -0.5,
     },
     description: {
         fontSize: 16,
-        color: '#6B7280',
-        marginTop: 8,
         textAlign: 'center',
+        lineHeight: 24,
     },
-    visualizer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        height: 60,
-        gap: 8,
-        marginTop: 40,
-    },
-    visBar: {
-        width: 6,
-        backgroundColor: '#6366F1',
-        borderRadius: 3,
-    },
-    playButton: {
-        marginTop: 40,
-        width: 90,
-        height: 90,
-        backgroundColor: '#6366F1',
-        borderRadius: 45,
+    controlsContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#6366F1',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
+    },
+    playButton: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
         shadowRadius: 10,
-        elevation: 8,
     },
     footer: {
+        paddingHorizontal: 30,
+        paddingBottom: 40,
+    },
+    volumeContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 40,
-        paddingBottom: 60,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        padding: 15,
+        borderRadius: 25,
     },
-    volumeTrack: {
+    volumeSlider: {
         flex: 1,
-        height: 4,
-        backgroundColor: '#F3F4F6',
-        marginLeft: 15,
-        borderRadius: 2,
-    },
-    volumeLevel: {
-        height: '100%',
-        backgroundColor: '#9CA3AF',
-        borderRadius: 2,
+        height: 40,
+        marginLeft: 10,
     },
 });
 

@@ -10,7 +10,8 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Radio as RadioIcon, Play, Loader2, ArrowLeft } from 'lucide-react-native';
+import { Radio as RadioIcon, Play, Loader2, ArrowLeft, Search } from 'lucide-react-native';
+import { ScrollView, TextInput } from 'react-native';
 import { multimediaService, RadioStation } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -20,10 +21,18 @@ export const RadioScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [stations, setStations] = useState<RadioStation[]>([]);
+    const [selectedMadh, setSelectedMadh] = useState<string | undefined>();
+
+    const MADH_OPTIONS = [
+        { id: 'iskcon', label: 'ISKCON' },
+        { id: 'gaudiya', label: 'Gaudiya' },
+        { id: 'srivaishnava', label: 'Sri Vaishnava' },
+        { id: 'vedic', label: 'Vedic' },
+    ];
 
     const loadStations = async () => {
         try {
-            const data = await multimediaService.getRadioStations();
+            const data = await multimediaService.getRadioStations(selectedMadh);
             setStations(data);
         } catch (error) {
             console.error('Failed to load radio stations:', error);
@@ -35,7 +44,7 @@ export const RadioScreen: React.FC = () => {
 
     useEffect(() => {
         loadStations();
-    }, []);
+    }, [selectedMadh]);
 
     const renderStation = ({ item }: { item: RadioStation }) => (
         <TouchableOpacity
@@ -79,7 +88,36 @@ export const RadioScreen: React.FC = () => {
                     <ArrowLeft size={24} color={vTheme.colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Онлайн-радио</Text>
-                <div style={{ width: 40 }} />
+                <View style={{ width: 40 }} />
+            </View>
+
+            {/* Matth Filter */}
+            <View style={styles.filterSection}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
+                    <TouchableOpacity
+                        style={[
+                            styles.filterChip,
+                            !selectedMadh ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                        ]}
+                        onPress={() => setSelectedMadh(undefined)}
+                    >
+                        <Text style={[styles.filterText, !selectedMadh ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>Все Традиции</Text>
+                    </TouchableOpacity>
+                    {MADH_OPTIONS.map((m) => (
+                        <TouchableOpacity
+                            key={m.id}
+                            style={[
+                                styles.filterChip,
+                                selectedMadh === m.id ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                            ]}
+                            onPress={() => setSelectedMadh(m.id)}
+                        >
+                            <Text style={[styles.filterText, selectedMadh === m.id ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>
+                                {m.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
             {loading ? (
@@ -130,8 +168,26 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: 'bold',
     },
+    filterSection: {
+        paddingBottom: 8,
+    },
+    filterList: {
+        paddingHorizontal: 20,
+        gap: 8,
+    },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+    },
+    filterText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
     list: {
         padding: 20,
+        paddingTop: 10,
     },
     stationCard: {
         flexDirection: 'row',

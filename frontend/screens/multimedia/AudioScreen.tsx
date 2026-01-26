@@ -31,7 +31,15 @@ export const AudioScreen: React.FC = () => {
     const [tracks, setTracks] = useState<MediaTrack[]>([]);
     const [categories, setCategories] = useState<MediaCategory[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
+    const [selectedMadh, setSelectedMadh] = useState<string | undefined>();
     const [search, setSearch] = useState('');
+
+    const MADH_OPTIONS = [
+        { id: 'iskcon', label: 'ISKCON' },
+        { id: 'gaudiya', label: 'Gaudiya' },
+        { id: 'srivaishnava', label: 'Sri Vaishnava' },
+        { id: 'vedic', label: 'Vedic' },
+    ];
 
     const loadData = async () => {
         try {
@@ -40,6 +48,7 @@ export const AudioScreen: React.FC = () => {
                 multimediaService.getTracks({
                     type: 'audio',
                     categoryId: selectedCategory,
+                    madh: selectedMadh,
                     search: search.length > 2 ? search : undefined
                 }),
             ]);
@@ -55,7 +64,7 @@ export const AudioScreen: React.FC = () => {
 
     useEffect(() => {
         loadData();
-    }, [selectedCategory]);
+    }, [selectedCategory, selectedMadh]);
 
     const handleSearch = () => {
         setLoading(true);
@@ -122,6 +131,35 @@ export const AudioScreen: React.FC = () => {
                 </View>
             </View>
 
+            {/* Matth Filter */}
+            <View style={[styles.categoriesSection, { paddingTop: 0 }]}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesList}>
+                    <TouchableOpacity
+                        style={[
+                            styles.categoryChip,
+                            !selectedMadh ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                        ]}
+                        onPress={() => setSelectedMadh(undefined)}
+                    >
+                        <Text style={[styles.categoryText, !selectedMadh ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>Все Традиции</Text>
+                    </TouchableOpacity>
+                    {MADH_OPTIONS.map((m) => (
+                        <TouchableOpacity
+                            key={m.id}
+                            style={[
+                                styles.categoryChip,
+                                selectedMadh === m.id ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                            ]}
+                            onPress={() => setSelectedMadh(m.id)}
+                        >
+                            <Text style={[styles.categoryText, selectedMadh === m.id ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>
+                                {m.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
             {/* Categories Filter */}
             <View style={styles.categoriesSection}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesList}>
@@ -132,7 +170,7 @@ export const AudioScreen: React.FC = () => {
                         ]}
                         onPress={() => setSelectedCategory(undefined)}
                     >
-                        <Text style={[styles.categoryText, !selectedCategory ? { color: '#fff' } : { color: vTheme.colors.textSecondary }]}>Все</Text>
+                        <Text style={[styles.categoryText, !selectedCategory ? { color: '#fff' } : { color: vTheme.colors.textSecondary }]}>Все Категории</Text>
                     </TouchableOpacity>
                     {categories.map((cat) => (
                         <TouchableOpacity

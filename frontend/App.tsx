@@ -24,6 +24,8 @@ import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
 import { PortalDrawer } from './components/PortalDrawer';
 import { PortalLayoutProvider } from './context/PortalLayoutContext';
+import { MiniPlayer } from './components/MiniPlayer';
+import { audioPlayerService } from './services/audioPlayerService';
 import { MultimediaHubScreen } from './screens/multimedia/MultimediaHubScreen';
 import { RadioScreen } from './screens/multimedia/RadioScreen';
 import { AudioScreen } from './screens/multimedia/AudioScreen';
@@ -221,6 +223,14 @@ const AppContent = () => {
     };
   }, [addListener]);
 
+  // Handle Multimedia Player Setup
+  React.useEffect(() => {
+    const initPlayer = async () => {
+      await audioPlayerService.setup();
+    };
+    initPlayer();
+  }, []);
+
   // Show preview only for non-logged-in users
   if (showPreview && !isLoggedIn && !isLoading) {
     return <PreviewScreen onFinish={() => setShowPreview(false)} />;
@@ -348,7 +358,12 @@ const AppContent = () => {
                 </Stack.Group>
               )}
             </Stack.Navigator>
-            {isLoggedIn && <KrishnaAssistant />}
+            {isLoggedIn && (
+              <>
+                <MiniPlayer />
+                <KrishnaAssistant />
+              </>
+            )}
             <SettingsDrawer
               isVisible={isMenuOpen}
               onClose={() => setIsMenuOpen(false)}

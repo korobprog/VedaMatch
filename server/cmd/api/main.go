@@ -7,11 +7,11 @@ import (
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/services"
 	"strconv"
-	"strings"
 
 	"rag-agent-server/internal/websocket"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	fiberwebsocket "github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
@@ -56,45 +56,13 @@ func main() {
 		StrictRouting: false, // Allow /path and /path/ to be treated the same
 	})
 
-	// Custom CORS Middleware (Manual implementation for stability)
-	app.Use(func(c *fiber.Ctx) error {
-		origin := c.Get("Origin")
-
-		// List of allowed origins
-		allowedOrigins := map[string]bool{
-			"http://localhost:3000":      true,
-			"http://localhost:3001":      true,
-			"http://localhost:3005":      true,
-			"http://127.0.0.1:3005":      true,
-			"http://[::1]:3005":          true,
-			"http://localhost:8081":      true,
-			"https://vedamatch.ru":       true,
-			"https://www.vedamatch.ru":   true,
-			"https://api.vedamatch.ru":   true,
-			"https://admin.vedamatch.ru": true,
-		}
-
-		if allowedOrigins[origin] {
-			c.Set("Access-Control-Allow-Origin", origin)
-		} else if origin != "" {
-			// For debug: allow any localhost/127.0.0.1 origin during development
-			if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
-				c.Set("Access-Control-Allow-Origin", origin)
-				log.Printf("[CORS] Dynamically allowed local origin: %s", origin)
-			}
-		}
-
-		c.Set("Access-Control-Allow-Methods", "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS")
-		c.Set("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Admin-ID")
-		c.Set("Access-Control-Allow-Credentials", "true")
-
-		// Handle Preflight (OPTIONS)
-		if c.Method() == "OPTIONS" {
-			return c.SendStatus(fiber.StatusNoContent)
-		}
-
-		return c.Next()
-	})
+	// CORS Middleware
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "http://localhost:3000, http://localhost:3001, http://localhost:3005, http://127.0.0.1:3005, http://localhost:8081, https://vedamatch.ru, https://www.vedamatch.ru, https://api.vedamatch.ru, https://admin.vedamatch.ru",
+		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Admin-ID",
+		AllowCredentials: true,
+	}))
 
 	app.Use(logger.New())
 

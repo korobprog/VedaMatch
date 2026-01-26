@@ -107,12 +107,12 @@ export default function MultimediaPage() {
     return (
         <div className="p-6 max-w-7xl mx-auto">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">Multimedia Hub</h1>
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Multimedia Hub</h1>
                 <button
                     onClick={() => { setEditItem(null); setShowModal(true); }}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-600/20"
                 >
-                    <Plus className="w-5 h-5" /> Add {tab.slice(0, -1)}
+                    <Plus className="w-5 h-5" /> Add {tab === 'categories' ? 'Category' : tab === 'radio' ? 'Radio' : tab.slice(0, -1).toUpperCase()}
                 </button>
             </div>
 
@@ -263,30 +263,34 @@ function TracksTable({ tracks, search, onEdit, onDelete, actionLoading }: any) {
 function RadioTable({ stations, search, onEdit, onDelete }: any) {
     const filtered = stations.filter((s: RadioStation) => s.name?.toLowerCase().includes(search.toLowerCase()));
     return (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Name</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Stream URL</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Live</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Actions</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y">
-                    {filtered.map((s: RadioStation) => (
-                        <tr key={s.ID} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium">{s.name}</td>
-                            <td className="px-4 py-3 text-gray-500 truncate max-w-xs">{s.streamUrl}</td>
-                            <td className="px-4 py-3">{s.isLive ? <span className="text-green-600">●</span> : <span className="text-gray-400">○</span>}</td>
-                            <td className="px-4 py-3 flex gap-2">
-                                <button onClick={() => onEdit(s)} className="text-blue-600"><Edit3 className="w-4 h-4" /></button>
-                                <button onClick={() => onDelete(s.ID)} className="text-red-600"><Trash2 className="w-4 h-4" /></button>
-                            </td>
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+            <div className="overflow-x-auto">
+                <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-slate-900/50">
+                        <tr>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Stream URL</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Live</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                        {filtered.map((s: RadioStation) => (
+                            <tr key={s.ID} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{s.name}</td>
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400 truncate max-w-xs">{s.streamUrl}</td>
+                                <td className="px-6 py-4 text-sm font-medium">
+                                    {s.isLive ? <span className="text-green-600 dark:text-green-400">● Live</span> : <span className="text-gray-400 dark:text-slate-500">○ Offline</span>}
+                                </td>
+                                <td className="px-6 py-4 text-right flex justify-end gap-3 text-sm">
+                                    <button onClick={() => onEdit(s)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"><Edit3 className="w-4 h-4" /></button>
+                                    <button onClick={() => onDelete(s.ID)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
@@ -294,30 +298,38 @@ function RadioTable({ stations, search, onEdit, onDelete }: any) {
 function TVTable({ channels, search, onEdit, onDelete }: any) {
     const filtered = channels.filter((c: TVChannel) => c.name?.toLowerCase().includes(search.toLowerCase()));
     return (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Name</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Type</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Live</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Actions</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y">
-                    {filtered.map((c: TVChannel) => (
-                        <tr key={c.ID} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium">{c.name}</td>
-                            <td className="px-4 py-3"><span className="px-2 py-1 bg-gray-100 rounded text-xs">{c.streamType}</span></td>
-                            <td className="px-4 py-3">{c.isLive ? <span className="text-green-600">●</span> : <span className="text-gray-400">○</span>}</td>
-                            <td className="px-4 py-3 flex gap-2">
-                                <button onClick={() => onEdit(c)} className="text-blue-600"><Edit3 className="w-4 h-4" /></button>
-                                <button onClick={() => onDelete(c.ID)} className="text-red-600"><Trash2 className="w-4 h-4" /></button>
-                            </td>
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+            <div className="overflow-x-auto">
+                <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-slate-900/50">
+                        <tr>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Live</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                        {filtered.map((c: TVChannel) => (
+                            <tr key={c.ID} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{c.name}</td>
+                                <td className="px-6 py-4 text-sm">
+                                    <span className="px-2.5 py-1 bg-gray-100 dark:bg-slate-900/50 text-gray-700 dark:text-slate-300 rounded text-xs font-semibold">
+                                        {c.streamType}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm font-medium">
+                                    {c.isLive ? <span className="text-green-600 dark:text-green-400">● Live</span> : <span className="text-gray-400 dark:text-slate-500">○ Offline</span>}
+                                </td>
+                                <td className="px-6 py-4 text-right flex justify-end gap-3 text-sm">
+                                    <button onClick={() => onEdit(c)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"><Edit3 className="w-4 h-4" /></button>
+                                    <button onClick={() => onDelete(c.ID)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
@@ -325,37 +337,66 @@ function TVTable({ channels, search, onEdit, onDelete }: any) {
 function CategoriesTable({ categories, search, onEdit, onDelete }: any) {
     const filtered = categories.filter((c: MediaCategory) => c.name?.toLowerCase().includes(search.toLowerCase()));
     return (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Name</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Slug</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Type</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Actions</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y">
-                    {filtered.map((c: MediaCategory) => (
-                        <tr key={c.ID} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium">{c.name}</td>
-                            <td className="px-4 py-3 text-gray-500">{c.slug}</td>
-                            <td className="px-4 py-3"><span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs">{c.type}</span></td>
-                            <td className="px-4 py-3 flex gap-2">
-                                <button onClick={() => onEdit(c)} className="text-blue-600"><Edit3 className="w-4 h-4" /></button>
-                                <button onClick={() => onDelete(c.ID)} className="text-red-600"><Trash2 className="w-4 h-4" /></button>
-                            </td>
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+            <div className="overflow-x-auto">
+                <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-slate-900/50">
+                        <tr>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Slug</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                        {filtered.map((c: MediaCategory) => (
+                            <tr key={c.ID} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{c.name}</td>
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{c.slug}</td>
+                                <td className="px-6 py-4 text-sm">
+                                    <span className="px-2.5 py-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-full text-xs font-semibold">
+                                        {c.type}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-right flex justify-end gap-3 text-sm">
+                                    <button onClick={() => onEdit(c)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"><Edit3 className="w-4 h-4" /></button>
+                                    <button onClick={() => onDelete(c.ID)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
 
 function MediaModal({ type, item, onClose, onSave }: { type: TabType; item: any; onClose: () => void; onSave: () => void }) {
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [form, setForm] = useState(item || {});
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', 'images');
+
+        try {
+            const res = await api.post('/admin/multimedia/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setForm({ ...form, [field]: res.data.url });
+        } catch (e) {
+            console.error('Upload Error:', e);
+            alert('Upload failed');
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -414,20 +455,108 @@ function MediaModal({ type, item, onClose, onSave }: { type: TabType; item: any;
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Thumbnail URL</label>
-                                <input placeholder="Image URL" value={form.thumbnailUrl || ''} onChange={e => setForm({ ...form, thumbnailUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <div className="flex gap-2">
+                                    <input placeholder="Image URL" value={form.thumbnailUrl || ''} onChange={e => setForm({ ...form, thumbnailUrl: e.target.value })} className="flex-1 bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    <label className="cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-3 rounded-lg hover:bg-indigo-100 transition-colors">
+                                        <Upload className={`w-5 h-5 ${uploading ? 'animate-bounce' : ''}`} />
+                                        <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'thumbnailUrl')} />
+                                    </label>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Madh (Optional)</label>
-                                <input placeholder="e.g. iskcon" value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <select value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    {MADH_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                </select>
                             </div>
                         </div>
                     )}
-                    {/* Add labels and styling for other types too (radio, tv, categories)... */}
                     {type === 'radio' && (
                         <div className="space-y-4">
-                            <input placeholder="Station Name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white" required />
-                            <input placeholder="Stream URL" value={form.streamUrl || ''} onChange={e => setForm({ ...form, streamUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white" required />
-                            <input placeholder="Logo URL" value={form.logoUrl || ''} onChange={e => setForm({ ...form, logoUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white" />
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Station Name</label>
+                                <input placeholder="Enter station name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Stream URL</label>
+                                <input placeholder="https://..." value={form.streamUrl || ''} onChange={e => setForm({ ...form, streamUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Logo URL</label>
+                                <div className="flex gap-2">
+                                    <input placeholder="Logo image URL" value={form.logoUrl || ''} onChange={e => setForm({ ...form, logoUrl: e.target.value })} className="flex-1 bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    <label className="cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-3 rounded-lg hover:bg-indigo-100 transition-colors">
+                                        <Upload className={`w-5 h-5 ${uploading ? 'animate-bounce' : ''}`} />
+                                        <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'logoUrl')} />
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Madh (Optional)</label>
+                                <select value={form.madh || ''} onChange={e => setForm({ ...form, madh: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    {MADH_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+                    {type === 'tv' && (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Channel Name</label>
+                                <input placeholder="Enter channel name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Stream URL</label>
+                                <input placeholder="Stream URL (YouTube id or HLS)" value={form.streamUrl || ''} onChange={e => setForm({ ...form, streamUrl: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Stream Type</label>
+                                <select value={form.streamType || 'youtube'} onChange={e => setForm({ ...form, streamType: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="youtube">YouTube</option>
+                                    <option value="hls">HLS / IP TV</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Logo URL</label>
+                                <div className="flex gap-2">
+                                    <input placeholder="Logo image URL" value={form.logoUrl || ''} onChange={e => setForm({ ...form, logoUrl: e.target.value })} className="flex-1 bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    <label className="cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-3 rounded-lg hover:bg-indigo-100 transition-colors">
+                                        <Upload className={`w-5 h-5 ${uploading ? 'animate-bounce' : ''}`} />
+                                        <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'logoUrl')} />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {type === 'categories' && (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Category Name</label>
+                                <input placeholder="e.g. Bhajans" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Slug</label>
+                                <input placeholder="e.g. bhajansh" value={form.slug || ''} onChange={e => setForm({ ...form, slug: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Type</label>
+                                <select value={form.type || 'audio'} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="audio">Audio</option>
+                                    <option value="video">Video</option>
+                                    <option value="radio">Radio</option>
+                                    <option value="tv">TV</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Thumbnail URL</label>
+                                <div className="flex gap-2">
+                                    <input placeholder="Logo/Image URL" value={form.thumbnailUrl || ''} onChange={e => setForm({ ...form, thumbnailUrl: e.target.value })} className="flex-1 bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    <label className="cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-3 rounded-lg hover:bg-indigo-100 transition-colors">
+                                        <Upload className={`w-5 h-5 ${uploading ? 'animate-bounce' : ''}`} />
+                                        <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'thumbnailUrl')} />
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     )}
 
