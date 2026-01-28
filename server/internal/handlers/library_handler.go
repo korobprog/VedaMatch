@@ -72,24 +72,43 @@ func GetLibraryBookDetails(c *fiber.Ctx) error {
 	return c.JSON(book)
 }
 
-// GetLibraryChapters returns unique chapters/cantos for a book
+// GetLibraryChapters returns unique chapters/cantos for a book with titles
 func GetLibraryChapters(c *fiber.Ctx) error {
 	bookCode := c.Params("bookCode")
 
-	// We might need to group by Canto and Chapter
 	type ChapterInfo struct {
-		Canto   int `json:"canto"`
-		Chapter int `json:"chapter"`
+		Canto        int    `json:"canto"`
+		Chapter      int    `json:"chapter"`
+		CantoTitle   string `json:"canto_title"`
+		ChapterTitle string `json:"chapter_title"`
 	}
 
 	var chapters []ChapterInfo
 
-	if err := database.DB.Model(&models.ScriptureVerse{}).
-		Where("book_code = ?", bookCode).
-		Distinct("canto", "chapter").
-		Order("canto asc, chapter asc").
-		Find(&chapters).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch chapters"})
+	// Try fetching from structure tables first (preferred)
+	if err := database.DB.Table("scripture_chapters").
+		Select("scripture_chapters.canto, scripture_chapters.chapter, "+
+			"COALESCE(scripture_cantos.title_ru, scripture_cantos.title_en, '') as canto_title, "+
+			"COALESCE(scripture_chapters.title_ru, scripture_chapters.title_en, '') as chapter_title").
+		Joins("LEFT JOIN scripture_cantos ON scripture_cantos.book_code = scripture_chapters.book_code AND scripture_cantos.canto = scripture_chapters.canto").
+		Where("scripture_chapters.book_code = ?", bookCode).
+		Order("scripture_chapters.canto asc, scripture_chapters.chapter asc").
+		Scan(&chapters).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch chapters from structure: " + err.Error()})
+	}
+
+	// If no structure data found, fallback to scripture_verses (legacy or books being parsed)
+	if len(chapters) == 0 {
+		database.DB.Table("scripture_verses").
+			Select("scripture_verses.canto, scripture_verses.chapter, "+
+				"COALESCE(scripture_cantos.title_ru, scripture_cantos.title_en, '') as canto_title, "+
+				"COALESCE(scripture_chapters.title_ru, scripture_chapters.title_en, '') as chapter_title").
+			Joins("LEFT JOIN scripture_cantos ON scripture_cantos.book_code = scripture_verses.book_code AND scripture_cantos.canto = scripture_verses.canto").
+			Joins("LEFT JOIN scripture_chapters ON scripture_chapters.book_code = scripture_verses.book_code AND scripture_chapters.canto = scripture_verses.canto AND scripture_chapters.chapter = scripture_verses.chapter").
+			Where("scripture_verses.book_code = ?", bookCode).
+			Group("scripture_verses.canto, scripture_verses.chapter, scripture_cantos.title_ru, scripture_cantos.title_en, scripture_chapters.title_ru, scripture_chapters.title_en").
+			Order("scripture_verses.canto asc, scripture_verses.chapter asc").
+			Scan(&chapters)
 	}
 
 	return c.JSON(chapters)

@@ -32,6 +32,8 @@ export interface ScriptureVerse {
 export interface ChapterInfo {
     canto: number;
     chapter: number;
+    canto_title?: string;
+    chapter_title?: string;
 }
 
 class LibraryService {

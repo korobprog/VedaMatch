@@ -4,6 +4,8 @@ Models package
 from .scriptures import (
     Base,
     ScriptureBook,
+    ScriptureCanto,
+    ScriptureChapter,
     ScriptureVerse,
     get_engine,
     create_tables,
@@ -15,6 +17,8 @@ from .scriptures import (
 __all__ = [
     "Base",
     "ScriptureBook",
+    "ScriptureCanto",
+    "ScriptureChapter",
     "ScriptureVerse",
     "get_engine",
     "create_tables",

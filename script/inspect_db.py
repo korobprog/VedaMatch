@@ -1,22 +1,24 @@
-import sqlite3
-import os
+from sqlalchemy import create_engine, Table, MetaData, select
+import binascii
 
-db_path = 'c:/Rag-agent/script/scriptures.db'
+DATABASE_URL = "postgresql://raguser:ragpassword@localhost:5435/ragdb"
+engine = create_engine(DATABASE_URL)
+metadata = MetaData()
+chapters = Table('scripture_chapters', metadata, autoload_with=engine)
 
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
+def check_titles():
+    with engine.connect() as conn:
+        query = select(chapters).where(
+            (chapters.c.book_code == 'sb') & (chapters.c.canto.in_([1, 2, 3]))
+        ).order_by(chapters.c.canto, chapters.c.chapter)
+        
+        results = conn.execute(query).fetchall()
+        print("--- SB Canto 1 Titles (In Hex if weird) ---")
+        for r in results:
+            title = r.title_ru or ""
+            print(f"Ch {r.chapter}: {title}")
+            if any(ord(c) < 32 for c in title):
+                print(f"  [HEX]: {binascii.hexlify(title.encode('utf-8'))}")
 
-# Get tables
-cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-tables = cursor.fetchall()
-print("Tables:", tables)
-
-for table in tables:
-    table_name = table[0]
-    print(f"\nSchema for {table_name}:")
-    cursor.execute(f"PRAGMA table_info({table_name})")
-    columns = cursor.fetchall()
-    for col in columns:
-        print(col)
-
-conn.close()
+if __name__ == "__main__":
+    check_titles()

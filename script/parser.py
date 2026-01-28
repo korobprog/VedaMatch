@@ -17,6 +17,8 @@ from config import PARSER_CONFIG, SECTION_HEADERS, DATABASE_URL
 from models import (
     ScriptureVerse,
     ScriptureBook,
+    ScriptureCanto,
+    ScriptureChapter,
     get_engine,
     create_tables,
     get_session,
@@ -221,6 +223,173 @@ class VedabaseParser:
         
         return []
     
+    def save_chapter_metadata(self, book_code: str, canto: int, chapter: int, 
+                             title: str, language: str) -> bool:
+        """Save chapter metadata (title) to the database"""
+        try:
+            existing = self.db_session.query(ScriptureChapter).filter_by(
+                book_code=book_code,
+                canto=canto,
+                chapter=chapter
+            ).first()
+            
+            if existing:
+                if language == "ru":
+                    existing.title_ru = title
+                else:
+                    existing.title_en = title
+            else:
+                new_chapter = ScriptureChapter(
+                    book_code=book_code,
+                    canto=canto,
+                    chapter=chapter,
+                )
+                if language == "ru":
+                    new_chapter.title_ru = title
+                else:
+                    new_chapter.title_en = title
+                self.db_session.add(new_chapter)
+            
+            self.db_session.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error saving chapter metadata: {e}")
+            self.db_session.rollback()
+            return False
+
+    def save_canto_metadata(self, book_code: str, canto: int, 
+                           title: str, language: str) -> bool:
+        """Save canto metadata (title) to the database"""
+        try:
+            existing = self.db_session.query(ScriptureCanto).filter_by(
+                book_code=book_code,
+                canto=canto
+            ).first()
+            
+            if existing:
+                if language == "ru":
+                    existing.title_ru = title
+                else:
+                    existing.title_en = title
+            else:
+                new_canto = ScriptureCanto(
+                    book_code=book_code,
+                    canto=canto,
+                )
+                if language == "ru":
+                    new_canto.title_ru = title
+                else:
+                    new_canto.title_en = title
+                self.db_session.add(new_canto)
+            
+            self.db_session.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error saving canto metadata: {e}")
+            self.db_session.rollback()
+            return False
+
+    def parse_book_structure(self, book_code: str, language: str = "ru"):
+        """Parse the overall structure of a book (cantos and chapters)"""
+        url = urljoin(self.base_url, f"/{language}/library/{book_code}/")
+        soup = self.fetch_page(url)
+        if not soup:
+            return
+            
+        logger.info(f"Parsing structure for {book_code} in {language}")
+        
+        # 1. Identify Cantos (for SB, CC)
+        cantos_found = {}  # canto_num -> (url, title)
+        links = soup.find_all('a', href=True)
+        for link in links:
+            text = link.get_text(strip=True)
+            href = link['href']
+            
+            canto_num = None
+            canto_title = ""
+
+            # Pattern: Песнь 1: Творение OR Canto 1: ...
+            match = re.search(r'(?:Песнь|Canto)\s+(\d+)(?::\s*)?(.*)', text, re.IGNORECASE)
+            if match:
+                canto_num = int(match.group(1))
+                canto_title = match.group(2).strip()
+                if not canto_title:
+                    canto_title = text # If empty text, use "Песнь 1"
+            elif book_code == 'cc':
+                # Identify CC Lilas from URL or text
+                for lila_name, lila_code in CC_LILA_CODES.items():
+                    if f"/{lila_name}/" in href.lower() and len(href.split('/')) <= 6:
+                        canto_num = lila_code
+                        canto_title = text
+                        break
+                    
+            if canto_num:
+                canto_url = urljoin(self.base_url, href)
+                cantos_found[canto_num] = (canto_url, canto_title)
+                self.save_canto_metadata(book_code, canto_num, canto_title, language)
+
+        # 2. Parse chapters
+        if cantos_found:
+            for canto_num, (canto_url, _) in sorted(cantos_found.items()):
+                logger.info(f"Parsing chapters for Canto {canto_num}...")
+                self.parse_canto_chapters(book_code, canto_num, canto_url, language)
+        else:
+            # For books without cantos (like BG)
+            self.parse_canto_chapters(book_code, 0, url, language)
+
+    def parse_canto_chapters(self, book_code: str, canto_num: int, canto_url: str, language: str):
+        """Parse chapters within a canto/book and their titles"""
+        soup = self.fetch_page(canto_url)
+        if not soup:
+            return
+            
+        links = soup.find_all('a', href=True)
+        for link in links:
+            text = link.get_text(strip=True)
+            href = link['href']
+            
+            # 1. Try to match from text (e.g. "Chapter 1: ...")
+            match = re.search(r'(?:Глава|Chapter)\s+(\d+)(?::\s*)?(.*)', text, re.IGNORECASE)
+            
+            ch_num = None
+            ch_title = ""
+            
+            if match:
+                ch_num = int(match.group(1))
+                ch_title = match.group(2).strip()
+            else:
+                # 2. Fallback: try to extract number from URL if it's a chapter link
+                # SB: /ru/library/sb/1/3/ (5 parts)
+                # BG: /ru/library/bg/1/ (4 parts)
+                url_parts = [p for p in href.split('/') if p]
+                if len(url_parts) >= 4 and url_parts[2] == book_code:
+                    # Specific logic for SB/CC (5 parts) vs BG/others (4 parts)
+                    is_sb_cc_chapter = ((book_code == 'sb' or book_code == 'cc') and len(url_parts) == 5)
+                    is_bg_chapter = (book_code == 'bg' and len(url_parts) == 4)
+                    
+                    if is_sb_cc_chapter or is_bg_chapter:
+                        try:
+                            ch_num = int(url_parts[-1])
+                            # Clean up title
+                            ch_title = text
+                            if ':' in ch_title:
+                                ch_title = ch_title.split(':', 1)[1].strip()
+                            elif 'ГЛАВА' in ch_title.upper():
+                                # Remove "ГЛАВА ТРЕТЬЯ" etc
+                                parts = re.split(r'(?i)глава\s+[а-я]+\s*', ch_title)
+                                if len(parts) > 1:
+                                    ch_title = parts[1].strip()
+                            
+                            # Exclude navigational labels
+                            if any(word in ch_title.lower() for word in ['песнь', 'canto', 'next', 'previous']):
+                                ch_num = None
+                        except (ValueError, IndexError):
+                            continue
+
+            if ch_num is not None:
+                self.save_chapter_metadata(book_code, canto_num, ch_num, ch_title, language)
+                logger.info(f"✓ Found Chapter {canto_num}.{ch_num}: {ch_title}")
+
     def save_verse(self, verse_data: Dict[str, Any], book_code: str, 
                    canto: int, chapter: int, verse: str, language: str) -> bool:
         """Save a verse to the database"""

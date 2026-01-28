@@ -56,6 +56,7 @@ func Connect() {
 		// Ads models
 		&models.Ad{}, &models.AdPhoto{}, &models.AdFavorite{}, &models.AdReport{},
 		// Library models
+		&models.ScriptureCanto{}, &models.ScriptureChapter{},
 		&models.ScriptureVerse{}, // Dependent on ScriptureBook
 		// Tags
 		&models.Tag{}, &models.UserTag{},

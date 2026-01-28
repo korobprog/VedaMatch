@@ -25,6 +25,31 @@ class ScriptureBook(Base):
         return f"<ScriptureBook(code='{self.code}', name='{self.name_en}')>"
 
 
+class ScriptureCanto(Base):
+    """Metadata for book cantos"""
+    __tablename__ = "scripture_cantos"
+    
+    id = Column(Integer, primary_key=True)
+    book_code = Column(String(10), nullable=False, index=True)
+    canto = Column(Integer, nullable=False, index=True)
+    title_en = Column(String(255))
+    title_ru = Column(String(255))
+    created_at = Column(DateTime, default=func.now())
+
+
+class ScriptureChapter(Base):
+    """Metadata for book chapters"""
+    __tablename__ = "scripture_chapters"
+    
+    id = Column(Integer, primary_key=True)
+    book_code = Column(String(10), nullable=False, index=True)
+    canto = Column(Integer, nullable=False, index=True)
+    chapter = Column(Integer, nullable=False, index=True)
+    title_en = Column(String(255))
+    title_ru = Column(String(255))
+    created_at = Column(DateTime, default=func.now())
+
+
 class ScriptureVerse(Base):
     """Main table for storing scripture verses"""
     __tablename__ = "scripture_verses"

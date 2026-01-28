@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, use } from 'react';
+import { useState, useEffect, useRef, use, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft,
@@ -12,25 +12,30 @@ import {
     Loader2,
     ArrowLeft,
     ArrowRight,
+    ArrowUp,
+    Menu,
     X,
     Type,
     Sun,
     Moon,
-    Coffee
+    Coffee,
+    Navigation // Added for more semantic icon if needed, or stick to Menu
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { libraryService, ScriptureVerse, ChapterInfo, ScriptureBook } from '@/lib/libraryService';
 import { offlineBookService } from '@/lib/offlineBookService';
 import { bookmarkService } from '@/lib/bookmarkService';
+import { ReaderNavigator } from '@/components/library/ReaderNavigator';
 
 export default function ReaderPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const bookCode = searchParams.get('code');
+    const bookCode = searchParams.get('code')?.trim();
 
     const [book, setBook] = useState<ScriptureBook | null>(null);
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);
+    const [chaptersLoading, setChaptersLoading] = useState(true);
     const [currentChapter, setCurrentChapter] = useState<number>(1);
     const [currentCanto, setCurrentCanto] = useState<number>(0);
     const [verses, setVerses] = useState<ScriptureVerse[]>([]);
@@ -43,13 +48,53 @@ export default function ReaderPage() {
     const [showSettings, setShowSettings] = useState(false);
     const [showSanskrit, setShowSanskrit] = useState(true);
     const [showTranslation, setShowTranslation] = useState(true);
+    const [showTransliteration, setShowTransliteration] = useState(true);
     const [showPurport, setShowPurport] = useState(true);
     const [fontSize, setFontSize] = useState(18);
+    const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+    const [showBackToTop, setShowBackToTop] = useState(false);
+    const lastScrollY = useRef(0);
+    const isManualControl = useRef(false);
     const [readerTheme, setReaderTheme] = useState<'paper' | 'sepia' | 'dark'>('paper');
     const [language, setLanguage] = useState<'ru' | 'en'>('ru');
-
     const mainScrollRef = useRef<HTMLDivElement>(null);
     const observer = useRef<IntersectionObserver | null>(null);
+
+    const toggleHeaderManual = (show: boolean) => {
+        setIsHeaderVisible(show);
+        if (show) {
+            isManualControl.current = true;
+            setTimeout(() => {
+                isManualControl.current = false;
+            }, 5000); // 5 seconds of manual override
+        }
+    };
+
+    useEffect(() => {
+        const handleScroll = () => {
+            if (isManualControl.current) return;
+
+            const currentScrollY = window.scrollY;
+            setShowBackToTop(currentScrollY > 500);
+
+            // Always show header at the very top
+            if (currentScrollY < 50) {
+                setIsHeaderVisible(true);
+            } else {
+                // Hide on scroll down, show on scroll up
+                if (currentScrollY > lastScrollY.current + 30) {
+                    setIsHeaderVisible(false);
+                } else if (currentScrollY < lastScrollY.current - 40) {
+                    setIsHeaderVisible(true);
+                }
+            }
+
+            lastScrollY.current = currentScrollY;
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     useEffect(() => {
         if (!bookCode) {
@@ -117,8 +162,18 @@ export default function ReaderPage() {
         return () => observer.current?.disconnect();
     }, [verses, loading]);
 
+    useEffect(() => {
+        if (activeVerseIndex !== -1) {
+            const el = document.getElementById(`verse-nav-${activeVerseIndex}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        }
+    }, [activeVerseIndex]);
+
     const loadBaseData = async () => {
         if (!bookCode) return;
+        setChaptersLoading(true);
         try {
             const [bookInfo, chapterList] = await Promise.all([
                 libraryService.getBookDetails(bookCode).catch(async () => {
@@ -131,14 +186,23 @@ export default function ReaderPage() {
             ]);
 
             if (bookInfo) setBook(bookInfo);
-            if (chapterList) setChapters(chapterList);
 
             if (chapterList && chapterList.length > 0) {
+                console.log(`Loaded ${chapterList.length} chapters for ${bookCode}`);
+                setChapters(chapterList);
+
                 const chapterParam = searchParams.get('chapter');
                 if (chapterParam) {
-                    setCurrentChapter(parseInt(chapterParam));
+                    const chapterNum = parseInt(chapterParam);
+                    setCurrentChapter(chapterNum);
                     const cantoParam = searchParams.get('canto');
-                    if (cantoParam) setCurrentCanto(parseInt(cantoParam));
+                    if (cantoParam) {
+                        setCurrentCanto(parseInt(cantoParam));
+                    } else {
+                        // Find canto for this chapter if missing in URL
+                        const found = chapterList.find(c => c.chapter === chapterNum);
+                        if (found) setCurrentCanto(found.canto || 0);
+                    }
                 } else {
                     setCurrentChapter(chapterList[0].chapter);
                     setCurrentCanto(chapterList[0].canto || 0);
@@ -146,6 +210,8 @@ export default function ReaderPage() {
             }
         } catch (e) {
             console.error('Failed to load base data', e);
+        } finally {
+            setChaptersLoading(false);
         }
     };
 
@@ -213,12 +279,27 @@ export default function ReaderPage() {
         dark: 'text-orange-400'
     };
 
+    const [showNavigator, setShowNavigator] = useState(false);
+
+    const currentChapterData = useMemo(() => {
+        return chapters.find(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
+    }, [chapters, currentChapter, currentCanto]);
+
     return (
-        <div className={`min-h-screen flex flex-col ${themes[readerTheme]} transition-colors duration-300`}>
-            {/* Sticky Header Container */}
-            <div className="sticky top-0 z-50">
+        <div className={`min-h-screen w-full overflow-x-hidden relative flex flex-col ${themes[readerTheme]} transition-colors duration-300`}>
+
+            {/* Fixed Header Container */}
+            <motion.div
+                animate={{
+                    y: isHeaderVisible ? 0 : -150,
+                    opacity: isHeaderVisible ? 1 : 0,
+                    pointerEvents: isHeaderVisible ? 'auto' : 'none'
+                }}
+                transition={{ type: 'spring', damping: 25, stiffness: 150 }}
+                className="fixed top-0 left-0 right-0 z-50 w-full"
+            >
                 {/* Header */}
-                <header className={`backdrop-blur-md border-b flex items-center justify-between px-6 h-20 
+                <header className={`backdrop-blur-md border-b flex items-center justify-between px-6 h-20 w-full
                     ${readerTheme === 'dark' ? 'bg-[#1a1a1a]/80 border-white/5' : 'bg-white/50 border-black/5'}`}>
                     <div className="flex items-center gap-4">
                         <Link href="/library" className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl cursor-pointer transition-colors">
@@ -227,7 +308,13 @@ export default function ReaderPage() {
                         <div>
                             <h1 className="font-black text-lg line-clamp-1">{book?.name_ru || book?.name_en || 'Загрузка...'}</h1>
                             <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">
-                                Глава {currentChapter}
+                                {currentCanto > 0 ? (
+                                    bookCode === 'cc' ? (
+                                        currentCanto === 1 ? 'Ади-лила, ' :
+                                            currentCanto === 2 ? 'Мадхья-лила, ' :
+                                                currentCanto === 3 ? 'Антья-лила, ' : `Раздел ${currentCanto}, `
+                                    ) : `Песнь ${currentCanto}, `
+                                ) : ''}Глава {currentChapter}
                             </p>
                         </div>
                     </div>
@@ -255,75 +342,80 @@ export default function ReaderPage() {
                     </div>
                 </header>
 
-                {/* Chapter Navigation */}
-                <nav className={`border-b px-6 py-3 flex items-center justify-between ${readerTheme === 'dark' ? 'bg-[#222]/90 border-white/5' : 'bg-white/90 border-black/5'}`}>
-                    <button
-                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto) <= 0}
-                        onClick={() => {
-                            const idx = chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
-                            if (idx > 0) {
-                                setCurrentChapter(chapters[idx - 1].chapter);
-                                setCurrentCanto(chapters[idx - 1].canto || 0);
-                            }
-                        }}
-                        className="p-2 disabled:opacity-20 hover:scale-110 transition-transform cursor-pointer"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </button>
-
-                    <div className="flex overflow-x-auto gap-2 px-4 no-scrollbar max-w-[70%]">
-                        {chapters.map((ch, idx) => (
-                            <button
-                                key={`${ch.canto || 0}-${ch.chapter}`}
-                                onClick={() => {
-                                    setCurrentChapter(ch.chapter);
-                                    setCurrentCanto(ch.canto || 0);
-                                }}
-                                className={`px-4 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer
-                                    ${currentChapter === ch.chapter && (ch.canto || 0) === currentCanto
-                                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
-                                        : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-50'}`}
-                            >
-                                {ch.chapter}
-                            </button>
-                        ))}
-                    </div>
+                {/* Chapter Navigation (Compact with Titles) */}
+                <nav className={`border-b px-6 py-3 flex items-center justify-center transition-all duration-300 w-full
+                    ${readerTheme === 'dark' ? 'bg-[#222]/90 border-white/5' : 'bg-white/90 border-black/5'}`}>
 
                     <button
-                        disabled={!chapters || chapters.length === 0 || chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto) >= chapters.length - 1}
-                        onClick={() => {
-                            const idx = chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
-                            if (idx !== -1 && idx < chapters.length - 1) {
-                                setCurrentChapter(chapters[idx + 1].chapter);
-                                setCurrentCanto(chapters[idx + 1].canto || 0);
-                            }
-                        }}
-                        className="p-2 disabled:opacity-20 hover:scale-110 transition-transform cursor-pointer"
+                        onClick={() => setShowNavigator(true)}
+                        className={`w-full max-w-2xl px-6 py-2.5 rounded-2xl border flex flex-col items-center gap-0.5 transition-all cursor-pointer hover:bg-orange-500/5 group
+                            ${readerTheme === 'dark' ? 'border-white/10' : 'border-black/5'}`}
                     >
-                        <ChevronRight className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-40 group-hover:text-orange-500 group-hover:opacity-100 transition-colors">Выбрать главу</span>
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm truncate max-w-[250px] md:max-w-[500px]">
+                                {bookCode === 'cc' ? (
+                                    currentCanto === 1 ? 'Ади-лила, ' :
+                                        currentCanto === 2 ? 'Мадхья-лила, ' :
+                                            currentCanto === 3 ? 'Антья-лила, ' : ''
+                                ) : (currentCanto > 0 ? `Песнь ${currentCanto}, ` : '')}
+                                {currentChapterData?.chapter_title ? `${currentChapter}. ${currentChapterData.chapter_title}` : `Глава ${currentChapter}`}
+                            </span>
+                            <ChevronRight className="w-3 h-3 opacity-20 group-hover:opacity-100" />
+                        </div>
                     </button>
                 </nav>
 
-                {/* Verse (Page) Navigation */}
                 {!loading && verses.length > 0 && (
-                    <div className={`border-b px-6 py-2 flex items-center ${readerTheme === 'dark' ? 'bg-[#2a2a2a]/90 border-white/5' : 'bg-[#fafafa]/90 border-black/5'}`}>
-                        <div className="flex overflow-x-auto gap-2 no-scrollbar py-1">
+                    <div className={`border-b relative h-16 flex items-center overflow-hidden transition-colors ${readerTheme === 'dark' ? 'bg-[#1a1a1a] border-white/5' : 'bg-white border-black/5'}`}>
+                        {/* Center Indicator */}
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-orange-500 rounded-full shadow-lg shadow-orange-500/30 pointer-events-none z-0" />
+
+                        {/* Gradient Masks */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-24 z-20 pointer-events-none ${readerTheme === 'dark' ? 'bg-gradient-to-r from-[#1a1a1a] to-transparent' : 'bg-gradient-to-r from-white to-transparent'}`} />
+                        <div className={`absolute right-0 top-0 bottom-0 w-24 z-20 pointer-events-none ${readerTheme === 'dark' ? 'bg-gradient-to-l from-[#1a1a1a] to-transparent' : 'bg-gradient-to-l from-white to-transparent'}`} />
+
+                        <div className="flex overflow-x-auto gap-8 no-scrollbar scroll-smooth w-full z-10 snap-x snap-mandatory">
+                            {/* Spacers for centering */}
+                            <div className="shrink-0 w-[calc(50%-24px)]" />
+
                             {verses.map((v, index) => (
                                 <button
+                                    id={`verse-nav-${index}`}
                                     key={v.id}
                                     onClick={() => scrollToVerse(index)}
-                                    className={`w-9 h-9 shrink-0 rounded-full text-xs font-black transition-all flex items-center justify-center cursor-pointer
+                                    className={`w-12 h-12 shrink-0 rounded-full text-xs font-black transition-all duration-300 flex items-center justify-center cursor-pointer snap-center
                                         ${activeVerseIndex === index
-                                            ? 'bg-orange-500 text-white shadow-md'
-                                            : 'hover:bg-black/10 dark:hover:bg-white/10 opacity-40'}`}
+                                            ? 'text-white scale-125 z-10'
+                                            : 'text-current opacity-20 hover:opacity-100 hover:scale-110'}`}
                                 >
                                     {v.verse}
                                 </button>
                             ))}
+
+                            <div className="shrink-0 w-[calc(50%-24px)]" />
                         </div>
                     </div>
                 )}
-            </div>
+            </motion.div>
+
+            {/* Top spacing for fixed header */}
+            <div className="h-48 md:h-52" />
+
+            <ReaderNavigator
+                isOpen={showNavigator}
+                onClose={() => setShowNavigator(false)}
+                chapters={chapters}
+                isLoading={chaptersLoading}
+                currentChapter={currentChapter}
+                currentCanto={currentCanto}
+                onSelect={(ch, cn) => {
+                    setCurrentChapter(ch);
+                    setCurrentCanto(cn);
+                }}
+                bookTitle={book?.name_ru || book?.name_en || ''}
+                bookCode={bookCode || ''}
+            />
 
             {/* Reader Content */}
             <main className="flex-grow max-w-4xl mx-auto w-full px-6 py-12">
@@ -347,52 +439,63 @@ export default function ReaderPage() {
                                     <span className={`text-xl font-black ${verseHeaderColor[readerTheme]}`}>
                                         Текст {v.verse}
                                     </span>
-                                    <div className="flex gap-4 opacity-100">
+                                    <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => handleToggleBookmark(v)}
-                                            className={`cursor-pointer hover:scale-110 transition-transform ${bookmarkedVerses.includes(`${v.chapter}-${v.verse}`) ? 'text-orange-500 opacity-100' : 'opacity-60 hover:opacity-100'}`}
+                                            className={`p-3 rounded-2xl transition-all cursor-pointer ${bookmarkedVerses.includes(`${v.chapter}-${v.verse}`) ? 'text-orange-500' : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-50 hover:opacity-100'}`}
                                         >
-                                            <Bookmark className="w-6 h-6" fill={bookmarkedVerses.includes(`${v.chapter}-${v.verse}`) ? 'currentColor' : 'none'} strokeWidth={2.5} />
+                                            <Bookmark className={`w-6 h-6 ${bookmarkedVerses.includes(`${v.chapter}-${v.verse}`) ? 'fill-current' : ''}`} />
                                         </button>
-                                        <button className="cursor-pointer hover:scale-110 transition-transform opacity-60 hover:opacity-100"><Share2 className="w-6 h-6" strokeWidth={2.5} /></button>
+                                        <button
+                                            className="p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all opacity-50 hover:opacity-100 cursor-pointer"
+                                            title="Поделиться"
+                                        >
+                                            <Share2 className="w-6 h-6" />
+                                        </button>
                                     </div>
                                 </div>
 
-                                {showSanskrit && (v.devanagari || v.transliteration) && (
-                                    <div className="mb-8 text-center leading-relaxed">
-                                        {v.devanagari && <p className="text-2xl md:text-3xl font-medium mb-4">{v.devanagari}</p>}
-                                        {v.transliteration && <p className="italic opacity-70 text-lg">{v.transliteration}</p>}
-                                    </div>
-                                )}
-
-                                {showTranslation && (
-                                    <div className="mb-12">
-                                        <p className="text-xl md:text-2xl font-bold leading-relaxed">
-                                            {v.translation}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {showPurport && v.purport && (
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-4 opacity-30">
-                                            <div className="h-[1px] flex-grow bg-current" />
-                                            <span className="text-xs font-black uppercase tracking-widest">Комментарий</span>
-                                            <div className="h-[1px] flex-grow bg-current" />
+                                <div className="space-y-12 leading-relaxed">
+                                    {showSanskrit && v.devanagari && (
+                                        <div className="text-center">
+                                            <p className="text-2xl font-serif text-orange-800/80 dark:text-orange-200/80 italic leading-loose whitespace-pre-line">
+                                                {v.devanagari}
+                                            </p>
                                         </div>
-                                        <div
-                                            className="leading-loose whitespace-pre-line opacity-90"
-                                            style={{ fontSize: `${fontSize}px` }}
-                                        >
-                                            {v.purport}
+                                    )}
+
+                                    {showTransliteration && v.transliteration && (
+                                        <div className="text-center opacity-70 italic font-medium">
+                                            <p className="text-lg leading-relaxed">{v.transliteration}</p>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+
+                                    {showTranslation && v.translation && (
+                                        <div className="relative">
+                                            <div className="absolute -left-4 top-0 bottom-0 w-1 bg-orange-500/20 rounded-full" />
+                                            <p className="text-xl font-bold leading-relaxed pl-6">{v.translation}</p>
+                                        </div>
+                                    )}
+
+                                    {showPurport && v.purport && (
+                                        <div className="prose prose-lg dark:prose-invert max-w-none">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-6 flex items-center gap-4">
+                                                <span>Комментарий</span>
+                                                <div className="h-px flex-grow bg-current opacity-10" />
+                                            </h4>
+                                            <div
+                                                className="leading-[1.8] opacity-90 font-medium"
+                                                style={{ fontSize: `${fontSize}px` }}
+                                                dangerouslySetInnerHTML={{ __html: v.purport }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             </motion.article>
                         ))}
 
-                        {/* Footer navigation inside content */}
-                        <div className="pt-24 pb-12 flex justify-between gap-6">
+                        {/* Pagination Refinement */}
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-8 pt-24 border-t border-current/10">
                             <button
                                 disabled={chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto) <= 0}
                                 onClick={() => {
@@ -400,30 +503,108 @@ export default function ReaderPage() {
                                     if (idx > 0) {
                                         setCurrentChapter(chapters[idx - 1].chapter);
                                         setCurrentCanto(chapters[idx - 1].canto || 0);
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
                                     }
                                 }}
-                                className="flex-1 p-6 rounded-[32px] border border-current border-opacity-10 hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center justify-center gap-4 disabled:opacity-10"
+                                className="w-full md:w-auto flex items-center justify-center gap-4 px-8 py-5 rounded-[24px] border border-current/20 font-black uppercase tracking-widest text-xs disabled:opacity-20 hover:bg-black/5 dark:hover:bg-white/5 transition-all group cursor-pointer"
                             >
-                                <ArrowLeft /> Назад
+                                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                                Назад
                             </button>
+
+                            <div className="flex flex-col items-center">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-1">
+                                    {bookCode === 'cc' ? (
+                                        currentCanto === 1 ? 'Ади-лила' :
+                                            currentCanto === 2 ? 'Мадхья-лила' :
+                                                currentCanto === 3 ? 'Антья-лила' : 'Глава'
+                                    ) : (currentCanto > 0 ? `Песнь ${currentCanto}` : 'Глава')}
+                                </p>
+                                <p className="text-2xl font-black">{currentChapter}</p>
+                            </div>
+
                             <button
                                 onClick={() => {
                                     const idx = chapters.findIndex(c => c.chapter === currentChapter && (c.canto || 0) === currentCanto);
                                     if (idx !== -1 && idx < chapters.length - 1) {
                                         setCurrentChapter(chapters[idx + 1].chapter);
                                         setCurrentCanto(chapters[idx + 1].canto || 0);
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
                                     } else {
                                         router.push('/library');
                                     }
                                 }}
-                                className="flex-1 p-6 rounded-[32px] bg-orange-500 text-white shadow-xl shadow-orange-500/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4"
+                                className="w-full md:w-auto flex items-center justify-center gap-4 px-10 py-5 rounded-[24px] bg-orange-600 text-white shadow-xl shadow-orange-600/20 font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all group cursor-pointer"
                             >
-                                Дальше <ArrowRight />
+                                Вперед
+                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </button>
                         </div>
                     </div>
                 )}
             </main>
+
+            {/* Floating Triggers - Permanent overlay for absolute reliability */}
+            <div className="fixed inset-0 pointer-events-none z-[100]">
+                {/* Scroll Progress Bar at the Top */}
+                <motion.div
+                    className="absolute top-0 left-0 h-1 bg-orange-500 z-[120]"
+                    style={{
+                        width: '100%',
+                        scaleX: 0,
+                        transformOrigin: '0%',
+                    }}
+                    animate={{ scaleX: typeof window !== 'undefined' ? (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) : 0 }}
+                />
+
+                {/* Quick Menu Button (Always available top right when hidden) */}
+                <AnimatePresence>
+                    {!isHeaderVisible && (
+                        <motion.button
+                            key="nav-fab"
+                            initial={{ scale: 0, opacity: 0, x: 20 }}
+                            animate={{ scale: 1, opacity: 1, x: 0 }}
+                            exit={{ scale: 0, opacity: 0, x: 20 }}
+                            onClick={() => toggleHeaderManual(true)}
+                            className="absolute top-6 right-6 pointer-events-auto bg-orange-600 text-white w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center cursor-pointer hover:bg-orange-700 hover:scale-110 active:scale-90 transition-all border border-white/20"
+                            title="Открыть меню"
+                        >
+                            <Menu className="w-7 h-7" />
+                        </motion.button>
+                    )}
+                </AnimatePresence>
+
+                {/* Fast Navigation - Bottom Left (matches user image) */}
+                <div className="absolute bottom-10 left-10 pointer-events-auto">
+                    <motion.button
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        onClick={() => toggleHeaderManual(true)}
+                        className="w-14 h-14 bg-black/80 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-all shadow-xl"
+                    >
+                        <span className="text-white font-black text-xl">N</span>
+                    </motion.button>
+                </div>
+
+                {/* Back to Top - Bottom Right */}
+                <AnimatePresence>
+                    {showBackToTop && (
+                        <motion.button
+                            key="top-fab"
+                            initial={{ scale: 0, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0, opacity: 0, y: 20 }}
+                            onClick={() => {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                toggleHeaderManual(true);
+                            }}
+                            className="absolute bottom-10 right-10 pointer-events-auto bg-white text-orange-600 w-16 h-16 rounded-full shadow-[0_15px_40px_rgba(0,0,0,0.2)] border-2 border-orange-500/5 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-transform group"
+                        >
+                            <ArrowUp className="w-8 h-8 group-hover:-translate-y-1 transition-transform" />
+                        </motion.button>
+                    )}
+                </AnimatePresence>
+            </div>
 
             {/* Notification Toast */}
             <AnimatePresence>
@@ -469,6 +650,7 @@ export default function ReaderPage() {
                                 <div className="space-y-6">
                                     <h3 className="text-xs font-black uppercase tracking-widest opacity-40 mb-4">Отображение</h3>
                                     <Toggle label="Санскрит" checked={showSanskrit} onChange={setShowSanskrit} />
+                                    <Toggle label="Транслитерация" checked={showTransliteration} onChange={setShowTransliteration} />
                                     <Toggle label="Перевод" checked={showTranslation} onChange={setShowTranslation} />
                                     <Toggle label="Комментарий" checked={showPurport} onChange={setShowPurport} />
                                 </div>

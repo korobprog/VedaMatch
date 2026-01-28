@@ -15,6 +15,27 @@ type ScriptureBook struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type ScriptureCanto struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	BookCode  string    `gorm:"type:varchar(20);index" json:"book_code"`
+	Canto     int       `gorm:"index" json:"canto"`
+	TitleEn   string    `gorm:"type:varchar(255)" json:"title_en"`
+	TitleRu   string    `gorm:"type:varchar(255)" json:"title_ru"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ScriptureChapter struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	BookCode  string    `gorm:"type:varchar(20);index" json:"book_code"`
+	Canto     int       `gorm:"index" json:"canto"`
+	Chapter   int       `gorm:"index" json:"chapter"`
+	TitleEn   string    `gorm:"type:varchar(255)" json:"title_en"`
+	TitleRu   string    `gorm:"type:varchar(255)" json:"title_ru"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type ScriptureVerse struct {
 	ID              uint          `gorm:"primaryKey" json:"id"`
 	BookCode        string        `gorm:"type:varchar(20);index" json:"book_code"`
