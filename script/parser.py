@@ -61,7 +61,7 @@ class VedabaseParser:
             # Respectful delay between requests
             time.sleep(self.delay)
             
-            return BeautifulSoup(response.text, 'lxml')
+            return BeautifulSoup(response.text, 'html.parser')
         except requests.RequestException as e:
             logger.error(f"Error fetching {url}: {e}")
             return None

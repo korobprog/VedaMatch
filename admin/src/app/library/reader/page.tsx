@@ -44,6 +44,9 @@ export default function ReaderPage() {
     const [bookmarkedVerses, setBookmarkedVerses] = useState<string[]>([]);
     const [notification, setNotification] = useState<string | null>(null);
 
+    // Memory cache for verses to prevent "jumping" when switching back and forth
+    const versesCache = useRef<Record<string, ScriptureVerse[]>>({});
+
     // Reader Settings
     const [showSettings, setShowSettings] = useState(false);
     const [showSanskrit, setShowSanskrit] = useState(true);
@@ -217,28 +220,50 @@ export default function ReaderPage() {
 
     const loadVerses = async (chapter: number, canto: number = 0) => {
         if (!bookCode) return;
+
+        const cacheKey = `${canto}-${chapter}-${language}`;
+
+        // Use cache if available for immediate display
+        if (versesCache.current[cacheKey]) {
+            setVerses(versesCache.current[cacheKey]);
+            setLoading(false);
+            setCurrentChapter(chapter);
+            setCurrentCanto(canto);
+            setActiveVerseIndex(0);
+            return;
+        }
+
         setLoading(true);
         try {
-            let data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language).catch(async () => {
-                return await offlineBookService.getOfflineVerses(bookCode, chapter, canto, language);
-            });
-            setVerses(data);
+            // First try offline data (IndexedDB) for speed
+            let data = await offlineBookService.getOfflineVerses(bookCode, chapter, canto, language);
+
+            // If nothing offline, fetch from network
+            if (!data || data.length === 0) {
+                data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language);
+            }
+
+            if (data && data.length > 0) {
+                versesCache.current[cacheKey] = data;
+                setVerses(data);
+            } else {
+                setVerses([]);
+            }
+
             setCurrentChapter(chapter);
             setCurrentCanto(canto);
             setActiveVerseIndex(0);
 
-            // Check for verse in URL search params
+            // Scroll management
             const verseToScroll = searchParams.get('verse');
-
             if (verseToScroll && data) {
-                // Wait for render
                 setTimeout(() => {
                     const index = data.findIndex(v => v.verse === verseToScroll);
                     if (index !== -1) scrollToVerse(index, data);
-                }, 800);
+                }, 100); // Reduced delay
             } else {
                 if (typeof window !== 'undefined') {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    window.scrollTo({ top: 0 }); // Direct jump without smooth to avoid layout shift
                 }
             }
         } catch (e) {
@@ -427,12 +452,10 @@ export default function ReaderPage() {
                 ) : (
                     <div className="space-y-16">
                         {verses.map((v, index) => (
-                            <motion.article
+                            <article
                                 key={v.id}
                                 id={`verse-${v.id}`}
                                 data-verse-id={v.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
                                 className="relative scroll-mt-48"
                             >
                                 <div className={`flex items-center justify-between mb-8 pb-4 border-b border-current opacity-40`}>
@@ -491,7 +514,7 @@ export default function ReaderPage() {
                                         </div>
                                     )}
                                 </div>
-                            </motion.article>
+                            </article>
                         ))}
 
                         {/* Pagination Refinement */}
