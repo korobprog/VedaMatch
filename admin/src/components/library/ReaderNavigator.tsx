@@ -135,16 +135,16 @@ export function ReaderNavigator({
                             </div>
                         </div>
 
-                        <div className="flex flex-1 overflow-hidden">
+                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
                             {cantos.length > 1 && (
-                                <div className="w-[110px] md:w-[220px] border-r border-white/5 overflow-y-auto no-scrollbar py-4 bg-black/10">
-                                    <div className="px-3 md:px-6 space-y-3">
-                                        <p className="px-2 md:px-4 mb-4 text-[9px] font-black uppercase tracking-widest text-white/20">Разделы</p>
+                                <div className="w-full md:w-[220px] border-b md:border-b-0 md:border-r border-white/5 overflow-x-auto md:overflow-y-auto no-scrollbar py-4 bg-black/10">
+                                    <div className="px-6 md:px-6 flex flex-row md:flex-col gap-3 md:gap-3 items-center md:items-stretch">
+                                        <p className="hidden md:block px-4 mb-4 text-[9px] font-black uppercase tracking-widest text-white/20">Разделы</p>
                                         {cantos.map(cantoNum => (
                                             <button
                                                 key={cantoNum}
                                                 onClick={() => setSelectedCanto(cantoNum)}
-                                                className={`w-full text-left p-3 md:p-4 rounded-xl md:rounded-2xl transition-all flex flex-col md:flex-row md:items-center gap-2 md:gap-4 group cursor-pointer relative overflow-hidden
+                                                className={`whitespace-nowrap shrink-0 text-left p-4 md:p-4 rounded-2xl transition-all flex flex-row items-center gap-3 md:gap-4 group cursor-pointer relative overflow-hidden
                                                     ${activeCanto === cantoNum
                                                         ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20'
                                                         : 'hover:bg-white/5 text-white/40'}`}
@@ -179,7 +179,7 @@ export function ReaderNavigator({
                                                         onSelect(ch.chapter, ch.canto || 0);
                                                         onClose();
                                                     }}
-                                                    className={`flex items-center gap-4 p-4 rounded-[28px] border transition-all text-left cursor-pointer group relative overflow-hidden h-[90px] md:h-auto
+                                                    className={`flex items-center gap-4 p-4 rounded-[28px] border transition-all text-left cursor-pointer group relative overflow-hidden min-h-[90px] md:min-h-0
                                                     ${currentChapter === ch.chapter && (ch.canto || 0) === currentCanto
                                                             ? 'bg-orange-600/10 border-orange-500/40'
                                                             : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.08] hover:border-white/10'}`}
@@ -191,7 +191,7 @@ export function ReaderNavigator({
                                                         {ch.chapter}
                                                     </div>
                                                     <div className="flex-grow min-w-0 pr-4">
-                                                        <h4 className={`font-black text-xs md:text-sm mb-0.5 truncate tracking-tight transition-colors ${currentChapter === ch.chapter && (ch.canto || 0) === currentCanto ? 'text-white' : 'text-white/60 group-hover:text-white'}`}>
+                                                        <h4 className={`font-black text-xs md:text-sm mb-1 line-clamp-2 md:line-clamp-none tracking-tight transition-colors ${currentChapter === ch.chapter && (ch.canto || 0) === currentCanto ? 'text-white' : 'text-white/60 group-hover:text-white'}`}>
                                                             {ch.chapter_title || `Глава ${ch.chapter}`}
                                                         </h4>
                                                         <div className="flex items-center gap-2 text-white/20 group-hover:text-orange-500/50 transition-colors uppercase font-black text-[8px] tracking-widest">
