@@ -44,21 +44,29 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         let heartbeatInterval: NodeJS.Timeout;
         if (user?.ID) {
-            // Initial heartbeat
-            contactService.sendHeartbeat(user.ID);
+            const runHeartbeat = async () => {
+                try {
+                    await contactService.sendHeartbeat(user.ID!);
+                } catch (error: any) {
+                    if (error.message === 'UNAUTHORIZED' || error.status === 401) {
+                        console.error('[UserContext] Heartbeat failed with 401, logging out');
+                        logout();
+                    }
+                }
+            };
 
-            // Register push token (simplified for now, ideally get from expo-notifications)
-            // In a real device, we would call registerForPushNotificationsAsync()
+            // Initial heartbeat
+            runHeartbeat();
+
+            // Register push token
             AsyncStorage.getItem('pushToken').then(token => {
-                if (token) {
+                if (token && token !== 'undefined' && token !== 'null') {
                     contactService.updatePushToken(token);
                 }
             });
 
             // Set up interval (every 3 minutes)
-            heartbeatInterval = setInterval(() => {
-                contactService.sendHeartbeat(user.ID!);
-            }, 3 * 60 * 1000);
+            heartbeatInterval = setInterval(runHeartbeat, 3 * 60 * 1000);
         }
         return () => {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -72,29 +80,27 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
             if (savedUser && savedUser !== 'undefined' && savedUser !== 'null' &&
                 savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
-                setUser(JSON.parse(savedUser));
+                try {
+                    setUser(JSON.parse(savedUser));
+                } catch (parseError) {
+                    console.warn('[UserContext] Failed to parse saved user, clearing storage');
+                    await logout();
+                }
             } else {
-                // If any is missing, clear both to be safe
-                await AsyncStorage.removeItem('user');
-                await AsyncStorage.removeItem('token');
                 setUser(null);
             }
         } catch (e) {
-            console.error('Failed to load user', e);
+            console.warn('[UserContext] Failed to load user from storage');
         } finally {
             setIsLoading(false);
         }
     };
 
     const login = async (profile: UserProfile, token?: string) => {
-        // IMPORTANT: Store token BEFORE setting user state
-        // This prevents race conditions where effects (like heartbeat) fire
-        // before the token is available in AsyncStorage
         if (token) {
             await AsyncStorage.setItem('token', token);
         }
         await AsyncStorage.setItem('user', JSON.stringify(profile));
-        // Set user state last - this triggers effects that may need the token
         setUser(profile);
     };
 
@@ -102,6 +108,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         await AsyncStorage.removeItem('user');
         await AsyncStorage.removeItem('token');
+        console.log('[UserContext] Session cleared (Logged out)');
     };
 
     const setTourCompleted = async () => {

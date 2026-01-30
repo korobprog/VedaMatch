@@ -30,6 +30,8 @@ export interface RadioStation {
     madh?: string;
     isLive: boolean;
     viewerCount: number;
+    status: 'online' | 'offline' | 'unknown';
+    lastCheckedAt?: string;
 }
 
 export interface TVChannel {
@@ -105,8 +107,11 @@ class MultimediaService {
     }
 
     async getRadioStations(madh?: string): Promise<RadioStation[]> {
-        const params = madh ? `?madh=${madh}` : '';
-        const response = await fetch(`${this.baseUrl}/multimedia/radio${params}`);
+        const params = new URLSearchParams();
+        if (madh) params.append('madh', madh);
+        params.append('_t', String(Date.now())); // Cache busting
+
+        const response = await fetch(`${this.baseUrl}/multimedia/radio?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch radio stations');
         return response.json();
     }

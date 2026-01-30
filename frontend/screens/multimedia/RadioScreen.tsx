@@ -64,12 +64,21 @@ export const RadioScreen: React.FC = () => {
                     {item.description || 'Духовное радио вещание'}
                 </Text>
                 <View style={styles.meta}>
-                    {item.isLive && (
-                        <View style={[styles.liveBadge, { backgroundColor: `${vTheme.colors.accent}15` }]}>
-                            <View style={[styles.liveDot, { backgroundColor: vTheme.colors.accent }]} />
-                            <Text style={[styles.liveText, { color: vTheme.colors.accent }]}>В ЭФИРЕ</Text>
-                        </View>
-                    )}
+                    <View style={[
+                        styles.liveBadge,
+                        { backgroundColor: item.status === 'online' ? '#4ade8020' : '#f8717120' }
+                    ]}>
+                        <View style={[
+                            styles.liveDot,
+                            { backgroundColor: item.status === 'online' ? '#4ade80' : '#f87171' }
+                        ]} />
+                        <Text style={[
+                            styles.liveText,
+                            { color: item.status === 'online' ? '#166534' : '#991b1b' }
+                        ]}>
+                            {item.status === 'online' ? 'В СЕТИ' : 'ОФФЛАЙН'}
+                        </Text>
+                    </View>
                     {item.viewerCount > 0 && (
                         <Text style={[styles.viewerCount, { color: vTheme.colors.textSecondary }]}>👥 {item.viewerCount}</Text>
                     )}

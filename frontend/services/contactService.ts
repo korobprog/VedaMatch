@@ -90,10 +90,13 @@ export const contactService = {
 
     sendHeartbeat: async (userId: number) => {
         const headers = await getAuthHeaders();
-        await fetch(`${API_PATH}/heartbeat`, { // Route is /heartbeat in main.go
+        const response = await fetch(`${API_PATH}/heartbeat`, {
             method: 'POST',
             headers
         });
+        if (response.status === 401) {
+            throw new Error('UNAUTHORIZED');
+        }
     },
 
     updatePushToken: async (pushToken: string) => {

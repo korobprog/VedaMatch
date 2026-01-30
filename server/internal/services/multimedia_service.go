@@ -7,11 +7,13 @@ import (
 	"io"
 	"log"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -87,8 +89,8 @@ func (s *MultimediaService) CreateCategory(category *models.MediaCategory) error
 	return s.db.Create(category).Error
 }
 
-func (s *MultimediaService) UpdateCategory(id uint, updates map[string]interface{}) error {
-	return s.db.Model(&models.MediaCategory{}).Where("id = ?", id).Updates(updates).Error
+func (s *MultimediaService) UpdateCategory(category *models.MediaCategory) error {
+	return s.db.Save(category).Error
 }
 
 func (s *MultimediaService) DeleteCategory(id uint) error {
@@ -200,8 +202,8 @@ func (s *MultimediaService) CreateTrack(track *models.MediaTrack) error {
 	return s.db.Create(track).Error
 }
 
-func (s *MultimediaService) UpdateTrack(id uint, updates map[string]interface{}) error {
-	return s.db.Model(&models.MediaTrack{}).Where("id = ?", id).Updates(updates).Error
+func (s *MultimediaService) UpdateTrack(track *models.MediaTrack) error {
+	return s.db.Save(track).Error
 }
 
 func (s *MultimediaService) DeleteTrack(id uint) error {
@@ -232,12 +234,53 @@ func (s *MultimediaService) CreateRadioStation(station *models.RadioStation) err
 	return s.db.Create(station).Error
 }
 
-func (s *MultimediaService) UpdateRadioStation(id uint, updates map[string]interface{}) error {
-	return s.db.Model(&models.RadioStation{}).Where("id = ?", id).Updates(updates).Error
+func (s *MultimediaService) UpdateRadioStation(station *models.RadioStation) error {
+	return s.db.Save(station).Error
 }
 
 func (s *MultimediaService) DeleteRadioStation(id uint) error {
 	return s.db.Delete(&models.RadioStation{}, id).Error
+}
+
+func (s *MultimediaService) CheckRadioStatus() {
+	var stations []models.RadioStation
+	if err := s.db.Where("is_active = ?", true).Find(&stations).Error; err != nil {
+		log.Printf("[MultimediaService] Failed to fetch stations for health check: %v", err)
+		return
+	}
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	var wg sync.WaitGroup
+	for i := range stations {
+		wg.Add(1)
+		go func(station *models.RadioStation) {
+			defer wg.Done()
+
+			status := "offline"
+			req, err := http.NewRequest("HEAD", station.StreamURL, nil)
+			if err == nil {
+				req.Header.Set("User-Agent", "Mozilla/5.0 (VedaMatch Status Checker)")
+				resp, err := client.Do(req)
+				if err == nil {
+					if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+						status = "online"
+					}
+					resp.Body.Close()
+				}
+			}
+
+			now := time.Now()
+			s.db.Model(station).Updates(map[string]interface{}{
+				"status":          status,
+				"last_checked_at": &now,
+			})
+			log.Printf("[MultimediaService] Checked radio %s: %s", station.Name, status)
+		}(&stations[i])
+	}
+	wg.Wait()
 }
 
 // --- TV Channels ---
@@ -264,8 +307,8 @@ func (s *MultimediaService) CreateTVChannel(channel *models.TVChannel) error {
 	return s.db.Create(channel).Error
 }
 
-func (s *MultimediaService) UpdateTVChannel(id uint, updates map[string]interface{}) error {
-	return s.db.Model(&models.TVChannel{}).Where("id = ?", id).Updates(updates).Error
+func (s *MultimediaService) UpdateTVChannel(channel *models.TVChannel) error {
+	return s.db.Save(channel).Error
 }
 
 func (s *MultimediaService) DeleteTVChannel(id uint) error {

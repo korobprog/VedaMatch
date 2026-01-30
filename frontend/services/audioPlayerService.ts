@@ -6,6 +6,8 @@ import TrackPlayer, {
     usePlaybackState,
     useProgress,
     Track,
+    AppKilledPlaybackBehavior,
+    TrackType,
 } from 'react-native-track-player';
 import { MediaTrack } from './multimediaService';
 
@@ -16,93 +18,132 @@ class AudioPlayerService {
         if (this.isInitialized) return;
 
         try {
-            await TrackPlayer.setupPlayer();
+            await TrackPlayer.setupPlayer({
+                autoHandleDeviceAppearance: true,
+            });
+
             await TrackPlayer.updateOptions({
+                android: {
+                    appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+                    alwaysPauseOnInterruption: true,
+                },
                 capabilities: [
                     Capability.Play,
                     Capability.Pause,
                     Capability.SkipToNext,
                     Capability.SkipToPrevious,
                     Capability.Stop,
-                    Capability.SeekTo,
                 ],
                 compactCapabilities: [
                     Capability.Play,
                     Capability.Pause,
-                    Capability.SkipToNext,
+                    Capability.Stop,
                 ],
                 notificationCapabilities: [
                     Capability.Play,
                     Capability.Pause,
-                    Capability.SkipToNext,
-                    Capability.SkipToPrevious,
                     Capability.Stop,
                 ],
             });
+
+            // Set global listeners once
+            TrackPlayer.addEventListener(Event.PlaybackError, (error) => {
+                console.error('TrackPlayer Native Error:', error.message, 'Code:', error.code);
+            });
+
+            TrackPlayer.addEventListener(Event.PlaybackState, (state) => {
+                console.log('TrackPlayer State:', state.state);
+            });
+
             this.isInitialized = true;
-        } catch (error) {
-            console.error('TrackPlayer setup failed:', error);
+            console.log('TrackPlayer setup successful');
+        } catch (error: any) {
+            if (error?.message?.includes('already initialized') || error?.message?.includes('Player has already been setup')) {
+                this.isInitialized = true;
+            } else {
+                console.error('TrackPlayer setup failed:', error);
+            }
         }
     }
 
     async playTrack(track: MediaTrack) {
-        await this.setup();
+        try {
+            await this.setup();
+            await TrackPlayer.reset();
 
-        const formattedTrack: Track = {
-            id: String(track.ID),
-            url: track.url,
-            title: track.title,
-            artist: track.artist || 'Неизвестный исполнитель',
-            artwork: track.thumbnailUrl || 'https://via.placeholder.com/150',
-            duration: track.duration,
-        };
+            const formattedTrack: Track = {
+                id: 'track-' + track.ID,
+                url: track.url,
+                title: track.title,
+                artist: track.artist || 'Неизвестный исполнитель',
+                artwork: track.thumbnailUrl || 'https://via.placeholder.com/150',
+                duration: track.duration,
+                type: TrackType.Default,
+                userAgent: 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
+            };
 
-        await TrackPlayer.reset();
-        await TrackPlayer.add([formattedTrack]);
-        await TrackPlayer.play();
+            await TrackPlayer.add([formattedTrack]);
+            await TrackPlayer.play();
+        } catch (error) {
+            console.error('Failed to play track:', error);
+        }
     }
 
     async playRadio(name: string, url: string, logo?: string) {
-        await this.setup();
+        try {
+            console.log('--- Radio Connection Attempt ---');
+            console.log('Name:', name);
+            console.log('URL:', url);
 
-        const radioTrack: Track = {
-            id: 'radio-' + name,
-            url: url,
-            title: name,
-            artist: 'Онлайн Радио',
-            artwork: logo || 'https://via.placeholder.com/150',
-            isLiveStream: true,
-        };
+            await this.setup();
+            await TrackPlayer.reset();
 
-        await TrackPlayer.reset();
-        await TrackPlayer.add([radioTrack]);
-        await TrackPlayer.play();
+            // Artificial delay to ensure reset is processed by the native side
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            const radioTrack: Track = {
+                id: 'radio-' + Date.now(), // Force unique ID to avoid caching issues
+                url: url,
+                title: name,
+                artist: 'Online Radio',
+                artwork: logo || 'https://via.placeholder.com/150',
+                isLiveStream: true,
+                type: TrackType.Default,
+                userAgent: 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
+                headers: {
+                    'Icy-MetaData': '1',
+                    'Connection': 'keep-alive'
+                }
+            };
+
+            await TrackPlayer.add([radioTrack]);
+            await TrackPlayer.play();
+        } catch (error) {
+            console.error('Radio play initiated error:', error);
+        }
     }
 
     async pause() {
-        await TrackPlayer.pause();
+        try { await TrackPlayer.pause(); } catch (e) { }
     }
 
     async resume() {
-        await TrackPlayer.play();
+        try { await TrackPlayer.play(); } catch (e) { }
     }
 
     async stop() {
-        await TrackPlayer.stop();
+        try { await TrackPlayer.stop(); } catch (e) { }
     }
 
     async seekTo(seconds: number) {
-        await TrackPlayer.seekTo(seconds);
+        try { await TrackPlayer.seekTo(seconds); } catch (e) { }
     }
 }
 
 export const audioPlayerService = new AudioPlayerService();
 
-// Playback Service for background tasks (must be registered in index.js)
 export const PlaybackService = async function () {
     TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
     TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
-    TrackPlayer.addEventListener(Event.RemoteStop, () => TrackPlayer.destroy());
-    TrackPlayer.addEventListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
-    TrackPlayer.addEventListener(Event.RemotePrevious, () => TrackPlayer.skipToPrevious());
+    TrackPlayer.addEventListener(Event.RemoteStop, () => TrackPlayer.stop());
 };

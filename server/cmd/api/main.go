@@ -99,8 +99,9 @@ func main() {
 	multimediaHandler := handlers.NewMultimediaHandler()
 	// bookHandler removed, using library functions directly
 
-	// Restore scheduler state from database
+	// Restore scheduler states from database
 	aiHandler.RestoreScheduler()
+	multimediaHandler.RestoreRadioScheduler()
 
 	// Routes
 	api := app.Group("/api")

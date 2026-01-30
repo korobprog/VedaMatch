@@ -16,11 +16,12 @@ import {
     ChevronDown,
     Volume2,
     Share2,
-    Radio
+    Radio as RadioIcon
 } from 'lucide-react-native';
-import TrackPlayer, { usePlaybackState, State } from 'react-native-track-player';
+import TrackPlayer, { usePlaybackState, State, Event } from 'react-native-track-player';
 import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
+import { ActivityIndicator } from 'react-native';
 import { audioPlayerService } from '../../services/audioPlayerService';
 import { RadioStation } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
@@ -34,37 +35,62 @@ export const RadioPlayerScreen: React.FC = () => {
     const playbackState = usePlaybackState();
     const { station } = route.params as { station: RadioStation };
     const [volume, setVolume] = useState(0.7);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const isPlaying = playbackState.state === State.Playing;
+    // TrackPlayer v4 state handling
+    const state = playbackState.state;
+    const isPlaying = state === State.Playing;
+    const isBuffering = state === State.Buffering || state === State.Loading;
 
     useEffect(() => {
+        const listener = TrackPlayer.addEventListener(Event.PlaybackError, (error) => {
+            console.error('Screen PlaybackError:', error);
+            setErrorMessage(`Ошибка: ${error.message || 'Не удалось подключиться'}`);
+        });
+
         if (station) {
+            setErrorMessage(null);
             audioPlayerService.playRadio(station.name, station.streamUrl, station.logoUrl);
         }
         initVolume();
+
+        return () => listener.remove();
     }, [station]);
 
     const initVolume = async () => {
-        const vol = await TrackPlayer.getVolume();
-        setVolume(vol);
+        try {
+            const vol = await TrackPlayer.getVolume();
+            setVolume(vol);
+        } catch (e) {
+            console.error('Failed to get volume', e);
+        }
     };
 
     const togglePlayback = async () => {
-        if (isPlaying) {
-            await audioPlayerService.pause();
-        } else {
-            await audioPlayerService.resume();
+        setErrorMessage(null);
+        try {
+            if (isPlaying) {
+                await audioPlayerService.pause();
+            } else {
+                await audioPlayerService.playRadio(station.name, station.streamUrl, station.logoUrl);
+            }
+        } catch (e) {
+            console.error('Toggle playback failed', e);
         }
     };
 
     const handleVolumeChange = async (value: number) => {
         setVolume(value);
-        await TrackPlayer.setVolume(value);
+        try {
+            await TrackPlayer.setVolume(value);
+        } catch (e) {
+            console.error('Failed to set volume', e);
+        }
     };
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" transparent />
+            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
             <LinearGradient
                 colors={isDarkMode ? ['#1a1c2c', '#4a192c'] : [vTheme.colors.primary, '#f8fafc']}
                 style={StyleSheet.absoluteFill}
@@ -92,7 +118,7 @@ export const RadioPlayerScreen: React.FC = () => {
                             <Image source={{ uri: station.logoUrl }} style={styles.logo} />
                         ) : (
                             <View style={[styles.logoPlaceholder, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-                                <Radio size={width * 0.3} color="#fff" />
+                                <RadioIcon size={width * 0.3} color="#fff" />
                             </View>
                         )}
                         <View style={[styles.liveBadge, { backgroundColor: vTheme.colors.accent }]}>
@@ -102,8 +128,19 @@ export const RadioPlayerScreen: React.FC = () => {
 
                     <View style={styles.infoContainer}>
                         <Text style={[styles.name, { color: '#fff' }]}>{station.name}</Text>
-                        <Text style={[styles.description, { color: 'rgba(255,255,255,0.7)' }]}>
-                            {station.description || 'Радиостанция духовного вещания'}
+
+                        <View style={styles.statusRow}>
+                            <View style={[
+                                styles.statusDot,
+                                { backgroundColor: station.status === 'online' ? '#4ade80' : station.status === 'offline' ? '#f87171' : '#fbbf24' }
+                            ]} />
+                            <Text style={styles.statusLabel}>
+                                {station.status === 'online' ? 'В сети' : station.status === 'offline' ? 'Не в сети' : 'Проверка...'}
+                            </Text>
+                        </View>
+
+                        <Text style={[styles.description, { color: errorMessage ? '#ff6b6b' : 'rgba(255,255,255,0.7)' }]}>
+                            {errorMessage || (isBuffering ? 'Подключение к серверу...' : (station.description || 'Радиостанция духовного вещания'))}
                         </Text>
                     </View>
 
@@ -111,8 +148,11 @@ export const RadioPlayerScreen: React.FC = () => {
                         <TouchableOpacity
                             style={[styles.playButton, { backgroundColor: '#fff' }]}
                             onPress={togglePlayback}
+                            disabled={isBuffering && !errorMessage}
                         >
-                            {isPlaying ? (
+                            {isBuffering ? (
+                                <ActivityIndicator size="large" color={vTheme.colors.primary} />
+                            ) : isPlaying ? (
                                 <Pause size={42} color={vTheme.colors.primary} fill={vTheme.colors.primary} />
                             ) : (
                                 <Play size={42} color={vTheme.colors.primary} fill={vTheme.colors.primary} style={{ marginLeft: 6 }} />
@@ -215,7 +255,29 @@ const styles = StyleSheet.create({
     },
     infoContainer: {
         alignItems: 'center',
-        marginBottom: 50,
+        marginBottom: 40,
+    },
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 10,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 20,
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 6,
+    },
+    statusLabel: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     name: {
         fontSize: 32,

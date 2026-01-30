@@ -8,9 +8,12 @@ export class WebSocketService {
     private reconnectAttempts = 0;
     private maxReconnectAttempts = 5;
 
-    constructor(userId: number, onMessage: (message: any) => void) {
+    private onAuthError?: () => void;
+
+    constructor(userId: number, onMessage: (message: any) => void, onAuthError?: () => void) {
         this.userId = userId;
         this.onMessageCallback = onMessage;
+        this.onAuthError = onAuthError;
     }
 
     async connect() {
@@ -21,50 +24,60 @@ export class WebSocketService {
         let token = null;
         try {
             token = await AsyncStorage.getItem('token');
+            if (token === 'undefined' || token === 'null') {
+                token = null;
+            }
         } catch (error) {
-            console.error('[WebSocket] Error retrieving token:', error);
+            console.warn('[WebSocket] Error retrieving token:', error);
         }
 
-        const url = `${WS_PATH}/ws/${this.userId}?token=${token || ''}`;
-        console.log(`[WebSocket] Connecting to ${url}`);
+        if (!token) {
+            console.warn('[WebSocket] No valid token found, skipping connection');
+            return;
+        }
+
+        const url = `${WS_PATH}/ws/${this.userId}?token=${token}`;
+        console.log(`[WebSocket] Connecting to bridge...`);
 
         this.socket = new WebSocket(url);
 
         this.socket.onopen = () => {
-            console.log('[WebSocket] Connected');
+            console.log('[WebSocket] Connection established');
             this.reconnectAttempts = 0;
         };
 
         this.socket.onmessage = (event) => {
             try {
-                if (!event.data) {
-                    console.warn('[WebSocket] Received empty message');
-                    return;
-                }
-                const dataStr = String(event.data);
-                if (dataStr === 'undefined' || dataStr === 'null') {
-                    console.warn(`[WebSocket] Received "${dataStr}" string as message, ignoring.`);
-                    return;
-                }
-                const message = JSON.parse(dataStr);
+                if (!event.data) return;
 
+                const dataStr = String(event.data);
+                if (dataStr === 'undefined' || dataStr === 'null') return;
+
+                const message = JSON.parse(dataStr);
                 if (this.onMessageCallback) {
                     this.onMessageCallback(message);
                 }
             } catch (error) {
-                console.error('[WebSocket] Error parsing message:', error);
-                console.log('Raw message data type:', typeof event.data);
-                console.log('Raw message data:', event.data);
+                // Silently handle parse errors to avoid RedBox
+                console.warn('[WebSocket] Ignored non-json message');
             }
         };
 
         this.socket.onclose = (event) => {
-            console.log(`[WebSocket] Disconnected: ${event.reason}`);
+            console.log(`[WebSocket] Closed: ${event.reason || 'No reason'}`);
             this.reconnect();
         };
 
-        this.socket.onerror = (error) => {
-            console.error('[WebSocket] Error', error);
+        this.socket.onerror = (error: any) => {
+            const errorMsg = error?.message || '';
+            console.warn('[WebSocket] Connection error:', errorMsg);
+
+            if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+                console.error('[WebSocket] AUTH_FAILURE: Token expired or invalid');
+                if (this.onAuthError) {
+                    this.onAuthError();
+                }
+            }
         };
     }
 
@@ -75,7 +88,7 @@ export class WebSocketService {
             console.log(`[WebSocket] Reconnecting in ${timeout}ms...`);
             setTimeout(() => this.connect(), timeout);
         } else {
-            console.error('[WebSocket] Max reconnect attempts reached');
+            console.warn('[WebSocket] Max reconnect attempts reached');
         }
     }
 

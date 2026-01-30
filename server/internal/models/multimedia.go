@@ -38,7 +38,7 @@ type MediaTrack struct {
 	MediaType    MediaType      `json:"mediaType" gorm:"type:varchar(10);index;not null"` // audio or video
 	URL          string         `json:"url" gorm:"not null"`                              // S3 URL or external URL
 	ThumbnailURL string         `json:"thumbnailUrl"`
-	CategoryID   uint           `json:"categoryId" gorm:"index"`
+	CategoryID   *uint          `json:"categoryId" gorm:"index"`
 	Category     *MediaCategory `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
 	Madh         string         `json:"madh" gorm:"index"` // Filter by spiritual tradition
 	YogaStyle    string         `json:"yogaStyle"`
@@ -57,18 +57,20 @@ type MediaTrack struct {
 // RadioStation represents an online radio stream
 type RadioStation struct {
 	gorm.Model
-	Name        string `json:"name" gorm:"not null"`
-	Description string `json:"description"`
-	StreamURL   string `json:"streamUrl" gorm:"not null"` // HLS/Icecast stream URL
-	LogoURL     string `json:"logoUrl"`
-	Madh        string `json:"madh" gorm:"index"`
-	Language    string `json:"language" gorm:"default:'ru'"`
-	StreamType  string `json:"streamType" gorm:"default:'external'"` // external, rtmp (for future)
-	IsLive      bool   `json:"isLive" gorm:"default:true"`
-	ViewerCount int    `json:"viewerCount" gorm:"default:0"`
-	SortOrder   int    `json:"sortOrder" gorm:"default:0"`
-	IsActive    bool   `json:"isActive" gorm:"default:true"`
-	CreatedByID uint   `json:"createdById"`
+	Name          string     `json:"name" gorm:"not null"`
+	Description   string     `json:"description"`
+	StreamURL     string     `json:"streamUrl" gorm:"not null"` // HLS/Icecast stream URL
+	LogoURL       string     `json:"logoUrl"`
+	Madh          string     `json:"madh" gorm:"index"`
+	Language      string     `json:"language" gorm:"default:'ru'"`
+	StreamType    string     `json:"streamType" gorm:"default:'external'"` // external, rtmp (for future)
+	IsLive        bool       `json:"isLive" gorm:"default:true"`
+	ViewerCount   int        `json:"viewerCount" gorm:"default:0"`
+	SortOrder     int        `json:"sortOrder" gorm:"default:0"`
+	IsActive      bool       `json:"isActive" gorm:"default:true"`
+	CreatedByID   uint       `json:"createdById"`
+	Status        string     `json:"status" gorm:"default:'unknown'"` // online, offline, unknown
+	LastCheckedAt *time.Time `json:"lastCheckedAt"`
 }
 
 // TVChannel represents a TV streaming channel

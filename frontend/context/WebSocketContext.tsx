@@ -11,18 +11,25 @@ interface WebSocketContextType {
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user } = useUser();
+    const { user, logout } = useUser();
     const wsServiceRef = useRef<WebSocketService | null>(null);
     const listenersRef = useRef<Set<(msg: any) => void>>(new Set());
 
     useEffect(() => {
         if (user?.ID) {
-            wsServiceRef.current = new WebSocketService(user.ID, (msg) => {
-                if (['offer', 'answer', 'candidate', 'hangup'].includes(msg.type)) {
-                    webRTCService.handleSignalingMessage(msg);
+            wsServiceRef.current = new WebSocketService(
+                user.ID,
+                (msg) => {
+                    if (['offer', 'answer', 'candidate', 'hangup'].includes(msg.type)) {
+                        webRTCService.handleSignalingMessage(msg);
+                    }
+                    listenersRef.current.forEach(listener => listener(msg));
+                },
+                () => {
+                    console.error('[WebSocketContext] Auth failure detected, logging out...');
+                    logout();
                 }
-                listenersRef.current.forEach(listener => listener(msg));
-            });
+            );
             wsServiceRef.current.connect();
             webRTCService.setWebSocketService(wsServiceRef.current);
         }

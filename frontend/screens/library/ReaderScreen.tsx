@@ -436,7 +436,7 @@ export const ReaderScreen = () => {
                     >
                         <ChevronLeft size={24} color={ModernVedicTheme.colors.primary} />
                     </TouchableOpacity>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll} contentContainerStyle={{ alignItems: 'center' }}>
                         {chapters.map((ch) => (
                             <TouchableOpacity
                                 key={`${ch.canto}-${ch.chapter}`}
@@ -452,6 +452,7 @@ export const ReaderScreen = () => {
                                     currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && readerTheme === 'ancient' && { color: '#BF360C' }
                                 ]}>
                                     {t('reader.chapter', 'Chapter')} {ch.chapter}
+                                    {ch.chapter_title ? `: ${ch.chapter_title}` : ''}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -796,7 +797,7 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     chapterSelector: {
-        height: 50,
+        height: 70, // Increased height to show titles clearly
         backgroundColor: '#FFF',
         borderBottomWidth: 1,
         borderBottomColor: '#F0F0F0',
@@ -856,6 +857,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         justifyContent: 'center',
         alignItems: 'center',
+        height: '100%',
+        minWidth: 80,
     },
     activeBtn: {
         borderBottomWidth: 2,

@@ -202,6 +202,7 @@ export default function MultimediaPage() {
                 <MediaModal
                     type={tab}
                     item={editItem}
+                    categories={categories || []}
                     onClose={() => setShowModal(false)}
                     onSave={() => {
                         setShowModal(false);
@@ -371,10 +372,33 @@ function CategoriesTable({ categories, search, onEdit, onDelete }: any) {
     );
 }
 
-function MediaModal({ type, item, onClose, onSave }: { type: TabType; item: any; onClose: () => void; onSave: () => void }) {
+function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType; item: any; onClose: () => void; onSave: () => void; categories: MediaCategory[] }) {
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [form, setForm] = useState(item || {});
+
+    // Initialize form with default values if it's a new item
+    const [form, setForm] = useState(() => {
+        if (item) return { ...item };
+
+        const defaults: any = {};
+        if (type === 'tracks') {
+            defaults.mediaType = 'audio';
+            defaults.language = 'ru';
+            defaults.isActive = true;
+        } else if (type === 'radio') {
+            defaults.streamType = 'external';
+            defaults.isLive = true;
+            defaults.isActive = true;
+        } else if (type === 'tv') {
+            defaults.streamType = 'youtube';
+            defaults.isLive = true;
+            defaults.isActive = true;
+        } else if (type === 'categories') {
+            defaults.type = 'audio';
+            defaults.isActive = true;
+        }
+        return defaults;
+    });
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
         const file = e.target.files?.[0];
@@ -462,6 +486,19 @@ function MediaModal({ type, item, onClose, onSave }: { type: TabType; item: any;
                                         <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'thumbnailUrl')} />
                                     </label>
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Category</label>
+                                <select
+                                    value={form.categoryId || ''}
+                                    onChange={e => setForm({ ...form, categoryId: e.target.value ? parseInt(e.target.value) : null })}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="">No Category</option>
+                                    {categories?.filter(c => c.type === form.mediaType).map(c => (
+                                        <option key={c.ID} value={c.ID}>{c.name}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Madh (Optional)</label>

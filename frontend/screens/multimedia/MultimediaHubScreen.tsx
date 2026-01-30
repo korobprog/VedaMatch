@@ -143,11 +143,17 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
                                     </View>
                                 )}
                                 <Text style={[styles.radioName, { color: vTheme.colors.text }]} numberOfLines={1}>{station.name}</Text>
-                                {station.isLive && (
-                                    <View style={[styles.liveBadge, { backgroundColor: vTheme.colors.accent }]}>
-                                        <Text style={styles.liveBadgeText}>LIVE</Text>
-                                    </View>
-                                )}
+                                <View style={[
+                                    styles.liveBadge,
+                                    { backgroundColor: station.status === 'online' ? '#4ade8020' : '#f8717120' }
+                                ]}>
+                                    <Text style={[
+                                        styles.liveBadgeText,
+                                        { color: station.status === 'online' ? '#166534' : '#991b1b' }
+                                    ]}>
+                                        {station.status === 'online' ? 'В СЕТИ' : 'ОФФЛАЙН'}
+                                    </Text>
+                                </View>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>

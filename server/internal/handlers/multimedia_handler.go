@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
@@ -105,9 +106,9 @@ func (h *MultimediaHandler) CreateTrack(c *fiber.Ctx) error {
 	}
 
 	// Get admin ID from context
-	userID := c.Locals("userId")
-	if userID != nil {
-		track.CreatedByID = userID.(uint)
+	userID := middleware.GetUserID(c)
+	if userID != 0 {
+		track.CreatedByID = userID
 	}
 
 	if err := h.service.CreateTrack(&track); err != nil {
@@ -129,12 +130,13 @@ func (h *MultimediaHandler) UpdateTrack(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
 	}
 
-	var updates map[string]interface{}
-	if err := c.BodyParser(&updates); err != nil {
+	var track models.MediaTrack
+	if err := c.BodyParser(&track); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	track.ID = uint(id)
 
-	if err := h.service.UpdateTrack(uint(id), updates); err != nil {
+	if err := h.service.UpdateTrack(&track); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Track updated"})
@@ -207,9 +209,9 @@ func (h *MultimediaHandler) CreateRadioStation(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	userID := c.Locals("userId")
-	if userID != nil {
-		station.CreatedByID = userID.(uint)
+	userID := middleware.GetUserID(c)
+	if userID != 0 {
+		station.CreatedByID = userID
 	}
 
 	if err := h.service.CreateRadioStation(&station); err != nil {
@@ -231,12 +233,13 @@ func (h *MultimediaHandler) UpdateRadioStation(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid station ID"})
 	}
 
-	var updates map[string]interface{}
-	if err := c.BodyParser(&updates); err != nil {
+	var station models.RadioStation
+	if err := c.BodyParser(&station); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	station.ID = uint(id)
 
-	if err := h.service.UpdateRadioStation(uint(id), updates); err != nil {
+	if err := h.service.UpdateRadioStation(&station); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Station updated"})
@@ -309,9 +312,9 @@ func (h *MultimediaHandler) CreateTVChannel(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	userID := c.Locals("userId")
-	if userID != nil {
-		channel.CreatedByID = userID.(uint)
+	userID := middleware.GetUserID(c)
+	if userID != 0 {
+		channel.CreatedByID = userID
 	}
 
 	if err := h.service.CreateTVChannel(&channel); err != nil {
@@ -333,12 +336,13 @@ func (h *MultimediaHandler) UpdateTVChannel(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid channel ID"})
 	}
 
-	var updates map[string]interface{}
-	if err := c.BodyParser(&updates); err != nil {
+	var channel models.TVChannel
+	if err := c.BodyParser(&channel); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	channel.ID = uint(id)
 
-	if err := h.service.UpdateTVChannel(uint(id), updates); err != nil {
+	if err := h.service.UpdateTVChannel(&channel); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Channel updated"})
@@ -408,11 +412,11 @@ func (h *MultimediaHandler) CreateSuggestion(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	userID := c.Locals("userId")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	suggestion.UserID = userID.(uint)
+	suggestion.UserID = userID
 	suggestion.Status = "pending"
 
 	if err := h.service.CreateSuggestion(&suggestion); err != nil {
@@ -455,12 +459,12 @@ func (h *MultimediaHandler) ReviewSuggestion(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	userID := c.Locals("userId")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	if err := h.service.ReviewSuggestion(uint(id), body.Status, body.AdminNote, userID.(uint)); err != nil {
+	if err := h.service.ReviewSuggestion(uint(id), body.Status, body.AdminNote, userID); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Suggestion reviewed"})
@@ -480,12 +484,12 @@ func (h *MultimediaHandler) AddToFavorites(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
 	}
 
-	userID := c.Locals("userId")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	if err := h.service.AddToFavorites(userID.(uint), uint(trackID)); err != nil {
+	if err := h.service.AddToFavorites(userID, uint(trackID)); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Added to favorites"})
@@ -503,12 +507,12 @@ func (h *MultimediaHandler) RemoveFromFavorites(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
 	}
 
-	userID := c.Locals("userId")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	if err := h.service.RemoveFromFavorites(userID.(uint), uint(trackID)); err != nil {
+	if err := h.service.RemoveFromFavorites(userID, uint(trackID)); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Removed from favorites"})
@@ -520,15 +524,15 @@ func (h *MultimediaHandler) RemoveFromFavorites(c *fiber.Ctx) error {
 // @Success 200 {array} models.MediaTrack
 // @Router /api/multimedia/favorites [get]
 func (h *MultimediaHandler) GetFavorites(c *fiber.Ctx) error {
-	userID := c.Locals("userId")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 20)
 
-	tracks, total, err := h.service.GetUserFavorites(userID.(uint), page, limit)
+	tracks, total, err := h.service.GetUserFavorites(userID, page, limit)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -589,12 +593,13 @@ func (h *MultimediaHandler) UpdateCategory(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid category ID"})
 	}
 
-	var updates map[string]interface{}
-	if err := c.BodyParser(&updates); err != nil {
+	var category models.MediaCategory
+	if err := c.BodyParser(&category); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	category.ID = uint(id)
 
-	if err := h.service.UpdateCategory(uint(id), updates); err != nil {
+	if err := h.service.UpdateCategory(&category); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Category updated"})
@@ -616,4 +621,11 @@ func (h *MultimediaHandler) DeleteCategory(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Category deleted"})
+}
+
+func (h *MultimediaHandler) RestoreRadioScheduler() {
+	log.Println("[Scheduler] Initializing Radio Health Check task...")
+	services.GlobalScheduler.RegisterTask("radio_health_check", 10, func() {
+		h.service.CheckRadioStatus()
+	})
 }
