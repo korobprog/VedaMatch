@@ -23,6 +23,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import { X } from 'lucide-react-native';
 import { useSettings } from '../context/SettingsContext';
 import { PortalLayoutProvider } from '../context/PortalLayoutContext';
+import LinearGradient from 'react-native-linear-gradient';
 import { PortalGrid } from './portal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -149,9 +150,16 @@ export const PortalDrawer: React.FC<PortalDrawerProps> = ({
             statusBarTranslucent
         >
             <GestureHandlerRootView style={styles.container}>
-                {/* Animated Backdrop */}
+                {/* Animated Backdrop with Gradient */}
                 <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
-                    <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                    <LinearGradient
+                        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.6)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={StyleSheet.absoluteFill}
+                    >
+                        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                    </LinearGradient>
                 </Animated.View>
 
                 {/* Animated Drawer */}
@@ -162,7 +170,6 @@ export const PortalDrawer: React.FC<PortalDrawerProps> = ({
                             drawerAnimatedStyle,
                             {
                                 backgroundColor: vTheme.colors.background,
-                                borderRightColor: vTheme.colors.primary,
                             },
                         ]}
                     >
@@ -213,11 +220,11 @@ const styles = StyleSheet.create({
         left: 0,
         bottom: 0,
         width: DRAWER_WIDTH,
-        borderRightWidth: 2,
+        // Removed borderRightWidth for a cleaner "blur" look
         shadowColor: '#000',
-        shadowOffset: { width: 4, height: 0 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
+        shadowOffset: { width: 10, height: 0 },
+        shadowOpacity: 0.2, // Softer shadow
+        shadowRadius: 30, // Much larger radius for a blurred appearance
         elevation: 24,
     },
     header: {

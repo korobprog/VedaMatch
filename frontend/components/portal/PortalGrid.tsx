@@ -347,8 +347,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                 styles.editToolbar,
                 {
                     backgroundColor: isDarkMode
-                        ? 'rgba(0,0,0,0.8)'
-                        : 'rgba(255,255,255,0.9)',
+                        ? '#1A1A1A'
+                        : '#F5F5F5',
                     borderColor: vTheme.colors.primary,
                 }
             ]}
@@ -414,8 +414,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                         styles.newFolderContainer,
                         {
                             backgroundColor: isDarkMode
-                                ? 'rgba(30,30,30,0.95)'
-                                : 'rgba(255,255,255,0.95)',
+                                ? '#1E1E1E'
+                                : '#FFFFFF',
                             borderColor: vTheme.colors.primary,
                         }
                     ]}>

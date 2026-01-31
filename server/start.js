@@ -32,9 +32,13 @@ console.log('📦 Запускаю PostgreSQL...');
 try {
   // Пробуем docker-compose (старая версия) или docker compose (новая версия)
   try {
+    // Запускаем все сервисы в фоне
     execSync('docker-compose up -d', { stdio: 'inherit' });
+    // Останавливаем контейнер server, так как мы запускаем его локально
+    try { execSync('docker stop rag-agent-server', { stdio: 'ignore' }); } catch (e) { }
   } catch (error) {
     execSync('docker compose up -d', { stdio: 'inherit' });
+    try { execSync('docker stop rag-agent-server', { stdio: 'ignore' }); } catch (e) { }
   }
 } catch (error) {
   console.error('❌ Ошибка при запуске PostgreSQL');

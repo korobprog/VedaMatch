@@ -194,7 +194,7 @@ export const KrishnaAssistant: React.FC = () => {
                             marginBottom: 10,
                             marginRight: 20,
                             width: 150, // Narrower for auth screens
-                            backgroundColor: 'rgba(255, 215, 0, 0.8)' // More transparent
+                            backgroundColor: '#FFD700' // Solid color for better shadow perf
                         } : { marginBottom: 10 }
                     ]}>
                         <TouchableOpacity style={styles.closeBtn} onPress={rollOut}>
@@ -266,7 +266,8 @@ const styles = StyleSheet.create({
         width: 80,
         height: 30,
         borderRadius: 40,
-        backgroundColor: 'rgba(255, 215, 0, 0.4)',
+        backgroundColor: '#FFD700',
+        opacity: 0.4, // Move transparency to opacity to keep BG solid for shadow calculation
         shadowColor: '#FFD700',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 1,
@@ -347,7 +348,8 @@ const styles = StyleSheet.create({
         top: '50%',
         marginTop: -30,
         right: 0,
-        backgroundColor: 'rgba(255, 153, 51, 0.8)',
+        backgroundColor: '#FF9933',
+        opacity: 0.9,
         paddingHorizontal: 8,
         paddingVertical: 12,
         borderTopLeftRadius: 30,

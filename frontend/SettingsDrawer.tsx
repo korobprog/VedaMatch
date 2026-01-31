@@ -7,25 +7,25 @@ import {
     TouchableOpacity,
     Dimensions,
     Modal,
-    Animated,
+    Pressable,
     FlatList,
     Image,
     Alert,
     Platform,
 } from 'react-native';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withTiming,
+    interpolate,
+    Extrapolate,
+    runOnJS,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
     Plus,
     MessageSquare,
     Trash2,
-    Users,
-    MessageCircle,
-    Heart,
-    ShoppingBag,
-    Megaphone,
-    Newspaper,
-    Book,
-    Map,
-    ChevronRight,
     User,
     LogIn,
     Settings,
@@ -34,6 +34,7 @@ import { useSettings } from './context/SettingsContext';
 import { useUser } from './context/UserContext';
 import { useChat } from './context/ChatContext';
 import { useTranslation } from 'react-i18next';
+import LinearGradient from 'react-native-linear-gradient';
 import { getMediaUrl } from './utils/url';
 
 const DRAWER_WIDTH = Dimensions.get('window').width * 0.8;
@@ -44,7 +45,6 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     currentModel: string;
     onSelectModel: (model: { id: string; provider: string }) => void;
-    onNavigateToPortal: (tab: string) => void;
     onNavigateToSettings: () => void;
     onNavigateToRegistration: () => void;
 }
@@ -55,96 +55,103 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     isDarkMode,
     currentModel,
     onSelectModel,
-    onNavigateToPortal,
     onNavigateToSettings,
     onNavigateToRegistration,
 }) => {
-    const { fetchModels, defaultMenuTab, vTheme } = useSettings();
+    const { fetchModels, vTheme } = useSettings();
     const { user, isLoggedIn } = useUser();
     const { history, loadChat, deleteChat, handleNewChat, currentChatId } = useChat();
     const { t } = useTranslation();
 
-    const [activeTab, setActiveTab] = useState<'history' | 'portal'>(defaultMenuTab);
-    const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
-    const overlayAnim = useRef(new Animated.Value(0)).current;
+    const drawerProgress = useSharedValue(0);
 
     useEffect(() => {
         if (isVisible) {
-            setActiveTab(defaultMenuTab);
-        }
-    }, [isVisible, defaultMenuTab]);
-
-    useEffect(() => {
-        if (isVisible) {
-            Animated.parallel([
-                Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-                Animated.timing(overlayAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-            ]).start();
+            drawerProgress.value = withTiming(1, { duration: 300 });
             fetchModels();
         } else {
-            Animated.parallel([
-                Animated.timing(slideAnim, { toValue: -DRAWER_WIDTH, duration: 300, useNativeDriver: true }),
-                Animated.timing(overlayAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-            ]).start();
+            drawerProgress.value = withTiming(0, { duration: 300 });
         }
     }, [isVisible]);
 
     const handleClose = () => {
-        Animated.parallel([
-            Animated.timing(slideAnim, { toValue: -DRAWER_WIDTH, duration: 300, useNativeDriver: true }),
-            Animated.timing(overlayAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ]).start(() => onClose());
+        drawerProgress.value = withTiming(0, { duration: 300 });
+        onClose();
     };
 
-    const menuItems = [
-        { id: 'contacts', icon: Users, color: '#3B82F6', label: t('settings.tabs.contacts') },
-        { id: 'chat', icon: MessageCircle, color: vTheme.colors.textSecondary, label: t('settings.tabs.chat') },
-        { id: 'dating', icon: Heart, color: '#EC4899', label: t('settings.tabs.dating'), fill: true },
-        { id: 'shops', icon: ShoppingBag, color: vTheme.colors.primary, label: t('settings.tabs.shops') },
-        { id: 'ads', icon: Megaphone, color: '#EF4444', label: t('settings.tabs.ads') },
-        { id: 'news', icon: Newspaper, color: vTheme.colors.textSecondary, label: t('settings.tabs.news') },
-        { id: 'map', icon: Map, color: '#7C3AED', label: t('settings.tabs.map') },
-        { id: 'library', icon: Book, color: '#43A047', label: t('settings.tabs.library') },
-    ];
+    const drawerAnimatedStyle = useAnimatedStyle(() => {
+        const translateX = interpolate(
+            drawerProgress.value,
+            [0, 1],
+            [DRAWER_WIDTH, 0],
+            Extrapolate.CLAMP
+        );
+        return {
+            transform: [{ translateX }],
+        };
+    });
+
+    const backdropAnimatedStyle = useAnimatedStyle(() => {
+        return {
+            opacity: drawerProgress.value,
+        };
+    });
+
+    const panGesture = Gesture.Pan()
+        .onUpdate((event) => {
+            if (event.translationX > 0) {
+                drawerProgress.value = interpolate(
+                    event.translationX,
+                    [0, DRAWER_WIDTH],
+                    [1, 0],
+                    Extrapolate.CLAMP
+                );
+            }
+        })
+        .onEnd((event) => {
+            if (event.translationX > 100 || event.velocityX > 500) {
+                runOnJS(handleClose)();
+            } else {
+                drawerProgress.value = withTiming(1, { duration: 200 });
+            }
+        });
+
 
     return (
         <Modal transparent visible={isVisible} onRequestClose={handleClose} animationType="none">
-            <View style={styles.container}>
-                {/* Overlay */}
-                <Animated.View style={[styles.overlay, { opacity: overlayAnim }]}>
-                    <TouchableOpacity style={styles.overlayTouch} onPress={handleClose} />
+            <GestureHandlerRootView style={styles.container}>
+                {/* Overlay with Gradient */}
+                <Animated.View style={[styles.overlay, backdropAnimatedStyle]}>
+                    <LinearGradient
+                        colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={StyleSheet.absoluteFill}
+                    >
+                        <Pressable style={styles.overlayTouch} onPress={handleClose} />
+                    </LinearGradient>
                 </Animated.View>
 
                 {/* Drawer */}
-                <Animated.View
-                    style={[
-                        styles.drawer,
-                        { backgroundColor: vTheme.colors.background, transform: [{ translateX: slideAnim }], width: DRAWER_WIDTH },
-                    ]}
-                >
-                    {/* Tab Bar */}
-                    <View style={styles.tabBar}>
-                        <TouchableOpacity
-                            style={[styles.tab, activeTab === 'history' && { borderBottomColor: vTheme.colors.primary, borderBottomWidth: 3 }]}
-                            onPress={() => setActiveTab('history')}
-                        >
-                            <Text style={[styles.tabText, { color: vTheme.colors.text, opacity: activeTab === 'history' ? 1 : 0.5 }]}>
-                                {t('chat.history')}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.tab, activeTab === 'portal' && { borderBottomColor: vTheme.colors.primary, borderBottomWidth: 3 }]}
-                            onPress={() => setActiveTab('portal')}
-                        >
-                            <Text style={[styles.tabText, { color: vTheme.colors.text, opacity: activeTab === 'portal' ? 1 : 0.5 }]}>
-                                {t('settings.title')}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                <GestureDetector gesture={panGesture}>
+                    <Animated.View
+                        style={[
+                            styles.drawer,
+                            { backgroundColor: vTheme.colors.background, width: DRAWER_WIDTH },
+                            drawerAnimatedStyle,
+                        ]}
+                    >
+                        {/* Header / Tab Replacement */}
+                        <View style={styles.tabBar}>
+                            <View style={[styles.tab, { borderBottomColor: vTheme.colors.primary, borderBottomWidth: 3 }]}>
+                                <Text style={[styles.tabText, { color: vTheme.colors.text }]}>
+                                    {t('chat.history')}
+                                </Text>
+                            </View>
+                        </View>
 
-                    {/* Content */}
-                    <View style={styles.content}>
-                        {activeTab === 'history' ? (
+                        {/* Content */}
+                        <View style={styles.content}>
                             <View style={styles.historyContainer}>
                                 {/* New Chat Button */}
                                 <TouchableOpacity
@@ -200,63 +207,45 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                     }
                                 />
                             </View>
-                        ) : (
-                            <View style={styles.menuContainer}>
-                                {menuItems.map((item) => (
-                                    <TouchableOpacity
-                                        key={item.id}
-                                        style={[styles.menuItem, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }]}
-                                        onPress={() => onNavigateToPortal(item.id)}
-                                    >
-                                        <View style={styles.menuItemLeft}>
-                                            <View style={[styles.iconWrapper, { backgroundColor: `${item.color}15` }]}>
-                                                <item.icon size={22} color={item.color} strokeWidth={2} fill={item.fill ? item.color : 'none'} />
-                                            </View>
-                                            <Text style={[styles.menuItemText, { color: vTheme.colors.text }]}>{item.label}</Text>
-                                        </View>
-                                        <ChevronRight size={18} color={vTheme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
-                    </View>
+                        </View>
 
-                    {/* Footer */}
-                    <View style={[styles.footer, { borderTopColor: vTheme.colors.divider, backgroundColor: vTheme.colors.backgroundSecondary }]}>
-                        {isLoggedIn ? (
-                            <View style={styles.profileSection}>
-                                <View style={[styles.avatarCircle, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider }]}>
-                                    {user?.avatar ? (
-                                        <Image source={{ uri: getMediaUrl(user.avatar) || '' }} style={styles.avatarImage} />
-                                    ) : (
-                                        <User size={22} color={vTheme.colors.textSecondary} />
-                                    )}
+                        {/* Footer */}
+                        <View style={[styles.footer, { borderTopColor: vTheme.colors.divider, backgroundColor: vTheme.colors.backgroundSecondary }]}>
+                            {isLoggedIn ? (
+                                <View style={styles.profileSection}>
+                                    <View style={[styles.avatarCircle, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider }]}>
+                                        {user?.avatar ? (
+                                            <Image source={{ uri: getMediaUrl(user.avatar) || '' }} style={styles.avatarImage} />
+                                        ) : (
+                                            <User size={22} color={vTheme.colors.textSecondary} />
+                                        )}
+                                    </View>
+                                    <View style={styles.userInfo}>
+                                        <Text style={[styles.userName, { color: vTheme.colors.text }]} numberOfLines={1}>
+                                            {user?.spiritualName || user?.karmicName}
+                                        </Text>
+                                        <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>{t('auth.profile')}</Text>
+                                    </View>
                                 </View>
-                                <View style={styles.userInfo}>
-                                    <Text style={[styles.userName, { color: vTheme.colors.text }]} numberOfLines={1}>
-                                        {user?.spiritualName || user?.karmicName}
-                                    </Text>
-                                    <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>{t('auth.profile')}</Text>
-                                </View>
-                            </View>
-                        ) : (
+                            ) : (
+                                <TouchableOpacity
+                                    style={[styles.footerButton, { backgroundColor: vTheme.colors.primary }]}
+                                    onPress={() => { handleClose(); onNavigateToRegistration(); }}
+                                >
+                                    <LogIn size={20} color="#fff" style={{ marginRight: 10 }} />
+                                    <Text style={styles.footerButtonText}>{t('auth.login')}</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity
-                                style={[styles.footerButton, { backgroundColor: vTheme.colors.primary }]}
-                                onPress={() => { handleClose(); onNavigateToRegistration(); }}
+                                style={[styles.settingsIconBtn, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider, borderWidth: 1 }]}
+                                onPress={() => { handleClose(); onNavigateToSettings(); }}
                             >
-                                <LogIn size={20} color="#fff" style={{ marginRight: 10 }} />
-                                <Text style={styles.footerButtonText}>{t('auth.login')}</Text>
+                                <Settings size={22} color={vTheme.colors.text} />
                             </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                            style={[styles.settingsIconBtn, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider, borderWidth: 1 }]}
-                            onPress={() => { handleClose(); onNavigateToSettings(); }}
-                        >
-                            <Settings size={22} color={vTheme.colors.text} />
-                        </TouchableOpacity>
-                    </View>
-                </Animated.View>
-            </View>
+                        </View>
+                    </Animated.View>
+                </GestureDetector>
+            </GestureHandlerRootView>
         </Modal>
     );
 };
@@ -269,10 +258,10 @@ const styles = StyleSheet.create({
         flex: 1,
         height: '100%',
         shadowColor: '#000',
-        shadowOffset: { width: 2, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 5,
-        elevation: 5,
+        shadowOffset: { width: -10, height: 0 },
+        shadowOpacity: 0.2,
+        shadowRadius: 30, // Softer edge
+        elevation: 24,
     },
     tabBar: {
         flexDirection: 'row',

@@ -36,8 +36,9 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 	const slideAnim = useRef(new Animated.Value(0)).current;
 
 	useEffect(() => {
+		let animation: Animated.CompositeAnimation | null = null;
 		if (isRecording && !isLocked) {
-			Animated.loop(
+			animation = Animated.loop(
 				Animated.sequence([
 					Animated.timing(slideAnim, {
 						toValue: -10,
@@ -50,10 +51,14 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 						useNativeDriver: true,
 					}),
 				])
-			).start();
+			);
+			animation.start();
 		} else {
 			slideAnim.setValue(0);
 		}
+		return () => {
+			if (animation) animation.stop();
+		};
 	}, [isRecording, isLocked]);
 
 	const formatTime = (seconds: number): string => {

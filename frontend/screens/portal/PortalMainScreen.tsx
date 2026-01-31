@@ -61,7 +61,7 @@ type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'n
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user } = useUser();
-    const { vTheme, isDarkMode, setIsMenuOpen, setIsPortalOpen, setDefaultMenuTab, portalBackground, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, setIsMenuOpen, setIsPortalOpen, portalBackground, portalBackgroundType } = useSettings();
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -118,7 +118,6 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             return;
         }
         if (serviceId === 'history') {
-            setDefaultMenuTab('history');
             setIsMenuOpen(true);
             return;
         }
@@ -186,7 +185,6 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     <View style={styles.headerRight}>
                         <TouchableOpacity
                             onPress={() => {
-                                setDefaultMenuTab('history');
                                 setIsMenuOpen(true);
                             }}
                             style={styles.iconButton}
@@ -249,7 +247,6 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 <View style={styles.headerRight}>
                     <TouchableOpacity
                         onPress={() => {
-                            setDefaultMenuTab('history');
                             setIsMenuOpen(true);
                         }}
                         style={styles.iconButton}

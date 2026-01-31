@@ -28,8 +28,7 @@ interface SettingsContextType {
     selectModel: (modelId: string, provider: string) => void;
     setImageSize: (size: number) => void;
     setImagePosition: (position: 'left' | 'center' | 'right') => void;
-    defaultMenuTab: 'portal' | 'history';
-    setDefaultMenuTab: (tab: 'portal' | 'history') => void;
+
     theme: typeof COLORS.dark;
     vTheme: typeof VedicLightTheme;
     isDarkMode: boolean;
@@ -56,7 +55,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [lastFetchTime, setLastFetchTime] = useState<number>(0);
     const [imageSize, setImageSize] = useState<number>(280);
     const [imagePosition, setImagePosition] = useState<'left' | 'center' | 'right'>('left');
-    const [defaultMenuTab, setDefaultMenuTabState] = useState<'portal' | 'history'>('portal');
+
     const [isAutoMagicEnabled, setIsAutoMagicEnabled] = useState<boolean>(true);
     const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
@@ -146,11 +145,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const loadSettings = async () => {
             try {
-                const tab = await AsyncStorage.getItem('default_menu_tab');
-                if (tab === 'history' || tab === 'portal') {
-                    setDefaultMenuTabState(tab);
-                }
-
                 const autoMagic = await AsyncStorage.getItem('auto_magic_enabled');
                 if (autoMagic !== null && autoMagic !== 'undefined' && autoMagic !== 'null') {
                     setIsAutoMagicEnabled(JSON.parse(autoMagic));
@@ -189,15 +183,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const setDefaultMenuTab = async (tab: 'portal' | 'history') => {
-        setDefaultMenuTabState(tab);
-        try {
-            await AsyncStorage.setItem('default_menu_tab', tab);
-        } catch (e) {
-            console.error('Failed to save menu settings', e);
-        }
-    };
-
     const setPortalBackground = async (bg: string, type: 'color' | 'gradient' | 'image') => {
         setPortalBackgroundState(bg);
         setPortalBackgroundType(type);
@@ -221,8 +206,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             imagePosition,
             setImageSize,
             setImagePosition,
-            defaultMenuTab,
-            setDefaultMenuTab,
+
             theme,
             vTheme,
             isDarkMode,

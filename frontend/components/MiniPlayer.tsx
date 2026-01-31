@@ -35,13 +35,15 @@ export const MiniPlayer: React.FC = () => {
     const isVisible = !!activeTrack && !isPlayerScreen;
 
     useEffect(() => {
-        Animated.spring(translateY, {
+        const anim = Animated.spring(translateY, {
             toValue: isVisible ? 0 : 150,
             useNativeDriver: true,
             tension: 50,
             friction: 8,
-        }).start();
-    }, [isVisible]);
+        });
+        anim.start();
+        return () => anim.stop();
+    }, [isVisible, translateY]);
 
     if (!isVisible && !isPaused && !isPlaying && !isBuffering) return null;
 
@@ -70,7 +72,7 @@ export const MiniPlayer: React.FC = () => {
             style={[
                 styles.container,
                 {
-                    backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
                     transform: [{ translateY }],
                     borderTopColor: vTheme.colors.divider,
                 }

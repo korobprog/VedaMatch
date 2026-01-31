@@ -66,11 +66,24 @@ function main() {
                 if (targetDevice) {
                     console.log(`✅ Симулятор уже запущен: ${targetDevice.name} (${targetDevice.udid})`);
                 } else if (availableDevices.length > 0) {
-                    // Выбираем самый новый iPhone из списка
-                    // (Обычно они отсортированы, но для надежности просто берем последний доступный)
-                    targetDevice = availableDevices[availableDevices.length - 1];
+                    // Пытаемся найти iPhone 17 Pro
+                    targetDevice = availableDevices.find(d => d.name === "iPhone 17 Pro");
+
+                    if (!targetDevice) {
+                        // Если нет, берем последний доступный (обычно самый новый)
+                        targetDevice = availableDevices[availableDevices.length - 1];
+                    }
+
                     console.log(`📱 Запускаю ${targetDevice.name} (${targetDevice.udid})...`);
-                    execSync(`xcrun simctl boot ${targetDevice.udid}`);
+                    try {
+                        execSync(`xcrun simctl boot ${targetDevice.udid}`, { stdio: 'pipe' });
+                    } catch (bootError) {
+                        if (bootError.message.includes('Unable to boot device in current state: Booted')) {
+                            console.log('✅ Симулятор уже загружается или загружен.');
+                        } else {
+                            throw bootError;
+                        }
+                    }
                 } else {
                     console.error('❌ Доступные iOS симуляторы не найдены.');
                     process.exit(1);

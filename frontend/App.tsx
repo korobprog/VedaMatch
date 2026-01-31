@@ -372,13 +372,6 @@ const AppContent = () => {
               onSelectModel={(model: any) => {
                 selectModel(model.id, model.provider);
               }}
-              onNavigateToPortal={(tab) => {
-                setIsMenuOpen(false);
-                if (navigationRef.isReady()) {
-                  // @ts-ignore
-                  navigationRef.navigate('Portal', { initialTab: tab as any });
-                }
-              }}
               onNavigateToSettings={() => {
                 setIsMenuOpen(false);
                 if (navigationRef.isReady()) {
