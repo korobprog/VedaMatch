@@ -381,7 +381,7 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 	if file.Size > 100*1024*1024 {
 		// Large file: use multipart upload
 		log.Printf("[MultimediaService] Starting multipart upload for large file: %s (%d bytes)", file.Filename, file.Size)
-		return s.uploadLargeFile(src, key, contentType, file.Size)
+		return s.uploadLargeFile(src, key, contentType)
 	}
 
 	// Small/medium file: stream directly without loading into memory
@@ -408,7 +408,7 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 }
 
 // uploadLargeFile handles multipart uploads for files > 100MB
-func (s *MultimediaService) uploadLargeFile(src io.Reader, key string, contentType string, fileSize int64) (string, error) {
+func (s *MultimediaService) uploadLargeFile(src io.Reader, key string, contentType string) (string, error) {
 	const partSize = 10 * 1024 * 1024 // 10MB per part
 
 	// Create multipart upload
