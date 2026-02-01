@@ -35,6 +35,7 @@ import { AudioPlayerScreen } from './screens/multimedia/AudioPlayerScreen';
 import { RadioPlayerScreen } from './screens/multimedia/RadioPlayerScreen';
 import { VideoPlayerScreen } from './screens/multimedia/VideoPlayerScreen';
 import { TVPlayerScreen } from './screens/multimedia/TVPlayerScreen';
+import { FavoritesScreen } from './screens/multimedia/FavoritesScreen';
 
 
 let VoipPushNotification: any;
@@ -342,6 +343,7 @@ const AppContent = () => {
                   <Stack.Screen name="AudioScreen" component={AudioScreen} />
                   <Stack.Screen name="VideoScreen" component={VideoScreen} />
                   <Stack.Screen name="TVScreen" component={TVScreen} />
+                  <Stack.Screen name="FavoritesScreen" component={FavoritesScreen} />
 
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

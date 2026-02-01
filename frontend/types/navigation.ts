@@ -74,6 +74,7 @@ export type RootStackParamList = {
     AudioScreen: undefined;
     VideoScreen: undefined;
     TVScreen: undefined;
+    FavoritesScreen: undefined;
     RadioPlayer: { station: any };
     AudioPlayer: { track: any };
     VideoPlayer: { video: any };

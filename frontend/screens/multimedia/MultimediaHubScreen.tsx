@@ -17,7 +17,8 @@ import {
     Tv as TvIcon,
     ChevronRight,
     PlayCircle,
-    Loader2
+    Loader2,
+    Heart
 } from 'lucide-react-native';
 import { multimediaService, RadioStation, TVChannel, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
@@ -65,6 +66,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
         { id: 'audio', title: 'Аудио', icon: Music, color: vTheme.colors.primary, screen: 'AudioScreen' },
         { id: 'video', title: 'Видео', icon: Film, color: '#45B7D1', screen: 'VideoScreen' },
         { id: 'tv', title: 'ТВ', icon: TvIcon, color: '#96CEB4', screen: 'TVScreen' },
+        { id: 'favorites', title: 'Избранное', icon: Heart, color: '#EF4444', screen: 'FavoritesScreen' },
     ];
 
     if (loading) {

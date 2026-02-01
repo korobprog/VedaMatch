@@ -369,7 +369,7 @@ func (h *MultimediaHandler) DeleteTVChannel(c *fiber.Ctx) error {
 // --- Upload ---
 
 // UploadMedia godoc
-// @Summary Upload media file to S3 (admin only)
+// @Summary Upload media file to S3 (admin only) - for small files only
 // @Tags Multimedia
 // @Accept multipart/form-data
 // @Param file formance file true "Media file"
@@ -394,6 +394,45 @@ func (h *MultimediaHandler) UploadMedia(c *fiber.Ctx) error {
 		"url":      url,
 		"filename": file.Filename,
 		"size":     file.Size,
+	})
+}
+
+// GetPresignedURL godoc
+// @Summary Get presigned URL for direct S3 upload (for large files)
+// @Tags Multimedia
+// @Accept json
+// @Param body body map[string]string true "filename and folder"
+// @Success 200 {object} fiber.Map
+// @Router /api/admin/multimedia/presign [post]
+func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
+	var body struct {
+		Filename    string `json:"filename"`
+		Folder      string `json:"folder"`
+		ContentType string `json:"contentType"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if body.Filename == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Filename is required"})
+	}
+	if body.Folder == "" {
+		body.Folder = "videos"
+	}
+	if body.ContentType == "" {
+		body.ContentType = "video/mp4"
+	}
+
+	presignedURL, finalURL, err := h.service.GetPresignedUploadURL(body.Filename, body.Folder, body.ContentType)
+	if err != nil {
+		log.Printf("[MultimediaHandler] Presign error: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"uploadUrl": presignedURL,
+		"finalUrl":  finalURL,
 	})
 }
 

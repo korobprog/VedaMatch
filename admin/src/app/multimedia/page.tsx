@@ -430,22 +430,69 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
 
         setUploading(true);
         setUploadProgress(0);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('folder', folder);
 
         try {
-            const res = await api.post('/admin/multimedia/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-                onUploadProgress: (progressEvent) => {
-                    const percent = progressEvent.total
-                        ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-                        : 0;
-                    setUploadProgress(percent);
-                }
-            });
-            setForm({ ...form, [field]: res.data.url });
-            setUploadProgress(100);
+            // Use presigned URL for files > 10MB (bypasses Traefik limits)
+            const PRESIGN_THRESHOLD = 10 * 1024 * 1024; // 10MB
+
+            if (file.size > PRESIGN_THRESHOLD) {
+                // Large file: use presigned URL for direct S3 upload
+                console.log('Using presigned URL for large file:', file.name, file.size);
+
+                // Step 1: Get presigned URL from backend
+                const presignRes = await api.post('/admin/multimedia/presign', {
+                    filename: file.name,
+                    folder: folder,
+                    contentType: file.type || 'application/octet-stream'
+                });
+
+                const { uploadUrl, finalUrl } = presignRes.data;
+
+                // Step 2: Upload directly to S3 using presigned URL
+                await new Promise<void>((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', uploadUrl, true);
+                    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            const percent = Math.round((e.loaded * 100) / e.total);
+                            setUploadProgress(percent);
+                        }
+                    };
+
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve();
+                        } else {
+                            reject(new Error(`S3 upload failed: ${xhr.status}`));
+                        }
+                    };
+
+                    xhr.onerror = () => reject(new Error('Network error during S3 upload'));
+                    xhr.send(file);
+                });
+
+                setForm({ ...form, [field]: finalUrl });
+                setUploadProgress(100);
+            } else {
+                // Small file: use traditional upload through backend
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('folder', folder);
+
+                const res = await api.post('/admin/multimedia/upload', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                    onUploadProgress: (progressEvent) => {
+                        const percent = progressEvent.total
+                            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+                            : 0;
+                        setUploadProgress(percent);
+                    }
+                });
+                setForm({ ...form, [field]: res.data.url });
+                setUploadProgress(100);
+            }
         } catch (e) {
             console.error('Upload Error:', e);
             alert('Upload failed. Please try again.');

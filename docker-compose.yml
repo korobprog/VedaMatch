@@ -22,7 +22,7 @@ services:
       dockerfile: Dockerfile
     container_name: rag-agent-server
     ports:
-      - "8082:8080"
+      - "8083:8080"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432

@@ -40,8 +40,8 @@ Rag Agent - это мобильное приложение (React Native) с б�
 └─────────────────┘
 
 ┌─────────────────┐
-│  Timeweb Cloud  │  S3 Storage (Медиа)
-│   S3 (ru-1)     │  Аватары, фото, файлы
+│     FirstVDS    │  S3 Storage (Медиа)
+│   S3 (default)  │  Аватары, фото, файлы
 │  (S3 protocol)  │  Signature v4 auth
 └─────────────────┘
 ```
@@ -118,7 +118,7 @@ server/
 │   ├── services/
 │   │   ├── rag_service.go    # Интеграция с Google Gemini RAG
 │   │   ├── ai_chat_service.go# Сервис для AI ответов и совместимости
-│   │   └── s3_service.go     # Интеграция с Timeweb S3 (Storage)
+│   │   └── s3_service.go     # Интеграция с S3 (Storage)
 │   └── database/
 │       └── database.go       # Подключение к БД и миграции
 └── go.mod
@@ -180,9 +180,9 @@ type Media struct {
 - `DB_NAME` - Имя БД (по умолчанию: ragdb)
 - `API_OPEN_AI` - API ключ для внешнего AI API
 
-#### S3 (Timeweb Cloud)
-- `S3_ENDPOINT` - URL эндпоинта (например, https://s3.twcstorage.ru)
-- `S3_REGION` - Регион (ru-1)
+#### S3 (FirstVDS)
+- `S3_ENDPOINT` - URL эндпоинта (https://s3.firstvds.ru)
+- `S3_REGION` - Регион (default)
 - `S3_ACCESS_KEY` - Ключ доступа S3
 - `S3_SECRET_KEY` - Секретный ключ S3
 - `S3_BUCKET_NAME` - Имя бакета
@@ -636,6 +636,13 @@ export default {
     *   Добавлен `resolutionStrategy` для устранения конфликтов версий зависимостей
     *   Настроены `packagingOptions` для корректной упаковки .so файлов
     *   Исключен `com.facebook.yoga:proguard-annotations` (падает из react-native 0.76)
+
+### 5. Переезд на новый S3 (Февраль 2026)
+*   **Событие**: Миграция хранилища медиа-файлов с Timeweb Cloud на FirstVDS.
+*   **Что сделано**:
+    *   Обновлены настройки `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` и `S3_REGION` в `.env`.
+    *   Создан профиль для Cyberduck (`server/s3profil/firstvds-s3.cyberduckprofile`) для удобного управления файлами.
+    *   Конфигурация бэкенда сохранена в Path-Style режиме для совместимости с FirstVDS.
 
 Авторизация:
 ВКонтакте

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,8 +9,10 @@ import {
     RefreshControl,
     TextInput,
     ScrollView,
+    Alert,
+    Animated,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
     Music,
     Search,
@@ -33,6 +35,8 @@ export const AudioScreen: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
     const [selectedMadh, setSelectedMadh] = useState<string | undefined>();
     const [search, setSearch] = useState('');
+    const [favorites, setFavorites] = useState<Set<number>>(new Set());
+    const [togglingFavorite, setTogglingFavorite] = useState<number | null>(null);
 
     const MADH_OPTIONS = [
         { id: 'iskcon', label: 'ISKCON' },
@@ -40,6 +44,45 @@ export const AudioScreen: React.FC = () => {
         { id: 'srivaishnava', label: 'Sri Vaishnava' },
         { id: 'vedic', label: 'Vedic' },
     ];
+
+    // Load user favorites on mount
+    const loadFavorites = useCallback(async () => {
+        try {
+            const data = await multimediaService.getFavorites(1, 100);
+            const favoriteIds = new Set((data.tracks || []).map(t => t.ID));
+            setFavorites(favoriteIds);
+        } catch (error) {
+            console.log('Failed to load favorites (user might not be logged in)');
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadFavorites();
+        }, [loadFavorites])
+    );
+
+    const toggleFavorite = async (trackId: number) => {
+        setTogglingFavorite(trackId);
+        try {
+            if (favorites.has(trackId)) {
+                await multimediaService.removeFromFavorites(trackId);
+                setFavorites(prev => {
+                    const next = new Set(prev);
+                    next.delete(trackId);
+                    return next;
+                });
+            } else {
+                await multimediaService.addToFavorites(trackId);
+                setFavorites(prev => new Set(prev).add(trackId));
+            }
+        } catch (error) {
+            console.error('Failed to toggle favorite:', error);
+            Alert.alert('Ошибка', 'Войдите в аккаунт, чтобы добавлять в избранное');
+        } finally {
+            setTogglingFavorite(null);
+        }
+    };
 
     const loadData = async () => {
         try {
@@ -71,38 +114,52 @@ export const AudioScreen: React.FC = () => {
         loadData();
     };
 
-    const renderTrack = ({ item }: { item: MediaTrack }) => (
-        <TouchableOpacity
-            style={styles.trackCard}
-            onPress={() => navigation.navigate('AudioPlayer', { track: item })}
-        >
-            <View style={styles.thumbContainer}>
-                {item.thumbnailUrl ? (
-                    <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
-                ) : (
-                    <View style={styles.thumbPlaceholder}>
-                        <Music size={24} color="#6366F1" />
-                    </View>
-                )}
-                <View style={styles.playOverlay}>
-                    <PlayCircle size={24} color="#fff" />
-                </View>
-            </View>
+    const renderTrack = ({ item }: { item: MediaTrack }) => {
+        const isFavorite = favorites.has(item.ID);
+        const isToggling = togglingFavorite === item.ID;
 
-            <View style={styles.trackInfo}>
-                <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.artist} numberOfLines={1}>{item.artist || 'Неизвестный исполнитель'}</Text>
-                <Text style={styles.duration}>{multimediaService.formatDuration(item.duration)}</Text>
-            </View>
-
+        return (
             <TouchableOpacity
-                style={styles.favButton}
-                onPress={() => console.log('Toggle favorite', item.ID)}
+                style={[styles.trackCard, { borderBottomColor: vTheme.colors.divider }]}
+                onPress={() => navigation.navigate('AudioPlayer', { track: item })}
             >
-                <Heart size={20} color="#9CA3AF" />
+                <View style={styles.thumbContainer}>
+                    {item.thumbnailUrl ? (
+                        <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
+                    ) : (
+                        <View style={[styles.thumbPlaceholder, { backgroundColor: `${vTheme.colors.primary}20` }]}>
+                            <Music size={24} color={vTheme.colors.primary} />
+                        </View>
+                    )}
+                    <View style={styles.playOverlay}>
+                        <PlayCircle size={24} color="#fff" />
+                    </View>
+                </View>
+
+                <View style={styles.trackInfo}>
+                    <Text style={[styles.title, { color: vTheme.colors.text }]} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[styles.artist, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>{item.artist || 'Неизвестный исполнитель'}</Text>
+                    <Text style={[styles.duration, { color: vTheme.colors.textSecondary }]}>{multimediaService.formatDuration(item.duration)}</Text>
+                </View>
+
+                <TouchableOpacity
+                    style={styles.favButton}
+                    onPress={() => toggleFavorite(item.ID)}
+                    disabled={isToggling}
+                >
+                    {isToggling ? (
+                        <Loader2 size={20} color={vTheme.colors.primary} />
+                    ) : (
+                        <Heart
+                            size={20}
+                            color={isFavorite ? '#EF4444' : vTheme.colors.textSecondary}
+                            fill={isFavorite ? '#EF4444' : 'transparent'}
+                        />
+                    )}
+                </TouchableOpacity>
             </TouchableOpacity>
-        </TouchableOpacity>
-    );
+        );
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>

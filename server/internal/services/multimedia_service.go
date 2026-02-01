@@ -407,6 +407,36 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 	return url, nil
 }
 
+// GetPresignedUploadURL generates a presigned URL for direct browser upload to S3
+func (s *MultimediaService) GetPresignedUploadURL(filename, folder, contentType string) (uploadURL, finalURL string, err error) {
+	if s.s3Client == nil {
+		return "", "", fmt.Errorf("S3 client not configured")
+	}
+
+	// Generate unique key
+	ext := filepath.Ext(filename)
+	timestamp := time.Now().UnixNano()
+	key := fmt.Sprintf("%s/%d%s", folder, timestamp, ext)
+
+	// Create presign client
+	presignClient := s3.NewPresignClient(s.s3Client)
+
+	// Generate presigned PUT URL (valid for 1 hour)
+	presignResult, err := presignClient.PresignPutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+	}, s3.WithPresignExpires(time.Hour))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	finalURL = fmt.Sprintf("%s/%s", s.publicURL, key)
+	log.Printf("[MultimediaService] Generated presigned URL for key: %s", key)
+
+	return presignResult.URL, finalURL, nil
+}
+
 // uploadLargeFile handles multipart uploads for files > 100MB
 func (s *MultimediaService) uploadLargeFile(src io.Reader, key string, contentType string) (string, error) {
 	const partSize = 10 * 1024 * 1024 // 10MB per part

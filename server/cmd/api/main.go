@@ -322,6 +322,7 @@ func main() {
 	admin.Get("/multimedia/suggestions", multimediaHandler.GetPendingSuggestions)
 	admin.Post("/multimedia/suggestions/:id/review", multimediaHandler.ReviewSuggestion)
 	admin.Post("/multimedia/upload", multimediaHandler.UploadMedia)
+	admin.Post("/multimedia/presign", multimediaHandler.GetPresignedURL) // For large file direct S3 upload
 	// Categories
 	admin.Post("/multimedia/categories", multimediaHandler.CreateCategory)
 	admin.Put("/multimedia/categories/:id", multimediaHandler.UpdateCategory)
