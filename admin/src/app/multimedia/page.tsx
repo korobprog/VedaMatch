@@ -422,9 +422,9 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
         if (!file) return;
 
         // File size validation
-        const maxSize = folder === 'videos' ? 500 * 1024 * 1024 : (folder === 'audio' ? 100 * 1024 * 1024 : 10 * 1024 * 1024);
+        const maxSize = folder === 'videos' ? 2 * 1024 * 1024 * 1024 : (folder === 'audio' ? 100 * 1024 * 1024 : 10 * 1024 * 1024);
         if (file.size > maxSize) {
-            alert(`File too large. Max size: ${folder === 'videos' ? '500MB' : folder === 'audio' ? '100MB' : '10MB'}`);
+            alert(`File too large. Max size: ${folder === 'videos' ? '2GB' : folder === 'audio' ? '100MB' : '10MB'}`);
             return;
         }
 
