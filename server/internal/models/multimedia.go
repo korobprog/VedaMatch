@@ -52,6 +52,19 @@ type MediaTrack struct {
 	PublishedAt  *time.Time     `json:"publishedAt"`
 	CreatedByID  uint           `json:"createdById"`
 	CreatedBy    *User          `json:"createdBy,omitempty" gorm:"foreignKey:CreatedByID"`
+
+	// Video-specific fields (for HLS streaming)
+	OriginalURL         string  `json:"originalUrl"`                             // Original uploaded file in S3
+	HLSURL              string  `json:"hlsUrl"`                                  // Master playlist .m3u8
+	TranscodingStatus   string  `json:"transcodingStatus" gorm:"default:'none'"` // none, pending, processing, completed, failed
+	TranscodingProgress int     `json:"transcodingProgress" gorm:"default:0"`    // 0-100%
+	TranscodingJobID    string  `json:"transcodingJobId"`                        // Redis job ID
+	FileSize            int64   `json:"fileSize"`                                // Original file size in bytes
+	Resolution          string  `json:"resolution"`                              // Original resolution (e.g., "1920x1080")
+	Bitrate             int     `json:"bitrate"`                                 // Original bitrate kbps
+	Framerate           float64 `json:"framerate"`                               // Original framerate
+	HasSubtitles        bool    `json:"hasSubtitles" gorm:"default:false"`
+	SubtitleCount       int     `json:"subtitleCount" gorm:"default:0"`
 }
 
 // RadioStation represents an online radio stream

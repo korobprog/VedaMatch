@@ -6,6 +6,7 @@ import (
 	"rag-agent-server/internal/handlers"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/services"
+	"rag-agent-server/internal/workers"
 	"strconv"
 
 	"rag-agent-server/internal/websocket"
@@ -51,9 +52,14 @@ func main() {
 	// Start Room Notification Scheduler
 	services.StartRoomNotificationScheduler()
 
-	// Initialize Fiber App
+	// Start Video Transcoding Worker (background job for video processing)
+	transcodingWorker := workers.StartWorkerInBackground(2) // 2 concurrent workers
+	defer transcodingWorker.Stop()
+
+	// Initialize Fiber App with increased body limit for video uploads
 	app := fiber.New(fiber.Config{
-		StrictRouting: false, // Allow /path and /path/ to be treated the same
+		StrictRouting: false,             // Allow /path and /path/ to be treated the same
+		BodyLimit:     500 * 1024 * 1024, // 500MB for video uploads
 	})
 
 	// CORS Middleware
@@ -319,6 +325,9 @@ func main() {
 	admin.Post("/multimedia/tv", multimediaHandler.CreateTVChannel)
 	admin.Put("/multimedia/tv/:id", multimediaHandler.UpdateTVChannel)
 	admin.Delete("/multimedia/tv/:id", multimediaHandler.DeleteTVChannel)
+
+	// Register Video Routes (new HLS video platform)
+	handlers.RegisterVideoRoutes(app)
 
 	// Other Protected Routes
 	protected.Post("/messages", messageHandler.SendMessage)

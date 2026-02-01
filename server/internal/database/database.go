@@ -87,6 +87,9 @@ func Connect() {
 		&models.RadioStation{}, &models.TVChannel{},
 		&models.UserMediaSuggestion{}, &models.UserMediaFavorite{},
 		&models.UserMediaHistory{},
+		// Video-specific models
+		&models.VideoQuality{}, &models.VideoSubtitle{},
+		&models.UserVideoProgress{}, &models.VideoTranscodingJob{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)

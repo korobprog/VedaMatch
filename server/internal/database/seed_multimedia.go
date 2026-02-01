@@ -27,8 +27,8 @@ func SeedMultimedia() {
 		{
 			Name:        "Mayapur 24/7",
 			Description: "Live kirtan from Mayapur",
-			StreamURL:   "https://stream.mayapur.live/radio.mp3",
-			LogoURL:     "https://mayapur.com/logo.png",
+			StreamURL:   "https://radiomayapur.radioca.st/stream/",
+			LogoURL:     "https://radiomayapur.com/logo.png",
 			Madh:        "iskcon",
 			StreamType:  "external",
 			IsLive:      true,
@@ -38,7 +38,7 @@ func SeedMultimedia() {
 		{
 			Name:        "ISKCON Desire Tree",
 			Description: "24/7 spiritual radio",
-			StreamURL:   "https://stream.iskcondesiretree.com/live",
+			StreamURL:   "https://cast5.asurahosting.com/proxy/harekrsn/stream",
 			LogoURL:     "https://iskcondesiretree.com/logo.png",
 			Madh:        "iskcon",
 			StreamType:  "external",
@@ -59,7 +59,7 @@ func SeedMultimedia() {
 		{
 			Name:        "Mayapur TV",
 			Description: "Live from Sri Dham Mayapur",
-			StreamURL:   "https://www.youtube.com/embed/live_stream?channel=UCxxxxxxx",
+			StreamURL:   "https://www.youtube.com/embed/live_stream?channel=UCypj9Vvizo4cCERfDFIG3zw",
 			StreamType:  "youtube",
 			Madh:        "iskcon",
 			IsLive:      true,

@@ -114,3 +114,95 @@ func (s *S3Service) DeleteFile(ctx context.Context, fileName string) error {
 
 	return nil
 }
+
+// NewS3Service returns the S3 service instance (alias for GetS3Service)
+func NewS3Service() *S3Service {
+	return GetS3Service()
+}
+
+// UploadFileFromReader uploads a file from an io.Reader to S3
+func (s *S3Service) UploadFileFromReader(ctx context.Context, reader io.Reader, fileName string, contentType string) error {
+	if s == nil || s.client == nil {
+		return fmt.Errorf("S3 service not initialized")
+	}
+
+	putInput := &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucketName),
+		Key:         aws.String(fileName),
+		Body:        reader,
+		ContentType: aws.String(contentType),
+	}
+
+	_, err := s.client.PutObject(ctx, putInput, s3.WithAPIOptions(
+		v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
+	))
+
+	if err != nil {
+		return fmt.Errorf("failed to upload file to S3: %w", err)
+	}
+
+	return nil
+}
+
+// UploadLocalFile uploads a local file to S3
+func (s *S3Service) UploadLocalFile(ctx context.Context, localPath, s3Path, contentType string) error {
+	file, err := os.Open(localPath)
+	if err != nil {
+		return fmt.Errorf("failed to open local file: %w", err)
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat file: %w", err)
+	}
+
+	_, err = s.UploadFile(ctx, file, s3Path, contentType, stat.Size())
+	return err
+}
+
+// DownloadFile downloads a file from S3 to local path
+func (s *S3Service) DownloadFile(ctx context.Context, s3Path, localPath string) error {
+	if s == nil || s.client == nil {
+		return fmt.Errorf("S3 service not initialized")
+	}
+
+	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(s3Path),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get object from S3: %w", err)
+	}
+	defer result.Body.Close()
+
+	// Create local file
+	outFile, err := os.Create(localPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local file: %w", err)
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, result.Body)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}
+
+// GetPublicURL returns the public URL for an S3 path
+func (s *S3Service) GetPublicURL(s3Path string) string {
+	if s == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s", s.publicURL, s3Path)
+}
+
+// ExtractS3Path extracts the S3 path from a public URL
+func (s *S3Service) ExtractS3Path(publicURL string) string {
+	if s == nil || s.publicURL == "" {
+		return publicURL
+	}
+	return strings.TrimPrefix(publicURL, s.publicURL+"/")
+}
