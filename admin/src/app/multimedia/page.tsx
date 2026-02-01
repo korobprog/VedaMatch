@@ -603,7 +603,7 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
                                     className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                                 >
                                     <option value="">No Category</option>
-                                    {categories?.filter(c => c.type === form.mediaType).map(c => (
+                                    {categories?.filter(c => c.type === form.mediaType || (c.type === 'film' && form.mediaType === 'video')).map(c => (
                                         <option key={c.ID} value={c.ID}>{c.name}</option>
                                     ))}
                                 </select>
