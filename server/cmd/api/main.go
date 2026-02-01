@@ -58,8 +58,8 @@ func main() {
 
 	// Initialize Fiber App with increased body limit for video uploads
 	app := fiber.New(fiber.Config{
-		StrictRouting: false,             // Allow /path and /path/ to be treated the same
-		BodyLimit:     500 * 1024 * 1024, // 500MB for video uploads
+		StrictRouting: false,                  // Allow /path and /path/ to be treated the same
+		BodyLimit:     2 * 1024 * 1024 * 1024, // 2GB for video uploads
 	})
 
 	// CORS Middleware
