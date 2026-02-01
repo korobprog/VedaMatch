@@ -81,8 +81,10 @@ export default function MultimediaPage() {
         if (!confirm('Delete this item?')) return;
         setActionLoading(`delete-${id}`);
         try {
-            await api.delete(`/admin/multimedia/${type}/${id}`);
-            if (type === 'tracks') mutateTracks();
+            // Videos are stored in tracks table
+            const endpoint = type === 'videos' ? 'tracks' : type;
+            await api.delete(`/admin/multimedia/${endpoint}/${id}`);
+            if (type === 'tracks' || type === 'videos') mutateTracks();
             if (type === 'radio') mutateRadio();
             if (type === 'tv') mutateTV();
             if (type === 'categories') mutateCategories();
@@ -506,10 +508,12 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
         e.preventDefault();
         setLoading(true);
         try {
+            // Videos are stored in tracks table, so use 'tracks' endpoint
+            const endpoint = type === 'videos' ? 'tracks' : type;
             if (item?.ID) {
-                await api.put(`/admin/multimedia/${type}/${item.ID}`, form);
+                await api.put(`/admin/multimedia/${endpoint}/${item.ID}`, form);
             } else {
-                await api.post(`/admin/multimedia/${type}`, form);
+                await api.post(`/admin/multimedia/${endpoint}`, form);
             }
             onSave();
         } catch (e) {
