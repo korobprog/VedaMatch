@@ -58,8 +58,21 @@ func main() {
 
 	// Initialize Fiber App with increased body limit for video uploads
 	app := fiber.New(fiber.Config{
-		StrictRouting: false,                  // Allow /path and /path/ to be treated the same
-		BodyLimit:     2 * 1024 * 1024 * 1024, // 2GB for video uploads
+		StrictRouting:     false,                  // Allow /path and /path/ to be treated the same
+		BodyLimit:         2 * 1024 * 1024 * 1024, // 2GB for video uploads
+		StreamRequestBody: true,                   // Stream large uploads instead of buffering in memory
+		// Custom error handler to ensure CORS headers are always present
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// Set CORS headers even on errors
+			c.Set("Access-Control-Allow-Origin", c.Get("Origin"))
+			c.Set("Access-Control-Allow-Credentials", "true")
+
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			return c.Status(code).JSON(fiber.Map{"error": err.Error()})
+		},
 	})
 
 	// CORS Middleware
