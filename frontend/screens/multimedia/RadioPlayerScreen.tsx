@@ -132,10 +132,16 @@ export const RadioPlayerScreen: React.FC = () => {
                         <View style={styles.statusRow}>
                             <View style={[
                                 styles.statusDot,
-                                { backgroundColor: station.status === 'online' ? '#4ade80' : station.status === 'offline' ? '#f87171' : '#fbbf24' }
+                                {
+                                    backgroundColor: (isPlaying || isBuffering || station.status === 'online')
+                                        ? '#4ade80'
+                                        : station.status === 'offline' ? '#f87171' : '#fbbf24'
+                                }
                             ]} />
                             <Text style={styles.statusLabel}>
-                                {station.status === 'online' ? 'В сети' : station.status === 'offline' ? 'Не в сети' : 'Проверка...'}
+                                {(isPlaying || isBuffering || station.status === 'online')
+                                    ? 'В сети'
+                                    : station.status === 'offline' ? 'Не в сети' : 'Проверка...'}
                             </Text>
                         </View>
 

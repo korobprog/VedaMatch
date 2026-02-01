@@ -260,12 +260,25 @@ func (s *MultimediaService) CheckRadioStatus() {
 			defer wg.Done()
 
 			status := "offline"
-			req, err := http.NewRequest("HEAD", station.StreamURL, nil)
+			// Use GET instead of HEAD because many stream servers (Icecast/Shoutcast)
+			// don't handle HEAD correctly or return unconventional status codes.
+			ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, "GET", station.StreamURL, nil)
 			if err == nil {
 				req.Header.Set("User-Agent", "Mozilla/5.0 (VedaMatch Status Checker)")
+				// Ask for a small range to avoid downloading the whole stream
+				req.Header.Set("Range", "bytes=0-1024")
+
 				resp, err := client.Do(req)
 				if err == nil {
+					// 200 OK, 206 Partial Content, or even some 4xx if the server exists but rejects the range
+					// are better than "host not found".
 					if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+						status = "online"
+					} else if resp.StatusCode == 401 || resp.StatusCode == 403 {
+						// Auth error usually means server is up
 						status = "online"
 					}
 					resp.Body.Close()
