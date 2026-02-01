@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"gorm.io/gorm"
 )
 
@@ -364,12 +365,6 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 	}
 	defer src.Close()
 
-	// Read file content
-	content, err := io.ReadAll(src)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
-	}
-
 	// Generate unique filename
 	ext := filepath.Ext(file.Filename)
 	timestamp := time.Now().UnixNano()
@@ -381,20 +376,109 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 		contentType = "application/octet-stream"
 	}
 
-	// Upload to S3
+	// For large files, use multipart upload via S3 Manager
+	// For smaller files (< 100MB), use direct streaming
+	if file.Size > 100*1024*1024 {
+		// Large file: use multipart upload
+		log.Printf("[MultimediaService] Starting multipart upload for large file: %s (%d bytes)", file.Filename, file.Size)
+		return s.uploadLargeFile(src, key, contentType, file.Size)
+	}
+
+	// Small/medium file: stream directly without loading into memory
+	log.Printf("[MultimediaService] Uploading file: %s (%d bytes)", file.Filename, file.Size)
+
+	// Upload to S3 with streaming (ContentLength required for streaming)
 	_, err = s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket:      aws.String(s.bucket),
-		Key:         aws.String(key),
-		Body:        bytes.NewReader(content),
-		ContentType: aws.String(contentType),
-		ACL:         "public-read",
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(key),
+		Body:          src,
+		ContentType:   aws.String(contentType),
+		ContentLength: aws.Int64(file.Size),
+		ACL:           "public-read",
 	})
 	if err != nil {
+		log.Printf("[MultimediaService] Upload failed: %v", err)
 		return "", fmt.Errorf("failed to upload to S3: %w", err)
 	}
 
 	// Return public URL
 	url := fmt.Sprintf("%s/%s", s.publicURL, key)
+	log.Printf("[MultimediaService] Upload successful: %s", url)
+	return url, nil
+}
+
+// uploadLargeFile handles multipart uploads for files > 100MB
+func (s *MultimediaService) uploadLargeFile(src io.Reader, key string, contentType string, fileSize int64) (string, error) {
+	const partSize = 10 * 1024 * 1024 // 10MB per part
+
+	// Create multipart upload
+	createResp, err := s.s3Client.CreateMultipartUpload(context.TODO(), &s3.CreateMultipartUploadInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+		ACL:         "public-read",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create multipart upload: %w", err)
+	}
+
+	uploadID := createResp.UploadId
+	var completedParts []types.CompletedPart
+	partNumber := int32(1)
+	buffer := make([]byte, partSize)
+
+	for {
+		n, readErr := io.ReadFull(src, buffer)
+		if n == 0 {
+			break
+		}
+
+		// Upload part
+		uploadResp, err := s.s3Client.UploadPart(context.TODO(), &s3.UploadPartInput{
+			Bucket:     aws.String(s.bucket),
+			Key:        aws.String(key),
+			UploadId:   uploadID,
+			PartNumber: aws.Int32(partNumber),
+			Body:       bytes.NewReader(buffer[:n]),
+		})
+		if err != nil {
+			// Abort upload on error
+			s.s3Client.AbortMultipartUpload(context.TODO(), &s3.AbortMultipartUploadInput{
+				Bucket:   aws.String(s.bucket),
+				Key:      aws.String(key),
+				UploadId: uploadID,
+			})
+			return "", fmt.Errorf("failed to upload part %d: %w", partNumber, err)
+		}
+
+		completedParts = append(completedParts, types.CompletedPart{
+			ETag:       uploadResp.ETag,
+			PartNumber: aws.Int32(partNumber),
+		})
+
+		log.Printf("[MultimediaService] Uploaded part %d", partNumber)
+		partNumber++
+
+		if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
+			break
+		}
+	}
+
+	// Complete multipart upload
+	_, err = s.s3Client.CompleteMultipartUpload(context.TODO(), &s3.CompleteMultipartUploadInput{
+		Bucket:   aws.String(s.bucket),
+		Key:      aws.String(key),
+		UploadId: uploadID,
+		MultipartUpload: &types.CompletedMultipartUpload{
+			Parts: completedParts,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to complete multipart upload: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/%s", s.publicURL, key)
+	log.Printf("[MultimediaService] Multipart upload successful: %s", url)
 	return url, nil
 }
 
