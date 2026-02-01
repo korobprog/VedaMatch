@@ -11,7 +11,7 @@ import api from '@/lib/api';
 
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
-type TabType = 'tracks' | 'radio' | 'tv' | 'categories';
+type TabType = 'tracks' | 'videos' | 'radio' | 'tv' | 'categories';
 
 interface MediaTrack {
     ID: number;
@@ -98,7 +98,8 @@ export default function MultimediaPage() {
     };
 
     const tabs = [
-        { id: 'tracks', label: 'Tracks', icon: Music, count: stats?.totalTracks },
+        { id: 'tracks', label: 'Audio', icon: Music, count: stats?.totalTracks }, // Renamed from Tracks to Audio for clarity
+        { id: 'videos', label: 'Videos', icon: Film, count: stats?.totalVideos }, // New tab
         { id: 'radio', label: 'Radio', icon: Radio, count: stats?.totalRadioStations },
         { id: 'tv', label: 'TV', icon: Tv, count: stats?.totalTVChannels },
         { id: 'categories', label: 'Categories', icon: Film, count: stats?.totalCategories },
@@ -112,7 +113,7 @@ export default function MultimediaPage() {
                     onClick={() => { setEditItem(null); setShowModal(true); }}
                     className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-600/20"
                 >
-                    <Plus className="w-5 h-5" /> Add {tab === 'categories' ? 'Category' : tab === 'radio' ? 'Radio' : tab.slice(0, -1).toUpperCase()}
+                    <Plus className="w-5 h-5" /> Add {tab === 'categories' ? 'Category' : tab === 'radio' ? 'Radio' : tab === 'tracks' ? 'Audio' : tab === 'videos' ? 'Video' : tab.slice(0, -1).toUpperCase()}
                 </button>
             </div>
 
@@ -163,7 +164,16 @@ export default function MultimediaPage() {
             {/* Content */}
             {tab === 'tracks' && (
                 <TracksTable
-                    tracks={tracks?.tracks || []}
+                    tracks={tracks?.tracks.filter((t: MediaTrack) => t.mediaType === 'audio') || []}
+                    search={search}
+                    onEdit={handleEdit}
+                    onDelete={(id: number) => handleDelete('tracks', id)}
+                    actionLoading={actionLoading}
+                />
+            )}
+            {tab === 'videos' && (
+                <TracksTable
+                    tracks={tracks?.tracks.filter((t: MediaTrack) => t.mediaType === 'video') || []}
                     search={search}
                     onEdit={handleEdit}
                     onDelete={(id: number) => handleDelete('tracks', id)}
@@ -375,6 +385,7 @@ function CategoriesTable({ categories, search, onEdit, onDelete }: any) {
 function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType; item: any; onClose: () => void; onSave: () => void; categories: MediaCategory[] }) {
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     // Initialize form with default values if it's a new item
     const [form, setForm] = useState(() => {
@@ -385,6 +396,12 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
             defaults.mediaType = 'audio';
             defaults.language = 'ru';
             defaults.isActive = true;
+            defaults.isExternal = true; // Default to URL mode
+        } else if (type === 'videos') {
+            defaults.mediaType = 'video';
+            defaults.language = 'ru';
+            defaults.isActive = true;
+            defaults.isExternal = false; // Default to Upload mode for videos
         } else if (type === 'radio') {
             defaults.streamType = 'external';
             defaults.isLive = true;
@@ -400,23 +417,39 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
         return defaults;
     });
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string, folder: string = 'images') => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // File size validation
+        const maxSize = folder === 'videos' ? 500 * 1024 * 1024 : (folder === 'audio' ? 100 * 1024 * 1024 : 10 * 1024 * 1024);
+        if (file.size > maxSize) {
+            alert(`File too large. Max size: ${folder === 'videos' ? '500MB' : folder === 'audio' ? '100MB' : '10MB'}`);
+            return;
+        }
+
         setUploading(true);
+        setUploadProgress(0);
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('folder', 'images');
+        formData.append('folder', folder);
 
         try {
             const res = await api.post('/admin/multimedia/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (progressEvent) => {
+                    const percent = progressEvent.total
+                        ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+                        : 0;
+                    setUploadProgress(percent);
+                }
             });
             setForm({ ...form, [field]: res.data.url });
+            setUploadProgress(100);
         } catch (e) {
             console.error('Upload Error:', e);
-            alert('Upload failed');
+            alert('Upload failed. Please try again.');
+            setUploadProgress(0);
         } finally {
             setUploading(false);
         }
@@ -456,7 +489,7 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     {/* Explicitly setting text-gray-900 for light mode and text-white for dark mode for all inputs */}
-                    {type === 'tracks' && (
+                    {(type === 'tracks' || type === 'videos') && (
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Title</label>
@@ -474,8 +507,83 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Source URL</label>
-                                <input placeholder="https://..." value={form.url || ''} onChange={e => setForm({ ...form, url: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Source</label>
+                                {/* Toggle between URL and File */}
+                                <div className="flex gap-2 mb-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm({ ...form, isExternal: true })}
+                                        className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${form.isExternal !== false
+                                            ? 'bg-indigo-500 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            }`}
+                                    >
+                                        🔗 URL
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm({ ...form, isExternal: false })}
+                                        className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${form.isExternal === false
+                                            ? 'bg-indigo-500 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            }`}
+                                    >
+                                        📁 Upload File
+                                    </button>
+                                </div>
+
+                                {form.isExternal !== false ? (
+                                    // URL Input
+                                    <input
+                                        placeholder="https://..."
+                                        value={form.url || ''}
+                                        onChange={e => setForm({ ...form, url: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                        required
+                                    />
+                                ) : (
+                                    // File Upload
+                                    <div className="space-y-3">
+                                        <div className="flex gap-2">
+                                            <input
+                                                placeholder="File URL (after upload)"
+                                                value={form.url || ''}
+                                                readOnly
+                                                className="flex-1 bg-slate-100 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg p-3 text-gray-600 dark:text-slate-400 outline-none cursor-not-allowed"
+                                            />
+                                            <label className={`cursor-pointer bg-indigo-500 hover:bg-indigo-600 text-white px-4 rounded-lg flex items-center gap-2 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                                <Upload className={`w-5 h-5 ${uploading ? 'animate-bounce' : ''}`} />
+                                                {uploading ? 'Uploading...' : 'Select'}
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept={form.mediaType === 'video' ? 'video/*' : 'audio/*'}
+                                                    onChange={e => handleFileUpload(e, 'url', form.mediaType === 'video' ? 'videos' : 'audio')}
+                                                    disabled={uploading}
+                                                />
+                                            </label>
+                                        </div>
+                                        {uploadProgress > 0 && uploadProgress < 100 && (
+                                            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
+                                                <div
+                                                    className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
+                                                    style={{ width: `${uploadProgress}%` }}
+                                                />
+                                            </div>
+                                        )}
+                                        {form.url && (
+                                            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                                                <CheckCircle className="w-4 h-4" />
+                                                File uploaded successfully
+                                            </div>
+                                        )}
+                                        <p className="text-xs text-gray-500 dark:text-slate-500">
+                                            {form.mediaType === 'video'
+                                                ? 'Supported: MP4, WebM, MOV (max 500MB)'
+                                                : 'Supported: MP3, WAV, OGG (max 100MB)'}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">Thumbnail URL</label>
