@@ -90,6 +90,8 @@ func Connect() {
 		// Video-specific models
 		&models.VideoQuality{}, &models.VideoSubtitle{},
 		&models.UserVideoProgress{}, &models.VideoTranscodingJob{},
+		// Series models (TV shows, multi-episode content)
+		&models.Series{}, &models.Season{}, &models.Episode{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)

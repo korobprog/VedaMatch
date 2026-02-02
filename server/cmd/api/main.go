@@ -203,6 +203,11 @@ func main() {
 	multimedia.Get("/tv", multimediaHandler.GetTVChannels)
 	multimedia.Get("/tv/:id", multimediaHandler.GetTVChannel)
 
+	// Public Series Routes (for React Native)
+	publicSeriesHandler := handlers.NewSeriesHandler()
+	multimedia.Get("/series", publicSeriesHandler.GetAllSeries)
+	multimedia.Get("/series/:id", publicSeriesHandler.GetSeriesDetails)
+
 	// Public AI Routes (Legacy/Frontend Compat)
 	api.Post("/v1/chat/completions", chatHandler.HandleChat)
 	api.Get("/v1/models", aiHandler.GetClientModels)
@@ -339,6 +344,27 @@ func main() {
 	admin.Post("/multimedia/tv", multimediaHandler.CreateTVChannel)
 	admin.Put("/multimedia/tv/:id", multimediaHandler.UpdateTVChannel)
 	admin.Delete("/multimedia/tv/:id", multimediaHandler.DeleteTVChannel)
+
+	// Series (TV Shows, Multi-episode content)
+	seriesHandler := handlers.NewSeriesHandler()
+	admin.Get("/series", seriesHandler.GetAllSeries)
+	admin.Get("/series/stats", seriesHandler.GetSeriesStats)
+	admin.Get("/series/:id", seriesHandler.GetSeriesDetails)
+	admin.Post("/series", seriesHandler.CreateSeries)
+	admin.Put("/series/:id", seriesHandler.UpdateSeries)
+	admin.Delete("/series/:id", seriesHandler.DeleteSeries)
+	// Seasons
+	admin.Post("/series/:seriesId/seasons", seriesHandler.CreateSeason)
+	admin.Put("/seasons/:seasonId", seriesHandler.UpdateSeason)
+	admin.Delete("/seasons/:seasonId", seriesHandler.DeleteSeason)
+	// Episodes
+	admin.Post("/seasons/:seasonId/episodes", seriesHandler.CreateEpisode)
+	admin.Put("/episodes/:episodeId", seriesHandler.UpdateEpisode)
+	admin.Delete("/episodes/:episodeId", seriesHandler.DeleteEpisode)
+	admin.Post("/episodes/reorder", seriesHandler.ReorderEpisodes)
+	// Bulk upload
+	admin.Post("/series/parse-filenames", seriesHandler.ParseFilenames)
+	admin.Post("/series/bulk-episodes", seriesHandler.BulkCreateEpisodes)
 
 	// Register Video Routes (new HLS video platform)
 	handlers.RegisterVideoRoutes(app)
