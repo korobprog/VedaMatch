@@ -32,6 +32,8 @@ export const VideoPlayerScreen: React.FC = () => {
         return (match && match[2].length === 11) ? match[2] : null;
     };
 
+    const [error, setError] = useState<string | null>(null);
+
     const renderPlayer = () => {
         if (isYouTube) {
             const videoId = getYouTubeId(video.url);
@@ -42,6 +44,10 @@ export const VideoPlayerScreen: React.FC = () => {
                     domStorageEnabled={true}
                     source={{ uri: `https://www.youtube.com/embed/${videoId}?autoplay=1` }}
                     onLoadEnd={() => setLoading(false)}
+                    onError={(e) => {
+                        setLoading(false);
+                        setError(`YouTube Error: ${e.nativeEvent.description}`);
+                    }}
                 />
             );
         }
@@ -55,6 +61,11 @@ export const VideoPlayerScreen: React.FC = () => {
                 resizeMode="contain"
                 onLoad={() => setLoading(false)}
                 onBuffer={({ isBuffering }) => setLoading(isBuffering)}
+                onError={(e) => {
+                    setLoading(false);
+                    console.log("Video Playback Error:", e);
+                    setError(`Error: ${e.error.errorString || JSON.stringify(e.error)}`);
+                }}
             />
         );
     };
@@ -74,8 +85,15 @@ export const VideoPlayerScreen: React.FC = () => {
 
             {/* Player Container */}
             <View style={styles.playerContainer}>
-                {renderPlayer()}
-                {loading && (
+                {error ? (
+                    <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{error}</Text>
+                        <Text style={styles.errorUrlText} numberOfLines={2}>{video.url}</Text>
+                    </View>
+                ) : (
+                    renderPlayer()
+                )}
+                {loading && !error && (
                     <View style={styles.loader}>
                         <ActivityIndicator size="large" color="#6366F1" />
                     </View>
@@ -175,6 +193,23 @@ const styles = StyleSheet.create({
     statsText: {
         color: '#9CA3AF',
         fontSize: 12,
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 14,
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    errorUrlText: {
+        color: '#6B7280',
+        fontSize: 10,
+        textAlign: 'center',
     },
 });
 

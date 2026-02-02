@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -93,7 +94,7 @@ func (s *S3Service) UploadFile(ctx context.Context, file io.Reader, fileName str
 	}
 
 	// Construct public URL
-	fileURL := fmt.Sprintf("%s/%s", s.publicURL, fileName)
+	fileURL := fmt.Sprintf("%s/%s", s.publicURL, s.encodeKey(fileName))
 	return fileURL, nil
 }
 
@@ -214,6 +215,15 @@ type S3ListItem struct {
 	Size int64
 }
 
+// encodeKey encodes the S3 key for use in a URL
+func (s *S3Service) encodeKey(key string) string {
+	parts := strings.Split(key, "/")
+	for i, part := range parts {
+		parts[i] = url.PathEscape(part)
+	}
+	return strings.Join(parts, "/")
+}
+
 // ListFiles lists files in S3 with a given prefix
 func (s *S3Service) ListFiles(ctx context.Context, prefix string) ([]S3ListItem, error) {
 	if s == nil || s.client == nil {
@@ -236,7 +246,7 @@ func (s *S3Service) ListFiles(ctx context.Context, prefix string) ([]S3ListItem,
 		for _, obj := range page.Contents {
 			items = append(items, S3ListItem{
 				Key:  *obj.Key,
-				URL:  fmt.Sprintf("%s/%s", s.publicURL, *obj.Key),
+				URL:  fmt.Sprintf("%s/%s", s.publicURL, s.encodeKey(*obj.Key)),
 				Size: *obj.Size,
 			})
 		}
