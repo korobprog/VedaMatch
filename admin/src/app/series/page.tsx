@@ -341,7 +341,7 @@ function SeasonSection({ season, isExpanded, onToggle, mutate }: {
                                         placeholder="Название серии"
                                         value={episodeForm.title}
                                         onChange={e => setEpisodeForm({ ...episodeForm, title: e.target.value })}
-                                        className="flex-1 p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600"
+                                        className="flex-1 p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                     />
                                     <div className="flex-1 flex gap-2">
                                         <input
@@ -349,7 +349,7 @@ function SeasonSection({ season, isExpanded, onToggle, mutate }: {
                                             placeholder="URL видео"
                                             value={episodeForm.videoURL}
                                             onChange={e => setEpisodeForm({ ...episodeForm, videoURL: e.target.value })}
-                                            className="flex-1 p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600"
+                                            className="flex-1 p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                         />
                                         <label className="p-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded cursor-pointer transition-colors" title="Upload Video">
                                             {uploading ? (
@@ -451,7 +451,7 @@ function SeriesModal({ series, onClose, onSave }: {
                                 type="text"
                                 value={form.title}
                                 onChange={e => setForm({ ...form, title: e.target.value })}
-                                className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                                className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                 required
                             />
                         </div>
@@ -461,7 +461,7 @@ function SeriesModal({ series, onClose, onSave }: {
                             <textarea
                                 value={form.description}
                                 onChange={e => setForm({ ...form, description: e.target.value })}
-                                className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                                className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                 rows={3}
                             />
                         </div>
@@ -472,7 +472,7 @@ function SeriesModal({ series, onClose, onSave }: {
                                 type="text"
                                 value={form.coverImageURL}
                                 onChange={e => setForm({ ...form, coverImageURL: e.target.value })}
-                                className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                                className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                             />
                         </div>
 
@@ -483,7 +483,7 @@ function SeriesModal({ series, onClose, onSave }: {
                                     type="number"
                                     value={form.year}
                                     onChange={e => setForm({ ...form, year: parseInt(e.target.value) })}
-                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                 />
                             </div>
                             <div>
@@ -492,7 +492,7 @@ function SeriesModal({ series, onClose, onSave }: {
                                     type="text"
                                     value={form.genre}
                                     onChange={e => setForm({ ...form, genre: e.target.value })}
-                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                 />
                             </div>
                         </div>
@@ -645,7 +645,7 @@ function BulkUploadModal({ series, onClose, onComplete }: {
                                 <select
                                     value={selectedSeriesId}
                                     onChange={e => setSelectedSeriesId(parseInt(e.target.value))}
-                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                 >
                                     <option value={0}>-- Select a series --</option>
                                     {series.map(s => (
@@ -697,7 +697,7 @@ function BulkUploadModal({ series, onClose, onComplete }: {
                                                 setParsedEpisodes(updated);
                                             }}
                                             placeholder="Episode title"
-                                            className="flex-1 p-1 text-sm border rounded dark:bg-slate-600 dark:border-slate-500"
+                                            className="flex-1 p-1 text-sm border rounded dark:bg-slate-600 dark:border-slate-500 text-gray-900 dark:text-white"
                                         />
                                         <span className="text-xs text-gray-400 truncate max-w-32">{ep.filename}</span>
                                     </div>

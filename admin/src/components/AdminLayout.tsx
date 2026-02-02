@@ -32,7 +32,7 @@ const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
-    { icon: Film, label: 'TV Series', path: '/series' },
+    { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
     { icon: Heart, label: 'Dating', path: '/dating' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: MapPin, label: 'Map', path: '/map' },
