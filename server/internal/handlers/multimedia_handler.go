@@ -409,6 +409,7 @@ func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
 		Filename    string `json:"filename"`
 		Folder      string `json:"folder"`
 		ContentType string `json:"contentType"`
+		SeriesSlug  string `json:"seriesSlug"` // Optional: series folder name
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
@@ -417,14 +418,21 @@ func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
 	if body.Filename == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Filename is required"})
 	}
-	if body.Folder == "" {
-		body.Folder = "videos"
+
+	// Determine folder path
+	folder := body.Folder
+	if body.SeriesSlug != "" {
+		// Create folder structure: series/{series-slug}/
+		folder = "series/" + body.SeriesSlug
+	} else if folder == "" {
+		folder = "videos"
 	}
+
 	if body.ContentType == "" {
 		body.ContentType = "video/mp4"
 	}
 
-	presignedURL, finalURL, err := h.service.GetPresignedUploadURL(body.Filename, body.Folder, body.ContentType)
+	presignedURL, finalURL, err := h.service.GetPresignedUploadURL(body.Filename, folder, body.ContentType)
 	if err != nil {
 		log.Printf("[MultimediaHandler] Presign error: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
@@ -433,6 +441,7 @@ func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"uploadUrl": presignedURL,
 		"finalUrl":  finalURL,
+		"folder":    folder,
 	})
 }
 

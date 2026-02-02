@@ -220,6 +220,7 @@ function SeriesCard({ series, onEdit, onDelete, expandedSeasons, toggleSeason, m
                     <SeasonSection
                         key={season.id}
                         season={season}
+                        seriesSlug={series.title.toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-|-$/g, '')}
                         isExpanded={expandedSeasons.includes(season.id)}
                         onToggle={() => toggleSeason(season.id)}
                         mutate={mutate}
@@ -241,8 +242,9 @@ function SeriesCard({ series, onEdit, onDelete, expandedSeasons, toggleSeason, m
 
 // ==================== SEASON SECTION ====================
 
-function SeasonSection({ season, isExpanded, onToggle, mutate }: {
+function SeasonSection({ season, seriesSlug, isExpanded, onToggle, mutate }: {
     season: Season;
+    seriesSlug: string;
     isExpanded: boolean;
     onToggle: () => void;
     mutate: () => void;
@@ -257,10 +259,10 @@ function SeasonSection({ season, isExpanded, onToggle, mutate }: {
 
         setUploading(true);
         try {
-            // Get presigned URL
+            // Get presigned URL with series folder
             const presignRes = await api.post('/admin/multimedia/presign', {
                 filename: file.name,
-                folder: 'series',
+                seriesSlug: seriesSlug,
                 contentType: file.type || 'video/mp4'
             });
 
@@ -594,13 +596,17 @@ function BulkUploadModal({ series, onClose, onComplete }: {
     const handleUpload = async () => {
         setStep('uploading');
 
+        // Get selected series for slug
+        const selectedSeries = series.find(s => s.id === selectedSeriesId);
+        const seriesSlug = selectedSeries ? selectedSeries.title.toLowerCase().replace(/[^a-z\u0430-\u044f\u04510-9]+/gi, '-').replace(/^-|-$/g, '') : 'unknown';
+
         for (let i = 0; i < parsedEpisodes.length; i++) {
             const ep = parsedEpisodes[i];
 
-            // Get presigned URL
+            // Get presigned URL with series folder
             const presignRes = await api.post('/admin/multimedia/presign', {
                 filename: ep.file.name,
-                folder: 'series',
+                seriesSlug: seriesSlug,
                 contentType: ep.file.type || 'video/mp4'
             });
 
@@ -781,11 +787,23 @@ function S3ImportModal({ series, onClose, onComplete }: {
 }) {
     const [step, setStep] = useState<'select' | 'preview' | 'importing'>('select');
     const [selectedSeriesId, setSelectedSeriesId] = useState<number>(0);
-    const [prefix, setPrefix] = useState('series/');
+    const [prefix, setPrefix] = useState('');
     const [loading, setLoading] = useState(false);
     const [files, setFiles] = useState<S3File[]>([]);
     const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
     const [importProgress, setImportProgress] = useState(0);
+
+    // Auto-suggest prefix when series is selected
+    const handleSeriesChange = (seriesId: number) => {
+        setSelectedSeriesId(seriesId);
+        if (seriesId > 0) {
+            const selectedSeries = series.find(s => s.id === seriesId);
+            if (selectedSeries) {
+                const slug = selectedSeries.title.toLowerCase().replace(/[^a-z\u0430-\u044f\u04510-9]+/gi, '-').replace(/^-|-$/g, '');
+                setPrefix(`series/${slug}/`);
+            }
+        }
+    };
 
     const loadS3Files = async () => {
         setLoading(true);
@@ -884,7 +902,7 @@ function S3ImportModal({ series, onClose, onComplete }: {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Select Series *</label>
                                 <select
                                     value={selectedSeriesId}
-                                    onChange={e => setSelectedSeriesId(parseInt(e.target.value))}
+                                    onChange={e => handleSeriesChange(parseInt(e.target.value))}
                                     className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
                                 >
                                     <option value={0}>-- Select a series --</option>
@@ -946,13 +964,13 @@ function S3ImportModal({ series, onClose, onComplete }: {
                                         key={i}
                                         onClick={() => toggleFile(i)}
                                         className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${selectedFiles.has(i)
-                                                ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700'
-                                                : 'bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600'
+                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700'
+                                            : 'bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600'
                                             }`}
                                     >
                                         <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedFiles.has(i)
-                                                ? 'bg-indigo-500 border-indigo-500'
-                                                : 'border-gray-300 dark:border-slate-500'
+                                            ? 'bg-indigo-500 border-indigo-500'
+                                            : 'border-gray-300 dark:border-slate-500'
                                             }`}>
                                             {selectedFiles.has(i) && <Check className="w-3 h-3 text-white" />}
                                         </div>
