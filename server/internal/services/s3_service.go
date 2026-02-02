@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -17,9 +18,10 @@ import (
 )
 
 type S3Service struct {
-	client     *s3.Client
-	bucketName string
-	publicURL  string
+	client        *s3.Client
+	presignClient *s3.PresignClient
+	bucketName    string
+	publicURL     string
 }
 
 var (
@@ -47,15 +49,18 @@ func GetS3Service() *S3Service {
 			return
 		}
 
+		client := s3.New(s3.Options{
+			Region:       region,
+			Credentials:  aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
+			BaseEndpoint: aws.String(endpoint),
+			UsePathStyle: true,
+		})
+
 		s3Instance = &S3Service{
-			client: s3.New(s3.Options{
-				Region:       region,
-				Credentials:  aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-				BaseEndpoint: aws.String(endpoint),
-				UsePathStyle: true,
-			}),
-			bucketName: bucketName,
-			publicURL:  publicURL,
+			client:        client,
+			presignClient: s3.NewPresignClient(client),
+			bucketName:    bucketName,
+			publicURL:     publicURL,
 		}
 
 		keyPreview := ""
@@ -253,4 +258,24 @@ func (s *S3Service) ListFiles(ctx context.Context, prefix string) ([]S3ListItem,
 	}
 
 	return items, nil
+}
+
+// GeneratePresignedURL generates a presigned URL for a file
+func (s *S3Service) GeneratePresignedURL(ctx context.Context, key string, lifetime time.Duration) (string, error) {
+	if s == nil || s.presignClient == nil {
+		return "", fmt.Errorf("S3 service not initialized")
+	}
+
+	request, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(key),
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = lifetime
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return request.URL, nil
 }

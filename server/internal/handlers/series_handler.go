@@ -3,10 +3,12 @@ package handlers
 import (
 	"context"
 	"log"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
@@ -58,7 +60,40 @@ func (h *SeriesHandler) GetSeriesDetails(c *fiber.Ctx) error {
 	// Increment view count
 	h.db.Model(&series).Update("view_count", gorm.Expr("view_count + 1"))
 
+	// Presign URLs for private S3 access
+	s3Svc := services.GetS3Service()
+	if s3Svc != nil {
+		for i := range series.Seasons {
+			for j := range series.Seasons[i].Episodes {
+				url := series.Seasons[i].Episodes[j].VideoURL
+				// Check if URL belongs to our S3
+				key := s3Svc.ExtractS3Path(url)
+				if key != url { // If extraction worked (meaning it's our S3 URL)
+					// Verify key is not just the full URL (simple check)
+					if !strings.HasPrefix(key, "http") {
+						// Decode key if needed (it might be encoded in DB now)
+						decodedKey, err := urlDecode(key)
+						if err == nil {
+							key = decodedKey
+						}
+
+						signedURL, err := s3Svc.GeneratePresignedURL(context.Background(), key, 4*time.Hour)
+						if err == nil {
+							series.Seasons[i].Episodes[j].VideoURL = signedURL
+						} else {
+							log.Printf("Failed to sign URL for key %s: %v", key, err)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return c.JSON(series)
+}
+
+func urlDecode(str string) (string, error) {
+	return url.QueryUnescape(str)
 }
 
 // CreateSeries creates a new series
