@@ -23,7 +23,8 @@ import {
     GraduationCap,
     Library,
     MapPin,
-    Music
+    Music,
+    Film
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -31,6 +32,7 @@ const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
+    { icon: Film, label: 'TV Series', path: '/series' },
     { icon: Heart, label: 'Dating', path: '/dating' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: MapPin, label: 'Map', path: '/map' },
