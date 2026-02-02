@@ -489,12 +489,75 @@ function SeriesModal({ series, onClose, onSave }: {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Cover Image URL</label>
-                            <input
-                                type="text"
-                                value={form.coverImageURL}
-                                onChange={e => setForm({ ...form, coverImageURL: e.target.value })}
-                                className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
-                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={form.coverImageURL}
+                                    onChange={e => setForm({ ...form, coverImageURL: e.target.value })}
+                                    className="flex-1 p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
+                                />
+                                <label className="p-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg cursor-pointer transition-colors" title="Upload Image">
+                                    <Upload className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+
+                                            try {
+                                                const formData = new FormData();
+                                                formData.append('file', file);
+
+                                                // Assuming we can use multimedia handler for generic uploads or add a specific one
+                                                // For now, let's look if we can reuse an upload endpoint. 
+                                                // The SeasonSection uses presigned URLs for videos.
+                                                // Let's use /admin/multimedia/upload for simple image upload if available, 
+                                                // or presigned flow if we want consistency. 
+                                                // Checking main.go: admin.Post("/multimedia/upload", multimediaHandler.UploadMedia) exists.
+
+                                                setLoading(true);
+                                                const res = await api.post('/admin/multimedia/upload', formData, {
+                                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                                });
+
+                                                // Assuming response has url or similar. 
+                                                // Let's check UploadMedia handler if possible, but based on convention it's likely returning file details.
+                                                // If UploadMedia is for existing tracks, it might expect metadata.
+                                                // Let's try to use the presigned flow for images too, it's safer.
+
+                                                // Generate slug for folder
+                                                const slug = form.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'temp';
+
+                                                const presignRes = await api.post('/admin/multimedia/presign', {
+                                                    filename: `covers/${slug}/${file.name}`,
+                                                    seriesSlug: 'covers',
+                                                    contentType: file.type || 'image/jpeg'
+                                                });
+
+                                                const { uploadUrl, finalUrl } = presignRes.data;
+
+                                                await fetch(uploadUrl, {
+                                                    method: 'PUT',
+                                                    body: file,
+                                                    headers: {
+                                                        'Content-Type': file.type || 'image/jpeg',
+                                                        'x-amz-acl': 'public-read'
+                                                    }
+                                                });
+
+                                                setForm(prev => ({ ...prev, coverImageURL: finalUrl }));
+                                            } catch (err) {
+                                                console.error(err);
+                                                alert('Upload failed: ' + (err as any).message);
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
