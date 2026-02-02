@@ -21,6 +21,7 @@ interface MediaTrack {
     duration: number;
     url: string;
     thumbnailUrl: string;
+    coverImageURL: string;
     madh: string;
     isActive: boolean;
     isFeatured: boolean;
@@ -100,8 +101,8 @@ export default function MultimediaPage() {
     };
 
     const tabs = [
-        { id: 'tracks', label: 'Audio', icon: Music, count: stats?.totalTracks }, // Renamed from Tracks to Audio for clarity
-        { id: 'videos', label: 'Videos', icon: Film, count: stats?.totalVideos }, // New tab
+        { id: 'tracks', label: 'Audio', icon: Music, count: stats?.totalAudioTracks }, // Audio count
+        { id: 'videos', label: 'Videos', icon: Film, count: stats?.totalVideoTracks }, // Video count
         { id: 'radio', label: 'Radio', icon: Radio, count: stats?.totalRadioStations },
         { id: 'tv', label: 'TV', icon: Tv, count: stats?.totalTVChannels },
         { id: 'categories', label: 'Categories', icon: Film, count: stats?.totalCategories },
@@ -240,27 +241,48 @@ function TracksTable({ tracks, search, onEdit, onDelete, actionLoading }: any) {
                 <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-slate-900/50">
                         <tr>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Title</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Artist</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Madh</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Views</th>
-                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
+                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider w-16">Cover</th>
+                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Title</th>
+                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Artist</th>
+                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Madh</th>
+                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Views</th>
+                            <th className="px-4 py-4 text-right text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                         {filtered.map((t: MediaTrack) => (
                             <tr key={t.ID} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{t.title}</td>
-                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{t.artist}</td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 py-3">
+                                    {t.coverImageURL ? (
+                                        <img
+                                            src={t.coverImageURL}
+                                            alt={t.title}
+                                            className="w-12 h-12 rounded-lg object-cover shadow-sm"
+                                        />
+                                    ) : (
+                                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${t.mediaType === 'video'
+                                            ? 'bg-purple-100 dark:bg-purple-900/40'
+                                            : 'bg-blue-100 dark:bg-blue-900/40'
+                                            }`}>
+                                            {t.mediaType === 'video' ? (
+                                                <Film className="w-6 h-6 text-purple-500 dark:text-purple-400" />
+                                            ) : (
+                                                <Music className="w-6 h-6 text-blue-500 dark:text-blue-400" />
+                                            )}
+                                        </div>
+                                    )}
+                                </td>
+                                <td className="px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">{t.title}</td>
+                                <td className="px-4 py-4 text-sm text-gray-500 dark:text-slate-400">{t.artist}</td>
+                                <td className="px-4 py-4">
                                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${t.mediaType === 'audio' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
                                         {t.mediaType}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{t.madh || '-'}</td>
-                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{t.viewCount}</td>
-                                <td className="px-6 py-4 text-right flex justify-end gap-3 text-sm">
+                                <td className="px-4 py-4 text-sm text-gray-500 dark:text-slate-400">{t.madh || '-'}</td>
+                                <td className="px-4 py-4 text-sm text-gray-500 dark:text-slate-400">{t.viewCount}</td>
+                                <td className="px-4 py-4 text-right flex justify-end gap-3 text-sm">
                                     <button onClick={() => onEdit(t)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"><Edit3 className="w-4 h-4" /></button>
                                     <button onClick={() => onDelete(t.ID)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"><Trash2 className="w-4 h-4" /></button>
                                 </td>
