@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -34,6 +34,20 @@ export const VideoPlayerScreen: React.FC = () => {
 
     const [error, setError] = useState<string | null>(null);
 
+    const [showControls, setShowControls] = useState(true);
+
+    // Auto-hide controls
+    useEffect(() => {
+        if (showControls && !paused) {
+            const timer = setTimeout(() => setShowControls(false), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [showControls, paused]);
+
+    const toggleControls = () => {
+        setShowControls(!showControls);
+    };
+
     const renderPlayer = () => {
         if (isYouTube) {
             const videoId = getYouTubeId(video.url);
@@ -53,20 +67,42 @@ export const VideoPlayerScreen: React.FC = () => {
         }
 
         return (
-            <Video
-                source={{ uri: video.url }}
-                style={styles.video}
-                controls={true}
-                paused={paused}
-                resizeMode="contain"
-                onLoad={() => setLoading(false)}
-                onBuffer={({ isBuffering }) => setLoading(isBuffering)}
-                onError={(e) => {
-                    setLoading(false);
-                    console.log("Video Playback Error:", e);
-                    setError(`Error: ${e.error.errorString || JSON.stringify(e.error)}`);
-                }}
-            />
+            <TouchableOpacity
+                activeOpacity={1}
+                onPress={toggleControls}
+                style={styles.videoWrapper}
+            >
+                <Video
+                    source={{ uri: video.url }}
+                    style={styles.video}
+                    controls={false} // Disable native controls to use our custom overlay
+                    paused={paused}
+                    resizeMode="contain"
+                    onLoad={() => setLoading(false)}
+                    onBuffer={({ isBuffering }) => setLoading(isBuffering)}
+                    onError={(e) => {
+                        setLoading(false);
+                        console.log("Video Playback Error:", e);
+                        setError(`Error: ${e.error.errorString || JSON.stringify(e.error)}`);
+                    }}
+                />
+
+                {/* Custom Controls Overlay */}
+                {showControls && !loading && (
+                    <View style={styles.controlsOverlay}>
+                        <TouchableOpacity
+                            onPress={() => setPaused(!paused)}
+                            style={styles.playButton}
+                        >
+                            {paused ? (
+                                <Play size={40} color="#fff" fill="rgba(255,255,255,0.7)" />
+                            ) : (
+                                <Pause size={40} color="#fff" fill="rgba(255,255,255,0.7)" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </TouchableOpacity>
         );
     };
 
@@ -101,14 +137,6 @@ export const VideoPlayerScreen: React.FC = () => {
             </View>
 
             {/* Info & Description */}
-            {!loading && !isYouTube && (
-                <View style={styles.controlsOverlay}>
-                    <TouchableOpacity onPress={() => setPaused(!paused)}>
-                        {paused ? <Play size={40} color="#fff" /> : <Pause size={40} color="#fff" />}
-                    </TouchableOpacity>
-                </View>
-            )}
-
             <View style={styles.details}>
                 <Text style={styles.description}>{video.description || 'Нет описания'}</Text>
                 <View style={styles.statsRow}>
@@ -158,6 +186,10 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    videoWrapper: {
+        width: '100%',
+        height: '100%',
+    },
     webview: {
         width: '100%',
         height: '100%',
@@ -168,14 +200,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.5)',
+        zIndex: 2,
     },
     controlsOverlay: {
-        position: 'absolute',
-        top: 200,
-        left: 0,
-        right: 0,
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.3)',
         alignItems: 'center',
         justifyContent: 'center',
+        zIndex: 1,
+    },
+    playButton: {
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     details: {
         padding: 20,
