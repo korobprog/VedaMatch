@@ -135,6 +135,19 @@ class MultimediaService {
         return response.json();
     }
 
+    // Series methods
+    async getSeries(): Promise<{ series: any[] }> {
+        const response = await fetch(`${this.baseUrl}/multimedia/series`);
+        if (!response.ok) throw new Error('Failed to fetch series');
+        return response.json();
+    }
+
+    async getSeriesDetails(id: number): Promise<any> {
+        const response = await fetch(`${this.baseUrl}/multimedia/series/${id}`);
+        if (!response.ok) throw new Error('Failed to fetch series details');
+        return response.json();
+    }
+
     async getFavorites(page = 1, limit = 20): Promise<{ tracks: MediaTrack[]; total: number }> {
         const headers = await getAuthHeaders();
         const response = await fetch(

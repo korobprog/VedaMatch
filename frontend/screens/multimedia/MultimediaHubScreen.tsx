@@ -65,6 +65,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
         { id: 'radio', title: 'Радио', icon: Radio, color: vTheme.colors.accent, screen: 'RadioScreen' },
         { id: 'audio', title: 'Аудио', icon: Music, color: vTheme.colors.primary, screen: 'AudioScreen' },
         { id: 'video', title: 'Видео', icon: Film, color: '#45B7D1', screen: 'VideoScreen' },
+        { id: 'series', title: 'Сериалы', icon: TvIcon, color: '#9333EA', screen: 'SeriesScreen' },
         { id: 'tv', title: 'ТВ', icon: TvIcon, color: '#96CEB4', screen: 'TVScreen' },
         { id: 'favorites', title: 'Избранное', icon: Heart, color: '#EF4444', screen: 'FavoritesScreen' },
     ];
