@@ -98,6 +98,14 @@ export const SeriesDetailScreen: React.FC = () => {
         });
     };
 
+    const cleanTitle = (title: string, episodeNum: number) => {
+        // If title is just a long number (likely a timestamp/id), show generic name
+        if (/^\d{10,}$/.test(title)) {
+            return `Серия ${episodeNum}`;
+        }
+        return title || `Серия ${episodeNum}`;
+    };
+
     const renderEpisode = ({ item, index }: { item: Episode; index: number }) => (
         <TouchableOpacity
             style={[styles.episodeCard, { backgroundColor: vTheme.colors.surface }]}
@@ -112,7 +120,7 @@ export const SeriesDetailScreen: React.FC = () => {
                 </View>
                 <View style={styles.episodeInfo}>
                     <Text style={[styles.episodeTitle, { color: vTheme.colors.text }]} numberOfLines={1}>
-                        {item.title || `Серия ${item.number}`}
+                        {cleanTitle(item.title, item.number)}
                     </Text>
                     <View style={styles.episodeMeta}>
                         {item.duration > 0 && (
