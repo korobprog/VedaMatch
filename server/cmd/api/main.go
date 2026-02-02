@@ -349,6 +349,15 @@ func main() {
 	seriesHandler := handlers.NewSeriesHandler()
 	admin.Get("/series", seriesHandler.GetAllSeries)
 	admin.Get("/series/stats", seriesHandler.GetSeriesStats)
+
+	// S3 Import (Must come before /series/:id)
+	admin.Get("/series/s3-files", seriesHandler.ListS3Files)
+	admin.Post("/series/s3-import", seriesHandler.ImportS3Episodes)
+
+	// Bulk upload
+	admin.Post("/series/parse-filenames", seriesHandler.ParseFilenames)
+	admin.Post("/series/bulk-episodes", seriesHandler.BulkCreateEpisodes)
+
 	admin.Get("/series/:id", seriesHandler.GetSeriesDetails)
 	admin.Post("/series", seriesHandler.CreateSeries)
 	admin.Put("/series/:id", seriesHandler.UpdateSeries)
@@ -362,12 +371,6 @@ func main() {
 	admin.Put("/episodes/:episodeId", seriesHandler.UpdateEpisode)
 	admin.Delete("/episodes/:episodeId", seriesHandler.DeleteEpisode)
 	admin.Post("/episodes/reorder", seriesHandler.ReorderEpisodes)
-	// Bulk upload
-	admin.Post("/series/parse-filenames", seriesHandler.ParseFilenames)
-	admin.Post("/series/bulk-episodes", seriesHandler.BulkCreateEpisodes)
-	// S3 Import
-	admin.Get("/series/s3-files", seriesHandler.ListS3Files)
-	admin.Post("/series/s3-import", seriesHandler.ImportS3Episodes)
 
 	// Register Video Routes (new HLS video platform)
 	handlers.RegisterVideoRoutes(app)
