@@ -230,6 +230,40 @@ function SeasonSection({ season, isExpanded, onToggle, mutate }: {
 }) {
     const [showAddEpisode, setShowAddEpisode] = useState(false);
     const [episodeForm, setEpisodeForm] = useState({ title: '', videoURL: '' });
+    const [uploading, setUploading] = useState(false);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            // Get presigned URL
+            const presignRes = await api.post('/admin/multimedia/presign', {
+                filename: file.name,
+                folder: 'series',
+                contentType: file.type || 'video/mp4'
+            });
+
+            const { uploadUrl, finalUrl } = presignRes.data;
+
+            // Upload to S3
+            await fetch(uploadUrl, {
+                method: 'PUT',
+                body: file,
+                headers: {
+                    'Content-Type': file.type || 'video/mp4',
+                    'x-amz-acl': 'public-read'
+                }
+            });
+
+            setEpisodeForm(prev => ({ ...prev, videoURL: finalUrl }));
+        } catch (err) {
+            console.error(err);
+            alert('Upload failed: ' + (err as any).message);
+        }
+        setUploading(false);
+    };
 
     const handleAddEpisode = async () => {
         await api.post(`/admin/seasons/${season.id}/episodes`, {
@@ -309,17 +343,33 @@ function SeasonSection({ season, isExpanded, onToggle, mutate }: {
                                         onChange={e => setEpisodeForm({ ...episodeForm, title: e.target.value })}
                                         className="flex-1 p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600"
                                     />
-                                    <input
-                                        type="text"
-                                        placeholder="URL видео"
-                                        value={episodeForm.videoURL}
-                                        onChange={e => setEpisodeForm({ ...episodeForm, videoURL: e.target.value })}
-                                        className="flex-1 p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600"
-                                    />
-                                    <button onClick={handleAddEpisode} className="p-2 bg-indigo-500 text-white rounded">
+                                    <div className="flex-1 flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="URL видео"
+                                            value={episodeForm.videoURL}
+                                            onChange={e => setEpisodeForm({ ...episodeForm, videoURL: e.target.value })}
+                                            className="flex-1 p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600"
+                                        />
+                                        <label className="p-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded cursor-pointer transition-colors" title="Upload Video">
+                                            {uploading ? (
+                                                <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Upload className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                                            )}
+                                            <input
+                                                type="file"
+                                                accept="video/*"
+                                                className="hidden"
+                                                onChange={handleFileUpload}
+                                                disabled={uploading}
+                                            />
+                                        </label>
+                                    </div>
+                                    <button onClick={handleAddEpisode} disabled={uploading} className="p-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 transition-colors">
                                         <Save className="w-4 h-4" />
                                     </button>
-                                    <button onClick={() => setShowAddEpisode(false)} className="p-2 text-gray-400">
+                                    <button onClick={() => setShowAddEpisode(false)} className="p-2 text-gray-400 hover:text-gray-600">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -541,7 +591,10 @@ function BulkUploadModal({ series, onClose, onComplete }: {
             await fetch(uploadUrl, {
                 method: 'PUT',
                 body: ep.file,
-                headers: { 'Content-Type': ep.file.type || 'video/mp4' }
+                headers: {
+                    'Content-Type': ep.file.type || 'video/mp4',
+                    'x-amz-acl': 'public-read'
+                }
             });
 
             // Update episode with URL

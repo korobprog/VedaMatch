@@ -426,6 +426,7 @@ func (s *MultimediaService) GetPresignedUploadURL(filename, folder, contentType 
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
 		ContentType: aws.String(contentType),
+		ACL:         types.ObjectCannedACLPublicRead,
 	}, s3.WithPresignExpires(time.Hour))
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate presigned URL: %w", err)

@@ -157,4 +157,4 @@ frontend/android/app/build/outputs/
 
 # Next.js
 .next/
-out/
+out/server/server_linux
