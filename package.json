@@ -27,6 +27,7 @@
     "env:ios": "cd frontend && cp .env.ios .env",
     "emulator:ios": "node start-ios.js",
     "dev:ios": "pnpm run clean && pnpm run env:ios && node start-ios.js && concurrently \"pnpm run server\" \"wait-on tcp:8081 && pnpm run admin\" \"wait-on tcp:8081 && pnpm run frontend\" \"wait-on tcp:8082 && pnpm run ios\" --names \"SERVER,ADMIN,METRO,IOS\" --prefix-colors \"blue,yellow,magenta,green\"",
+    "android:prod": "export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" && pnpm run android:setup && pnpm run android:bundle && cd frontend && npx react-native run-android --mode=release",
     "build:release": "pnpm run android:setup && pnpm run android:bundle && pnpm run android:build && pnpm run android:copy"
   },
   "dependencies": {

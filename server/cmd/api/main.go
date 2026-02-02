@@ -365,6 +365,9 @@ func main() {
 	// Bulk upload
 	admin.Post("/series/parse-filenames", seriesHandler.ParseFilenames)
 	admin.Post("/series/bulk-episodes", seriesHandler.BulkCreateEpisodes)
+	// S3 Import
+	admin.Get("/series/s3-files", seriesHandler.ListS3Files)
+	admin.Post("/series/s3-import", seriesHandler.ImportS3Episodes)
 
 	// Register Video Routes (new HLS video platform)
 	handlers.RegisterVideoRoutes(app)

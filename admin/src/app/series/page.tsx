@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Edit3, Trash2, ChevronDown, ChevronUp, Film, Upload,
-    GripVertical, X, Save, FolderOpen, Layers
+    GripVertical, X, Save, FolderOpen, Layers, Cloud, Check
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -47,6 +47,7 @@ export default function SeriesPage() {
     const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
     const [showSeriesModal, setShowSeriesModal] = useState(false);
     const [showBulkModal, setShowBulkModal] = useState(false);
+    const [showS3Modal, setShowS3Modal] = useState(false);
     const [expandedSeasons, setExpandedSeasons] = useState<number[]>([]);
 
     const { data: seriesData, mutate } = useSWR('/admin/series', fetcher);
@@ -80,6 +81,13 @@ export default function SeriesPage() {
                     </p>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowS3Modal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
+                    >
+                        <Cloud className="w-4 h-4" />
+                        Import from S3
+                    </button>
                     <button
                         onClick={() => setShowBulkModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
@@ -138,6 +146,17 @@ export default function SeriesPage() {
                         series={series}
                         onClose={() => setShowBulkModal(false)}
                         onComplete={() => { setShowBulkModal(false); mutate(); }}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* S3 Import Modal */}
+            <AnimatePresence>
+                {showS3Modal && (
+                    <S3ImportModal
+                        series={series}
+                        onClose={() => setShowS3Modal(false)}
+                        onComplete={() => { setShowS3Modal(false); mutate(); }}
                     />
                 )}
             </AnimatePresence>
@@ -728,6 +747,257 @@ function BulkUploadModal({ series, onClose, onComplete }: {
                             </div>
                             <p className="text-gray-600 dark:text-slate-400">
                                 Uploading... {uploadProgress}%
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-6 border-t border-gray-200 dark:border-slate-700 flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 text-gray-600 dark:text-slate-400">
+                        Close
+                    </button>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
+// ==================== S3 IMPORT MODAL ====================
+
+interface S3File {
+    key: string;
+    filename: string;
+    url: string;
+    size: number;
+    season: number;
+    episode: number;
+    title: string;
+}
+
+function S3ImportModal({ series, onClose, onComplete }: {
+    series: Series[];
+    onClose: () => void;
+    onComplete: () => void;
+}) {
+    const [step, setStep] = useState<'select' | 'preview' | 'importing'>('select');
+    const [selectedSeriesId, setSelectedSeriesId] = useState<number>(0);
+    const [prefix, setPrefix] = useState('series/');
+    const [loading, setLoading] = useState(false);
+    const [files, setFiles] = useState<S3File[]>([]);
+    const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
+    const [importProgress, setImportProgress] = useState(0);
+
+    const loadS3Files = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get(`/admin/series/s3-files?prefix=${encodeURIComponent(prefix)}`);
+            setFiles(res.data.files || []);
+            // Select all by default
+            setSelectedFiles(new Set((res.data.files || []).map((_: S3File, i: number) => i)));
+            setStep('preview');
+        } catch (err) {
+            console.error(err);
+            alert('Failed to load S3 files');
+        }
+        setLoading(false);
+    };
+
+    const toggleFile = (index: number) => {
+        const newSelected = new Set(selectedFiles);
+        if (newSelected.has(index)) {
+            newSelected.delete(index);
+        } else {
+            newSelected.add(index);
+        }
+        setSelectedFiles(newSelected);
+    };
+
+    const selectAll = () => {
+        setSelectedFiles(new Set(files.map((_, i) => i)));
+    };
+
+    const deselectAll = () => {
+        setSelectedFiles(new Set());
+    };
+
+    const handleImport = async () => {
+        if (selectedSeriesId === 0) {
+            alert('Please select a series');
+            return;
+        }
+
+        const filesToImport = files.filter((_, i) => selectedFiles.has(i));
+        if (filesToImport.length === 0) {
+            alert('Please select at least one file');
+            return;
+        }
+
+        setStep('importing');
+
+        try {
+            await api.post('/admin/series/s3-import', {
+                seriesId: selectedSeriesId,
+                files: filesToImport
+            });
+            setImportProgress(100);
+            setTimeout(() => {
+                onComplete();
+            }, 500);
+        } catch (err) {
+            console.error(err);
+            alert('Import failed: ' + (err as any).message);
+            setStep('preview');
+        }
+    };
+
+    const formatSize = (bytes: number) => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        >
+            <motion.div
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.95 }}
+                className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            >
+                <div className="p-6 border-b border-gray-200 dark:border-slate-700">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Import from S3</h2>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                        Import existing video files from S3 storage into a series
+                    </p>
+                </div>
+
+                <div className="p-6">
+                    {step === 'select' && (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Select Series *</label>
+                                <select
+                                    value={selectedSeriesId}
+                                    onChange={e => setSelectedSeriesId(parseInt(e.target.value))}
+                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
+                                >
+                                    <option value={0}>-- Select a series --</option>
+                                    {series.map(s => (
+                                        <option key={s.id} value={s.id}>{s.title}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">S3 Prefix (folder)</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={prefix}
+                                        onChange={e => setPrefix(e.target.value)}
+                                        placeholder="series/"
+                                        className="flex-1 p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-gray-900 dark:text-white"
+                                    />
+                                    <button
+                                        onClick={loadS3Files}
+                                        disabled={loading || selectedSeriesId === 0}
+                                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {loading ? (
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <Cloud className="w-4 h-4" />
+                                        )}
+                                        Browse
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                                    Common prefixes: series/, videos/, mahabharat/
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 'preview' && (
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <p className="text-sm text-gray-600 dark:text-slate-400">
+                                    {files.length} video files found. {selectedFiles.size} selected.
+                                </p>
+                                <div className="flex gap-2">
+                                    <button onClick={selectAll} className="text-xs text-indigo-500 hover:text-indigo-600">
+                                        Select All
+                                    </button>
+                                    <button onClick={deselectAll} className="text-xs text-gray-400 hover:text-gray-500">
+                                        Deselect All
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="max-h-80 overflow-y-auto space-y-1 border rounded-lg p-2 dark:border-slate-600">
+                                {files.map((file, i) => (
+                                    <div
+                                        key={i}
+                                        onClick={() => toggleFile(i)}
+                                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${selectedFiles.has(i)
+                                                ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700'
+                                                : 'bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600'
+                                            }`}
+                                    >
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedFiles.has(i)
+                                                ? 'bg-indigo-500 border-indigo-500'
+                                                : 'border-gray-300 dark:border-slate-500'
+                                            }`}>
+                                            {selectedFiles.has(i) && <Check className="w-3 h-3 text-white" />}
+                                        </div>
+                                        <span className="w-12 text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                                            S{file.season || 1}E{file.episode || (i + 1)}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm text-gray-700 dark:text-slate-300 truncate">{file.filename}</div>
+                                            <div className="text-xs text-gray-400 dark:text-slate-500">{formatSize(file.size)}</div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {files.length === 0 && (
+                                    <div className="text-center p-8 text-gray-400">
+                                        No video files found in this prefix
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex justify-between">
+                                <button onClick={() => setStep('select')} className="px-4 py-2 text-gray-600 dark:text-slate-400">
+                                    Back
+                                </button>
+                                <button
+                                    onClick={handleImport}
+                                    disabled={selectedFiles.size === 0}
+                                    className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg disabled:opacity-50"
+                                >
+                                    Import {selectedFiles.size} Episodes
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 'importing' && (
+                        <div className="text-center py-8">
+                            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-3 mb-4">
+                                <div
+                                    className="bg-indigo-500 h-3 rounded-full transition-all"
+                                    style={{ width: `${importProgress}%` }}
+                                />
+                            </div>
+                            <p className="text-gray-600 dark:text-slate-400">
+                                Importing episodes...
                             </p>
                         </div>
                     )}

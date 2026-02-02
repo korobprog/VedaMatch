@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"rag-agent-server/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -390,5 +393,185 @@ func (h *SeriesHandler) GetSeriesStats(c *fiber.Ctx) error {
 		"totalSeries":   totalSeries,
 		"totalSeasons":  totalSeasons,
 		"totalEpisodes": totalEpisodes,
+	})
+}
+
+// ==================== S3 IMPORT ====================
+
+// S3File represents a file in S3
+type S3File struct {
+	Key      string `json:"key"`
+	Filename string `json:"filename"`
+	URL      string `json:"url"`
+	Size     int64  `json:"size"`
+	Season   int    `json:"season"`
+	Episode  int    `json:"episode"`
+	Title    string `json:"title"`
+}
+
+// ListS3Files lists video files in S3 with a given prefix
+func (h *SeriesHandler) ListS3Files(c *fiber.Ctx) error {
+	prefix := c.Query("prefix", "series/")
+
+	s3Svc := services.GetS3Service()
+	if s3Svc == nil {
+		return c.Status(500).JSON(fiber.Map{"error": "S3 service not initialized"})
+	}
+
+	files, err := s3Svc.ListFiles(context.Background(), prefix)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Parse filenames and sort
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`[Ss](\\d{1,2})[Ee](\\d{1,3})`),
+		regexp.MustCompile(`(\\d{1,2})[xX](\\d{1,3})`),
+		regexp.MustCompile(`[Ee]pisode[._-]?(\\d{1,3})`),
+		regexp.MustCompile(`[Ss]eriya[._-]?(\\d{1,3})`),
+		regexp.MustCompile(`(\\d{1,3})\\.mp4$`),
+	}
+
+	var result []S3File
+	for _, f := range files {
+		// Skip non-video files
+		if !strings.HasSuffix(strings.ToLower(f.Key), ".mp4") &&
+			!strings.HasSuffix(strings.ToLower(f.Key), ".mkv") &&
+			!strings.HasSuffix(strings.ToLower(f.Key), ".webm") {
+			continue
+		}
+
+		filename := f.Key
+		if idx := strings.LastIndex(f.Key, "/"); idx >= 0 {
+			filename = f.Key[idx+1:]
+		}
+
+		sf := S3File{
+			Key:      f.Key,
+			Filename: filename,
+			URL:      f.URL,
+			Size:     f.Size,
+		}
+
+		// Parse episode info
+		for _, re := range patterns {
+			matches := re.FindStringSubmatch(filename)
+			if len(matches) >= 2 {
+				if len(matches) >= 3 {
+					sf.Season, _ = strconv.Atoi(matches[1])
+					sf.Episode, _ = strconv.Atoi(matches[2])
+				} else {
+					sf.Episode, _ = strconv.Atoi(matches[1])
+					sf.Season = 1
+				}
+				break
+			}
+		}
+
+		// Extract title
+		title := filename
+		title = regexp.MustCompile(`\.[^.]+$`).ReplaceAllString(title, "")
+		title = regexp.MustCompile(`[Ss]\d+[Ee]\d+`).ReplaceAllString(title, "")
+		title = regexp.MustCompile(`\d+[xX]\d+`).ReplaceAllString(title, "")
+		title = regexp.MustCompile(`[Ee]pisode[._-]?\d+`).ReplaceAllString(title, "")
+		title = regexp.MustCompile(`[Ss]eriya[._-]?\d+`).ReplaceAllString(title, "")
+		title = strings.TrimSpace(strings.Trim(title, "._- "))
+		sf.Title = title
+
+		result = append(result, sf)
+	}
+
+	// Sort by episode number
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Season != result[j].Season {
+			return result[i].Season < result[j].Season
+		}
+		return result[i].Episode < result[j].Episode
+	})
+
+	return c.JSON(fiber.Map{
+		"files": result,
+		"count": len(result),
+	})
+}
+
+// ImportS3Episodes imports S3 files as episodes into a series
+func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
+	var body struct {
+		SeriesID uint     `json:"seriesId"`
+		Files    []S3File `json:"files"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if body.SeriesID == 0 || len(body.Files) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "SeriesID and files are required"})
+	}
+
+	log.Printf("[SeriesHandler] Importing %d S3 files into series %d", len(body.Files), body.SeriesID)
+
+	// Group by season
+	seasonFiles := make(map[int][]S3File)
+	for _, f := range body.Files {
+		seasonNum := f.Season
+		if seasonNum == 0 {
+			seasonNum = 1
+		}
+		seasonFiles[seasonNum] = append(seasonFiles[seasonNum], f)
+	}
+
+	var createdEpisodes []models.Episode
+
+	for seasonNum, files := range seasonFiles {
+		// Find or create season
+		var season models.Season
+		err := h.db.Where("series_id = ? AND number = ?", body.SeriesID, seasonNum).First(&season).Error
+		if err != nil {
+			season = models.Season{
+				SeriesID: body.SeriesID,
+				Number:   seasonNum,
+			}
+			h.db.Create(&season)
+		}
+
+		// Sort files by episode number
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Episode < files[j].Episode
+		})
+
+		for _, f := range files {
+			episodeNum := f.Episode
+			if episodeNum == 0 {
+				var maxNum int
+				h.db.Model(&models.Episode{}).Where("season_id = ?", season.ID).Select("COALESCE(MAX(number), 0)").Scan(&maxNum)
+				episodeNum = maxNum + 1
+			}
+
+			// Check if episode already exists
+			var existing models.Episode
+			if h.db.Where("season_id = ? AND number = ?", season.ID, episodeNum).First(&existing).Error == nil {
+				log.Printf("[SeriesHandler] Episode S%dE%d already exists, updating URL", seasonNum, episodeNum)
+				h.db.Model(&existing).Updates(models.Episode{VideoURL: f.URL})
+				createdEpisodes = append(createdEpisodes, existing)
+				continue
+			}
+
+			episode := models.Episode{
+				SeasonID: season.ID,
+				Number:   episodeNum,
+				Title:    f.Title,
+				VideoURL: f.URL,
+				IsActive: true,
+			}
+			h.db.Create(&episode)
+			createdEpisodes = append(createdEpisodes, episode)
+		}
+	}
+
+	return c.Status(201).JSON(fiber.Map{
+		"message":  "Episodes imported from S3",
+		"count":    len(createdEpisodes),
+		"episodes": createdEpisodes,
 	})
 }

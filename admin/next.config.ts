@@ -16,6 +16,7 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  turbopack: {},
 };
 
 export default process.env.NODE_ENV === "development" ? nextConfig : withPWA(nextConfig);

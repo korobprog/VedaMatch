@@ -206,3 +206,41 @@ func (s *S3Service) ExtractS3Path(publicURL string) string {
 	}
 	return strings.TrimPrefix(publicURL, s.publicURL+"/")
 }
+
+// S3ListItem represents a file in S3
+type S3ListItem struct {
+	Key  string
+	URL  string
+	Size int64
+}
+
+// ListFiles lists files in S3 with a given prefix
+func (s *S3Service) ListFiles(ctx context.Context, prefix string) ([]S3ListItem, error) {
+	if s == nil || s.client == nil {
+		return nil, fmt.Errorf("S3 service not initialized")
+	}
+
+	var items []S3ListItem
+
+	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucketName),
+		Prefix: aws.String(prefix),
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list S3 objects: %w", err)
+		}
+
+		for _, obj := range page.Contents {
+			items = append(items, S3ListItem{
+				Key:  *obj.Key,
+				URL:  fmt.Sprintf("%s/%s", s.publicURL, *obj.Key),
+				Size: *obj.Size,
+			})
+		}
+	}
+
+	return items, nil
+}
