@@ -92,6 +92,10 @@ func Connect() {
 		&models.UserVideoProgress{}, &models.VideoTranscodingJob{},
 		// Series models (TV shows, multi-episode content)
 		&models.Series{}, &models.Season{}, &models.Episode{},
+		// Yatra Travel models (pilgrimage service)
+		&models.Yatra{}, &models.YatraParticipant{},
+		&models.Shelter{}, &models.ShelterReview{},
+		&models.YatraReview{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
@@ -101,6 +105,7 @@ func Connect() {
 	SeedMarket()
 	SeedEducation()
 	SeedMultimedia()
+	SeedTravel()
 }
 
 func InitializeSuperAdmin() {

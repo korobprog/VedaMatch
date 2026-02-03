@@ -116,6 +116,7 @@ func main() {
 	cafeHandler := handlers.NewCafeHandler()
 	cafeOrderHandler := handlers.NewCafeOrderHandler()
 	multimediaHandler := handlers.NewMultimediaHandler()
+	yatraHandler := handlers.NewYatraHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -211,6 +212,16 @@ func main() {
 	// Public AI Routes (Legacy/Frontend Compat)
 	api.Post("/v1/chat/completions", chatHandler.HandleChat)
 	api.Get("/v1/models", aiHandler.GetClientModels)
+
+	// Public Yatra Travel Routes (Spiritual Pilgrimage Service)
+	// IMPORTANT: Must be registered BEFORE protected group
+	api.Get("/yatra", yatraHandler.ListYatras)
+	api.Get("/yatra/organizer/:userId/stats", yatraHandler.GetOrganizerStats)
+	api.Get("/yatra/:id", yatraHandler.GetYatra)
+	api.Get("/yatra/:id/reviews", yatraHandler.GetYatraReviews)
+	api.Get("/shelter", yatraHandler.ListShelters)
+	api.Get("/shelter/:id", yatraHandler.GetShelter)
+	api.Get("/shelter/:id/reviews", yatraHandler.GetShelterReviews)
 
 	// Protected Routes (Apply Protected middleware to all following routes)
 	protected := api.Group("/", middleware.Protected())
@@ -549,6 +560,30 @@ func main() {
 	protected.Get("/cafes/:id/orders", cafeOrderHandler.ListOrders)
 	protected.Get("/cafes/:id/orders/active", cafeOrderHandler.GetActiveOrders)
 	protected.Get("/cafes/:id/orders/stats", cafeOrderHandler.GetOrderStats)
+
+	// Protected Yatra Routes (public routes are registered before protected middleware)
+	protected.Get("/yatra/my", yatraHandler.GetMyYatras)
+	protected.Post("/yatra", yatraHandler.CreateYatra)
+	protected.Put("/yatra/:id", yatraHandler.UpdateYatra)
+	protected.Delete("/yatra/:id", yatraHandler.DeleteYatra)
+	protected.Post("/yatra/:id/publish", yatraHandler.PublishYatra)
+	protected.Post("/yatra/:id/join", yatraHandler.JoinYatra)
+	protected.Get("/yatra/:id/my-participation", yatraHandler.GetMyParticipation)
+	protected.Get("/yatra/:id/participants/pending", yatraHandler.GetPendingParticipants)
+	protected.Post("/yatra/:id/participants/:participantId/approve", yatraHandler.ApproveParticipant)
+	protected.Post("/yatra/:id/participants/:participantId/reject", yatraHandler.RejectParticipant)
+	protected.Delete("/yatra/:id/participants/:participantId", yatraHandler.RemoveParticipant)
+	protected.Post("/yatra/:id/reviews", yatraHandler.CreateYatraReview)
+	protected.Post("/yatra/upload", yatraHandler.UploadPhoto)
+
+	// Protected Shelter Routes
+	protected.Get("/shelter/my", yatraHandler.GetMyShelters)
+	protected.Post("/shelter", yatraHandler.CreateShelter)
+	protected.Put("/shelter/:id", yatraHandler.UpdateShelter)
+	protected.Delete("/shelter/:id", yatraHandler.DeleteShelter)
+	protected.Post("/shelter/:id/reviews", yatraHandler.CreateShelterReview)
+	protected.Delete("/shelter/:id/reviews/:reviewId", yatraHandler.DeleteShelterReview)
+	protected.Post("/shelter/upload", yatraHandler.UploadPhoto)
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {

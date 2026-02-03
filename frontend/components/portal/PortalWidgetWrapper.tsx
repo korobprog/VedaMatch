@@ -52,6 +52,11 @@ export const PortalWidgetWrapper: React.FC<PortalWidgetWrapperProps> = ({
             rotation.value = withTiming(0, { duration: 100 });
             scale.value = withTiming(1, { duration: 100 });
         }
+
+        return () => {
+            cancelAnimation(rotation);
+            cancelAnimation(scale);
+        };
     }, [isEditMode]);
 
     const animatedStyle = useAnimatedStyle(() => ({

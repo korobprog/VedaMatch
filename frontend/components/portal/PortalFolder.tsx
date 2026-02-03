@@ -95,6 +95,11 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
             rotation.value = withTiming(0, { duration: 100 });
             scale.value = withTiming(1, { duration: 100 });
         }
+
+        return () => {
+            cancelAnimation(rotation);
+            cancelAnimation(scale);
+        };
     }, [isEditMode]);
 
     const animatedStyle = useAnimatedStyle(() => ({

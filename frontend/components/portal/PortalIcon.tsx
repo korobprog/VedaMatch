@@ -31,6 +31,7 @@ import {
     Coffee,
     Utensils,
     Music,
+    Compass,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -67,6 +68,7 @@ const IconComponents: Record<string, any> = {
     Coffee,
     Utensils,
     Music,
+    Compass,
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({
@@ -110,6 +112,11 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
             rotation.value = withTiming(0, { duration: 100 });
             scale.value = withTiming(1, { duration: 100 });
         }
+
+        return () => {
+            cancelAnimation(rotation);
+            cancelAnimation(scale);
+        };
     }, [isEditMode]);
 
     const animatedStyle = useAnimatedStyle(() => ({

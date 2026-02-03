@@ -113,6 +113,15 @@ import {
 } from './screens/portal/cafe';
 import { CafeCartProvider } from './contexts/CafeCartContext';
 
+import {
+  TravelHomeScreen,
+  YatraDetailScreen,
+  ShelterDetailScreen,
+  CreateYatraScreen,
+  CreateShelterScreen,
+} from './screens/portal/travel';
+
+
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -348,6 +357,12 @@ const AppContent = () => {
                   <Stack.Screen name="FavoritesScreen" component={FavoritesScreen} />
                   <Stack.Screen name="SeriesScreen" component={SeriesScreen} />
                   <Stack.Screen name="SeriesDetail" component={SeriesDetailScreen} />
+
+                  {/* Travel Routes */}
+                  <Stack.Screen name="YatraDetail" component={YatraDetailScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ShelterDetail" component={ShelterDetailScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="CreateYatra" component={CreateYatraScreen} options={{ headerShown: true, title: 'Создать тур' }} />
+                  <Stack.Screen name="CreateShelter" component={CreateShelterScreen} options={{ headerShown: true, title: 'Добавить жильё' }} />
 
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

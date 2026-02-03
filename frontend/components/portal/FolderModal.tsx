@@ -17,7 +17,7 @@ import Animated, {
     withSpring,
     withTiming,
     useSharedValue,
-    runOnJS,
+    cancelAnimation,
 } from 'react-native-reanimated';
 import { X, Check, Palette } from 'lucide-react-native';
 import { PortalFolder, PortalItem, DEFAULT_SERVICES, FOLDER_COLORS } from '../../types/portal';
@@ -60,6 +60,11 @@ export const FolderModal: React.FC<FolderModalProps> = ({
             scale.value = withTiming(0.8, { duration: 150 });
             opacity.value = withTiming(0, { duration: 150 });
         }
+
+        return () => {
+            cancelAnimation(scale);
+            cancelAnimation(opacity);
+        };
     }, [visible, folder.name]);
 
     const animatedContainerStyle = useAnimatedStyle(() => ({

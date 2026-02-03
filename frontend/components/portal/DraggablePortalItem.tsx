@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -8,6 +8,7 @@ import Animated, {
     withTiming,
     withSequence,
     runOnJS,
+    cancelAnimation,
 } from 'react-native-reanimated';
 
 interface DraggablePortalItemProps {
@@ -154,6 +155,17 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
         zIndex: zIndex.value,
         opacity: opacity.value,
     }));
+
+    // Cleanup animations on unmount
+    useEffect(() => {
+        return () => {
+            cancelAnimation(translateX);
+            cancelAnimation(translateY);
+            cancelAnimation(scale);
+            cancelAnimation(opacity);
+            cancelAnimation(zIndex);
+        };
+    }, []);
 
     return (
         <GestureDetector gesture={composedGesture}>

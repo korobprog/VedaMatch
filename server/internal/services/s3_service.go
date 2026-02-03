@@ -15,6 +15,7 @@ import (
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type S3Service struct {
@@ -84,6 +85,7 @@ func (s *S3Service) UploadFile(ctx context.Context, file io.Reader, fileName str
 		Key:         aws.String(fileName),
 		Body:        file,
 		ContentType: aws.String(contentType),
+		ACL:         types.ObjectCannedACLPublicRead, // Make file public
 	}
 
 	if contentSize > 0 {
@@ -137,6 +139,7 @@ func (s *S3Service) UploadFileFromReader(ctx context.Context, reader io.Reader, 
 		Key:         aws.String(fileName),
 		Body:        reader,
 		ContentType: aws.String(contentType),
+		ACL:         types.ObjectCannedACLPublicRead, // Make file public
 	}
 
 	_, err := s.client.PutObject(ctx, putInput, s3.WithAPIOptions(

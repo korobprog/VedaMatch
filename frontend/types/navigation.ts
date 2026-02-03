@@ -81,4 +81,10 @@ export type RootStackParamList = {
     AudioPlayer: { track: any };
     VideoPlayer: { video: any };
     TVPlayer: { channel: any };
+
+    // Travel Routes
+    YatraDetail: { yatraId: number };
+    ShelterDetail: { shelterId: number };
+    CreateYatra: { yatraId?: number } | undefined;
+    CreateShelter: { shelterId?: number } | undefined;
 };

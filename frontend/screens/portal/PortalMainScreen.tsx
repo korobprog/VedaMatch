@@ -46,6 +46,7 @@ import { LibraryHomeScreen } from '../library/LibraryHomeScreen';
 import { EducationHomeScreen } from './education/EducationHomeScreen';
 import { CafeListScreen } from './cafe';
 import { MultimediaHubScreen } from '../multimedia/MultimediaHubScreen';
+import { TravelHomeScreen } from './travel';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
@@ -55,7 +56,7 @@ import { PortalGrid } from '../../components/portal';
 
 const { width } = Dimensions.get('window');
 
-type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'knowledge_base' | 'library' | 'education' | 'map';
+type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel';
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
@@ -156,6 +157,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             case 'education': return <EducationHomeScreen />;
             case 'news': return <NewsScreen />;
             case 'multimedia': return <MultimediaHubScreen />;
+            case 'travel': return <TravelHomeScreen />;
             default: return null;
         }
     };

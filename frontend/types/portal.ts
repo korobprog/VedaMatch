@@ -62,6 +62,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },
     { id: 'settings', label: 'Настройки', icon: 'Settings', color: '#6B7280' },
+    { id: 'travel', label: 'Путешествия', icon: 'Compass', color: '#FF9500' },
 ];
 
 // Folder color options

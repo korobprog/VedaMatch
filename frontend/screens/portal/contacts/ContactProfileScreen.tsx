@@ -10,6 +10,7 @@ import { useChat } from '../../../context/ChatContext';
 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
+import OrganizerBadge from '../../../components/travel/OrganizerBadge';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactProfile'>;
 
@@ -141,6 +142,11 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                     <InfoItem label="Identity" value={contact.identity || 'Devotee'} theme={theme} />
                     <InfoItem label="Location" value={`${contact.city}, ${contact.country} `} theme={theme} />
                     <InfoItem label="Email" value={contact.email} theme={theme} />
+                </View>
+
+                {/* Organizer Achievements Badge */}
+                <View style={{ paddingHorizontal: 20, marginTop: 20 }}>
+                    <OrganizerBadge userId={contact.ID} variant="full" />
                 </View>
 
                 <View style={styles.actions}>

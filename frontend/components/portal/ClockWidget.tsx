@@ -11,6 +11,7 @@ import Animated, {
     withTiming,
     withRepeat,
     Easing,
+    cancelAnimation,
 } from 'react-native-reanimated';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -44,7 +45,10 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
             true
         );
 
-        return () => clearInterval(timer);
+        return () => {
+            clearInterval(timer);
+            cancelAnimation(colonOpacity);
+        };
     }, []);
 
     const colonStyle = useAnimatedStyle(() => ({
