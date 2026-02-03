@@ -96,6 +96,9 @@ func Connect() {
 		&models.Yatra{}, &models.YatraParticipant{},
 		&models.Shelter{}, &models.ShelterReview{},
 		&models.YatraReview{},
+		// Yatra Admin models (moderation)
+		&models.YatraReport{}, &models.OrganizerBlock{},
+		&models.AdminNotification{}, &models.ModerationTemplate{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)

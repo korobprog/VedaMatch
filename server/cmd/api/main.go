@@ -117,6 +117,7 @@ func main() {
 	cafeOrderHandler := handlers.NewCafeOrderHandler()
 	multimediaHandler := handlers.NewMultimediaHandler()
 	yatraHandler := handlers.NewYatraHandler()
+	yatraAdminHandler := handlers.NewYatraAdminHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -383,6 +384,40 @@ func main() {
 	admin.Delete("/episodes/:episodeId", seriesHandler.DeleteEpisode)
 	admin.Post("/episodes/reorder", seriesHandler.ReorderEpisodes)
 
+	// Admin Yatra Travel Management Routes
+	// Yatra management
+	admin.Get("/yatra", yatraAdminHandler.GetAllYatras)
+	admin.Get("/yatra/stats", yatraAdminHandler.GetYatraStats)
+	admin.Put("/yatra/:id", yatraAdminHandler.UpdateYatra)
+	admin.Post("/yatra/:id/approve", yatraAdminHandler.ApproveYatra)
+	admin.Post("/yatra/:id/reject", yatraAdminHandler.RejectYatra)
+	admin.Post("/yatra/:id/cancel", yatraAdminHandler.ForceCancelYatra)
+	admin.Get("/yatra/:id/participants", yatraAdminHandler.GetYatraParticipants)
+	admin.Delete("/yatra/:id/participants/:participantId", yatraAdminHandler.RemoveParticipant)
+
+	// Organizer management
+	admin.Get("/organizers", yatraAdminHandler.GetOrganizers)
+	admin.Get("/organizers/:id/stats", yatraAdminHandler.GetOrganizerStats)
+	admin.Post("/organizers/:id/block", yatraAdminHandler.BlockOrganizer)
+	admin.Delete("/organizers/:id/block", yatraAdminHandler.UnblockOrganizer)
+
+	// Reports management
+	admin.Get("/yatra-reports", yatraAdminHandler.GetReports)
+	admin.Get("/yatra-reports/:id", yatraAdminHandler.GetReport)
+	admin.Put("/yatra-reports/:id", yatraAdminHandler.UpdateReport)
+	admin.Post("/yatra-reports/:id/resolve", yatraAdminHandler.ResolveReport)
+	admin.Post("/yatra-reports/:id/dismiss", yatraAdminHandler.DismissReport)
+
+	// Analytics
+	admin.Get("/yatra/analytics/top-organizers", yatraAdminHandler.GetTopOrganizers)
+	admin.Get("/yatra/analytics/geography", yatraAdminHandler.GetGeography)
+	admin.Get("/yatra/analytics/themes", yatraAdminHandler.GetThemes)
+	admin.Get("/yatra/analytics/trends", yatraAdminHandler.GetTrends)
+
+	// Notifications
+	admin.Get("/notifications", yatraAdminHandler.GetNotifications)
+	admin.Post("/notifications/:id/read", yatraAdminHandler.MarkNotificationRead)
+
 	// Register Video Routes (new HLS video platform)
 	handlers.RegisterVideoRoutes(app)
 
@@ -575,6 +610,10 @@ func main() {
 	protected.Delete("/yatra/:id/participants/:participantId", yatraHandler.RemoveParticipant)
 	protected.Post("/yatra/:id/reviews", yatraHandler.CreateYatraReview)
 	protected.Post("/yatra/upload", yatraHandler.UploadPhoto)
+
+	// Yatra Reports (user can report tours/organizers)
+	protected.Post("/yatra/:id/report", yatraAdminHandler.CreateYatraReport)
+	protected.Post("/organizer/:id/report", yatraAdminHandler.CreateOrganizerReport)
 
 	// Protected Shelter Routes
 	protected.Get("/shelter/my", yatraHandler.GetMyShelters)
