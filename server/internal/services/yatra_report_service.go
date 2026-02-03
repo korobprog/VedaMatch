@@ -27,16 +27,19 @@ func NewYatraReportService(db *gorm.DB, notificationService *AdminNotificationSe
 // CreateReport creates a new report
 func (s *YatraReportService) CreateReport(userID uint, req models.YatraReportCreateRequest) (*models.YatraReport, error) {
 	// Validate target exists
-	if req.TargetType == models.ReportTargetYatra {
+	switch req.TargetType {
+	case models.ReportTargetYatra:
 		var yatra models.Yatra
 		if err := s.db.First(&yatra, req.TargetID).Error; err != nil {
 			return nil, errors.New("yatra not found")
 		}
-	} else if req.TargetType == models.ReportTargetOrganizer {
+	case models.ReportTargetOrganizer:
 		var user models.User
 		if err := s.db.First(&user, req.TargetID).Error; err != nil {
 			return nil, errors.New("organizer not found")
 		}
+	default:
+		return nil, errors.New("invalid target type")
 	}
 
 	// Check if user already reported this target
