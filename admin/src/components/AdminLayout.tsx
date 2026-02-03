@@ -24,7 +24,8 @@ import {
     Library,
     MapPin,
     Music,
-    Film
+    Film,
+    Compass
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,6 +40,7 @@ const menuItems = [
     { icon: Newspaper, label: 'News', path: '/news' },
     { icon: GraduationCap, label: 'Education', path: '/education' },
     { icon: Library, label: 'Knowledge Base', path: '/library' },
+    { icon: Compass, label: 'Yatra Travel', path: '/yatra' },
     { icon: Sparkles, label: 'AI Models', path: '/ai-models' },
     { icon: Route, label: 'Polza AI', path: '/polza' },
     { icon: MessageSquare, label: 'AI Prompts', path: '/ai-prompts' },
