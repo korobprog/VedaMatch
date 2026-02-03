@@ -56,9 +56,9 @@ POST   /admin/notifications/:id/read               - Пометить прочи
 
 ---
 
-### Frontend (95% ✅)
+### Frontend (100% ✅)
 
-**Страницы (6):**
+**Страницы (7):**
 1. `/yatra` - Список туров с фильтрами
 2. `/yatra/[id]` - Детали тура + участники
 3. `/yatra/reports` - Список жалоб
@@ -66,8 +66,9 @@ POST   /admin/notifications/:id/read               - Пометить прочи
 5. `/organizers` - Список организаторов
 6. `/organizers/[id]` - Профиль организатора
 7. `/yatra/analytics` - Аналитика
+8. `/notifications` - Список уведомлений
 
-**Компоненты (11):**
+**Компоненты (12):**
 1. `YatraTable` - Таблица туров
 2. `YatraStats` - Статистика туров
 3. `YatraStatusBadge` - Бейджи статусов
@@ -77,9 +78,11 @@ POST   /admin/notifications/:id/read               - Пометить прочи
 7. `ThemeTrendsChart` - График тем (bar chart)
 8. `TimeTrendsChart` - График трендов (line chart)
 9. `GeographySummary` - География (progress bars)
+10. `AdminNotificationBell` - Умный колокольчик с dropdown
 
 **UI Updates:**
 - ✅ Добавлен пункт меню "Yatra Travel" в sidebar
+- ✅ Интегрирован Notification Bell в шапку
 - ✅ Иконка Compass для навигации
 
 ---

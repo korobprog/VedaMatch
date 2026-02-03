@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TopOrganizersTable } from '@/components/yatra/TopOrganizersTable';
-import { ThemeTrendsChart } from '@/components/yatra/ThemeTrendsChart';
-import { TimeTrendsChart } from '@/components/yatra/TimeTrendsChart';
-import { GeographySummary } from '@/components/yatra/GeographySummary';
+import { TopOrganizersTable } from '../../../components/yatra/TopOrganizersTable';
+import { ThemeTrendsChart } from '../../../components/yatra/ThemeTrendsChart';
+import { TimeTrendsChart } from '../../../components/yatra/TimeTrendsChart';
+import { GeographySummary } from '../../../components/yatra/GeographySummary';
 
 interface AverageMetrics {
     avgParticipants: number;
