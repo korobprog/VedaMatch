@@ -1,7 +1,8 @@
 /**
  * Wallet Service - API для работы с кошельком Лакшми
  */
-import { API_URL, getAuthHeaders } from './authService';
+import { API_PATH } from '../config/api.config';
+import { getAuthHeaders } from './contactService';
 
 // ==================== TYPES ====================
 
@@ -89,7 +90,7 @@ export const TRANSACTION_TYPE_COLORS: Record<TransactionType, string> = {
  */
 export async function getWalletBalance(): Promise<WalletResponse> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/wallet`, { headers });
+    const response = await fetch(`${API_PATH}/wallet`, { headers });
 
     if (!response.ok) {
         throw new Error('Failed to fetch wallet');
@@ -114,7 +115,7 @@ export async function getTransactions(
     if (filters.limit) params.append('limit', filters.limit.toString());
 
     const queryString = params.toString();
-    const url = `${API_URL}/wallet/transactions${queryString ? '?' + queryString : ''}`;
+    const url = `${API_PATH}/wallet/transactions${queryString ? '?' + queryString : ''}`;
 
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('Failed to fetch transactions');
@@ -126,7 +127,7 @@ export async function getTransactions(
  */
 export async function getWalletStats(): Promise<WalletStatsResponse> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/wallet/stats`, { headers });
+    const response = await fetch(`${API_PATH}/wallet/stats`, { headers });
 
     if (!response.ok) throw new Error('Failed to fetch wallet stats');
     return response.json();
@@ -139,7 +140,7 @@ export async function transferLakshmi(
     data: TransferRequest
 ): Promise<{ success: boolean; wallet: WalletResponse }> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/wallet/transfer`, {
+    const response = await fetch(`${API_PATH}/wallet/transfer`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

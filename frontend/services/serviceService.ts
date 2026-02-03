@@ -1,7 +1,8 @@
 /**
  * Service Service - API для работы с сервисами
  */
-import { API_URL, getAuthHeaders } from './authService';
+import { API_PATH } from '../config/api.config';
+import { getAuthHeaders } from './contactService';
 
 // ==================== TYPES ====================
 
@@ -230,7 +231,7 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
     if (filters.limit) params.append('limit', filters.limit.toString());
 
     const queryString = params.toString();
-    const url = `${API_URL}/services${queryString ? '?' + queryString : ''}`;
+    const url = `${API_PATH}/services${queryString ? '?' + queryString : ''}`;
 
     const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch services');
@@ -241,7 +242,7 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
  * Get service by ID
  */
 export async function getServiceById(id: number): Promise<Service> {
-    const response = await fetch(`${API_URL}/services/${id}`);
+    const response = await fetch(`${API_PATH}/services/${id}`);
     if (!response.ok) throw new Error('Service not found');
     return response.json();
 }
@@ -251,7 +252,7 @@ export async function getServiceById(id: number): Promise<Service> {
  */
 export async function getMyServices(): Promise<{ services: Service[] }> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/my`, { headers });
+    const response = await fetch(`${API_PATH}/services/my`, { headers });
     if (!response.ok) throw new Error('Failed to fetch my services');
     return response.json();
 }
@@ -261,7 +262,7 @@ export async function getMyServices(): Promise<{ services: Service[] }> {
  */
 export async function createService(data: CreateServiceRequest): Promise<Service> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services`, {
+    const response = await fetch(`${API_PATH}/services`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -278,7 +279,7 @@ export async function createService(data: CreateServiceRequest): Promise<Service
  */
 export async function updateService(id: number, data: UpdateServiceRequest): Promise<Service> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/${id}`, {
+    const response = await fetch(`${API_PATH}/services/${id}`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -295,7 +296,7 @@ export async function updateService(id: number, data: UpdateServiceRequest): Pro
  */
 export async function deleteService(id: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/${id}`, {
+    const response = await fetch(`${API_PATH}/services/${id}`, {
         method: 'DELETE',
         headers,
     });
@@ -307,7 +308,7 @@ export async function deleteService(id: number): Promise<void> {
  */
 export async function publishService(id: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/${id}/publish`, {
+    const response = await fetch(`${API_PATH}/services/${id}/publish`, {
         method: 'POST',
         headers,
     });
@@ -322,7 +323,7 @@ export async function publishService(id: number): Promise<void> {
  */
 export async function pauseService(id: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/${id}/pause`, {
+    const response = await fetch(`${API_PATH}/services/${id}/pause`, {
         method: 'POST',
         headers,
     });
@@ -335,7 +336,7 @@ export async function pauseService(id: number): Promise<void> {
  * Get tariffs for a service
  */
 export async function getTariffs(serviceId: number): Promise<{ tariffs: ServiceTariff[] }> {
-    const response = await fetch(`${API_URL}/services/${serviceId}/tariffs`);
+    const response = await fetch(`${API_PATH}/services/${serviceId}/tariffs`);
     if (!response.ok) throw new Error('Failed to fetch tariffs');
     return response.json();
 }
@@ -345,7 +346,7 @@ export async function getTariffs(serviceId: number): Promise<{ tariffs: ServiceT
  */
 export async function addTariff(serviceId: number, data: CreateTariffRequest): Promise<ServiceTariff> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/${serviceId}/tariffs`, {
+    const response = await fetch(`${API_PATH}/services/${serviceId}/tariffs`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -359,7 +360,7 @@ export async function addTariff(serviceId: number, data: CreateTariffRequest): P
  */
 export async function updateTariff(tariffId: number, data: Partial<ServiceTariff>): Promise<ServiceTariff> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/tariffs/${tariffId}`, {
+    const response = await fetch(`${API_PATH}/tariffs/${tariffId}`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -373,7 +374,7 @@ export async function updateTariff(tariffId: number, data: Partial<ServiceTariff
  */
 export async function deleteTariff(tariffId: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/tariffs/${tariffId}`, {
+    const response = await fetch(`${API_PATH}/tariffs/${tariffId}`, {
         method: 'DELETE',
         headers,
     });
@@ -386,7 +387,7 @@ export async function deleteTariff(tariffId: number): Promise<void> {
  * Get schedules for a service
  */
 export async function getSchedules(serviceId: number): Promise<{ schedules: ServiceSchedule[] }> {
-    const response = await fetch(`${API_URL}/services/${serviceId}/schedule`);
+    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule`);
     if (!response.ok) throw new Error('Failed to fetch schedules');
     return response.json();
 }
@@ -396,7 +397,7 @@ export async function getSchedules(serviceId: number): Promise<{ schedules: Serv
  */
 export async function addSchedule(serviceId: number, data: CreateScheduleRequest): Promise<ServiceSchedule> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/${serviceId}/schedule`, {
+    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -410,7 +411,7 @@ export async function addSchedule(serviceId: number, data: CreateScheduleRequest
  */
 export async function deleteSchedule(scheduleId: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/schedule/${scheduleId}`, {
+    const response = await fetch(`${API_PATH}/schedule/${scheduleId}`, {
         method: 'DELETE',
         headers,
     });
@@ -430,7 +431,7 @@ export async function getAvailableSlots(
     const params = new URLSearchParams({ date });
     if (timezone) params.append('timezone', timezone);
 
-    const response = await fetch(`${API_URL}/services/${serviceId}/slots?${params}`);
+    const response = await fetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
     if (!response.ok) throw new Error('Failed to fetch slots');
     return response.json();
 }
@@ -447,7 +448,7 @@ export async function getSlotsForRange(
     const params = new URLSearchParams({ dateFrom, dateTo });
     if (timezone) params.append('timezone', timezone);
 
-    const response = await fetch(`${API_URL}/services/${serviceId}/slots?${params}`);
+    const response = await fetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
     if (!response.ok) throw new Error('Failed to fetch slots');
     return response.json();
 }

@@ -1,7 +1,8 @@
 /**
  * Booking Service - API для работы с бронированиями
  */
-import { API_URL, getAuthHeaders } from './authService';
+import { API_PATH } from '../config/api.config';
+import { getAuthHeaders } from './contactService';
 import { Service, ServiceTariff, ServiceOwner } from './serviceService';
 
 // ==================== TYPES ====================
@@ -67,6 +68,9 @@ export interface CreateBookingRequest {
     clientNote?: string;
 }
 
+// Alias for backward compatibility
+export type BookServiceRequest = CreateBookingRequest;
+
 export interface BookingActionRequest {
     note?: string;
     reason?: string;
@@ -100,7 +104,7 @@ export async function bookService(
     data: CreateBookingRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/services/${serviceId}/book`, {
+    const response = await fetch(`${API_PATH}/services/${serviceId}/book`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -130,7 +134,7 @@ export async function getMyBookings(
     if (filters.limit) params.append('limit', filters.limit.toString());
 
     const queryString = params.toString();
-    const url = `${API_URL}/bookings/my${queryString ? '?' + queryString : ''}`;
+    const url = `${API_PATH}/bookings/my${queryString ? '?' + queryString : ''}`;
 
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('Failed to fetch bookings');
@@ -153,7 +157,7 @@ export async function getIncomingBookings(
     if (filters.limit) params.append('limit', filters.limit.toString());
 
     const queryString = params.toString();
-    const url = `${API_URL}/bookings/incoming${queryString ? '?' + queryString : ''}`;
+    const url = `${API_PATH}/bookings/incoming${queryString ? '?' + queryString : ''}`;
 
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('Failed to fetch incoming bookings');
@@ -165,7 +169,7 @@ export async function getIncomingBookings(
  */
 export async function getUpcomingBookings(): Promise<UpcomingBookingsResponse> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/bookings/upcoming`, { headers });
+    const response = await fetch(`${API_PATH}/bookings/upcoming`, { headers });
     if (!response.ok) throw new Error('Failed to fetch upcoming bookings');
     return response.json();
 }
@@ -178,7 +182,7 @@ export async function confirmBooking(
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/bookings/${bookingId}/confirm`, {
+    const response = await fetch(`${API_PATH}/bookings/${bookingId}/confirm`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data || {}),
@@ -199,7 +203,7 @@ export async function cancelBooking(
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/bookings/${bookingId}/cancel`, {
+    const response = await fetch(`${API_PATH}/bookings/${bookingId}/cancel`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data || {}),
@@ -220,7 +224,7 @@ export async function completeBooking(
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/bookings/${bookingId}/complete`, {
+    const response = await fetch(`${API_PATH}/bookings/${bookingId}/complete`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data || {}),
@@ -238,7 +242,7 @@ export async function completeBooking(
  */
 export async function markNoShow(bookingId: number): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/bookings/${bookingId}/no-show`, {
+    const response = await fetch(`${API_PATH}/bookings/${bookingId}/no-show`, {
         method: 'PUT',
         headers,
     });
@@ -260,7 +264,7 @@ export async function getBusyTimes(
     const headers = await getAuthHeaders();
     const params = new URLSearchParams({ dateFrom, dateTo });
 
-    const response = await fetch(`${API_URL}/calendar/busy?${params}`, { headers });
+    const response = await fetch(`${API_PATH}/calendar/busy?${params}`, { headers });
     if (!response.ok) throw new Error('Failed to fetch busy times');
     return response.json();
 }
