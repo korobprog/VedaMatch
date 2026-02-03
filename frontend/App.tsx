@@ -121,6 +121,13 @@ import {
   CreateShelterScreen,
 } from './screens/portal/travel';
 
+import {
+  ServicesHomeScreen,
+  ServiceDetailScreen,
+} from './screens/portal/services';
+import WalletScreen from './screens/wallet/WalletScreen';
+import { WalletProvider } from './context/WalletContext';
+
 
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -364,6 +371,13 @@ const AppContent = () => {
                   <Stack.Screen name="CreateYatra" component={CreateYatraScreen} options={{ headerShown: true, title: 'Создать тур' }} />
                   <Stack.Screen name="CreateShelter" component={CreateShelterScreen} options={{ headerShown: true, title: 'Добавить жильё' }} />
 
+                  {/* Services Routes */}
+                  <Stack.Screen name="ServicesHome" component={ServicesHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ServiceDetail" component={ServiceDetailScreen} options={{ headerShown: false }} />
+
+                  {/* Wallet Routes */}
+                  <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />
+
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="RadioPlayer" component={RadioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
@@ -436,7 +450,9 @@ function App(): React.JSX.Element {
           <WebSocketProvider>
             <ChatProvider>
               <CafeCartProvider>
-                <AppContent />
+                <WalletProvider>
+                  <AppContent />
+                </WalletProvider>
               </CafeCartProvider>
             </ChatProvider>
           </WebSocketProvider>

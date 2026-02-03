@@ -47,6 +47,7 @@ import { EducationHomeScreen } from './education/EducationHomeScreen';
 import { CafeListScreen } from './cafe';
 import { MultimediaHubScreen } from '../multimedia/MultimediaHubScreen';
 import { TravelHomeScreen } from './travel';
+import { ServicesHomeScreen } from './services';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
@@ -56,7 +57,7 @@ import { PortalGrid } from '../../components/portal';
 
 const { width } = Dimensions.get('window');
 
-type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel';
+type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services';
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
@@ -126,6 +127,10 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             navigation.navigate('MapGeoapify');
             return;
         }
+        if (serviceId === 'services') {
+            navigation.navigate('ServicesHome');
+            return;
+        }
 
         if (!user?.isProfileComplete) {
             Alert.alert(
@@ -158,6 +163,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             case 'news': return <NewsScreen />;
             case 'multimedia': return <MultimediaHubScreen />;
             case 'travel': return <TravelHomeScreen />;
+            case 'services': return <ServicesHomeScreen />;
             default: return null;
         }
     };

@@ -99,6 +99,11 @@ func Connect() {
 		// Yatra Admin models (moderation)
 		&models.YatraReport{}, &models.OrganizerBlock{},
 		&models.AdminNotification{}, &models.ModerationTemplate{},
+		// Services (universal service constructor)
+		&models.Service{}, &models.ServiceTariff{},
+		&models.ServiceSchedule{}, &models.ServiceBooking{},
+		// Wallet (Лакшми currency)
+		&models.Wallet{}, &models.WalletTransaction{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
@@ -109,6 +114,7 @@ func Connect() {
 	SeedEducation()
 	SeedMultimedia()
 	SeedTravel()
+	SeedWallets()
 }
 
 func InitializeSuperAdmin() {

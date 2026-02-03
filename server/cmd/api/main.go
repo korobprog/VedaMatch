@@ -118,6 +118,9 @@ func main() {
 	multimediaHandler := handlers.NewMultimediaHandler()
 	yatraHandler := handlers.NewYatraHandler()
 	yatraAdminHandler := handlers.NewYatraAdminHandler()
+	walletHandler := handlers.NewWalletHandler()
+	serviceHandler := handlers.NewServiceHandler()
+	bookingHandler := handlers.NewBookingHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -630,6 +633,50 @@ func main() {
 	protected.Post("/shelter/:id/reviews", yatraHandler.CreateShelterReview)
 	protected.Delete("/shelter/:id/reviews/:reviewId", yatraHandler.DeleteShelterReview)
 	protected.Post("/shelter/upload", yatraHandler.UploadPhoto)
+
+	// ==================== SERVICES CONSTRUCTOR ====================
+	// Public Services Routes
+	api.Get("/services", serviceHandler.List)
+	api.Get("/services/:id", serviceHandler.GetByID)
+	api.Get("/services/:id/tariffs", serviceHandler.GetTariffs)
+	api.Get("/services/:id/schedule", serviceHandler.GetSchedules)
+	api.Get("/services/:id/slots", bookingHandler.GetSlots)
+
+	// Protected Services Routes
+	protected.Get("/services/my", serviceHandler.GetMyServices)
+	protected.Post("/services", serviceHandler.Create)
+	protected.Put("/services/:id", serviceHandler.Update)
+	protected.Delete("/services/:id", serviceHandler.Delete)
+	protected.Post("/services/:id/publish", serviceHandler.Publish)
+	protected.Post("/services/:id/pause", serviceHandler.Pause)
+
+	// Service Tariffs (Protected - Owner only)
+	protected.Post("/services/:id/tariffs", serviceHandler.AddTariff)
+	protected.Put("/tariffs/:id", serviceHandler.UpdateTariff)
+	protected.Delete("/tariffs/:id", serviceHandler.DeleteTariff)
+
+	// Service Schedule (Protected - Owner only)
+	protected.Post("/services/:id/schedule", serviceHandler.AddSchedule)
+	protected.Delete("/schedule/:id", serviceHandler.DeleteSchedule)
+
+	// Bookings
+	protected.Post("/services/:id/book", bookingHandler.Book)
+	protected.Get("/bookings/my", bookingHandler.GetMyBookings)
+	protected.Get("/bookings/incoming", bookingHandler.GetIncomingBookings)
+	protected.Get("/bookings/upcoming", bookingHandler.GetUpcoming)
+	protected.Put("/bookings/:id/confirm", bookingHandler.Confirm)
+	protected.Put("/bookings/:id/cancel", bookingHandler.Cancel)
+	protected.Put("/bookings/:id/complete", bookingHandler.Complete)
+	protected.Put("/bookings/:id/no-show", bookingHandler.NoShow)
+
+	// Calendar
+	protected.Get("/calendar/busy", bookingHandler.GetBusyTimes)
+
+	// Wallet (Лакшми)
+	protected.Get("/wallet", walletHandler.GetBalance)
+	protected.Get("/wallet/transactions", walletHandler.GetTransactions)
+	protected.Get("/wallet/stats", walletHandler.GetStats)
+	protected.Post("/wallet/transfer", walletHandler.Transfer)
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {

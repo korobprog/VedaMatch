@@ -148,3 +148,42 @@ func SeedLibrary() {
 		}
 	}
 }
+
+// SeedWallets creates wallets for users who don't have one yet
+// Initial balance: 1000 Лакшми
+func SeedWallets() {
+	// Get all users without a wallet
+	var usersWithoutWallet []models.User
+
+	// Find users who don't have a wallet
+	subQuery := DB.Table("wallets").Select("user_id")
+	if err := DB.Where("id NOT IN (?)", subQuery).Find(&usersWithoutWallet).Error; err != nil {
+		log.Printf("[Seed] Error finding users without wallets: %v", err)
+		return
+	}
+
+	if len(usersWithoutWallet) == 0 {
+		return
+	}
+
+	// Create wallets for each user
+	created := 0
+	for _, user := range usersWithoutWallet {
+		wallet := models.Wallet{
+			UserID:      user.ID,
+			Balance:     1000, // Initial balance: 1000 Лакшми
+			TotalEarned: 0,
+			TotalSpent:  0,
+		}
+
+		if err := DB.Create(&wallet).Error; err != nil {
+			log.Printf("[Seed] Error creating wallet for user %d: %v", user.ID, err)
+		} else {
+			created++
+		}
+	}
+
+	if created > 0 {
+		log.Printf("[Seed] Created %d wallets with 1000 Лакшми each", created)
+	}
+}

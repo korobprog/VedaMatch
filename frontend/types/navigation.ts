@@ -87,4 +87,15 @@ export type RootStackParamList = {
     ShelterDetail: { shelterId: number };
     CreateYatra: { yatraId?: number } | undefined;
     CreateShelter: { shelterId?: number } | undefined;
+
+    // Services Routes
+    ServicesHome: undefined;
+    ServiceDetail: { serviceId: number };
+    ServiceBooking: { serviceId: number };
+    MyServices: undefined;
+    MyBookings: undefined;
+    CreateService: { serviceId?: number } | undefined;
+
+    // Wallet Routes
+    Wallet: undefined;
 };
