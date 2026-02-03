@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getAuthToken } from '@/lib/auth';
 
 interface CityData {
     city: string;
@@ -21,7 +22,7 @@ export function GeographySummary() {
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/geography?limit=10`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 

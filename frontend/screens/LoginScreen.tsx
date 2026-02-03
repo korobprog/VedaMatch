@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -152,66 +152,72 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         }
     };
 
-    const handleDevLogin = async () => {
-        // Using admin account for dev login
-        const devEmail = 'korobprog@gmail.com';
-        const devPassword = 'password'; // Change this to your actual password
-        const devProfile = {
+    const handleDevLogin = useCallback(async () => {
+        // Use a new email to avoid "User already exists" conflict if password mismatch
+        const devEmail = 'dev_admin_yatra@example.com';
+        const devPassword = 'password123';
+
+        const devUser = {
             email: devEmail,
             password: devPassword,
-            karmicName: 'Dev Admin',
-            spiritualName: 'Korab Prabhu',
+            karmicName: 'Super Admin',
+            spiritualName: 'Servant of Servants',
             gender: 'Male',
             country: 'India',
-            city: 'Vrindavan',
-            identity: 'Devotee',
+            city: 'Mayapur',
+            identity: 'Admin',
             diet: 'Vegetarian',
             madh: 'Gaudiya',
             mentor: 'Srila Prabhupada',
-            dob: '1970-01-01',
+            dob: '1980-01-01',
             isProfileComplete: true,
+            role: 'admin' // Try to set admin role directly (server might ignore, but worth trying)
         };
 
         setLoading(true);
+
         try {
-            const loginRes = await axios.post(`${API_PATH}/login`, {
+            // 1. Try Login
+            const response = (await axios.post(`${API_PATH}/login`, {
                 email: devEmail,
-                password: devPassword,
-            });
+                password: devPassword
+            })).data;
 
-            let { user, token } = loginRes.data;
+            let user = response.user;
+            const token = response.token;
 
+            // Update profile if inconsistent
             if (!user.isProfileComplete) {
-                const updateRes = await axios.put(`${API_PATH}/update-profile`, {
-                    ...devProfile
-                }, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                user = updateRes.data.user;
+                user = (await axios.put(`${API_PATH}/update-profile`, { ...devUser }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                })).data.user;
             }
 
             await login(user, token);
-
         } catch (error: any) {
+            // 2. If Login fails, Try Register
             try {
-                await axios.post(`${API_PATH}/register`, devProfile);
+                // Register
+                await axios.post(`${API_PATH}/register`, devUser);
 
-                const retryLoginRes = await axios.post(`${API_PATH}/login`, {
+                // Login after register
+                const loginRes = (await axios.post(`${API_PATH}/login`, {
                     email: devEmail,
-                    password: devPassword,
-                });
-                const { user, token } = retryLoginRes.data;
+                    password: devPassword
+                })).data;
+
+                const user = loginRes.user;
+                const token = loginRes.token;
+
                 await login(user, token);
             } catch (regError: any) {
                 const errorMsg = regError.response?.data?.error || regError.message;
-                Alert.alert('Dev Error', `Failed: ${errorMsg}`);
+                Alert.alert('Dev Error', `Failed to create/login dev user: ${errorMsg}`);
             }
         } finally {
             setLoading(false);
         }
-    };
+    }, [login]);
 
     return (
         <View style={styles.container}>

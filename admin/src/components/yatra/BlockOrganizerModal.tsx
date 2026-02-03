@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getAuthToken } from '@/lib/auth';
 
 interface BlockOrganizerModalProps {
     organizerId: number;
@@ -27,7 +28,7 @@ export function BlockOrganizerModal({ organizerId, organizerName, onClose }: Blo
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers/${organizerId}/block`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({

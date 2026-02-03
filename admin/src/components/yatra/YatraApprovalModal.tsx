@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getAuthToken } from '@/lib/auth';
 
 interface YatraApprovalModalProps {
     yatra: any;
@@ -21,7 +22,7 @@ export function YatraApprovalModal({ yatra, actionType, onClose }: YatraApproval
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ reason, notes: reason }),
@@ -83,8 +84,8 @@ export function YatraApprovalModal({ yatra, actionType, onClose }: YatraApproval
                             type="submit"
                             disabled={loading}
                             className={`px-4 py-2 rounded-lg text-white disabled:opacity-50 ${actionType === 'approve'
-                                    ? 'bg-green-600 hover:bg-green-700'
-                                    : 'bg-red-600 hover:bg-red-700'
+                                ? 'bg-green-600 hover:bg-green-700'
+                                : 'bg-red-600 hover:bg-red-700'
                                 }`}
                         >
                             {loading ? 'Processing...' : titles[actionType]}

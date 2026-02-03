@@ -123,11 +123,11 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
                 </Text>
 
                 <TouchableOpacity onPress={toggleVideo} style={styles.iconButton}>
-                    {isVideoEnabled ? <Video size={20} color={vTheme.colors.text} /> : <VideoOff size={20} color={vTheme.colors.error || 'red'} />}
+                    {isVideoEnabled ? <Video size={20} color={vTheme.colors.text} /> : <VideoOff size={20} color={'#ff4444'} />}
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={toggleMute} style={styles.iconButton}>
-                    {isMuted ? <MicOff size={20} color={vTheme.colors.error || 'red'} /> : <Mic size={20} color={vTheme.colors.text} />}
+                    {isMuted ? <MicOff size={20} color={'#ff4444'} /> : <Mic size={20} color={vTheme.colors.text} />}
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={switchCamera} style={styles.iconButton}>
@@ -136,7 +136,7 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
 
                 <TouchableOpacity
                     onPress={onClose}
-                    style={[styles.disconnectButton, { backgroundColor: vTheme.colors.error || '#ff4444' }]}
+                    style={[styles.disconnectButton, { backgroundColor: '#ff4444' }]}
                 >
                     <PhoneOff size={20} color="white" />
                 </TouchableOpacity>
@@ -147,22 +147,25 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
 
 const styles = StyleSheet.create({
     container: {
-        height: 160,
+        height: 180,
         borderBottomWidth: 1,
-        marginBottom: 8,
+        paddingTop: 12,
+        backgroundColor: 'transparent',
     },
     streamContainer: {
         flex: 1,
         padding: 8,
     },
     videoWrapper: {
-        width: 100,
-        height: 100,
-        borderRadius: 12,
+        width: 110,
+        height: 110,
+        borderRadius: 16,
         overflow: 'hidden',
-        marginRight: 8,
+        marginRight: 10,
         position: 'relative',
         backgroundColor: '#000',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     video: {
         width: '100%',

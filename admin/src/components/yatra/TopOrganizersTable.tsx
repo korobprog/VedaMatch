@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getAuthToken } from '@/lib/auth';
 
 interface OrganizerRanking {
     userId: number;
@@ -30,7 +31,7 @@ export function TopOrganizersTable() {
                 `${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/top-organizers?order_by=${orderBy}&limit=10`,
                 {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Authorization': `Bearer ${getAuthToken()}`,
                     },
                 }
             );
@@ -64,8 +65,8 @@ export function TopOrganizersTable() {
                         key={option.value}
                         onClick={() => setOrderBy(option.value)}
                         className={`px-4 py-2 font-medium text-sm ${orderBy === option.value
-                                ? 'border-b-2 border-blue-600 text-blue-600'
-                                : 'text-gray-600 hover:text-gray-900'
+                            ? 'border-b-2 border-blue-600 text-blue-600'
+                            : 'text-gray-600 hover:text-gray-900'
                             }`}
                     >
                         {option.label}

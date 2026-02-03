@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getAuthToken } from '@/lib/auth';
 
 interface ThemeData {
     theme: string;
@@ -21,7 +22,7 @@ export function ThemeTrendsChart() {
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/themes`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 

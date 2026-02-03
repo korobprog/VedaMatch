@@ -200,11 +200,49 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         });
 
         navigation.setOptions({
-            title: roomName,
+            headerTitle: () => (
+                <View style={{ maxWidth: '70%', alignItems: 'center' }}>
+                    <Text
+                        style={{
+                            fontSize: 17,
+                            fontWeight: '700',
+                            color: vTheme.colors.text,
+                            fontFamily: vTheme.typography.header.fontFamily
+                        }}
+                        numberOfLines={1}
+                    >
+                        {roomName}
+                    </Text>
+                </View>
+            ),
+            headerLeft: () => (
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: vTheme.colors.surface,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginLeft: 8,
+                        borderWidth: 1,
+                        borderColor: vTheme.colors.divider,
+                        ...vTheme.shadows.soft
+                    }}
+                >
+                    <ChevronLeft size={22} color={vTheme.colors.primary} />
+                </TouchableOpacity>
+            ),
+            headerStyle: {
+                backgroundColor: vTheme.colors.background,
+            },
+            headerTitleAlign: 'center',
+            headerShadowVisible: false,
         });
 
         return () => removeListener();
-    }, [navigation, roomName, roomId, user?.ID]);
+    }, [navigation, roomName, roomId, user?.ID, vTheme]);
 
     // Update header buttons based on room type (separate effect to react to roomDetails changes)
     useEffect(() => {
@@ -213,19 +251,46 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
         navigation.setOptions({
             headerRight: () => (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
                     {!isYatraChatRoom && (
-                        <TouchableOpacity onPress={() => setInviteVisible(true)} style={{ marginRight: 15 }}>
-                            <UserPlus size={24} color={theme.text} />
+                        <TouchableOpacity
+                            onPress={() => setInviteVisible(true)}
+                            style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 19,
+                                backgroundColor: vTheme.colors.surface,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                marginRight: 10,
+                                borderWidth: 1,
+                                borderColor: vTheme.colors.divider,
+                                ...vTheme.shadows.soft
+                            }}
+                        >
+                            <UserPlus size={20} color={vTheme.colors.primary} />
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity onPress={() => setSettingsVisible(true)} style={{ marginRight: 10 }}>
-                        <Settings size={24} color={theme.text} />
+                    <TouchableOpacity
+                        onPress={() => setSettingsVisible(true)}
+                        style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 19,
+                            backgroundColor: vTheme.colors.surface,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            borderWidth: 1,
+                            borderColor: vTheme.colors.divider,
+                            ...vTheme.shadows.soft
+                        }}
+                    >
+                        <Settings size={20} color={vTheme.colors.primary} />
                     </TouchableOpacity>
                 </View>
             )
         });
-    }, [navigation, roomDetails, isYatraChat, theme.text]);
+    }, [navigation, roomDetails, isYatraChat, vTheme]);
 
     const handleNextVerse = async () => {
         if (!roomDetails || !versesInChapter) return;
@@ -383,19 +448,19 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                         styles.joinCallBtn,
                                         {
                                             backgroundColor: vTheme.colors.primary,
-                                            borderRadius: vTheme.layout.borderRadius.lg,
-                                            paddingHorizontal: 16,
-                                            paddingVertical: 8,
+                                            borderRadius: 30, // Using fixed value for pill shape
+                                            paddingHorizontal: 20,
+                                            paddingVertical: 10,
                                             ...vTheme.shadows.soft,
                                             flexDirection: 'row',
                                             alignItems: 'center',
-                                            gap: 6
+                                            gap: 8
                                         }
                                     ]}
                                     onPress={() => setIsCallActive(true)}
                                 >
                                     <Video size={18} color={vTheme.colors.textLight} />
-                                    <Text style={{ color: vTheme.colors.textLight, fontWeight: 'bold' }}>{t('chat.joinCall')}</Text>
+                                    <Text style={{ color: vTheme.colors.textLight, fontWeight: '700', fontSize: 14 }}>{t('chat.joinCall')}</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
@@ -556,19 +621,28 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             backgroundColor: vTheme.colors.surface,
                             borderBottomWidth: 1,
                             borderBottomColor: vTheme.colors.divider,
-                            paddingHorizontal: 16,
-                            paddingVertical: 12,
+                            paddingHorizontal: 20,
+                            paddingVertical: 18,
                             flexDirection: 'row',
                             justifyContent: 'space-between',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            ...vTheme.shadows.soft
                         }
                     ]}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.bookTitle, { color: vTheme.colors.primary }]} numberOfLines={1}>
+                        <View style={{ flex: 1, marginRight: 16 }}>
+                            <Text style={[styles.bookTitle, {
+                                color: vTheme.colors.primary,
+                                fontSize: 18,
+                                marginBottom: 2
+                            }]} numberOfLines={1}>
                                 {roomName || t('chat.publicRoom')}
                             </Text>
                             {roomDetails?.description ? (
-                                <Text style={{ color: vTheme.colors.textSecondary, fontSize: 12 }} numberOfLines={1}>
+                                <Text style={{
+                                    color: vTheme.colors.textSecondary,
+                                    fontSize: 13,
+                                    lineHeight: 16
+                                }} numberOfLines={2}>
                                     {roomDetails.description}
                                 </Text>
                             ) : null}
@@ -579,18 +653,19 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                     styles.joinCallBtn,
                                     {
                                         backgroundColor: vTheme.colors.primary,
-                                        borderRadius: 20,
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 8,
+                                        borderRadius: 25,
+                                        paddingHorizontal: 20,
+                                        paddingVertical: 10,
                                         flexDirection: 'row',
                                         alignItems: 'center',
-                                        gap: 6
+                                        gap: 8,
+                                        ...vTheme.shadows.soft
                                     }
                                 ]}
                                 onPress={() => setIsCallActive(true)}
                             >
                                 <Video size={18} color="#fff" />
-                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('chat.joinCall')}</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('chat.joinCall')}</Text>
                             </TouchableOpacity>
                         )}
                     </View>

@@ -1,4 +1,5 @@
 'use client';
+import { getAuthToken } from '@/lib/auth';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -43,7 +44,7 @@ export default function OrganizersPage() {
 
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers?${params}`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getAuthToken } from '@/lib/auth';
 
 interface Report {
     id: number;
@@ -42,7 +43,7 @@ export default function ReportDetailPage() {
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra-reports/${params.id}`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 
@@ -69,7 +70,7 @@ export default function ReportDetailPage() {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra-reports/${params.id}/resolve`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ notes: adminNotes }),
@@ -98,7 +99,7 @@ export default function ReportDetailPage() {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra-reports/${params.id}/dismiss`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ reason: adminNotes }),

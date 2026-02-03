@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { YatraStatusBadge } from '@/components/yatra/YatraStatusBadge';
 import { BlockOrganizerModal } from '../../../components/yatra/BlockOrganizerModal';
+import { getAuthToken } from '@/lib/auth';
 
 interface OrganizerStats {
     userId: number;
@@ -54,7 +55,7 @@ export default function OrganizerDetailPage() {
             // Fetch organizer stats
             const statsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers/${params.id}/stats`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 
@@ -65,7 +66,7 @@ export default function OrganizerDetailPage() {
             // Fetch organizer's yatras
             const yatrasRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra?organizer_id=${params.id}`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 
@@ -87,7 +88,7 @@ export default function OrganizerDetailPage() {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers/${params.id}/block`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getAuthToken } from '@/lib/auth';
 
 interface TrendData {
     month: string;
@@ -21,7 +22,7 @@ export function TimeTrendsChart() {
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/trends?months=12`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 

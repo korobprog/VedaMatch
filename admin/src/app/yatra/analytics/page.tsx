@@ -1,4 +1,5 @@
 'use client';
+import { getAuthToken } from '@/lib/auth';
 
 import { useState, useEffect } from 'react';
 import { TopOrganizersTable } from '../../../components/yatra/TopOrganizersTable';
@@ -31,14 +32,14 @@ export default function AnalyticsPage() {
             // Fetch average metrics
             const metricsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/metrics`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 
             // Fetch status distribution
             const distRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/distribution`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 

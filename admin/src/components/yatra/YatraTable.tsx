@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { YatraStatusBadge } from './YatraStatusBadge';
 import { YatraApprovalModal } from './YatraApprovalModal';
+import { getAuthToken } from '@/lib/auth';
 
 interface Yatra {
     id: number;
@@ -33,6 +34,7 @@ export function YatraTable({ filters, onPageChange }: YatraTableProps) {
     const [yatras, setYatras] = useState<Yatra[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [selectedYatra, setSelectedYatra] = useState<Yatra | null>(null);
     const [actionType, setActionType] = useState<'approve' | 'reject' | 'cancel' | null>(null);
 
@@ -42,7 +44,14 @@ export function YatraTable({ filters, onPageChange }: YatraTableProps) {
 
     const fetchYatras = async () => {
         setLoading(true);
+        setError(null);
         try {
+            const token = getAuthToken();
+            if (!token) {
+                setError('Требуется авторизация. Пожалуйста, войдите в систему.');
+                return;
+            }
+
             const params = new URLSearchParams();
             if (filters.status) params.append('status', filters.status);
             if (filters.theme) params.append('theme', filters.theme);
@@ -56,17 +65,31 @@ export function YatraTable({ filters, onPageChange }: YatraTableProps) {
 
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra?${params}`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
-            if (!response.ok) throw new Error('Failed to fetch yatras');
+            if (response.status === 401) {
+                setError('Сессия истекла. Пожалуйста, войдите заново.');
+                return;
+            }
+
+            if (response.status === 403) {
+                setError('Недостаточно прав. Требуется роль администратора.');
+                return;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
+            }
 
             const data = await response.json();
             setYatras(data.yatras || []);
             setTotal(data.total || 0);
-        } catch (error) {
-            console.error('Error fetching yatras:', error);
+        } catch (err) {
+            console.error('Error fetching yatras:', err);
+            setError(err instanceof Error ? err.message : 'Не удалось загрузить список туров');
         } finally {
             setLoading(false);
         }
@@ -90,6 +113,29 @@ export function YatraTable({ filters, onPageChange }: YatraTableProps) {
             <div className="bg-white rounded-lg shadow p-8 text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="mt-4 text-gray-600">Loading yatras...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
+                <div className="flex items-center gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div>
+                        <h3 className="font-semibold">Ошибка загрузки</h3>
+                        <p className="text-sm mt-1">{error}</p>
+                    </div>
+                    {error.includes('авторизация') || error.includes('Сессия') ? (
+                        <a href="/login" className="ml-auto bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium">
+                            Войти
+                        </a>
+                    ) : (
+                        <button onClick={fetchYatras} className="ml-auto bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium">
+                            Повторить
+                        </button>
+                    )}
+                </div>
             </div>
         );
     }

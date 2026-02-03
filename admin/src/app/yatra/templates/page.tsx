@@ -1,4 +1,5 @@
 'use client';
+import { getAuthToken } from '@/lib/auth';
 
 import { useState, useEffect } from 'react';
 import { Edit, Trash2, Plus, Mail } from 'lucide-react';
@@ -44,7 +45,7 @@ export default function TemplatesPage() {
     const fetchTemplates = async () => {
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/templates`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                headers: { Authorization: `Bearer ${getAuthToken()}` },
             });
             if (response.ok) {
                 const data = await response.json();
@@ -71,7 +72,7 @@ export default function TemplatesPage() {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                    Authorization: `Bearer ${getAuthToken()}`,
                 },
                 body: JSON.stringify(formData),
             });
@@ -92,7 +93,7 @@ export default function TemplatesPage() {
         try {
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/templates/${id}`, {
                 method: 'DELETE',
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                headers: { Authorization: `Bearer ${getAuthToken()}` },
             });
             fetchTemplates();
             showToast('Template deleted', 'info');

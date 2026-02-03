@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { YatraStatusBadge } from '@/components/yatra/YatraStatusBadge';
 import { YatraApprovalModal } from '@/components/yatra/YatraApprovalModal';
+import { getAuthToken } from '@/lib/auth';
 
 interface Yatra {
     id: number;
@@ -60,10 +61,9 @@ export default function YatraDetailPage() {
 
     const fetchYatra = async () => {
         try {
-            // Fetch yatra details
             const yatraRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/yatra/${params.id}`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 
@@ -71,10 +71,9 @@ export default function YatraDetailPage() {
             const yatraData = await yatraRes.json();
             setYatra(yatraData);
 
-            // Fetch participants
             const participantsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/${params.id}/participants`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 
@@ -99,7 +98,7 @@ export default function YatraDetailPage() {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/${params.id}/participants/${participantId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${getAuthToken()}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ reason }),
@@ -118,9 +117,9 @@ export default function YatraDetailPage() {
     if (loading) {
         return (
             <div className="p-6">
-                <div className="bg-white rounded-lg shadow p-8 text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading yatra...</p>
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
+                    <p className="mt-4 text-slate-300">Loading yatra...</p>
                 </div>
             </div>
         );
@@ -129,8 +128,8 @@ export default function YatraDetailPage() {
     if (!yatra) {
         return (
             <div className="p-6">
-                <div className="bg-white rounded-lg shadow p-8 text-center">
-                    <p className="text-gray-600">Yatra not found</p>
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
+                    <p className="text-slate-300">Yatra not found</p>
                 </div>
             </div>
         );
@@ -145,18 +144,18 @@ export default function YatraDetailPage() {
                 {/* Header */}
                 <div className="flex justify-between items-start">
                     <div>
-                        <Link href="/yatra" className="text-blue-600 hover:text-blue-800 text-sm mb-2 inline-block">
-                            ← Back to Yatras
+                        <Link href="/yatra" className="text-emerald-400 hover:text-emerald-300 text-sm mb-2 inline-flex items-center gap-1">
+                            <span>←</span> Назад к турам
                         </Link>
-                        <h1 className="text-3xl font-bold text-gray-900">{yatra.title}</h1>
-                        <p className="text-gray-600 mt-1">{yatra.theme} • {yatra.language}</p>
+                        <h1 className="text-3xl font-bold text-white mt-2">{yatra.title}</h1>
+                        <p className="text-slate-400 mt-1 capitalize">{yatra.theme.replace(/_/g, ' ')} • {yatra.language.toUpperCase()}</p>
                     </div>
                     <YatraStatusBadge status={yatra.status} />
                 </div>
 
                 {/* Cover Image */}
                 {yatra.coverImageURL && (
-                    <div className="rounded-lg overflow-hidden">
+                    <div className="rounded-xl overflow-hidden border border-slate-700">
                         <img
                             src={yatra.coverImageURL}
                             alt={yatra.title}
@@ -170,46 +169,63 @@ export default function YatraDetailPage() {
                     {/* Left Column - Details */}
                     <div className="lg:col-span-2 space-y-6">
                         {/* Description */}
-                        <div className="bg-white rounded-lg shadow p-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-3">Description</h2>
-                            <p className="text-gray-700 whitespace-pre-wrap">{yatra.description}</p>
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                            <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+                                <span className="text-emerald-400">📝</span> Описание
+                            </h2>
+                            <p className="text-slate-300 whitespace-pre-wrap leading-relaxed">{yatra.description}</p>
                         </div>
 
                         {/* Route */}
-                        <div className="bg-white rounded-lg shadow p-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-3">Route</h2>
-                            <div className="space-y-2"> <div className="flex items-center">
-                                <span className="text-green-600 font-semibold mr-2">📍 Start:</span>
-                                <span className="text-gray-700">{yatra.startCity}</span>
-                            </div>
-                                <div className="flex items-center">
-                                    <span className="text-red-600 font-semibold mr-2">🏁 End:</span>
-                                    <span className="text-gray-700">{yatra.endCity}</span>
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                <span className="text-emerald-400">🗺️</span> Маршрут
+                            </h2>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 bg-slate-700/50 rounded-lg p-3">
+                                    <span className="text-2xl">📍</span>
+                                    <div>
+                                        <div className="text-xs text-slate-400 uppercase tracking-wide">Начало</div>
+                                        <div className="text-white font-semibold">{yatra.startCity}</div>
+                                        {yatra.startLatitude !== 0 && (
+                                            <div className="text-xs text-slate-500">{yatra.startLatitude}, {yatra.startLongitude}</div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                    Coordinates: ({yatra.startLatitude}, {yatra.startLongitude}) → ({yatra.endLatitude}, {yatra.endLongitude})
+                                <div className="flex justify-center">
+                                    <div className="text-slate-500">↓</div>
+                                </div>
+                                <div className="flex items-center gap-3 bg-slate-700/50 rounded-lg p-3">
+                                    <span className="text-2xl">🏁</span>
+                                    <div>
+                                        <div className="text-xs text-slate-400 uppercase tracking-wide">Конец</div>
+                                        <div className="text-white font-semibold">{yatra.endCity}</div>
+                                        {yatra.endLatitude !== 0 && (
+                                            <div className="text-xs text-slate-500">{yatra.endLatitude}, {yatra.endLongitude}</div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Participants */}
-                        <div className="bg-white rounded-lg shadow p-6">
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-bold text-gray-900">
-                                    Participants ({approvedCount}/{yatra.maxParticipants})
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <span className="text-emerald-400">👥</span> Участники ({approvedCount}/{yatra.maxParticipants})
                                 </h2>
                                 <button
                                     onClick={() => setShowParticipants(!showParticipants)}
-                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
                                 >
-                                    {showParticipants ? 'Hide' : 'Show'} All ({participants.length})
+                                    {showParticipants ? 'Скрыть' : 'Показать'} ({participants.length})
                                 </button>
                             </div>
 
                             {pendingCount > 0 && (
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                                    <p className="text-yellow-800 text-sm">
-                                        ⚠️ {pendingCount} pending approval{pendingCount !== 1 ? 's' : ''}
+                                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
+                                    <p className="text-amber-400 text-sm flex items-center gap-2">
+                                        <span>⚠️</span> {pendingCount} ожидают подтверждения
                                     </p>
                                 </div>
                             )}
@@ -217,39 +233,39 @@ export default function YatraDetailPage() {
                             {showParticipants && participants.length > 0 && (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
-                                        <thead className="bg-gray-50 border-b">
+                                        <thead className="bg-slate-700/50 border-b border-slate-600">
                                             <tr>
-                                                <th className="px-4 py-2 text-left">Participant</th>
-                                                <th className="px-4 py-2 text-left">Status</th>
-                                                <th className="px-4 py-2 text-left">Joined</th>
-                                                <th className="px-4 py-2 text-right">Actions</th>
+                                                <th className="px-4 py-3 text-left text-slate-300 font-medium">Участник</th>
+                                                <th className="px-4 py-3 text-left text-slate-300 font-medium">Статус</th>
+                                                <th className="px-4 py-3 text-left text-slate-300 font-medium">Дата</th>
+                                                <th className="px-4 py-3 text-right text-slate-300 font-medium">Действия</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y">
+                                        <tbody className="divide-y divide-slate-700">
                                             {participants.map((p) => (
-                                                <tr key={p.id} className="hover:bg-gray-50">
+                                                <tr key={p.id} className="hover:bg-slate-700/30">
                                                     <td className="px-4 py-3">
-                                                        <Link href={`/users/${p.user.id}`} className="text-blue-600 hover:text-blue-800">
+                                                        <Link href={`/users/${p.user.id}`} className="text-emerald-400 hover:text-emerald-300">
                                                             {p.user.karmicName} {p.user.spiritualName}
                                                         </Link>
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${p.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                                                p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                                                    'bg-gray-100 text-gray-700'
+                                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${p.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                                p.status === 'pending' ? 'bg-amber-500/20 text-amber-400' :
+                                                                    'bg-slate-500/20 text-slate-400'
                                                             }`}>
                                                             {p.status}
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 py-3 text-gray-600">
+                                                    <td className="px-4 py-3 text-slate-400">
                                                         {new Date(p.joinedAt).toLocaleDateString()}
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
                                                         <button
                                                             onClick={() => handleRemoveParticipant(p.id)}
-                                                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                                            className="text-red-400 hover:text-red-300 text-sm font-medium"
                                                         >
-                                                            Remove
+                                                            Удалить
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -264,67 +280,71 @@ export default function YatraDetailPage() {
                     {/* Right Column - Info & Actions */}
                     <div className="space-y-6">
                         {/* Info Card */}
-                        <div className="bg-white rounded-lg shadow p-6">
-                            <h3 className="font-bold text-gray-900 mb-4">Details</h3>
-                            <dl className="space-y-3 text-sm">
-                                <div>
-                                    <dt className="text-gray-500">Organizer</dt>
-                                    <dd className="font-semibold">
-                                        <Link href={`/organizers/${yatra.organizer.id}`} className="text-blue-600 hover:text-blue-800">
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                            <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                <span className="text-emerald-400">ℹ️</span> Детали
+                            </h3>
+                            <dl className="space-y-4">
+                                <div className="bg-slate-700/30 rounded-lg p-3">
+                                    <dt className="text-xs text-slate-400 uppercase tracking-wide mb-1">Организатор</dt>
+                                    <dd>
+                                        <Link href={`/organizers/${yatra.organizer.id}`} className="text-emerald-400 hover:text-emerald-300 font-semibold">
                                             {yatra.organizer.karmicName} {yatra.organizer.spiritualName}
                                         </Link>
                                     </dd>
                                 </div>
-                                <div>
-                                    <dt className="text-gray-500">Dates</dt>
-                                    <dd className="font-semibold">
-                                        {new Date(yatra.startDate).toLocaleDateString()} - {new Date(yatra.endDate).toLocaleDateString()}
+                                <div className="bg-slate-700/30 rounded-lg p-3">
+                                    <dt className="text-xs text-slate-400 uppercase tracking-wide mb-1">Даты проведения</dt>
+                                    <dd className="text-white font-semibold">
+                                        {new Date(yatra.startDate).toLocaleDateString('ru-RU')} — {new Date(yatra.endDate).toLocaleDateString('ru-RU')}
                                     </dd>
                                 </div>
-                                <div>
-                                    <dt className="text-gray-500">Difficulty</dt>
-                                    <dd className="font-semibold capitalize">{yatra.difficulty}</dd>
+                                <div className="bg-slate-700/30 rounded-lg p-3">
+                                    <dt className="text-xs text-slate-400 uppercase tracking-wide mb-1">Сложность</dt>
+                                    <dd className="text-white font-semibold capitalize">{yatra.difficulty}</dd>
                                 </div>
-                                <div>
-                                    <dt className="text-gray-500">Created</dt>
-                                    <dd className="text-gray-700">{new Date(yatra.createdAt).toLocaleDateString()}</dd>
+                                <div className="bg-slate-700/30 rounded-lg p-3">
+                                    <dt className="text-xs text-slate-400 uppercase tracking-wide mb-1">Дата создания</dt>
+                                    <dd className="text-slate-300">{new Date(yatra.createdAt).toLocaleDateString('ru-RU')}</dd>
                                 </div>
                             </dl>
                         </div>
 
                         {/* Admin Actions */}
-                        <div className="bg-white rounded-lg shadow p-6">
-                            <h3 className="font-bold text-gray-900 mb-4">Admin Actions</h3>
-                            <div className="space-y-2">
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                            <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                <span className="text-emerald-400">⚡</span> Действия админа
+                            </h3>
+                            <div className="space-y-3">
                                 {yatra.status === 'draft' && (
                                     <>
                                         <button
                                             onClick={() => setSelectedAction('approve')}
-                                            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                            className="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                                         >
-                                            ✅ Approve Yatra
+                                            <span>✅</span> Одобрить тур
                                         </button>
                                         <button
                                             onClick={() => setSelectedAction('reject')}
-                                            className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                                            className="w-full px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                                         >
-                                            ❌ Reject Yatra
+                                            <span>❌</span> Отклонить тур
                                         </button>
                                     </>
                                 )}
                                 {(yatra.status === 'open' || yatra.status === 'active') && (
                                     <button
                                         onClick={() => setSelectedAction('cancel')}
-                                        className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                                        className="w-full px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                                     >
-                                        🚫 Force Cancel
+                                        <span>🚫</span> Отменить тур
                                     </button>
                                 )}
                                 <Link
                                     href={`/yatra/${yatra.id}/edit`}
-                                    className="block w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center"
+                                    className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                                 >
-                                    ✏️ Edit Details
+                                    <span>✏️</span> Редактировать
                                 </Link>
                             </div>
                         </div>
