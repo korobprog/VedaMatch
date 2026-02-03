@@ -631,6 +631,250 @@ func (s *AnalyticsService) GetTimeTrends(period string) ([]TrendPoint, error)
 ---
 
 **Общее время выполнения:** ~3-4 недели (1 разработчик full-time)  
-**Sprint 1:** 1.5 недели  
-**Sprint 2:** 1.5 недели  
-**Sprint 3:** 1 неделя
+**Sprint 1:** 1.5 недели ✅ **ЗАВЕРШЕНО**  
+**Sprint 2:** 1.5 недели 🟡 **40% ВЫПОЛНЕНО**  
+**Sprint 3:** 1 неделя ⏳ **НЕ НАЧАТО**
+
+---
+
+## 📋 SPRINT 2: DETAILED TODO (Remaining 60%)
+
+### ✅ Завершено (40%):
+
+**Pages Created:**
+- [x] `/admin/src/app/yatra/page.tsx` - Main yatra management
+- [x] `/admin/src/app/yatra/reports/page.tsx` - Reports listing
+
+**Components Created:**
+- [x] `YatraTable.tsx` - Table with filters and actions
+- [x] `YatraStats.tsx` - Statistics dashboard
+- [x] `YatraStatusBadge.tsx` - Status badges
+- [x] `YatraApprovalModal.tsx` - Approve/reject/cancel modal
+
+### 🔨 TODO (60%):
+
+#### 1. Yatra Detail Page & Participants Management (P0)
+**Files to create:**
+- [ ] `/admin/src/app/yatra/[id]/page.tsx` - Main yatra detail page
+- [ ] `/admin/src/app/yatra/[id]/participants/page.tsx` - Participants table
+- [ ] `/admin/src/components/yatra/ParticipantsTable.tsx` - Participants management table
+- [ ] `/admin/src/components/yatra/YatraDetailCard.tsx` - Yatra info display
+- [ ] `/admin/src/components/yatra/YatraEditForm.tsx` - Inline edit form
+
+**Features:**
+- View full yatra details (dates, route, description, etc.)
+- Edit yatra fields inline (admin override)
+- View all participants (pending, approved, rejected)
+- Remove participants with reason
+- Approve/reject pending participants
+- View participant profiles
+
+#### 2. Report Detail Page with Resolution (P0)
+**Files to create:**
+- [ ] `/admin/src/app/yatra/reports/[id]/page.tsx` - Report detail and resolution
+- [ ] `/admin/src/components/yatra/ReportCard.tsx` - Report info card
+- [ ] `/admin/src/components/yatra/ReportResolutionForm.tsx` - Response form
+- [ ] `/admin/src/components/yatra/ReportHistory.tsx` - Timeline of actions
+
+**Features:**
+- View full report details (target, reason, description)
+- View reporter profile
+- View target (yatra or organizer)
+- Change report status (pending → reviewing → resolved/dismissed)
+- Write admin notes/response to reporter
+- Send notification to reporter (TODO comment)
+
+#### 3. Organizer Management (P0)
+**Files to create:**
+- [ ] `/admin/src/app/organizers/page.tsx` - Organizers list
+- [ ] `/admin/src/app/organizers/[id]/page.tsx` - Organizer profile & stats
+- [ ] `/admin/src/components/yatra/OrganizerTable.tsx` - Organizers table
+- [ ] `/admin/src/components/yatra/OrganizerStatsCard.tsx` - Stats display
+- [ ] `/admin/src/components/yatra/BlockOrganizerModal.tsx` - Block/unblock modal
+
+**Features:**
+- List all organizers with stats (tours, ratings, participants)
+- Filter: blocked only, top rated, min tours
+- View organizer profile (all yatras, reviews, reports)
+- Block organizer (temporary or permanent)
+- Unblock organizer
+- View detailed stats (total/active/completed/cancelled yatras)
+- View reports against organizer
+
+#### 4. Analytics Dashboard (P1)
+**Files to create:**
+- [ ] `/admin/src/app/yatra/analytics/page.tsx` - Analytics dashboard
+- [ ] `/admin/src/components/yatra/AnalyticsDashboard.tsx` - Main dashboard
+- [ ] `/admin/src/components/yatra/TopOrganizersChart.tsx` - Top organizers table
+- [ ] `/admin/src/components/yatra/GeographyHeatMap.tsx` - Map with clusters
+- [ ] `/admin/src/components/yatra/ThemeTrendsChart.tsx` - Bar/pie chart
+- [ ] `/admin/src/components/yatra/TimeTrendsChart.tsx` - Line chart
+
+**Features:**
+- Top 10 organizers (by tours, rating, participants)
+- Geography heat map (popular destinations)
+- Theme trends (Vrindavan, Mayapur, etc.)
+- Time trends (last 12 months)
+- Average metrics (participants, duration, rating)
+
+**Libraries to install:**
+```bash
+cd admin
+npm install recharts react-leaflet leaflet
+npm install -D @types/leaflet
+```
+
+#### 5. Notifications Integration (P1)
+**Files to create:**
+- [ ] `/admin/src/components/yatra/AdminNotificationBell.tsx` - Bell icon with counter
+- [ ] `/admin/src/components/yatra/NotificationDropdown.tsx` - Dropdown list
+- [ ] `/admin/src/components/yatra/NotificationItem.tsx` - Single notification
+
+**Files to update:**
+- [ ] `/admin/src/components/layout/Sidebar.tsx` - Add Yatra menu items
+- [ ] `/admin/src/app/layout.tsx` - Add notification bell to header
+
+**Features:**
+- Real-time notification counter
+- Dropdown with recent notifications
+- Click to navigate to related resource
+- Mark as read
+- Mark all as read
+- Auto-refresh every 30s
+
+#### 6. Email Templates Management (P2 - Optional)
+**Files to create:**
+- [ ] `/admin/src/app/yatra/templates/page.tsx` - Templates CRUD
+- [ ] `/admin/src/components/yatra/TemplateEditor.tsx` - Rich text editor
+- [ ] `/admin/src/components/yatra/TemplatePreviewer.tsx` - Preview with vars
+
+**Features:**
+- List all email templates
+- Create/edit/delete templates
+- Preview with sample data
+- Variable substitution guide ({{organizerName}}, {{yatraTitle}}, etc.)
+
+#### 7. Broadcast Email Form (P2 - Optional)
+**Files to create:**
+- [ ] `/admin/src/app/yatra/broadcast/page.tsx` - Broadcast interface
+- [ ] `/admin/src/components/yatra/BroadcastEmailForm.tsx` - Send form
+- [ ] `/admin/src/components/yatra/RecipientSelector.tsx` - Target audience picker
+
+**Features:**
+- Select template or write custom
+- Choose recipients (all organizers, top organizers, blocked, etc.)
+- Preview before send
+- Send confirmation
+- Track send status
+
+---
+
+## 🎨 UI/UX Improvements TODO
+
+### Design Consistency:
+- [ ] Match existing admin panel color scheme
+- [ ] Use consistent button styles across all modals
+- [ ] Implement loading skeletons instead of spinners
+- [ ] Add toast notifications for actions (instead of alerts)
+- [ ] Responsive design for mobile (currently desktop-only)
+
+### Accessibility:
+- [ ] Add ARIA labels to all interactive elements
+- [ ] Keyboard navigation support
+- [ ] Focus management in modals
+- [ ] Screen reader announcements
+
+### Performance:
+- [ ] Implement React Query for data fetching and caching
+- [ ] Debounce search inputs (500ms)
+- [ ] Virtual scrolling for large tables (react-window)
+- [ ] Lazy load analytics components
+
+---
+
+## 🧪 Testing TODO
+
+### Frontend Tests:
+- [ ] Unit tests for components (Jest + React Testing Library)
+- [ ] Integration tests for pages
+- [ ] E2E tests for critical flows (Playwright)
+
+### Backend Tests:
+- [ ] Unit tests for services (already partially done)
+- [ ] Integration tests for admin endpoints
+- [ ] Load testing for analytics endpoints
+
+---
+
+## 📚 Documentation TODO
+
+### Admin Guide:
+- [ ] Create `/docs/ADMIN_YATRA_GUIDE.md` - How to use the admin panel
+- [ ] Screenshot walkthrough for common tasks
+- [ ] FAQ section
+
+### Developer Docs:
+- [ ] API endpoint documentation (Swagger/OpenAPI)
+- [ ] Component library documentation (Storybook - optional)
+- [ ] Deployment instructions
+
+---
+
+## 🚀 Deployment Checklist
+
+### Pre-deployment:
+- [ ] Run all linters (eslint, go lint)
+- [ ] Fix all TypeScript errors
+- [ ] Run security scan (`npm audit`, `go mod tidy`)
+- [ ] Update .env.example files
+
+### Database:
+- [ ] Run migrations on staging
+- [ ] Seed default templates
+- [ ] Create indexes (already done in models)
+
+### Production:
+- [ ] Deploy backend API
+- [ ] Deploy Next.js admin panel
+- [ ] Verify all endpoints accessible
+- [ ] Test critical flows (approve, reject, block)
+
+---
+
+## 📊 Current Progress Summary
+
+| Component | Status | Priority | Completion |
+|-----------|--------|----------|------------|
+| Database Models | ✅ Done | P0 | 100% |
+| Backend Services | ✅ Done | P0 | 100% |
+| Backend API Endpoints | ✅ Done | P0 | 100% |
+| Public Report Endpoints | ✅ Done | P0 | 100% |
+| Frontend - Yatra List | ✅ Done | P0 | 100% |
+| Frontend - Reports List | ✅ Done | P0 | 100% |
+| Frontend - Yatra Detail | ⏳ TODO | P0 | 0% |
+| Frontend - Report Detail | ⏳ TODO | P0 | 0% |
+| Frontend - Organizers | ⏳ TODO | P0 | 0% |
+| Frontend - Analytics | ⏳ TODO | P1 | 0% |
+| Frontend - Notifications | ⏳ TODO | P1 | 0% |
+| Frontend - Templates | ⏳ TODO | P2 | 0% |
+| Frontend - Broadcast | ⏳ TODO | P2 | 0% |
+| Tests | ⏳ TODO | P1 | 0% |
+| Documentation | ⏳ TODO | P1 | 0% |
+
+**Overall Progress: ~35% Complete**
+**Estimated Time Remaining: ~2 weeks**
+
+---
+
+## 🎯 Next Immediate Steps (Recommended Order)
+
+1. **Create Report Detail Page** (highest priority for moderation)
+2. **Create Yatra Detail Page** (needed for viewing/editing)
+3. **Add Organizer Pages** (blocking functionality)
+4. **Integrate Notifications** (UX improvement)
+5. **Add Analytics Dashboard** (polish)
+6. **Write Tests** (quality assurance)
+7. **Documentation** (handoff preparation)
+
+---
+
