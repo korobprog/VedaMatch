@@ -23,6 +23,9 @@ type Room struct {
 	ActiveReaderID   uint   `json:"activeReaderId" gorm:"default:0"`
 	ShowPurport      bool   `json:"showPurport" gorm:"default:false"`
 	NotificationSent bool   `json:"notificationSent" gorm:"default:false"`
+
+	// Yatra Travel Chat - if set, this room belongs to a Yatra tour
+	YatraID *uint `json:"yatraId" gorm:"default:null"`
 }
 
 type RoomMember struct {

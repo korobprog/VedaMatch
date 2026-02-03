@@ -1,5 +1,5 @@
 {
-  "name": "rag-agent-proxy",
+  "name": "vedamatch",
   "version": "1.0.2",
   "description": "Прокси-сервер для добавления параметра provider в запросы Roo Code Nightly",
   "main": "proxy-server.js",

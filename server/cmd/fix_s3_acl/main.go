@@ -5,6 +5,7 @@ import (
 	"log"
 	"rag-agent-server/internal/services"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/joho/godotenv"
 )
 
@@ -31,18 +32,16 @@ func main() {
 
 	log.Println("🔓 Setting public-read ACL for uploaded files...")
 
-	// Access the underlying client
-	client := s3Service.(*services.S3Service)
-
+	// Set ACL for each file
 	for _, key := range files {
 		log.Printf("Setting ACL for: %s", key)
 
-		// Note: We need to cast to access private fields
-		// This is a workaround - ideally S3Service should expose a SetACL method
-		// For now, we'll use the reflection trick or add a method to S3Service
-
-		log.Printf("⚠️  Cannot set ACL directly. Need to implement SetACL method in S3Service.")
-		log.Printf("Alternative: Set bucket policy or use presigned URLs")
+		err := s3Service.SetFileACL(ctx, key, types.ObjectCannedACLPublicRead)
+		if err != nil {
+			log.Printf("❌ Failed to set ACL for %s: %v", key, err)
+		} else {
+			log.Printf("✅ Successfully set public-read ACL for %s", key)
+		}
 	}
 
 	log.Println("\n📋 SOLUTION:")

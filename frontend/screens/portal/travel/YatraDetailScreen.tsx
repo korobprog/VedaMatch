@@ -9,11 +9,10 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
-    Linking
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
-    Calendar, MapPin, Users, Heart, Share2, MessageCircle,
+    Calendar, MapPin, Users, Share2, MessageCircle,
     CheckCircle, XCircle, Info, DollarSign, Home, Bus, Globe,
     ChevronLeft
 } from 'lucide-react-native';
@@ -37,7 +36,8 @@ const YatraDetailScreen: React.FC = () => {
     const [myParticipation, setMyParticipation] = useState<YatraParticipant | null>(null);
 
     const { user } = useUser(); // Get current user
-    const isOrganizer = yatra && user && user.ID && yatra.organizerId === user.ID;
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+    const isOrganizer = (yatra && user && user.ID && yatra.organizerId === user.ID) || isAdmin;
 
     const [pendingParticipants, setPendingParticipants] = useState<YatraParticipant[]>([]);
 
@@ -59,8 +59,8 @@ const YatraDetailScreen: React.FC = () => {
                 }
             }
 
-            // Check if user is organizer to fetch pending requests
-            if (user && user.ID && data.organizerId === user.ID) {
+            // Check if user is organizer or admin to fetch pending requests
+            if (user && user.ID && (data.organizerId === user.ID || user.role === 'admin' || user.role === 'superadmin')) {
                 try {
                     const pending = await yatraService.getPendingParticipants(yatraId);
                     setPendingParticipants(pending);
@@ -161,7 +161,7 @@ const YatraDetailScreen: React.FC = () => {
                             </Text>
                         </View>
                         <Text style={styles.title}>{yatra.title}</Text>
-                        <View style={styles.locationRow}>
+                        <View style={[styles.locationRow]}>
                             <MapPin size={16} color="#FF9500" />
                             <Text style={styles.locationText}>
                                 {yatra.startCity} → {yatra.endCity}
@@ -196,31 +196,65 @@ const YatraDetailScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Organizer Pending Requests */}
-                {isOrganizer && pendingParticipants.length > 0 && (
+                {/* Organizer Pending Requests & Control Panel */}
+                {isOrganizer && (
                     <View style={styles.section}>
                         <View style={styles.infoBox}>
                             <Users size={24} color="#FF9500" />
                             <View style={styles.infoContent}>
-                                <Text style={styles.infoTitle}>Новые заявки ({pendingParticipants.length})</Text>
-                                {pendingParticipants.map(participant => (
-                                    <View key={participant.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 8 }}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Пол-ль #{participant.userId}</Text>
-                                            <Text style={{ color: '#AAA', fontSize: 12 }}>{participant.message || '...'}</Text>
-                                        </View>
-                                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                                            <TouchableOpacity onPress={() => handleApprove(participant.id)}>
-                                                <CheckCircle size={24} color="#34C759" />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => handleReject(participant.id)}>
-                                                <XCircle size={24} color="#FF3B30" />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                ))}
+                                <Text style={styles.infoTitle}>Управление туром</Text>
+                                {pendingParticipants.length === 0 ? (
+                                    <Text style={styles.infoText}>Нет новых заявок на участие.</Text>
+                                ) : (
+                                    <>
+                                        <Text style={[styles.infoText, { marginBottom: 8 }]}>Новые заявки: {pendingParticipants.length}</Text>
+                                        {pendingParticipants.map(participant => (
+                                            <View key={participant.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 8 }}>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Пол-ль #{participant.userId}</Text>
+                                                    <Text style={{ color: '#AAA', fontSize: 12 }}>{participant.message || '...'}</Text>
+                                                </View>
+                                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                                    <TouchableOpacity onPress={() => handleApprove(participant.id)}>
+                                                        <CheckCircle size={24} color="#34C759" />
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity onPress={() => handleReject(participant.id)}>
+                                                        <XCircle size={24} color="#FF3B30" />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </>
+                                )}
+
+                                {/* Group Chat Button */}
+                                {yatra.chatRoomId && (
+                                    <TouchableOpacity
+                                        style={styles.chatButton}
+                                        onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: yatra.title + ' - Чат', isYatraChat: true })}
+                                    >
+                                        <MessageCircle size={20} color="#FFFFFF" />
+                                        <Text style={styles.chatButtonText}>Открыть групповой чат</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </View>
+                    </View>
+                )}
+
+                {/* Participant Chat Access (for approved participants) */}
+                {!isOrganizer && myParticipation?.status === 'approved' && yatra.chatRoomId && (
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={styles.participantChatButton}
+                            onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: yatra.title + ' - Чат', isYatraChat: true })}
+                        >
+                            <MessageCircle size={24} color="#FFFFFF" />
+                            <View style={{ marginLeft: 12 }}>
+                                <Text style={styles.chatButtonText}>Групповой чат участников</Text>
+                                <Text style={{ color: '#AAA', fontSize: 12 }}>Общайтесь с группой</Text>
+                            </View>
+                        </TouchableOpacity>
                     </View>
                 )}
 
@@ -347,17 +381,35 @@ const YatraDetailScreen: React.FC = () => {
                 <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
                     <Share2 size={24} color="#FFFFFF" />
                 </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.actionButton, joining && styles.actionButtonDisabled]}
-                    onPress={handleJoin}
-                    disabled={joining}
-                >
-                    {joining ? (
-                        <ActivityIndicator color="#000000" />
-                    ) : (
-                        <Text style={styles.actionButtonText}>Присоединиться</Text>
-                    )}
-                </TouchableOpacity>
+                {/* Join / Status Button */}
+                {isOrganizer ? (
+                    <View style={[styles.actionButton, styles.disabledButton]}>
+                        <Text style={styles.actionButtonText}>Вы организатор</Text>
+                    </View>
+                ) : myParticipation ? (
+                    <View style={[styles.actionButton, styles.disabledButton,
+                    myParticipation.status === 'approved' ? styles.approvedButton :
+                        myParticipation.status === 'rejected' ? styles.rejectedButton : {}
+                    ]}>
+                        <Text style={styles.actionButtonText}>
+                            {myParticipation.status === 'approved' ? 'Вы участвуете' :
+                                myParticipation.status === 'rejected' ? 'Заявка отклонена' :
+                                    'Заявка отправлена'}
+                        </Text>
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={[styles.actionButton, joining && styles.actionButtonDisabled]}
+                        onPress={handleJoin}
+                        disabled={joining}
+                    >
+                        {joining ? (
+                            <ActivityIndicator color="#000000" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Присоединиться</Text>
+                        )}
+                    </TouchableOpacity>
+                )}
             </View>
         </View>
     );
@@ -408,7 +460,7 @@ const styles = StyleSheet.create({
     },
     headerContent: {
         position: 'absolute',
-        bottom: 24,
+        bottom: 70,
         left: 20,
         right: 20,
     },
@@ -677,6 +729,39 @@ const styles = StyleSheet.create({
         color: '#000000',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    disabledButton: {
+        backgroundColor: '#2C2C2E',
+    },
+    approvedButton: {
+        backgroundColor: '#34C759',
+    },
+    rejectedButton: {
+        backgroundColor: '#FF3B30',
+    },
+    chatButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#34C759',
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginTop: 16,
+        gap: 8,
+    },
+    chatButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    participantChatButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#2C2C2E',
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#34C759',
     },
 });
 

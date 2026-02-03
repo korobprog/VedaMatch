@@ -282,3 +282,22 @@ func (s *S3Service) GeneratePresignedURL(ctx context.Context, key string, lifeti
 
 	return request.URL, nil
 }
+
+// SetFileACL sets the ACL for a file in S3
+func (s *S3Service) SetFileACL(ctx context.Context, key string, acl types.ObjectCannedACL) error {
+	if s == nil || s.client == nil {
+		return fmt.Errorf("S3 service not initialized")
+	}
+
+	_, err := s.client.PutObjectAcl(ctx, &s3.PutObjectAclInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(key),
+		ACL:    acl,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to set ACL for file: %w", err)
+	}
+
+	return nil
+}

@@ -35,7 +35,7 @@ import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
-    const { roomId, roomName } = route.params;
+    const { roomId, roomName, isYatraChat } = route.params;
     const { t, i18n } = useTranslation();
     const { isDarkMode, vTheme } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
@@ -201,20 +201,31 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
         navigation.setOptions({
             title: roomName,
+        });
+
+        return () => removeListener();
+    }, [navigation, roomName, roomId, user?.ID]);
+
+    // Update header buttons based on room type (separate effect to react to roomDetails changes)
+    useEffect(() => {
+        // Hide invite button for Yatra group chats - participants are managed via tour registration
+        const isYatraChatRoom = isYatraChat || (roomDetails?.yatraId != null);
+
+        navigation.setOptions({
             headerRight: () => (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TouchableOpacity onPress={() => setInviteVisible(true)} style={{ marginRight: 15 }}>
-                        <UserPlus size={24} color={theme.text} />
-                    </TouchableOpacity>
+                    {!isYatraChatRoom && (
+                        <TouchableOpacity onPress={() => setInviteVisible(true)} style={{ marginRight: 15 }}>
+                            <UserPlus size={24} color={theme.text} />
+                        </TouchableOpacity>
+                    )}
                     <TouchableOpacity onPress={() => setSettingsVisible(true)} style={{ marginRight: 10 }}>
                         <Settings size={24} color={theme.text} />
                     </TouchableOpacity>
                 </View>
             )
         });
-
-        return () => removeListener();
-    }, [navigation, roomName, roomId, user?.ID]);
+    }, [navigation, roomDetails, isYatraChat, theme.text]);
 
     const handleNextVerse = async () => {
         if (!roomDetails || !versesInChapter) return;

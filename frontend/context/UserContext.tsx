@@ -19,6 +19,7 @@ interface UserProfile {
     language?: string;
     latitude?: number;
     longitude?: number;
+    role?: string;
 }
 
 interface UserContextType {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // YatraService handles yatra (pilgrimage) and shelter operations
@@ -83,7 +84,7 @@ func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateReque
 		Transportation:  req.Transportation,
 		Language:        req.Language,
 		CoverImageURL:   req.CoverImageURL,
-		Status:          models.YatraStatusDraft,
+		Status:          models.YatraStatusOpen, // Default to open so it appears in lists
 	}
 
 	if yatra.MaxParticipants == 0 {
@@ -441,6 +442,7 @@ func (s *YatraService) addParticipantToChat(yatraID uint, userID uint) {
 			Description: "Group chat for " + yatra.Title,
 			OwnerID:     yatra.OrganizerID,
 			IsPublic:    false,
+			YatraID:     &yatraID, // Link room to yatra for proper UI handling
 		}
 		if err := s.db.Create(room).Error; err != nil {
 			log.Printf("[YatraService] Failed to create chat room: %v", err)
@@ -667,7 +669,9 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 // GetUserParticipation returns user's participation record for a yatra
 func (s *YatraService) GetUserParticipation(yatraID uint, userID uint) (*models.YatraParticipant, error) {
 	var participant models.YatraParticipant
-	err := s.db.Where("yatra_id = ? AND user_id = ?", yatraID, userID).
+	// Use silent logger to avoid "record not found" spam
+	err := s.db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).
+		Where("yatra_id = ? AND user_id = ?", yatraID, userID).
 		Preload("User").
 		First(&participant).Error
 	if err != nil {

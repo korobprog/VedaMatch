@@ -153,13 +153,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const handleDevLogin = async () => {
-        const devEmail = 'test_dev_yogi@example.com';
-        const devPassword = 'password';
+        // Using admin account for dev login
+        const devEmail = 'korobprog@gmail.com';
+        const devPassword = 'password'; // Change this to your actual password
         const devProfile = {
             email: devEmail,
             password: devPassword,
-            karmicName: 'Dev Yogi',
-            spiritualName: 'Dasa dasa',
+            karmicName: 'Dev Admin',
+            spiritualName: 'Korab Prabhu',
             gender: 'Male',
             country: 'India',
             city: 'Vrindavan',
