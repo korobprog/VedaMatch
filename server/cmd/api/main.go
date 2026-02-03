@@ -418,6 +418,13 @@ func main() {
 	admin.Get("/notifications", yatraAdminHandler.GetNotifications)
 	admin.Post("/notifications/:id/read", yatraAdminHandler.MarkNotificationRead)
 
+	// Templates & Broadcast
+	admin.Get("/yatra/templates", yatraAdminHandler.GetTemplates)
+	admin.Post("/yatra/templates", yatraAdminHandler.CreateTemplate)
+	admin.Put("/yatra/templates/:id", yatraAdminHandler.UpdateTemplate)
+	admin.Delete("/yatra/templates/:id", yatraAdminHandler.DeleteTemplate)
+	admin.Post("/yatra/broadcast", yatraAdminHandler.BroadcastEmail)
+
 	// Register Video Routes (new HLS video platform)
 	handlers.RegisterVideoRoutes(app)
 

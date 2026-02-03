@@ -18,6 +18,7 @@ type YatraAdminHandler struct {
 	organizerAdminService *services.OrganizerAdminService
 	analyticsService      *services.YatraAnalyticsService
 	notificationService   *services.AdminNotificationService
+	templateService       *services.ModerationTemplateService
 }
 
 // NewYatraAdminHandler creates a new admin handler
@@ -32,6 +33,7 @@ func NewYatraAdminHandler() *YatraAdminHandler {
 	yatraAdminService := services.NewYatraAdminService(database.DB, yatraService, notificationService)
 
 	analyticsService := services.NewYatraAnalyticsService(database.DB)
+	templateService := services.NewModerationTemplateService(database.DB)
 
 	return &YatraAdminHandler{
 		yatraAdminService:     yatraAdminService,
@@ -39,7 +41,85 @@ func NewYatraAdminHandler() *YatraAdminHandler {
 		organizerAdminService: organizerAdminService,
 		analyticsService:      analyticsService,
 		notificationService:   notificationService,
+		templateService:       templateService,
 	}
+}
+
+// ... existing code ...
+
+// ==================== TEMPLATES & BROADCAST ====================
+
+// GetTemplates returns all templates
+// GET /api/admin/yatra/templates
+func (h *YatraAdminHandler) GetTemplates(c *fiber.Ctx) error {
+	templates, err := h.templateService.GetTemplates()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get templates"})
+	}
+	return c.JSON(templates)
+}
+
+// CreateTemplate creates a new template
+// POST /api/admin/yatra/templates
+func (h *YatraAdminHandler) CreateTemplate(c *fiber.Ctx) error {
+	var req models.ModerationTemplateCreateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	template, err := h.templateService.CreateTemplate(&req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusCreated).JSON(template)
+}
+
+// UpdateTemplate updates a template
+// PUT /api/admin/yatra/templates/:id
+func (h *YatraAdminHandler) UpdateTemplate(c *fiber.Ctx) error {
+	id, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	var req models.ModerationTemplateUpdateRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	template, err := h.templateService.UpdateTemplate(uint(id), &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(template)
+}
+
+// DeleteTemplate deletes a template
+// DELETE /api/admin/yatra/templates/:id
+func (h *YatraAdminHandler) DeleteTemplate(c *fiber.Ctx) error {
+	id, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err := h.templateService.DeleteTemplate(uint(id)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"message": "Template deleted"})
+}
+
+// BroadcastEmail sends mass emails
+// POST /api/admin/yatra/broadcast
+func (h *YatraAdminHandler) BroadcastEmail(c *fiber.Ctx) error {
+	var req struct {
+		TemplateID      uint   `json:"template_id"`
+		RecipientFilter string `json:"recipient_filter"` // all_organizers, active_organizers
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	count, err := h.templateService.BroadcastEmail(req.TemplateID, req.RecipientFilter)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Broadcast initiated",
+		"count":   count,
+	})
 }
 
 // ==================== YATRA MANAGEMENT ====================

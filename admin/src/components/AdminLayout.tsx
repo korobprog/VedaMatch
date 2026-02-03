@@ -25,7 +25,9 @@ import {
     MapPin,
     Music,
     Film,
-    Compass
+    Compass,
+    Mail,
+    Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminNotificationBell } from '@/components/AdminNotificationBell';
@@ -42,6 +44,8 @@ const menuItems = [
     { icon: GraduationCap, label: 'Education', path: '/education' },
     { icon: Library, label: 'Knowledge Base', path: '/library' },
     { icon: Compass, label: 'Yatra Travel', path: '/yatra' },
+    { icon: Mail, label: '  └ Templates', path: '/yatra/templates' },
+    { icon: Send, label: '  └ Broadcast', path: '/yatra/broadcast' },
     { icon: Sparkles, label: 'AI Models', path: '/ai-models' },
     { icon: Route, label: 'Polza AI', path: '/polza' },
     { icon: MessageSquare, label: 'AI Prompts', path: '/ai-prompts' },

@@ -52,13 +52,19 @@ GET    /admin/yatra/analytics/metrics              - Средние метрик
 
 GET    /admin/notifications                        - Уведомления
 POST   /admin/notifications/:id/read               - Пометить прочитанным
+
+GET    /admin/yatra/templates                      - Список шаблонов
+POST   /admin/yatra/templates                      - Создать шаблон
+PUT    /admin/yatra/templates/:id                  - Обновить шаблон
+DELETE /admin/yatra/templates/:id                  - Удалить шаблон
+POST   /admin/yatra/broadcast                      - Отправить рассылку
 ```
 
 ---
 
-### Frontend (100% ✅)
+### Frontend (100% + Bonus ✅)
 
-**Страницы (7):**
+**Страницы (9):**
 1. `/yatra` - Список туров с фильтрами
 2. `/yatra/[id]` - Детали тура + участники
 3. `/yatra/reports` - Список жалоб
@@ -67,8 +73,10 @@ POST   /admin/notifications/:id/read               - Пометить прочи
 6. `/organizers/[id]` - Профиль организатора
 7. `/yatra/analytics` - Аналитика
 8. `/notifications` - Список уведомлений
+9. `/yatra/templates` - Управление шаблонами писем
+10. `/yatra/broadcast` - Массовая рассылка
 
-**Компоненты (12):**
+**Компоненты (13):**
 1. `YatraTable` - Таблица туров
 2. `YatraStats` - Статистика туров
 3. `YatraStatusBadge` - Бейджи статусов
@@ -79,11 +87,13 @@ POST   /admin/notifications/:id/read               - Пометить прочи
 8. `TimeTrendsChart` - График трендов (line chart)
 9. `GeographySummary` - География (progress bars)
 10. `AdminNotificationBell` - Умный колокольчик с dropdown
+11. `ToastProvider` - Система уведомлений (UI)
 
 **UI Updates:**
 - ✅ Добавлен пункт меню "Yatra Travel" в sidebar
 - ✅ Интегрирован Notification Bell в шапку
 - ✅ Иконка Compass для навигации
+- ✅ Меню "Templates" и "Broadcast"
 
 ---
 

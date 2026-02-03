@@ -5,6 +5,7 @@ import AdminLayout from '@/components/AdminLayout';
 import OfflineIndicator from '@/components/OfflineIndicator';
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] });
+import { ToastProvider } from '@/components/ui/ToastProvider';
 
 export const metadata: Metadata = {
   title: 'VedaMatch Admin Panel',
@@ -36,7 +37,9 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`}>
         <OfflineIndicator />
-        <AdminLayout>{children}</AdminLayout>
+        <ToastProvider>
+          <AdminLayout>{children}</AdminLayout>
+        </ToastProvider>
       </body>
     </html>
   );
