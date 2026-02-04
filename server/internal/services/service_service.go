@@ -1,7 +1,9 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"rag-agent-server/internal/database"
@@ -437,6 +439,7 @@ func (s *ServiceService) DeleteSchedule(scheduleID, ownerID uint) error {
 }
 
 // Publish changes service status to active
+// Publish changes service status to active
 func (s *ServiceService) Publish(serviceID, ownerID uint) error {
 	var service models.Service
 	if err := database.DB.First(&service, serviceID).Error; err != nil {
@@ -458,6 +461,137 @@ func (s *ServiceService) Publish(serviceID, ownerID uint) error {
 	}
 
 	return database.DB.Model(&service).Update("status", models.ServiceStatusActive).Error
+}
+
+// GetWeeklySchedule returns weekly schedule configuration
+func (s *ServiceService) GetWeeklySchedule(serviceID uint) (*models.WeeklyScheduleResponse, error) {
+	var service models.Service
+	if err := database.DB.Preload("Schedules", "is_active = ?", true).First(&service, serviceID).Error; err != nil {
+		return nil, err
+	}
+
+	response := &models.WeeklyScheduleResponse{
+		WeeklySlots: make(map[string]models.WeeklyDayConfig),
+	}
+
+	// Parse settings
+	if service.Settings != "" {
+		var settings map[string]interface{}
+		if err := json.Unmarshal([]byte(service.Settings), &settings); err == nil {
+			if val, ok := settings["slotDuration"].(float64); ok {
+				response.SlotDuration = int(val)
+			}
+			if val, ok := settings["breakBetween"].(float64); ok {
+				response.BreakBetween = int(val)
+			}
+			if val, ok := settings["maxBookingsPerDay"].(float64); ok {
+				response.MaxBookingsPerDay = int(val)
+			}
+		}
+	}
+
+	// Group slots by day
+	for _, schedule := range service.Schedules {
+		if schedule.DayOfWeek == nil {
+			continue
+		}
+		dayStr := fmt.Sprintf("%d", *schedule.DayOfWeek)
+
+		config := response.WeeklySlots[dayStr]
+		config.Enabled = true
+		config.Slots = append(config.Slots, models.TimeSlot{
+			StartTime: schedule.TimeStart,
+			EndTime:   schedule.TimeEnd,
+		})
+		response.WeeklySlots[dayStr] = config
+	}
+
+	return response, nil
+}
+
+// UpdateWeeklySchedule updates weekly schedule configuration
+func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req models.WeeklyScheduleRequest) error {
+	var service models.Service
+	if err := database.DB.First(&service, serviceID).Error; err != nil {
+		return err
+	}
+
+	if service.OwnerID != ownerID {
+		return errors.New("not authorized")
+	}
+
+	// 1. Update settings
+	settings := make(map[string]interface{})
+	if service.Settings != "" {
+		json.Unmarshal([]byte(service.Settings), &settings)
+	}
+
+	// Defaults if not provided
+	slotDuration := 60
+	if req.BreakBetween != nil {
+		settings["breakBetween"] = *req.BreakBetween
+	}
+	if req.MaxBookingsPerDay != nil {
+		settings["maxBookingsPerDay"] = *req.MaxBookingsPerDay
+	}
+
+	// Try to get slot duration from existing settings or use default
+	if val, ok := settings["slotDuration"].(float64); ok {
+		slotDuration = int(val)
+	}
+
+	// But we need to update it if it changes (based on logic, usually duration is per slot)
+	// For now, let's assume all slots have same duration based on first slot or req
+	// The request doesn't pass slotDuration explicitly in root, but it is used for calculation
+
+	settingsBytes, _ := json.Marshal(settings)
+	if err := database.DB.Model(&service).Update("settings", string(settingsBytes)).Error; err != nil {
+		return err
+	}
+
+	// 2. Deactivate all existing weekly schedules
+	if err := database.DB.Model(&models.ServiceSchedule{}).
+		Where("service_id = ? AND day_of_week IS NOT NULL", serviceID).
+		Update("is_active", false).Error; err != nil {
+		return err
+	}
+
+	// 3. Create new schedules
+	var bufferMinutes int
+	if req.BreakBetween != nil {
+		bufferMinutes = *req.BreakBetween
+	} else if val, ok := settings["breakBetween"].(float64); ok {
+		bufferMinutes = int(val)
+	}
+
+	for dayStr, config := range req.WeeklySlots {
+		if !config.Enabled {
+			continue
+		}
+
+		dayInt := 0
+		fmt.Sscanf(dayStr, "%d", &dayInt)
+
+		for _, slot := range config.Slots {
+			// Calculate duration from start/end
+			// For simplicity, we just save start/end
+			// Ideally we should validate times
+
+			dayOfWeek := dayInt
+			schedule := models.ServiceSchedule{
+				ServiceID:     serviceID,
+				DayOfWeek:     &dayOfWeek,
+				TimeStart:     slot.StartTime,
+				TimeEnd:       slot.EndTime,
+				SlotDuration:  slotDuration,
+				BufferMinutes: bufferMinutes,
+				IsActive:      true,
+			}
+			database.DB.Create(&schedule)
+		}
+	}
+
+	return nil
 }
 
 // Pause changes service status to paused

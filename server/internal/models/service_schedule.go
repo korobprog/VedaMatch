@@ -92,3 +92,28 @@ type SlotsResponse struct {
 	Date      string          `json:"date"`
 	Slots     []AvailableSlot `json:"slots"`
 }
+
+// WeeklyScheduleResponse returns aggregated weekly configuration
+type WeeklyScheduleResponse struct {
+	WeeklySlots       map[string]WeeklyDayConfig `json:"weeklySlots"` // key is day number "1", "2"...
+	SlotDuration      int                        `json:"slotDuration"`
+	BreakBetween      int                        `json:"breakBetween"`
+	MaxBookingsPerDay int                        `json:"maxBookingsPerDay"`
+}
+
+type WeeklyDayConfig struct {
+	Enabled bool       `json:"enabled"`
+	Slots   []TimeSlot `json:"slots"`
+}
+
+type TimeSlot struct {
+	StartTime string `json:"startTime"` // "09:00"
+	EndTime   string `json:"endTime"`   // "10:00"
+}
+
+// WeeklyScheduleRequest for updating weekly schedule
+type WeeklyScheduleRequest struct {
+	WeeklySlots       map[string]WeeklyDayConfig `json:"weeklySlots"`
+	BreakBetween      *int                       `json:"breakBetween"`
+	MaxBookingsPerDay *int                       `json:"maxBookingsPerDay"`
+}

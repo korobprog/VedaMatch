@@ -113,6 +113,9 @@ type Service struct {
 	// Status
 	Status ServiceStatus `json:"status" gorm:"type:varchar(20);default:'draft';index"`
 
+	// Settings (JSON)
+	Settings string `json:"settings" gorm:"type:text"`
+
 	// Statistics
 	ViewsCount    int     `json:"viewsCount" gorm:"default:0"`
 	BookingsCount int     `json:"bookingsCount" gorm:"default:0"`

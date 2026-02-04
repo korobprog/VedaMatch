@@ -327,3 +327,50 @@ func (h *ServiceHandler) DeleteSchedule(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"success": true})
 }
+
+// GetWeeklySchedule returns weekly schedule configuration for a service
+// GET /api/services/:id/schedule/weekly
+func (h *ServiceHandler) GetWeeklySchedule(c *fiber.Ctx) error {
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
+
+	config, err := h.serviceService.GetWeeklySchedule(uint(serviceID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(config)
+}
+
+// UpdateWeeklySchedule updates weekly schedule configuration
+// PUT /api/services/:id/schedule/weekly
+func (h *ServiceHandler) UpdateWeeklySchedule(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
+
+	var req models.WeeklyScheduleRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if err := h.serviceService.UpdateWeeklySchedule(uint(serviceID), userID, req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{"success": true})
+}
