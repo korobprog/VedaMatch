@@ -118,6 +118,10 @@ export default function ServicesHomeScreen() {
         navigation.navigate('MyBookings');
     };
 
+    const handleIncomingBookings = () => {
+        navigation.navigate('IncomingBookings');
+    };
+
     const handleWallet = () => {
         navigation.navigate('Wallet');
     };
@@ -141,23 +145,36 @@ export default function ServicesHomeScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* Quick Actions */}
+            {/* Quick Actions - Row 1: Client */}
             <View style={styles.quickActions}>
                 <TouchableOpacity style={styles.actionButton} onPress={handleMyBookings}>
-                    <Calendar size={20} color="#fff" />
+                    <Calendar size={18} color="#fff" />
                     <Text style={styles.actionText}>Мои записи</Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity style={styles.actionButton} onPress={handleWallet}>
+                    <Text style={styles.walletEmoji}>💰</Text>
+                    <Text style={styles.actionText}>Кошелёк</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Quick Actions - Row 2: Provider */}
+            <View style={styles.quickActions}>
                 <TouchableOpacity style={styles.actionButton} onPress={handleMyServices}>
-                    <Briefcase size={20} color="#fff" />
+                    <Briefcase size={18} color="#fff" />
                     <Text style={styles.actionText}>Мои сервисы</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.actionButton} onPress={handleIncomingBookings}>
+                    <Calendar size={18} color="#4CAF50" />
+                    <Text style={[styles.actionText, { color: '#4CAF50' }]}>Входящие</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     style={[styles.actionButton, styles.createButton]}
                     onPress={handleCreateService}
                 >
-                    <PlusCircle size={20} color="#FFD700" />
+                    <PlusCircle size={18} color="#FFD700" />
                     <Text style={[styles.actionText, styles.createText]}>Создать</Text>
                 </TouchableOpacity>
             </View>
@@ -346,6 +363,9 @@ const styles = StyleSheet.create({
     },
     createText: {
         color: '#FFD700',
+    },
+    walletEmoji: {
+        fontSize: 16,
     },
     searchContainer: {
         flexDirection: 'row',
