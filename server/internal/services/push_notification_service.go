@@ -192,6 +192,115 @@ func (s *PushNotificationService) SendCallNotification(targetUserID uint, caller
 	return s.SendToUser(targetUserID, message)
 }
 
+// ==================== BOOKING NOTIFICATIONS ====================
+
+// SendNewBookingToProvider notifies provider about a new booking request
+func (s *PushNotificationService) SendNewBookingToProvider(providerID uint, bookingID uint, serviceName string, clientName string, scheduledAt time.Time) error {
+	message := PushMessage{
+		Title:    "📅 Новая запись!",
+		Body:     fmt.Sprintf("%s записался на \"%s\" на %s", clientName, serviceName, formatTime(scheduledAt)),
+		Priority: "high",
+		Data: map[string]string{
+			"type":      "new_booking",
+			"bookingId": fmt.Sprintf("%d", bookingID),
+			"screen":    "IncomingBookings",
+		},
+	}
+	return s.SendToUser(providerID, message)
+}
+
+// SendBookingConfirmedToClient notifies client that booking was confirmed
+func (s *PushNotificationService) SendBookingConfirmedToClient(clientID uint, bookingID uint, serviceName string, scheduledAt time.Time) error {
+	message := PushMessage{
+		Title:    "✅ Запись подтверждена!",
+		Body:     fmt.Sprintf("Ваша запись на \"%s\" подтверждена на %s", serviceName, formatTime(scheduledAt)),
+		Priority: "default",
+		Data: map[string]string{
+			"type":      "booking_confirmed",
+			"bookingId": fmt.Sprintf("%d", bookingID),
+			"screen":    "MyBookings",
+		},
+	}
+	return s.SendToUser(clientID, message)
+}
+
+// SendBookingCancelledToClient notifies client that booking was cancelled
+func (s *PushNotificationService) SendBookingCancelledToClient(clientID uint, bookingID uint, serviceName string, reason string) error {
+	body := fmt.Sprintf("Запись на \"%s\" отменена", serviceName)
+	if reason != "" {
+		body += ": " + reason
+	}
+	message := PushMessage{
+		Title:    "❌ Запись отменена",
+		Body:     body,
+		Priority: "high",
+		Data: map[string]string{
+			"type":      "booking_cancelled",
+			"bookingId": fmt.Sprintf("%d", bookingID),
+			"screen":    "MyBookings",
+		},
+	}
+	return s.SendToUser(clientID, message)
+}
+
+// SendBookingCancelledToProvider notifies provider that client cancelled
+func (s *PushNotificationService) SendBookingCancelledToProvider(providerID uint, bookingID uint, serviceName string, clientName string) error {
+	message := PushMessage{
+		Title:    "❌ Клиент отменил запись",
+		Body:     fmt.Sprintf("%s отменил запись на \"%s\"", clientName, serviceName),
+		Priority: "high",
+		Data: map[string]string{
+			"type":      "booking_cancelled_by_client",
+			"bookingId": fmt.Sprintf("%d", bookingID),
+			"screen":    "IncomingBookings",
+		},
+	}
+	return s.SendToUser(providerID, message)
+}
+
+// SendBookingReminder sends a reminder before the appointment
+func (s *PushNotificationService) SendBookingReminder(userID uint, bookingID uint, serviceName string, scheduledAt time.Time, minutesBefore int) error {
+	var body string
+	if minutesBefore <= 60 {
+		body = fmt.Sprintf("Через %d минут начинается \"%s\"", minutesBefore, serviceName)
+	} else {
+		body = fmt.Sprintf("Через %d часов \"%s\"", minutesBefore/60, serviceName)
+	}
+
+	message := PushMessage{
+		Title:    "⏰ Напоминание",
+		Body:     body,
+		Priority: "high",
+		Data: map[string]string{
+			"type":      "booking_reminder",
+			"bookingId": fmt.Sprintf("%d", bookingID),
+			"screen":    "ServiceBooking",
+		},
+	}
+	return s.SendToUser(userID, message)
+}
+
+// SendBookingCompleted notifies both parties about completed booking
+func (s *PushNotificationService) SendBookingCompleted(clientID uint, bookingID uint, serviceName string, providerName string) error {
+	message := PushMessage{
+		Title:    "🎉 Консультация завершена",
+		Body:     fmt.Sprintf("Спасибо за использование \"%s\"! Оставьте отзыв о %s", serviceName, providerName),
+		Priority: "default",
+		Data: map[string]string{
+			"type":      "booking_completed",
+			"bookingId": fmt.Sprintf("%d", bookingID),
+			"screen":    "MyBookings",
+		},
+	}
+	return s.SendToUser(clientID, message)
+}
+
+// formatTime helper for readable time format in Russian
+func formatTime(t time.Time) string {
+	months := []string{"", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"}
+	return fmt.Sprintf("%d %s в %02d:%02d", t.Day(), months[t.Month()], t.Hour(), t.Minute())
+}
+
 // SendViaFCM sends notification using Firebase Cloud Messaging
 func (s *PushNotificationService) SendViaFCM(tokens []string, message PushMessage) error {
 	if s.fcmServerKey == "" {

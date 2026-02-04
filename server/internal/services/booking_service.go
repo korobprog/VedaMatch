@@ -118,7 +118,22 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 
 	log.Printf("[Booking] Created booking %d for service %d by user %d", booking.ID, serviceID, clientID)
 
-	// TODO: Send push notification to service owner
+	// Send push notification to service owner
+	go func() {
+		var client models.User
+		database.DB.First(&client, clientID)
+		clientName := client.KarmicName
+		if clientName == "" {
+			clientName = "Клиент"
+		}
+		GetPushService().SendNewBookingToProvider(
+			service.OwnerID,
+			booking.ID,
+			service.Title,
+			clientName,
+			booking.ScheduledAt,
+		)
+	}()
 
 	return &booking, nil
 }
@@ -151,7 +166,16 @@ func (s *BookingService) Confirm(bookingID, ownerID uint, req models.BookingActi
 
 	log.Printf("[Booking] Confirmed booking %d", bookingID)
 
-	// TODO: Send push notification to client
+	// Send push notification to client
+	go func() {
+		GetPushService().SendBookingConfirmedToClient(
+			booking.ClientID,
+			booking.ID,
+			booking.Service.Title,
+			booking.ScheduledAt,
+		)
+	}()
+
 	// TODO: Create chat room between client and provider
 
 	database.DB.Preload("Service.Owner").Preload("Tariff").Preload("Client").First(&booking, bookingID)
@@ -214,6 +238,33 @@ func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingAction
 
 	log.Printf("[Booking] Cancelled booking %d by user %d", bookingID, userID)
 
+	// Send push notifications
+	go func() {
+		if isOwner {
+			// Provider cancelled - notify client
+			GetPushService().SendBookingCancelledToClient(
+				booking.ClientID,
+				booking.ID,
+				booking.Service.Title,
+				req.Reason,
+			)
+		} else {
+			// Client cancelled - notify provider
+			var client models.User
+			database.DB.First(&client, booking.ClientID)
+			clientName := client.KarmicName
+			if clientName == "" {
+				clientName = "Клиент"
+			}
+			GetPushService().SendBookingCancelledToProvider(
+				booking.Service.OwnerID,
+				booking.ID,
+				booking.Service.Title,
+				clientName,
+			)
+		}
+	}()
+
 	database.DB.Preload("Service.Owner").Preload("Tariff").Preload("Client").First(&booking, bookingID)
 	return &booking, nil
 }
@@ -245,6 +296,22 @@ func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingAct
 	}
 
 	log.Printf("[Booking] Completed booking %d", bookingID)
+
+	// Send push notification to client
+	go func() {
+		var owner models.User
+		database.DB.First(&owner, booking.Service.OwnerID)
+		providerName := owner.KarmicName
+		if providerName == "" {
+			providerName = "специалиста"
+		}
+		GetPushService().SendBookingCompleted(
+			booking.ClientID,
+			booking.ID,
+			booking.Service.Title,
+			providerName,
+		)
+	}()
 
 	database.DB.Preload("Service.Owner").Preload("Tariff").Preload("Client").First(&booking, bookingID)
 	return &booking, nil
