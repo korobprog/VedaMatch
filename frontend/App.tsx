@@ -126,6 +126,9 @@ import {
   ServiceDetailScreen,
   ServiceBookingScreen,
   MyBookingsScreen,
+  CreateServiceScreen,
+  MyServicesScreen,
+  IncomingBookingsScreen,
 } from './screens/portal/services';
 import WalletScreen from './screens/wallet/WalletScreen';
 import { WalletProvider } from './context/WalletContext';
@@ -378,6 +381,11 @@ const AppContent = () => {
                   <Stack.Screen name="ServiceDetail" component={ServiceDetailScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ServiceBooking" component={ServiceBookingScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="MyBookings" component={MyBookingsScreen} options={{ headerShown: false }} />
+
+                  {/* Provider Routes */}
+                  <Stack.Screen name="CreateService" component={CreateServiceScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="MyServices" component={MyServicesScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="IncomingBookings" component={IncomingBookingsScreen} options={{ headerShown: false }} />
 
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />
