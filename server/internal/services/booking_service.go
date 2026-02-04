@@ -176,7 +176,36 @@ func (s *BookingService) Confirm(bookingID, ownerID uint, req models.BookingActi
 		)
 	}()
 
-	// TODO: Create chat room between client and provider
+	// Create chat room between client and provider
+	go func() {
+		room := models.Room{
+			Name:        "Консультация: " + booking.Service.Title,
+			Description: "Чат для консультации",
+			OwnerID:     booking.Service.OwnerID,
+			IsPublic:    false,
+		}
+		if err := database.DB.Create(&room).Error; err != nil {
+			log.Printf("[Booking] Failed to create chat room: %v", err)
+			return
+		}
+
+		// Add both users to the room
+		database.DB.Create(&models.RoomMember{
+			RoomID: room.ID,
+			UserID: booking.Service.OwnerID,
+			Role:   "admin",
+		})
+		database.DB.Create(&models.RoomMember{
+			RoomID: room.ID,
+			UserID: booking.ClientID,
+			Role:   "member",
+		})
+
+		// Update booking with chat room ID
+		database.DB.Model(&models.ServiceBooking{}).Where("id = ?", bookingID).Update("chat_room_id", room.ID)
+
+		log.Printf("[Booking] Created chat room %d for booking %d", room.ID, bookingID)
+	}()
 
 	database.DB.Preload("Service.Owner").Preload("Tariff").Preload("Client").First(&booking, bookingID)
 	return &booking, nil
