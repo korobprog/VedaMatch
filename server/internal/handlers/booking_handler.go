@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
@@ -26,7 +27,11 @@ func NewBookingHandler() *BookingHandler {
 // Book creates a new booking
 // POST /api/services/:id/book
 func (h *BookingHandler) Book(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -72,7 +77,10 @@ func (h *BookingHandler) Book(c *fiber.Ctx) error {
 // GetMyBookings returns bookings where user is the client
 // GET /api/bookings/my
 func (h *BookingHandler) GetMyBookings(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	filters := models.BookingFilters{
 		Status:   models.BookingStatus(c.Query("status")),
@@ -104,7 +112,10 @@ func (h *BookingHandler) GetMyBookings(c *fiber.Ctx) error {
 // GetIncomingBookings returns bookings for services owned by user
 // GET /api/bookings/incoming
 func (h *BookingHandler) GetIncomingBookings(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	filters := models.BookingFilters{
 		Status:   models.BookingStatus(c.Query("status")),
@@ -132,7 +143,10 @@ func (h *BookingHandler) GetIncomingBookings(c *fiber.Ctx) error {
 // GetUpcoming returns upcoming bookings categorized by time
 // GET /api/bookings/upcoming
 func (h *BookingHandler) GetUpcoming(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	result, err := h.bookingService.GetUpcoming(userID)
 	if err != nil {
@@ -147,7 +161,10 @@ func (h *BookingHandler) GetUpcoming(c *fiber.Ctx) error {
 // Confirm confirms a pending booking
 // PUT /api/bookings/:id/confirm
 func (h *BookingHandler) Confirm(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	var req models.BookingActionRequest
@@ -166,7 +183,10 @@ func (h *BookingHandler) Confirm(c *fiber.Ctx) error {
 // Cancel cancels a booking
 // PUT /api/bookings/:id/cancel
 func (h *BookingHandler) Cancel(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	var req models.BookingActionRequest
@@ -185,7 +205,10 @@ func (h *BookingHandler) Cancel(c *fiber.Ctx) error {
 // Complete marks a booking as completed
 // PUT /api/bookings/:id/complete
 func (h *BookingHandler) Complete(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	var req models.BookingActionRequest
@@ -204,7 +227,10 @@ func (h *BookingHandler) Complete(c *fiber.Ctx) error {
 // NoShow marks that the client didn't show up
 // PUT /api/bookings/:id/no-show
 func (h *BookingHandler) NoShow(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	booking, err := h.bookingService.MarkNoShow(uint(bookingID), userID)
@@ -263,7 +289,10 @@ func (h *BookingHandler) GetSlots(c *fiber.Ctx) error {
 // GetBusyTimes returns busy times for a service owner
 // GET /api/calendar/busy
 func (h *BookingHandler) GetBusyTimes(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	dateFrom := c.Query("dateFrom")
 	dateTo := c.Query("dateTo")

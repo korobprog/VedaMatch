@@ -12,6 +12,7 @@ import {
     ActivityIndicator,
     Alert,
     Image,
+    Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,12 +25,12 @@ import {
     XCircle,
     MessageCircle,
     User,
-    Phone,
     Video,
+    Sparkles,
+    LayoutGrid,
 } from 'lucide-react-native';
 import {
     ServiceBooking,
-    BookingStatus,
     getIncomingBookings,
     confirmBooking,
     cancelBooking,
@@ -39,6 +40,8 @@ import {
     STATUS_COLORS,
     formatDuration,
 } from '../../../services/bookingService';
+
+const { width } = Dimensions.get('window');
 
 type FilterTab = 'pending' | 'confirmed' | 'all';
 
@@ -75,15 +78,14 @@ export default function IncomingBookingsScreen() {
             const response = await getIncomingBookings(filters);
             setBookings(response.bookings || []);
         } catch (error) {
-            console.error('Failed to load bookings:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить записи');
+            console.log('[IncomingBookings] Failed to load:', error);
+            setBookings([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
     }, [activeFilter]);
 
-    // Reload on focus and filter change
     useFocusEffect(
         useCallback(() => {
             loadBookings();
@@ -175,7 +177,6 @@ export default function IncomingBookingsScreen() {
         if (booking.chatRoomId) {
             navigation.navigate('RoomChat', { roomId: booking.chatRoomId.toString() });
         } else if (booking.clientId) {
-            // Create or navigate to direct chat with client
             navigation.navigate('Chat', { userId: booking.clientId });
         }
     };
@@ -205,26 +206,19 @@ export default function IncomingBookingsScreen() {
         const now = new Date();
         const start = new Date(booking.scheduledAt);
         const diff = start.getTime() - now.getTime();
-        return diff > 0 && diff <= 60 * 60 * 1000; // Within 1 hour
+        return diff > 0 && diff <= 60 * 60 * 1000;
     };
 
     const renderBookingCard = (booking: ServiceBooking) => {
-        const statusColor = STATUS_COLORS[booking.status];
+        const statusColor = STATUS_COLORS[booking.status] || '#F59E0B';
         const isProcessing = processingId === booking.id;
         const soon = isStartingSoon(booking);
         const past = isPast(booking);
 
         return (
-            <View
-                key={booking.id}
-                style={[
-                    styles.bookingCard,
-                    soon && styles.bookingCardSoon,
-                ]}
-            >
-                {/* Status & Time */}
+            <View key={booking.id} style={[styles.bookingCard, soon && styles.bookingCardSoon]}>
                 <View style={styles.cardHeader}>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
                         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                         <Text style={[styles.statusText, { color: statusColor }]}>
                             {STATUS_LABELS[booking.status]}
@@ -232,89 +226,92 @@ export default function IncomingBookingsScreen() {
                     </View>
                     {soon && (
                         <View style={styles.soonBadge}>
-                            <Text style={styles.soonText}>Скоро!</Text>
+                            <Sparkles size={10} color="#F59E0B" />
+                            <Text style={styles.soonText}>Срочно</Text>
                         </View>
                     )}
+                    <TouchableOpacity style={styles.moreButton} onPress={() => handleOpenChat(booking)}>
+                        <MessageCircle size={18} color="rgba(255,255,255,0.4)" />
+                    </TouchableOpacity>
                 </View>
 
-                {/* Service & Client */}
-                <View style={styles.mainInfo}>
+                <View style={styles.cardBody}>
                     <Text style={styles.serviceName} numberOfLines={1}>
-                        {booking.service?.title || 'Сервис'}
+                        {booking.service?.title || 'Услуга'}
                     </Text>
 
                     <View style={styles.clientRow}>
-                        {booking.client?.avatar ? (
-                            <Image source={{ uri: booking.client.avatar }} style={styles.clientAvatar} />
-                        ) : (
-                            <View style={styles.clientAvatarPlaceholder}>
-                                <User size={14} color="rgba(255,255,255,0.5)" />
-                            </View>
-                        )}
-                        <Text style={styles.clientName}>
-                            {booking.client?.karmicName || 'Клиент'}
-                        </Text>
+                        <View style={styles.avatarContainer}>
+                            {booking.client?.avatar ? (
+                                <Image source={{ uri: booking.client.avatar }} style={styles.clientAvatar} />
+                            ) : (
+                                <View style={styles.clientAvatarPlaceholder}>
+                                    <User size={16} color="rgba(245, 158, 11, 0.4)" />
+                                </View>
+                            )}
+                            <View style={[styles.onlineStatus, { backgroundColor: '#4CAF50' }]} />
+                        </View>
+                        <View style={styles.clientInfo}>
+                            <Text style={styles.clientName}>
+                                {booking.client?.karmicName || 'Клиент'}
+                            </Text>
+                            <Text style={styles.clientMeta}>
+                                {booking.client?.spiritualName || 'Духовное имя не указано'}
+                            </Text>
+                        </View>
                     </View>
                 </View>
 
-                {/* Date & Time */}
-                <View style={styles.dateTimeRow}>
-                    <View style={styles.dateBlock}>
-                        <Calendar size={14} color="#FFD700" />
-                        <Text style={styles.dateText}>{formatDate(booking.scheduledAt)}</Text>
+                <View style={styles.infoRow}>
+                    <View style={styles.infoItem}>
+                        <Calendar size={14} color="#F59E0B" />
+                        <Text style={styles.infoText}>{formatDate(booking.scheduledAt)}</Text>
                     </View>
-                    <View style={styles.timeBlock}>
-                        <Clock size={14} color="#FFD700" />
-                        <Text style={styles.timeText}>
-                            {formatTime(booking.scheduledAt)} - {formatTime(booking.endAt)}
-                        </Text>
+                    <View style={styles.infoItem}>
+                        <Clock size={14} color="#F59E0B" />
+                        <Text style={styles.infoText}>{formatTime(booking.scheduledAt)}</Text>
+                    </View>
+                    <View style={styles.priceContainer}>
+                        <Text style={styles.price}>{booking.pricePaid} ₵</Text>
                     </View>
                 </View>
 
-                {/* Tariff & Price */}
-                <View style={styles.priceRow}>
-                    <Text style={styles.tariffName}>
-                        {booking.tariff?.name} • {formatDuration(booking.durationMinutes)}
+                <View style={styles.tariffRow}>
+                    <Text style={styles.tariffText}>
+                        {booking.tariff?.name || 'Тариф'} • {formatDuration(booking.durationMinutes)}
                     </Text>
-                    <Text style={styles.price}>{booking.pricePaid} ₽</Text>
                 </View>
 
-                {/* Client Note */}
                 {booking.clientNote && (
                     <View style={styles.noteSection}>
-                        <Text style={styles.noteLabel}>Комментарий клиента:</Text>
+                        <Text style={styles.noteLabel}>Заметка клиента:</Text>
                         <Text style={styles.noteText}>{booking.clientNote}</Text>
                     </View>
                 )}
 
-                {/* Actions */}
-                <View style={styles.actionsRow}>
-                    {/* Chat button always */}
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleOpenChat(booking)}
-                    >
-                        <MessageCircle size={18} color="#FFD700" />
+                <View style={styles.actionsGrid}>
+                    <TouchableOpacity style={styles.chatButton} onPress={() => handleOpenChat(booking)}>
+                        <MessageCircle size={20} color="#F59E0B" />
                     </TouchableOpacity>
 
                     {booking.status === 'pending' && (
                         <>
                             <TouchableOpacity
-                                style={[styles.actionButtonPrimary, isProcessing && styles.actionButtonDisabled]}
+                                style={[styles.confirmButton, isProcessing && { opacity: 0.5 }]}
                                 onPress={() => handleConfirm(booking)}
                                 disabled={isProcessing}
                             >
                                 {isProcessing ? (
-                                    <ActivityIndicator size="small" color="#1a1a2e" />
+                                    <ActivityIndicator size="small" color="#000" />
                                 ) : (
                                     <>
-                                        <CheckCircle size={18} color="#1a1a2e" />
-                                        <Text style={styles.actionButtonPrimaryText}>Подтвердить</Text>
+                                        <CheckCircle size={18} color="#000" />
+                                        <Text style={styles.confirmButtonText}>Принять</Text>
                                     </>
                                 )}
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.actionButtonDanger]}
+                                style={styles.rejectButton}
                                 onPress={() => handleReject(booking)}
                                 disabled={isProcessing}
                             >
@@ -324,27 +321,24 @@ export default function IncomingBookingsScreen() {
                     )}
 
                     {booking.status === 'confirmed' && !past && (
-                        <TouchableOpacity
-                            style={styles.actionButtonSecondary}
-                            onPress={() => handleOpenChat(booking)}
-                        >
-                            <Video size={18} color="#4CAF50" />
-                            <Text style={styles.actionButtonSecondaryText}>Начать</Text>
+                        <TouchableOpacity style={styles.startButton} onPress={() => handleOpenChat(booking)}>
+                            <Video size={18} color="#000" />
+                            <Text style={styles.startButtonText}>Начать сессию</Text>
                         </TouchableOpacity>
                     )}
 
                     {booking.status === 'confirmed' && past && (
                         <>
                             <TouchableOpacity
-                                style={[styles.actionButtonPrimary, isProcessing && styles.actionButtonDisabled]}
+                                style={[styles.confirmButton, isProcessing && { opacity: 0.5 }]}
                                 onPress={() => handleComplete(booking)}
                                 disabled={isProcessing}
                             >
-                                <CheckCircle size={18} color="#1a1a2e" />
-                                <Text style={styles.actionButtonPrimaryText}>Завершить</Text>
+                                <CheckCircle size={18} color="#000" />
+                                <Text style={styles.confirmButtonText}>Завершить</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={styles.actionButtonDanger}
+                                style={styles.rejectButton}
                                 onPress={() => handleNoShow(booking)}
                                 disabled={isProcessing}
                             >
@@ -359,60 +353,57 @@ export default function IncomingBookingsScreen() {
 
     const renderEmptyState = () => (
         <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📋</Text>
+            <View style={styles.emptyIconCircle}>
+                <LayoutGrid size={48} color="rgba(255, 255, 255, 0.05)" />
+            </View>
             <Text style={styles.emptyTitle}>
-                {activeFilter === 'pending'
-                    ? 'Нет ожидающих записей'
-                    : activeFilter === 'confirmed'
-                        ? 'Нет подтверждённых записей'
-                        : 'Нет записей'
-                }
+                {activeFilter === 'pending' ? 'Ожидание пусто' : activeFilter === 'confirmed' ? 'Нет планов' : 'Тишина'}
             </Text>
             <Text style={styles.emptySubtitle}>
-                Когда клиенты запишутся, записи появятся здесь
+                Здесь появятся новые запросы от ваших последователей.
             </Text>
         </View>
     );
 
     return (
-        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
+                        <ArrowLeft size={22} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Входящие записи</Text>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitle}>Входящие записи</Text>
+                        <Text style={styles.headerSubtitle}>Управление вашим расписанием</Text>
+                    </View>
                     <View style={styles.countBadge}>
                         <Text style={styles.countText}>{bookings.length}</Text>
                     </View>
                 </View>
 
-                {/* Filter Tabs */}
                 <View style={styles.filterContainer}>
                     {FILTER_TABS.map((tab) => {
                         const isActive = activeFilter === tab.key;
+                        const iconColor = isActive ? '#0a0a14' : 'rgba(255, 255, 255, 0.4)';
+
                         return (
                             <TouchableOpacity
                                 key={tab.key}
+                                activeOpacity={0.8}
                                 style={[styles.filterTab, isActive && styles.filterTabActive]}
                                 onPress={() => setActiveFilter(tab.key)}
                             >
-                                <Text style={[
-                                    styles.filterText,
-                                    isActive && styles.filterTextActive
-                                ]}>
-                                    {tab.label}
-                                </Text>
+                                {tab.key === 'pending' && <Clock size={20} color={iconColor} strokeWidth={2.5} />}
+                                {tab.key === 'confirmed' && <CheckCircle size={20} color={iconColor} strokeWidth={2.5} />}
+                                {tab.key === 'all' && <LayoutGrid size={20} color={iconColor} strokeWidth={2.5} />}
                             </TouchableOpacity>
                         );
                     })}
                 </View>
 
-                {/* Content */}
                 {loading ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#FFD700" />
+                        <ActivityIndicator size="large" color="#F59E0B" />
                     </View>
                 ) : (
                     <ScrollView
@@ -420,19 +411,11 @@ export default function IncomingBookingsScreen() {
                         contentContainerStyle={styles.contentContainer}
                         showsVerticalScrollIndicator={false}
                         refreshControl={
-                            <RefreshControl
-                                refreshing={refreshing}
-                                onRefresh={handleRefresh}
-                                tintColor="#FFD700"
-                            />
+                            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#F59E0B" />
                         }
                     >
-                        {bookings.length === 0 ? (
-                            renderEmptyState()
-                        ) : (
-                            bookings.map(renderBookingCard)
-                        )}
-                        <View style={{ height: 32 }} />
+                        {bookings.length === 0 ? renderEmptyState() : bookings.map(renderBookingCard)}
+                        <View style={{ height: 40 }} />
                     </ScrollView>
                 )}
             </SafeAreaView>
@@ -441,286 +424,159 @@ export default function IncomingBookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-    gradient: {
-        flex: 1,
-    },
-    container: {
-        flex: 1,
-    },
+    gradient: { flex: 1 },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    headerCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
     },
-    headerTitle: {
-        flex: 1,
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-        marginLeft: 12,
-    },
+    headerTitleContainer: { flex: 1, alignItems: 'center' },
+    headerTitle: { color: '#fff', fontSize: 18, fontFamily: 'Cinzel-Bold' },
+    headerSubtitle: { color: 'rgba(255, 255, 255, 0.4)', fontSize: 10, fontWeight: '600', marginTop: 2 },
     countBadge: {
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
         paddingHorizontal: 12,
-        paddingVertical: 4,
+        paddingVertical: 6,
         borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
     },
-    countText: {
-        color: '#FFD700',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    filterContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-        gap: 8,
-    },
+    countText: { color: '#F59E0B', fontSize: 13, fontWeight: '800' },
+    filterContainer: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 12 },
     filterTab: {
         flex: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        paddingVertical: 10,
-        borderRadius: 20,
-        alignItems: 'center',
-    },
-    filterTabActive: {
-        backgroundColor: '#FFD700',
-    },
-    filterText: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    filterTextActive: {
-        color: '#1a1a2e',
-    },
-    loaderContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    content: {
-        flex: 1,
-    },
-    contentContainer: {
-        padding: 16,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        paddingTop: 60,
-    },
-    emptyIcon: {
-        fontSize: 64,
-        marginBottom: 16,
-    },
-    emptyTitle: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 8,
-    },
-    emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 14,
-        textAlign: 'center',
-    },
-    bookingCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        paddingVertical: 12,
         borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-    },
-    bookingCardSoon: {
+        alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 165, 0, 0.5)',
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
-    cardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
+    filterTabActive: { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
+    filterText: { color: 'rgba(255, 255, 255, 0.4)', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    filterTextActive: { color: '#000' },
+    loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    content: { flex: 1 },
+    contentContainer: { padding: 20 },
+    bookingCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 28,
+        padding: 20,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        gap: 6,
-    },
-    statusDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-    },
-    statusText: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
+    bookingCardSoon: { borderColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.03)' },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, gap: 6 },
+    statusDot: { width: 6, height: 6, borderRadius: 3 },
+    statusText: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
     soonBadge: {
-        marginLeft: 'auto',
-        backgroundColor: 'rgba(255, 165, 0, 0.2)',
+        marginLeft: 12,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
-    },
-    soonText: {
-        color: '#FFA500',
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    mainInfo: {
-        marginBottom: 12,
-    },
-    serviceName: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 8,
-    },
-    clientRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 4,
     },
-    clientAvatar: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-    },
-    clientAvatarPlaceholder: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    soonText: { color: '#F59E0B', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
+    moreButton: {
+        marginLeft: 'auto',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    clientName: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 14,
+    cardBody: { marginBottom: 20 },
+    serviceName: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 16 },
+    clientRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: 14, borderRadius: 20 },
+    avatarContainer: { position: 'relative' },
+    clientAvatar: { width: 48, height: 48, borderRadius: 16 },
+    clientAvatarPlaceholder: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.1)',
     },
-    dateTimeRow: {
+    onlineStatus: { position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#0a0a14' },
+    clientInfo: { flex: 1 },
+    clientName: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    clientMeta: { color: 'rgba(255, 255, 255, 0.4)', fontSize: 12, marginTop: 2 },
+    infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 20,
         gap: 16,
     },
-    dateBlock: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    dateText: {
-        color: '#fff',
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    timeBlock: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    timeText: {
-        color: '#fff',
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    priceRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    tariffName: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 13,
-    },
-    price: {
-        color: '#FFD700',
-        fontSize: 16,
-        fontWeight: '700',
-    },
+    infoItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    infoText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    priceContainer: { marginLeft: 'auto' },
+    price: { color: '#F59E0B', fontSize: 18, fontWeight: '900' },
+    tariffRow: { marginBottom: 20, paddingHorizontal: 4 },
+    tariffText: { color: 'rgba(255, 255, 255, 0.3)', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
     noteSection: {
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.1)',
     },
-    noteLabel: {
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: 11,
-        marginBottom: 4,
-    },
-    noteText: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 13,
-        fontStyle: 'italic',
-    },
-    actionsRow: {
-        flexDirection: 'row',
-        marginTop: 14,
-        gap: 8,
-    },
-    actionButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    noteLabel: { color: '#F59E0B', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 6 },
+    noteText: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 14, lineHeight: 22 },
+    actionsGrid: { flexDirection: 'row', gap: 12 },
+    chatButton: {
+        width: 52,
+        height: 52,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
-    actionButtonPrimary: {
-        flex: 1,
-        flexDirection: 'row',
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: '#FFD700',
+    confirmButton: { flex: 1, flexDirection: 'row', height: 52, borderRadius: 16, backgroundColor: '#F59E0B', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    confirmButtonText: { color: '#000', fontSize: 15, fontWeight: '800' },
+    rejectButton: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(244, 67, 54, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(244, 67, 54, 0.2)' },
+    startButton: { flex: 1, flexDirection: 'row', height: 52, borderRadius: 16, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    startButtonText: { color: '#000', fontSize: 15, fontWeight: '800' },
+    emptyContainer: { paddingTop: 80, alignItems: 'center' },
+    emptyIconCircle: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(255, 255, 255, 0.01)',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 6,
+        marginBottom: 32,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.03)',
     },
-    actionButtonPrimaryText: {
-        color: '#1a1a2e',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    actionButtonSecondary: {
-        flex: 1,
-        flexDirection: 'row',
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: 'rgba(76, 175, 80, 0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 6,
-    },
-    actionButtonSecondaryText: {
-        color: '#4CAF50',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    actionButtonDanger: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: 'rgba(244, 67, 54, 0.15)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    actionButtonDisabled: {
-        opacity: 0.5,
-    },
+    emptyTitle: { color: '#fff', fontSize: 24, fontFamily: 'Cinzel-Bold', marginBottom: 16, textAlign: 'center' },
+    emptySubtitle: { color: 'rgba(255, 255, 255, 0.4)', fontSize: 15, textAlign: 'center', lineHeight: 24, marginBottom: 40, paddingHorizontal: 20 },
 });

@@ -26,6 +26,14 @@ import {
     Calendar,
     Users,
     Star,
+    Sparkles,
+    Brain,
+    Target,
+    Infinity as InfinityIcon,
+    Flame,
+    BookOpen,
+    Leaf,
+    LayoutGrid,
 } from 'lucide-react-native';
 import {
     Service,
@@ -35,7 +43,7 @@ import {
     publishService,
     pauseService,
     CATEGORY_LABELS,
-    CATEGORY_ICONS,
+    CATEGORY_ICON_NAMES,
 } from '../../../services/serviceService';
 
 const STATUS_CONFIG: Record<ServiceStatus, { label: string; color: string }> = {
@@ -43,6 +51,20 @@ const STATUS_CONFIG: Record<ServiceStatus, { label: string; color: string }> = {
     active: { label: 'Активен', color: '#4CAF50' },
     paused: { label: 'Приостановлен', color: '#FFA500' },
     archived: { label: 'Архив', color: '#616161' },
+};
+
+const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
+    switch (name) {
+        case 'Star': return <Star size={size} color={color} />;
+        case 'Brain': return <Brain size={size} color={color} />;
+        case 'Target': return <Target size={size} color={color} />;
+        case 'Infinity': return <InfinityIcon size={size} color={color} />;
+        case 'Flame': return <Flame size={size} color={color} />;
+        case 'BookOpen': return <BookOpen size={size} color={color} />;
+        case 'Leaf': return <Leaf size={size} color={color} />;
+        case 'Sparkles': return <Sparkles size={size} color={color} />;
+        default: return <Sparkles size={size} color={color} />;
+    }
 };
 
 export default function MyServicesScreen() {
@@ -63,8 +85,8 @@ export default function MyServicesScreen() {
             const response = await getMyServices();
             setServices(response.services || []);
         } catch (error) {
-            console.error('Failed to load services:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить сервисы');
+            console.log('[MyServices] Failed to load services (expected if none/unauthorized):', error);
+            setServices([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -98,10 +120,10 @@ export default function MyServicesScreen() {
         try {
             if (service.status === 'active') {
                 await pauseService(service.id);
-                Alert.alert('Готово', 'Сервис приостановлен');
+                Alert.alert('Готово', 'Услуга приостановлена');
             } else {
                 await publishService(service.id);
-                Alert.alert('Готово', 'Сервис опубликован');
+                Alert.alert('Готово', 'Услуга опубликована');
             }
             loadServices(true);
         } catch (error: any) {
@@ -111,7 +133,7 @@ export default function MyServicesScreen() {
 
     const handleDeleteService = (service: Service) => {
         Alert.alert(
-            'Удалить сервис?',
+            'Удалить услугу?',
             `Вы уверены, что хотите удалить "${service.title}"? Это действие нельзя отменить.`,
             [
                 { text: 'Отмена', style: 'cancel' },
@@ -121,7 +143,7 @@ export default function MyServicesScreen() {
                     onPress: async () => {
                         try {
                             await deleteService(service.id);
-                            Alert.alert('Готово', 'Сервис удалён');
+                            Alert.alert('Готово', 'Услуга удалена');
                             loadServices(true);
                         } catch (error: any) {
                             Alert.alert('Ошибка', error.message || 'Не удалось удалить');
@@ -138,14 +160,16 @@ export default function MyServicesScreen() {
 
     const renderEmptyState = () => (
         <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🔮</Text>
-            <Text style={styles.emptyTitle}>У вас пока нет сервисов</Text>
+            <View style={styles.emptyIconCircle}>
+                <LayoutGrid size={48} color="rgba(255, 255, 255, 0.1)" />
+            </View>
+            <Text style={styles.emptyTitle}>У вас пока нет услуг</Text>
             <Text style={styles.emptySubtitle}>
-                Создайте свой первый сервис и начните принимать записи
+                Создайте свою первую услугу и начните принимать записи от клиентов
             </Text>
             <TouchableOpacity style={styles.createButton} onPress={handleCreateService}>
-                <Plus size={20} color="#1a1a2e" />
-                <Text style={styles.createButtonText}>Создать сервис</Text>
+                <Plus size={20} color="#000" />
+                <Text style={styles.createButtonText}>Добавить первую услугу</Text>
             </TouchableOpacity>
         </View>
     );
@@ -153,6 +177,7 @@ export default function MyServicesScreen() {
     const renderServiceCard = (service: Service) => {
         const statusConfig = STATUS_CONFIG[service.status];
         const isActive = service.status === 'active';
+        const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
 
         return (
             <View key={service.id} style={styles.serviceCard}>
@@ -161,14 +186,17 @@ export default function MyServicesScreen() {
                     {service.coverImageUrl ? (
                         <Image source={{ uri: service.coverImageUrl }} style={styles.coverImage} />
                     ) : (
-                        <View style={styles.coverPlaceholder}>
-                            <Text style={styles.placeholderEmoji}>{CATEGORY_ICONS[service.category]}</Text>
-                        </View>
+                        <LinearGradient
+                            colors={['#1a1a2e', '#16213e']}
+                            style={styles.coverPlaceholder}
+                        >
+                            <CategoryIcon name={iconName} size={40} color="rgba(255, 215, 0, 0.4)" />
+                        </LinearGradient>
                     )}
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
                         <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
-                        <Text style={[styles.statusText, { color: statusConfig.color }]}>
-                            {statusConfig.label}
+                        <Text style={[styles.statusText, { color: '#fff' }]}>
+                            {statusConfig.label.toUpperCase()}
                         </Text>
                     </View>
                 </View>
@@ -176,46 +204,48 @@ export default function MyServicesScreen() {
                 {/* Info */}
                 <View style={styles.cardBody}>
                     <Text style={styles.serviceTitle} numberOfLines={2}>{service.title}</Text>
-                    <Text style={styles.serviceCategory}>
-                        {CATEGORY_ICONS[service.category]} {CATEGORY_LABELS[service.category]}
-                    </Text>
+                    <View style={styles.categoryRow}>
+                        <CategoryIcon name={iconName} size={12} color="#FFD700" />
+                        <Text style={styles.serviceCategory}>
+                            {CATEGORY_LABELS[service.category]}
+                        </Text>
+                    </View>
 
                     {/* Stats */}
                     <View style={styles.statsRow}>
                         <View style={styles.statItem}>
-                            <Users size={14} color="rgba(255,255,255,0.5)" />
-                            <Text style={styles.statValue}>{service.bookingsCount}</Text>
+                            <Users size={14} color="rgba(255,255,255,0.4)" />
+                            <Text style={styles.statValue}>{service.bookingsCount || 0}</Text>
                             <Text style={styles.statLabel}>записей</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Eye size={14} color="rgba(255,255,255,0.5)" />
-                            <Text style={styles.statValue}>{service.viewsCount}</Text>
+                            <Eye size={14} color="rgba(255,255,255,0.4)" />
+                            <Text style={styles.statValue}>{service.viewsCount || 0}</Text>
                             <Text style={styles.statLabel}>просмотров</Text>
                         </View>
                         {service.rating > 0 && (
                             <View style={styles.statItem}>
-                                <Star size={14} color="#FFD700" />
+                                <Star size={14} color="#FFD700" fill="#FFD700" />
                                 <Text style={styles.statValue}>{service.rating.toFixed(1)}</Text>
-                                <Text style={styles.statLabel}>({service.reviewsCount})</Text>
                             </View>
                         )}
                     </View>
                 </View>
 
-                {/* Actions */}
+                {/* Actions Grid */}
                 <View style={styles.cardActions}>
                     <TouchableOpacity
                         style={styles.actionButton}
                         onPress={() => handleEditService(service)}
                     >
-                        <Edit3 size={16} color="#FFD700" />
+                        <Edit3 size={18} color="#FFD700" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.actionButton}
                         onPress={() => handleViewService(service)}
                     >
-                        <Eye size={16} color="#fff" />
+                        <Eye size={18} color="#fff" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -223,9 +253,9 @@ export default function MyServicesScreen() {
                         onPress={() => handleToggleStatus(service)}
                     >
                         {isActive ? (
-                            <EyeOff size={16} color="#FFA500" />
+                            <EyeOff size={18} color="#FFA500" />
                         ) : (
-                            <Eye size={16} color="#4CAF50" />
+                            <Eye size={18} color="#4CAF50" />
                         )}
                     </TouchableOpacity>
 
@@ -233,40 +263,43 @@ export default function MyServicesScreen() {
                         style={styles.actionButton}
                         onPress={() => handleDeleteService(service)}
                     >
-                        <Trash2 size={16} color="#F44336" />
+                        <Trash2 size={18} color="#F44336" />
                     </TouchableOpacity>
                 </View>
 
-                {/* Schedule Button */}
+                {/* Schedule Link */}
                 <TouchableOpacity
-                    style={styles.scheduleButton}
+                    style={styles.scheduleLink}
                     onPress={() => handleManageSchedule(service)}
                 >
                     <Calendar size={16} color="#FFD700" />
-                    <Text style={styles.scheduleButtonText}>Настроить расписание</Text>
+                    <Text style={styles.scheduleLinkText}>Настроить расписание и слоты</Text>
                 </TouchableOpacity>
             </View>
         );
     };
 
     return (
-        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Header */}
+                {/* Fixed Premium Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
+                        <ArrowLeft size={22} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Мои сервисы</Text>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitle}>Управление услугами</Text>
+                        <Text style={styles.headerSubtitle}>Ваши духовные предложения</Text>
+                    </View>
                     <TouchableOpacity style={styles.addButton} onPress={handleCreateService}>
-                        <Plus size={24} color="#FFD700" />
+                        <Plus size={22} color="#F59E0B" />
                     </TouchableOpacity>
                 </View>
 
-                {/* Content */}
+                {/* Content Body */}
                 {loading ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#FFD700" />
+                        <ActivityIndicator size="large" color="#F59E0B" />
                     </View>
                 ) : (
                     <ScrollView
@@ -277,7 +310,7 @@ export default function MyServicesScreen() {
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
-                                tintColor="#FFD700"
+                                tintColor="#F59E0B"
                             />
                         }
                     >
@@ -286,14 +319,23 @@ export default function MyServicesScreen() {
                         ) : (
                             services.map(renderServiceCard)
                         )}
-                        <View style={{ height: 32 }} />
+                        <View style={{ height: 100 }} />
                     </ScrollView>
                 )}
 
-                {/* FAB */}
+                {/* Floating Action Button Mastery */}
                 {services.length > 0 && (
-                    <TouchableOpacity style={styles.fab} onPress={handleCreateService}>
-                        <Plus size={28} color="#1a1a2e" />
+                    <TouchableOpacity
+                        style={styles.fab}
+                        onPress={handleCreateService}
+                        activeOpacity={0.9}
+                    >
+                        <LinearGradient
+                            colors={['#F59E0B', '#D97706']}
+                            style={styles.fabGradient}
+                        >
+                            <Plus size={28} color="#000" />
+                        </LinearGradient>
                     </TouchableOpacity>
                 )}
             </SafeAreaView>
@@ -311,31 +353,46 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    headerCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    headerTitleContainer: {
+        flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        flex: 1,
         color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-        marginLeft: 12,
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
+        textAlign: 'center',
+    },
+    headerSubtitle: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 2,
     },
     addButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.1)',
     },
     loaderContainer: {
         flex: 1,
@@ -346,164 +403,198 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     contentContainer: {
-        padding: 16,
+        padding: 20,
     },
     emptyContainer: {
+        paddingTop: 100,
         alignItems: 'center',
-        paddingTop: 60,
     },
-    emptyIcon: {
-        fontSize: 64,
-        marginBottom: 16,
+    emptyIconCircle: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(255, 255, 255, 0.01)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 32,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.03)',
     },
     emptyTitle: {
         color: '#fff',
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 8,
+        fontSize: 22,
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 16,
     },
     emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 14,
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 15,
         textAlign: 'center',
-        marginBottom: 24,
-        paddingHorizontal: 32,
+        lineHeight: 24,
+        marginBottom: 40,
+        paddingHorizontal: 20,
     },
     createButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        backgroundColor: '#FFD700',
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderRadius: 28,
+        gap: 12,
+        backgroundColor: '#F59E0B',
+        paddingHorizontal: 30,
+        paddingVertical: 18,
+        borderRadius: 24,
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
     },
     createButtonText: {
-        color: '#1a1a2e',
-        fontSize: 15,
-        fontWeight: '600',
+        color: '#000',
+        fontSize: 16,
+        fontWeight: '800',
     },
     serviceCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 20,
-        marginBottom: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 32,
+        marginBottom: 24,
         overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     cardHeader: {
+        height: 200,
         position: 'relative',
     },
     coverImage: {
         width: '100%',
-        height: 120,
+        height: '100%',
     },
     coverPlaceholder: {
         width: '100%',
-        height: 120,
-        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+        height: '100%',
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    placeholderEmoji: {
-        fontSize: 40,
     },
     statusBadge: {
         position: 'absolute',
-        top: 12,
-        right: 12,
+        top: 20,
+        right: 20,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 12,
-        gap: 6,
+        gap: 8,
+        zIndex: 10,
     },
     statusDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
     },
     statusText: {
-        fontSize: 11,
-        fontWeight: '600',
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 1,
     },
     cardBody: {
-        padding: 16,
+        padding: 24,
     },
     serviceTitle: {
         color: '#fff',
-        fontSize: 17,
-        fontWeight: '600',
-        marginBottom: 6,
+        fontSize: 20,
+        fontWeight: '800',
+        marginBottom: 8,
+        lineHeight: 28,
+    },
+    categoryRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 24,
     },
     serviceCategory: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: '#F59E0B',
         fontSize: 13,
-        marginBottom: 12,
+        fontWeight: '900',
+        textTransform: 'uppercase',
     },
     statsRow: {
         flexDirection: 'row',
-        gap: 16,
+        gap: 24,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        padding: 16,
+        borderRadius: 20,
     },
     statItem: {
-        flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        flex: 1,
     },
     statValue: {
         color: '#fff',
-        fontSize: 13,
-        fontWeight: '600',
+        fontSize: 16,
+        fontWeight: '900',
+        marginTop: 4,
     },
     statLabel: {
         color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: 12,
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        marginTop: 2,
     },
     cardActions: {
         flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        gap: 8,
+        paddingHorizontal: 24,
+        paddingBottom: 24,
+        gap: 12,
     },
     actionButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        flex: 1,
+        height: 52,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     actionButtonActive: {
-        backgroundColor: 'rgba(255, 165, 0, 0.15)',
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        borderColor: 'rgba(245, 158, 11, 0.1)',
     },
-    scheduleButton: {
+    scheduleLink: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        backgroundColor: 'rgba(255, 215, 0, 0.1)',
-        paddingVertical: 14,
+        gap: 12,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        paddingVertical: 20,
         borderTopWidth: 1,
         borderTopColor: 'rgba(255, 255, 255, 0.05)',
     },
-    scheduleButtonText: {
-        color: '#FFD700',
+    scheduleLinkText: {
+        color: '#F59E0B',
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '800',
     },
     fab: {
         position: 'absolute',
-        bottom: 24,
+        bottom: 40,
         right: 24,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: '#FFD700',
+        width: 68,
+        height: 68,
+        borderRadius: 34,
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    fabGradient: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 34,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#FFD700',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
     },
 });

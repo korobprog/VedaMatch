@@ -249,14 +249,14 @@ export default function ServiceBookingScreen() {
     }
 
     return (
-        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Header */}
+                {/* Fixed Premium Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
+                        <ArrowLeft size={22} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Запись</Text>
+                    <Text style={styles.headerTitle}>Запись на сессию</Text>
                     <View style={styles.walletBadge}>
                         <Text style={styles.walletBalance}>{formattedBalance}</Text>
                     </View>
@@ -266,29 +266,36 @@ export default function ServiceBookingScreen() {
                     style={styles.content}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
-                    <ScrollView showsVerticalScrollIndicator={false}>
-                        {/* Service Info */}
-                        <View style={styles.serviceInfo}>
-                            <Text style={styles.serviceTitle}>{service.title}</Text>
-                            {service.owner && (
-                                <View style={styles.ownerRow}>
-                                    <User size={14} color="rgba(255,255,255,0.6)" />
-                                    <Text style={styles.ownerName}>{service.owner.karmicName}</Text>
-                                </View>
-                            )}
-                            <View style={styles.channelRow}>
-                                {service.channel === 'offline' ? (
-                                    <MapPin size={14} color="#FFD700" />
-                                ) : (
-                                    <Video size={14} color="#FFD700" />
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                        {/* Immersive Service Overview */}
+                        <View style={styles.serviceOverview}>
+                            <View style={styles.serviceHeaderInfo}>
+                                <Text style={styles.serviceMainTitle}>{service.title}</Text>
+                                {service.owner && (
+                                    <View style={styles.ownerLine}>
+                                        <View style={styles.ownerCircle}>
+                                            <User size={10} color="#F59E0B" />
+                                        </View>
+                                        <Text style={styles.ownerKarmicName}>{service.owner.karmicName}</Text>
+                                    </View>
                                 )}
-                                <Text style={styles.channelText}>{CHANNEL_LABELS[service.channel]}</Text>
+                            </View>
+                            <View style={styles.channelBadge}>
+                                {service.channel === 'offline' ? (
+                                    <MapPin size={12} color="#F59E0B" />
+                                ) : (
+                                    <Video size={12} color="#F59E0B" />
+                                )}
+                                <Text style={styles.channelLabel}>{CHANNEL_LABELS[service.channel]}</Text>
                             </View>
                         </View>
 
-                        {/* Tariff Selection */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Выберите тариф</Text>
+                        {/* Selection Mastery */}
+                        <View style={styles.selectionSection}>
+                            <View style={styles.sectionHeading}>
+                                <View style={styles.headingIndicator} />
+                                <Text style={styles.sectionLabel}>Выберите формат</Text>
+                            </View>
                             <TariffSelector
                                 tariffs={service.tariffs || []}
                                 selectedTariffId={selectedTariff?.id || null}
@@ -296,10 +303,12 @@ export default function ServiceBookingScreen() {
                             />
                         </View>
 
-                        {/* Calendar & Time Selection */}
                         {selectedTariff && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Дата и время</Text>
+                            <View style={styles.selectionSection}>
+                                <View style={styles.sectionHeading}>
+                                    <View style={styles.headingIndicator} />
+                                    <Text style={styles.sectionLabel}>Время и пространство</Text>
+                                </View>
                                 <ServiceCalendar
                                     availableSlots={availableSlots}
                                     selectedDate={selectedDate}
@@ -312,87 +321,83 @@ export default function ServiceBookingScreen() {
                             </View>
                         )}
 
-                        {/* Client Note */}
-                        <View style={styles.section}>
-                            <View style={styles.sectionHeader}>
-                                <MessageCircle size={16} color="#FFD700" />
-                                <Text style={styles.sectionTitle}>Комментарий (опционально)</Text>
+                        <View style={styles.selectionSection}>
+                            <View style={styles.sectionHeading}>
+                                <View style={styles.headingIndicator} />
+                                <Text style={styles.sectionLabel}>Ваше намерение</Text>
                             </View>
                             <TextInput
-                                style={styles.noteInput}
-                                placeholder="Расскажите о себе или задайте вопрос..."
-                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                style={styles.glassNoteInput}
+                                placeholder="Опишите ваш запрос или вопрос..."
+                                placeholderTextColor="rgba(255,255,255,0.2)"
                                 value={clientNote}
                                 onChangeText={setClientNote}
                                 multiline
                                 maxLength={500}
+                                blurOnSubmit
                             />
                         </View>
 
-                        {/* Summary */}
+                        {/* Final Review */}
                         {canBook && selectedTariff && (
-                            <View style={styles.summaryCard}>
-                                <Text style={styles.summaryTitle}>Итого</Text>
-
-                                <View style={styles.summaryRow}>
-                                    <Text style={styles.summaryLabel}>Тариф</Text>
-                                    <Text style={styles.summaryValue}>{selectedTariff.name}</Text>
+                            <View style={styles.reviewCard}>
+                                <Text style={styles.reviewTitle}>ИТОГОВАЯ ПРОВЕРКА</Text>
+                                <View style={styles.reviewGrid}>
+                                    <View style={styles.reviewItem}>
+                                        <Text style={styles.reviewLabel}>ТАРИФ</Text>
+                                        <Text style={styles.reviewValue}>{selectedTariff.name}</Text>
+                                    </View>
+                                    <View style={styles.reviewItem}>
+                                        <Text style={styles.reviewLabel}>ДАТА</Text>
+                                        <Text style={styles.reviewValue}>{formatDate(selectedDate!)}</Text>
+                                    </View>
+                                    <View style={styles.reviewItem}>
+                                        <Text style={styles.reviewLabel}>ВРЕМЯ</Text>
+                                        <Text style={styles.reviewValue}>{selectedTime}</Text>
+                                    </View>
                                 </View>
 
-                                <View style={styles.summaryRow}>
-                                    <Text style={styles.summaryLabel}>Дата</Text>
-                                    <Text style={styles.summaryValue}>{formatDate(selectedDate!)}</Text>
-                                </View>
+                                <View style={styles.costDivider} />
 
-                                <View style={styles.summaryRow}>
-                                    <Text style={styles.summaryLabel}>Время</Text>
-                                    <Text style={styles.summaryValue}>{selectedTime}</Text>
-                                </View>
-
-                                <View style={styles.summaryRow}>
-                                    <Text style={styles.summaryLabel}>Длительность</Text>
-                                    <Text style={styles.summaryValue}>{selectedTariff.durationMinutes} мин</Text>
-                                </View>
-
-                                <View style={styles.totalRow}>
-                                    <CreditCard size={20} color="#FFD700" />
-                                    <Text style={styles.totalLabel}>К оплате</Text>
-                                    <Text style={styles.totalValue}>{formatBalance(selectedTariff.price)}</Text>
+                                <View style={styles.costSection}>
+                                    <Text style={styles.totalText}>К ОПЛАТЕ</Text>
+                                    <Text style={styles.totalAmount}>{selectedTariff.price} ₵</Text>
                                 </View>
 
                                 {!hasEnoughBalance && (
-                                    <View style={styles.insufficientBalance}>
-                                        <Text style={styles.insufficientText}>
-                                            Недостаточно Лакшми. Нужно ещё {formatBalance(selectedTariff.price - (wallet?.balance || 0))}
+                                    <View style={styles.balanceAlert}>
+                                        <Text style={styles.balanceAlertText}>
+                                            Недостаточно Лакшми. Не хватает {selectedTariff.price - (wallet?.balance || 0)} ₵
                                         </Text>
                                     </View>
                                 )}
                             </View>
                         )}
 
-                        <View style={{ height: 120 }} />
+                        <View style={{ height: 160 }} />
                     </ScrollView>
                 </KeyboardAvoidingView>
 
-                {/* Bottom CTA */}
-                <View style={styles.bottomCTA}>
+                {/* Fixed Premium CTA */}
+                <View style={styles.footerCTA}>
                     <TouchableOpacity
+                        activeOpacity={0.9}
                         style={[
-                            styles.bookButton,
-                            (!canBook || !hasEnoughBalance || booking) && styles.bookButtonDisabled,
+                            styles.primaryBookButton,
+                            (!canBook || !hasEnoughBalance || booking) && styles.primaryBookButtonDisabled,
                         ]}
                         onPress={handleBook}
                         disabled={!canBook || !hasEnoughBalance || booking}
                     >
                         {booking ? (
-                            <ActivityIndicator color="#1a1a2e" />
+                            <ActivityIndicator color="#000" />
                         ) : (
-                            <Text style={styles.bookButtonText}>
+                            <Text style={styles.primaryBookButtonText}>
                                 {!canBook
-                                    ? 'Выберите дату и время'
+                                    ? 'ВЫБЕРИТЕ ПАРАМЕТРЫ'
                                     : !hasEnoughBalance
-                                        ? 'Недостаточно Лакшми'
-                                        : 'Записаться'
+                                        ? 'ПОПОЛНИТЕ БАЛАНС'
+                                        : 'ПОДТВЕРДИТЬ И ОПЛАТИТЬ'
                                 }
                             </Text>
                         )}
@@ -419,197 +424,257 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        padding: 40,
     },
     errorIcon: {
         fontSize: 60,
-        marginBottom: 16,
+        marginBottom: 20,
     },
     errorText: {
         color: '#fff',
         fontSize: 18,
+        fontWeight: '800',
         marginBottom: 24,
+        textAlign: 'center',
     },
     backButtonAlt: {
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        paddingHorizontal: 30,
+        paddingVertical: 14,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     backButtonText: {
         color: '#fff',
         fontSize: 14,
+        fontWeight: '700',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    headerCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
     },
     headerTitle: {
+        flex: 1,
         color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
+        textAlign: 'center',
     },
     walletBadge: {
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     walletBalance: {
-        color: '#FFD700',
-        fontSize: 14,
-        fontWeight: '600',
+        color: '#F59E0B',
+        fontSize: 13,
+        fontWeight: '800',
     },
     content: {
         flex: 1,
     },
-    serviceInfo: {
-        paddingHorizontal: 16,
-        paddingBottom: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    scrollContent: {
+        padding: 20,
+    },
+    serviceOverview: {
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 28,
+        padding: 24,
+        marginBottom: 32,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    serviceHeaderInfo: {
         marginBottom: 16,
     },
-    serviceTitle: {
+    serviceMainTitle: {
         color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 8,
+        fontSize: 22,
+        fontWeight: '800',
+        marginBottom: 10,
+        lineHeight: 30,
     },
-    ownerRow: {
+    ownerLine: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        marginBottom: 4,
+        gap: 8,
     },
-    ownerName: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 14,
-    },
-    channelRow: {
-        flexDirection: 'row',
+    ownerCircle: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: 6,
     },
-    channelText: {
-        color: '#FFD700',
+    ownerKarmicName: {
+        color: 'rgba(255, 255, 255, 0.4)',
         fontSize: 13,
+        fontWeight: '600',
     },
-    section: {
-        paddingHorizontal: 16,
+    channelBadge: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
+        gap: 6,
+    },
+    channelLabel: {
+        color: '#F59E0B',
+        fontSize: 11,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+    },
+    selectionSection: {
+        marginBottom: 32,
+    },
+    sectionHeading: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+        gap: 12,
+    },
+    headingIndicator: {
+        width: 4,
+        height: 16,
+        backgroundColor: '#F59E0B',
+        borderRadius: 2,
+    },
+    sectionLabel: {
+        color: '#fff',
+        fontSize: 16,
+        fontFamily: 'Cinzel-Bold',
+    },
+    glassNoteInput: {
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 20,
+        padding: 20,
+        color: '#fff',
+        fontSize: 15,
+        minHeight: 120,
+        textAlignVertical: 'top',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    reviewCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 32,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
+    },
+    reviewTitle: {
+        color: '#F59E0B',
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 2,
+        textAlign: 'center',
         marginBottom: 24,
     },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 12,
+    reviewGrid: {
+        gap: 16,
     },
-    sectionTitle: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
-        marginBottom: 12,
-    },
-    noteInput: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 12,
-        padding: 16,
-        color: '#fff',
-        fontSize: 14,
-        minHeight: 100,
-        textAlignVertical: 'top',
-    },
-    summaryCard: {
-        marginHorizontal: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 16,
-        padding: 16,
-    },
-    summaryTitle: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
-        marginBottom: 16,
-    },
-    summaryRow: {
+    reviewItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    summaryLabel: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 14,
-    },
-    summaryValue: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    totalRow: {
-        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.1)',
-        gap: 8,
     },
-    totalLabel: {
+    reviewLabel: {
+        color: 'rgba(255, 255, 255, 0.3)',
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    reviewValue: {
         color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        flex: 1,
-    },
-    totalValue: {
-        color: '#FFD700',
-        fontSize: 20,
+        fontSize: 14,
         fontWeight: '700',
     },
-    insufficientBalance: {
-        marginTop: 12,
-        backgroundColor: 'rgba(244, 67, 54, 0.2)',
-        borderRadius: 8,
+    costDivider: {
+        height: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        marginVertical: 20,
+    },
+    costSection: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    totalText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    totalAmount: {
+        color: '#F59E0B',
+        fontSize: 24,
+        fontWeight: '900',
+    },
+    balanceAlert: {
+        marginTop: 20,
+        backgroundColor: 'rgba(244, 67, 54, 0.1)',
         padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(244, 67, 54, 0.2)',
     },
-    insufficientText: {
+    balanceAlertText: {
         color: '#F44336',
         fontSize: 12,
+        fontWeight: '700',
         textAlign: 'center',
     },
-    bottomCTA: {
+    footerCTA: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        paddingBottom: 32,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        paddingHorizontal: 20,
+        paddingTop: 20,
+        paddingBottom: 40,
+        backgroundColor: 'rgba(10, 10, 20, 0.85)',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.05)',
     },
-    bookButton: {
-        backgroundColor: '#FFD700',
-        paddingVertical: 16,
-        borderRadius: 28,
+    primaryBookButton: {
+        backgroundColor: '#F59E0B',
+        height: 64,
+        borderRadius: 24,
+        justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
     },
-    bookButtonDisabled: {
-        backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    primaryBookButtonDisabled: {
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        shadowOpacity: 0,
     },
-    bookButtonText: {
-        color: '#1a1a2e',
+    primaryBookButtonText: {
+        color: '#000',
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '900',
+        letterSpacing: 0.5,
     },
 });

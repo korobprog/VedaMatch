@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
@@ -36,14 +37,17 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 	intentService := services.GetIntentService()
 
 	// 0. Load personalized prompts based on user profile
-	userID := c.Locals("userID")
-	if userIDStr, ok := body["userId"].(string); ok && userID == nil {
-		if id, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
-			userID = uint(id)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		// Fallback to body userId if unauthorized (Legacy support)
+		if userIDStr, ok := body["userId"].(string); ok {
+			if id, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
+				userID = uint(id)
+			}
 		}
-	}
-	if userIDFloat, ok := body["userId"].(float64); ok && userID == nil {
-		userID = uint(userIDFloat)
+		if userIDFloat, ok := body["userId"].(float64); ok {
+			userID = uint(userIDFloat)
+		}
 	}
 
 	systemPrompt := loadUserSystemPrompt(userID)

@@ -8,7 +8,7 @@ import {
     formatBalance,
     CURRENCY_NAME,
 } from '../services/walletService';
-import { useAuth } from './AuthContext';
+import { useUser } from './UserContext';
 
 interface WalletContextType {
     wallet: WalletResponse | null;
@@ -25,7 +25,7 @@ interface WalletProviderProps {
 }
 
 export function WalletProvider({ children }: WalletProviderProps) {
-    const { user } = useAuth();
+    const { user } = useUser();
     const [wallet, setWallet] = useState<WalletResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

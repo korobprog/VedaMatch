@@ -63,7 +63,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },
     { id: 'settings', label: 'Настройки', icon: 'Settings', color: '#6B7280' },
     { id: 'travel', label: 'Путешествия', icon: 'Compass', color: '#FF9500' },
-    { id: 'services', label: 'Сервисы', icon: 'Briefcase', color: '#6366F1' },
+    { id: 'services', label: 'Услуги', icon: 'Briefcase', color: '#6366F1' },
 ];
 
 // Folder color options

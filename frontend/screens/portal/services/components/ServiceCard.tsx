@@ -14,13 +14,40 @@ import LinearGradient from 'react-native-linear-gradient';
 import {
     Service,
     CATEGORY_LABELS,
-    CATEGORY_ICONS,
+    CATEGORY_ICON_NAMES,
     ACCESS_LABELS,
 } from '../../../../services/serviceService';
 import { formatBalance } from '../../../../services/walletService';
+import {
+    Star,
+    Calendar,
+    Crown,
+    CheckCircle2,
+    Sparkles,
+    Brain,
+    Target,
+    Infinity as InfinityIcon,
+    Flame,
+    BookOpen,
+    Leaf
+} from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 2; // 2 columns with padding
+const CARD_WIDTH = (width - 44) / 2; // Adjusted for better spacing
+
+const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
+    switch (name) {
+        case 'Star': return <Star size={size} color={color} />;
+        case 'Brain': return <Brain size={size} color={color} />;
+        case 'Target': return <Target size={size} color={color} />;
+        case 'Infinity': return <InfinityIcon size={size} color={color} />;
+        case 'Flame': return <Flame size={size} color={color} />;
+        case 'BookOpen': return <BookOpen size={size} color={color} />;
+        case 'Leaf': return <Leaf size={size} color={color} />;
+        case 'Sparkles': return <Sparkles size={size} color={color} />;
+        default: return <Sparkles size={size} color={color} />;
+    }
+};
 
 interface ServiceCardProps {
     service: Service;
@@ -29,7 +56,7 @@ interface ServiceCardProps {
 }
 
 export default function ServiceCard({ service, onPress, compact = false }: ServiceCardProps) {
-    const categoryIcon = CATEGORY_ICONS[service.category] || '✨';
+    const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
     const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
 
     // Get minimum price from tariffs
@@ -56,16 +83,19 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                         />
                     ) : (
                         <LinearGradient
-                            colors={['#667eea', '#764ba2']}
+                            colors={['#1e1e3a', '#12122b']}
                             style={styles.compactImagePlaceholder}
                         >
-                            <Text style={styles.compactPlaceholderIcon}>{categoryIcon}</Text>
+                            <CategoryIcon name={iconName} size={32} color="rgba(245, 158, 11, 0.2)" />
                         </LinearGradient>
                     )}
                 </View>
                 <View style={styles.compactContent}>
                     <Text style={styles.compactTitle} numberOfLines={1}>{service.title}</Text>
-                    <Text style={styles.compactCategory}>{categoryIcon} {categoryLabel}</Text>
+                    <View style={styles.compactMeta}>
+                        <CategoryIcon name={iconName} size={12} color="rgba(245, 158, 11, 0.7)" />
+                        <Text style={styles.compactCategory}>{categoryLabel}</Text>
+                    </View>
                     {minPrice > 0 && (
                         <Text style={styles.compactPrice}>от {formatBalance(minPrice)}</Text>
                     )}
@@ -78,9 +108,9 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
         <TouchableOpacity
             style={styles.card}
             onPress={() => onPress(service)}
-            activeOpacity={0.85}
+            activeOpacity={0.9}
         >
-            {/* Cover Image */}
+            {/* Image Section */}
             <View style={styles.imageContainer}>
                 {service.coverImageUrl ? (
                     <Image
@@ -89,65 +119,53 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                     />
                 ) : (
                     <LinearGradient
-                        colors={['#667eea', '#764ba2']}
+                        colors={['#1e1e3a', '#12122b']}
                         style={styles.imagePlaceholder}
                     >
-                        <Text style={styles.placeholderIcon}>{categoryIcon}</Text>
+                        <CategoryIcon name={iconName} size={40} color="rgba(245, 158, 11, 0.2)" />
                     </LinearGradient>
                 )}
 
-                {/* Category Badge */}
-                <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>{categoryIcon} {categoryLabel}</Text>
-                </View>
+                <LinearGradient
+                    colors={['transparent', 'rgba(10, 10, 20, 0.8)']}
+                    style={styles.imageOverlay}
+                />
 
-                {/* Access Badge */}
-                {service.accessType === 'free' && (
-                    <View style={styles.freeBadge}>
-                        <Text style={styles.freeBadgeText}>Бесплатно</Text>
+                <View style={styles.topBadges}>
+                    <View style={styles.categoryBadge}>
+                        <CategoryIcon name={iconName} size={10} color="#F59E0B" />
+                        <Text style={styles.categoryBadgeText}>{categoryLabel}</Text>
                     </View>
-                )}
+
+                    {service.rating > 0 && (
+                        <View style={styles.ratingBadge}>
+                            <Star size={10} color="#F59E0B" fill="#F59E0B" />
+                            <Text style={styles.ratingText}>{service.rating.toFixed(1)}</Text>
+                        </View>
+                    )}
+                </View>
             </View>
 
-            {/* Content */}
+            {/* Content Section */}
             <View style={styles.content}>
                 <Text style={styles.title} numberOfLines={2}>{service.title}</Text>
 
-                <Text style={styles.owner} numberOfLines={1}>
-                    {ownerName}
-                </Text>
+                <View style={styles.ownerRow}>
+                    <View style={styles.ownerAvatarPlaceholder}>
+                        <Crown size={10} color="#F59E0B" />
+                    </View>
+                    <Text style={styles.ownerName} numberOfLines={1}>{ownerName}</Text>
+                </View>
 
-                {service.description && (
-                    <Text style={styles.description} numberOfLines={2}>
-                        {service.description}
-                    </Text>
-                )}
-
-                {/* Footer */}
                 <View style={styles.footer}>
-                    <View style={styles.stats}>
-                        {service.rating > 0 && (
-                            <View style={styles.stat}>
-                                <Text style={styles.statIcon}>⭐</Text>
-                                <Text style={styles.statText}>{service.rating.toFixed(1)}</Text>
-                            </View>
-                        )}
-                        {service.bookingsCount > 0 && (
-                            <View style={styles.stat}>
-                                <Text style={styles.statIcon}>📅</Text>
-                                <Text style={styles.statText}>{service.bookingsCount}</Text>
-                            </View>
-                        )}
+                    <View style={styles.priceRow}>
+                        <Text style={styles.priceFrom}>от</Text>
+                        <Text style={styles.priceValue}>{formatBalance(minPrice)}</Text>
                     </View>
 
-                    {minPrice > 0 ? (
-                        <View style={styles.priceContainer}>
-                            <Text style={styles.priceLabel}>от</Text>
-                            <Text style={styles.price}>{formatBalance(minPrice)}</Text>
-                        </View>
-                    ) : service.accessType !== 'free' ? (
-                        <Text style={styles.accessLabel}>{ACCESS_LABELS[service.accessType]}</Text>
-                    ) : null}
+                    <View style={styles.actionArrow}>
+                        <Sparkles size={12} color="#F59E0B" />
+                    </View>
                 </View>
             </View>
         </TouchableOpacity>
@@ -157,20 +175,27 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
 const styles = StyleSheet.create({
     card: {
         width: CARD_WIDTH,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: 16,
+        backgroundColor: '#1a1a2e',
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
         overflow: 'hidden',
-        marginBottom: 16,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 5,
     },
     imageContainer: {
         width: '100%',
-        height: 120,
+        height: 130,
         position: 'relative',
     },
     image: {
         width: '100%',
         height: '100%',
-        backgroundColor: '#1a1a2e',
+        backgroundColor: '#0a0a14',
     },
     imagePlaceholder: {
         width: '100%',
@@ -178,107 +203,130 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    placeholderIcon: {
-        fontSize: 48,
+    imageOverlay: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    topBadges: {
+        position: 'absolute',
+        top: 10,
+        left: 10,
+        right: 10,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
     },
     categoryBadge: {
-        position: 'absolute',
-        top: 8,
-        left: 8,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
+        gap: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     categoryBadgeText: {
         color: '#fff',
-        fontSize: 10,
-        fontWeight: '600',
+        fontSize: 9,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
-    freeBadge: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: '#4CAF50',
+    ratingBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
+        gap: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
     },
-    freeBadgeText: {
+    ratingText: {
         color: '#fff',
         fontSize: 10,
-        fontWeight: '700',
+        fontWeight: '800',
     },
     content: {
-        padding: 12,
+        padding: 16,
     },
     title: {
         color: '#fff',
         fontSize: 14,
-        fontWeight: '700',
-        marginBottom: 4,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        lineHeight: 18,
+        height: 36,
+        marginBottom: 8,
     },
-    owner: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 12,
-        marginBottom: 6,
+    ownerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 8,
     },
-    description: {
+    ownerAvatarPlaceholder: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
+    },
+    ownerName: {
         color: 'rgba(255, 255, 255, 0.5)',
         fontSize: 11,
-        lineHeight: 15,
-        marginBottom: 8,
+        fontWeight: '600',
     },
     footer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        paddingTop: 12,
     },
-    stats: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    stat: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-    },
-    statIcon: {
-        fontSize: 10,
-    },
-    statText: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 11,
-    },
-    priceContainer: {
+    priceRow: {
         flexDirection: 'row',
         alignItems: 'baseline',
-        gap: 3,
+        gap: 4,
     },
-    priceLabel: {
-        color: 'rgba(255, 255, 255, 0.5)',
+    priceFrom: {
+        color: 'rgba(255, 255, 255, 0.4)',
         fontSize: 10,
+        fontWeight: '600',
     },
-    price: {
-        color: '#FFD700',
-        fontSize: 13,
-        fontWeight: '700',
+    priceValue: {
+        color: '#F59E0B',
+        fontSize: 15,
+        fontWeight: '900',
     },
-    accessLabel: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 11,
+    actionArrow: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    // Compact styles
     compactCard: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
         overflow: 'hidden',
         marginBottom: 12,
+        padding: 8,
+        alignItems: 'center',
     },
     compactImageContainer: {
-        width: 80,
-        height: 80,
+        width: 60,
+        height: 60,
+        borderRadius: 12,
+        overflow: 'hidden',
     },
     compactImage: {
         width: '100%',
@@ -290,28 +338,29 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    compactPlaceholderIcon: {
-        fontSize: 28,
-    },
     compactContent: {
         flex: 1,
-        padding: 12,
-        justifyContent: 'center',
+        paddingLeft: 12,
     },
     compactTitle: {
         color: '#fff',
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '700',
+        marginBottom: 2,
+    },
+    compactMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
         marginBottom: 4,
     },
     compactCategory: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 12,
-        marginBottom: 4,
+        color: 'rgba(255, 255, 255, 0.5)',
+        fontSize: 11,
     },
     compactPrice: {
-        color: '#FFD700',
-        fontSize: 12,
-        fontWeight: '600',
+        color: '#F59E0B',
+        fontSize: 13,
+        fontWeight: '700',
     },
 });

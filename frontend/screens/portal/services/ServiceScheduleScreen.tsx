@@ -61,6 +61,12 @@ const DAYS: { key: DayOfWeek; label: string; shortLabel: string }[] = [
 
 const DEFAULT_SLOT: TimeSlot = { startTime: '09:00', endTime: '18:00' };
 
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+    const hours = Math.floor(i / 2);
+    const minutes = (i % 2) * 30;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+});
+
 export default function ServiceScheduleScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
@@ -95,7 +101,6 @@ export default function ServiceScheduleScreen() {
         try {
             const data = await getServiceSchedule(serviceId);
             if (data && data.weeklySlots) {
-                // Parse backend format to our format
                 const parsed: Record<DayOfWeek, DaySchedule> = { ...schedule };
 
                 DAYS.forEach(({ key }) => {
@@ -115,7 +120,6 @@ export default function ServiceScheduleScreen() {
             }
         } catch (error) {
             console.error('Failed to load schedule:', error);
-            // Use defaults if no schedule exists
         } finally {
             setLoading(false);
         }
@@ -246,263 +250,7 @@ export default function ServiceScheduleScreen() {
         return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
     };
 
-    const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-        const hours = Math.floor(i / 2);
-        const minutes = (i % 2) * 30;
-        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    });
-
-    const currentDaySchedule = schedule[selectedDay];
-
-    if (loading) {
-        return (
-            <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#FFD700" />
-                </View>
-            </LinearGradient>
-        );
-    }
-
-    return (
-        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
-            <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={24} color="#fff" />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Расписание</Text>
-                    <TouchableOpacity
-                        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                        onPress={handleSave}
-                        disabled={saving}
-                    >
-                        {saving ? (
-                            <ActivityIndicator size="small" color="#1a1a2e" />
-                        ) : (
-                            <Save size={20} color="#1a1a2e" />
-                        )}
-                    </TouchableOpacity>
-                </View>
-
-                <ScrollView
-                    style={styles.content}
-                    showsVerticalScrollIndicator={false}
-                >
-                    {/* Week Days Selector */}
-                    <View style={styles.daysRow}>
-                        {DAYS.map(({ key, shortLabel }) => {
-                            const isSelected = selectedDay === key;
-                            const isEnabled = schedule[key].enabled;
-                            return (
-                                <TouchableOpacity
-                                    key={key}
-                                    style={[
-                                        styles.dayButton,
-                                        isSelected && styles.dayButtonSelected,
-                                        !isEnabled && styles.dayButtonDisabled,
-                                    ]}
-                                    onPress={() => setSelectedDay(key)}
-                                >
-                                    <Text style={[
-                                        styles.dayButtonText,
-                                        isSelected && styles.dayButtonTextSelected,
-                                        !isEnabled && styles.dayButtonTextDisabled,
-                                    ]}>
-                                        {shortLabel}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-
-                    {/* Selected Day Settings */}
-                    <View style={styles.dayCard}>
-                        <View style={styles.dayCardHeader}>
-                            <Calendar size={18} color="#FFD700" />
-                            <Text style={styles.dayCardTitle}>
-                                {DAYS.find(d => d.key === selectedDay)?.label}
-                            </Text>
-                            <Switch
-                                value={currentDaySchedule.enabled}
-                                onValueChange={() => handleToggleDay(selectedDay)}
-                                trackColor={{ false: 'rgba(255,255,255,0.2)', true: 'rgba(255, 215, 0, 0.4)' }}
-                                thumbColor={currentDaySchedule.enabled ? '#FFD700' : '#888'}
-                            />
-                        </View>
-
-                        {currentDaySchedule.enabled ? (
-                            <>
-                                <Text style={styles.slotsLabel}>Рабочие часы</Text>
-
-                                {currentDaySchedule.slots.map((slot, index) => (
-                                    <View key={index} style={styles.slotRow}>
-                                        <View style={styles.timeSelector}>
-                                            <Clock size={14} color="rgba(255,255,255,0.5)" />
-                                            <TouchableOpacity
-                                                style={styles.timeButton}
-                                                onPress={() => showTimePicker(selectedDay, index, 'startTime', slot.startTime)}
-                                            >
-                                                <Text style={styles.timeText}>{slot.startTime}</Text>
-                                            </TouchableOpacity>
-                                            <Text style={styles.timeSeparator}>—</Text>
-                                            <TouchableOpacity
-                                                style={styles.timeButton}
-                                                onPress={() => showTimePicker(selectedDay, index, 'endTime', slot.endTime)}
-                                            >
-                                                <Text style={styles.timeText}>{slot.endTime}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                        {currentDaySchedule.slots.length > 1 && (
-                                            <TouchableOpacity
-                                                style={styles.removeSlotButton}
-                                                onPress={() => handleRemoveSlot(selectedDay, index)}
-                                            >
-                                                <Trash2 size={16} color="#F44336" />
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                ))}
-
-                                <View style={styles.slotActions}>
-                                    <TouchableOpacity
-                                        style={styles.addSlotButton}
-                                        onPress={() => handleAddSlot(selectedDay)}
-                                    >
-                                        <Plus size={16} color="#FFD700" />
-                                        <Text style={styles.addSlotText}>Добавить период</Text>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity
-                                        style={styles.copyButton}
-                                        onPress={handleCopyToAllDays}
-                                    >
-                                        <Copy size={16} color="rgba(255,255,255,0.7)" />
-                                        <Text style={styles.copyText}>Копировать на все дни</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </>
-                        ) : (
-                            <View style={styles.dayOffMessage}>
-                                <Text style={styles.dayOffText}>Выходной день</Text>
-                                <Text style={styles.dayOffHint}>Включите переключатель, чтобы принимать записи</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Global Settings */}
-                    <View style={styles.settingsCard}>
-                        <Text style={styles.settingsTitle}>Настройки записи</Text>
-
-                        <View style={styles.settingRow}>
-                            <Text style={styles.settingLabel}>Длительность слота</Text>
-                            <View style={styles.settingOptions}>
-                                {[30, 45, 60, 90, 120].map(mins => (
-                                    <TouchableOpacity
-                                        key={mins}
-                                        style={[
-                                            styles.durationOption,
-                                            slotDuration === mins && styles.durationOptionActive,
-                                        ]}
-                                        onPress={() => setSlotDuration(mins)}
-                                    >
-                                        <Text style={[
-                                            styles.durationOptionText,
-                                            slotDuration === mins && styles.durationOptionTextActive,
-                                        ]}>
-                                            {mins} мин
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-
-                        <View style={styles.settingRow}>
-                            <Text style={styles.settingLabel}>Перерыв между записями</Text>
-                            <View style={styles.settingOptions}>
-                                {[0, 5, 10, 15, 30].map(mins => (
-                                    <TouchableOpacity
-                                        key={mins}
-                                        style={[
-                                            styles.durationOption,
-                                            breakBetween === mins && styles.durationOptionActive,
-                                        ]}
-                                        onPress={() => setBreakBetween(mins)}
-                                    >
-                                        <Text style={[
-                                            styles.durationOptionText,
-                                            breakBetween === mins && styles.durationOptionTextActive,
-                                        ]}>
-                                            {mins === 0 ? 'Нет' : `${mins} мин`}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-
-                        <View style={styles.settingRow}>
-                            <Text style={styles.settingLabel}>Макс. записей в день</Text>
-                            <View style={styles.settingOptions}>
-                                {[0, 3, 5, 8, 10].map(count => (
-                                    <TouchableOpacity
-                                        key={count}
-                                        style={[
-                                            styles.durationOption,
-                                            maxBookingsPerDay === count && styles.durationOptionActive,
-                                        ]}
-                                        onPress={() => setMaxBookingsPerDay(count)}
-                                    >
-                                        <Text style={[
-                                            styles.durationOptionText,
-                                            maxBookingsPerDay === count && styles.durationOptionTextActive,
-                                        ]}>
-                                            {count === 0 ? '∞' : count}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Preview */}
-                    <View style={styles.previewCard}>
-                        <Text style={styles.previewTitle}>Предпросмотр недели</Text>
-                        <View style={styles.previewGrid}>
-                            {DAYS.map(({ key, shortLabel }) => {
-                                const dayData = schedule[key];
-                                return (
-                                    <View key={key} style={styles.previewDay}>
-                                        <Text style={[
-                                            styles.previewDayLabel,
-                                            dayData.enabled && styles.previewDayLabelActive,
-                                        ]}>
-                                            {shortLabel}
-                                        </Text>
-                                        {dayData.enabled ? (
-                                            dayData.slots.map((slot, i) => (
-                                                <Text key={i} style={styles.previewSlot}>
-                                                    {slot.startTime}
-                                                </Text>
-                                            ))
-                                        ) : (
-                                            <Text style={styles.previewOff}>—</Text>
-                                        )}
-                                    </View>
-                                );
-                            })}
-                        </View>
-                    </View>
-
-                    <View style={{ height: 32 }} />
-                </ScrollView>
-            </SafeAreaView>
-        </LinearGradient>
-    );
-
     function showTimePicker(day: DayOfWeek, slotIndex: number, field: 'startTime' | 'endTime', currentValue: string) {
-        // Simple picker using Alert (replace with proper time picker in production)
-        const currentHour = parseInt(currentValue.split(':')[0]);
         const options = TIME_OPTIONS.filter(t => {
             const h = parseInt(t.split(':')[0]);
             if (field === 'startTime') return h >= 6 && h < 23;
@@ -521,6 +269,268 @@ export default function ServiceScheduleScreen() {
             ]
         );
     }
+
+    const currentDaySchedule = schedule[selectedDay];
+
+    if (loading) {
+        return (
+            <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+                <View style={styles.loaderContainer}>
+                    <ActivityIndicator size="large" color="#F59E0B" />
+                </View>
+            </LinearGradient>
+        );
+    }
+
+    return (
+        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+            <SafeAreaView style={styles.container} edges={['top']}>
+                {/* Fixed Premium Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
+                        <ArrowLeft size={22} color="#fff" />
+                    </TouchableOpacity>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitle}>Настройка времени</Text>
+                        <Text style={styles.headerSubtitle}>Управление доступными часами</Text>
+                    </View>
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={[styles.saveCircleButton, saving && styles.saveButtonDisabled]}
+                        onPress={handleSave}
+                        disabled={saving}
+                    >
+                        {saving ? (
+                            <ActivityIndicator size="small" color="#000" />
+                        ) : (
+                            <Save size={20} color="#000" />
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                    style={styles.content}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Week Days Mastery */}
+                    <View style={styles.daysContainer}>
+                        <Text style={styles.sectionLabel}>Дни недели</Text>
+                        <View style={styles.daysRow}>
+                            {DAYS.map(({ key, shortLabel }) => {
+                                const isSelected = selectedDay === key;
+                                const isEnabled = schedule[key].enabled;
+                                return (
+                                    <TouchableOpacity
+                                        key={key}
+                                        activeOpacity={0.8}
+                                        style={[
+                                            styles.dayTab,
+                                            isSelected && styles.dayTabSelected,
+                                            !isEnabled && !isSelected && styles.dayTabDisabled,
+                                        ]}
+                                        onPress={() => setSelectedDay(key)}
+                                    >
+                                        <Text style={[
+                                            styles.dayTabText,
+                                            isSelected && styles.dayTabTextSelected,
+                                            !isEnabled && !isSelected && styles.dayTabTextDisabled,
+                                        ]}>
+                                            {shortLabel}
+                                        </Text>
+                                        {isEnabled && !isSelected && <View style={styles.activeIndicator} />}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </View>
+
+                    {/* Selected Day settings Immersive */}
+                    <View style={styles.mainSettingsCard}>
+                        <View style={styles.cardHeaderArea}>
+                            <View style={styles.cardIndicator} />
+                            <Text style={styles.cardMainTitle}>
+                                {DAYS.find(d => d.key === selectedDay)?.label}
+                            </Text>
+                            <Switch
+                                value={currentDaySchedule.enabled}
+                                onValueChange={() => handleToggleDay(selectedDay)}
+                                trackColor={{ false: 'rgba(255,255,255,0.05)', true: 'rgba(245, 158, 11, 0.4)' }}
+                                thumbColor={currentDaySchedule.enabled ? '#F59E0B' : 'rgba(255,255,255,0.2)'}
+                                ios_backgroundColor="rgba(0,0,0,0.3)"
+                            />
+                        </View>
+
+                        {currentDaySchedule.enabled ? (
+                            <>
+                                <View style={styles.slotsContainer}>
+                                    {currentDaySchedule.slots.map((slot, index) => (
+                                        <View key={index} style={styles.glassSlotItem}>
+                                            <TouchableOpacity
+                                                style={styles.timeSelectBox}
+                                                onPress={() => showTimePicker(selectedDay, index, 'startTime', slot.startTime)}
+                                            >
+                                                <Clock size={12} color="#F59E0B" />
+                                                <Text style={styles.timeValueText}>{slot.startTime}</Text>
+                                            </TouchableOpacity>
+
+                                            <View style={styles.timeArrowBox}>
+                                                <View style={styles.arrowLine} />
+                                            </View>
+
+                                            <TouchableOpacity
+                                                style={styles.timeSelectBox}
+                                                onPress={() => showTimePicker(selectedDay, index, 'endTime', slot.endTime)}
+                                            >
+                                                <Clock size={12} color="#F59E0B" />
+                                                <Text style={styles.timeValueText}>{slot.endTime}</Text>
+                                            </TouchableOpacity>
+
+                                            {currentDaySchedule.slots.length > 1 && (
+                                                <TouchableOpacity
+                                                    style={styles.trashButton}
+                                                    onPress={() => handleRemoveSlot(selectedDay, index)}
+                                                >
+                                                    <Trash2 size={16} color="rgba(244, 67, 54, 0.6)" />
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    ))}
+                                </View>
+
+                                <View style={styles.cardActionsRow}>
+                                    <TouchableOpacity
+                                        style={styles.ghostAddButton}
+                                        onPress={() => handleAddSlot(selectedDay)}
+                                    >
+                                        <Plus size={18} color="#F59E0B" />
+                                        <Text style={styles.ghostAddText}>Добавить интервал</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.copyButtonGlass}
+                                        onPress={handleCopyToAllDays}
+                                    >
+                                        <Copy size={16} color="rgba(255,255,255,0.4)" />
+                                        <Text style={styles.copyButtonText}>Дублировать</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        ) : (
+                            <View style={styles.emptyDayBox}>
+                                <Text style={styles.emptyDayTitle}>Выходной день</Text>
+                                <Text style={styles.emptyDayText}>Записи в этот день не принимаются</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Global Recording Settings */}
+                    <View style={styles.globalSettingsCard}>
+                        <Text style={styles.globalTitle}>Параметры сессий</Text>
+
+                        <View style={styles.globalItem}>
+                            <Text style={styles.globalLabel}>Длительность слота</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
+                                {[30, 45, 60, 90, 120].map(mins => (
+                                    <TouchableOpacity
+                                        key={mins}
+                                        style={[
+                                            styles.glassOption,
+                                            slotDuration === mins && styles.glassOptionActive,
+                                        ]}
+                                        onPress={() => setSlotDuration(mins)}
+                                    >
+                                        <Text style={[
+                                            styles.glassOptionText,
+                                            slotDuration === mins && styles.glassOptionTextActive,
+                                        ]}>
+                                            {mins} мин
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+
+                        <View style={styles.globalItem}>
+                            <Text style={styles.globalLabel}>Перерыв между записями</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
+                                {[0, 5, 10, 15, 30].map(mins => (
+                                    <TouchableOpacity
+                                        key={mins}
+                                        style={[
+                                            styles.glassOption,
+                                            breakBetween === mins && styles.glassOptionActive,
+                                        ]}
+                                        onPress={() => setBreakBetween(mins)}
+                                    >
+                                        <Text style={[
+                                            styles.glassOptionText,
+                                            breakBetween === mins && styles.glassOptionTextActive,
+                                        ]}>
+                                            {mins === 0 ? 'Нет' : `${mins} мин`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+
+                        <View style={styles.globalItem}>
+                            <Text style={styles.globalLabel}>Макс. записей в день</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
+                                {[0, 3, 5, 8, 10].map(count => (
+                                    <TouchableOpacity
+                                        key={count}
+                                        style={[
+                                            styles.glassOption,
+                                            maxBookingsPerDay === count && styles.glassOptionActive,
+                                        ]}
+                                        onPress={() => setMaxBookingsPerDay(count)}
+                                    >
+                                        <Text style={[
+                                            styles.glassOptionText,
+                                            maxBookingsPerDay === count && styles.glassOptionTextActive,
+                                        ]}>
+                                            {count === 0 ? 'Без лимита' : count}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </View>
+
+                    {/* Preview Visualization */}
+                    <View style={styles.weekPreviewCard}>
+                        <Text style={styles.previewHeading}>Визуализация недели</Text>
+                        <View style={styles.visualGrid}>
+                            {DAYS.map(({ key, shortLabel }) => {
+                                const dayData = schedule[key];
+                                return (
+                                    <View key={key} style={styles.visualDay}>
+                                        <Text style={[
+                                            styles.visualDayLabel,
+                                            dayData.enabled && styles.visualDayActive,
+                                        ]}>
+                                            {shortLabel}
+                                        </Text>
+                                        <View style={styles.dotsContainer}>
+                                            {dayData.enabled ? (
+                                                dayData.slots.map((_, i) => (
+                                                    <View key={i} style={styles.activeDot} />
+                                                ))
+                                            ) : (
+                                                <View style={styles.inactiveDot} />
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </View>
+
+                    <View style={{ height: 60 }} />
+                </ScrollView>
+            </SafeAreaView>
+        </LinearGradient>
+    );
 }
 
 const styles = StyleSheet.create({
@@ -530,37 +540,45 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    loaderContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    headerCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    headerTitleContainer: {
+        flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        flex: 1,
         color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-        marginLeft: 12,
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
+        textAlign: 'center',
     },
-    saveButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFD700',
+    headerSubtitle: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    saveCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F59E0B',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -570,209 +588,279 @@ const styles = StyleSheet.create({
     content: {
         flex: 1,
     },
-    daysRow: {
-        flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        gap: 6,
-    },
-    dayButton: {
+    loaderContainer: {
         flex: 1,
-        paddingVertical: 12,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        justifyContent: 'center',
         alignItems: 'center',
     },
-    dayButtonSelected: {
-        backgroundColor: '#FFD700',
-    },
-    dayButtonDisabled: {
-        opacity: 0.4,
-    },
-    dayButtonText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    dayButtonTextSelected: {
-        color: '#1a1a2e',
-    },
-    dayButtonTextDisabled: {
-        color: 'rgba(255, 255, 255, 0.5)',
-    },
-    dayCard: {
-        marginHorizontal: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 20,
-        padding: 16,
+    sectionLabel: {
+        color: 'rgba(255, 255, 255, 0.3)',
+        fontSize: 11,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
         marginBottom: 16,
     },
-    dayCardHeader: {
+    daysContainer: {
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+    },
+    daysRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    dayTab: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+        position: 'relative',
+    },
+    dayTabSelected: {
+        backgroundColor: '#fff',
+        borderColor: '#fff',
+    },
+    dayTabDisabled: {
+        opacity: 0.3,
+    },
+    dayTabText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    dayTabTextSelected: {
+        color: '#000',
+        fontWeight: '900',
+    },
+    dayTabTextDisabled: {
+        // Handled in dayTab opacity
+    },
+    activeIndicator: {
+        position: 'absolute',
+        bottom: 6,
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#F59E0B',
+    },
+    mainSettingsCard: {
+        marginHorizontal: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 32,
+        padding: 24,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    cardHeaderArea: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 28,
+        gap: 12,
+    },
+    cardIndicator: {
+        width: 4,
+        height: 16,
+        backgroundColor: '#F59E0B',
+        borderRadius: 2,
+    },
+    cardMainTitle: {
+        flex: 1,
+        color: '#fff',
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
+    },
+    slotsContainer: {
+        gap: 12,
+        marginBottom: 24,
+    },
+    glassSlotItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 20,
+        padding: 12,
+        gap: 12,
+    },
+    timeSelectBox: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        marginBottom: 16,
-    },
-    dayCardTitle: {
-        flex: 1,
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    slotsLabel: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 12,
-        marginBottom: 10,
-    },
-    slotRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    timeSelector: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    timeButton: {
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        paddingVertical: 14,
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 10,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
-    timeText: {
+    timeValueText: {
         color: '#fff',
         fontSize: 15,
-        fontWeight: '500',
+        fontWeight: '700',
     },
-    timeSeparator: {
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: 14,
-    },
-    removeSlotButton: {
-        padding: 8,
-        marginLeft: 8,
-    },
-    slotActions: {
-        marginTop: 8,
-        gap: 8,
-    },
-    addSlotButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    timeArrowBox: {
+        width: 10,
         justifyContent: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
-        paddingVertical: 10,
-        borderRadius: 10,
     },
-    addSlotText: {
-        color: '#FFD700',
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    copyButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingVertical: 10,
-    },
-    copyText: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 12,
-    },
-    dayOffMessage: {
-        alignItems: 'center',
-        paddingVertical: 20,
-    },
-    dayOffText: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 15,
-        marginBottom: 4,
-    },
-    dayOffHint: {
-        color: 'rgba(255, 255, 255, 0.3)',
-        fontSize: 12,
-    },
-    settingsCard: {
-        marginHorizontal: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 20,
-        padding: 16,
-        marginBottom: 16,
-    },
-    settingsTitle: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 16,
-    },
-    settingRow: {
-        marginBottom: 16,
-    },
-    settingLabel: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 13,
-        marginBottom: 10,
-    },
-    settingOptions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    durationOption: {
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 16,
+    arrowLine: {
+        height: 1,
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
     },
-    durationOptionActive: {
-        backgroundColor: '#FFD700',
+    trashButton: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        backgroundColor: 'rgba(244, 67, 54, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    durationOptionText: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 13,
-        fontWeight: '500',
+    cardActionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
     },
-    durationOptionTextActive: {
-        color: '#1a1a2e',
-    },
-    previewCard: {
-        marginHorizontal: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    ghostAddButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        paddingVertical: 14,
+        paddingHorizontal: 20,
         borderRadius: 16,
-        padding: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.1)',
     },
-    previewTitle: {
-        color: 'rgba(255, 255, 255, 0.5)',
+    ghostAddText: {
+        color: '#F59E0B',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    copyButtonGlass: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 10,
+    },
+    copyButtonText: {
+        color: 'rgba(255, 255, 255, 0.4)',
         fontSize: 12,
-        marginBottom: 12,
+        fontWeight: '700',
+    },
+    emptyDayBox: {
+        alignItems: 'center',
+        paddingVertical: 40,
+        backgroundColor: 'rgba(255, 255, 255, 0.01)',
+        borderRadius: 24,
+    },
+    emptyDayTitle: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 8,
+    },
+    emptyDayText: {
+        color: 'rgba(255, 255, 255, 0.2)',
+        fontSize: 13,
         textAlign: 'center',
     },
-    previewGrid: {
+    globalSettingsCard: {
+        marginHorizontal: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 32,
+        padding: 24,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    globalTitle: {
+        color: '#fff',
+        fontSize: 16,
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 24,
+    },
+    globalItem: {
+        marginBottom: 24,
+    },
+    globalLabel: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 11,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 16,
+    },
+    optionsScroll: {
+        gap: 8,
+    },
+    glassOption: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    glassOptionActive: {
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
+    },
+    glassOptionText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    glassOptionTextActive: {
+        color: '#000',
+        fontWeight: '900',
+    },
+    weekPreviewCard: {
+        marginHorizontal: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.01)',
+        borderRadius: 24,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.03)',
+    },
+    previewHeading: {
+        color: 'rgba(255, 255, 255, 0.3)',
+        fontSize: 12,
+        fontWeight: '800',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    visualGrid: {
         flexDirection: 'row',
         justifyContent: 'space-between',
     },
-    previewDay: {
+    visualDay: {
         alignItems: 'center',
     },
-    previewDayLabel: {
-        color: 'rgba(255, 255, 255, 0.4)',
+    visualDayLabel: {
+        color: 'rgba(255, 255, 255, 0.2)',
         fontSize: 11,
         fontWeight: '600',
-        marginBottom: 6,
+        marginBottom: 10,
     },
-    previewDayLabelActive: {
-        color: '#FFD700',
+    visualDayActive: {
+        color: '#F59E0B',
     },
-    previewSlot: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 10,
-        marginBottom: 2,
+    dotsContainer: {
+        alignItems: 'center',
+        gap: 4,
     },
-    previewOff: {
-        color: 'rgba(255, 255, 255, 0.2)',
-        fontSize: 10,
+    activeDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#F59E0B',
+    },
+    inactiveDot: {
+        width: 4,
+        height: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
     },
 });

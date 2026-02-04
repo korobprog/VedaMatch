@@ -9,7 +9,7 @@ import {
     TouchableOpacity,
     ScrollView,
 } from 'react-native';
-import { Check, Clock, RotateCcw, Star } from 'lucide-react-native';
+import { Check, Clock, RotateCcw, Star, Sparkles } from 'lucide-react-native';
 import { ServiceTariff } from '../../../../services/serviceService';
 import { formatBalance } from '../../../../services/walletService';
 
@@ -44,69 +44,42 @@ export default function TariffSelector({
                 return (
                     <TouchableOpacity
                         key={tariff.id}
+                        activeOpacity={0.9}
                         style={[
                             styles.tariffCard,
                             isSelected && styles.tariffCardSelected,
-                            tariff.isDefault && styles.tariffCardDefault,
                         ]}
                         onPress={() => onSelect(tariff)}
                     >
                         {/* Popular Badge */}
                         {tariff.isDefault && (
-                            <View style={styles.popularBadge}>
-                                <Star size={10} color="#1a1a2e" />
-                                <Text style={styles.popularText}>Популярный</Text>
+                            <View style={styles.featuredBadge}>
+                                <Sparkles size={10} color="#000" />
+                                <Text style={styles.featuredText}>ПОПУЛЯРНО</Text>
                             </View>
                         )}
 
-                        {/* Selection indicator */}
-                        {isSelected && (
-                            <View style={styles.selectedIndicator}>
-                                <Check size={16} color="#1a1a2e" />
-                            </View>
-                        )}
+                        {/* Selection status */}
+                        <View style={[styles.selectionCircle, isSelected && styles.selectionCircleSelected]}>
+                            {isSelected && <Check size={12} color="#000" />}
+                        </View>
 
-                        {/* Tariff Name */}
-                        <Text style={[
-                            styles.tariffName,
-                            isSelected && styles.tariffNameSelected,
-                        ]}>
+                        <Text style={[styles.tariffName, isSelected && styles.tariffNameSelected]}>
                             {tariff.name}
                         </Text>
 
-                        {/* Price */}
-                        <Text style={[
-                            styles.tariffPrice,
-                            isSelected && styles.tariffPriceSelected,
-                        ]}>
-                            {formatBalance(tariff.price)}
+                        <Text style={[styles.tariffPrice, isSelected && styles.tariffPriceSelected]}>
+                            {tariff.price} ₵
                         </Text>
 
-                        {/* Duration */}
-                        {tariff.durationMinutes > 0 && (
-                            <View style={styles.infoRow}>
-                                <Clock size={12} color={isSelected ? '#1a1a2e' : 'rgba(255,255,255,0.6)'} />
-                                <Text style={[
-                                    styles.infoText,
-                                    isSelected && styles.infoTextSelected,
-                                ]}>
+                        <View style={styles.metaRow}>
+                            <View style={styles.metaItem}>
+                                <Clock size={12} color={isSelected ? 'rgba(0,0,0,0.5)' : '#F59E0B'} />
+                                <Text style={[styles.metaText, isSelected && styles.metaTextSelected]}>
                                     {tariff.durationMinutes} мин
                                 </Text>
                             </View>
-                        )}
-
-                        {/* Sessions count */}
-                        {tariff.sessionsCount > 1 && (
-                            <View style={styles.infoRow}>
-                                <RotateCcw size={12} color={isSelected ? '#1a1a2e' : 'rgba(255,255,255,0.6)'} />
-                                <Text style={[
-                                    styles.infoText,
-                                    isSelected && styles.infoTextSelected,
-                                ]}>
-                                    {tariff.sessionsCount} сессий
-                                </Text>
-                            </View>
-                        )}
+                        </View>
                     </TouchableOpacity>
                 );
             })}
@@ -116,93 +89,103 @@ export default function TariffSelector({
 
 const styles = StyleSheet.create({
     container: {
-        paddingVertical: 8,
-        gap: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 4,
+        gap: 16,
     },
     emptyContainer: {
-        padding: 20,
+        padding: 40,
         alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 24,
     },
     emptyText: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.3)',
         fontSize: 14,
+        fontWeight: '600',
     },
     tariffCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 16,
-        padding: 16,
-        minWidth: 140,
-        marginRight: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 24,
+        padding: 24,
+        minWidth: 160,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
         position: 'relative',
     },
     tariffCardSelected: {
-        backgroundColor: '#FFD700',
-        borderColor: '#FFD700',
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
     },
-    tariffCardDefault: {
-        borderWidth: 1,
-        borderColor: 'rgba(255, 215, 0, 0.4)',
-    },
-    popularBadge: {
+    featuredBadge: {
         position: 'absolute',
-        top: -8,
-        left: 12,
-        right: 12,
-        backgroundColor: '#FFD700',
+        top: -10,
+        left: 20,
+        backgroundColor: '#F59E0B',
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 3,
-        paddingHorizontal: 8,
-        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
         gap: 4,
+        borderWidth: 2,
+        borderColor: '#0a0a14',
     },
-    popularText: {
-        color: '#1a1a2e',
+    featuredText: {
+        color: '#000',
         fontSize: 10,
-        fontWeight: '700',
+        fontWeight: '900',
     },
-    selectedIndicator: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
+    selectionCircle: {
         width: 24,
         height: 24,
         borderRadius: 12,
-        backgroundColor: '#fff',
+        borderWidth: 2,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        alignSelf: 'flex-end',
         justifyContent: 'center',
         alignItems: 'center',
+        marginBottom: 12,
+    },
+    selectionCircleSelected: {
+        borderColor: '#000',
+        backgroundColor: '#fff',
     },
     tariffName: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
+        color: 'rgba(255, 255, 255, 0.6)',
+        fontSize: 13,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
         marginBottom: 8,
-        marginTop: 4,
     },
     tariffNameSelected: {
-        color: '#1a1a2e',
+        color: 'rgba(0, 0, 0, 0.6)',
     },
     tariffPrice: {
-        color: '#FFD700',
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 8,
+        color: '#fff',
+        fontSize: 24,
+        fontWeight: '900',
+        marginBottom: 16,
     },
     tariffPriceSelected: {
-        color: '#1a1a2e',
+        color: '#000',
     },
-    infoRow: {
+    metaRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        marginTop: 4,
     },
-    infoText: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 12,
+    metaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
     },
-    infoTextSelected: {
-        color: 'rgba(0, 0, 0, 0.6)',
+    metaText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    metaTextSelected: {
+        color: '#000',
     },
 });

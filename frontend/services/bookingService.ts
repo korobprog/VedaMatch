@@ -137,6 +137,9 @@ export async function getMyBookings(
     const url = `${API_PATH}/bookings/my${queryString ? '?' + queryString : ''}`;
 
     const response = await fetch(url, { headers });
+    if (response.status === 401) {
+        throw new Error('UNAUTHORIZED');
+    }
     if (!response.ok) throw new Error('Failed to fetch bookings');
     return response.json();
 }

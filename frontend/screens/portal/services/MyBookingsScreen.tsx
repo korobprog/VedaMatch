@@ -85,8 +85,9 @@ export default function MyBookingsScreen() {
             setBookings(filteredBookings);
             setTotalCount(response.total);
         } catch (error) {
-            console.error('Failed to load bookings:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить записи');
+            console.log('[MyBookings] Failed to load bookings (expected if none/unauthorized):', error);
+            setBookings([]);
+            setTotalCount(0);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -163,20 +164,23 @@ export default function MyBookingsScreen() {
     );
 
     return (
-        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Header */}
+                {/* Fixed Premium Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
+                        <ArrowLeft size={22} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Мои записи</Text>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitle}>Мои записи</Text>
+                        <Text style={styles.headerSubtitle}>История ваших сессий</Text>
+                    </View>
                     <View style={styles.countBadge}>
                         <Text style={styles.countText}>{totalCount}</Text>
                     </View>
                 </View>
 
-                {/* Filter Tabs */}
+                {/* Glass Category Tabs */}
                 <View style={styles.filterContainer}>
                     <ScrollView
                         horizontal
@@ -185,21 +189,17 @@ export default function MyBookingsScreen() {
                     >
                         {FILTER_TABS.map((tab) => {
                             const isActive = activeFilter === tab.key;
-                            const IconComponent = tab.icon;
                             return (
                                 <TouchableOpacity
                                     key={tab.key}
+                                    activeOpacity={0.8}
                                     style={[styles.filterTab, isActive && styles.filterTabActive]}
                                     onPress={() => setActiveFilter(tab.key)}
                                 >
-                                    <IconComponent
-                                        size={16}
-                                        color={isActive ? '#1a1a2e' : 'rgba(255,255,255,0.6)'}
-                                    />
-                                    <Text style={[
-                                        styles.filterText,
-                                        isActive && styles.filterTextActive
-                                    ]}>
+                                    <View style={styles.filterIconCircle}>
+                                        <tab.icon size={14} color={isActive ? '#000' : '#F59E0B'} />
+                                    </View>
+                                    <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
                                         {tab.label}
                                     </Text>
                                 </TouchableOpacity>
@@ -208,10 +208,10 @@ export default function MyBookingsScreen() {
                     </ScrollView>
                 </View>
 
-                {/* Content */}
+                {/* Content Area */}
                 {loading ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#FFD700" />
+                        <ActivityIndicator size="large" color="#F59E0B" />
                     </View>
                 ) : (
                     <ScrollView
@@ -222,7 +222,7 @@ export default function MyBookingsScreen() {
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
-                                tintColor="#FFD700"
+                                tintColor="#F59E0B"
                             />
                         }
                     >
@@ -239,7 +239,7 @@ export default function MyBookingsScreen() {
                                 />
                             ))
                         )}
-                        <View style={{ height: 32 }} />
+                        <View style={{ height: 40 }} />
                     </ScrollView>
                 )}
             </SafeAreaView>
@@ -257,64 +257,88 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    headerCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    headerTitleContainer: {
+        flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        flex: 1,
         color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-        marginLeft: 12,
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
+    },
+    headerSubtitle: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 2,
     },
     countBadge: {
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
         paddingHorizontal: 12,
-        paddingVertical: 4,
+        paddingVertical: 6,
         borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     countText: {
-        color: '#FFD700',
-        fontSize: 14,
-        fontWeight: '600',
+        color: '#F59E0B',
+        fontSize: 13,
+        fontWeight: '800',
     },
     filterContainer: {
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+        marginTop: 8,
     },
     filterScroll: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 20,
         paddingVertical: 12,
-        gap: 8,
+        gap: 12,
     },
     filterTab: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        paddingHorizontal: 14,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        paddingLeft: 8,
+        paddingRight: 16,
         paddingVertical: 8,
-        borderRadius: 20,
-        marginRight: 8,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     filterTabActive: {
-        backgroundColor: '#FFD700',
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
+    },
+    filterIconCircle: {
+        width: 28,
+        height: 28,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 10,
     },
     filterText: {
-        color: 'rgba(255, 255, 255, 0.6)',
+        color: 'rgba(255, 255, 255, 0.5)',
         fontSize: 13,
-        fontWeight: '500',
+        fontWeight: '700',
     },
     filterTextActive: {
-        color: '#1a1a2e',
+        color: '#000',
     },
     loaderContainer: {
         flex: 1,
@@ -325,37 +349,45 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     contentContainer: {
-        padding: 16,
+        padding: 20,
     },
     emptyContainer: {
+        paddingTop: 80,
         alignItems: 'center',
-        paddingTop: 60,
     },
     emptyIcon: {
         fontSize: 64,
-        marginBottom: 16,
+        marginBottom: 24,
+        opacity: 0.5,
     },
     emptyTitle: {
         color: '#fff',
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 8,
+        fontSize: 22,
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 16,
+        textAlign: 'center',
     },
     emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 14,
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 15,
         textAlign: 'center',
-        marginBottom: 24,
+        lineHeight: 24,
+        marginBottom: 40,
+        paddingHorizontal: 20,
     },
     browseButton: {
-        backgroundColor: '#FFD700',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 24,
+        backgroundColor: '#F59E0B',
+        paddingHorizontal: 28,
+        paddingVertical: 16,
+        borderRadius: 20,
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
     browseButtonText: {
-        color: '#1a1a2e',
-        fontSize: 14,
-        fontWeight: '600',
+        color: '#000',
+        fontSize: 16,
+        fontWeight: '800',
     },
 });

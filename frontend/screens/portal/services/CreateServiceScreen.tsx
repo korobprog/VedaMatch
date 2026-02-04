@@ -14,6 +14,7 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
+    Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +30,14 @@ import {
     Video,
     MapPin,
     Globe,
+    Star,
+    Brain,
+    Target,
+    Infinity as InfinityIcon,
+    Flame,
+    BookOpen,
+    Leaf,
+    Sparkles,
 } from 'lucide-react-native';
 import {
     Service,
@@ -39,7 +48,7 @@ import {
     CreateServiceRequest,
     CreateTariffRequest,
     CATEGORY_LABELS,
-    CATEGORY_ICONS,
+    CATEGORY_ICON_NAMES,
     CHANNEL_LABELS,
     ACCESS_LABELS,
     createService,
@@ -48,6 +57,22 @@ import {
     addTariff,
 } from '../../../services/serviceService';
 import { launchImageLibrary } from 'react-native-image-picker';
+
+const { width } = Dimensions.get('window');
+
+const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
+    switch (name) {
+        case 'Star': return <Star size={size} color={color} />;
+        case 'Brain': return <Brain size={size} color={color} />;
+        case 'Target': return <Target size={size} color={color} />;
+        case 'Infinity': return <InfinityIcon size={size} color={color} />;
+        case 'Flame': return <Flame size={size} color={color} />;
+        case 'BookOpen': return <BookOpen size={size} color={color} />;
+        case 'Leaf': return <Leaf size={size} color={color} />;
+        case 'Sparkles': return <Sparkles size={size} color={color} />;
+        default: return <Sparkles size={size} color={color} />;
+    }
+};
 
 type RouteParams = {
     params: {
@@ -145,7 +170,6 @@ export default function CreateServiceScreen() {
             });
 
             if (result.assets && result.assets[0]?.uri) {
-                // TODO: Upload to S3 and get URL
                 setCoverImageUrl(result.assets[0].uri);
             }
         } catch (error) {
@@ -173,7 +197,6 @@ export default function CreateServiceScreen() {
             return;
         }
         const newTariffs = tariffs.filter((_, i) => i !== index);
-        // Ensure at least one is default
         if (!newTariffs.some(t => t.isDefault)) {
             newTariffs[0].isDefault = true;
         }
@@ -183,7 +206,6 @@ export default function CreateServiceScreen() {
     const handleTariffChange = (index: number, field: keyof TariffForm, value: string | boolean) => {
         const newTariffs = [...tariffs];
         if (field === 'isDefault' && value === true) {
-            // Only one can be default
             newTariffs.forEach(t => t.isDefault = false);
         }
         (newTariffs[index] as any)[field] = value;
@@ -192,7 +214,7 @@ export default function CreateServiceScreen() {
 
     const validateForm = (): boolean => {
         if (!title.trim()) {
-            Alert.alert('Ошибка', 'Введите название сервиса');
+            Alert.alert('Ошибка', 'Введите название');
             return false;
         }
         if (!description.trim()) {
@@ -200,11 +222,7 @@ export default function CreateServiceScreen() {
             return false;
         }
         if (channel === 'offline' && !offlineAddress.trim()) {
-            Alert.alert('Ошибка', 'Укажите адрес для офлайн-встреч');
-            return false;
-        }
-        if (tariffs.some(t => !t.name.trim() || !t.price || parseInt(t.price) < 0)) {
-            Alert.alert('Ошибка', 'Проверьте тарифы');
+            Alert.alert('Ошибка', 'Укажите адрес');
             return false;
         }
         return true;
@@ -234,8 +252,6 @@ export default function CreateServiceScreen() {
                 savedService = await updateService(serviceId, serviceData);
             } else {
                 savedService = await createService(serviceData);
-
-                // Add tariffs for new service
                 for (const tariff of tariffs) {
                     const tariffData: CreateTariffRequest = {
                         name: tariff.name,
@@ -249,237 +265,256 @@ export default function CreateServiceScreen() {
             }
 
             Alert.alert(
-                isEditing ? 'Сохранено!' : 'Сервис создан! 🎉',
-                isEditing ? 'Изменения сохранены' : 'Теперь настройте расписание, чтобы клиенты могли записываться',
-                [
-                    {
-                        text: 'Мои сервисы',
-                        onPress: () => navigation.navigate('MyServices'),
-                    },
-                    {
-                        text: 'OK',
-                        onPress: () => navigation.goBack(),
-                    },
-                ]
+                isEditing ? 'Сохранено!' : 'Создано! 🎉',
+                isEditing ? 'Изменения успешно сохранены' : 'Теперь настройте расписание и слоты',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
             );
         } catch (error: any) {
-            console.error('Save failed:', error);
             Alert.alert('Ошибка', error.message || 'Не удалось сохранить');
         } finally {
             setSaving(false);
         }
     };
 
-    if (loading) {
-        return (
-            <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#FFD700" />
-                </View>
-            </LinearGradient>
-        );
-    }
-
     return (
-        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Header */}
+                {/* Fixed Premium Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
+                        <ArrowLeft size={22} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>
-                        {isEditing ? 'Редактировать' : 'Новый сервис'}
-                    </Text>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitle}>
+                            {isEditing ? 'Правка услуги' : 'Новое творение'}
+                        </Text>
+                        <Text style={styles.headerSubtitle}>
+                            {isEditing ? 'Обновите детали вашего сервиса' : 'Создайте уникальное предложение'}
+                        </Text>
+                    </View>
                     <TouchableOpacity
-                        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                        style={[styles.saveButton, (saving || loading) && styles.saveButtonDisabled]}
                         onPress={handleSave}
-                        disabled={saving}
+                        disabled={saving || loading}
                     >
                         {saving ? (
-                            <ActivityIndicator size="small" color="#1a1a2e" />
+                            <ActivityIndicator size="small" color="#000" />
                         ) : (
-                            <Save size={20} color="#1a1a2e" />
+                            <Save size={20} color="#000" />
                         )}
                     </TouchableOpacity>
                 </View>
 
-                <KeyboardAvoidingView
-                    style={styles.content}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                >
-                    <ScrollView showsVerticalScrollIndicator={false}>
-                        {/* Cover Image */}
-                        <TouchableOpacity style={styles.coverSection} onPress={handlePickImage}>
-                            {coverImageUrl ? (
-                                <Image source={{ uri: coverImageUrl }} style={styles.coverImage} />
-                            ) : (
-                                <View style={styles.coverPlaceholder}>
-                                    <Camera size={32} color="rgba(255,255,255,0.4)" />
-                                    <Text style={styles.coverPlaceholderText}>Добавить обложку</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-
-                        {/* Title */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Название *</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={title}
-                                onChangeText={setTitle}
-                                placeholder="Например: Консультация астролога"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                maxLength={100}
-                            />
-                        </View>
-
-                        {/* Description */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Описание *</Text>
-                            <TextInput
-                                style={[styles.input, styles.textArea]}
-                                value={description}
-                                onChangeText={setDescription}
-                                placeholder="Опишите, что получит клиент..."
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                multiline
-                                maxLength={2000}
-                            />
-                        </View>
-
-                        {/* Category Picker */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Категория</Text>
-                            <TouchableOpacity
-                                style={styles.pickerButton}
-                                onPress={() => setShowCategoryPicker(!showCategoryPicker)}
-                            >
-                                <Text style={styles.pickerButtonText}>
-                                    {CATEGORY_ICONS[category]} {CATEGORY_LABELS[category]}
-                                </Text>
-                                <ChevronDown size={20} color="rgba(255,255,255,0.5)" />
-                            </TouchableOpacity>
-                            {showCategoryPicker && (
-                                <View style={styles.pickerOptions}>
-                                    {CATEGORIES.map((cat) => (
-                                        <TouchableOpacity
-                                            key={cat}
-                                            style={[styles.pickerOption, category === cat && styles.pickerOptionActive]}
-                                            onPress={() => {
-                                                setCategory(cat);
-                                                setShowCategoryPicker(false);
-                                            }}
+                {loading ? (
+                    <View style={styles.loaderContainer}>
+                        <ActivityIndicator size="large" color="#F59E0B" />
+                    </View>
+                ) : (
+                    <KeyboardAvoidingView
+                        style={styles.content}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    >
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                            {/* Immersive Cover Section */}
+                            <TouchableOpacity style={styles.coverSection} onPress={handlePickImage} activeOpacity={0.9}>
+                                {coverImageUrl ? (
+                                    <View style={styles.imageWrapper}>
+                                        <Image source={{ uri: coverImageUrl }} style={styles.coverImage} />
+                                        <LinearGradient
+                                            colors={['transparent', 'rgba(10, 10, 20, 0.4)']}
+                                            style={styles.imageOverlay}
                                         >
-                                            <Text style={styles.pickerOptionText}>
-                                                {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-                        </View>
-
-                        {/* Channel Picker */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Формат проведения</Text>
-                            <TouchableOpacity
-                                style={styles.pickerButton}
-                                onPress={() => setShowChannelPicker(!showChannelPicker)}
-                            >
-                                <View style={styles.channelIcon}>
-                                    {channel === 'offline' ? (
-                                        <MapPin size={16} color="#FFD700" />
-                                    ) : (
-                                        <Video size={16} color="#FFD700" />
-                                    )}
-                                </View>
-                                <Text style={styles.pickerButtonText}>{CHANNEL_LABELS[channel]}</Text>
-                                <ChevronDown size={20} color="rgba(255,255,255,0.5)" />
+                                            <View style={styles.cameraCircleSmall}>
+                                                <Camera size={20} color="#F59E0B" />
+                                            </View>
+                                        </LinearGradient>
+                                    </View>
+                                ) : (
+                                    <View style={styles.coverPlaceholder}>
+                                        <LinearGradient
+                                            colors={['rgba(245, 158, 11, 0.1)', 'transparent']}
+                                            style={styles.coverPlaceholderGradient}
+                                        />
+                                        <View style={styles.cameraCircle}>
+                                            <Camera size={28} color="#F59E0B" />
+                                        </View>
+                                        <Text style={styles.coverPlaceholderText}>Добавить обложку</Text>
+                                        <Text style={styles.coverPlaceholderSubtext}>Рекомендуем 1200x800px</Text>
+                                    </View>
+                                )}
                             </TouchableOpacity>
-                            {showChannelPicker && (
-                                <View style={styles.pickerOptions}>
-                                    {CHANNELS.map((ch) => (
-                                        <TouchableOpacity
-                                            key={ch}
-                                            style={[styles.pickerOption, channel === ch && styles.pickerOptionActive]}
-                                            onPress={() => {
-                                                setChannel(ch);
-                                                setShowChannelPicker(false);
-                                            }}
-                                        >
-                                            <Text style={styles.pickerOptionText}>{CHANNEL_LABELS[ch]}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-                        </View>
 
-                        {/* Channel Link (for online) */}
-                        {channel !== 'offline' && channel !== 'file' && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Ссылка на канал (опционально)</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={channelLink}
-                                    onChangeText={setChannelLink}
-                                    placeholder="https://..."
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
-                                    keyboardType="url"
-                                    autoCapitalize="none"
-                                />
+                            {/* Main Form Mastery */}
+                            <View style={styles.formSection}>
+                                <View style={styles.sectionHeaderRow}>
+                                    <View style={styles.headingIndicator} />
+                                    <Text style={styles.formSectionTitle}>Основная информация</Text>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Название вашего сервиса</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={title}
+                                        onChangeText={setTitle}
+                                        placeholder="Напр: Консультация по Джйотиш"
+                                        placeholderTextColor="rgba(255,255,255,0.2)"
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Глубокое описание</Text>
+                                    <TextInput
+                                        style={[styles.input, styles.textArea]}
+                                        value={description}
+                                        onChangeText={setDescription}
+                                        placeholder="Раскройте суть вашего предложения..."
+                                        placeholderTextColor="rgba(255,255,255,0.2)"
+                                        multiline
+                                        numberOfLines={4}
+                                    />
+                                </View>
+
+                                {/* Sophisticated Pickers */}
+                                <View style={styles.pickerRow}>
+                                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                                        <Text style={styles.label}>Предназначение</Text>
+                                        <TouchableOpacity
+                                            style={styles.glassPicker}
+                                            activeOpacity={0.7}
+                                            onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                                        >
+                                            <View style={styles.pickerIconCircle}>
+                                                <CategoryIcon name={CATEGORY_ICON_NAMES[category]} size={14} color="#F59E0B" />
+                                            </View>
+                                            <Text style={styles.pickerText}>{CATEGORY_LABELS[category]}</Text>
+                                            <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+
+                                {showCategoryPicker && (
+                                    <View style={styles.pickerFlyout}>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                            {CATEGORIES.map((cat) => (
+                                                <TouchableOpacity
+                                                    key={cat}
+                                                    style={[styles.pickerItem, category === cat && styles.pickerItemActive]}
+                                                    onPress={() => {
+                                                        setCategory(cat);
+                                                        setShowCategoryPicker(false);
+                                                    }}
+                                                >
+                                                    <CategoryIcon name={CATEGORY_ICON_NAMES[cat]} size={16} color={category === cat ? '#000' : '#F59E0B'} />
+                                                    <Text style={[styles.pickerItemText, category === cat && styles.pickerItemTextActive]}>
+                                                        {CATEGORY_LABELS[cat]}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                )}
+
+                                <View style={styles.pickerRow}>
+                                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                                        <Text style={styles.label}>Канал связи</Text>
+                                        <TouchableOpacity
+                                            style={styles.glassPicker}
+                                            activeOpacity={0.7}
+                                            onPress={() => setShowChannelPicker(!showChannelPicker)}
+                                        >
+                                            <View style={styles.pickerIconCircle}>
+                                                {channel === 'offline' ? <MapPin size={14} color="#F59E0B" /> : <Video size={14} color="#F59E0B" />}
+                                            </View>
+                                            <Text style={styles.pickerText}>{CHANNEL_LABELS[channel]}</Text>
+                                            <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                                        <Text style={styles.label}>Уровень доступа</Text>
+                                        <TouchableOpacity
+                                            style={styles.glassPicker}
+                                            activeOpacity={0.7}
+                                            onPress={() => setShowAccessPicker(!showAccessPicker)}
+                                        >
+                                            <View style={styles.pickerIconCircle}>
+                                                <Globe size={14} color="#F59E0B" />
+                                            </View>
+                                            <Text style={styles.pickerText}>{ACCESS_LABELS[accessType]}</Text>
+                                            <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+
+                                {showChannelPicker && (
+                                    <View style={styles.pickerFlyout}>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                            {CHANNELS.map((ch) => (
+                                                <TouchableOpacity
+                                                    key={ch}
+                                                    style={[styles.pickerItem, channel === ch && styles.pickerItemActive]}
+                                                    onPress={() => {
+                                                        setChannel(ch);
+                                                        setShowChannelPicker(false);
+                                                    }}
+                                                >
+                                                    <Text style={[styles.pickerItemText, channel === ch && styles.pickerItemTextActive]}>
+                                                        {CHANNEL_LABELS[ch]}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                )}
+
+                                {showAccessPicker && (
+                                    <View style={styles.pickerFlyout}>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                            {ACCESS_TYPES.map((at) => (
+                                                <TouchableOpacity
+                                                    key={at}
+                                                    style={[styles.pickerItem, accessType === at && styles.pickerItemActive]}
+                                                    onPress={() => {
+                                                        setAccessType(at);
+                                                        setShowAccessPicker(false);
+                                                    }}
+                                                >
+                                                    <Text style={[styles.pickerItemText, accessType === at && styles.pickerItemTextActive]}>
+                                                        {ACCESS_LABELS[at]}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                )}
+
+                                {channel === 'offline' && (
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Адрес проведения</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={offlineAddress}
+                                            onChangeText={setOfflineAddress}
+                                            placeholder="Город, улица, кабинет..."
+                                            placeholderTextColor="rgba(255,255,255,0.2)"
+                                        />
+                                    </View>
+                                )}
                             </View>
-                        )}
 
-                        {/* Offline Address */}
-                        {channel === 'offline' && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Адрес *</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={offlineAddress}
-                                    onChangeText={setOfflineAddress}
-                                    placeholder="Город, улица, дом"
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
-                                />
-                            </View>
-                        )}
-
-                        {/* Access Type */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Тип доступа</Text>
-                            <TouchableOpacity
-                                style={styles.pickerButton}
-                                onPress={() => setShowAccessPicker(!showAccessPicker)}
-                            >
-                                <Globe size={16} color="#FFD700" />
-                                <Text style={styles.pickerButtonText}>{ACCESS_LABELS[accessType]}</Text>
-                                <ChevronDown size={20} color="rgba(255,255,255,0.5)" />
-                            </TouchableOpacity>
-                            {showAccessPicker && (
-                                <View style={styles.pickerOptions}>
-                                    {ACCESS_TYPES.map((at) => (
-                                        <TouchableOpacity
-                                            key={at}
-                                            style={[styles.pickerOption, accessType === at && styles.pickerOptionActive]}
-                                            onPress={() => {
-                                                setAccessType(at);
-                                                setShowAccessPicker(false);
-                                            }}
-                                        >
-                                            <Text style={styles.pickerOptionText}>{ACCESS_LABELS[at]}</Text>
-                                        </TouchableOpacity>
-                                    ))}
+                            {/* Tariffs Masterclass */}
+                            <View style={styles.sectionHeader}>
+                                <View style={styles.sectionHeaderRow}>
+                                    <View style={styles.headingIndicator} />
+                                    <Text style={styles.formSectionTitle}>Тарифная сетка</Text>
                                 </View>
-                            )}
-                        </View>
-
-                        {/* Tariffs Section */}
-                        <View style={styles.tariffsSection}>
-                            <View style={styles.tariffsSectionHeader}>
-                                <Text style={styles.sectionTitle}>Тарифы</Text>
-                                <TouchableOpacity style={styles.addTariffButton} onPress={handleAddTariff}>
-                                    <Plus size={18} color="#FFD700" />
+                                <TouchableOpacity
+                                    style={styles.addTariffButton}
+                                    onPress={handleAddTariff}
+                                    activeOpacity={0.7}
+                                >
+                                    <Plus size={14} color="#F59E0B" />
                                     <Text style={styles.addTariffText}>Добавить</Text>
                                 </TouchableOpacity>
                             </View>
@@ -488,74 +523,66 @@ export default function CreateServiceScreen() {
                                 <View key={index} style={styles.tariffCard}>
                                     <View style={styles.tariffHeader}>
                                         <TouchableOpacity
-                                            style={[styles.defaultCheckbox, tariff.isDefault && styles.defaultCheckboxActive]}
+                                            style={[styles.customRadio, tariff.isDefault && styles.customRadioActive]}
                                             onPress={() => handleTariffChange(index, 'isDefault', true)}
                                         >
-                                            {tariff.isDefault && <Text style={styles.checkmark}>✓</Text>}
+                                            {tariff.isDefault && <View style={styles.customRadioDot} />}
                                         </TouchableOpacity>
-                                        <Text style={styles.tariffDefaultLabel}>
-                                            {tariff.isDefault ? 'По умолчанию' : 'Сделать основным'}
-                                        </Text>
+                                        <TextInput
+                                            style={styles.tariffTitleInput}
+                                            value={tariff.name}
+                                            onChangeText={(v) => handleTariffChange(index, 'name', v)}
+                                            placeholder="Название тарифа"
+                                            placeholderTextColor="rgba(255,255,255,0.3)"
+                                        />
                                         {tariffs.length > 1 && (
                                             <TouchableOpacity
                                                 style={styles.removeTariffButton}
                                                 onPress={() => handleRemoveTariff(index)}
                                             >
-                                                <Trash2 size={16} color="#F44336" />
+                                                <Trash2 size={16} color="rgba(244, 67, 54, 0.4)" />
                                             </TouchableOpacity>
                                         )}
                                     </View>
 
-                                    <TextInput
-                                        style={styles.tariffInput}
-                                        value={tariff.name}
-                                        onChangeText={(v) => handleTariffChange(index, 'name', v)}
-                                        placeholder="Название тарифа"
-                                        placeholderTextColor="rgba(255,255,255,0.3)"
-                                    />
-
-                                    <View style={styles.tariffRow}>
-                                        <View style={styles.tariffField}>
-                                            <Text style={styles.tariffFieldLabel}>Цена (₽)</Text>
+                                    <View style={styles.tariffParameters}>
+                                        <View style={styles.paramItem}>
+                                            <Text style={styles.paramLabel}>Цена (₵)</Text>
                                             <TextInput
-                                                style={styles.tariffFieldInput}
+                                                style={styles.paramInput}
                                                 value={tariff.price}
                                                 onChangeText={(v) => handleTariffChange(index, 'price', v.replace(/[^0-9]/g, ''))}
                                                 keyboardType="numeric"
-                                                placeholder="0"
-                                                placeholderTextColor="rgba(255,255,255,0.3)"
                                             />
                                         </View>
-                                        <View style={styles.tariffField}>
-                                            <Text style={styles.tariffFieldLabel}>Минут</Text>
+                                        <View style={styles.paramDivider} />
+                                        <View style={styles.paramItem}>
+                                            <Text style={styles.paramLabel}>Время (мин)</Text>
                                             <TextInput
-                                                style={styles.tariffFieldInput}
+                                                style={styles.paramInput}
                                                 value={tariff.durationMinutes}
                                                 onChangeText={(v) => handleTariffChange(index, 'durationMinutes', v.replace(/[^0-9]/g, ''))}
                                                 keyboardType="numeric"
-                                                placeholder="60"
-                                                placeholderTextColor="rgba(255,255,255,0.3)"
                                             />
                                         </View>
-                                        <View style={styles.tariffField}>
-                                            <Text style={styles.tariffFieldLabel}>Сессий</Text>
+                                        <View style={styles.paramDivider} />
+                                        <View style={styles.paramItem}>
+                                            <Text style={styles.paramLabel}>Сессий</Text>
                                             <TextInput
-                                                style={styles.tariffFieldInput}
+                                                style={styles.paramInput}
                                                 value={tariff.sessionsCount}
                                                 onChangeText={(v) => handleTariffChange(index, 'sessionsCount', v.replace(/[^0-9]/g, ''))}
                                                 keyboardType="numeric"
-                                                placeholder="1"
-                                                placeholderTextColor="rgba(255,255,255,0.3)"
                                             />
                                         </View>
                                     </View>
                                 </View>
                             ))}
-                        </View>
 
-                        <View style={{ height: 100 }} />
-                    </ScrollView>
-                </KeyboardAvoidingView>
+                            <View style={{ height: 60 }} />
+                        </ScrollView>
+                    </KeyboardAvoidingView>
+                )}
             </SafeAreaView>
         </LinearGradient>
     );
@@ -568,221 +595,345 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    headerTitle: {
+        color: '#fff',
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
+        textAlign: 'center',
+    },
+    headerSubtitle: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    headerCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    saveButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F59E0B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+    },
+    saveButtonDisabled: {
+        opacity: 0.5,
+    },
     loaderContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        flex: 1,
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-        marginLeft: 12,
-    },
-    saveButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFD700',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    saveButtonDisabled: {
-        opacity: 0.5,
-    },
     content: {
         flex: 1,
     },
+    scrollContent: {
+        padding: 20,
+        paddingBottom: 40,
+    },
     coverSection: {
-        marginHorizontal: 16,
-        marginBottom: 24,
-        height: 160,
-        borderRadius: 16,
+        width: '100%',
+        height: 220,
+        borderRadius: 32,
         overflow: 'hidden',
+        marginBottom: 40,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    imageWrapper: {
+        width: '100%',
+        height: '100%',
     },
     coverImage: {
         width: '100%',
         height: '100%',
     },
-    coverPlaceholder: {
-        flex: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    imageOverlay: {
+        ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 2,
+    },
+    cameraCircleSmall: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    coverPlaceholder: {
+        flex: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
         borderStyle: 'dashed',
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        borderRadius: 16,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
+        borderRadius: 32,
+    },
+    coverPlaceholderGradient: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    cameraCircle: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.1)',
     },
     coverPlaceholderText: {
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: 14,
-        marginTop: 8,
-    },
-    inputGroup: {
-        marginHorizontal: 16,
-        marginBottom: 20,
-    },
-    label: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 13,
-        fontWeight: '500',
-        marginBottom: 8,
-    },
-    input: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 12,
-        padding: 14,
         color: '#fff',
         fontSize: 15,
+        fontWeight: '800',
     },
-    textArea: {
-        minHeight: 100,
-        textAlignVertical: 'top',
+    coverPlaceholderSubtext: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 11,
+        marginTop: 4,
+        fontWeight: '600',
     },
-    pickerButton: {
+    formSection: {
+        marginBottom: 40,
+    },
+    sectionHeaderRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 12,
-        padding: 14,
-        gap: 10,
+        marginBottom: 24,
+        gap: 12,
     },
-    channelIcon: {
-        width: 24,
+    headingIndicator: {
+        width: 4,
+        height: 14,
+        backgroundColor: '#F59E0B',
+        borderRadius: 2,
+    },
+    formSectionTitle: {
+        color: '#fff',
+        fontSize: 16,
+        fontFamily: 'Cinzel-Bold',
+    },
+    inputGroup: {
+        marginBottom: 24,
+    },
+    label: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 12,
+        marginLeft: 4,
+    },
+    input: {
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '500',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    textArea: {
+        height: 140,
+        textAlignVertical: 'top',
+    },
+    pickerRow: {
+        flexDirection: 'row',
+        gap: 20,
+    },
+    glassPicker: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    pickerIconCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        justifyContent: 'center',
         alignItems: 'center',
     },
-    pickerButtonText: {
+    pickerText: {
         flex: 1,
         color: '#fff',
-        fontSize: 15,
-    },
-    pickerOptions: {
-        marginTop: 8,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: 12,
-        overflow: 'hidden',
-    },
-    pickerOption: {
-        padding: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    pickerOptionActive: {
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
-    },
-    pickerOptionText: {
-        color: '#fff',
         fontSize: 14,
+        fontWeight: '700',
+        marginLeft: 12,
     },
-    tariffsSection: {
-        marginHorizontal: 16,
-        marginTop: 8,
+    pickerFlyout: {
+        backgroundColor: 'rgba(10, 10, 20, 0.98)',
+        borderRadius: 24,
+        padding: 12,
+        marginTop: -10,
+        marginBottom: 30,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
+        zIndex: 100,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.5,
+        shadowRadius: 20,
     },
-    tariffsSectionHeader: {
+    pickerItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 14,
+        gap: 10,
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    pickerItemActive: {
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
+    },
+    pickerItemText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    pickerItemTextActive: {
+        color: '#000',
+    },
+    sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
-    },
-    sectionTitle: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
+        marginBottom: 20,
     },
     addTariffButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 16,
+        gap: 8,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     addTariffText: {
-        color: '#FFD700',
+        color: '#F59E0B',
         fontSize: 13,
-        fontWeight: '500',
+        fontWeight: '800',
     },
     tariffCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 24,
+        padding: 20,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     tariffHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 24,
+        gap: 14,
     },
-    defaultCheckbox: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
+    customRadio: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
         borderWidth: 2,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 10,
     },
-    defaultCheckboxActive: {
-        backgroundColor: '#FFD700',
-        borderColor: '#FFD700',
+    customRadioActive: {
+        borderColor: '#F59E0B',
     },
-    checkmark: {
-        color: '#1a1a2e',
-        fontSize: 12,
-        fontWeight: '700',
+    customRadioDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#F59E0B',
     },
-    tariffDefaultLabel: {
+    tariffTitleInput: {
         flex: 1,
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 12,
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '800',
+        padding: 0,
     },
     removeTariffButton: {
-        padding: 8,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(244, 67, 54, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    tariffInput: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 10,
-        padding: 12,
-        color: '#fff',
-        fontSize: 14,
-        marginBottom: 12,
-    },
-    tariffRow: {
+    tariffParameters: {
         flexDirection: 'row',
-        gap: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 16,
+        padding: 16,
     },
-    tariffField: {
+    paramItem: {
         flex: 1,
+        alignItems: 'center',
     },
-    tariffFieldLabel: {
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: 11,
-        marginBottom: 4,
+    paramLabel: {
+        color: 'rgba(255, 255, 255, 0.3)',
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        marginBottom: 8,
     },
-    tariffFieldInput: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 10,
-        padding: 10,
+    paramInput: {
         color: '#fff',
-        fontSize: 14,
+        fontSize: 18,
+        fontWeight: '900',
         textAlign: 'center',
+        padding: 0,
+        width: '100%',
+    },
+    paramDivider: {
+        width: 1,
+        height: '60%',
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        alignSelf: 'center',
     },
 });

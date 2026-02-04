@@ -18,12 +18,29 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { ArrowLeft, Share2, MessageCircle, MapPin, Video, Edit } from 'lucide-react-native';
+import {
+    ArrowLeft,
+    Share2,
+    MessageCircle,
+    MapPin,
+    Video,
+    Edit,
+    Star,
+    Eye,
+    Calendar,
+    Brain,
+    Target,
+    Infinity as InfinityIcon,
+    Flame,
+    BookOpen,
+    Leaf,
+    Sparkles
+} from 'lucide-react-native';
 import {
     Service,
     getServiceById,
     CATEGORY_LABELS,
-    CATEGORY_ICONS,
+    CATEGORY_ICON_NAMES,
     FORMAT_LABELS,
     CHANNEL_LABELS,
     ACCESS_LABELS,
@@ -33,6 +50,20 @@ import { formatBalance } from '../../../services/walletService';
 import { useUser } from '../../../context/UserContext';
 
 const { width } = Dimensions.get('window');
+
+const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
+    switch (name) {
+        case 'Star': return <Star size={size} color={color} />;
+        case 'Brain': return <Brain size={size} color={color} />;
+        case 'Target': return <Target size={size} color={color} />;
+        case 'Infinity': return <InfinityIcon size={size} color={color} />;
+        case 'Flame': return <Flame size={size} color={color} />;
+        case 'BookOpen': return <BookOpen size={size} color={color} />;
+        case 'Leaf': return <Leaf size={size} color={color} />;
+        case 'Sparkles': return <Sparkles size={size} color={color} />;
+        default: return <Sparkles size={size} color={color} />;
+    }
+};
 
 type RouteParams = {
     params: {
@@ -59,7 +90,7 @@ export default function ServiceDetailScreen() {
             setService(data);
         } catch (error) {
             console.error('Failed to load service:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить сервис');
+            Alert.alert('Ошибка', 'Не удалось загрузить услугу');
             navigation.goBack();
         } finally {
             setLoading(false);
@@ -113,7 +144,7 @@ export default function ServiceDetailScreen() {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.gradient}>
                 <View style={styles.loaderContainer}>
                     <ActivityIndicator size="large" color="#FFD700" />
                 </View>
@@ -123,13 +154,15 @@ export default function ServiceDetailScreen() {
 
     if (!service) {
         return (
-            <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.gradient}>
                 <SafeAreaView style={styles.container}>
                     <View style={styles.errorContainer}>
-                        <Text style={styles.errorIcon}>😔</Text>
-                        <Text style={styles.errorText}>Сервис не найден</Text>
+                        <View style={styles.errorCircle}>
+                            <Sparkles size={48} color="rgba(255,255,255,0.1)" />
+                        </View>
+                        <Text style={styles.errorText}>Услуга не найдена</Text>
                         <TouchableOpacity style={styles.backButtonAlt} onPress={() => navigation.goBack()}>
-                            <Text style={styles.backButtonText}>Назад</Text>
+                            <Text style={styles.backButtonText}>Вернуться назад</Text>
                         </TouchableOpacity>
                     </View>
                 </SafeAreaView>
@@ -137,57 +170,62 @@ export default function ServiceDetailScreen() {
         );
     }
 
-    const categoryIcon = CATEGORY_ICONS[service.category] || '✨';
+    const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
     const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
 
     return (
-        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Header */}
+                {/* Custom Floating Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
+                        <ArrowLeft size={22} color="#fff" />
                     </TouchableOpacity>
-                    <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.headerAction} onPress={handleShare}>
-                            <Share2 size={22} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity style={styles.headerCircleButton} onPress={handleShare}>
+                        <Share2 size={20} color="#fff" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView
                     showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F59E0B" />
                     }
                 >
-                    {/* Cover Image */}
-                    <View style={styles.coverContainer}>
+                    {/* Immersive Cover Section */}
+                    <View style={styles.coverSection}>
                         {service.coverImageUrl ? (
                             <Image source={{ uri: service.coverImageUrl }} style={styles.coverImage} />
                         ) : (
                             <LinearGradient
-                                colors={['#667eea', '#764ba2']}
+                                colors={['#1e1e3a', '#12122b']}
                                 style={styles.coverPlaceholder}
                             >
-                                <Text style={styles.coverPlaceholderIcon}>{categoryIcon}</Text>
+                                <CategoryIcon name={iconName} size={100} color="rgba(245, 158, 11, 0.1)" />
                             </LinearGradient>
                         )}
-
-                        {/* Category Badge */}
-                        <View style={styles.categoryBadge}>
-                            <Text style={styles.categoryBadgeText}>{categoryIcon} {categoryLabel}</Text>
+                        <LinearGradient
+                            colors={['rgba(10, 10, 20, 0.3)', 'transparent', '#0a0a14']}
+                            style={styles.coverOverlay}
+                        />
+                        <View style={styles.categoryBadgeContainer}>
+                            <View style={styles.categoryBadge}>
+                                <CategoryIcon name={iconName} size={12} color="#F59E0B" />
+                                <Text style={styles.categoryBadgeText}>{categoryLabel}</Text>
+                            </View>
                         </View>
                     </View>
 
-                    {/* Content */}
-                    <View style={styles.content}>
-                        {/* Title & Owner */}
+                    {/* Content Section */}
+                    <View style={styles.contentBody}>
                         <Text style={styles.title}>{service.title}</Text>
 
+                        {/* Owner Floating Card */}
                         {service.owner && (
                             <TouchableOpacity
-                                style={styles.ownerRow}
+                                style={styles.ownerCard}
+                                activeOpacity={0.8}
                                 onPress={() => navigation.navigate('UserProfile', { userId: service.owner!.id })}
                             >
                                 <View style={styles.ownerAvatar}>
@@ -195,151 +233,167 @@ export default function ServiceDetailScreen() {
                                         {service.owner.karmicName.charAt(0).toUpperCase()}
                                     </Text>
                                 </View>
-                                <View style={styles.ownerInfo}>
-                                    <Text style={styles.ownerName}>
-                                        {service.owner.karmicName}
-                                        {service.owner.spiritualName ? ` ${service.owner.spiritualName}` : ''}
+                                <View style={styles.ownerDetails}>
+                                    <View style={styles.ownerNameRow}>
+                                        <Text style={styles.ownerName}>
+                                            {service.owner.karmicName}
+                                        </Text>
+                                        <Text style={styles.ownerRoleBadge}>Expert</Text>
+                                    </View>
+                                    <Text style={styles.ownerSubtitle}>
+                                        {service.owner.spiritualName || 'Проверенный мастер'}
                                     </Text>
-                                    <Text style={styles.ownerLabel}>Специалист</Text>
                                 </View>
-                                <TouchableOpacity
-                                    style={styles.chatButton}
-                                    onPress={handleChat}
-                                >
-                                    <MessageCircle size={18} color="#FFD700" />
+                                <TouchableOpacity style={styles.chatIconButton} onPress={handleChat}>
+                                    <MessageCircle size={18} color="#F59E0B" />
                                 </TouchableOpacity>
                             </TouchableOpacity>
                         )}
 
-                        {/* Stats */}
-                        <View style={styles.statsRow}>
-                            {service.rating > 0 && (
-                                <View style={styles.stat}>
-                                    <Text style={styles.statIcon}>⭐</Text>
-                                    <Text style={styles.statValue}>{service.rating.toFixed(1)}</Text>
-                                    <Text style={styles.statLabel}>({service.reviewsCount})</Text>
-                                </View>
-                            )}
-                            <View style={styles.stat}>
-                                <Text style={styles.statIcon}>👁️</Text>
+                        {/* Stats Grid - Glass Cards */}
+                        <View style={styles.statsGrid}>
+                            <View style={styles.statBox}>
+                                <Star size={16} color="#F59E0B" fill="#F59E0B" />
+                                <Text style={styles.statValue}>{service.rating > 0 ? service.rating.toFixed(1) : '5.0'}</Text>
+                                <Text style={styles.statLabel}>Рейтинг</Text>
+                            </View>
+                            <View style={styles.statBox}>
+                                <Eye size={16} color="rgba(255,255,255,0.4)" />
                                 <Text style={styles.statValue}>{service.viewsCount}</Text>
-                                <Text style={styles.statLabel}>просмотров</Text>
+                                <Text style={styles.statLabel}>Визиты</Text>
                             </View>
-                            <View style={styles.stat}>
-                                <Text style={styles.statIcon}>📅</Text>
+                            <View style={styles.statBox}>
+                                <Calendar size={16} color="rgba(255,255,255,0.4)" />
                                 <Text style={styles.statValue}>{service.bookingsCount}</Text>
-                                <Text style={styles.statLabel}>записей</Text>
+                                <Text style={styles.statLabel}>Записи</Text>
                             </View>
                         </View>
 
-                        {/* Description */}
+                        {/* Description Section */}
                         {service.description && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Описание</Text>
-                                <Text style={styles.description}>{service.description}</Text>
-                            </View>
-                        )}
-
-                        {/* Formats */}
-                        {formats.length > 0 && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Форматы</Text>
-                                <View style={styles.tagsRow}>
-                                    {formats.map((format) => (
-                                        <View key={format} style={styles.tag}>
-                                            <Text style={styles.tagText}>{FORMAT_LABELS[format] || format}</Text>
-                                        </View>
-                                    ))}
+                            <View style={styles.infoSection}>
+                                <View style={styles.sectionHeadingRow}>
+                                    <View style={styles.headingIndicator} />
+                                    <Text style={styles.sectionHeading}>О сервисе</Text>
                                 </View>
+                                <Text style={styles.descriptionText}>{service.description}</Text>
                             </View>
                         )}
 
-                        {/* Channel */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Формат проведения</Text>
-                            <View style={styles.channelRow}>
-                                {service.channel === 'offline' ? (
-                                    <MapPin size={20} color="#FFD700" />
-                                ) : (
-                                    <Video size={20} color="#FFD700" />
-                                )}
-                                <Text style={styles.channelText}>
-                                    {CHANNEL_LABELS[service.channel] || service.channel}
-                                </Text>
+                        {/* Logistics Selection */}
+                        <View style={styles.infoSection}>
+                            <View style={styles.sectionHeadingRow}>
+                                <View style={styles.headingIndicator} />
+                                <Text style={styles.sectionHeading}>Формат взаимодействия</Text>
                             </View>
-                            {service.offlineAddress && (
-                                <Text style={styles.addressText}>{service.offlineAddress}</Text>
-                            )}
+                            <LinearGradient
+                                colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+                                style={styles.logisticsCard}
+                            >
+                                <View style={styles.logisticsRow}>
+                                    <View style={styles.logisticsIcon}>
+                                        {service.channel === 'offline' ? <MapPin size={20} color="#F59E0B" /> : <Video size={20} color="#F59E0B" />}
+                                    </View>
+                                    <View style={styles.logisticsContent}>
+                                        <Text style={styles.logisticsTitle}>{CHANNEL_LABELS[service.channel] || service.channel}</Text>
+                                        <Text style={styles.logisticsSubtitle}>
+                                            {service.offlineAddress || 'Индивидуальная онлайн-сессия'}
+                                        </Text>
+                                    </View>
+                                </View>
+                                {formats.length > 0 && (
+                                    <View style={styles.formatTags}>
+                                        {formats.map((f) => (
+                                            <View key={f} style={styles.formatTag}>
+                                                <Text style={styles.formatTagText}>{FORMAT_LABELS[f] || f}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                            </LinearGradient>
                         </View>
 
-                        {/* Tariffs */}
+                        {/* Tariffs Mastery */}
                         {service.tariffs && service.tariffs.length > 0 && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Тарифы</Text>
-                                <View style={styles.tariffsContainer}>
-                                    {service.tariffs.map((tariff) => (
-                                        <View
-                                            key={tariff.id}
-                                            style={[
-                                                styles.tariffCard,
-                                                tariff.isDefault && styles.tariffCardDefault,
-                                            ]}
-                                        >
-                                            {tariff.isDefault && (
-                                                <View style={styles.defaultBadge}>
-                                                    <Text style={styles.defaultBadgeText}>Популярный</Text>
-                                                </View>
-                                            )}
-                                            <Text style={styles.tariffName}>{tariff.name}</Text>
-                                            <Text style={styles.tariffPrice}>{formatBalance(tariff.price)}</Text>
-                                            {tariff.durationMinutes > 0 && (
-                                                <Text style={styles.tariffDuration}>
-                                                    {tariff.durationMinutes} минут
-                                                </Text>
-                                            )}
-                                            {tariff.sessionsCount > 1 && (
-                                                <Text style={styles.tariffSessions}>
-                                                    {tariff.sessionsCount} сессий
-                                                </Text>
-                                            )}
-                                        </View>
-                                    ))}
+                            <View style={styles.infoSection}>
+                                <View style={styles.sectionHeadingRow}>
+                                    <View style={styles.headingIndicator} />
+                                    <Text style={styles.sectionHeading}>Тарифные планы</Text>
                                 </View>
+                                {service.tariffs.map((tariff) => (
+                                    <TouchableOpacity
+                                        key={tariff.id}
+                                        activeOpacity={0.9}
+                                        style={[styles.tariffItem, tariff.isDefault && styles.tariffItemFeatured]}
+                                    >
+                                        {tariff.isDefault && (
+                                            <View style={styles.featuredBadge}>
+                                                <Text style={styles.featuredBadgeText}>Популярный</Text>
+                                            </View>
+                                        )}
+                                        <View style={styles.tariffMainRow}>
+                                            <View style={styles.tariffInfo}>
+                                                <Text style={styles.tariffTitle}>{tariff.name}</Text>
+                                                <View style={styles.tariffMetaRow}>
+                                                    {tariff.durationMinutes > 0 && (
+                                                        <View style={styles.metaBadge}>
+                                                            <Text style={styles.metaBadgeText}>{tariff.durationMinutes} мин</Text>
+                                                        </View>
+                                                    )}
+                                                    {tariff.sessionsCount > 1 && (
+                                                        <View style={styles.metaBadge}>
+                                                            <Text style={styles.metaBadgeText}>{tariff.sessionsCount} сесс.</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
+                                            <View style={styles.tariffPriceContainer}>
+                                                <Text style={styles.tariffPriceSymbol}>₵</Text>
+                                                <Text style={styles.tariffPriceValue}>{tariff.price.toLocaleString('ru-RU')}</Text>
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
                         )}
+                        <View style={{ height: 140 }} />
                     </View>
                 </ScrollView>
 
-                {/* Bottom CTA */}
-                {!isOwner && (
-                    <View style={styles.bottomCTA}>
-                        <View style={styles.priceContainer}>
-                            {minPrice > 0 ? (
-                                <>
-                                    <Text style={styles.priceLabel}>от</Text>
-                                    <Text style={styles.priceValue}>{formatBalance(minPrice)}</Text>
-                                </>
-                            ) : (
-                                <Text style={styles.freeLabel}>{ACCESS_LABELS[service.accessType]}</Text>
-                            )}
+                {/* Fixed Premium Footer */}
+                <View style={styles.footerContainer}>
+                    <LinearGradient
+                        colors={['rgba(10, 10, 20, 0.95)', '#0a0a14']}
+                        style={styles.footer}
+                    >
+                        <View style={styles.priceColumn}>
+                            <Text style={styles.priceLabel}>Начиная от</Text>
+                            <View style={styles.priceRow}>
+                                <Text style={styles.priceValueSymbol}>₵</Text>
+                                <Text style={styles.priceValueText}>
+                                    {minPrice > 0 ? minPrice.toLocaleString('ru-RU') : '0'}
+                                </Text>
+                            </View>
                         </View>
-                        <TouchableOpacity style={styles.bookButton} onPress={handleBook}>
-                            <Text style={styles.bookButtonText}>Записаться</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
 
-                {isOwner && (
-                    <View style={styles.bottomCTA}>
-                        <TouchableOpacity
-                            style={styles.editButton}
-                            onPress={() => navigation.navigate('CreateService', { serviceId: service.id })}
-                        >
-                            <Edit size={20} color="#fff" />
-                            <Text style={styles.editButtonText}>Редактировать</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
+                        {isOwner ? (
+                            <TouchableOpacity
+                                style={styles.editButton}
+                                onPress={() => navigation.navigate('CreateService', { serviceId: service.id })}
+                            >
+                                <Edit size={18} color="#000" />
+                                <Text style={styles.editButtonText}>Правка</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity style={styles.bookButton} onPress={handleBook}>
+                                <Text style={styles.bookButtonText}>Забронировать</Text>
+                                <View style={styles.bookButtonIcon}>
+                                    <Sparkles size={16} color="#000" />
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                    </LinearGradient>
+                </View>
             </SafeAreaView>
         </LinearGradient>
     );
@@ -352,70 +406,36 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+    scrollContent: {
+        flexGrow: 1,
+    },
     loaderContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    errorIcon: {
-        fontSize: 60,
-        marginBottom: 16,
-    },
-    errorText: {
-        color: '#fff',
-        fontSize: 18,
-        marginBottom: 24,
-    },
-    backButtonAlt: {
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 8,
-    },
-    backButtonText: {
-        color: '#fff',
-        fontSize: 14,
-    },
     header: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
+        top: 20,
+        left: 20,
+        right: 20,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingTop: 60,
+        zIndex: 100,
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    headerCircleButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(10, 10, 20, 0.6)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
-    headerActions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    headerAction: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    coverContainer: {
+    coverSection: {
         width: '100%',
-        height: 260,
+        height: 400,
         position: 'relative',
     },
     coverImage: {
@@ -423,248 +443,407 @@ const styles = StyleSheet.create({
         height: '100%',
     },
     coverPlaceholder: {
-        width: '100%',
-        height: '100%',
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    coverPlaceholderIcon: {
-        fontSize: 80,
+    coverOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: '60%',
+    },
+    categoryBadgeContainer: {
+        position: 'absolute',
+        bottom: 30,
+        left: 20,
     },
     categoryBadge: {
-        position: 'absolute',
-        bottom: 16,
-        left: 16,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(10, 10, 20, 0.6)',
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 16,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+        gap: 6,
     },
     categoryBadgeText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
+        color: '#F59E0B',
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
-    content: {
-        padding: 16,
+    contentBody: {
+        paddingHorizontal: 20,
+        marginTop: -20,
     },
     title: {
         color: '#fff',
-        fontSize: 24,
-        fontWeight: '700',
-        marginBottom: 16,
+        fontSize: 32,
+        fontFamily: 'Cinzel-Bold',
+        lineHeight: 40,
+        marginBottom: 24,
     },
-    ownerRow: {
+    ownerCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 16,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        padding: 16,
+        borderRadius: 24,
+        marginBottom: 32,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     ownerAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#667eea',
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     ownerAvatarText: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
+        color: '#F59E0B',
+        fontSize: 22,
+        fontWeight: '900',
     },
-    ownerInfo: {
+    ownerDetails: {
         flex: 1,
-        marginLeft: 12,
+        marginLeft: 16,
+    },
+    ownerNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     ownerName: {
         color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 17,
+        fontWeight: '700',
     },
-    ownerLabel: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 12,
+    ownerRoleBadge: {
+        color: '#F59E0B',
+        fontSize: 10,
+        fontWeight: '800',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+        textTransform: 'uppercase',
     },
-    chatButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    ownerSubtitle: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 13,
+        marginTop: 2,
+    },
+    chatIconButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    statsRow: {
+    statsGrid: {
         flexDirection: 'row',
-        gap: 24,
-        marginBottom: 24,
-        paddingBottom: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginBottom: 40,
     },
-    stat: {
-        flexDirection: 'row',
+    statBox: {
+        flex: 1,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 20,
+        paddingVertical: 18,
         alignItems: 'center',
-        gap: 4,
-    },
-    statIcon: {
-        fontSize: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     statValue: {
         color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    statLabel: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 12,
-    },
-    section: {
-        marginBottom: 24,
-    },
-    sectionTitle: {
-        color: '#fff',
         fontSize: 16,
-        fontWeight: '700',
-        marginBottom: 12,
-    },
-    description: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 14,
-        lineHeight: 22,
-    },
-    tagsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    tag: {
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-    },
-    tagText: {
-        color: '#fff',
-        fontSize: 13,
-    },
-    channelRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    channelText: {
-        color: '#fff',
-        fontSize: 14,
-    },
-    addressText: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 13,
+        fontWeight: '800',
         marginTop: 8,
     },
-    tariffsContainer: {
-        gap: 12,
-    },
-    tariffCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 12,
-        padding: 16,
-        position: 'relative',
-    },
-    tariffCardDefault: {
-        borderWidth: 1,
-        borderColor: '#FFD700',
-        backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    },
-    defaultBadge: {
-        position: 'absolute',
-        top: -8,
-        right: 12,
-        backgroundColor: '#FFD700',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 8,
-    },
-    defaultBadgeText: {
-        color: '#1a1a2e',
+    statLabel: {
+        color: 'rgba(255,255,255,0.3)',
         fontSize: 10,
         fontWeight: '700',
+        textTransform: 'uppercase',
+        marginTop: 4,
     },
-    tariffName: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 4,
+    infoSection: {
+        marginBottom: 32,
     },
-    tariffPrice: {
-        color: '#FFD700',
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 4,
-    },
-    tariffDuration: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 13,
-    },
-    tariffSessions: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 13,
-    },
-    bottomCTA: {
+    sectionHeadingRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.1)',
+        marginBottom: 16,
+        gap: 10,
     },
-    priceContainer: {
+    headingIndicator: {
+        width: 4,
+        height: 14,
+        backgroundColor: '#F59E0B',
+        borderRadius: 2,
+    },
+    sectionHeading: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 14,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        letterSpacing: 0.5,
+    },
+    descriptionText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 16,
+        lineHeight: 26,
+        fontWeight: '400',
+    },
+    logisticsCard: {
+        borderRadius: 24,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    logisticsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    logisticsIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    logisticsContent: {
+        flex: 1,
+    },
+    logisticsTitle: {
+        color: '#fff',
+        fontSize: 17,
+        fontWeight: '700',
+    },
+    logisticsSubtitle: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 13,
+        marginTop: 4,
+    },
+    formatTags: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+        marginTop: 20,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
+    },
+    formatTag: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    formatTagText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    tariffItem: {
+        backgroundColor: 'rgba(255,255,255,0.02)',
+        padding: 20,
+        borderRadius: 24,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    tariffItemFeatured: {
+        backgroundColor: 'rgba(245, 158, 11, 0.03)',
+        borderColor: 'rgba(245, 158, 11, 0.2)',
+    },
+    featuredBadge: {
+        position: 'absolute',
+        top: -10,
+        right: 20,
+        backgroundColor: '#F59E0B',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    featuredBadgeText: {
+        color: '#000',
+        fontSize: 10,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+    },
+    tariffMainRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    tariffInfo: {
+        flex: 1,
+    },
+    tariffTitle: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 8,
+    },
+    tariffMetaRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    metaBadge: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    metaBadgeText: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    tariffPriceContainer: {
         flexDirection: 'row',
         alignItems: 'baseline',
         gap: 4,
     },
-    priceLabel: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 14,
-    },
-    priceValue: {
-        color: '#FFD700',
-        fontSize: 22,
-        fontWeight: '700',
-    },
-    freeLabel: {
-        color: '#4CAF50',
+    tariffPriceSymbol: {
+        color: '#F59E0B',
         fontSize: 16,
+        fontWeight: '400',
+    },
+    tariffPriceValue: {
+        color: '#fff',
+        fontSize: 24,
+        fontWeight: '900',
+    },
+    footerContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: 20,
+        paddingBottom: 40,
+    },
+    footer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 24,
+        paddingVertical: 20,
+        borderRadius: 32,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.5,
+        shadowRadius: 20,
+    },
+    priceColumn: {
+        flex: 1,
+    },
+    priceLabel: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 12,
         fontWeight: '600',
     },
+    priceRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 4,
+        marginTop: 2,
+    },
+    priceValueSymbol: {
+        color: '#F59E0B',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    priceValueText: {
+        color: '#fff',
+        fontSize: 24,
+        fontWeight: '900',
+    },
     bookButton: {
+        backgroundColor: '#F59E0B',
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFD700',
-        paddingHorizontal: 24,
+        paddingHorizontal: 20,
         paddingVertical: 14,
-        borderRadius: 28,
-        gap: 8,
+        borderRadius: 20,
+        gap: 12,
     },
     bookButtonText: {
-        color: '#1a1a2e',
+        color: '#000',
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '800',
+    },
+    bookButtonIcon: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     editButton: {
-        flex: 1,
+        backgroundColor: '#fff',
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        paddingHorizontal: 24,
         paddingVertical: 14,
-        borderRadius: 28,
-        gap: 8,
+        borderRadius: 20,
+        gap: 10,
     },
     editButtonText: {
-        color: '#fff',
+        color: '#000',
         fontSize: 16,
+        fontWeight: '800',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 40,
+    },
+    errorCircle: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    errorText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: 30,
+        textAlign: 'center',
+    },
+    backButtonAlt: {
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        paddingHorizontal: 30,
+        paddingVertical: 15,
+        borderRadius: 30,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    backButtonText: {
+        color: '#fff',
+        fontSize: 14,
         fontWeight: '600',
     },
 });

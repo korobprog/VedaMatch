@@ -637,13 +637,14 @@ func main() {
 	// ==================== SERVICES CONSTRUCTOR ====================
 	// Public Services Routes
 	api.Get("/services", serviceHandler.List)
+
+	// Protected Services Routes (moved up to avoid conflict with :id)
+	protected.Get("/services/my", serviceHandler.GetMyServices)
+
 	api.Get("/services/:id", serviceHandler.GetByID)
 	api.Get("/services/:id/tariffs", serviceHandler.GetTariffs)
 	api.Get("/services/:id/schedule", serviceHandler.GetSchedules)
 	api.Get("/services/:id/slots", bookingHandler.GetSlots)
-
-	// Protected Services Routes
-	protected.Get("/services/my", serviceHandler.GetMyServices)
 	protected.Post("/services", serviceHandler.Create)
 	protected.Put("/services/:id", serviceHandler.Update)
 	protected.Delete("/services/:id", serviceHandler.Delete)

@@ -17,7 +17,23 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Search, X, Calendar, Briefcase, PlusCircle, XCircle } from 'lucide-react-native';
+import {
+    ArrowLeft,
+    Search,
+    Briefcase,
+    PlusCircle,
+    Wallet,
+    History,
+    Users,
+    Star,
+    Brain,
+    Target,
+    Infinity as InfinityIcon,
+    Flame,
+    BookOpen,
+    Leaf,
+    Sparkles
+} from 'lucide-react-native';
 import {
     Service,
     ServiceCategory,
@@ -29,16 +45,37 @@ import ServiceCard from './components/ServiceCard';
 
 const { width } = Dimensions.get('window');
 
-const CATEGORIES: { key: ServiceCategory | 'all'; label: string; icon: string }[] = [
-    { key: 'all', label: 'Все', icon: '✨' },
-    { key: 'astrology', label: 'Астрология', icon: '🌟' },
-    { key: 'psychology', label: 'Психология', icon: '🧠' },
-    { key: 'coaching', label: 'Коучинг', icon: '🎯' },
-    { key: 'spirituality', label: 'Духовность', icon: '🕉️' },
-    { key: 'yagya', label: 'Ягьи', icon: '🔥' },
-    { key: 'education', label: 'Обучение', icon: '📚' },
-    { key: 'health', label: 'Здоровье', icon: '🌿' },
+const CATEGORIES: { key: ServiceCategory | 'all'; label: string; iconName: string }[] = [
+    { key: 'all', label: 'Все', iconName: 'Sparkles' },
+    { key: 'astrology', label: 'Астрология', iconName: 'Star' },
+    { key: 'psychology', label: 'Психология', iconName: 'Brain' },
+    { key: 'coaching', label: 'Коучинг', iconName: 'Target' },
+    { key: 'spirituality', label: 'Духовность', iconName: 'Infinity' },
+    { key: 'yagya', label: 'Ягьи', iconName: 'Flame' },
+    { key: 'education', label: 'Обучение', iconName: 'BookOpen' },
+    { key: 'health', label: 'Здоровье', iconName: 'Leaf' },
+    { key: 'other', label: 'Другое', iconName: 'Sparkles' },
 ];
+
+const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
+    switch (name) {
+        case 'Star': return <Star size={size} color={color} />;
+        case 'Brain': return <Brain size={size} color={color} />;
+        case 'Target': return <Target size={size} color={color} />;
+        case 'Infinity': return <InfinityIcon size={size} color={color} />;
+        case 'Flame': return <Flame size={size} color={color} />;
+        case 'BookOpen': return <BookOpen size={size} color={color} />;
+        case 'Leaf': return <Leaf size={size} color={color} />;
+        case 'Sparkles': return <Sparkles size={size} color={color} />;
+        case 'History': return <History size={size} color={color} />;
+        case 'Briefcase': return <Briefcase size={size} color={color} />;
+        default: return <Sparkles size={size} color={color} />;
+    }
+};
+
+// Re-importing local components or defining them if needed. 
+// Assuming InfinityIcon is already handled by import Infinity as InfinityIcon in previous thought if shared, 
+// but here I need to be careful with scope. I'll just use the icons directly in the render.
 
 export default function ServicesHomeScreen() {
     const navigation = useNavigation<any>();
@@ -128,75 +165,93 @@ export default function ServicesHomeScreen() {
 
     const renderHeader = () => (
         <View style={styles.header}>
-            {/* Top Row */}
+            {/* Top Bar */}
             <View style={styles.headerTop}>
                 <TouchableOpacity
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <ArrowLeft size={24} color="#fff" />
+                    <ArrowLeft size={22} color="#fff" />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>Сервисы</Text>
+                <View style={styles.headerTitleContainer}>
+                    <Text style={styles.headerTitle}>Маркетплейс</Text>
+                    <Text style={styles.headerSubtitle}>Услуги и специалисты</Text>
+                </View>
 
                 <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
-                    <Text style={styles.walletIcon}>💰</Text>
-                    <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                    <LinearGradient
+                        colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
+                        style={styles.walletInner}
+                    >
+                        <Wallet size={14} color="#F59E0B" />
+                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                    </LinearGradient>
                 </TouchableOpacity>
             </View>
 
-            {/* Quick Actions - Row 1: Client */}
-            <View style={styles.quickActions}>
-                <TouchableOpacity style={styles.actionButton} onPress={handleMyBookings}>
-                    <Calendar size={18} color="#fff" />
-                    <Text style={styles.actionText}>Мои записи</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.actionButton} onPress={handleWallet}>
-                    <Text style={styles.walletEmoji}>💰</Text>
-                    <Text style={styles.actionText}>Кошелёк</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Quick Actions - Row 2: Provider */}
-            <View style={styles.quickActions}>
-                <TouchableOpacity style={styles.actionButton} onPress={handleMyServices}>
-                    <Briefcase size={18} color="#fff" />
-                    <Text style={styles.actionText}>Мои сервисы</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.actionButton} onPress={handleIncomingBookings}>
-                    <Calendar size={18} color="#4CAF50" />
-                    <Text style={[styles.actionText, { color: '#4CAF50' }]}>Входящие</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.createButton]}
-                    onPress={handleCreateService}
-                >
-                    <PlusCircle size={18} color="#FFD700" />
-                    <Text style={[styles.actionText, styles.createText]}>Создать</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Search */}
-            <View style={styles.searchContainer}>
-                <Search size={20} color="rgba(255,255,255,0.5)" />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Найти сервис..."
-                    placeholderTextColor="rgba(255,255,255,0.4)"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                />
-                {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <XCircle size={20} color="rgba(255,255,255,0.5)" />
+            {/* Featured Actions - Premium Cards */}
+            <View style={styles.featuredActions}>
+                <View style={styles.actionRow}>
+                    <TouchableOpacity
+                        style={[styles.featuredCard, { backgroundColor: '#1e1e3a', borderColor: 'rgba(245, 158, 11, 0.2)' }]}
+                        onPress={handleCreateService}
+                    >
+                        <LinearGradient
+                            colors={['rgba(245, 158, 11, 0.15)', 'transparent']}
+                            style={styles.cardGradient}
+                        />
+                        <View style={styles.actionIconOuter}>
+                            <PlusCircle size={24} color="#F59E0B" />
+                        </View>
+                        <View>
+                            <Text style={styles.featuredCardTitle}>Создать</Text>
+                            <Text style={styles.featuredCardSub}>Свою услугу</Text>
+                        </View>
                     </TouchableOpacity>
-                )}
+
+                    <TouchableOpacity
+                        style={[styles.featuredCard, { backgroundColor: '#1a1a2e', borderColor: 'rgba(255,255,255,0.05)' }]}
+                        onPress={handleIncomingBookings}
+                    >
+                        <View style={styles.actionIconOuter}>
+                            <Users size={24} color="#fff" />
+                        </View>
+                        <View>
+                            <Text style={styles.featuredCardTitle}>Заказы</Text>
+                            <Text style={styles.featuredCardSub}>Ваши клиенты</Text>
+                        </View>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={[styles.actionRow, { marginTop: 12 }]}>
+                    <TouchableOpacity style={styles.miniAction} onPress={handleMyBookings}>
+                        <History size={18} color="rgba(255,255,255,0.6)" />
+                        <Text style={styles.miniActionLabel}>Мои записи</Text>
+                    </TouchableOpacity>
+                    <View style={styles.miniDivider} />
+                    <TouchableOpacity style={styles.miniAction} onPress={handleMyServices}>
+                        <Briefcase size={18} color="rgba(255,255,255,0.6)" />
+                        <Text style={styles.miniActionLabel}>Библиотека</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            {/* Categories */}
+            {/* Search - Floating Style */}
+            <View style={styles.searchSection}>
+                <View style={styles.searchBackground}>
+                    <Search size={20} color="rgba(255,255,255,0.4)" />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Кого вы ищете сегодня?"
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                    />
+                </View>
+            </View>
+
+            {/* Categories - Round Style */}
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -205,16 +260,24 @@ export default function ServicesHomeScreen() {
                 {CATEGORIES.map((cat) => (
                     <TouchableOpacity
                         key={cat.key}
-                        style={[
-                            styles.categoryChip,
-                            selectedCategory === cat.key && styles.categoryChipActive,
-                        ]}
+                        style={styles.categoryCircleItem}
                         onPress={() => setSelectedCategory(cat.key)}
                     >
-                        <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                        <LinearGradient
+                            colors={selectedCategory === cat.key
+                                ? ['#F59E0B', '#D97706']
+                                : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+                            style={styles.categoryCircle}
+                        >
+                            <CategoryIcon
+                                name={cat.iconName}
+                                size={22}
+                                color={selectedCategory === cat.key ? '#fff' : 'rgba(255,255,255,0.6)'}
+                            />
+                        </LinearGradient>
                         <Text style={[
-                            styles.categoryLabel,
-                            selectedCategory === cat.key && styles.categoryLabelActive,
+                            styles.categoryCircleLabel,
+                            selectedCategory === cat.key && styles.activeCategoryLabel
                         ]}>
                             {cat.label}
                         </Text>
@@ -226,22 +289,24 @@ export default function ServicesHomeScreen() {
 
     const renderEmpty = () => (
         <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyTitle}>Сервисы не найдены</Text>
+            <View style={styles.emptyIconCircle}>
+                <Search size={40} color="rgba(255,255,255,0.2)" />
+            </View>
+            <Text style={styles.emptyTitle}>Услуги не найдены</Text>
             <Text style={styles.emptySubtitle}>
-                Попробуйте изменить фильтры или поиск
+                Попробуйте изменить категорию или уточнить запрос
             </Text>
             <TouchableOpacity
-                style={styles.createFirstButton}
+                style={styles.emptyButton}
                 onPress={handleCreateService}
             >
-                <Text style={styles.createFirstText}>Создать первый сервис</Text>
+                <Text style={styles.emptyButtonText}>Создать первую услугу</Text>
             </TouchableOpacity>
         </View>
     );
 
     const renderFooter = () => {
-        if (!hasMore) return null;
+        if (!hasMore || services.length === 0) return null;
         return (
             <View style={styles.footerLoader}>
                 <ActivityIndicator color="#FFD700" />
@@ -251,7 +316,7 @@ export default function ServicesHomeScreen() {
 
     return (
         <LinearGradient
-            colors={['#1a1a2e', '#16213e', '#0f3460']}
+            colors={['#0a0a14', '#12122b']}
             style={styles.gradient}
         >
             <SafeAreaView style={styles.container} edges={['top']}>
@@ -297,126 +362,187 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingHorizontal: 16,
-        paddingBottom: 16,
+        paddingTop: 10,
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 16,
+        paddingHorizontal: 20,
+        marginBottom: 24,
     },
     backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    headerTitleContainer: {
+        flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
         color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
+        fontSize: 24,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        letterSpacing: 1,
+    },
+    headerSubtitle: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+        marginTop: 2,
     },
     walletButton: {
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    walletInner: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
-        paddingHorizontal: 12,
+        paddingHorizontal: 14,
         paddingVertical: 8,
-        borderRadius: 20,
         gap: 6,
-    },
-    walletIcon: {
-        fontSize: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderRadius: 20,
     },
     walletBalance: {
-        color: '#FFD700',
+        color: '#F59E0B',
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '800',
     },
-    quickActions: {
+    featuredActions: {
+        paddingHorizontal: 20,
+        marginBottom: 30,
+    },
+    actionRow: {
         flexDirection: 'row',
-        gap: 10,
-        marginBottom: 16,
+        gap: 12,
+        alignItems: 'center',
     },
-    actionButton: {
+    featuredCard: {
+        flex: 1,
+        height: 100,
+        borderRadius: 24,
+        borderWidth: 1,
+        padding: 16,
+        justifyContent: 'space-between',
+        flexDirection: 'row',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    cardGradient: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    actionIconOuter: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    featuredCardTitle: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '800',
+        textAlign: 'right',
+    },
+    featuredCardSub: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        textAlign: 'right',
+        marginTop: 2,
+    },
+    miniAction: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        paddingVertical: 10,
+        gap: 8,
+        paddingVertical: 12,
+        backgroundColor: 'rgba(255,255,255,0.03)',
         borderRadius: 12,
-        gap: 6,
     },
-    actionText: {
-        color: '#fff',
+    miniActionLabel: {
+        color: 'rgba(255,255,255,0.6)',
         fontSize: 12,
-        fontWeight: '500',
+        fontWeight: '600',
     },
-    createButton: {
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 215, 0, 0.3)',
+    miniDivider: {
+        width: 1,
+        height: 20,
+        backgroundColor: 'rgba(255,255,255,0.05)',
     },
-    createText: {
-        color: '#FFD700',
+    searchSection: {
+        paddingHorizontal: 20,
+        marginBottom: 24,
     },
-    walletEmoji: {
-        fontSize: 16,
-    },
-    searchContainer: {
+    searchBackground: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        marginBottom: 16,
+        backgroundColor: '#1a1a2e',
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        height: 60,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
     },
     searchInput: {
         flex: 1,
         color: '#fff',
-        paddingVertical: 12,
-        paddingHorizontal: 10,
-        fontSize: 15,
+        fontSize: 16,
+        fontWeight: '600',
+        marginLeft: 12,
     },
     categoriesContainer: {
-        paddingBottom: 4,
+        paddingLeft: 20,
+        paddingRight: 10,
+        paddingBottom: 24,
     },
-    categoryChip: {
-        flexDirection: 'row',
+    categoryCircleItem: {
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 20,
-        marginRight: 10,
-        gap: 6,
+        marginRight: 20,
+        width: 70,
     },
-    categoryChipActive: {
-        backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    categoryCircle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
         borderWidth: 1,
-        borderColor: '#FFD700',
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    categoryIcon: {
-        fontSize: 14,
+    categoryCircleLabel: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 11,
+        fontWeight: '700',
+        textAlign: 'center',
     },
-    categoryLabel: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    categoryLabelActive: {
-        color: '#FFD700',
+    activeCategoryLabel: {
+        color: '#F59E0B',
     },
     row: {
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        paddingHorizontal: 18,
     },
     listContent: {
-        paddingBottom: 100,
+        paddingBottom: 40,
     },
     loaderContainer: {
         flex: 1,
@@ -428,34 +554,51 @@ const styles = StyleSheet.create({
         paddingTop: 60,
         paddingHorizontal: 40,
     },
-    emptyIcon: {
-        fontSize: 60,
-        marginBottom: 16,
+    emptyIconCircle: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 30,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     emptyTitle: {
         color: '#fff',
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 8,
+        fontSize: 22,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 12,
+        textAlign: 'center',
     },
     emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.4)',
         fontSize: 14,
         textAlign: 'center',
-        marginBottom: 24,
+        lineHeight: 22,
+        marginBottom: 40,
     },
-    createFirstButton: {
-        backgroundColor: '#FFD700',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 25,
+    emptyButton: {
+        backgroundColor: '#F59E0B',
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        borderRadius: 20,
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 15,
+        elevation: 8,
     },
-    createFirstText: {
+    emptyButtonText: {
         color: '#1a1a2e',
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: 16,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
     footerLoader: {
-        paddingVertical: 20,
+        paddingVertical: 30,
     },
 });

@@ -26,6 +26,13 @@ func Protected() fiber.Handler {
 			})
 		}
 
+		// Debug log
+		displayLen := 10
+		if len(tokenString) < displayLen {
+			displayLen = len(tokenString)
+		}
+		log.Printf("[Auth] Debug: Received token starting with %s", tokenString[:displayLen])
+
 		// Remove "Bearer " prefix
 		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
 			tokenString = tokenString[7:]
@@ -66,8 +73,8 @@ func Protected() fiber.Handler {
 			})
 		}
 
-		// Store userId in context
-		c.Locals("userId", userId)
+		// Store userID in context
+		c.Locals("userID", userId)
 
 		// Store userRole in context (if present in token)
 		if role, ok := claims["role"].(string); ok {
@@ -80,14 +87,14 @@ func Protected() fiber.Handler {
 	}
 }
 
-// GetUserID extracts userId from context
+// GetUserID extracts userID from context
 func GetUserID(c *fiber.Ctx) uint {
-	userId := c.Locals("userId")
-	if userId == nil {
+	userID := c.Locals("userID")
+	if userID == nil {
 		return 0
 	}
 
-	switch v := userId.(type) {
+	switch v := userID.(type) {
 	case float64:
 		return uint(v)
 	case string:

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
@@ -23,7 +24,12 @@ func NewWalletHandler() *WalletHandler {
 // GetBalance returns user's wallet balance
 // GET /api/wallet
 func (h *WalletHandler) GetBalance(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
 
 	wallet, err := h.walletService.GetBalance(userID)
 	if err != nil {
@@ -38,7 +44,10 @@ func (h *WalletHandler) GetBalance(c *fiber.Ctx) error {
 // GetTransactions returns paginated transaction history
 // GET /api/wallet/transactions
 func (h *WalletHandler) GetTransactions(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	filters := models.TransactionFilters{
 		Type:     models.TransactionType(c.Query("type")),
@@ -66,7 +75,10 @@ func (h *WalletHandler) GetTransactions(c *fiber.Ctx) error {
 // Transfer transfers Лакшми to another user
 // POST /api/wallet/transfer
 func (h *WalletHandler) Transfer(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var req models.TransferRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -99,7 +111,10 @@ func (h *WalletHandler) Transfer(c *fiber.Ctx) error {
 // GetStats returns wallet statistics
 // GET /api/wallet/stats
 func (h *WalletHandler) GetStats(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	stats, err := h.walletService.GetStats(userID)
 	if err != nil {

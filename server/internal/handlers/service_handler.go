@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
@@ -81,7 +82,10 @@ func (h *ServiceHandler) GetByID(c *fiber.Ctx) error {
 // Create creates a new service
 // POST /api/services
 func (h *ServiceHandler) Create(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var req models.ServiceCreateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -103,7 +107,10 @@ func (h *ServiceHandler) Create(c *fiber.Ctx) error {
 // Update updates a service
 // PUT /api/services/:id
 func (h *ServiceHandler) Update(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -131,7 +138,10 @@ func (h *ServiceHandler) Update(c *fiber.Ctx) error {
 // Delete soft-deletes a service
 // DELETE /api/services/:id
 func (h *ServiceHandler) Delete(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -151,7 +161,10 @@ func (h *ServiceHandler) Delete(c *fiber.Ctx) error {
 // GetMyServices returns services owned by current user
 // GET /api/services/my
 func (h *ServiceHandler) GetMyServices(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	services, err := h.serviceService.GetMyServices(userID)
 	if err != nil {
@@ -168,7 +181,10 @@ func (h *ServiceHandler) GetMyServices(c *fiber.Ctx) error {
 // Publish changes service status to active
 // POST /api/services/:id/publish
 func (h *ServiceHandler) Publish(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	if err := h.serviceService.Publish(uint(serviceID), userID); err != nil {
@@ -183,7 +199,10 @@ func (h *ServiceHandler) Publish(c *fiber.Ctx) error {
 // Pause changes service status to paused
 // POST /api/services/:id/pause
 func (h *ServiceHandler) Pause(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	if err := h.serviceService.Pause(uint(serviceID), userID); err != nil {
@@ -215,7 +234,10 @@ func (h *ServiceHandler) GetTariffs(c *fiber.Ctx) error {
 // AddTariff adds a tariff to a service
 // POST /api/services/:id/tariffs
 func (h *ServiceHandler) AddTariff(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	var req models.TariffCreateRequest
@@ -238,7 +260,10 @@ func (h *ServiceHandler) AddTariff(c *fiber.Ctx) error {
 // UpdateTariff updates a tariff
 // PUT /api/tariffs/:id
 func (h *ServiceHandler) UpdateTariff(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	tariffID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	var req models.TariffUpdateRequest
@@ -261,7 +286,10 @@ func (h *ServiceHandler) UpdateTariff(c *fiber.Ctx) error {
 // DeleteTariff deactivates a tariff
 // DELETE /api/tariffs/:id
 func (h *ServiceHandler) DeleteTariff(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	tariffID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	if err := h.serviceService.DeleteTariff(uint(tariffID), userID); err != nil {
@@ -293,7 +321,10 @@ func (h *ServiceHandler) GetSchedules(c *fiber.Ctx) error {
 // AddSchedule adds a schedule slot to a service
 // POST /api/services/:id/schedule
 func (h *ServiceHandler) AddSchedule(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	var req models.ScheduleCreateRequest
@@ -316,7 +347,10 @@ func (h *ServiceHandler) AddSchedule(c *fiber.Ctx) error {
 // DeleteSchedule deactivates a schedule
 // DELETE /api/schedule/:id
 func (h *ServiceHandler) DeleteSchedule(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	scheduleID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
 
 	if err := h.serviceService.DeleteSchedule(uint(scheduleID), userID); err != nil {
@@ -351,7 +385,10 @@ func (h *ServiceHandler) GetWeeklySchedule(c *fiber.Ctx) error {
 // UpdateWeeklySchedule updates weekly schedule configuration
 // PUT /api/services/:id/schedule/weekly
 func (h *ServiceHandler) UpdateWeeklySchedule(c *fiber.Ctx) error {
-	userID := c.Locals("userID").(uint)
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

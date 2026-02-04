@@ -191,6 +191,18 @@ export const CATEGORY_ICONS: Record<ServiceCategory, string> = {
     other: '✨',
 };
 
+// Map of categories to Lucide icon components (names)
+export const CATEGORY_ICON_NAMES: Record<ServiceCategory, string> = {
+    astrology: 'Star',
+    psychology: 'Brain',
+    coaching: 'Target',
+    spirituality: 'Infinity',
+    yagya: 'Flame',
+    education: 'BookOpen',
+    health: 'Leaf',
+    other: 'Sparkles',
+};
+
 export const FORMAT_LABELS: Record<ServiceFormat, string> = {
     individual: 'Индивидуально',
     group: 'Группа',
@@ -238,7 +250,8 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
     const queryString = params.toString();
     const url = `${API_PATH}/services${queryString ? '?' + queryString : ''}`;
 
-    const response = await fetch(url);
+    const headers = await getAuthHeaders();
+    const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('Failed to fetch services');
     return response.json();
 }
@@ -247,7 +260,8 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
  * Get service by ID
  */
 export async function getServiceById(id: number): Promise<Service> {
-    const response = await fetch(`${API_PATH}/services/${id}`);
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_PATH}/services/${id}`, { headers });
     if (!response.ok) throw new Error('Service not found');
     return response.json();
 }

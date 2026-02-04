@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"log"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/services"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -21,15 +23,13 @@ func NewRAGHandler(ragService *services.RAGPipelineService) *RAGHandler {
 
 // UploadDocument uploads a document for RAG
 func (h *RAGHandler) UploadDocument(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
-	}
+	// Calculate deterministic UUID from uint ID for RAG service
+	userUUID := uuid.NewMD5(uuid.NameSpaceDNS, []byte(strconv.Itoa(int(userID))))
 
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -58,15 +58,12 @@ func (h *RAGHandler) UploadDocument(c *fiber.Ctx) error {
 
 // QueryDocuments performs a RAG query
 func (h *RAGHandler) QueryDocuments(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
-	}
+	userUUID := uuid.NewMD5(uuid.NameSpaceDNS, []byte(strconv.Itoa(int(userID))))
 
 	type QueryRequest struct {
 		Query      string `json:"query"`
@@ -94,15 +91,12 @@ func (h *RAGHandler) QueryDocuments(c *fiber.Ctx) error {
 
 // ListDocuments lists all documents for a user
 func (h *RAGHandler) ListDocuments(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
-	}
+	userUUID := uuid.NewMD5(uuid.NameSpaceDNS, []byte(strconv.Itoa(int(userID))))
 
 	documents, err := h.ragService.ListDocuments(userUUID)
 	if err != nil {
@@ -115,17 +109,18 @@ func (h *RAGHandler) ListDocuments(c *fiber.Ctx) error {
 
 // GetDocument retrieves a single document
 func (h *RAGHandler) GetDocument(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
+	userIDStr := strconv.Itoa(int(userID))
 	documentID := c.Params("id")
 	if documentID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Document ID is required"})
 	}
 
-	document, err := h.ragService.GetDocument(documentID, userID.(string))
+	document, err := h.ragService.GetDocument(documentID, userIDStr)
 	if err != nil {
 		log.Printf("[RAG] Failed to get document: %v", err)
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Document not found"})
@@ -136,17 +131,18 @@ func (h *RAGHandler) GetDocument(c *fiber.Ctx) error {
 
 // DeleteDocument deletes a document
 func (h *RAGHandler) DeleteDocument(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
+	userIDStr := strconv.Itoa(int(userID))
 	documentID := c.Params("id")
 	if documentID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Document ID is required"})
 	}
 
-	if err := h.ragService.DeleteDocument(documentID, userID.(string)); err != nil {
+	if err := h.ragService.DeleteDocument(documentID, userIDStr); err != nil {
 		log.Printf("[RAG] Failed to delete document: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -156,15 +152,12 @@ func (h *RAGHandler) DeleteDocument(c *fiber.Ctx) error {
 
 // GetStatistics returns RAG system statistics
 func (h *RAGHandler) GetStatistics(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
-	}
+	userUUID := uuid.NewMD5(uuid.NameSpaceDNS, []byte(strconv.Itoa(int(userID))))
 
 	stats, err := h.ragService.GetStatistics(userUUID)
 	if err != nil {
@@ -177,15 +170,12 @@ func (h *RAGHandler) GetStatistics(c *fiber.Ctx) error {
 
 // CreateChatSession creates a new chat session
 func (h *RAGHandler) CreateChatSession(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
-	}
+	userUUID := uuid.NewMD5(uuid.NameSpaceDNS, []byte(strconv.Itoa(int(userID))))
 
 	type CreateSessionRequest struct {
 		DocumentIDs []string `json:"documentIds"`
@@ -212,15 +202,12 @@ func (h *RAGHandler) CreateChatSession(c *fiber.Ctx) error {
 
 // ListChatSessions lists all chat sessions for a user
 func (h *RAGHandler) ListChatSessions(c *fiber.Ctx) error {
-	userID := c.Locals("userID")
-	if userID == nil {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
-	}
+	userUUID := uuid.NewMD5(uuid.NameSpaceDNS, []byte(strconv.Itoa(int(userID))))
 
 	sessions, err := h.ragService.ListChatSessions(userUUID)
 	if err != nil {
