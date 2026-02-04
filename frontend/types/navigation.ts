@@ -96,6 +96,7 @@ export type RootStackParamList = {
     MyBookings: undefined;
     CreateService: { serviceId?: number } | undefined;
     IncomingBookings: undefined;
+    ServiceSchedule: { serviceId: number };
 
     // Wallet Routes
     Wallet: undefined;

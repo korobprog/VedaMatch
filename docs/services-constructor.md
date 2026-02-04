@@ -14,8 +14,8 @@
 |-------|--------|----------|
 | Phase 1: Models | ✅ Done | 100% |
 | Phase 2: Backend API | ✅ Done | 100% |
-| Phase 3: Frontend Core | 🚧 In Progress | 80% |
-| Phase 4: Provider Flow | ⏳ Pending | 0% |
+| Phase 3: Frontend Core | 🚧 In Progress | 95% |
+| Phase 4: Provider Flow | 🚧 In Progress | 70% |
 | Phase 5: Integration | ⏳ Pending | 0% |
 
 ---

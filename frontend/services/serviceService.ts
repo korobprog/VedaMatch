@@ -152,14 +152,19 @@ export interface CreateTariffRequest {
 }
 
 export interface CreateScheduleRequest {
+    serviceId?: number;
     dayOfWeek?: number;
-    timeStart: string;
-    timeEnd: string;
+    timeStart?: string;
+    timeEnd?: string;
     specificDate?: string;
     maxParticipants?: number;
     slotDuration?: number;
     bufferMinutes?: number;
     timezone?: string;
+    // Weekly slots format
+    weeklySlots?: Record<string, { enabled: boolean; slots: { startTime: string; endTime: string }[] }>;
+    breakBetween?: number;
+    maxBookingsPerDay?: number;
 }
 
 // ==================== CATEGORY HELPERS ====================
@@ -390,6 +395,42 @@ export async function getSchedules(serviceId: number): Promise<{ schedules: Serv
     const response = await fetch(`${API_PATH}/services/${serviceId}/schedule`);
     if (!response.ok) throw new Error('Failed to fetch schedules');
     return response.json();
+}
+
+/**
+ * Get service schedule (weekly format)
+ */
+export async function getServiceSchedule(serviceId: number): Promise<{
+    weeklySlots: Record<string, { enabled: boolean; slots: { startTime: string; endTime: string }[] }>;
+    slotDuration?: number;
+    breakBetween?: number;
+    maxBookingsPerDay?: number;
+}> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
+        headers,
+    });
+    if (!response.ok) {
+        // Return default if no schedule exists
+        if (response.status === 404) {
+            return { weeklySlots: {} };
+        }
+        throw new Error('Failed to fetch schedule');
+    }
+    return response.json();
+}
+
+/**
+ * Update service schedule (weekly format)
+ */
+export async function updateServiceSchedule(serviceId: number, data: CreateScheduleRequest): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update schedule');
 }
 
 /**

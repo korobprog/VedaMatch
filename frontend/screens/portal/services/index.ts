@@ -11,6 +11,7 @@ export { default as MyBookingsScreen } from './MyBookingsScreen';
 export { default as CreateServiceScreen } from './CreateServiceScreen';
 export { default as MyServicesScreen } from './MyServicesScreen';
 export { default as IncomingBookingsScreen } from './IncomingBookingsScreen';
+export { default as ServiceScheduleScreen } from './ServiceScheduleScreen';
 
 // Components
 export { default as ServiceCard } from './components/ServiceCard';
