@@ -104,6 +104,13 @@ const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
         });
     });
 
+    // Check quick access
+    if (layout.quickAccess) {
+        layout.quickAccess.forEach(item => {
+            existingServiceIds.add(item.serviceId);
+        });
+    }
+
     let modified = false;
     const newItems: PortalItem[] = [];
 
@@ -133,6 +140,28 @@ const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
     return layout;
 };
 
+// Handle migration for old layouts
+const ensureQuickAccess = (layout: PortalLayout): PortalLayout => {
+    if (!layout.quickAccess) {
+        const quickAccessIds = ['contacts', 'calls', 'groups'];
+        layout.quickAccess = quickAccessIds.map((id, index) => ({
+            id: `qa-${id}`,
+            serviceId: id,
+            type: 'service' as const,
+            position: index,
+        }));
+
+        // Remove these from pages to avoid duplicates
+        layout.pages.forEach(page => {
+            page.items = page.items.filter(item =>
+                !(item.type === 'service' && quickAccessIds.includes(item.serviceId))
+            );
+        });
+        layout.lastModified = Date.now();
+    }
+    return layout;
+};
+
 // Merge local and server layouts (server wins if newer)
 export const initializeLayout = async (): Promise<PortalLayout> => {
     let localLayout = await loadLocalLayout();
@@ -143,7 +172,8 @@ export const initializeLayout = async (): Promise<PortalLayout> => {
         if (serverLayout) {
             // Server has newer data
             if (serverLayout.lastModified > localLayout.lastModified) {
-                const updatedServer = ensureDefaultServices(serverLayout);
+                let updatedServer = ensureQuickAccess(serverLayout);
+                updatedServer = ensureDefaultServices(updatedServer);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
                 return updatedServer;
             }
@@ -156,7 +186,8 @@ export const initializeLayout = async (): Promise<PortalLayout> => {
         console.warn('Server sync failed, using local layout');
     }
 
-    const updatedLocal = ensureDefaultServices(localLayout);
+    let updatedLocal = ensureQuickAccess(localLayout);
+    updatedLocal = ensureDefaultServices(updatedLocal);
     if (updatedLocal.lastModified !== localLayout.lastModified) {
         await saveLocalLayout(updatedLocal);
     }
@@ -197,8 +228,9 @@ export const addItemToFolder = (
     if (folder && folder.type === 'folder') {
         console.log('[addItemToFolder] Found folder:', folderId, 'Adding item:', item.id);
 
-        // Remove item from current position
+        // Remove item from current position (could be in page or quick access)
         page.items = page.items.filter(i => i.id !== item.id);
+        newLayout.quickAccess = newLayout.quickAccess.filter(i => i.id !== item.id);
 
         // Add item to folder
         folder.items.push({ ...item, position: folder.items.length });
@@ -253,6 +285,98 @@ export const reorderItems = (
     newLayout.pages[pageIndex].items = items;
     return newLayout;
 };
+
+// Helper: Move item to quick access (dock)
+export const moveItemToQuickAccess = (
+    layout: PortalLayout,
+    pageIndex: number,
+    itemId: string,
+    targetPosition: number // -1 means move back to grid
+): PortalLayout => {
+    const newLayout = { ...layout };
+    const page = newLayout.pages[pageIndex];
+    if (!page) return layout;
+
+    // 1. Find the item
+    let item: PortalItem | undefined;
+    let fromQuickAccess = false;
+    let fromPos = -1;
+
+    // Check in grid
+    item = page.items.find(i => i.id === itemId) as PortalItem | undefined;
+
+    // Check in dock
+    if (!item) {
+        fromPos = newLayout.quickAccess.findIndex(i => i.id === itemId);
+        if (fromPos !== -1) {
+            item = newLayout.quickAccess[fromPos];
+            fromQuickAccess = true;
+        }
+    }
+
+    if (!item || item.type !== 'service') return layout;
+
+    // 2. Case: Moving back to Grid
+    if (targetPosition === -1) {
+        if (!fromQuickAccess) return layout; // Already in grid
+
+        // Remove from dock
+        const updatedQA = [...newLayout.quickAccess];
+        updatedQA.splice(fromPos, 1);
+        newLayout.quickAccess = updatedQA.map((i, idx) => ({ ...i, position: idx }));
+
+        // Add back to grid
+        page.items.push({ ...item, position: page.items.length });
+        newLayout.lastModified = Date.now();
+        return newLayout;
+    }
+
+    // 3. Case: Moving to Dock
+    if (!fromQuickAccess) {
+        // If dock is full (3 items) and target is not one of them, we can't add more
+        // Use position to check if slot is taken
+        const existingAtTarget = newLayout.quickAccess.find(i => i.position === targetPosition);
+
+        if (newLayout.quickAccess.length >= 3 && !existingAtTarget) {
+            return layout;
+        }
+
+        // Remove from grid
+        page.items = page.items.filter(i => i.id !== itemId);
+
+        if (existingAtTarget) {
+            // Move existing back to grid (swap)
+            page.items.push({ ...existingAtTarget, position: page.items.length });
+            newLayout.quickAccess = newLayout.quickAccess.filter(i => i.id !== existingAtTarget.id);
+        }
+
+        // Place new item
+        newLayout.quickAccess.push({ ...item, position: targetPosition });
+        newLayout.quickAccess.sort((a, b) => a.position - b.position);
+    } else {
+        // Rearranging within dock
+        const targetItem = newLayout.quickAccess.find(i => i.position === targetPosition);
+        const movingItem = { ...item, position: targetPosition };
+
+        if (targetItem) {
+            // Swap positions
+            const newQA = newLayout.quickAccess.map(i => {
+                if (i.id === item!.id) return { ...targetItem, position: fromPos };
+                if (i.id === targetItem.id) return movingItem;
+                return i;
+            });
+            newLayout.quickAccess = newQA.sort((a, b) => a.position - b.position);
+        } else {
+            // Move to empty slot
+            const newQA = newLayout.quickAccess.map(i => i.id === item!.id ? movingItem : i);
+            newLayout.quickAccess = newQA.sort((a, b) => a.position - b.position);
+        }
+    }
+
+    newLayout.lastModified = Date.now();
+    return newLayout;
+};
+
 
 // Helper: Add widget
 export const addWidget = (

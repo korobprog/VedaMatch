@@ -122,7 +122,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
             <View key={index} style={styles.previewIconWrapper}>
                 <IconComponent
                     size={sizeConfig.preview}
-                    color={color}
+                    color={portalBackgroundType === 'image' ? '#ffffff' : color}
                     strokeWidth={2}
                 />
             </View>
@@ -150,13 +150,14 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                             width: sizeConfig.container,
                             height: sizeConfig.container,
                             backgroundColor: portalBackgroundType === 'image'
-                                ? `${folder.color}50`
+                                ? 'rgba(0,0,0,0.5)'
                                 : isDarkMode
                                     ? `${folder.color}30`
                                     : `${folder.color}20`,
                             borderColor: portalBackgroundType === 'image'
                                 ? `${folder.color}80`
                                 : `${folder.color}50`,
+                            borderWidth: portalBackgroundType === 'image' ? 1.5 : 1,
                         },
                     ]}
                 >
@@ -183,9 +184,9 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                         {
                             fontSize: sizeConfig.fontSize,
                             color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
-                            textShadowColor: portalBackgroundType === 'image' ? 'rgba(0,0,0,0.5)' : 'transparent',
-                            textShadowOffset: portalBackgroundType === 'image' ? { width: 0, height: 1 } : { width: 0, height: 0 },
-                            textShadowRadius: portalBackgroundType === 'image' ? 2 : 0,
+                            textShadowColor: 'rgba(0,0,0,0.75)',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
                         },
                     ]}
                     numberOfLines={1}

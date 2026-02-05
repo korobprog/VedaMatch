@@ -45,6 +45,7 @@ interface PortalIconProps {
     size?: 'small' | 'medium' | 'large';
     badge?: number;
     onLayout?: (event: any) => void;
+    showLabel?: boolean;
 }
 
 const ICON_SIZES = {
@@ -81,8 +82,9 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     size = 'medium',
     badge,
     onLayout,
+    showLabel = true,
 }) => {
-    const { vTheme, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
 
@@ -148,14 +150,19 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: portalBackgroundType === 'image' ? `${service.color}40` : `${service.color}15`,
-                            borderColor: portalBackgroundType === 'image' ? `${service.color}60` : `${service.color}30`,
+                            backgroundColor: portalBackgroundType === 'image'
+                                ? 'rgba(0,0,0,0.5)'
+                                : isDarkMode
+                                    ? `${service.color}25`
+                                    : `${service.color}15`,
+                            borderColor: portalBackgroundType === 'image' ? `${service.color}80` : `${service.color}30`,
+                            borderWidth: portalBackgroundType === 'image' ? 1.5 : 1,
                         },
                     ]}
                 >
                     <IconComponent
                         size={sizeConfig.icon}
-                        color={service.color}
+                        color={portalBackgroundType === 'image' ? '#ffffff' : service.color}
                         strokeWidth={2}
                     />
                     {badge && badge > 0 && (
@@ -166,21 +173,23 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         </View>
                     )}
                 </View>
-                <Text
-                    style={[
-                        styles.label,
-                        {
-                            fontSize: sizeConfig.fontSize,
-                            color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
-                            textShadowColor: portalBackgroundType === 'image' ? 'rgba(0,0,0,0.5)' : 'transparent',
-                            textShadowOffset: portalBackgroundType === 'image' ? { width: 0, height: 1 } : { width: 0, height: 0 },
-                            textShadowRadius: portalBackgroundType === 'image' ? 2 : 0,
-                        },
-                    ]}
-                    numberOfLines={1}
-                >
-                    {service.label}
-                </Text>
+                {showLabel && (
+                    <Text
+                        style={[
+                            styles.label,
+                            {
+                                fontSize: sizeConfig.fontSize,
+                                color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
+                                textShadowColor: 'rgba(0,0,0,0.75)',
+                                textShadowOffset: { width: 0, height: 1 },
+                                textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
+                            },
+                        ]}
+                        numberOfLines={1}
+                    >
+                        {service.label}
+                    </Text>
+                )}
 
                 {/* Delete button in edit mode */}
                 {isEditMode && (

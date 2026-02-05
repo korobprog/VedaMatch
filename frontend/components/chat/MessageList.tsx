@@ -25,6 +25,8 @@ import { useSettings } from '../../context/SettingsContext';
 import { WebView } from 'react-native-webview';
 import { mediaService } from '../../services/mediaService';
 import { AudioPlayer } from './AudioPlayer';
+import peacockAssistant from '../../assets/peacockAssistant.png';
+import krishnaAssistant from '../../assets/krishnaAssistant.png';
 
 interface MessageListProps {
     onDownloadImage: (imageUrl: string, imageName?: string) => void;
@@ -43,7 +45,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
     const { t, i18n } = useTranslation();
     const { messages, isLoading, isTyping, recipientUser, deleteMessage } = useChat();
-    const { imageSize } = useSettings();
+    const { imageSize, assistantType } = useSettings();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const flatListRef = useRef<FlatList>(null);
@@ -264,7 +266,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 {!isUser && (
                     <View style={styles.avatar}>
                         <Image
-                            source={require('../../assets/krishnaAssistant.png')}
+                            source={assistantType === 'feather' ? peacockAssistant : krishnaAssistant}
                             style={styles.avatarImage}
                         />
                     </View>

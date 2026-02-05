@@ -24,6 +24,7 @@ import Animated, {
     withTiming,
     runOnJS,
 } from 'react-native-reanimated';
+import LinearGradient from 'react-native-linear-gradient';
 import { Plus, FolderPlus, LayoutGrid, Settings } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
@@ -61,6 +62,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
         removeWidget,
         addNewPage,
         moveItemToFolder,
+        moveItemToQuickAccess,
     } = usePortalLayout();
 
     const [newFolderName, setNewFolderName] = useState('');
@@ -72,6 +74,10 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
     const itemRefs = useRef<Record<string, View | null>>({});
     const gridRef = useRef<View>(null);
 
+    // Dock references
+    const dockRef = useRef<View>(null);
+    const dockOffset = useRef<{ x: number; y: number; width: number; height: number }>({ x: 0, y: 0, width: 0, height: 0 });
+
     // Clear layouts on page change to avoid stale data
     useEffect(() => {
         itemLayouts.current = {};
@@ -80,6 +86,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
     const page = layout.pages[currentPage];
     const items = page?.items || [];
     const widgets = page?.widgets || [];
+    const quickAccess = layout.quickAccess || [];
 
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
@@ -103,7 +110,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
     // Handle folder press
     const handleFolderPress = useCallback((folder: PortalFolderType, force: boolean = false) => {
         if (isEditMode && !force) {
-            // In edit mode, usually allow drag, but secondary long press can override
             return;
         }
         setSelectedFolder(folder);
@@ -136,16 +142,21 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
         itemLayouts.current[id] = { x, y, width, height };
     };
 
-    // Store grid offset when it's laid out
-    const gridOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
     const handleGridLayout = useCallback(() => {
         if (gridRef.current) {
-            // Use measureInWindow for Android compatibility
             (gridRef.current as any).measureInWindow((x: number, y: number, _w: number, _h: number) => {
                 if (x !== undefined && y !== undefined) {
-                    gridOffset.current = { x, y };
-                    console.log('[GridLayout] Grid offset:', x, y);
+                    // gridOffset.current = { x, y };
+                }
+            });
+        }
+    }, []);
+
+    const handleDockLayout = useCallback(() => {
+        if (dockRef.current) {
+            (dockRef.current as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+                if (x !== undefined && y !== undefined) {
+                    dockOffset.current = { x, y, width, height };
                 }
             });
         }
@@ -154,21 +165,40 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
     const handleDragEnd = useCallback((itemId: string, absX: number, absY: number) => {
         setIsDraggingItem(false);
 
-        if (!page) {
-            console.log('[DragEnd] No page');
+        if (!page) return;
+
+        // 1. Check Quick Access Dock collision
+        const margin = 30;
+        const d = dockOffset.current;
+        const isInsideDock = (
+            absX >= d.x - margin &&
+            absX <= d.x + d.width + margin &&
+            absY >= d.y - margin &&
+            absY <= d.y + d.height + margin
+        );
+
+        if (isInsideDock) {
+            // Find specific slot in dock
+            const slotWidth = d.width / 3;
+            const slotIndex = Math.min(2, Math.floor((absX - d.x) / slotWidth));
+
+            console.log('[DragEnd] ✅ Moving item to Quick Access slot:', slotIndex);
+            runOnJS(moveItemToQuickAccess)(itemId, slotIndex);
             return;
         }
 
-        // Find folders to check collision
+        // 2. Check if item was in Dock and dropped outside -> Move back to Grid
+        const isInDock = quickAccess.some(i => i.id === itemId);
+        if (isInDock && !isInsideDock) {
+            console.log('[DragEnd] ⬇️ Moving item back to grid from dock');
+            runOnJS(moveItemToQuickAccess)(itemId, -1);
+            return;
+        }
+
+        // 3. Check folders collision
         const folders = page.items.filter(i => i.type === 'folder');
-        console.log('[DragEnd] Item:', itemId, 'AbsPos:', absX.toFixed(0), absY.toFixed(0), 'Folders:', folders.length);
+        if (folders.length === 0) return;
 
-        if (folders.length === 0) {
-            console.log('[DragEnd] No folders to drop into');
-            return;
-        }
-
-        // Measure each folder at drop time and check collision
         let foundFolder: string | null = null;
         let measureCount = 0;
         const totalFolders = folders.length;
@@ -177,10 +207,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
             measureCount++;
             if (measureCount >= totalFolders) {
                 if (foundFolder) {
-                    console.log('[DragEnd] ✅ Moving item', itemId, 'to folder', foundFolder);
-                    moveItemToFolder(itemId, foundFolder);
-                } else {
-                    console.log('[DragEnd] ❌ No folder found at drop position');
+                    runOnJS(moveItemToFolder)(itemId, foundFolder);
                 }
             }
         };
@@ -190,31 +217,23 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
             if (ref) {
                 (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
                     if (x !== undefined && y !== undefined && width > 0 && height > 0) {
-                        // Check if drop position is inside folder (with margin)
-                        const margin = 50;
-                        const isInside = (
-                            absX >= x - margin &&
-                            absX <= x + width + margin &&
-                            absY >= y - margin &&
-                            absY <= y + height + margin
+                        const folderMargin = 50;
+                        const isInsideFolder = (
+                            absX >= x - folderMargin &&
+                            absX <= x + width + folderMargin &&
+                            absY >= y - folderMargin &&
+                            absY <= y + height + folderMargin
                         );
-
-                        console.log('[DragEnd] Folder', folder.id, ':', x.toFixed(0), y.toFixed(0), width.toFixed(0), height.toFixed(0), '| Drop:', absX.toFixed(0), absY.toFixed(0), '| Inside:', isInside);
-
-                        if (isInside && !foundFolder) {
-                            foundFolder = folder.id;
-                        }
-                    } else {
-                        console.log('[DragEnd] Folder', folder.id, 'measure failed');
+                        if (isInsideFolder && !foundFolder) foundFolder = folder.id;
                     }
                     checkComplete();
                 });
             } else {
-                console.log('[DragEnd] No ref for folder', folder.id);
                 checkComplete();
             }
         });
-    }, [page, moveItemToFolder]);
+    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess]);
+
 
     // Render individual grid item
     const renderItem = useCallback((item: PortalItem | PortalFolderType) => {
@@ -271,7 +290,39 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                 {component}
             </DraggablePortalItem>
         );
-    }, [isEditMode, layout.iconSize, handleDragStart, handleFolderPress, handleServicePress, handleDragEnd]);
+    }, [isEditMode, layout.iconSize, handleDragStart, handleFolderPress, handleServicePress, handleDragEnd, setEditMode]);
+
+    // Render dock item
+    const renderDockItem = useCallback((item: PortalItem, index: number) => {
+        const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
+        if (!service) return null;
+
+        return (
+            <DraggablePortalItem
+                key={item.id}
+                id={item.id}
+                isEditMode={isEditMode}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onPress={() => onServicePress(item.serviceId)}
+                onSecondaryLongPress={() => setEditMode(true)}
+            >
+                <View
+                    pointerEvents="none"
+                    style={styles.dockItemWrapper}
+                >
+                    <PortalIcon
+                        service={service}
+                        isEditMode={isEditMode}
+                        onPress={() => { }}
+                        onLongPress={() => { }}
+                        size={layout.iconSize}
+                        showLabel={false}
+                    />
+                </View>
+            </DraggablePortalItem>
+        );
+    }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode]);
 
     // Render widget
     const renderWidget = useCallback((widget: { id: string; type: 'clock' | 'calendar'; size: string }) => {
@@ -316,7 +367,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                     ]}
                 />
             ))}
-            {/* Add page button */}
             <TouchableOpacity
                 onPress={() => {
                     Alert.alert(
@@ -346,9 +396,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
             style={[
                 styles.editToolbar,
                 {
-                    backgroundColor: isDarkMode
-                        ? '#1A1A1A'
-                        : '#F5F5F5',
+                    backgroundColor: isDarkMode ? '#1A1A1A' : '#F5F5F5',
                     borderColor: vTheme.colors.primary,
                 }
             ]}
@@ -363,7 +411,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
 
             <TouchableOpacity
                 onPress={() => {
-                    // Close drawer first, then navigate
                     onCloseDrawer?.();
                     navigation.navigate('WidgetSelection');
                 }}
@@ -384,38 +431,40 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
 
     return (
         <View style={styles.container}>
-            <Pressable
+            <View
                 style={styles.gridContainer}
-                onLongPress={handleLongPress}
-                onPress={handleBackgroundTap}
             >
-                {/* Widgets section */}
                 {widgets.length > 0 && (
                     <View style={styles.widgetsContainer}>
                         {widgets.map(renderWidget)}
                     </View>
                 )}
 
-                {/* Grid items */}
-                <View
-                    ref={gridRef}
-                    onLayout={handleGridLayout}
-                    style={[
-                        styles.grid,
-                        { alignItems: 'flex-start' }
-                    ]}
+                <Animated.ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
                 >
-                    {items.map(renderItem)}
-                </View>
+                    <Pressable
+                        onLongPress={handleLongPress}
+                        onPress={handleBackgroundTap}
+                        style={styles.scrollPressable}
+                    >
+                        <View
+                            ref={gridRef}
+                            onLayout={handleGridLayout}
+                            style={styles.grid}
+                        >
+                            {items.map(renderItem)}
+                        </View>
+                    </Pressable>
+                </Animated.ScrollView>
 
-                {/* New folder input */}
                 {showNewFolderInput && (
                     <View style={[
                         styles.newFolderContainer,
                         {
-                            backgroundColor: isDarkMode
-                                ? '#1E1E1E'
-                                : '#FFFFFF',
+                            backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
                             borderColor: vTheme.colors.primary,
                         }
                     ]}>
@@ -436,15 +485,39 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                         </TouchableOpacity>
                     </View>
                 )}
-            </Pressable>
+            </View>
 
-            {/* Page dots */}
+            {/* Elegant Divider Line */}
+            <LinearGradient
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                colors={isDarkMode
+                    ? ['transparent', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0.08)', 'transparent']
+                    : ['transparent', 'rgba(0,0,0,0.02)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.02)', 'transparent']}
+                style={styles.dockDivider}
+            />
+
+            {/* Floating Dock Area */}
+            <View style={styles.quickAccessDock}>
+                <View
+                    ref={dockRef}
+                    onLayout={handleDockLayout}
+                    style={styles.dockItems}
+                >
+                    {quickAccess.map(renderDockItem)}
+                    {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
+                        <View key={`empty-${i}`} style={[
+                            styles.emptyDockSlot,
+                            { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }
+                        ]} />
+                    ))}
+                </View>
+            </View>
+
             {layout.pages.length > 1 && renderPageDots()}
 
-            {/* Edit mode toolbar */}
             {isEditMode && renderEditToolbar()}
 
-            {/* Folder modal */}
             {selectedFolder && (
                 <FolderModal
                     visible={showFolderModal}
@@ -470,7 +543,17 @@ const styles = StyleSheet.create({
     gridContainer: {
         flex: 1,
         paddingHorizontal: 8,
-        paddingTop: 8,
+        paddingTop: 0,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 160, // Extra space to scroll above the floating dock
+    },
+    scrollPressable: {
+        flex: 1,
     },
     widgetsContainer: {
         flexDirection: 'row',
@@ -482,6 +565,42 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+    },
+    quickAccessDock: {
+        position: 'absolute',
+        bottom: 20,
+        left: 20,
+        right: 20,
+        height: 80,
+        justifyContent: 'center',
+        paddingHorizontal: 20,
+    },
+    dockDivider: {
+        position: 'absolute',
+        bottom: 110, // Just above the dock
+        left: 40,
+        right: 40,
+        height: 1,
+    },
+    dockItems: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+    },
+    dockItemWrapper: {
+        width: 60,
+        height: 60,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyDockSlot: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderStyle: 'dashed',
     },
     pageDotsContainer: {
         flexDirection: 'row',
@@ -514,7 +633,7 @@ const styles = StyleSheet.create({
     },
     editToolbar: {
         position: 'absolute',
-        bottom: 100,
+        bottom: 120,
         left: 20,
         right: 20,
         flexDirection: 'row',

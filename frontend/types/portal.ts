@@ -32,6 +32,7 @@ export interface PortalPage {
 
 export interface PortalLayout {
     pages: PortalPage[];
+    quickAccess: PortalItem[]; // Bottom dock items (max 3)
     activePageIndex: number;
     gridColumns: number;
     iconSize: 'small' | 'medium' | 'large';
@@ -51,13 +52,15 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'contacts', label: 'Контакты', icon: 'Users', color: '#3B82F6' },
     { id: 'chat', label: 'Чат', icon: 'MessageCircle', color: '#6B5B53' },
     { id: 'calls', label: 'Звонки', icon: 'Phone', color: '#10B981' },
+    { id: 'groups', label: 'Группы', icon: 'Users', color: '#F59E0B' },
     { id: 'dating', label: 'Знакомства', icon: 'Sparkles', color: '#EC4899' },
+
     { id: 'cafe', label: 'Кафе', icon: 'Coffee', color: '#FF6B00' },
     { id: 'shops', label: 'Магазины', icon: 'ShoppingBag', color: '#D67D3E' },
     { id: 'ads', label: 'Объявления', icon: 'Megaphone', color: '#EF4444' },
     { id: 'library', label: 'Библиотека', icon: 'Book', color: '#43A047' },
     { id: 'education', label: 'Обучение', icon: 'GraduationCap', color: '#8B5CF6' },
-    { id: 'multimedia', label: 'Медиа-хаб', icon: 'Music', color: '#6366F1' },
+    { id: 'multimedia', label: 'Медия', icon: 'Music', color: '#6366F1' },
     { id: 'news', label: 'Новости', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },
@@ -80,12 +83,23 @@ export const FOLDER_COLORS = [
 
 // Create default layout
 export const createDefaultLayout = (): PortalLayout => {
-    const defaultItems: PortalItem[] = DEFAULT_SERVICES.map((service, index) => ({
-        id: `item-${service.id}`,
-        serviceId: service.id,
+    const quickAccessIds = ['contacts', 'calls', 'groups'];
+
+    const quickAccess: PortalItem[] = quickAccessIds.map((id, index) => ({
+        id: `qa-${id}`,
+        serviceId: id,
         type: 'service' as const,
         position: index,
     }));
+
+    const defaultItems: PortalItem[] = DEFAULT_SERVICES
+        .filter(s => !quickAccessIds.includes(s.id))
+        .map((service, index) => ({
+            id: `item-${service.id}`,
+            serviceId: service.id,
+            type: 'service' as const,
+            position: index,
+        }));
 
     return {
         pages: [{
@@ -94,6 +108,7 @@ export const createDefaultLayout = (): PortalLayout => {
             widgets: [],
             order: 0,
         }],
+        quickAccess,
         activePageIndex: 0,
         gridColumns: 4,
         iconSize: 'medium',

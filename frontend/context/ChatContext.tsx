@@ -52,7 +52,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const { t } = useTranslation();
-    const { currentModel, currentProvider, isAutoMagicEnabled } = useSettings();
+    const { currentModel, currentProvider, isAutoMagicEnabled, assistantType } = useSettings();
     const [inputText, setInputText] = useState('');
     const [showMenu, setShowMenu] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -402,10 +402,11 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const handleNewChat = () => {
+        const assistantName = assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас";
         setMessages([
             {
                 id: `welcome_${Date.now()}`,
-                text: t('chat.welcome'),
+                text: `${assistantName}. ${t('chat.welcome')}`,
                 sender: 'bot',
             }
         ]);

@@ -18,6 +18,7 @@ import {
     reorderItems,
     createPage,
     createFolder,
+    moveItemToQuickAccess,
 } from '../services/portalLayoutService';
 
 interface PortalLayoutContextType {
@@ -38,11 +39,13 @@ interface PortalLayoutContextType {
 
     // Item operations
     moveItemToFolder: (itemId: string, folderId: string) => void;
+    moveItemToQuickAccess: (itemId: string, targetPosition: number) => void;
     removeItemFromFolder: (folderId: string, itemId: string) => void;
     reorderGridItems: (fromIndex: number, toIndex: number) => void;
 
     // Page operations
     addNewPage: () => void;
+
     deletePage: (pageIndex: number) => void;
 
     // Widget operations
@@ -151,6 +154,11 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
         }
     }, [layout, currentPage, updateLayout]);
 
+    const moveItemToQuickAccessAction = useCallback((itemId: string, targetPosition: number) => {
+        const newLayout = moveItemToQuickAccess(layout, currentPage, itemId, targetPosition);
+        updateLayout(newLayout);
+    }, [layout, currentPage, updateLayout]);
+
     const removeItemFromFolderAction = useCallback((folderId: string, itemId: string) => {
         const newLayout = removeItemFromFolder(layout, currentPage, folderId, itemId);
         updateLayout(newLayout);
@@ -244,6 +252,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 changeFolderColor,
                 deleteFolder,
                 moveItemToFolder: moveItemToFolderAction,
+                moveItemToQuickAccess: moveItemToQuickAccessAction,
                 removeItemFromFolder: removeItemFromFolderAction,
                 reorderGridItems,
                 addNewPage,

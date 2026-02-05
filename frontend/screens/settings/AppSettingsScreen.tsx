@@ -44,6 +44,8 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         portalBackground,
         portalBackgroundType,
         setPortalBackground,
+        assistantType,
+        setAssistantType,
     } = useSettings();
 
     const { logout } = useUser();
@@ -258,6 +260,36 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 </View>
 
 
+
+                {/* Assistant Selection Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Ассистент</Text>
+                    <View style={styles.assistantSelection}>
+                        <TouchableOpacity
+                            style={[
+                                styles.assistantBtn,
+                                assistantType === 'feather' && { borderColor: '#00838F', backgroundColor: 'rgba(0,131,143,0.1)' }
+                            ]}
+                            onPress={() => setAssistantType('feather')}
+                        >
+                            <RNImage source={require('../../assets/peacockAssistant.png')} style={styles.assistantPreview} />
+                            <Text style={[styles.assistantName, { color: theme.text }]}>Перо</Text>
+                            {assistantType === 'feather' && <View style={styles.checkBadge}><Text style={styles.checkText}>✓</Text></View>}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.assistantBtn,
+                                assistantType === 'smiley' && { borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.1)' }
+                            ]}
+                            onPress={() => setAssistantType('smiley')}
+                        >
+                            <RNImage source={require('../../assets/krishnaAssistant.png')} style={styles.assistantPreview} />
+                            <Text style={[styles.assistantName, { color: theme.text }]}>Колобок</Text>
+                            {assistantType === 'smiley' && <View style={styles.checkBadge}><Text style={styles.checkText}>✓</Text></View>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
                 {/* Auto-Magic Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
@@ -751,5 +783,49 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#9CA3AF',
         fontWeight: '500',
+    },
+    assistantSelection: {
+        flexDirection: 'row',
+        gap: 15,
+        marginTop: 5,
+    },
+    assistantBtn: {
+        flex: 1,
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 16,
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    assistantPreview: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        marginBottom: 8,
+    },
+    assistantName: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    checkBadge: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    checkText: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#000',
     },
 });

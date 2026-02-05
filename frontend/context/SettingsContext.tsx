@@ -28,6 +28,8 @@ interface SettingsContextType {
     selectModel: (modelId: string, provider: string) => void;
     setImageSize: (size: number) => void;
     setImagePosition: (position: 'left' | 'center' | 'right') => void;
+    assistantType: 'feather' | 'smiley';
+    setAssistantType: (type: 'feather' | 'smiley') => Promise<void>;
 
     theme: typeof COLORS.dark;
     vTheme: typeof VedicLightTheme;
@@ -62,6 +64,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [isPortalOpen, setIsPortalOpen] = useState<boolean>(false);
     const [portalBackground, setPortalBackgroundState] = useState<string>('#ffffff');
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
+    const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley'>('feather');
 
     const colorScheme = useColorScheme();
 
@@ -161,6 +164,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 if (savedBgType === 'color' || savedBgType === 'gradient' || savedBgType === 'image') {
                     setPortalBackgroundType(savedBgType);
                 }
+
+                const savedAssistant = await AsyncStorage.getItem('assistant_type');
+                if (savedAssistant === 'feather' || savedAssistant === 'smiley') {
+                    setAssistantTypeState(savedAssistant);
+                }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
             }
@@ -194,6 +202,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const setAssistantType = async (type: 'feather' | 'smiley') => {
+        setAssistantTypeState(type);
+        try {
+            await AsyncStorage.setItem('assistant_type', type);
+        } catch (e) {
+            console.error('Failed to save assistant type', e);
+        }
+    };
+
     return (
         <SettingsContext.Provider value={{
             models,
@@ -221,6 +238,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             portalBackground,
             portalBackgroundType,
             setPortalBackground,
+            assistantType,
+            setAssistantType,
         }}>
             {children}
         </SettingsContext.Provider>

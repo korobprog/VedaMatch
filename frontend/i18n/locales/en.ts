@@ -621,7 +621,7 @@ export default {
     },
 
     chat: {
-        welcome: 'Namaste. I am your assistant 🙇‍♂️. How can I help you?',
+        welcome: 'I am your assistant 🙇‍♂️. How can I help you?',
         placeholder: 'Type a message...',
         newChat: 'Find in ...',
         newChatDone: 'Chat refreshed.',

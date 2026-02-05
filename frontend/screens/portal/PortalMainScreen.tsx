@@ -310,8 +310,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingTop: Platform.OS === 'ios' ? 60 : 20,
-        paddingBottom: 12,
+        paddingTop: Platform.OS === 'ios' ? 15 : 20,
+        paddingBottom: 8,
         zIndex: 10,
     },
     logoImage: {
@@ -349,11 +349,10 @@ const styles = StyleSheet.create({
     },
     gridContent: {
         flex: 1,
-        paddingBottom: 60,
     },
     hintContainer: {
         position: 'absolute',
-        bottom: 20,
+        bottom: 8,
         left: 0,
         right: 0,
         alignItems: 'center',

@@ -23,6 +23,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useUser } from '../context/UserContext';
 import { useChat } from '../context/ChatContext';
+import { useSettings } from '../context/SettingsContext';
+import peacockAssistant from '../assets/peacockAssistant.png';
 import krishnaAssistant from '../assets/krishnaAssistant.png';
 
 const { width } = Dimensions.get('window');
@@ -43,6 +45,7 @@ export const KrishnaAssistant: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { user, setTourCompleted } = useUser();
     const { handleNewChat } = useChat();
+    const { assistantType } = useSettings();
     const [isVisible, setIsVisible] = useState(false);
     const [isRollingOut, setIsRollingOut] = useState(false);
     const [currentStep, setCurrentStep] = useState(-1); // -1 means no tour active
@@ -168,7 +171,7 @@ export const KrishnaAssistant: React.FC = () => {
                     navigation.navigate('Chat');
                 }}
             >
-                <Image source={krishnaAssistant} style={styles.miniIcon} />
+                <Image source={assistantType === 'feather' ? peacockAssistant : krishnaAssistant} style={styles.miniIcon} />
             </TouchableOpacity>
         );
     }
@@ -201,7 +204,7 @@ export const KrishnaAssistant: React.FC = () => {
                             <Text style={styles.closeBtnText}>✕</Text>
                         </TouchableOpacity>
                         <Text style={styles.bubbleTitle}>
-                            {currentStep >= 0 ? TOUR_STEPS[currentStep].title : "Кришна Дас"}
+                            {currentStep >= 0 ? TOUR_STEPS[currentStep].title : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас")}
                         </Text>
                         <Text style={styles.bubbleText}>{getMessage()}</Text>
                         {currentStep >= 0 && (
@@ -219,7 +222,7 @@ export const KrishnaAssistant: React.FC = () => {
                     <View style={styles.imageContainer}>
                         <View style={styles.glow} />
                         <Image
-                            source={krishnaAssistant}
+                            source={assistantType === 'feather' ? peacockAssistant : krishnaAssistant}
                             style={styles.image}
                             resizeMode="contain"
                         />
@@ -266,23 +269,22 @@ const styles = StyleSheet.create({
         width: 80,
         height: 30,
         borderRadius: 40,
-        backgroundColor: '#FFD700',
-        opacity: 0.4, // Move transparency to opacity to keep BG solid for shadow calculation
-        shadowColor: '#FFD700',
+        backgroundColor: '#00bcd4', // Handled by inline style now or separate styles
+        opacity: 0.4,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 1,
         shadowRadius: 20,
         elevation: 10,
     },
     bubble: {
-        backgroundColor: '#FFD700', // 70% opacity
+        backgroundColor: '#E0F7FA', // Very light cyan
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 20,
         marginBottom: 10,
         marginRight: 20,
         borderWidth: 2,
-        borderColor: '#FF9933',
+        borderColor: '#00838F', // Dark teal
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 5 },
         shadowOpacity: 0.2,
@@ -294,11 +296,11 @@ const styles = StyleSheet.create({
     bubbleTitle: {
         fontSize: 14,
         fontWeight: 'bold',
-        color: '#497e49ff',
+        color: '#006064', // Deep teal
         marginBottom: 4,
     },
     bubbleText: {
-        color: '#4E342E',
+        color: '#004D40', // Very dark green/teal
         fontSize: 13,
         lineHeight: 18,
         fontWeight: 'bold',
@@ -306,7 +308,7 @@ const styles = StyleSheet.create({
     bubbleArrow: {
         position: 'absolute',
         bottom: -12,
-        right: 40, // Arrow on the right
+        right: 40,
         width: 0,
         height: 0,
         backgroundColor: 'transparent',
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 12,
         borderLeftColor: 'transparent',
         borderRightColor: 'transparent',
-        borderTopColor: '#FF9933',
+        borderTopColor: '#00838F',
     },
     closeBtn: {
         position: 'absolute',
@@ -348,7 +350,7 @@ const styles = StyleSheet.create({
         top: '50%',
         marginTop: -30,
         right: 0,
-        backgroundColor: '#FF9933',
+        backgroundColor: '#00838F',
         opacity: 0.9,
         paddingHorizontal: 8,
         paddingVertical: 12,
