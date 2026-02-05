@@ -34,7 +34,7 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 	// Create new wallet with initial balance
 	wallet = models.Wallet{
 		UserID:      userID,
-		Balance:     1000, // Initial balance: 1000 Лакшми
+		Balance:     1000, // Initial balance: 1000 LakshMoney
 		TotalEarned: 0,
 		TotalSpent:  0,
 	}
@@ -43,7 +43,7 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 		return nil, err
 	}
 
-	log.Printf("[Wallet] Created wallet for user %d with 1000 Лакшми", userID)
+	log.Printf("[Wallet] Created wallet for user %d with 1000 LakshMoney", userID)
 	return &wallet, nil
 }
 
@@ -58,8 +58,8 @@ func (s *WalletService) GetBalance(userID uint) (*models.WalletResponse, error) 
 		ID:           wallet.ID,
 		UserID:       wallet.UserID,
 		Balance:      wallet.Balance,
-		Currency:     "LKS",
-		CurrencyName: "Лакшми",
+		Currency:     "LKM",
+		CurrencyName: "LakshMoney",
 		TotalEarned:  wallet.TotalEarned,
 		TotalSpent:   wallet.TotalSpent,
 	}, nil
@@ -149,7 +149,7 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 			return err
 		}
 
-		log.Printf("[Wallet] Transfer: %d LKS from user %d to user %d", amount, fromUserID, toUserID)
+		log.Printf("[Wallet] Transfer: %d LKM from user %d to user %d", amount, fromUserID, toUserID)
 		return nil
 	})
 }
@@ -186,7 +186,7 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 			return err
 		}
 
-		log.Printf("[Wallet] Bonus: %d LKS to user %d", amount, userID)
+		log.Printf("[Wallet] Bonus: %d LKM to user %d", amount, userID)
 		return nil
 	})
 }
@@ -224,7 +224,7 @@ func (s *WalletService) Refund(userID uint, amount int, description string, book
 			return err
 		}
 
-		log.Printf("[Wallet] Refund: %d LKS to user %d", amount, userID)
+		log.Printf("[Wallet] Refund: %d LKM to user %d", amount, userID)
 		return nil
 	})
 }

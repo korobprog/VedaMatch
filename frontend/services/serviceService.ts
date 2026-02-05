@@ -311,6 +311,37 @@ export async function updateService(id: number, data: UpdateServiceRequest): Pro
 }
 
 /**
+ * Upload service photo
+ */
+export async function uploadServicePhoto(photoUri: string): Promise<string> {
+    const headers = await getAuthHeaders();
+    const formData = new FormData();
+
+    // @ts-ignore
+    formData.append('photo', {
+        uri: photoUri,
+        type: 'image/jpeg',
+        name: 'service_photo.jpg',
+    });
+
+    const response = await fetch(`${API_PATH}/services/upload`, {
+        method: 'POST',
+        headers: {
+            ...headers,
+            'Accept': 'application/json',
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to upload photo');
+    }
+
+    const result = await response.json();
+    return result.photoUrl;
+}
+
+/**
  * Delete a service
  */
 export async function deleteService(id: number): Promise<void> {

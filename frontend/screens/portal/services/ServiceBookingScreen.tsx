@@ -27,8 +27,9 @@ import {
     CHANNEL_LABELS,
 } from '../../../services/serviceService';
 import { bookService, CreateBookingRequest } from '../../../services/bookingService';
-import { formatBalance } from '../../../services/walletService';
+import { formatBalance, getCurrencyName } from '../../../services/walletService';
 import { useWallet } from '../../../context/WalletContext';
+import { useUser } from '../../../context/UserContext';
 import ServiceCalendar from './components/ServiceCalendar';
 import TariffSelector from './components/TariffSelector';
 
@@ -53,6 +54,7 @@ interface AvailableSlotDay {
 export default function ServiceBookingScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
+    const { user } = useUser();
     const { wallet, refreshWallet, formattedBalance } = useWallet();
 
     const serviceId = route.params?.serviceId;
@@ -164,8 +166,9 @@ export default function ServiceBookingScreen() {
         if (!canBook || !service || !selectedTariff) return;
 
         if (!hasEnoughBalance) {
+            const currencyName = getCurrencyName(user?.language);
             Alert.alert(
-                'Недостаточно Лакшми',
+                `Недостаточно ${currencyName}`,
                 `Для бронирования нужно ${formatBalance(selectedTariff.price)}. Ваш баланс: ${formattedBalance}`,
                 [{ text: 'OK' }]
             );
@@ -367,7 +370,7 @@ export default function ServiceBookingScreen() {
                                 {!hasEnoughBalance && (
                                     <View style={styles.balanceAlert}>
                                         <Text style={styles.balanceAlertText}>
-                                            Недостаточно Лакшми. Не хватает {selectedTariff.price - (wallet?.balance || 0)} ₵
+                                            Недостаточно {getCurrencyName(user?.language)}. Не хватает {selectedTariff.price - (wallet?.balance || 0)} ₵
                                         </Text>
                                     </View>
                                 )}

@@ -66,8 +66,11 @@ export interface TransferRequest {
 // ==================== CONSTANTS ====================
 
 export const CURRENCY_SYMBOL = '₿';
-export const CURRENCY_NAME = 'Лакшми';
-export const CURRENCY_CODE = 'LKS';
+export const CURRENCY_CODE = 'LKM';
+
+export function getCurrencyName(language: string = 'ru'): string {
+    return language === 'ru' ? 'Лакшмани' : 'LakshMoney';
+}
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
     credit: 'Пополнение',

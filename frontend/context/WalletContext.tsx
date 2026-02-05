@@ -1,12 +1,12 @@
 /**
- * WalletContext - Глобальный контекст для кошелька Лакшми
+ * WalletContext - Глобальный контекст для кошелька
  */
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import {
     WalletResponse,
     getWalletBalance,
     formatBalance,
-    CURRENCY_NAME,
+    getCurrencyName,
 } from '../services/walletService';
 import { useUser } from './UserContext';
 
@@ -60,7 +60,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         }
     }, [user, refreshWallet]);
 
-    const formattedBalance = wallet ? formatBalance(wallet.balance) : `0 ${CURRENCY_NAME}`;
+    const formattedBalance = wallet ? formatBalance(wallet.balance) : `0 ${getCurrencyName(user?.language)}`;
 
     const value: WalletContextType = {
         wallet,

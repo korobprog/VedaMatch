@@ -53,7 +53,7 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 			return nil, err
 		}
 		if wallet.Balance < tariff.Price {
-			return nil, errors.New("insufficient Лакшми balance")
+			return nil, errors.New("insufficient LakshMoney balance")
 		}
 	}
 
@@ -94,7 +94,7 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 		return nil, err
 	}
 
-	// Debit Лакшми from client (if paid service)
+	// Debit LakshMoney from client (if paid service)
 	if service.AccessType == models.ServiceAccessPaid && tariff.Price > 0 {
 		err := s.walletService.Transfer(
 			clientID,

@@ -87,6 +87,15 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	user.Password = ""
+	
+	// Create wallet for the new user (initial 1000 LakshMoney)
+	walletService := services.NewWalletService()
+	_, err = walletService.GetOrCreateWallet(user.ID)
+	if err != nil {
+		log.Printf("[AUTH] Failed to create wallet for user %d: %v", user.ID, err)
+		// We don't fail registration if wallet creation fails, but we log it
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "User registered successfully",
 		"token":   tokenString,

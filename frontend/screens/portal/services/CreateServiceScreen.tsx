@@ -55,6 +55,7 @@ import {
     updateService,
     getServiceById,
     addTariff,
+    uploadServicePhoto,
 } from '../../../services/serviceService';
 import { launchImageLibrary } from 'react-native-image-picker';
 
@@ -233,10 +234,22 @@ export default function CreateServiceScreen() {
 
         setSaving(true);
         try {
+            let finalCoverUrl = coverImageUrl;
+
+            // If we have a local URI, upload it first
+            if (coverImageUrl && !coverImageUrl.startsWith('http')) {
+                try {
+                    finalCoverUrl = await uploadServicePhoto(coverImageUrl);
+                } catch (uploadErr) {
+                    console.error('Photo upload failed:', uploadErr);
+                    // Continue without photo or notify user? For now, we'll try to proceed
+                }
+            }
+
             const serviceData: CreateServiceRequest = {
                 title: title.trim(),
                 description: description.trim(),
-                coverImageUrl,
+                coverImageUrl: finalCoverUrl,
                 category,
                 channel,
                 accessType,

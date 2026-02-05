@@ -36,15 +36,17 @@ import {
     TRANSACTION_TYPE_COLORS,
     formatTransactionAmount,
     formatTransactionDate,
-    CURRENCY_NAME,
+    getCurrencyName,
     CURRENCY_CODE,
     getTransactionSign,
 } from '../../services/walletService';
+import { useUser } from '../../context/UserContext';
 
 const { width } = Dimensions.get('window');
 
 export default function WalletScreen() {
     const navigation = useNavigation<any>();
+    const { user } = useUser();
     const { wallet, refreshWallet, loading: walletLoading } = useWallet();
 
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -162,7 +164,7 @@ export default function WalletScreen() {
                                 <View style={styles.balanceTop}>
                                     <View style={styles.balanceLabelRow}>
                                         <WalletIcon size={14} color="rgba(26,26,46,0.6)" />
-                                        <Text style={styles.balanceLabel}>{CURRENCY_NAME}</Text>
+                                        <Text style={styles.balanceLabel}>{getCurrencyName(user?.language)}</Text>
                                     </View>
                                     <View style={styles.currencyBadge}>
                                         <Text style={styles.currencyBadgeText}>{CURRENCY_CODE}</Text>

@@ -175,7 +175,13 @@ export default function ServicesHomeScreen() {
                 </TouchableOpacity>
 
                 <View style={styles.headerTitleContainer}>
-                    <Text style={styles.headerTitle}>Маркетплейс</Text>
+                    <Text
+                        style={styles.headerTitle}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                    >
+                        Маркетплейс
+                    </Text>
                     <Text style={styles.headerSubtitle}>Услуги и специалисты</Text>
                 </View>
 

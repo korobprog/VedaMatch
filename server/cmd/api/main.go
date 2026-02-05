@@ -52,6 +52,9 @@ func main() {
 	// Start Room Notification Scheduler
 	services.StartRoomNotificationScheduler()
 
+	// Start Booking Reminder Worker
+	workers.StartBookingReminderWorker()
+
 	// Start Video Transcoding Worker (background job for video processing)
 	transcodingWorker := workers.StartWorkerInBackground(2) // 2 concurrent workers
 	defer transcodingWorker.Stop()
@@ -637,6 +640,7 @@ func main() {
 	// ==================== SERVICES CONSTRUCTOR ====================
 	// Public Services Routes
 	api.Get("/services", serviceHandler.List)
+	protected.Post("/services/upload", serviceHandler.UploadPhoto)
 
 	// Protected Services Routes (moved up to avoid conflict with :id)
 	protected.Get("/services/my", serviceHandler.GetMyServices)

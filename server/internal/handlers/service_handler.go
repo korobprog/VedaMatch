@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -410,4 +414,51 @@ func (h *ServiceHandler) UpdateWeeklySchedule(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"success": true})
+}
+
+// UploadPhoto handles cover image upload for services
+// POST /api/services/upload
+func (h *ServiceHandler) UploadPhoto(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	file, err := c.FormFile("photo")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No photo file provided"})
+	}
+
+	// 1. Try S3 Storage
+	s3Service := services.GetS3Service()
+	if s3Service != nil {
+		fileContent, err := file.Open()
+		if err == nil {
+			defer fileContent.Close()
+			ext := filepath.Ext(file.Filename)
+			fileName := fmt.Sprintf("services/%d_%d%s", userID, time.Now().Unix(), ext)
+			contentType := file.Header.Get("Content-Type")
+
+			photoURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
+			if err == nil {
+				return c.JSON(fiber.Map{"photoUrl": photoURL})
+			}
+		}
+	}
+
+	// 2. Fallback to Local Storage
+	uploadDir := "./uploads/services"
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		os.MkdirAll(uploadDir, 0755)
+	}
+
+	filename := fmt.Sprintf("%d_%d_%s", userID, time.Now().Unix(), file.Filename)
+	filepath := filepath.Join(uploadDir, filename)
+
+	if err := c.SaveFile(file, filepath); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save photo"})
+	}
+
+	photoURL := fmt.Sprintf("/uploads/services/%s", filename)
+	return c.JSON(fiber.Map{"photoUrl": photoURL})
 }

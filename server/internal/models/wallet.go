@@ -8,7 +8,7 @@ import (
 
 // ==================== WALLET (КОШЕЛЁК ЛАКШМИ) ====================
 
-// Wallet represents a user's Лакшми (game currency) wallet
+// Wallet represents a user's LakshMoney (game currency) wallet
 type Wallet struct {
 	ID        uint           `gorm:"primarykey" json:"id"`
 	CreatedAt time.Time      `json:"createdAt"`
@@ -20,14 +20,14 @@ type Wallet struct {
 	User   *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
 
 	// Balance in Лакшми
-	Balance int `json:"balance" gorm:"default:1000"` // Initial balance: 1000 Лакшми
+	Balance int `json:"balance" gorm:"default:1000"` // Initial balance: 1000 LakshMoney
 
 	// Statistics
 	TotalEarned int `json:"totalEarned" gorm:"default:0"` // Total credits received
 	TotalSpent  int `json:"totalSpent" gorm:"default:0"`  // Total debits made
 
 	// Currency info (for display)
-	Currency     string `json:"currency" gorm:"-"`     // Always "LKS"
+	Currency     string `json:"currency" gorm:"-"`     // Always "LKM"
 	CurrencyName string `json:"currencyName" gorm:"-"` // "Лакшми"
 
 	// Relations
@@ -36,8 +36,8 @@ type Wallet struct {
 
 // BeforeCreate sets default currency fields
 func (w *Wallet) AfterFind(tx *gorm.DB) error {
-	w.Currency = "LKS"
-	w.CurrencyName = "Лакшми"
+	w.Currency = "LKM"
+	w.CurrencyName = "LakshMoney" // Default, frontend will localize
 	return nil
 }
 
