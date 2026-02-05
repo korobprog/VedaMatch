@@ -17,10 +17,10 @@ type BookingHandler struct {
 }
 
 // NewBookingHandler creates a new booking handler
-func NewBookingHandler() *BookingHandler {
+func NewBookingHandler(bookingService *services.BookingService, calendarService *services.CalendarService) *BookingHandler {
 	return &BookingHandler{
-		bookingService:  services.NewBookingService(),
-		calendarService: services.NewCalendarService(),
+		bookingService:  bookingService,
+		calendarService: calendarService,
 	}
 }
 

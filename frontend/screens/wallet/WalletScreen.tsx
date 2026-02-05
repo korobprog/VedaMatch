@@ -41,6 +41,10 @@ import {
     getTransactionSign,
 } from '../../services/walletService';
 import { useUser } from '../../context/UserContext';
+import ReceiptModal from '../../components/wallet/ReceiptModal';
+import { WalletInfoModal } from '../../components/wallet/WalletInfoModal';
+import { FrozenBalanceModal } from '../../components/wallet/FrozenBalanceModal';
+import { Info } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -53,6 +57,9 @@ export default function WalletScreen() {
     const [stats, setStats] = useState<WalletStatsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [selectedReceipt, setSelectedReceipt] = useState<WalletTransaction | null>(null);
+    const [showInfo, setShowInfo] = useState(false);
+    const [showFrozen, setShowFrozen] = useState(false);
 
     const loadData = useCallback(async () => {
         try {
@@ -84,7 +91,12 @@ export default function WalletScreen() {
         const color = TRANSACTION_TYPE_COLORS[item.type];
 
         return (
-            <TouchableOpacity key={item.id} style={styles.transactionItem} activeOpacity={0.7}>
+            <TouchableOpacity
+                key={item.id}
+                style={styles.transactionItem}
+                activeOpacity={0.7}
+                onPress={() => setSelectedReceipt(item)}
+            >
                 <View style={[styles.transactionIcon, { backgroundColor: `${color}15` }]}>
                     {sign === '+' ? (
                         <ArrowDown size={18} color={color} />
@@ -166,14 +178,40 @@ export default function WalletScreen() {
                                         <WalletIcon size={14} color="rgba(26,26,46,0.6)" />
                                         <Text style={styles.balanceLabel}>{getCurrencyName(user?.language)}</Text>
                                     </View>
-                                    <View style={styles.currencyBadge}>
-                                        <Text style={styles.currencyBadgeText}>{CURRENCY_CODE}</Text>
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        <View style={styles.currencyBadge}>
+                                            <Text style={styles.currencyBadgeText}>{CURRENCY_CODE}</Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.infoButton}
+                                            onPress={() => setShowInfo(true)}
+                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                        >
+                                            <Info size={16} color="rgba(26,26,46,0.6)" />
+                                        </TouchableOpacity>
                                     </View>
                                 </View>
                                 <View style={styles.balanceValueContainer}>
                                     <Text style={styles.balanceValue}>
                                         {wallet?.balance.toLocaleString('ru-RU') || 0}
                                     </Text>
+                                    {/* Pending Balance - locked until activation */}
+                                    {(wallet?.pendingBalance ?? 0) > 0 && (
+                                        <View style={styles.pendingBalanceRow}>
+                                            <Text style={styles.pendingLabel}>+ {wallet?.pendingBalance.toLocaleString('ru-RU')} заблокировано</Text>
+                                        </View>
+                                    )}
+                                    {/* Frozen Balance - held for bookings */}
+                                    {(wallet?.frozenBalance ?? 0) > 0 && (
+                                        <TouchableOpacity
+                                            style={styles.frozenBalanceRow}
+                                            onPress={() => setShowFrozen(true)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={styles.frozenLabel}>🔒 {wallet?.frozenBalance.toLocaleString('ru-RU')} в ожидании</Text>
+                                            <Info size={12} color="#EF4444" style={{ marginLeft: 6, opacity: 0.7 }} />
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
 
                                 <View style={styles.balanceFooter}>
@@ -261,6 +299,25 @@ export default function WalletScreen() {
                         </View>
                     </ScrollView>
                 )}
+
+                {selectedReceipt && (
+                    <ReceiptModal
+                        visible={!!selectedReceipt}
+                        transaction={selectedReceipt}
+                        onClose={() => setSelectedReceipt(null)}
+                    />
+                )}
+
+                <WalletInfoModal
+                    visible={showInfo}
+                    onClose={() => setShowInfo(false)}
+                />
+
+                <FrozenBalanceModal
+                    visible={showFrozen}
+                    amount={wallet?.frozenBalance ?? 0}
+                    onClose={() => setShowFrozen(false)}
+                />
             </SafeAreaView>
         </LinearGradient>
     );
@@ -558,5 +615,41 @@ const styles = StyleSheet.create({
         color: 'rgba(255, 255, 255, 0.3)',
         fontSize: 13,
         fontWeight: '600',
+    },
+    infoButton: {
+        padding: 4,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    // Pending & Frozen Balance styles
+    pendingBalanceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+        backgroundColor: 'rgba(158, 158, 158, 0.15)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignSelf: 'flex-start',
+    },
+    pendingLabel: {
+        color: 'rgba(26, 26, 46, 0.6)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    frozenBalanceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        backgroundColor: 'rgba(33, 150, 243, 0.15)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignSelf: 'flex-start',
+    },
+    frozenLabel: {
+        color: 'rgba(26, 26, 46, 0.6)',
+        fontSize: 12,
+        fontWeight: '700',
     },
 });

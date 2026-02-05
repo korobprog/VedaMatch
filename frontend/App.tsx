@@ -13,6 +13,7 @@ import RegistrationScreen from './screens/RegistrationScreen';
 import LoginScreen from './screens/LoginScreen';
 import PlansScreen from './screens/PlansScreen';
 import { RootStackParamList } from './types/navigation';
+import { linking } from './navigation/linking';
 // Portal Main Screen
 import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
@@ -132,11 +133,13 @@ import {
   ServiceScheduleScreen,
 } from './screens/portal/services';
 import WalletScreen from './screens/wallet/WalletScreen';
+import InviteFriendsScreen from './screens/portal/referral/InviteFriendsScreen';
 import { WalletProvider } from './context/WalletContext';
 
 
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { NotificationManager } from './components/NotificationManager';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
@@ -278,8 +281,9 @@ const AppContent = () => {
     >
       <GlobalGestureHandler>
         <PortalLayoutProvider>
-          <NavigationContainer ref={navigationRef}>
+          <NavigationContainer ref={navigationRef} linking={linking}>
             <ThemedStatusBar />
+            <NotificationManager />
             <Stack.Navigator
               screenOptions={{
                 headerShown: false,
@@ -391,6 +395,7 @@ const AppContent = () => {
 
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="InviteFriends" component={InviteFriendsScreen} options={{ headerShown: false }} />
 
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

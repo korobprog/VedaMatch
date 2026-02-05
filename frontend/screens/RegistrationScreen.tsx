@@ -30,6 +30,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { API_PATH } from '../config/api.config';
 import { contactService } from '../services/contactService';
+import DeviceInfo from 'react-native-device-info';
 
 // Custom Components & Hooks
 import { useLocation } from '../hooks/useLocation';
@@ -48,13 +49,14 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { login } = useUser();
-    const { isDarkMode, phase = 'initial' } = route.params;
+    const { isDarkMode, phase = 'initial', inviteCode: paramInviteCode } = route.params;
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const [avatar, setAvatar] = useState<any>(null);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [inviteCode, setInviteCode] = useState(paramInviteCode || '');
     const [country, setCountry] = useState('');
     const [city, setCity] = useState('');
     const [karmicName, setKarmicName] = useState('');
@@ -168,9 +170,12 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         try {
             if (phase === 'initial') {
                 // Phase 1: Registration
+                const deviceId = await DeviceInfo.getUniqueId();
                 const response = await axios.post(`${API_PATH}/register`, {
                     email,
                     password,
+                    invite_code: inviteCode,
+                    deviceId
                 });
                 const user = response.data.user;
                 const token = response.data.token;
@@ -320,6 +325,14 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             onChangeText={setConfirmPassword}
                             secureTextEntry={true}
                             placeholder="••••••••"
+                        />
+                        <FormInput
+                            label={t('registration.inviteCode') + " (Optional)"}
+                            theme={theme}
+                            value={inviteCode}
+                            onChangeText={setInviteCode}
+                            placeholder="Enter code if you have one"
+                            autoCapitalize="characters"
                         />
                     </>
                 ) : (

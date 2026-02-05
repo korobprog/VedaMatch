@@ -6,8 +6,8 @@ export type RootStackParamList = {
     CreateAd: { adId?: number } | undefined;
     AdDetail: { adId: number };
     AdsFilters: undefined;
-    Registration: { isDarkMode: boolean, phase?: 'initial' | 'profile' };
-    Login: undefined;
+    Registration: { isDarkMode: boolean, phase?: 'initial' | 'profile', inviteCode?: string };
+    Login: { inviteCode?: string } | undefined;
     Plans: undefined;
     Portal: { initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map' } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
@@ -100,4 +100,5 @@ export type RootStackParamList = {
 
     // Wallet Routes
     Wallet: undefined;
+    InviteFriends: undefined;
 };

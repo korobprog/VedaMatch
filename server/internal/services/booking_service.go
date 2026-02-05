@@ -11,15 +11,17 @@ import (
 
 // BookingService handles booking operations
 type BookingService struct {
-	walletService  *WalletService
-	serviceService *ServiceService
+	walletService   *WalletService
+	serviceService  *ServiceService
+	referralService *ReferralService
 }
 
 // NewBookingService creates a new booking service
-func NewBookingService() *BookingService {
+func NewBookingService(walletService *WalletService, serviceService *ServiceService, referralService *ReferralService) *BookingService {
 	return &BookingService{
-		walletService:  NewWalletService(),
-		serviceService: NewServiceService(),
+		walletService:   walletService,
+		serviceService:  serviceService,
+		referralService: referralService,
 	}
 }
 
@@ -94,20 +96,29 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 		return nil, err
 	}
 
-	// Debit LakshMoney from client (if paid service)
+	// Hold LakshMoney from client (if paid service)
+	// Funds are frozen until booking is completed or cancelled
 	if service.AccessType == models.ServiceAccessPaid && tariff.Price > 0 {
-		err := s.walletService.Transfer(
+		err := s.walletService.HoldFunds(
 			clientID,
-			service.OwnerID,
 			tariff.Price,
+			booking.ID,
 			"Бронирование: "+service.Title,
-			&booking.ID,
 		)
 		if err != nil {
 			// Rollback booking
 			database.DB.Delete(&booking)
-			return nil, errors.New("payment failed: " + err.Error())
+			return nil, errors.New("payment hold failed: " + err.Error())
 		}
+	}
+
+	// Referral Activation: If this is the user's first spend/hold, activate their referral
+	if s.referralService != nil {
+		go func(uid uint) {
+			if err := s.referralService.ProcessActivation(uid); err != nil {
+				log.Printf("[Referral] Activation failed for user %d during booking: %v", uid, err)
+			}
+		}(clientID)
 	}
 
 	// Increment bookings count
@@ -247,22 +258,16 @@ func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingAction
 		return nil, err
 	}
 
-	// Refund if cancelled before the session
-	if booking.PricePaid > 0 && booking.ScheduledAt.After(time.Now()) {
-		s.walletService.Refund(
+	// Refund hold if cancelled (money was frozen, not transferred)
+	if booking.PricePaid > 0 {
+		if err := s.walletService.RefundHold(
 			booking.ClientID,
 			booking.PricePaid,
+			booking.ID,
 			"Отмена бронирования: "+req.Reason,
-			&bookingID,
-		)
-		// Deduct from provider
-		s.walletService.Transfer(
-			booking.Service.OwnerID,
-			booking.ClientID,
-			booking.PricePaid,
-			"Возврат за отмену",
-			&bookingID,
-		)
+		); err != nil {
+			log.Printf("[Booking] Failed to refund hold for booking %d: %v", bookingID, err)
+		}
 	}
 
 	log.Printf("[Booking] Cancelled booking %d by user %d", bookingID, userID)
@@ -324,6 +329,20 @@ func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingAct
 		return nil, err
 	}
 
+	// Release held funds to provider
+	if booking.PricePaid > 0 {
+		if err := s.walletService.ReleaseFunds(
+			booking.ClientID,
+			booking.PricePaid,
+			booking.ID,
+			booking.Service.OwnerID,
+			"Оплата услуги: "+booking.Service.Title,
+		); err != nil {
+			log.Printf("[Booking] Failed to release funds for booking %d: %v", bookingID, err)
+			// Don't fail completion, just log
+		}
+	}
+
 	log.Printf("[Booking] Completed booking %d", bookingID)
 
 	// Send push notification to client
@@ -365,7 +384,19 @@ func (s *BookingService) MarkNoShow(bookingID, ownerID uint) (*models.ServiceBoo
 		return nil, err
 	}
 
-	// No refund for no-show
+	// Release funds to provider on no-show (client penalty)
+	if booking.PricePaid > 0 {
+		if err := s.walletService.ReleaseFunds(
+			booking.ClientID,
+			booking.PricePaid,
+			booking.ID,
+			booking.Service.OwnerID,
+			"Неявка клиента: "+booking.Service.Title,
+		); err != nil {
+			log.Printf("[Booking] Failed to release funds for no-show booking %d: %v", bookingID, err)
+		}
+	}
+
 	log.Printf("[Booking] Marked booking %d as no-show", bookingID)
 
 	database.DB.Preload("Service.Owner").Preload("Tariff").Preload("Client").First(&booking, bookingID)

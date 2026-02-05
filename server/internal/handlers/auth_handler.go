@@ -18,25 +18,33 @@ import (
 )
 
 type AuthHandler struct {
-	ragService *services.RAGService
-	mapService *services.MapService
+	ragService      *services.RAGService
+	mapService      *services.MapService
+	walletService   *services.WalletService
+	referralService *services.ReferralService
 }
 
-func NewAuthHandler() *AuthHandler {
+func NewAuthHandler(walletService *services.WalletService, referralService *services.ReferralService) *AuthHandler {
 	return &AuthHandler{
-		ragService: services.NewRAGService(),
-		mapService: services.NewMapService(database.DB),
+		ragService:      services.NewRAGService(),
+		mapService:      services.NewMapService(database.DB),
+		walletService:   walletService,
+		referralService: referralService,
 	}
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
-	var user models.User
-	if err := c.BodyParser(&user); err != nil {
+	var registerData struct {
+		models.User
+		InviteCode string `json:"inviteCode"` // Optional invite code from referrer
+	}
+	if err := c.BodyParser(&registerData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
 		})
 	}
 
+	user := registerData.User
 	user.Email = strings.TrimSpace(strings.ToLower(user.Email))
 
 	if user.Email == "" || user.Password == "" {
@@ -53,6 +61,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 	user.Password = string(hashedPassword)
+
+	// Generate invite code for the new user
+	user.InviteCode = services.GenerateInviteCode()
+
+	// Update registration logic to handle device ID provided from frontend
+	if registerData.DeviceID != "" {
+		user.DeviceID = registerData.DeviceID
+	}
 
 	// 1. Save to Database
 	result := database.DB.Create(&user)
@@ -87,13 +103,20 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	user.Password = ""
-	
-	// Create wallet for the new user (initial 1000 LakshMoney)
-	walletService := services.NewWalletService()
-	_, err = walletService.GetOrCreateWallet(user.ID)
+
+	// Create wallet for the new user (initial 0 Active / 50 Pending LKM)
+	_, err = h.walletService.GetOrCreateWallet(user.ID)
 	if err != nil {
 		log.Printf("[AUTH] Failed to create wallet for user %d: %v", user.ID, err)
 		// We don't fail registration if wallet creation fails, but we log it
+	}
+
+	// Link referral if invite code was provided
+	if registerData.InviteCode != "" {
+		if err := h.referralService.LinkReferral(user.ID, registerData.InviteCode); err != nil {
+			log.Printf("[AUTH] Failed to link referral for user %d: %v", user.ID, err)
+			// Don't fail registration, just log
+		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -107,6 +130,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var loginData struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
+		DeviceID string `json:"deviceId"`
 	}
 
 	if err := c.BodyParser(&loginData); err != nil {
@@ -140,6 +164,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid password",
 		})
+	}
+
+	// Update DeviceID if provided
+	if loginData.DeviceID != "" && loginData.DeviceID != user.DeviceID {
+		user.DeviceID = loginData.DeviceID
+		database.DB.Model(&user).Update("device_id", user.DeviceID)
 	}
 
 	user.Password = ""

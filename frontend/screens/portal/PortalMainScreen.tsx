@@ -53,6 +53,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { PortalLayoutProvider, usePortalLayout } from '../../context/PortalLayoutContext';
 import { PortalGrid } from '../../components/portal';
+import { BalancePill } from '../../components/wallet/BalancePill';
 
 
 const { width } = Dimensions.get('window');
@@ -191,6 +192,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     </View>
 
                     <View style={styles.headerRight}>
+                        <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
                         <TouchableOpacity
                             onPress={() => {
                                 setIsMenuOpen(true);
@@ -253,6 +255,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 </View>
 
                 <View style={styles.headerRight}>
+                    <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
                     <TouchableOpacity
                         onPress={() => {
                             setIsMenuOpen(true);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import useSWR from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -15,7 +15,10 @@ import {
     Loader2,
     AlertCircle,
     Flag,
-    Heart
+    Heart,
+    Wallet,
+    Tablet,
+    ShieldAlert
 } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
@@ -32,6 +35,16 @@ export default function UsersPage() {
         `/admin/users?search=${search}&role=${role}&status=${status}`,
         fetcher
     );
+
+    const deviceCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        users?.forEach((u: any) => {
+            if (u.deviceId) {
+                counts[u.deviceId] = (counts[u.deviceId] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [users]);
 
     const handleToggleBlock = async (userId: number, isBlocked: boolean) => {
         setActionLoading(userId.toString());
@@ -115,6 +128,7 @@ export default function UsersPage() {
                                     <th className="px-6 py-4 font-semibold">Location</th>
                                     <th className="px-6 py-4 font-semibold">Role</th>
                                     <th className="px-6 py-4 font-semibold">Dating</th>
+                                    <th className="px-6 py-4 font-semibold">Device</th>
                                     <th className="px-6 py-4 font-semibold">Status</th>
                                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                                 </tr>
@@ -181,6 +195,22 @@ export default function UsersPage() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
+                                                {user.deviceId ? (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-mono text-[var(--muted-foreground)] truncate max-w-[100px]" title={user.deviceId}>
+                                                            {user.deviceId.substring(0, 8)}...
+                                                        </span>
+                                                        {deviceCounts[user.deviceId] > 1 && (
+                                                            <span className="flex items-center gap-1 text-[9px] text-amber-500 font-bold uppercase mt-1">
+                                                                <ShieldAlert className="w-3 h-3" /> Suspicious Device
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] text-[var(--muted-foreground)] uppercase">N/A</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
                                                 {user.isBlocked ? (
                                                     <span className="flex items-center gap-1 text-xs text-red-500 font-medium">
                                                         <AlertCircle className="w-3 h-3" /> Blocked
@@ -192,23 +222,32 @@ export default function UsersPage() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <button
-                                                    onClick={() => handleToggleBlock(user.ID, user.isBlocked)}
-                                                    disabled={actionLoading === user.ID.toString() || user.role === 'superadmin'}
-                                                    className={`p-2 rounded-lg transition-all ${user.isBlocked
-                                                        ? 'text-emerald-500 hover:bg-emerald-50'
-                                                        : 'text-red-500 hover:bg-red-50'
-                                                        } disabled:opacity-30 disabled:cursor-not-allowed`}
-                                                    title={user.isBlocked ? 'Unblock user' : 'Block user'}
-                                                >
-                                                    {actionLoading === user.ID.toString() ? (
-                                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                                    ) : user.isBlocked ? (
-                                                        <UserCheck className="w-5 h-5" />
-                                                    ) : (
-                                                        <UserX className="w-5 h-5" />
-                                                    )}
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Link
+                                                        href={`/users/${user.ID}/wallet`}
+                                                        className="p-2 rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all"
+                                                        title="Manage wallet"
+                                                    >
+                                                        <Wallet className="w-5 h-5" />
+                                                    </Link>
+                                                    <button
+                                                        onClick={() => handleToggleBlock(user.ID, user.isBlocked)}
+                                                        disabled={actionLoading === user.ID.toString() || user.role === 'superadmin'}
+                                                        className={`p-2 rounded-lg transition-all ${user.isBlocked
+                                                            ? 'text-emerald-500 hover:bg-emerald-50'
+                                                            : 'text-red-500 hover:bg-red-50'
+                                                            } disabled:opacity-30 disabled:cursor-not-allowed`}
+                                                        title={user.isBlocked ? 'Unblock user' : 'Block user'}
+                                                    >
+                                                        {actionLoading === user.ID.toString() ? (
+                                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                                        ) : user.isBlocked ? (
+                                                            <UserCheck className="w-5 h-5" />
+                                                        ) : (
+                                                            <UserX className="w-5 h-5" />
+                                                        )}
+                                                    </button>
+                                                </div>
                                             </td>
                                         </motion.tr>
                                     ))}

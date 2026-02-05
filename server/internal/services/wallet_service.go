@@ -5,9 +5,11 @@ import (
 	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // WalletService handles wallet operations
@@ -31,19 +33,32 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 		return nil, err
 	}
 
-	// Create new wallet with initial balance
+	// Create new wallet with Welcome Bonus (Pending)
+	// Strategy: 0 Active + 50 Pending (unlocked after profile completion)
 	wallet = models.Wallet{
-		UserID:      userID,
-		Balance:     1000, // Initial balance: 1000 LakshMoney
-		TotalEarned: 0,
-		TotalSpent:  0,
+		UserID:         userID,
+		Balance:        0,  // Active balance starts at 0
+		PendingBalance: 50, // Welcome bonus (locked)
+		FrozenBalance:  0,
+		TotalEarned:    0,
+		TotalSpent:     0,
 	}
 
 	if err := database.DB.Create(&wallet).Error; err != nil {
 		return nil, err
 	}
 
-	log.Printf("[Wallet] Created wallet for user %d with 1000 LakshMoney", userID)
+	// Record welcome bonus transaction
+	welcomeTx := models.WalletTransaction{
+		WalletID:     wallet.ID,
+		Type:         models.TransactionTypeBonus,
+		Amount:       50,
+		Description:  "Welcome Bonus (Pending activation)",
+		BalanceAfter: 0, // Active balance is still 0
+	}
+	database.DB.Create(&welcomeTx)
+
+	log.Printf("[Wallet] Created wallet for user %d with 0 Active + 50 Pending LKM", userID)
 	return &wallet, nil
 }
 
@@ -55,13 +70,15 @@ func (s *WalletService) GetBalance(userID uint) (*models.WalletResponse, error) 
 	}
 
 	return &models.WalletResponse{
-		ID:           wallet.ID,
-		UserID:       wallet.UserID,
-		Balance:      wallet.Balance,
-		Currency:     "LKM",
-		CurrencyName: "LakshMoney",
-		TotalEarned:  wallet.TotalEarned,
-		TotalSpent:   wallet.TotalSpent,
+		ID:             wallet.ID,
+		UserID:         wallet.UserID,
+		Balance:        wallet.Balance,
+		PendingBalance: wallet.PendingBalance,
+		FrozenBalance:  wallet.FrozenBalance,
+		Currency:       "LKM",
+		CurrencyName:   "LakshMoney",
+		TotalEarned:    wallet.TotalEarned,
+		TotalSpent:     wallet.TotalSpent,
 	}, nil
 }
 
@@ -187,6 +204,16 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 		}
 
 		log.Printf("[Wallet] Bonus: %d LKM to user %d", amount, userID)
+
+		// Send Push Notification (if not welcome bonus, as it's typically processed silently/internally)
+		// Also skip generic bonus notification for referrals, as ReferralService sends a more detailed one.
+		descLower := strings.ToLower(description)
+		if !strings.Contains(descLower, "welcome") && !strings.Contains(descLower, "реферальный") {
+			go func() {
+				GetPushService().SendWalletBonusReceived(userID, amount, description)
+			}()
+		}
+
 		return nil
 	})
 }
@@ -322,4 +349,373 @@ func (s *WalletService) GetStats(userID uint) (*models.WalletStatsResponse, erro
 		ThisMonthIn:  thisMonthIn,
 		ThisMonthOut: thisMonthOut,
 	}, nil
+}
+
+// ==================== NEW MVP METHODS ====================
+
+// Spend deducts LKM from user's wallet with idempotency protection
+// dedupKey prevents double-spending (use messageID, requestID, etc.)
+func (s *WalletService) Spend(userID uint, amount int, dedupKey string, description string) error {
+	if amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		// Check for duplicate transaction (idempotency)
+		if dedupKey != "" {
+			var existing models.WalletTransaction
+			if err := tx.Where("dedup_key = ?", dedupKey).First(&existing).Error; err == nil {
+				log.Printf("[Wallet] Duplicate spend blocked: %s", dedupKey)
+				return nil // Already processed, return success
+			}
+		}
+
+		// Lock wallet for update
+		var wallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+
+		if wallet.Balance < amount {
+			return errors.New("insufficient balance")
+		}
+
+		// Deduct balance
+		newBalance := wallet.Balance - amount
+		if err := tx.Model(&wallet).Updates(map[string]interface{}{
+			"balance":     newBalance,
+			"total_spent": wallet.TotalSpent + amount,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Record transaction
+		spendTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeDebit,
+			Amount:       amount,
+			Description:  description,
+			DedupKey:     dedupKey,
+			BalanceAfter: newBalance,
+		}
+		if err := tx.Create(&spendTx).Error; err != nil {
+			return err
+		}
+
+		log.Printf("[Wallet] Spend: %d LKM from user %d (dedup: %s)", amount, userID, dedupKey)
+
+		// Trigger referral activation asynchronously (if user was referred)
+		go func(uid uint) {
+			referralService := NewReferralService(s)
+			if err := referralService.ProcessActivation(uid); err != nil {
+				log.Printf("[Wallet] Referral activation failed for user %d: %v", uid, err)
+			}
+		}(userID)
+
+		return nil
+	})
+}
+
+// AdminCharge adds LKM to user's wallet (God Mode)
+func (s *WalletService) AdminCharge(adminID, userID uint, amount int, reason string) error {
+	if amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+	if reason == "" {
+		return errors.New("reason is required for admin actions")
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		wallet, err := s.GetOrCreateWallet(userID)
+		if err != nil {
+			return err
+		}
+
+		newBalance := wallet.Balance + amount
+		if err := tx.Model(wallet).Updates(map[string]interface{}{
+			"balance":      newBalance,
+			"total_earned": wallet.TotalEarned + amount,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Record admin action
+		adminTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeAdminCharge,
+			Amount:       amount,
+			Description:  "Admin charge: " + reason,
+			AdminID:      &adminID,
+			Reason:       reason,
+			BalanceAfter: newBalance,
+		}
+		if err := tx.Create(&adminTx).Error; err != nil {
+			return err
+		}
+
+		log.Printf("[Wallet] AdminCharge: %d LKM to user %d by admin %d (reason: %s)", amount, userID, adminID, reason)
+		return nil
+	})
+}
+
+// AdminSeize removes LKM from user's wallet (God Mode)
+func (s *WalletService) AdminSeize(adminID, userID uint, amount int, reason string) error {
+	if amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+	if reason == "" {
+		return errors.New("reason is required for admin actions")
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var wallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+
+		if wallet.Balance < amount {
+			return errors.New("insufficient balance to seize")
+		}
+
+		newBalance := wallet.Balance - amount
+		if err := tx.Model(&wallet).Update("balance", newBalance).Error; err != nil {
+			return err
+		}
+
+		// Record admin action
+		seizeTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeAdminSeize,
+			Amount:       amount,
+			Description:  "Admin seize: " + reason,
+			AdminID:      &adminID,
+			Reason:       reason,
+			BalanceAfter: newBalance,
+		}
+		if err := tx.Create(&seizeTx).Error; err != nil {
+			return err
+		}
+
+		log.Printf("[Wallet] AdminSeize: %d LKM from user %d by admin %d (reason: %s)", amount, userID, adminID, reason)
+		return nil
+	})
+}
+
+// ActivatePendingBalance unlocks pending balance (Welcome Bonus) to active
+// Called when user completes profile or performs qualifying action
+func (s *WalletService) ActivatePendingBalance(userID uint) error {
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var wallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+
+		if wallet.PendingBalance <= 0 {
+			return nil // Nothing to activate
+		}
+
+		pendingAmount := wallet.PendingBalance
+		newBalance := wallet.Balance + pendingAmount
+
+		if err := tx.Model(&wallet).Updates(map[string]interface{}{
+			"balance":         newBalance,
+			"pending_balance": 0,
+			"total_earned":    wallet.TotalEarned + pendingAmount,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Record activation
+		activateTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeBonus,
+			Amount:       pendingAmount,
+			Description:  "Welcome Bonus Activated",
+			BalanceAfter: newBalance,
+		}
+		if err := tx.Create(&activateTx).Error; err != nil {
+			return err
+		}
+
+		log.Printf("[Wallet] Activated %d pending LKM for user %d", pendingAmount, userID)
+
+		// Send Push Notification
+		go func() {
+			GetPushService().SendWalletBalanceActivated(userID, pendingAmount)
+		}()
+
+		return nil
+	})
+}
+
+// HoldFunds freezes funds for a booking (not spent yet)
+func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, description string) error {
+	if amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var wallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+
+		if wallet.Balance < amount {
+			return errors.New("insufficient balance")
+		}
+
+		newBalance := wallet.Balance - amount
+		newFrozen := wallet.FrozenBalance + amount
+
+		if err := tx.Model(&wallet).Updates(map[string]interface{}{
+			"balance":        newBalance,
+			"frozen_balance": newFrozen,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Record hold
+		holdTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeHold,
+			Amount:       amount,
+			Description:  description,
+			BookingID:    &bookingID,
+			BalanceAfter: newBalance,
+		}
+		if err := tx.Create(&holdTx).Error; err != nil {
+			return err
+		}
+
+		log.Printf("[Wallet] Hold: %d LKM from user %d for booking %d", amount, userID, bookingID)
+		return nil
+	})
+}
+
+// ReleaseFunds releases held funds to provider or back to user
+func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, toUserID uint, description string) error {
+	if amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var wallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+
+		if wallet.FrozenBalance < amount {
+			return errors.New("insufficient frozen balance")
+		}
+
+		// Reduce frozen balance
+		newFrozen := wallet.FrozenBalance - amount
+		if err := tx.Model(&wallet).Updates(map[string]interface{}{
+			"frozen_balance": newFrozen,
+			"total_spent":    wallet.TotalSpent + amount,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Record release from sender
+		releaseTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeRelease,
+			Amount:       amount,
+			Description:  description,
+			BookingID:    &bookingID,
+			BalanceAfter: wallet.Balance, // Active balance unchanged
+		}
+		if err := tx.Create(&releaseTx).Error; err != nil {
+			return err
+		}
+
+		// Credit to provider
+		var toWallet models.Wallet
+		err := tx.Where("user_id = ?", toUserID).First(&toWallet).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Create wallet for provider if doesn't exist
+			toWallet = models.Wallet{UserID: toUserID, Balance: 0, PendingBalance: 0, FrozenBalance: 0}
+			if err := tx.Create(&toWallet).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+
+		newToBalance := toWallet.Balance + amount
+		if err := tx.Model(&toWallet).Updates(map[string]interface{}{
+			"balance":      newToBalance,
+			"total_earned": toWallet.TotalEarned + amount,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Record credit to provider
+		creditTx := models.WalletTransaction{
+			WalletID:        toWallet.ID,
+			Type:            models.TransactionTypeCredit,
+			Amount:          amount,
+			Description:     description,
+			BookingID:       &bookingID,
+			RelatedWalletID: &wallet.ID,
+			BalanceAfter:    newToBalance,
+		}
+		if err := tx.Create(&creditTx).Error; err != nil {
+			return err
+		}
+
+		log.Printf("[Wallet] Release: %d LKM from user %d to user %d (booking %d)", amount, userID, toUserID, bookingID)
+		return nil
+	})
+}
+
+// RefundHold returns held funds back to user's active balance
+func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, description string) error {
+	if amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var wallet models.Wallet
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+
+		if wallet.FrozenBalance < amount {
+			return errors.New("insufficient frozen balance")
+		}
+
+		newBalance := wallet.Balance + amount
+		newFrozen := wallet.FrozenBalance - amount
+
+		if err := tx.Model(&wallet).Updates(map[string]interface{}{
+			"balance":        newBalance,
+			"frozen_balance": newFrozen,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Record refund
+		refundTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeRefund,
+			Amount:       amount,
+			Description:  description,
+			BookingID:    &bookingID,
+			BalanceAfter: newBalance,
+		}
+		if err := tx.Create(&refundTx).Error; err != nil {
+			return err
+		}
+
+		log.Printf("[Wallet] RefundHold: %d LKM to user %d (booking %d cancelled)", amount, userID, bookingID)
+		return nil
+	})
 }

@@ -38,13 +38,14 @@
     "expo-image-picker": "^17.0.10",
     "express": "^4.22.1",
     "http-proxy-middleware": "^2.0.9",
-    "react-native-fast-image": "^8.6.3"
+    "react-native-fast-image": "^8.6.3",
+    "react-native-view-shot": "^4.0.3"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "wait-on": "^9.0.3",
+    "kill-port": "^2.0.1",
     "rimraf": "^5.0.5",
-    "kill-port": "^2.0.1"
+    "wait-on": "^9.0.3"
   },
   "keywords": [
     "proxy",

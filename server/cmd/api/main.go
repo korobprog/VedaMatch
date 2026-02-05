@@ -88,14 +88,55 @@ func main() {
 
 	app.Use(logger.New())
 
+	// Universal Links & App Links support
+	app.Get("/.well-known/apple-app-site-association", func(c *fiber.Ctx) error {
+		c.Set("Content-Type", "application/json")
+		return c.SendString(`{
+			"applinks": {
+				"apps": [],
+				"details": [
+					{
+						"appID": "YOUR_APPLE_TEAM_ID.com.ragagent",
+						"paths": ["/register/*", "/portal/*", "/invite-friends", "/wallet", "/login/*"]
+					}
+				]
+			}
+		}`)
+	})
+
+	app.Get("/.well-known/assetlinks.json", func(c *fiber.Ctx) error {
+		return c.JSON([]map[string]interface{}{
+			{
+				"relation": []string{"delegate_permission/common.handle_all_urls"},
+				"target": map[string]interface{}{
+					"namespace":                "android_app",
+					"package_name":             "com.ragagent",
+					"sha256_cert_fingerprints": []string{"YOUR_ANDROID_SHA256_FINGERPRINT"},
+				},
+			},
+		})
+	})
+
 	// Services
 	aiChatService := services.NewAiChatService()
+	walletService := services.NewWalletService()
+	referralService := services.NewReferralService(walletService)
+	serviceService := services.NewServiceService()
+	calendarService := services.NewCalendarService()
+	bookingService := services.NewBookingService(walletService, serviceService, referralService)
 	hub := websocket.NewHub()
 	go hub.Run()
 
+	// Ensure all existing users have invite codes
+	go func() {
+		if err := referralService.GenerateInviteCodesForExistingUsers(); err != nil {
+			log.Printf("[Referral] Static code generation failed: %v", err)
+		}
+	}()
+
 	// Handlers
-	authHandler := handlers.NewAuthHandler()
-	messageHandler := handlers.NewMessageHandler(aiChatService, hub)
+	authHandler := handlers.NewAuthHandler(walletService, referralService)
+	messageHandler := handlers.NewMessageHandler(aiChatService, hub, walletService, referralService)
 	roomHandler := handlers.NewRoomHandler()
 	adminHandler := handlers.NewAdminHandler()
 	aiHandler := handlers.NewAiHandler()
@@ -121,9 +162,10 @@ func main() {
 	multimediaHandler := handlers.NewMultimediaHandler()
 	yatraHandler := handlers.NewYatraHandler()
 	yatraAdminHandler := handlers.NewYatraAdminHandler()
-	walletHandler := handlers.NewWalletHandler()
+	walletHandler := handlers.NewWalletHandler(walletService)
+	referralHandler := handlers.NewReferralHandler(referralService)
 	serviceHandler := handlers.NewServiceHandler()
-	bookingHandler := handlers.NewBookingHandler()
+	bookingHandler := handlers.NewBookingHandler(bookingService, calendarService)
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -334,6 +376,18 @@ func main() {
 	admin.Get("/map/markers", mapHandler.AdminGetAllMarkers)
 	admin.Get("/map/config", mapHandler.GetMarkerConfig)
 	admin.Post("/geocode-users", adminHandler.GeocodeAllUsers)
+
+	// Admin Wallet Management (God Mode)
+	// Referral & Wallet Analytics
+	admin.Get("/referrals/stats", adminHandler.GetReferralGlobalStats)
+	admin.Get("/referrals/leaderboard", adminHandler.GetReferralLeaderboard)
+	admin.Get("/wallet/global-stats", adminHandler.GetGlobalWalletStats)
+
+	admin.Get("/wallet/:userId", adminHandler.GetUserWallet)
+	admin.Get("/wallet/:userId/transactions", adminHandler.GetUserTransactions)
+	admin.Post("/wallet/charge", adminHandler.AdminChargeWallet)
+	admin.Post("/wallet/seize", adminHandler.AdminSeizeWallet)
+	admin.Post("/wallet/:userId/activate", adminHandler.ActivateUserPendingBalance)
 
 	// Admin Shop Management Routes
 	admin.Get("/shops", shopHandler.AdminGetShops)
@@ -682,6 +736,12 @@ func main() {
 	protected.Get("/wallet/transactions", walletHandler.GetTransactions)
 	protected.Get("/wallet/stats", walletHandler.GetStats)
 	protected.Post("/wallet/transfer", walletHandler.Transfer)
+
+	// Referral System (Самбандха)
+	protected.Get("/referral/invite", referralHandler.GetMyInviteLink)
+	protected.Get("/referral/stats", referralHandler.GetMyReferralStats)
+	protected.Get("/referral/list", referralHandler.GetMyReferrals)
+	api.Get("/referral/validate/:code", referralHandler.ValidateInviteCode) // Public endpoint
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {

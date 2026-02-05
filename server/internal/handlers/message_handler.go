@@ -1,24 +1,31 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"rag-agent-server/internal/websocket"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 type MessageHandler struct {
-	aiService *services.AiChatService
-	hub       *websocket.Hub
+	aiService       *services.AiChatService
+	hub             *websocket.Hub
+	walletService   *services.WalletService
+	referralService *services.ReferralService
 }
 
-func NewMessageHandler(aiService *services.AiChatService, hub *websocket.Hub) *MessageHandler {
+func NewMessageHandler(aiService *services.AiChatService, hub *websocket.Hub, walletService *services.WalletService, referralService *services.ReferralService) *MessageHandler {
 	return &MessageHandler{
-		aiService: aiService,
-		hub:       hub,
+		aiService:       aiService,
+		hub:             hub,
+		walletService:   walletService,
+		referralService: referralService,
 	}
 }
 
@@ -36,6 +43,52 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 		})
 	}
 
+	// LKM Billing: Check if this is an AI-enabled room
+	aiEnabled := false
+	if msg.RoomID != 0 {
+		var room models.Room
+		if err := database.DB.First(&room, msg.RoomID).Error; err == nil {
+			aiEnabled = room.AiEnabled
+		}
+	}
+
+	// If AI is enabled, charge 1 LKM per message
+	if aiEnabled && h.walletService != nil {
+		// Get user ID from JWT (prefer JWT over body for security)
+		userID := middleware.GetUserID(c)
+		if userID == 0 {
+			userID = msg.SenderID // Fallback to message sender
+		}
+
+		// Generate idempotent key: userID + timestamp + first 20 chars of content
+		contentHash := msg.Content
+		if len(contentHash) > 20 {
+			contentHash = contentHash[:20]
+		}
+		dedupKey := fmt.Sprintf("ai_msg_%d_%d_%s", userID, time.Now().UnixNano(), contentHash)
+
+		// Attempt to spend 1 LKM
+		err := h.walletService.Spend(userID, 1, dedupKey, "AI Chat message")
+		if err != nil {
+			log.Printf("[Billing] LKM spend failed for user %d: %v", userID, err)
+			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+				"error":   "Недостаточно LKM для отправки сообщения",
+				"message": "Пополните баланс для использования AI Chat",
+				"code":    "INSUFFICIENT_LKM",
+			})
+		}
+		log.Printf("[Billing] Charged 1 LKM from user %d for AI message", userID)
+
+		// Referral Activation: If this is the user's first spend, activate their referral
+		if h.referralService != nil {
+			go func(uid uint) {
+				if err := h.referralService.ProcessActivation(uid); err != nil {
+					log.Printf("[Referral] Activation failed for user %d: %v", uid, err)
+				}
+			}(userID)
+		}
+	}
+
 	if err := database.DB.Create(&msg).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not save message",
@@ -48,7 +101,7 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 	}
 
 	// Trigger AI if it's a room message and AI is enabled
-	if msg.RoomID != 0 && h.aiService != nil {
+	if msg.RoomID != 0 && h.aiService != nil && aiEnabled {
 		go h.handleAiResponse(msg.RoomID)
 	}
 

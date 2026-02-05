@@ -22,6 +22,8 @@ import { COLORS } from '../../components/chat/ChatConstants';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
+import { useWallet } from '../../context/WalletContext';
+import { Wallet, Users, ChevronRight } from 'lucide-react-native';
 
 export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
@@ -34,8 +36,6 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         selectModel,
         imageSize,
         setImageSize,
-        defaultMenuTab,
-        setDefaultMenuTab,
         isAutoMagicEnabled,
         toggleAutoMagic,
         vTheme,
@@ -48,6 +48,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
 
     const { logout } = useUser();
     const { refreshLocationData } = useLocation();
+    const { wallet, loading: walletLoading } = useWallet();
 
     const [activeFilters, setActiveFilters] = useState({
         text: false,
@@ -149,6 +150,66 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Wallet Section */}
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
+                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Мой счёт</Text>
+
+                    {/* Balance Card */}
+                    <TouchableOpacity
+                        style={[
+                            styles.walletCard,
+                            { backgroundColor: vTheme.colors.backgroundSecondary }
+                        ]}
+                        onPress={() => navigation.navigate('Wallet' as any)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.walletMain}>
+                            <View style={[styles.walletIconContainer, { backgroundColor: 'rgba(245,158,11,0.15)' }]}>
+                                <Wallet size={24} color="#F59E0B" />
+                            </View>
+                            <View style={styles.walletInfo}>
+                                <Text style={[styles.walletLabel, { color: vTheme.colors.textSecondary }]}>
+                                    Доступно
+                                </Text>
+                                <View style={styles.walletBalanceRow}>
+                                    <Text style={styles.walletBalance}>
+                                        {walletLoading ? '...' : (wallet?.balance ?? 0)}
+                                    </Text>
+                                    <Text style={styles.walletCurrency}>LKM</Text>
+                                </View>
+                                {(wallet?.pendingBalance ?? 0) > 0 && (
+                                    <Text style={styles.walletPending}>
+                                        +{wallet?.pendingBalance} в ожидании
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+                        <ChevronRight size={20} color={vTheme.colors.textSecondary} />
+                    </TouchableOpacity>
+
+                    {/* Invite Friends Button */}
+                    <TouchableOpacity
+                        style={[
+                            styles.actionButton,
+                            { backgroundColor: 'rgba(34,197,94,0.1)', borderColor: 'rgba(34,197,94,0.3)' }
+                        ]}
+                        onPress={() => navigation.navigate('InviteFriends' as any)}
+                    >
+                        <View style={styles.actionContent}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Users size={20} color="#22C55E" />
+                                <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
+                                    Пригласить друзей
+                                </Text>
+                            </View>
+                            <Text style={[styles.actionDescription, { color: vTheme.colors.textSecondary }]}>
+                                Получите 100 LKM за каждого активного друга
+                            </Text>
+                        </View>
+                        <ChevronRight size={20} color="#22C55E" />
+                    </TouchableOpacity>
+                </View>
+
                 {/* Image Settings Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.imageSettings')}</Text>
@@ -196,37 +257,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* Menu Settings Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.menuSettings')}</Text>
-                    <Text style={[styles.subLabel, { color: theme.subText }]}>{t('settings.defaultTab')}</Text>
-                    <View style={styles.sizeOptions}>
-                        <TouchableOpacity
-                            style={[
-                                styles.sizeBtn,
-                                {
-                                    backgroundColor: defaultMenuTab === 'portal' ? theme.button : theme.inputBackground,
-                                    borderColor: theme.borderColor
-                                }
-                            ]}
-                            onPress={() => setDefaultMenuTab('portal')}
-                        >
-                            <Text style={{ color: defaultMenuTab === 'portal' ? theme.buttonText : theme.text }}>{t('settings.title')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[
-                                styles.sizeBtn,
-                                {
-                                    backgroundColor: defaultMenuTab === 'history' ? theme.button : theme.inputBackground,
-                                    borderColor: theme.borderColor
-                                }
-                            ]}
-                            onPress={() => setDefaultMenuTab('history')}
-                        >
-                            <Text style={{ color: defaultMenuTab === 'history' ? theme.buttonText : theme.text }}>{t('chat.history')}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+
 
                 {/* Auto-Magic Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
@@ -672,5 +703,53 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,153,51,0.4)',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    walletCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: 12,
+    },
+    walletMain: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+    },
+    walletIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    walletInfo: {
+        gap: 2,
+    },
+    walletLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    walletBalanceRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 4,
+    },
+    walletBalance: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#F59E0B',
+        fontFamily: 'Cinzel-Bold',
+    },
+    walletCurrency: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#F59E0B',
+    },
+    walletPending: {
+        fontSize: 12,
+        color: '#9CA3AF',
+        fontWeight: '500',
     },
 });

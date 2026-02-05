@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { COLORS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
-import { Phone, Menu, ChevronLeft } from 'lucide-react-native';
+import { Phone, Menu, ChevronLeft, Sparkles } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../utils/url';
+import { BalancePill } from '../wallet/BalancePill';
 
 interface ChatHeaderProps {
     title: string;
@@ -65,9 +66,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
                         {/* Avatar Addition for "System" feel */}
                         <View style={[styles.avatarContainer, { backgroundColor: theme.inputBackground }]}>
-                            {recipientUser.avatarUrl ? (
+                            {recipientUser.avatarUrl && getMediaUrl(recipientUser.avatarUrl) ? (
                                 <Image
-                                    source={{ uri: getMediaUrl(recipientUser.avatarUrl) }}
+                                    source={{ uri: getMediaUrl(recipientUser.avatarUrl)! }}
                                     style={styles.avatar}
                                 />
                             ) : (
@@ -99,10 +100,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </View>
 
                 <View style={styles.rightActions}>
-                    {onCallPress && recipientUser && (
-                        <TouchableOpacity onPress={onCallPress} style={styles.actionButton}>
-                            <Phone color={theme.text} size={24} />
-                        </TouchableOpacity>
+                    {recipientUser ? (
+                        // P2P chat - show call button
+                        onCallPress && (
+                            <TouchableOpacity onPress={onCallPress} style={styles.actionButton}>
+                                <Phone color={theme.text} size={24} />
+                            </TouchableOpacity>
+                        )
+                    ) : (
+                        // AI chat - show balance pill
+                        <View style={styles.aiBalanceContainer}>
+                            <Sparkles size={14} color="#F59E0B" style={{ marginRight: 4 }} />
+                            <BalancePill size="small" />
+                        </View>
                     )}
                 </View>
             </View>
@@ -168,5 +178,9 @@ const styles = StyleSheet.create({
     },
     actionButton: {
         padding: 8,
+    },
+    aiBalanceContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
 });

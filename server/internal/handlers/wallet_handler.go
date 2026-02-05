@@ -15,9 +15,9 @@ type WalletHandler struct {
 }
 
 // NewWalletHandler creates a new wallet handler
-func NewWalletHandler() *WalletHandler {
+func NewWalletHandler(walletService *services.WalletService) *WalletHandler {
 	return &WalletHandler{
-		walletService: services.NewWalletService(),
+		walletService: walletService,
 	}
 }
 

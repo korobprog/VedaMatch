@@ -6,12 +6,14 @@ import { getAuthHeaders } from './contactService';
 
 // ==================== TYPES ====================
 
-export type TransactionType = 'credit' | 'debit' | 'bonus' | 'refund';
+export type TransactionType = 'credit' | 'debit' | 'bonus' | 'refund' | 'hold' | 'release' | 'admin_charge' | 'admin_seize';
 
 export interface WalletResponse {
     id: number;
     userId: number;
     balance: number;
+    pendingBalance: number;   // Pending (locked until activation)
+    frozenBalance: number;    // Frozen (held for bookings)
     currency: string;
     currencyName: string;
     totalEarned: number;
@@ -77,13 +79,21 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
     debit: 'Списание',
     bonus: 'Бонус',
     refund: 'Возврат',
+    hold: 'Заморозка',
+    release: 'Разморозка',
+    admin_charge: 'Начисление (Админ)',
+    admin_seize: 'Списание (Админ)',
 };
 
 export const TRANSACTION_TYPE_COLORS: Record<TransactionType, string> = {
-    credit: '#4CAF50',  // Green
-    debit: '#F44336',   // Red
-    bonus: '#FF9800',   // Orange
-    refund: '#2196F3',  // Blue
+    credit: '#4CAF50',       // Green
+    debit: '#F44336',        // Red
+    bonus: '#FF9800',        // Orange (Amber)
+    refund: '#2196F3',       // Blue
+    hold: '#9E9E9E',         // Gray
+    release: '#4CAF50',      // Green
+    admin_charge: '#FFD700', // Gold
+    admin_seize: '#FF5722',  // Deep Orange
 };
 
 // ==================== API FUNCTIONS ====================
@@ -176,8 +186,14 @@ export function formatBalanceWithSymbol(amount: number): string {
 /**
  * Get transaction sign (+/-)
  */
-export function getTransactionSign(type: TransactionType): '+' | '-' {
-    return type === 'credit' || type === 'bonus' || type === 'refund' ? '+' : '-';
+export function getTransactionSign(type: TransactionType): '+' | '-' | '⎔' {
+    if (type === 'credit' || type === 'bonus' || type === 'refund' || type === 'admin_charge' || type === 'release') {
+        return '+';
+    }
+    if (type === 'hold') {
+        return '⎔'; // Hold icon (neutral)
+    }
+    return '-';
 }
 
 /**

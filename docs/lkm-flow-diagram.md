@@ -1,4 +1,4 @@
-# Схема движения средств Lakshmani (LKM Flow)
+# Схема движения средств Lakshmoney (LKM Flow)
 
 > **Тип:** Архитектурная диаграмма  
 > **Связь:** `monetization-lakshmani.md`

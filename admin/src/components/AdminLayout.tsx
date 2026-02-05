@@ -15,6 +15,7 @@ import {
     UserCircle,
     Sparkles,
     Heart,
+    Gift,
     MessageSquare,
     Key,
     ShoppingBag,
@@ -35,6 +36,7 @@ import { AdminNotificationBell } from '@/components/AdminNotificationBell';
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Users', path: '/users' },
+    { icon: Gift, label: 'Referrals & Wallet', path: '/referrals' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
     { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
     { icon: Heart, label: 'Dating', path: '/dating' },
@@ -77,6 +79,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             const exclusiveAdminRoutes = [
                 '/dashboard',
                 '/users',
+                '/referrals',
                 '/admins',
                 '/settings',
                 '/polza',

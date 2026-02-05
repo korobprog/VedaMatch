@@ -10,6 +10,7 @@ import (
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"strconv"
 	"strings"
 	"time"
 
@@ -471,5 +472,238 @@ func (h *AdminHandler) GeocodeAllUsers(c *fiber.Ctx) error {
 		"geocoded": geocoded,
 		"failed":   failed,
 		"results":  results,
+	})
+}
+
+// ==================== WALLET ADMIN (God Mode) ====================
+
+// AdminChargeWallet adds LKM to user's wallet
+// POST /api/admin/wallet/charge
+func (h *AdminHandler) AdminChargeWallet(c *fiber.Ctx) error {
+	adminID := c.Locals("userId").(uint)
+
+	var body struct {
+		UserID uint   `json:"userId"`
+		Amount int    `json:"amount"`
+		Reason string `json:"reason"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	if body.Amount <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Amount must be positive"})
+	}
+	if body.Reason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Reason is required"})
+	}
+
+	walletService := services.NewWalletService()
+	if err := walletService.AdminCharge(adminID, body.UserID, body.Amount, body.Reason); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Return updated balance
+	wallet, _ := walletService.GetBalance(body.UserID)
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Successfully credited %d LKM to user %d", body.Amount, body.UserID),
+		"wallet":  wallet,
+	})
+}
+
+// AdminSeizeWallet removes LKM from user's wallet
+// POST /api/admin/wallet/seize
+func (h *AdminHandler) AdminSeizeWallet(c *fiber.Ctx) error {
+	adminID := c.Locals("userId").(uint)
+
+	var body struct {
+		UserID uint   `json:"userId"`
+		Amount int    `json:"amount"`
+		Reason string `json:"reason"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	if body.Amount <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Amount must be positive"})
+	}
+	if body.Reason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Reason is required"})
+	}
+
+	walletService := services.NewWalletService()
+	if err := walletService.AdminSeize(adminID, body.UserID, body.Amount, body.Reason); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Return updated balance
+	wallet, _ := walletService.GetBalance(body.UserID)
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Successfully seized %d LKM from user %d", body.Amount, body.UserID),
+		"wallet":  wallet,
+	})
+}
+
+// GetUserWallet returns wallet info for a specific user
+// GET /api/admin/wallet/:userId
+func (h *AdminHandler) GetUserWallet(c *fiber.Ctx) error {
+	userID, err := c.ParamsInt("userId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+
+	walletService := services.NewWalletService()
+	wallet, err := walletService.GetBalance(uint(userID))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Wallet not found"})
+	}
+
+	return c.JSON(wallet)
+}
+
+// GetUserTransactions returns transaction history for a specific user
+// GET /api/admin/wallet/:userId/transactions
+func (h *AdminHandler) GetUserTransactions(c *fiber.Ctx) error {
+	userID, err := c.ParamsInt("userId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+
+	filters := models.TransactionFilters{
+		Type:     models.TransactionType(c.Query("type")),
+		DateFrom: c.Query("dateFrom"),
+		DateTo:   c.Query("dateTo"),
+	}
+
+	if page, err := strconv.Atoi(c.Query("page", "1")); err == nil {
+		filters.Page = page
+	}
+	if limit, err := strconv.Atoi(c.Query("limit", "50")); err == nil {
+		filters.Limit = limit
+	}
+
+	walletService := services.NewWalletService()
+	result, err := walletService.GetTransactions(uint(userID), filters)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(result)
+}
+
+// ActivateUserPendingBalance activates pending balance for a user
+// POST /api/admin/wallet/:userId/activate
+func (h *AdminHandler) ActivateUserPendingBalance(c *fiber.Ctx) error {
+	userIDParam, err := c.ParamsInt("userId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	userID := uint(userIDParam)
+
+	walletService := services.NewWalletService()
+	if err := walletService.ActivatePendingBalance(userID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Return updated balance
+	wallet, _ := walletService.GetBalance(userID)
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Pending balance activated",
+		"wallet":  wallet,
+	})
+}
+
+// GetReferralGlobalStats returns global referral statistics
+// GET /api/admin/referrals/stats
+func (h *AdminHandler) GetReferralGlobalStats(c *fiber.Ctx) error {
+	var totalReferrals int64
+	var activeReferrals int64
+	var pendingReferrals int64
+
+	database.DB.Model(&models.User{}).Where("referrer_id IS NOT NULL").Count(&totalReferrals)
+	database.DB.Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusActivated).Count(&activeReferrals)
+	database.DB.Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusPending).Count(&pendingReferrals)
+
+	var totalEarnedByReferrers int64
+	database.DB.Model(&models.WalletTransaction{}).
+		Where("description LIKE ?", "%Реферальный бонус%").
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalEarnedByReferrers)
+
+	return c.JSON(fiber.Map{
+		"totalReferrals":         totalReferrals,
+		"activeReferrals":        activeReferrals,
+		"pendingReferrals":       pendingReferrals,
+		"totalEarnedByReferrers": totalEarnedByReferrers,
+		"activationRate":         float64(activeReferrals) / float64(totalReferrals) * 100,
+	})
+}
+
+// GetReferralLeaderboard returns top referrers
+// GET /api/admin/referrals/leaderboard
+func (h *AdminHandler) GetReferralLeaderboard(c *fiber.Ctx) error {
+	type LeaderboardEntry struct {
+		ID            uint   `json:"id"`
+		SpiritualName string `json:"spiritualName"`
+		KarmicName    string `json:"karmicName"`
+		Email         string `json:"email"`
+		AvatarURL     string `json:"avatarUrl"`
+		TotalInvited  int    `json:"totalInvited"`
+		ActiveInvited int    `json:"activeInvited"`
+		TotalEarned   int    `json:"totalEarned"`
+	}
+
+	var leaderboard []LeaderboardEntry
+	err := database.DB.Table("users").
+		Select("users.id, users.spiritual_name, users.karmic_name, users.email, users.avatar_url, " +
+			"COUNT(referrals.id) as total_invited, " +
+			"SUM(CASE WHEN referrals.referral_status = 'active' THEN 1 ELSE 0 END) as active_invited, " +
+			"SUM(CASE WHEN referrals.referral_status = 'active' THEN 100 ELSE 0 END) as total_earned").
+		Joins("JOIN users as referrals ON referrals.referrer_id = users.id").
+		Group("users.id").
+		Order("total_earned DESC").
+		Limit(10).
+		Scan(&leaderboard).Error
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(leaderboard)
+}
+
+// GetGlobalWalletStats returns overall wallet system statistics
+// GET /api/admin/wallet/global-stats
+func (h *AdminHandler) GetGlobalWalletStats(c *fiber.Ctx) error {
+	var totalBalance int64
+	var totalPending int64
+	var totalFrozen int64
+
+	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(balance), 0)").Scan(&totalBalance)
+	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(pending_balance), 0)").Scan(&totalPending)
+	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(frozen_balance), 0)").Scan(&totalFrozen)
+
+	var totalIssued int64
+	database.DB.Model(&models.WalletTransaction{}).
+		Where("type IN ?", []models.TransactionType{models.TransactionTypeCredit, models.TransactionTypeBonus}).
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalIssued)
+
+	var totalSpent int64
+	database.DB.Model(&models.WalletTransaction{}).
+		Where("type = ?", models.TransactionTypeDebit).
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalSpent)
+
+	return c.JSON(fiber.Map{
+		"totalActiveLKM":  totalBalance,
+		"totalPendingLKM": totalPending,
+		"totalFrozenLKM":  totalFrozen,
+		"totalIssuedLKM":  totalIssued,
+		"totalSpentLKM":   totalSpent,
+		"circulationLKM":  totalBalance + totalFrozen,
 	})
 }

@@ -354,6 +354,22 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 // No need to fetchMessages() here anymore, 
                 // the WS will send it back to us or we can rely on immediate local update if we want 
                 // but for now relying on WS is cleaner for "sync"
+            } else if (response.status === 402) {
+                // Insufficient LKM balance - show modal to top up
+                const errorData = await response.json();
+                Alert.alert(
+                    t('wallet.insufficientBalance') || 'Недостаточно LKM',
+                    errorData.message || t('wallet.topUpToChat') || 'Пополните баланс для использования AI Chat',
+                    [
+                        { text: t('common.cancel') || 'Отмена', style: 'cancel' },
+                        {
+                            text: t('wallet.goToWallet') || 'Пополнить',
+                            onPress: () => navigation.navigate('Wallet'),
+                        },
+                    ]
+                );
+                // Restore the input text so user doesn't lose their message
+                setInputText(newMessage.content);
             }
         } catch (error) {
             console.error('Error sending message:', error);

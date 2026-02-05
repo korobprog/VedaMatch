@@ -20,7 +20,9 @@ type Wallet struct {
 	User   *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
 
 	// Balance in Лакшми
-	Balance int `json:"balance" gorm:"default:1000"` // Initial balance: 1000 LakshMoney
+	Balance        int `json:"balance" gorm:"default:0"`        // Active balance (can spend)
+	PendingBalance int `json:"pendingBalance" gorm:"default:0"` // Pending (locked until activation)
+	FrozenBalance  int `json:"frozenBalance" gorm:"default:0"`  // Frozen (held for bookings)
 
 	// Statistics
 	TotalEarned int `json:"totalEarned" gorm:"default:0"` // Total credits received
@@ -47,10 +49,14 @@ func (w *Wallet) AfterFind(tx *gorm.DB) error {
 type TransactionType string
 
 const (
-	TransactionTypeCredit TransactionType = "credit" // Пополнение (заработок)
-	TransactionTypeDebit  TransactionType = "debit"  // Списание (оплата)
-	TransactionTypeBonus  TransactionType = "bonus"  // Бонус от системы
-	TransactionTypeRefund TransactionType = "refund" // Возврат
+	TransactionTypeCredit     TransactionType = "credit"      // Пополнение (заработок)
+	TransactionTypeDebit      TransactionType = "debit"       // Списание (оплата)
+	TransactionTypeBonus      TransactionType = "bonus"       // Бонус от системы
+	TransactionTypeRefund     TransactionType = "refund"      // Возврат
+	TransactionTypeHold       TransactionType = "hold"        // Заморозка (для бронирования)
+	TransactionTypeRelease    TransactionType = "release"     // Разморозка
+	TransactionTypeAdminCharge TransactionType = "admin_charge" // Админ: начисление
+	TransactionTypeAdminSeize  TransactionType = "admin_seize"  // Админ: списание
 )
 
 // WalletTransaction represents a single transaction in a wallet
@@ -78,19 +84,28 @@ type WalletTransaction struct {
 
 	// Balance after this transaction
 	BalanceAfter int `json:"balanceAfter" gorm:"not null"`
+
+	// Idempotency key (to prevent double spending)
+	DedupKey string `json:"dedupKey" gorm:"type:varchar(100);index"`
+
+	// Admin audit trail
+	AdminID *uint `json:"adminId" gorm:"index"` // Who performed admin action
+	Reason  string `json:"reason" gorm:"type:varchar(500)"` // Reason for admin action
 }
 
 // ==================== DTOs ====================
 
 // WalletResponse for API response
 type WalletResponse struct {
-	ID           uint   `json:"id"`
-	UserID       uint   `json:"userId"`
-	Balance      int    `json:"balance"`
-	Currency     string `json:"currency"`
-	CurrencyName string `json:"currencyName"`
-	TotalEarned  int    `json:"totalEarned"`
-	TotalSpent   int    `json:"totalSpent"`
+	ID             uint   `json:"id"`
+	UserID         uint   `json:"userId"`
+	Balance        int    `json:"balance"`
+	PendingBalance int    `json:"pendingBalance"`
+	FrozenBalance  int    `json:"frozenBalance"`
+	Currency       string `json:"currency"`
+	CurrencyName   string `json:"currencyName"`
+	TotalEarned    int    `json:"totalEarned"`
+	TotalSpent     int    `json:"totalSpent"`
 }
 
 // TransferRequest for transferring Лакшми between wallets

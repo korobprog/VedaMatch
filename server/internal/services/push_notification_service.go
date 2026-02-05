@@ -295,6 +295,67 @@ func (s *PushNotificationService) SendBookingCompleted(clientID uint, bookingID 
 	return s.SendToUser(clientID, message)
 }
 
+// ==================== WALLET & REFERRAL NOTIFICATIONS ====================
+
+// SendWalletBonusReceived notifies user about a bonus credit
+func (s *PushNotificationService) SendWalletBonusReceived(userID uint, amount int, reason string) error {
+	message := PushMessage{
+		Title:    "💰 Начисление LKM",
+		Body:     fmt.Sprintf("Вам начислено %d LKM: %s", amount, reason),
+		Priority: "high",
+		Data: map[string]string{
+			"type":   "wallet_bonus",
+			"amount": fmt.Sprintf("%d", amount),
+			"screen": "Wallet",
+		},
+	}
+	return s.SendToUser(userID, message)
+}
+
+// SendReferralJoined notifies referrer that a new friend joined
+func (s *PushNotificationService) SendReferralJoined(referrerID uint, friendName string) error {
+	message := PushMessage{
+		Title:    "🤝 Новый друг в Сангхе!",
+		Body:     fmt.Sprintf("%s присоединился по вашей ссылке", friendName),
+		Priority: "default",
+		Data: map[string]string{
+			"type":   "referral_joined",
+			"screen": "InviteFriends",
+		},
+	}
+	return s.SendToUser(referrerID, message)
+}
+
+// SendReferralActivated notifies referrer that a friend has activated (made first spend)
+func (s *PushNotificationService) SendReferralActivated(referrerID uint, friendName string, reward int) error {
+	message := PushMessage{
+		Title:    "🌟 Друг активировался!",
+		Body:     fmt.Sprintf("Ваш друг %s совершил первую трату. Вам начислено %d LKM!", friendName, reward),
+		Priority: "high",
+		Data: map[string]string{
+			"type":   "referral_activated",
+			"amount": fmt.Sprintf("%d", reward),
+			"screen": "InviteFriends",
+		},
+	}
+	return s.SendToUser(referrerID, message)
+}
+
+// SendWalletBalanceActivated notifies user that their pending balance is now active
+func (s *PushNotificationService) SendWalletBalanceActivated(userID uint, amount int) error {
+	message := PushMessage{
+		Title:    "✨ Бонус разморожен!",
+		Body:     fmt.Sprintf("Ваши %d LKM теперь доступны для использования. Тратьте их на AI и услуги!", amount),
+		Priority: "high",
+		Data: map[string]string{
+			"type":   "wallet_activated",
+			"amount": fmt.Sprintf("%d", amount),
+			"screen": "Wallet",
+		},
+	}
+	return s.SendToUser(userID, message)
+}
+
 // formatTime helper for readable time format in Russian
 func formatTime(t time.Time) string {
 	months := []string{"", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"}

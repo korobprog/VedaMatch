@@ -32,6 +32,7 @@ import { RootStackParamList } from '../types/navigation';
 import axios from 'axios';
 import { API_PATH, APP_ENV } from '../config/api.config';
 import { ModernVedicTheme } from '../theme/ModernVedicTheme';
+import DeviceInfo from 'react-native-device-info';
 
 const { width, height } = Dimensions.get('window');
 
@@ -136,9 +137,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
         setLoading(true);
         try {
+            const deviceId = await DeviceInfo.getUniqueId();
             const response = await axios.post(`${API_PATH}/login`, {
                 email,
                 password,
+                deviceId
             });
 
             const { user, token } = response.data;
@@ -177,10 +180,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         setLoading(true);
 
         try {
+            const deviceId = await DeviceInfo.getUniqueId();
             // 1. Try Login
             const response = (await axios.post(`${API_PATH}/login`, {
                 email: devEmail,
-                password: devPassword
+                password: devPassword,
+                deviceId
             })).data;
 
             let user = response.user;
@@ -197,13 +202,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         } catch (error: any) {
             // 2. If Login fails, Try Register
             try {
+                const deviceId = await DeviceInfo.getUniqueId();
                 // Register
-                await axios.post(`${API_PATH}/register`, devUser);
+                await axios.post(`${API_PATH}/register`, { ...devUser, deviceId });
 
                 // Login after register
                 const loginRes = (await axios.post(`${API_PATH}/login`, {
                     email: devEmail,
-                    password: devPassword
+                    password: devPassword,
+                    deviceId
                 })).data;
 
                 const user = loginRes.user;
