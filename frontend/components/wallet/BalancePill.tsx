@@ -28,20 +28,25 @@ export const BalancePill: React.FC<BalancePillProps> = ({
 
     const isSmall = size === 'small';
     const textColor = lightMode ? '#FFFFFF' : '#F59E0B';
-    const bgColor = lightMode ? 'rgba(255,255,255,0.15)' : 'rgba(245,158,11,0.12)';
+    const bgColor = lightMode ? 'rgba(255,255,255,0.18)' : 'rgba(245,158,11,0.15)';
+    const borderColor = lightMode ? 'rgba(255,255,255,0.3)' : 'rgba(245,158,11,0.3)';
 
     return (
         <TouchableOpacity
             onPress={handlePress}
             style={[
                 styles.container,
-                { backgroundColor: bgColor },
+                {
+                    backgroundColor: bgColor,
+                    borderColor: borderColor,
+                    borderWidth: 1,
+                },
                 isSmall && styles.containerSmall,
             ]}
             activeOpacity={0.7}
         >
             <Wallet
-                size={isSmall ? 14 : 16}
+                size={isSmall ? 13 : 15}
                 color={textColor}
                 strokeWidth={2.5}
             />
@@ -71,28 +76,34 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 16,
-        gap: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 5,
+        borderRadius: 20,
+        gap: 5,
+        // Elevation/Shadow for depth
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
     },
     containerSmall: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 15,
     },
     balanceContainer: {
         flexDirection: 'row',
-        alignItems: 'baseline',
+        alignItems: 'center',
         gap: 2,
     },
     balanceText: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '700',
         fontFamily: 'Cinzel-Bold',
     },
     balanceTextSmall: {
-        fontSize: 12,
+        fontSize: 13,
     },
     pendingText: {
         fontSize: 10,

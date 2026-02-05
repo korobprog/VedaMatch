@@ -43,17 +43,24 @@ export function AdminNotificationBell() {
 
     const fetchNotifications = async () => {
         try {
+            const dataStr = localStorage.getItem('admin_data');
+            if (!dataStr) return;
+            const data = JSON.parse(dataStr);
+            const token = data.token;
+
+            if (!token) return;
+
             // Use pending status to get unread ones primarily, but we'll sort them
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
             if (response.ok) {
-                const data = await response.json();
+                const resData = await response.json();
                 // Assuming data is { notifications: [], total: ... } or just []
-                const notifs = data.notifications || [];
+                const notifs = resData.notifications || [];
                 setNotifications(notifs);
                 setUnreadCount(notifs.filter((n: Notification) => !n.isRead).length);
             }
@@ -64,10 +71,17 @@ export function AdminNotificationBell() {
 
     const markAsRead = async (id: number) => {
         try {
+            const dataStr = localStorage.getItem('admin_data');
+            if (!dataStr) return;
+            const data = JSON.parse(dataStr);
+            const token = data.token;
+
+            if (!token) return;
+
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 

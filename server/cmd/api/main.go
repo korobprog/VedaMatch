@@ -139,6 +139,7 @@ func main() {
 	messageHandler := handlers.NewMessageHandler(aiChatService, hub, walletService, referralService)
 	roomHandler := handlers.NewRoomHandler()
 	adminHandler := handlers.NewAdminHandler()
+	adminFinancialHandler := handlers.NewAdminFinancialHandler()
 	aiHandler := handlers.NewAiHandler()
 	mediaHandler := handlers.NewMediaHandler(hub)
 	datingHandler := handlers.NewDatingHandler(aiChatService)
@@ -287,7 +288,7 @@ func main() {
 	api.Get("/news/:id", newsHandler.GetNewsItem)
 
 	// Admin Routes (Protected - should ideally have middleware)
-	admin := api.Group("/admin", middleware.AdminProtected())
+	admin := api.Group("/admin", middleware.Protected(), middleware.AdminProtected())
 	admin.Get("/users", adminHandler.GetUsers)
 	admin.Post("/users/:id/toggle-block", adminHandler.ToggleBlockUser)
 	admin.Put("/users/:id/role", adminHandler.UpdateUserRole)
@@ -297,6 +298,8 @@ func main() {
 	admin.Post("/dating/profiles/:id/flag", adminHandler.FlagDatingProfile)
 	admin.Get("/settings", adminHandler.GetSystemSettings)
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
+	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)
+	admin.Get("/wallet/global-stats", adminFinancialHandler.GetFinancialStats)
 
 	// RAG Management
 	admin.Get("/rag/corpora", adminHandler.ListGeminiCorpora)

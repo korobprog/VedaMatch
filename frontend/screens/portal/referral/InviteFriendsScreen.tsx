@@ -64,6 +64,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
     const [sharingImage, setSharingImage] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showRules, setShowRules] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const viewShotRef = React.useRef<any>(null);
     const { user: currentUser } = useUser();
     const [inviteData, setInviteData] = useState<InviteData | null>(null);
@@ -72,17 +73,28 @@ export default function InviteFriendsScreen({ navigation }: any) {
 
     const loadData = useCallback(async () => {
         try {
+            setError(null);
             const headers = await getAuthHeaders();
             const [inviteRes, statsRes, listRes] = await Promise.all([
-                fetch(`${API_PATH}/referral/invite`, { headers }).then(r => r.json()),
-                fetch(`${API_PATH}/referral/stats`, { headers }).then(r => r.json()),
-                fetch(`${API_PATH}/referral/list?limit=50`, { headers }).then(r => r.json()),
+                fetch(`${API_PATH}/referral/invite`, { headers }).then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                }),
+                fetch(`${API_PATH}/referral/stats`, { headers }).then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                }),
+                fetch(`${API_PATH}/referral/list?limit=50`, { headers }).then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                }),
             ]);
             setInviteData(inviteRes);
             setStats(statsRes);
             setReferrals(listRes.referrals || []);
-        } catch (error) {
+        } catch (error: any) {
             console.error('[Referral] Failed to load data:', error);
+            setError(error.message || 'Ошибка загрузки данных');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -132,8 +144,10 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 url: uri,
                 type: 'image/png',
             });
-        } catch (error) {
-            console.error('[Referral] Image share error:', error);
+        } catch (error: any) {
+            if (error?.message !== 'User did not share') {
+                console.error('[Referral] Image share error:', error);
+            }
         } finally {
             setSharingImage(false);
         }
@@ -170,6 +184,17 @@ export default function InviteFriendsScreen({ navigation }: any) {
         return (
             <View style={[styles.container, styles.centered]}>
                 <ActivityIndicator size="large" color="#F59E0B" />
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={[styles.container, styles.centered]}>
+                <Text style={{ color: '#EF4444', marginBottom: 20 }}>{error}</Text>
+                <TouchableOpacity onPress={loadData} style={{ backgroundColor: '#F59E0B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}>
+                    <Text style={{ color: '#FFF' }}>Повторить</Text>
+                </TouchableOpacity>
             </View>
         );
     }

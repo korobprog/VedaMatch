@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { StyleSheet, View, LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
     useSharedValue,
@@ -32,6 +32,7 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
     onPress,
     onSecondaryLongPress,
 }) => {
+    const [isMounted, setIsMounted] = useState(false);
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
     const isDragging = useSharedValue(false);
@@ -40,6 +41,14 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
     const opacity = useSharedValue(1);
     const isLongPressActive = useRef(false);
     const secondaryTriggered = useSharedValue(false);
+
+    // Handle layout and set mounted state
+    const handleLayout = useCallback((e: LayoutChangeEvent) => {
+        if (!isMounted) {
+            setIsMounted(true);
+        }
+        onLayout?.(e);
+    }, [isMounted, onLayout]);
 
     // Create combined gesture for tap, long-press, and drag
     const tapGesture = Gesture.Tap()
@@ -167,11 +176,24 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
         };
     }, []);
 
+    // Render without gestures until view is mounted
+    // This prevents "attachGestureHandler must not be null" error
+    if (!isMounted) {
+        return (
+            <Animated.View
+                style={[styles.container, animatedStyle]}
+                onLayout={handleLayout}
+            >
+                {children}
+            </Animated.View>
+        );
+    }
+
     return (
         <GestureDetector gesture={composedGesture}>
             <Animated.View
                 style={[styles.container, animatedStyle]}
-                onLayout={onLayout}
+                onLayout={handleLayout}
             >
                 {children}
             </Animated.View>

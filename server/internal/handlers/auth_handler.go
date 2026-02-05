@@ -91,6 +91,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId": user.ID,
 		"email":  user.Email,
+		"role":   user.Role,
 		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
 	})
 
@@ -151,11 +152,13 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var user models.User
 	result := database.DB.Where("email = ?", loginData.Email).First(&user)
 	if result.Error != nil {
-		log.Printf("[AUTH] Login failed: user not found (%s)", loginData.Email)
+		log.Printf("[AUTH] Login failed: user not found (%s). Error: %v", loginData.Email, result.Error)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid email or user not found",
 		})
 	}
+
+	log.Printf("[AUTH] User found for login: %s (ID: %d, Role: %s)", user.Email, user.ID, user.Role)
 
 	// Compare passwords
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginData.Password))
@@ -186,6 +189,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId": user.ID,
 		"email":  user.Email,
+		"role":   user.Role,
 		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
 	})
 
@@ -470,6 +474,62 @@ func (h *AuthHandler) GetFriends(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(users)
+}
+
+func (h *AuthHandler) AdminStats(c *fiber.Ctx) error {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	// Check if the user is an admin (assuming admin status is stored in the user model or can be checked)
+	// For now, let's assume any logged-in user can access this for testing, or add an admin check later.
+	// Example:
+	// var user models.User
+	// if err := database.DB.First(&user, userId).Error; err != nil {
+	// 	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	// }
+	// if !user.IsAdmin {
+	// 	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	// }
+
+	var totalUsers int64
+	if err := database.DB.Debug().Model(&models.User{}).Count(&totalUsers).Error; err != nil {
+		log.Printf("[AdminStats] CRITICAL SQL ERROR counting total users: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error: " + err.Error()})
+	}
+
+	var totalReferrals int64
+	var activeReferrals int64
+	var pendingReferrals int64
+
+	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL").Count(&totalReferrals).Error; err != nil {
+		log.Printf("[AdminStats] CRITICAL SQL ERROR counting total referrals: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error: " + err.Error()})
+	}
+
+	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusActivated).Count(&activeReferrals).Error; err != nil {
+		log.Printf("[AdminStats] SQL Warning counting active referrals: %v", err)
+	}
+
+	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusPending).Count(&pendingReferrals).Error; err != nil {
+		log.Printf("[AdminStats] SQL Warning counting pending referrals: %v", err)
+	}
+
+	var totalEarnedByReferrers int64
+	if err := database.DB.Debug().Model(&models.WalletTransaction{}).
+		Where("description LIKE ?", "%Реферальный бонус%").
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalEarnedByReferrers).Error; err != nil {
+		log.Printf("[AdminStats] SQL Warning calculating total earned: %v", err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"totalUsers":             totalUsers,
+		"totalReferrals":         totalReferrals,
+		"activeReferrals":        activeReferrals,
+		"pendingReferrals":       pendingReferrals,
+		"totalEarnedByReferrers": totalEarnedByReferrers,
+	})
 }
 
 func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {

@@ -34,6 +34,7 @@ import {
     Coffee,
     Utensils,
     Map,
+    Gift,
 } from 'lucide-react-native';
 
 import { ContactsScreen } from './contacts/ContactsScreen';
@@ -178,7 +179,15 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 {/* Header */}
                 <View style={[styles.header, { backgroundColor: 'transparent' }]}>
                     <View style={styles.headerLeft}>
-                        {/* Menu button hidden on portal main screen as per user request */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('InviteFriends')}
+                                style={styles.iconButton}
+                            >
+                                <Gift size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                            </TouchableOpacity>
+                            <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
+                        </View>
                     </View>
 
                     <View style={styles.logoContainer}>
@@ -192,7 +201,6 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     </View>
 
                     <View style={styles.headerRight}>
-                        <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
                         <TouchableOpacity
                             onPress={() => {
                                 setIsMenuOpen(true);
@@ -236,26 +244,28 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             {/* Header with back */}
             <View style={[styles.header, { backgroundColor: 'transparent' }]}>
                 <View style={styles.headerLeft}>
-                    <TouchableOpacity
-                        onPress={() => setActiveTab(null)}
-                        style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
-                    >
-                        <List size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <TouchableOpacity
+                            onPress={() => setActiveTab(null)}
+                            style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
+                        >
+                            <List size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('InviteFriends')}
+                            style={styles.iconButton}
+                        >
+                            <Gift size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                        </TouchableOpacity>
+                        <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
+                    </View>
                 </View>
 
                 <View style={styles.logoContainer}>
-                    <TouchableOpacity onPress={() => setActiveTab(null)} activeOpacity={0.7}>
-                        <Image
-                            source={require('../../assets/logo_tilak.png')}
-                            style={[styles.logoImage, isDarkMode && { tintColor: vTheme.colors.primary }]}
-                            resizeMode="contain"
-                        />
-                    </TouchableOpacity>
+                    {/* Logo hidden in rooms as per user request */}
                 </View>
 
                 <View style={styles.headerRight}>
-                    <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
                     <TouchableOpacity
                         onPress={() => {
                             setIsMenuOpen(true);

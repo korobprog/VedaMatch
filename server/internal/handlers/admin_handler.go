@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
@@ -480,7 +482,7 @@ func (h *AdminHandler) GeocodeAllUsers(c *fiber.Ctx) error {
 // AdminChargeWallet adds LKM to user's wallet
 // POST /api/admin/wallet/charge
 func (h *AdminHandler) AdminChargeWallet(c *fiber.Ctx) error {
-	adminID := c.Locals("userId").(uint)
+	adminID := middleware.GetUserID(c)
 
 	var body struct {
 		UserID uint   `json:"userId"`
@@ -516,7 +518,7 @@ func (h *AdminHandler) AdminChargeWallet(c *fiber.Ctx) error {
 // AdminSeizeWallet removes LKM from user's wallet
 // POST /api/admin/wallet/seize
 func (h *AdminHandler) AdminSeizeWallet(c *fiber.Ctx) error {
-	adminID := c.Locals("userId").(uint)
+	adminID := middleware.GetUserID(c)
 
 	var body struct {
 		UserID uint   `json:"userId"`
@@ -622,25 +624,58 @@ func (h *AdminHandler) ActivateUserPendingBalance(c *fiber.Ctx) error {
 // GetReferralGlobalStats returns global referral statistics
 // GET /api/admin/referrals/stats
 func (h *AdminHandler) GetReferralGlobalStats(c *fiber.Ctx) error {
+	// Panic recovery for this specific handler to prevent server crash and generic 500s
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[AdminStats] PANIC in GetReferralGlobalStats: %v", r)
+		}
+	}()
+
 	var totalReferrals int64
 	var activeReferrals int64
 	var pendingReferrals int64
 
-	database.DB.Model(&models.User{}).Where("referrer_id IS NOT NULL").Count(&totalReferrals)
-	database.DB.Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusActivated).Count(&activeReferrals)
-	database.DB.Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusPending).Count(&pendingReferrals)
+	// Count total referrals with detailed error logging
+	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL").Count(&totalReferrals).Error; err != nil {
+		log.Printf("[AdminStats] SQL ERROR (Total): %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "Database error counting referrals",
+			"details": err.Error(),
+		})
+	}
 
+	// Count active referrals
+	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusActivated).Count(&activeReferrals).Error; err != nil {
+		log.Printf("[AdminStats] SQL Warning (Active): %v", err)
+	}
+
+	// Count pending referrals
+	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusPending).Count(&pendingReferrals).Error; err != nil {
+		log.Printf("[AdminStats] SQL Warning (Pending): %v", err)
+	}
+
+	// Calculate total earned by referrers
 	var totalEarnedByReferrers int64
-	database.DB.Model(&models.WalletTransaction{}).
+	if err := database.DB.Debug().Model(&models.WalletTransaction{}).
 		Where("description LIKE ?", "%Реферальный бонус%").
-		Select("COALESCE(SUM(amount), 0)").Scan(&totalEarnedByReferrers)
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalEarnedByReferrers).Error; err != nil {
+		log.Printf("[AdminStats] SQL Warning (Earnings): %v", err)
+	}
+
+	// Calculate activation rate safely
+	var activationRate float64 = 0
+	if totalReferrals > 0 {
+		activationRate = float64(activeReferrals) / float64(totalReferrals) * 100
+	}
+
+	log.Printf("[AdminStats] Successfully calculated: Total=%d, Active=%d, Rate=%.2f%%", totalReferrals, activeReferrals, activationRate)
 
 	return c.JSON(fiber.Map{
 		"totalReferrals":         totalReferrals,
 		"activeReferrals":        activeReferrals,
 		"pendingReferrals":       pendingReferrals,
 		"totalEarnedByReferrers": totalEarnedByReferrers,
-		"activationRate":         float64(activeReferrals) / float64(totalReferrals) * 100,
+		"activationRate":         activationRate,
 	})
 }
 
@@ -658,7 +693,8 @@ func (h *AdminHandler) GetReferralLeaderboard(c *fiber.Ctx) error {
 		TotalEarned   int    `json:"totalEarned"`
 	}
 
-	var leaderboard []LeaderboardEntry
+	// Initialize as empty slice to ensure JSON array [] is returned instead of null
+	leaderboard := make([]LeaderboardEntry, 0)
 	err := database.DB.Table("users").
 		Select("users.id, users.spiritual_name, users.karmic_name, users.email, users.avatar_url, " +
 			"COUNT(referrals.id) as total_invited, " +
@@ -671,6 +707,7 @@ func (h *AdminHandler) GetReferralLeaderboard(c *fiber.Ctx) error {
 		Scan(&leaderboard).Error
 
 	if err != nil {
+		log.Printf("[Admin] Error fetching leaderboard: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

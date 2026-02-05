@@ -1,10 +1,11 @@
 import React, { ReactNode } from 'react';
-import { Dimensions } from 'react-native';
+import { Dimensions, View } from 'react-native';
 import {
     Gesture,
     GestureDetector,
     GestureHandlerRootView
 } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
 
 interface GlobalGestureHandlerProps {
@@ -43,7 +44,9 @@ export const GlobalGestureHandler: React.FC<GlobalGestureHandlerProps> = ({
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <GestureDetector gesture={panGesture}>
-                {children}
+                <Animated.View style={{ flex: 1 }}>
+                    {children}
+                </Animated.View>
             </GestureDetector>
         </GestureHandlerRootView>
     );

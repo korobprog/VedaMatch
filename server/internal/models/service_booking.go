@@ -57,8 +57,8 @@ type ServiceBooking struct {
 	ProviderNote string `json:"providerNote" gorm:"type:text"` // Private notes from provider
 
 	// Reminders tracking
-	ReminderSent    bool `json:"reminderSent" gorm:"default:false"`    // 1-hour reminder
-	Reminder24hSent bool `json:"reminder24hSent" gorm:"default:false"` // 24-hour reminder
+	ReminderSent    bool `json:"reminderSent" gorm:"default:false"`                             // 1-hour reminder
+	Reminder24hSent bool `json:"reminder24hSent" gorm:"column:reminder_24h_sent;default:false"` // 24-hour reminder
 
 	// Moderation timestamps
 	ConfirmedAt *time.Time `json:"confirmedAt"`
