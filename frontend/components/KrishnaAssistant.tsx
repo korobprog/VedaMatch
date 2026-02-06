@@ -8,6 +8,8 @@ import {
     StyleSheet,
     Dimensions,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation, useNavigationState } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -26,6 +28,7 @@ import { useChat } from '../context/ChatContext';
 import { useSettings } from '../context/SettingsContext';
 import peacockAssistant from '../assets/peacockAssistant.png';
 import krishnaAssistant from '../assets/krishnaAssistant.png';
+import nanoBanano from '../assets/nano_banano.png';
 
 const { width } = Dimensions.get('window');
 
@@ -58,6 +61,7 @@ export const KrishnaAssistant: React.FC = () => {
     const translateX = useSharedValue(200); // Start from right
     const rotation = useSharedValue(0);
     const translateY = useSharedValue(0);
+    const shimmerX = useSharedValue(-100);
 
     // Rolling In from right
     const rollIn = useCallback(() => {
@@ -93,6 +97,13 @@ export const KrishnaAssistant: React.FC = () => {
             -1,
             true
         );
+
+        // Shimmer effect
+        shimmerX.value = withRepeat(
+            withTiming(200, { duration: 3000, easing: Easing.linear }),
+            -1,
+            false
+        );
     }, [isVisible, rollIn]);
 
     const prevRoute = React.useRef<string | undefined>(undefined);
@@ -116,6 +127,10 @@ export const KrishnaAssistant: React.FC = () => {
             { translateY: translateY.value },
             { rotate: `${rotation.value}deg` }
         ],
+    }));
+
+    const shimmerStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: shimmerX.value }],
     }));
 
     const getMessage = () => {
@@ -165,13 +180,33 @@ export const KrishnaAssistant: React.FC = () => {
     if (!isVisible && !isRollingOut) {
         return (
             <TouchableOpacity
+                activeOpacity={0.8}
                 style={styles.callButton}
                 onPress={() => {
                     handleNewChat();
                     navigation.navigate('Chat');
                 }}
             >
-                <Image source={assistantType === 'feather' ? peacockAssistant : krishnaAssistant} style={styles.miniIcon} />
+                <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.callButtonGradient}
+                >
+                    <Animated.View style={[styles.shimmer, shimmerStyle]}>
+                        <LinearGradient
+                            colors={['transparent', 'rgba(255, 255, 255, 0.2)', 'transparent']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={StyleSheet.absoluteFill}
+                        />
+                    </Animated.View>
+                    <Image
+                        source={assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant)}
+                        style={styles.miniIcon}
+                        resizeMode="contain"
+                    />
+                </LinearGradient>
             </TouchableOpacity>
         );
     }
@@ -191,38 +226,36 @@ export const KrishnaAssistant: React.FC = () => {
                         isAuthScreen ? { flexDirection: 'column', alignItems: 'flex-end' } : { alignItems: 'center' }
                     ]}
                 >
-                    <View style={[
-                        styles.bubble,
-                        isAuthScreen ? {
-                            marginBottom: 10,
-                            marginRight: 20,
-                            width: 150, // Narrower for auth screens
-                            backgroundColor: '#FFD700' // Solid color for better shadow perf
-                        } : { marginBottom: 10 }
-                    ]}>
-                        <TouchableOpacity style={styles.closeBtn} onPress={rollOut}>
-                            <Text style={styles.closeBtnText}>✕</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.bubbleTitle}>
-                            {currentStep >= 0 ? TOUR_STEPS[currentStep].title : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас")}
-                        </Text>
-                        <Text style={styles.bubbleText}>{getMessage()}</Text>
-                        {currentStep >= 0 && (
-                            <Text style={styles.stepText}>{currentStep + 1} / {TOUR_STEPS.length}</Text>
-                        )}
-                        <View style={[
-                            styles.bubbleArrow,
-                            isAuthScreen ? {
-                                bottom: -12,
-                                right: 30,
-                            } : { bottom: -12, right: 40 }
-                        ]} />
+                    <View style={styles.shadowWrapper}>
+                        <View style={styles.bubbleContainer}>
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="dark"
+                                blurAmount={15}
+                                reducedTransparencyFallbackColor="rgba(15, 15, 25, 0.9)"
+                            />
+                            <LinearGradient
+                                colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.03)']}
+                                style={StyleSheet.absoluteFill}
+                            />
+                            <TouchableOpacity style={styles.closeBtn} onPress={rollOut}>
+                                <Text style={styles.closeBtnText}>✕</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.bubbleTitle}>
+                                {currentStep >= 0 ? TOUR_STEPS[currentStep].title : (assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас"))}
+                            </Text>
+                            <Text style={styles.bubbleText}>{getMessage()}</Text>
+                            {currentStep >= 0 && (
+                                <Text style={styles.stepText}>{currentStep + 1} / {TOUR_STEPS.length}</Text>
+                            )}
+                            <View style={styles.bubbleArrow} />
+                        </View>
                     </View>
 
                     <View style={styles.imageContainer}>
                         <View style={styles.glow} />
                         <Image
-                            source={assistantType === 'feather' ? peacockAssistant : krishnaAssistant}
+                            source={assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant)}
                             style={styles.image}
                             resizeMode="contain"
                         />
@@ -269,56 +302,97 @@ const styles = StyleSheet.create({
         width: 80,
         height: 30,
         borderRadius: 40,
-        backgroundColor: '#00bcd4', // Handled by inline style now or separate styles
-        opacity: 0.4,
+        backgroundColor: '#FFFFFF',
+        opacity: 0.2,
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 1,
-        shadowRadius: 20,
+        shadowOpacity: 0.8,
+        shadowRadius: 15,
         elevation: 10,
     },
-    bubble: {
-        backgroundColor: '#E0F7FA', // Very light cyan
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 20,
+    miniIcon: {
+        width: 30,
+        height: 30,
+    },
+    callButton: {
+        position: 'absolute',
+        top: '50%',
+        marginTop: -35,
+        right: 0,
+        zIndex: 9999,
+        width: 50,
+        height: 70,
+        borderTopLeftRadius: 35,
+        borderBottomLeftRadius: 35,
+        overflow: 'hidden',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.25)',
+        shadowColor: '#000',
+        shadowOffset: { width: -4, height: 0 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 12,
+    },
+    callButtonGradient: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingLeft: 4,
+    },
+    shimmer: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        width: 100,
+        left: -50,
+    },
+    shadowWrapper: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.4,
+        shadowRadius: 15,
+        elevation: 15,
         marginBottom: 10,
         marginRight: 20,
-        borderWidth: 2,
-        borderColor: '#00838F', // Dark teal
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 6,
-        width: 200,
+    },
+    bubbleContainer: {
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderRadius: 24,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.25)',
+        backgroundColor: 'rgba(15, 15, 25, 0.4)',
+        width: 250,
         position: 'relative',
+        overflow: 'hidden',
     },
     bubbleTitle: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#006064', // Deep teal
-        marginBottom: 4,
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#F59E0B', // Saffron/Gold for title readability
+        marginBottom: 6,
+        letterSpacing: 0.3,
     },
     bubbleText: {
-        color: '#004D40', // Very dark green/teal
-        fontSize: 13,
-        lineHeight: 18,
-        fontWeight: 'bold',
+        color: '#FFFFFF',
+        fontSize: 14,
+        lineHeight: 20,
+        fontWeight: '600',
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     bubbleArrow: {
         position: 'absolute',
-        bottom: -12,
+        bottom: -8,
         right: 40,
-        width: 0,
-        height: 0,
-        backgroundColor: 'transparent',
-        borderStyle: 'solid',
-        borderLeftWidth: 10,
-        borderRightWidth: 10,
-        borderTopWidth: 12,
-        borderLeftColor: 'transparent',
-        borderRightColor: 'transparent',
-        borderTopColor: '#00838F',
+        width: 16,
+        height: 16,
+        backgroundColor: 'rgba(15, 15, 25, 0.85)',
+        transform: [{ rotate: '45deg' }],
+        borderRightWidth: 1.5,
+        borderBottomWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.25)',
+        zIndex: -1,
     },
     closeBtn: {
         position: 'absolute',
@@ -332,37 +406,13 @@ const styles = StyleSheet.create({
     },
     closeBtnText: {
         fontSize: 14,
-        color: '#999',
+        color: 'rgba(255, 255, 255, 0.5)',
         fontWeight: 'bold',
     },
     stepText: {
         fontSize: 10,
-        color: '#999',
+        color: 'rgba(255, 255, 255, 0.4)',
         marginTop: 6,
         textAlign: 'right',
-    },
-    miniIcon: {
-        width: 30,
-        height: 30,
-    },
-    callButton: {
-        position: 'absolute',
-        top: '50%',
-        marginTop: -30,
-        right: 0,
-        backgroundColor: '#00838F',
-        opacity: 0.9,
-        paddingHorizontal: 8,
-        paddingVertical: 12,
-        borderTopLeftRadius: 30,
-        borderBottomLeftRadius: 30,
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: -2, height: 0 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        zIndex: 9999,
-        width: 45,
-        alignItems: 'center',
     },
 });

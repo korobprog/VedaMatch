@@ -1,17 +1,20 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, ImageBackground, Platform, StatusBar } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
 import { webRTCService } from '../../services/webRTCService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
-import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff, Phone } from 'lucide-react-native';
+import { PhoneOff, Mic, MicOff, Camera, Video, VideoOff, Phone, User } from 'lucide-react-native';
 import InCallManager from 'react-native-incall-manager';
+import { useSettings } from '../../context/SettingsContext';
+import { BlurView } from '@react-native-community/blur';
 
 const { width, height } = Dimensions.get('window');
 
 export const CallScreen = () => {
     const route = useRoute();
     const navigation = useNavigation();
+    const { vTheme, isDarkMode, portalBackground, portalBackgroundType } = useSettings();
     // @ts-ignore
     const { targetId, isIncoming, callerName } = route.params || {};
 
@@ -19,7 +22,7 @@ export const CallScreen = () => {
     const [streamVersion, setStreamVersion] = useState(0);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const [status, setStatus] = useState<string>(isIncoming ? 'Incoming Call...' : 'Calling...');
+    const [status, setStatus] = useState<string>(isIncoming ? 'Входящий звонок...' : 'Вызов...');
     const [iceState, setIceState] = useState<string>('new');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
@@ -161,38 +164,65 @@ export const CallScreen = () => {
         }
     };
 
+    const Background = () => {
+        if (hasAccepted && remoteStream) {
+            // If remote stream is active, the video is the background.
+            // We can return null or a dark overlay if needed.
+            return <View style={styles.backgroundOverlay} />;
+        }
+
+        if (portalBackgroundType === 'image' && portalBackground) {
+            return (
+                <ImageBackground
+                    source={{ uri: portalBackground }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                >
+                    <BlurView
+                        style={StyleSheet.absoluteFill}
+                        blurType="dark"
+                        blurAmount={20}
+                        reducedTransparencyFallbackColor="black"
+                    />
+                    <View style={styles.backgroundOverlay} />
+                </ImageBackground>
+            );
+        }
+
+        return (
+            <LinearGradient
+                colors={[vTheme.colors.background, '#000000']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            />
+        );
+    };
+
     // --- RENDER INCOMING CALL SCREEN ---
     if (isIncoming && !hasAccepted) {
         return (
             <View style={styles.container}>
-                <LinearGradient colors={['#1a1a2e', '#000']} style={styles.gradient} />
+                <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+                <Background />
 
-                {/* Preview User's own face in background or blurred? Or just caller info */}
-                {localStream && (
-                    <RTCView
-                        key={localStream.id}
-                        streamURL={localStream.toURL()}
-                        style={StyleSheet.absoluteFill}
-                        objectFit="cover"
-                        zOrder={0}
-                        mirror={true}
-                    />
-                )}
-
-                <View style={[styles.remotePlaceholder, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+                <View style={styles.callerContainer}>
+                    <View style={styles.avatarLarge}>
+                        <User size={60} color="#fff" />
+                    </View>
                     <Text style={styles.callerName}>{callerName || 'Unknown Caller'}</Text>
-                    <Text style={styles.statusText}>Incoming Video Call...</Text>
+                    <Text style={styles.statusText}>{status}</Text>
                 </View>
 
-                <View style={styles.incomingControls}>
-                    <TouchableOpacity onPress={handleHangup} style={[styles.btn, styles.hangupBtnLarge]}>
-                        <PhoneOff color="white" size={40} />
+                <View style={[styles.incomingControls, { bottom: 80 }]}>
+                    <TouchableOpacity onPress={handleHangup} style={[styles.actionBtn, styles.declineBtn]}>
+                        <PhoneOff color="white" size={32} />
+                        <Text style={styles.btnLabel}>Отклонить</Text>
                     </TouchableOpacity>
 
-                    <View style={{ width: 60 }} />
-
-                    <TouchableOpacity onPress={handleAnswer} style={[styles.btn, styles.answerBtnLarge]}>
-                        <Phone color="white" size={40} />
+                    <TouchableOpacity onPress={handleAnswer} style={[styles.actionBtn, styles.acceptBtn]}>
+                        <Phone color="white" size={32} />
+                        <Text style={styles.btnLabel}>Принять</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -202,7 +232,8 @@ export const CallScreen = () => {
     // --- RENDER ACTIVE CALL SCREEN ---
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradient} />
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+            <Background />
 
             {remoteStream ? (
                 <RTCView
@@ -215,10 +246,13 @@ export const CallScreen = () => {
                 />
             ) : (
                 <View style={styles.remotePlaceholder}>
-                    <Text style={styles.statusText}>{status}</Text>
-                    <Text style={styles.debugText}>ICE: {iceState}</Text>
+                    <View style={styles.avatarLarge}>
+                        <User size={60} color="#fff" />
+                    </View>
                     <Text style={styles.callerName}>{callerName || 'User ' + targetId}</Text>
-                    <ActivityIndicator size="large" color="#e94560" style={{ marginTop: 20 }} />
+                    <Text style={styles.statusText}>{status}</Text>
+                    {/* <Text style={styles.debugText}>ICE: {iceState}</Text> */}
+                    <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ marginTop: 20 }} />
                 </View>
             )}
 
@@ -235,22 +269,32 @@ export const CallScreen = () => {
                 </View>
             )}
 
-            <View style={styles.controls}>
-                <TouchableOpacity onPress={toggleMute} style={[styles.btn, isMuted && styles.btnActive]}>
-                    {isMuted ? <MicOff color="white" size={24} /> : <Mic color="white" size={24} />}
-                </TouchableOpacity>
+            <View style={styles.controlsWrapper}>
+                <View style={styles.controlsInner}>
+                    <BlurView
+                        style={StyleSheet.absoluteFill}
+                        blurType="light"
+                        blurAmount={20}
+                        reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                    />
+                    <View style={styles.controlsContent}>
+                        <TouchableOpacity onPress={toggleMute} style={[styles.controlBtn, isMuted && styles.controlBtnActive]}>
+                            {isMuted ? <MicOff color={isMuted ? "white" : "#333"} size={22} /> : <Mic color="#333" size={22} />}
+                        </TouchableOpacity>
 
-                <TouchableOpacity onPress={handleHangup} style={[styles.btn, styles.hangupBtn]}>
-                    <PhoneOff color="white" size={32} />
-                </TouchableOpacity>
+                        <TouchableOpacity onPress={toggleVideo} style={[styles.controlBtn, !isVideoEnabled && styles.controlBtnActive]}>
+                            {!isVideoEnabled ? <VideoOff color={!isVideoEnabled ? "white" : "#333"} size={22} /> : <Video color="#333" size={22} />}
+                        </TouchableOpacity>
 
-                <TouchableOpacity onPress={toggleVideo} style={[styles.btn, !isVideoEnabled && styles.btnActive]}>
-                    {!isVideoEnabled ? <VideoOff color="white" size={24} /> : <Video color="white" size={24} />}
-                </TouchableOpacity>
+                        <TouchableOpacity onPress={switchCamera} style={styles.controlBtn}>
+                            <Camera color="#333" size={22} />
+                        </TouchableOpacity>
 
-                <TouchableOpacity onPress={switchCamera} style={styles.btn}>
-                    <Camera color="white" size={24} />
-                </TouchableOpacity>
+                        <TouchableOpacity onPress={handleHangup} style={[styles.controlBtn, styles.hangupBtn]}>
+                            <PhoneOff color="white" size={28} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
         </View>
     );
@@ -261,8 +305,9 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000',
     },
-    gradient: {
+    backgroundOverlay: {
         ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.3)',
     },
     remoteVideo: {
         width: width,
@@ -274,80 +319,184 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    callerContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingBottom: 100,
+    },
     statusText: {
-        color: '#fff',
-        fontSize: 18,
-        marginBottom: 10,
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 16,
+        marginTop: 8,
+        fontFamily: 'Nunito',
     },
     callerName: {
         color: '#fff',
-        fontSize: 28,
+        fontSize: 34, // Slightly larger
         fontWeight: 'bold',
+        marginTop: 20,
+        fontFamily: 'Cinzel-Bold',
+        textAlign: 'center',
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+    },
+    avatarLarge: {
+        width: 140, // Larger avatar
+        height: 140,
+        borderRadius: 70,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        // Shadow for depth
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 8,
     },
     localVideoContainer: {
         position: 'absolute',
-        top: 50,
+        top: 60,
         right: 20,
-        width: 100,
-        height: 150,
-        borderRadius: 10,
+        width: 110, // Slightly wider
+        height: 160,
+        borderRadius: 20, // Softer corners
         overflow: 'hidden',
-        borderWidth: 2,
-        borderColor: '#fff',
-        elevation: 5,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.4)', // Glassy border
+        elevation: 10,
+        backgroundColor: '#000',
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 5,
+        },
+        shadowOpacity: 0.35,
+        shadowRadius: 6.27,
     },
     localVideo: {
         flex: 1,
+        opacity: 0.9, // Slight transparency might look cool, but usually we want clear video. Let's keep it opaque but maybe add filter later.
     },
-    controls: {
+
+    // Controls styling
+    controlsWrapper: {
         position: 'absolute',
-        bottom: 50,
-        width: '100%',
+        bottom: 50, // Moved up slightly
+        left: 20,
+        right: 20,
+        height: 85, // Slightly taller
+        borderRadius: 45,
+        // No overflow hidden here, so shadow works
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.4, // Darker shadow
+                shadowRadius: 20,
+            },
+            android: {
+                elevation: 15,
+            }
+        })
+    },
+    controlsInner: {
+        flex: 1,
+        borderRadius: 45,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)', // Glass edge
+    },
+    controlsContent: {
+        flex: 1,
         flexDirection: 'row',
         justifyContent: 'space-evenly',
         alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.1)', // Subtle tint
     },
-    incomingControls: {
-        position: 'absolute',
-        bottom: 100,
-        width: '100%',
-        flexDirection: 'row',
+    controlBtn: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(255,255,255,0.8)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    btn: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    btnActive: {
-        backgroundColor: '#e94560',
+    controlBtnActive: {
+        backgroundColor: '#FF453A', // System Red for active/muted states
     },
     hangupBtn: {
-        backgroundColor: '#ff4d4d',
-        width: 70,
-        height: 70,
-        borderRadius: 35,
+        backgroundColor: '#FF3B30',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        transform: [{ scale: 1.1 }]
     },
-    hangupBtnLarge: {
-        backgroundColor: '#ff4d4d',
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+
+    // Incoming call controls
+    incomingControls: {
+        position: 'absolute',
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-evenly',
+        alignItems: 'flex-end',
+        paddingHorizontal: 30,
     },
-    answerBtnLarge: {
-        backgroundColor: '#4cd137',
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+    actionBtn: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    acceptBtn: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: '#34C759', // Green
+        marginBottom: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#34C759',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.4,
+                shadowRadius: 10,
+            }
+        })
+    },
+    declineBtn: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: '#FF3B30', // Red
+        marginBottom: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#FF3B30',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.4,
+                shadowRadius: 10,
+            }
+        })
+    },
+    btnLabel: {
+        color: '#fff',
+        marginTop: 8,
+        fontSize: 14,
+        fontWeight: '600',
+        position: 'absolute',
+        bottom: -24,
+        width: 100,
+        textAlign: 'center'
     },
     debugText: {
         color: '#ffeb3b',
-        fontSize: 14,
-        fontWeight: 'bold',
-        marginBottom: 5,
+        fontSize: 12,
+        marginTop: 5,
     }
 });

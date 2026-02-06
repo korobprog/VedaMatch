@@ -2,8 +2,10 @@
  * @format
  */
 
+globalThis.RNFB_SILENCE_MODULAR_DEPRECATION_WARNINGS = true;
 import 'react-native-gesture-handler';
 import '@react-native-firebase/app';
+import '@react-native-firebase/messaging';
 import { AppRegistry, Platform } from 'react-native';
 let Config;
 try {

@@ -11,7 +11,9 @@ import {
     ScrollView,
     KeyboardAvoidingView,
     Platform,
+    StyleSheet as RNStyleSheet,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import Animated, {
     useAnimatedStyle,
     withSpring,
@@ -43,9 +45,10 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     onItemPress,
     onRemoveItem,
 }) => {
-    const { vTheme, isDarkMode } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(folder.name);
+    const isPhotoBg = portalBackgroundType === 'image';
     const [showColorPicker, setShowColorPicker] = useState(false);
 
     const scale = useSharedValue(0.8);
@@ -100,14 +103,22 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                             style={[
                                 styles.container,
                                 {
-                                    backgroundColor: isDarkMode
-                                        ? 'rgba(30, 30, 30, 0.95)'
-                                        : 'rgba(255, 255, 255, 0.95)',
-                                    borderColor: folder.color,
+                                    backgroundColor: isPhotoBg
+                                        ? 'transparent'
+                                        : (isDarkMode ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)'),
+                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : folder.color,
                                 },
                             ]}
                             onPress={(e) => e.stopPropagation()}
                         >
+                            {(isPhotoBg || isDarkMode) && (
+                                <BlurView
+                                    style={[RNStyleSheet.absoluteFill, { borderRadius: 24 }]}
+                                    blurType={isDarkMode ? "dark" : "light"}
+                                    blurAmount={15}
+                                    reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                                />
+                            )}
                             {/* Header */}
                             <View style={styles.header}>
                                 <TouchableOpacity
@@ -142,14 +153,14 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                     </View>
                                 ) : (
                                     <TouchableOpacity onPress={() => setIsEditing(true)}>
-                                        <Text style={[styles.folderName, { color: vTheme.colors.text }]}>
+                                        <Text style={[styles.folderName, { color: isPhotoBg ? '#ffffff' : vTheme.colors.text }]}>
                                             {folder.name}
                                         </Text>
                                     </TouchableOpacity>
                                 )}
 
                                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                                    <X size={20} color={vTheme.colors.textSecondary} />
+                                    <X size={20} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
                                 </TouchableOpacity>
                             </View>
 
@@ -184,22 +195,23 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                         const service = getServiceForItem(item);
                                         if (!service) return null;
                                         return (
-                                            <PortalIcon
-                                                key={item.id}
-                                                service={service}
-                                                isEditMode={false}
-                                                onPress={() => onItemPress(item)}
-                                                onLongPress={() => onRemoveItem(item.id)}
-                                                size="medium"
-                                            />
+                                            <View style={styles.iconWrapper} key={item.id}>
+                                                <PortalIcon
+                                                    service={service}
+                                                    isEditMode={false}
+                                                    onPress={() => onItemPress(item)}
+                                                    onLongPress={() => onRemoveItem(item.id)}
+                                                    size="medium"
+                                                />
+                                            </View>
                                         );
                                     })
                                 ) : (
                                     <View style={styles.emptyState}>
-                                        <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>
+                                        <Text style={[styles.emptyText, { color: isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary }]}>
                                             Папка пуста
                                         </Text>
-                                        <Text style={[styles.emptyHint, { color: vTheme.colors.textSecondary }]}>
+                                        <Text style={[styles.emptyHint, { color: isPhotoBg ? 'rgba(255,255,255,0.6)' : vTheme.colors.textSecondary }]}>
                                             Перетащите сервисы сюда
                                         </Text>
                                     </View>
@@ -229,8 +241,9 @@ const styles = StyleSheet.create({
         minHeight: 200,
         maxHeight: 400,
         borderRadius: 24,
-        borderWidth: 2,
+        borderWidth: 1.5,
         padding: 16,
+        overflow: 'hidden',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
@@ -319,5 +332,8 @@ const styles = StyleSheet.create({
     emptyHint: {
         fontSize: 12,
         marginTop: 4,
+    },
+    iconWrapper: {
+        marginBottom: 8,
     },
 });

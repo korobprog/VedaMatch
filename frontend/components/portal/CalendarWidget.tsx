@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
 
 interface CalendarWidgetProps {
@@ -24,9 +25,10 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     size = '2x2',
     onDatePress
 }) => {
-    const { vTheme, isDarkMode } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const today = useMemo(() => new Date(), []);
+    const isPhotoBg = portalBackgroundType === 'image';
 
     const getDaysInMonth = (date: Date): (number | null)[] => {
         const year = date.getFullYear();
@@ -83,30 +85,42 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
 
     const days = getDaysInMonth(currentMonth);
 
+    // Text style helpers
+    const primaryTextStyle = { color: isPhotoBg ? '#ffffff' : vTheme.colors.text };
+
     return (
         <View
             style={[
                 styles.container,
                 {
-                    backgroundColor: isDarkMode
-                        ? 'rgba(255,255,255,0.08)'
-                        : 'rgba(255,255,255,0.9)',
-                    borderColor: isDarkMode
-                        ? 'rgba(255,255,255,0.15)'
-                        : 'rgba(0,0,0,0.08)',
+                    backgroundColor: isPhotoBg
+                        ? 'transparent'
+                        : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
+                    borderColor: isPhotoBg
+                        ? 'rgba(255,255,255,0.3)'
+                        : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
                 },
             ]}
         >
+            {(isPhotoBg || isDarkMode) && (
+                <BlurView
+                    style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+                    blurType={isDarkMode ? "dark" : "light"}
+                    blurAmount={10}
+                    reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                />
+            )}
+
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigateMonth(-1)} style={styles.navButton}>
-                    <ChevronLeft size={16} color={vTheme.colors.textSecondary} />
+                    <ChevronLeft size={16} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
                 </TouchableOpacity>
-                <Text style={[styles.monthYear, { color: vTheme.colors.text }]}>
+                <Text style={[styles.monthYear, primaryTextStyle]}>
                     {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </Text>
                 <TouchableOpacity onPress={() => navigateMonth(1)} style={styles.navButton}>
-                    <ChevronRight size={16} color={vTheme.colors.textSecondary} />
+                    <ChevronRight size={16} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
                 </TouchableOpacity>
             </View>
 
@@ -120,7 +134,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
                                 {
                                     color: index >= 5
                                         ? vTheme.colors.primary
-                                        : vTheme.colors.textSecondary
+                                        : (isPhotoBg ? 'rgba(255,255,255,0.6)' : vTheme.colors.textSecondary)
                                 }
                             ]}
                         >
@@ -154,7 +168,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
                                         color: isToday(day)
                                             ? '#FFF'
                                             : day
-                                                ? vTheme.colors.text
+                                                ? (isPhotoBg ? '#ffffff' : vTheme.colors.text)
                                                 : 'transparent',
                                     },
                                 ]}
@@ -177,6 +191,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         padding: 8,
         margin: 4,
+        overflow: 'hidden',
     },
     header: {
         flexDirection: 'row',

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, useColorScheme, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, useColorScheme, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
 import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 
 import { useTranslation } from 'react-i18next';
@@ -14,13 +16,14 @@ import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext';
-import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, UserMinus } from 'lucide-react-native';
+import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, UserMinus, Check } from 'lucide-react-native';
 
 export const ContactsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { setChatRecipient } = useChat();
-    const { vTheme, isDarkMode } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const isPhotoBg = portalBackgroundType === 'image';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const { user: currentUser } = useUser();
@@ -190,14 +193,15 @@ export const ContactsScreen: React.FC = () => {
         const lastSeenText = !online ? formatLastSeen(item.lastSeen) : '';
         const isBlocked = filter === 'blocked';
         const isFriend = friends.some(f => f.ID === item.ID);
-
+        const nameColor = isPhotoBg ? '#ffffff' : vTheme.colors.text;
+        const descColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
 
         return (
             <TouchableOpacity
                 style={[styles.contactItem, {
-                    backgroundColor: vTheme.colors.backgroundSecondary,
-                    borderColor: vTheme.colors.divider
-                }, vTheme.shadows.soft]}
+                    backgroundColor: isPhotoBg ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.8)'),
+                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                }]}
                 onPress={() => {
                     if (isBlocked) return;
                     if (isFriend) {
@@ -209,6 +213,14 @@ export const ContactsScreen: React.FC = () => {
                 }}
                 disabled={isBlocked}
             >
+                {(isPhotoBg || isDarkMode) && (
+                    <BlurView
+                        style={[StyleSheet.absoluteFill, { borderRadius: 22 }]}
+                        blurType={isDarkMode ? "dark" : "light"}
+                        blurAmount={15}
+                        reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                    />
+                )}
                 <View style={styles.avatarContainer}>
                     {avatarUrl ? (
                         <Image source={{ uri: avatarUrl }} style={styles.avatar} />
@@ -223,7 +235,7 @@ export const ContactsScreen: React.FC = () => {
                 </View>
                 <View style={styles.contactInfo}>
                     <View style={styles.nameRow}>
-                        <Text style={[styles.contactName, { color: vTheme.colors.text }]}>
+                        <Text style={[styles.contactName, { color: nameColor }]} numberOfLines={1} ellipsizeMode="tail">
                             {item.spiritualName || item.karmicName}
                         </Text>
                         {isFriend && !isBlocked && (
@@ -234,7 +246,7 @@ export const ContactsScreen: React.FC = () => {
                             </View>
                         )}
                     </View>
-                    <Text style={[styles.contactDesc, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>
+                    <Text style={[styles.contactDesc, { color: descColor }]} numberOfLines={1}>
                         {online ? (
                             `${item.country && item.city ? `${item.country}, ${item.city}` : (item.country || item.city || '')}`
                         ) : (
@@ -253,7 +265,14 @@ export const ContactsScreen: React.FC = () => {
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         {isFriend && (
                             <TouchableOpacity
-                                style={[styles.callBtn, { backgroundColor: theme.button + '10' }]}
+                                style={[
+                                    styles.callBtn,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)'),
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : 'transparent',
+                                        borderWidth: isPhotoBg ? 1 : 0
+                                    }
+                                ]}
                                 onPress={() => {
                                     navigation.navigate('CallScreen', {
                                         targetId: item.ID,
@@ -262,18 +281,25 @@ export const ContactsScreen: React.FC = () => {
                                     });
                                 }}
                             >
-                                <Phone size={20} color={theme.primary} />
+                                <Phone size={18} color={isPhotoBg ? '#ffffff' : theme.primary} />
                             </TouchableOpacity>
                         )}
                         {isFriend && (
                             <TouchableOpacity
-                                style={[styles.callBtn, { backgroundColor: theme.button + '10' }]}
+                                style={[
+                                    styles.callBtn,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)'),
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : 'transparent',
+                                        borderWidth: isPhotoBg ? 1 : 0
+                                    }
+                                ]}
                                 onPress={() => {
                                     setChatRecipient(item);
                                     navigation.navigate('Chat');
                                 }}
                             >
-                                <MessageCircle size={20} color={theme.primary} />
+                                <MessageCircle size={18} color={isPhotoBg ? '#ffffff' : theme.primary} />
                             </TouchableOpacity>
                         )}
                         <ChevronRight size={20} color={theme.accent} style={{ marginLeft: 10 }} />
@@ -306,29 +332,29 @@ export const ContactsScreen: React.FC = () => {
 
     return (
         <ProtectedScreen requireCompleteProfile={false}>
-            <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+            <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : vTheme.colors.background }]}>
                 <View style={styles.filterBar}>
                     <TouchableOpacity
                         onPress={() => setFilter('all')}
-                        style={[styles.filterBtn, filter === 'all' && { borderBottomColor: theme.accent }]}
+                        style={[styles.filterBtn, filter === 'all' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: filter === 'all' ? theme.text : theme.subText }]}>
+                        <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'all' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'all' ? theme.text : theme.subText) }]}>
                             {t('contacts.all')} ({displayedContacts.length})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilter('friends')}
-                        style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: theme.accent }]}
+                        style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: filter === 'friends' ? theme.text : theme.subText }]}>
+                        <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'friends' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'friends' ? theme.text : theme.subText) }]}>
                             {t('contacts.friends')} ({friends.length})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilter('blocked')}
-                        style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: theme.accent }]}
+                        style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
                     >
-                        <Text style={[styles.filterText, { color: filter === 'blocked' ? theme.text : theme.subText }]}>
+                        <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'blocked' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'blocked' ? theme.text : theme.subText) }]}>
                             {t('contacts.blocked')}
                         </Text>
                     </TouchableOpacity>
@@ -339,10 +365,14 @@ export const ContactsScreen: React.FC = () => {
                     <View style={[styles.filtersContainer, { backgroundColor: 'transparent', borderBottomColor: vTheme.colors.divider }]}>
                         {/* City Filter */}
                         <TouchableOpacity
-                            style={[styles.filterChip, filterCities.length > 0 && { backgroundColor: theme.accent + '30', borderColor: theme.accent }]}
+                            style={[
+                                styles.filterChip,
+                                filterCities.length > 0 && { backgroundColor: theme.accent + '30', borderColor: theme.accent },
+                                isPhotoBg && { backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }
+                            ]}
                             onPress={() => setShowCityPicker(true)}
                         >
-                            <Text style={[styles.filterChipText, { color: filterCities.length > 0 ? theme.accent : theme.text }]}>
+                            <Text style={[styles.filterChipText, { color: isPhotoBg ? '#ffffff' : (filterCities.length > 0 ? theme.accent : theme.text) }]}>
                                 {filterCities.length > 0 ? `${filterCities.length} ${t('contacts.cities')}` : t('contacts.city')}
                             </Text>
                             <ChevronDown size={14} color={filterCities.length > 0 ? theme.accent : theme.subText} style={{ marginLeft: 6 }} />
@@ -358,7 +388,7 @@ export const ContactsScreen: React.FC = () => {
 
                         {/* Stats */}
                         <View style={styles.statsContainer}>
-                            <Text style={[styles.statsText, { color: theme.subText }]}>
+                            <Text style={[styles.statsText, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : theme.subText }]}>
                                 {uniqueCities.length} {t('contacts.cities')} • {uniqueCountries.length} {t('contacts.countries')}
                             </Text>
                         </View>
@@ -366,20 +396,20 @@ export const ContactsScreen: React.FC = () => {
                 )}
 
                 <View style={[styles.searchContainer, {
-                    backgroundColor: vTheme.colors.backgroundSecondary,
-                    borderColor: vTheme.colors.divider
+                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : vTheme.colors.divider
                 }]}>
-                    <Search size={18} color={theme.subText} style={{ marginRight: 8 }} />
+                    <Search size={18} color={isPhotoBg ? 'rgba(255,255,255,0.7)' : theme.subText} style={{ marginRight: 8 }} />
                     <TextInput
-                        style={[styles.searchInput, { color: theme.inputText }]}
+                        style={[styles.searchInput, { color: isPhotoBg ? '#ffffff' : theme.inputText }]}
                         placeholder={filterCities.length > 0 ? t('contacts.searchingIn', { count: filterCities.length }) : t('contacts.searchBy')}
-                        placeholderTextColor={theme.subText}
+                        placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText}
                         value={search}
                         onChangeText={setSearch}
                     />
                     {search ? (
                         <TouchableOpacity onPress={() => setSearch('')}>
-                            <X size={20} color={theme.accent} />
+                            <X size={20} color={isPhotoBg ? '#ffffff' : theme.accent} />
                         </TouchableOpacity>
                     ) : null}
                 </View>
@@ -422,45 +452,72 @@ export const ContactsScreen: React.FC = () => {
                     visible={showCityPicker}
                     transparent
                     animationType="fade"
+                    onRequestClose={() => setShowCityPicker(false)}
                 >
                     <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '70%' }]}>
+                        {(isPhotoBg || isDarkMode) && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="dark"
+                                blurAmount={10}
+                                reducedTransparencyFallbackColor="rgba(0,0,0,0.7)"
+                            />
+                        )}
+                        <View style={[
+                            styles.modalContent,
+                            {
+                                backgroundColor: isPhotoBg ? 'rgba(0,0,0,0.5)' : (isDarkMode ? 'rgba(30,30,30,0.9)' : 'rgba(255,255,255,0.95)'),
+                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : theme.borderColor,
+                                borderWidth: 1,
+                            }
+                        ]}>
+                            <TouchableOpacity
+                                onPress={() => setShowCityPicker(false)}
+                                style={[styles.closeModalBtn, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : vTheme.colors.backgroundSecondary }]}
+                            >
+                                <X size={20} color={isPhotoBg ? '#FFF' : theme.subText} />
+                            </TouchableOpacity>
+
                             <View style={styles.modalHeader}>
-                                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                                <Text style={[styles.modalTitle, { color: isPhotoBg ? '#FFF' : theme.text, fontFamily: 'Cinzel-Bold' }]}>
                                     {t('contacts.selectCities', { count: filterCities.length })}
                                 </Text>
-                                <TouchableOpacity
-                                    onPress={() => setShowCityPicker(false)}
-                                    style={styles.closeModalBtn}
-                                >
-                                    <X size={24} color={theme.subText} />
-                                </TouchableOpacity>
                             </View>
 
                             <TextInput
-                                style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 10 }]}
+                                style={[
+                                    styles.input,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : theme.inputBackground,
+                                        color: isPhotoBg ? '#FFF' : theme.text,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : theme.borderColor,
+                                        marginBottom: 10
+                                    }
+                                ]}
                                 value={citySearchQuery}
                                 onChangeText={setCitySearchQuery}
                                 placeholder={t('dating.searchCity')}
-                                placeholderTextColor={theme.subText}
+                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText}
                             />
 
                             {filterCities.length > 0 && (
                                 <TouchableOpacity
                                     onPress={clearCityFilters}
-                                    style={[styles.clearAllBtn, { backgroundColor: theme.accent + '20' }]}
+                                    style={[styles.clearAllBtn, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}
                                 >
-                                    <Text style={[styles.clearAllBtnText, { color: theme.accent }]}>
+                                    <Text style={[styles.clearAllBtnText, { color: '#EF4444' }]}>
                                         {t('contacts.clearAll', { count: filterCities.length })}
                                     </Text>
                                 </TouchableOpacity>
                             )}
 
-                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} indicatorStyle={isDarkMode || isPhotoBg ? 'white' : 'black'}>
                                 {filteredCities.length === 0 ? (
-                                    <Text style={[styles.noResults, { color: theme.subText }]}>
-                                        {t('contacts.noCitiesFound')}
-                                    </Text>
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Text style={[styles.noResults, { color: isPhotoBg ? 'rgba(255,255,255,0.7)' : theme.subText }]}>
+                                            {t('contacts.noCitiesFound')}
+                                        </Text>
+                                    </View>
                                 ) : (
                                     filteredCities.map((city: string, index: number) => {
                                         const isSelected = filterCities.includes(city);
@@ -470,7 +527,7 @@ export const ContactsScreen: React.FC = () => {
                                                 key={index}
                                                 style={[
                                                     styles.cityItem,
-                                                    { borderBottomColor: theme.borderColor },
+                                                    { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : theme.borderColor },
                                                     isSelected && styles.cityItemSelected
                                                 ]}
                                                 onPress={() => toggleCityFilter(city)}
@@ -479,18 +536,18 @@ export const ContactsScreen: React.FC = () => {
                                                     {/* Checkbox */}
                                                     <View style={[
                                                         styles.checkbox,
-                                                        { borderColor: theme.borderColor },
-                                                        isSelected && { backgroundColor: theme.accent, borderColor: theme.accent }
+                                                        { borderColor: isPhotoBg ? 'rgba(255,255,255,0.5)' : theme.borderColor },
+                                                        isSelected && { backgroundColor: vTheme.colors.primary, borderColor: vTheme.colors.primary }
                                                     ]}>
                                                         {isSelected && (
-                                                            <Text style={styles.checkboxCheck}>✓</Text>
+                                                            <Check size={12} color="#FFF" strokeWidth={3} />
                                                         )}
                                                     </View>
-                                                    <Text style={[styles.cityName, { color: theme.text }]} numberOfLines={1}>
+                                                    <Text style={[styles.cityName, { color: isPhotoBg ? '#FFF' : theme.text }]} numberOfLines={1}>
                                                         {city.split(',')[0].trim()}
                                                     </Text>
                                                 </View>
-                                                <Text style={[styles.cityCount, { color: theme.subText, fontSize: 12 }]}>{count}</Text>
+                                                <Text style={[styles.cityCount, { color: isPhotoBg ? 'rgba(255,255,255,0.6)' : theme.subText, fontSize: 12 }]}>{count}</Text>
                                             </TouchableOpacity>
                                         );
                                     })
@@ -498,12 +555,19 @@ export const ContactsScreen: React.FC = () => {
                             </ScrollView>
 
                             <TouchableOpacity
-                                style={[styles.applyBtn, { backgroundColor: theme.accent }]}
                                 onPress={() => setShowCityPicker(false)}
+                                style={styles.applyBtnContainer}
                             >
-                                <Text style={styles.applyBtnText}>
-                                    {t('contacts.applyFilter', { count: filterCities.length })}
-                                </Text>
+                                <LinearGradient
+                                    colors={['#3B82F6', '#2DD4BF']} // New Blue-Teal Gradient
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.applyBtnGradient}
+                                >
+                                    <Text style={[styles.applyBtnText, { color: '#FFF' }]}>
+                                        {t('contacts.applyFilter', { count: filterCities.length })}
+                                    </Text>
+                                </LinearGradient>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -515,6 +579,121 @@ export const ContactsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: 20
+    },
+    modalContent: {
+        width: '100%',
+        maxHeight: '80%',
+        borderRadius: 24,
+        padding: 20,
+        overflow: 'hidden',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+        marginTop: 20,
+        paddingHorizontal: 30, // Added padding to avoid text touching close button area if it was relative
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        textAlign: 'center',
+    },
+    closeModalBtn: {
+        position: 'absolute',
+        top: 10,
+        right: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    applyBtnContainer: {
+        marginTop: 16,
+        borderRadius: 25,
+        overflow: 'hidden',
+    },
+    applyBtnGradient: {
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    input: {
+        height: 48,
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        fontSize: 16,
+    },
+    clearAllBtn: {
+        alignSelf: 'flex-start',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        marginBottom: 12,
+    },
+    clearAllBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    cityItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 8,
+        borderBottomWidth: 1,
+    },
+    cityItemSelected: {
+        backgroundColor: 'rgba(255, 215, 0, 0.05)', // Subtle gold tint for selected
+    },
+    cityItemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
+        borderWidth: 2,
+        marginRight: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxCheck: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    cityName: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    cityCount: {
+        fontWeight: '600',
+    },
+    applyBtn: {
+        marginTop: 16,
+        height: 50,
+        borderRadius: 25,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    applyBtnText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        fontFamily: 'Cinzel-Bold',
+    },
     filterBar: {
         flexDirection: 'row',
         paddingHorizontal: 16,
@@ -584,8 +763,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         marginHorizontal: 16,
         marginVertical: 6,
-        borderRadius: 16,
+        borderRadius: 22,
         borderWidth: 1,
+        overflow: 'hidden',
     },
     avatarContainer: {
         width: 50,
@@ -649,6 +829,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontSize: 16,
     },
+    noResults: {
+        textAlign: 'center',
+        padding: 30,
+        fontSize: 15,
+        fontStyle: 'italic',
+    },
     clearFilterLink: {
         textAlign: 'center',
         marginTop: 8,
@@ -670,107 +856,6 @@ const styles = StyleSheet.create({
         padding: 16,
         textAlign: 'center',
         fontStyle: 'italic',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        width: '80%',
-        borderRadius: 16,
-        padding: 20,
-        elevation: 5,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 15,
-        textAlign: 'center',
-    },
-    closeModalBtn: {
-        padding: 4,
-    },
-    input: {
-        width: '100%',
-        height: 50,
-        borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 15,
-        fontSize: 16,
-        marginBottom: 15,
-    },
-    cityItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 15,
-        borderBottomWidth: 1,
-    },
-    cityItemSelected: {
-        backgroundColor: '#D67D3E15',
-    },
-    cityItemLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    checkbox: {
-        width: 24,
-        height: 24,
-        borderRadius: 4,
-        borderWidth: 2,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    checkboxCheck: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    cityName: {
-        fontSize: 15,
-    },
-    cityCount: {
-        fontSize: 13,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 10,
-    },
-    clearAllBtn: {
-        padding: 10,
-        borderRadius: 8,
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    clearAllBtnText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    noResults: {
-        textAlign: 'center',
-        padding: 30,
-        fontSize: 15,
-        fontStyle: 'italic',
-    },
-    applyBtn: {
-        padding: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginTop: 10,
-    },
-    applyBtnText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
     },
     callBtn: {
         padding: 8,

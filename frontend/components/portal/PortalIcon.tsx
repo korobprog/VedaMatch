@@ -151,11 +151,11 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                             width: sizeConfig.container,
                             height: sizeConfig.container,
                             backgroundColor: portalBackgroundType === 'image'
-                                ? 'rgba(0,0,0,0.5)'
+                                ? 'rgba(30,30,30,0.45)'
                                 : isDarkMode
                                     ? `${service.color}25`
                                     : `${service.color}15`,
-                            borderColor: portalBackgroundType === 'image' ? `${service.color}80` : `${service.color}30`,
+                            borderColor: portalBackgroundType === 'image' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
                             borderWidth: portalBackgroundType === 'image' ? 1.5 : 1,
                         },
                     ]}
@@ -217,11 +217,12 @@ const styles = StyleSheet.create({
         transform: [{ scale: 0.95 }],
     },
     iconContainer: {
-        borderRadius: 16,
+        borderRadius: 22,
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 6,
+        overflow: 'hidden',
     },
     label: {
         fontWeight: '500',

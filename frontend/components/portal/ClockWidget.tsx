@@ -13,6 +13,7 @@ import Animated, {
     Easing,
     cancelAnimation,
 } from 'react-native-reanimated';
+import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
 
 interface ClockWidgetProps {
@@ -26,11 +27,12 @@ const WIDGET_SIZES = {
 };
 
 export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
-    const { vTheme, isDarkMode } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const [time, setTime] = useState(new Date());
     const colonOpacity = useSharedValue(1);
 
     const sizeConfig = WIDGET_SIZES[size];
+    const isPhotoBg = portalBackgroundType === 'image';
 
     // Update time every second
     useEffect(() => {
@@ -72,6 +74,19 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
 
     const { hours, minutes } = formatTime();
 
+    // Photo-optimized text style
+    const textStyle = [
+        styles.time,
+        { fontSize: sizeConfig.timeSize, color: isPhotoBg ? '#ffffff' : vTheme.colors.text },
+        isPhotoBg && styles.textShadow
+    ];
+
+    const dateStyle = [
+        styles.date,
+        { fontSize: sizeConfig.dateSize, color: isPhotoBg ? 'rgba(255,255,255,0.8)' : vTheme.colors.textSecondary },
+        isPhotoBg && styles.textShadow
+    ];
+
     return (
         <View
             style={[
@@ -79,49 +94,43 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
                 {
                     width: sizeConfig.width,
                     height: sizeConfig.height,
-                    backgroundColor: isDarkMode
-                        ? 'rgba(255,255,255,0.1)'
-                        : 'rgba(0,0,0,0.05)',
-                    borderColor: isDarkMode
-                        ? 'rgba(255,255,255,0.2)'
-                        : 'rgba(0,0,0,0.1)',
+                    backgroundColor: isPhotoBg
+                        ? 'transparent'
+                        : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                    borderColor: isPhotoBg
+                        ? 'rgba(255,255,255,0.3)'
+                        : (isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
                 },
             ]}
         >
+            {(isPhotoBg || isDarkMode) && (
+                <BlurView
+                    style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+                    blurType={isDarkMode ? "dark" : "light"}
+                    blurAmount={10}
+                    reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                />
+            )}
+
             <View style={styles.timeContainer}>
-                <Text
-                    style={[
-                        styles.time,
-                        { fontSize: sizeConfig.timeSize, color: vTheme.colors.text },
-                    ]}
-                >
+                <Text style={textStyle}>
                     {hours}
                 </Text>
                 <Animated.Text
                     style={[
-                        styles.time,
+                        ...textStyle,
                         colonStyle,
-                        { fontSize: sizeConfig.timeSize, color: vTheme.colors.primary },
+                        { color: isPhotoBg ? '#ffffff' : vTheme.colors.primary },
                     ]}
                 >
                     :
                 </Animated.Text>
-                <Text
-                    style={[
-                        styles.time,
-                        { fontSize: sizeConfig.timeSize, color: vTheme.colors.text },
-                    ]}
-                >
+                <Text style={textStyle}>
                     {minutes}
                 </Text>
             </View>
             {size !== '1x1' && (
-                <Text
-                    style={[
-                        styles.date,
-                        { fontSize: sizeConfig.dateSize, color: vTheme.colors.textSecondary },
-                    ]}
-                >
+                <Text style={dateStyle}>
                     {formatDate()}
                 </Text>
             )}
@@ -137,6 +146,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 12,
         margin: 4,
+        overflow: 'hidden',
     },
     timeContainer: {
         flexDirection: 'row',
@@ -150,5 +160,10 @@ const styles = StyleSheet.create({
     date: {
         marginTop: 4,
         textTransform: 'capitalize',
+    },
+    textShadow: {
+        textShadowColor: 'rgba(0, 0, 0, 0.4)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
 });

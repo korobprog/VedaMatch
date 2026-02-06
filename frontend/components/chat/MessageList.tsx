@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
     View,
     FlatList,
@@ -15,6 +15,7 @@ import {
     Linking,
     Platform,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +28,7 @@ import { mediaService } from '../../services/mediaService';
 import { AudioPlayer } from './AudioPlayer';
 import peacockAssistant from '../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../assets/krishnaAssistant.png';
+import nanoBanano from '../../assets/nano_banano.png';
 
 interface MessageListProps {
     onDownloadImage: (imageUrl: string, imageName?: string) => void;
@@ -45,7 +47,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
     const { t, i18n } = useTranslation();
     const { messages, isLoading, isTyping, recipientUser, deleteMessage } = useChat();
-    const { imageSize, assistantType } = useSettings();
+    const { assistantType } = useSettings();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const flatListRef = useRef<FlatList>(null);
@@ -54,25 +56,6 @@ export const MessageList: React.FC<MessageListProps> = ({
         if (!dateStr) return '';
         const date = new Date(dateStr);
         return date.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
-    };
-
-    const groupMessagesByDate = (msgs: Message[]) => {
-        const groups: { title: string; data: Message[] }[] = [];
-        msgs.forEach(msg => {
-            const date = msg.createdAt ? new Date(msg.createdAt) : new Date();
-            const dateStr = date.toDateString();
-            const today = new Date().toDateString();
-            const yesterday = new Date(Date.now() - 86400000).toDateString();
-
-            let title = dateStr;
-            if (dateStr === today) title = t('chat.today');
-            else if (dateStr === yesterday) title = t('chat.yesterday');
-
-            const group = groups.find(g => g.title === title);
-            if (group) group.data.push(msg);
-            else groups.push({ title, data: [msg] });
-        });
-        return groups;
     };
 
     // Flatten messages with date headers
@@ -90,7 +73,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                 if (dateStr === today) title = t('chat.today');
                 else if (dateStr === yesterday) title = t('chat.yesterday');
 
-                // Append index to key to ensure uniqueness even if dateStr repeats unexpectedly or across re-renders
                 result.push({ type: 'header', title, id: `header-${dateStr}-${index}` });
                 lastDate = dateStr;
             }
@@ -220,7 +202,6 @@ export const MessageList: React.FC<MessageListProps> = ({
         const item = rawItem as Message;
         const isUser = item.sender === 'user';
         const text = item.text || '';
-        const isImageOnly = !isUser && text.trim().startsWith('![') && text.trim().endsWith(')') && !text.trim().includes('\n', 2);
         const time = formatMessageTime(item.createdAt);
 
         const bubbleStyle = [
@@ -229,49 +210,38 @@ export const MessageList: React.FC<MessageListProps> = ({
             {
                 backgroundColor: isUser
                     ? (isDarkMode ? 'rgba(214, 125, 62, 0.25)' : 'rgba(214, 125, 62, 0.15)')
-                    : (isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.85)'),
+                    : 'transparent',
                 borderColor: isUser
                     ? 'rgba(214, 125, 62, 0.3)'
-                    : (isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'),
+                    : (isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.4)'),
                 borderWidth: 1,
+                overflow: 'hidden' as const,
             }
         ];
 
-        const MessageWrapper = ({ children }: { children: React.ReactNode }) => (
-            <TouchableOpacity
-                activeOpacity={0.9}
-                onLongPress={() => handleDeleteMessage(item)}
-                delayLongPress={500}
-                style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}
-            >
-                {children}
-            </TouchableOpacity>
-        );
+        const botShadowStyle = !isUser ? {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.15,
+            shadowRadius: 5,
+            elevation: 3,
+            maxWidth: '85%' as any,
+        } : null;
 
-        if (item.uploading) {
-            return (
-                <MessageWrapper>
+        const Content = () => {
+            if (item.uploading) {
+                return (
                     <View style={bubbleStyle}>
                         <View style={styles.uploadingContainer}>
                             <ActivityIndicator size="small" color={theme.primary} />
                             <Text style={[styles.uploadingText, { color: theme.text }]}>{t('chat.uploading')}</Text>
                         </View>
                     </View>
-                </MessageWrapper>
-            );
-        }
+                );
+            }
 
-        return (
-            <MessageWrapper>
-                {!isUser && (
-                    <View style={styles.avatar}>
-                        <Image
-                            source={assistantType === 'feather' ? peacockAssistant : krishnaAssistant}
-                            style={styles.avatarImage}
-                        />
-                    </View>
-                )}
-                <View style={bubbleStyle}>
+            const innerContent = (
+                <>
                     {item.type === 'image' && item.content ? (
                         <TouchableOpacity onPress={() => openImage(item.content!)}>
                             <Image source={{ uri: item.content }} style={styles.messageImage} />
@@ -300,7 +270,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                         </TouchableOpacity>
                     ) : (
                         <View>
-                            {/* Text content split by audio player if present */}
                             {text.split(/(<audio\s+[^>]*src="[^"]+"[^>]*>.*?<\/audio>)/gi).map((part, index) => {
                                 const audioMatch = part.match(/<audio\s+[^>]*src="([^"]+)"[^>]*>/i);
                                 if (audioMatch) return renderAudioPlayer(audioMatch[1], index);
@@ -332,7 +301,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                         </TouchableOpacity>
                     )}
 
-                    {/* Map button for AI geo-intents */}
                     {item.mapData && onNavigateToMap && (
                         <TouchableOpacity
                             style={[styles.mapButton, { backgroundColor: '#059669' }]}
@@ -344,8 +312,50 @@ export const MessageList: React.FC<MessageListProps> = ({
                             </Text>
                         </TouchableOpacity>
                     )}
+                </>
+            );
+
+            if (isUser) {
+                return (
+                    <View style={bubbleStyle}>
+                        {innerContent}
+                    </View>
+                );
+            }
+
+            return (
+                <View style={botShadowStyle}>
+                    <View style={bubbleStyle}>
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType={isDarkMode ? "dark" : "light"}
+                            blurAmount={15}
+                            reducedTransparencyFallbackColor={isDarkMode ? "rgba(15, 15, 25, 0.9)" : "rgba(255, 255, 255, 0.9)"}
+                        />
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkMode ? 'rgba(15, 15, 25, 0.4)' : 'rgba(255, 255, 255, 0.4)' }]} />
+                        {innerContent}
+                    </View>
                 </View>
-            </MessageWrapper>
+            );
+        };
+
+        return (
+            <TouchableOpacity
+                activeOpacity={0.9}
+                onLongPress={() => handleDeleteMessage(item)}
+                delayLongPress={500}
+                style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}
+            >
+                {!isUser && (
+                    <View style={styles.avatar}>
+                        <Image
+                            source={assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant)}
+                            style={styles.avatarImage}
+                        />
+                    </View>
+                )}
+                <Content />
+            </TouchableOpacity>
         );
     };
 
@@ -398,12 +408,14 @@ const styles = StyleSheet.create({
         maxWidth: '85%',
         paddingVertical: 8,
         paddingHorizontal: 12,
+    },
+    userBubble: {
+        borderBottomRightRadius: 4,
         ...Platform.select({
             ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
             android: { elevation: 2 }
         })
     },
-    userBubble: { borderBottomRightRadius: 4 },
     botBubble: { borderBottomLeftRadius: 4 },
     timeText: { fontSize: 10, fontWeight: '500' },
     timeOverlay: { position: 'absolute', bottom: 6, right: 12 },

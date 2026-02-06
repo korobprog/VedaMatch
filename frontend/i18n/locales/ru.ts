@@ -863,6 +863,19 @@ export default {
         clearAll: 'Очистить все ({{count}})',
         noCitiesFound: 'Города не найдены',
         applyFilter: 'Применить фильтр ({{count}})',
+        profile: 'Профиль',
+        identity: 'Статус',
+        location: 'Местоположение',
+        email: 'Email',
+        addFriend: 'Добавить в друзья',
+        removeFriend: 'Удалить из друзей',
+        recommendations: 'рекомендаций',
+        organizer_tiers: {
+            master: 'Мастер Ятры',
+            experienced: 'Опытный Лидер',
+            organizer: 'Организатор',
+            novice: 'Новичок'
+        }
     },
     dating: {
         checkCompatibility: 'Проверить совместимость',

@@ -268,6 +268,18 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         <TouchableOpacity
                             style={[
                                 styles.assistantBtn,
+                                assistantType === 'feather2' && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.1)' }
+                            ]}
+                            onPress={() => setAssistantType('feather2')}
+                        >
+                            <RNImage source={require('../../assets/nano_banano.png')} style={styles.assistantPreview} />
+                            <Text style={[styles.assistantName, { color: theme.text }]}>Перо 2</Text>
+                            {assistantType === 'feather2' && <View style={styles.checkBadge}><Text style={styles.checkText}>✓</Text></View>}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.assistantBtn,
                                 assistantType === 'feather' && { borderColor: '#00838F', backgroundColor: 'rgba(0,131,143,0.1)' }
                             ]}
                             onPress={() => setAssistantType('feather')}

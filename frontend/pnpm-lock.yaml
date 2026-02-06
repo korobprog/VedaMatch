@@ -22,6 +22,9 @@ importers:
       '@react-native-clipboard/clipboard':
         specifier: ^1.16.3
         version: 1.16.3(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
+      '@react-native-community/blur':
+        specifier: ^4.4.1
+        version: 4.4.1(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
       '@react-native-community/geolocation':
         specifier: ^3.4.0
         version: 3.4.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
@@ -76,6 +79,9 @@ importers:
       react-native-date-picker:
         specifier: ^5.0.13
         version: 5.0.13(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
+      react-native-device-info:
+        specifier: ^15.0.1
+        version: 15.0.1(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))
       react-native-document-picker:
         specifier: ^9.3.1
         version: 9.3.1(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
@@ -112,6 +118,9 @@ importers:
       react-native-screens:
         specifier: ^3.35.0
         version: 3.37.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
+      react-native-share:
+        specifier: ^12.2.5
+        version: 12.2.5
       react-native-svg:
         specifier: ^15.0.0
         version: 15.0.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
@@ -121,6 +130,9 @@ importers:
       react-native-video:
         specifier: ^6.18.0
         version: 6.19.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
+      react-native-view-shot:
+        specifier: ^4.0.3
+        version: 4.0.3(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
       react-native-vision-camera:
         specifier: ^4.6.3
         version: 4.7.3(react-native-reanimated@3.16.2(@babel/core@7.28.6)(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1))(react-native-worklets-core@1.6.2(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1))(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
@@ -1348,6 +1360,12 @@ packages:
       react-native-windows:
         optional: true
 
+  '@react-native-community/blur@4.4.1':
+    resolution: {integrity: sha512-XBSsRiYxE/MOEln2ayunShfJtWztHwUxLFcSL20o+HNNRnuUDv+GXkF6FmM2zE8ZUfrnhQ/zeTqvnuDPGw6O8A==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   '@react-native-community/cli-clean@20.1.1':
     resolution: {integrity: sha512-6nGQ08w2+EcDwTFC4JFiW/wI2pLwzMrk9thz4um7tKRNW8sADX0IyCsfM2F4rHS720C0UNKYBZE9nAsfp8Vkcw==}
 
@@ -1912,6 +1930,10 @@ packages:
   base-64@0.1.0:
     resolution: {integrity: sha512-Y5gU45svrR5tI2Vt/X9GPd3L0HNIKzGu202EjxrXMpuc2V2CiKgemAbUUsqYmZJvPtCXoUKjNZwBJzsNScUbXA==}
 
+  base64-arraybuffer@1.0.2:
+    resolution: {integrity: sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==}
+    engines: {node: '>= 0.6.0'}
+
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
@@ -2142,6 +2164,9 @@ packages:
   css-color-keywords@1.0.0:
     resolution: {integrity: sha512-FyyrDHZKEjXDpNJYvVsV960FiqQyXc/LlYmsxl2BcdMb2WPx0OGRVgTg55rPSyLSNMqP52R9r8geSp7apN3Ofg==}
     engines: {node: '>=4'}
+
+  css-line-break@2.1.0:
+    resolution: {integrity: sha512-FHcKFCZcAha3LwfVBhCQbW2nCNbkZXn7KVUJcsT5/P8YmfsVja0FMPJr0B903j/E69HUphKiV9iQArX8SDYA4w==}
 
   css-select@5.2.2:
     resolution: {integrity: sha512-TizTzUddG/xYLA3NXodFM0fSbNizXjOKhqiQQwvhlspadZokn1KDy0NZFS0wuEubIYAV5/c1/lAr0TaaFXEXzw==}
@@ -2758,6 +2783,10 @@ packages:
 
   html-parse-stringify@3.0.1:
     resolution: {integrity: sha512-KknJ50kTInJ7qIScF3jeaFRpMpE8/lfiTdzf/twXyPBLAGrLRTmkz3AdTnKeh40X8k9L2fdYwEp/42WGXIRGcg==}
+
+  html2canvas@1.4.1:
+    resolution: {integrity: sha512-fPU6BHNpsyIhr8yyMpTLLxAbkaK8ArIBcmZIRiBLiDhjeqvXolaEmDGmELFuX9I4xDcaKKcJl+TKZLqruBbmWA==}
+    engines: {node: '>=8.0.0'}
 
   http-errors@2.0.1:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
@@ -3918,6 +3947,11 @@ packages:
       react: '>= 17.0.1'
       react-native: '>= 0.64.3'
 
+  react-native-device-info@15.0.1:
+    resolution: {integrity: sha512-U5waZRXtT3l1SgZpZMlIvMKPTkFZPH8W7Ks6GrJhdH723aUIPxjVer7cRSij1mvQdOAAYFJV/9BDzlC8apG89A==}
+    peerDependencies:
+      react-native: '*'
+
   react-native-document-picker@9.3.1:
     resolution: {integrity: sha512-Vcofv9wfB0j67zawFjfq9WQPMMzXxOZL9kBmvWDpjVuEcVK73ndRmlXHlkeFl5ZHVsv4Zb6oZYhqm9u5omJOPA==}
     deprecated: the package was renamed, follow migration instructions at https://shorturl.at/QYT4t
@@ -4002,6 +4036,10 @@ packages:
       react: '*'
       react-native: '*'
 
+  react-native-share@12.2.5:
+    resolution: {integrity: sha512-2uwd/PdlUyvpsSBfL7OMiL4sD0Ja51wu5m62JSIXjrtlF+uSTUOGsMrE49ncIRYziqAfYUeI195WwhpvqXB0ww==}
+    engines: {node: '>=16'}
+
   react-native-svg@15.0.0:
     resolution: {integrity: sha512-ZUEXlzdU3cHjhOuc4BP7fbvabmz8yIuH4ocKSEr5V3P5skk2wnbEyZd3p7dzV9IoODgguCe7tcrNRGwr9pLRig==}
     peerDependencies:
@@ -4023,6 +4061,12 @@ packages:
 
   react-native-video@6.19.0:
     resolution: {integrity: sha512-JVojWIxwuH5C3RjVrF4UyuweuOH/Guq/W2xeN9zugePXZI8Xn/j6/oU94gCWHaFzkR/HGeJpqMq+l9aEHSnpIQ==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
+  react-native-view-shot@4.0.3:
+    resolution: {integrity: sha512-USNjYmED7C0me02c1DxKA0074Hw+y/nxo+xJKlffMvfUWWzL5ELh/TJA/pTnVqFurIrzthZDPtDM7aBFJuhrHQ==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -4455,6 +4499,9 @@ packages:
     resolution: {integrity: sha512-oJQ3f1hrOnbRLOcwKz0Liq2IcrvDeZRHXhd9RgLrsT+DjWY/nty1Hi7v3dtkaEYbPYe0mUoOfzRrMwfXXwgPUA==}
     deprecated: no longer maintained
 
+  text-segmentation@1.0.3:
+    resolution: {integrity: sha512-iOiPUo/BGnZ6+54OsWxZidGCsdU8YbE4PSpdPinp7DeMtUJNJBoJ/ouUSTJjHkh1KntHaltHl/gDs2FC4i5+Nw==}
+
   text-table@0.2.0:
     resolution: {integrity: sha512-N+8UisAXDGk8PFXP4HAzVR9nbfmVJ3zYLAWiTIoqC5v5isinhr+r5uaO8+7r3BMfuNIufIsA7RdpVgacC2cSpw==}
 
@@ -4595,6 +4642,9 @@ packages:
   utils-merge@1.0.1:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
+
+  utrie@1.0.2:
+    resolution: {integrity: sha512-1MLa5ouZiOmQzUbjbu9VmjLzn1QLXBhwpUa7kdLUQK+KQ5KA9I1vk5U4YHe/X2Ch7PYnJfWuWT+VbuxbGwljhw==}
 
   v8-to-istanbul@9.3.0:
     resolution: {integrity: sha512-kiGUalWN+rgBJ/1OHZsBtU4rXZOfj/7rKQxULKlIzwzQSvMJUUNgPwJEEh7gU6xEVxC0ahoOBvN2YI8GH6FNgA==}
@@ -6277,6 +6327,11 @@ snapshots:
       react: 18.3.1
       react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
 
+  '@react-native-community/blur@4.4.1(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      react: 18.3.1
+      react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
+
   '@react-native-community/cli-clean@20.1.1':
     dependencies:
       '@react-native-community/cli-tools': 20.1.1
@@ -7205,6 +7260,8 @@ snapshots:
 
   base-64@0.1.0: {}
 
+  base64-arraybuffer@1.0.2: {}
+
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.9.19: {}
@@ -7469,6 +7526,10 @@ snapshots:
       which: 2.0.2
 
   css-color-keywords@1.0.0: {}
+
+  css-line-break@2.1.0:
+    dependencies:
+      utrie: 1.0.2
 
   css-select@5.2.2:
     dependencies:
@@ -8194,6 +8255,11 @@ snapshots:
   html-parse-stringify@3.0.1:
     dependencies:
       void-elements: 3.1.0
+
+  html2canvas@1.4.1:
+    dependencies:
+      css-line-break: 2.1.0
+      text-segmentation: 1.0.3
 
   http-errors@2.0.1:
     dependencies:
@@ -9730,6 +9796,10 @@ snapshots:
       react: 18.3.1
       react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
 
+  react-native-device-info@15.0.1(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)):
+    dependencies:
+      react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
+
   react-native-document-picker@9.3.1(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1):
     dependencies:
       invariant: 2.2.4
@@ -9822,6 +9892,8 @@ snapshots:
       react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
       warn-once: 0.1.1
 
+  react-native-share@12.2.5: {}
+
   react-native-svg@15.0.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1):
     dependencies:
       css-select: 5.2.2
@@ -9836,6 +9908,12 @@ snapshots:
 
   react-native-video@6.19.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1):
     dependencies:
+      react: 18.3.1
+      react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
+
+  react-native-view-shot@4.0.3(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1):
+    dependencies:
+      html2canvas: 1.4.1
       react: 18.3.1
       react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
 
@@ -10356,6 +10434,10 @@ snapshots:
 
   text-encoding@0.7.0: {}
 
+  text-segmentation@1.0.3:
+    dependencies:
+      utrie: 1.0.2
+
   text-table@0.2.0: {}
 
   throat@5.0.0: {}
@@ -10482,6 +10564,10 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  utrie@1.0.2:
+    dependencies:
+      base64-arraybuffer: 1.0.2
 
   v8-to-istanbul@9.3.0:
     dependencies:

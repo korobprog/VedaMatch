@@ -1,14 +1,33 @@
-import messaging from '@react-native-firebase/messaging';
+import {
+    getMessaging,
+    requestPermission,
+    getToken,
+    onMessage,
+    onNotificationOpenedApp,
+    getInitialNotification,
+    AuthorizationStatus
+} from '@react-native-firebase/messaging';
+import { getApp } from '@react-native-firebase/app';
 import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { navigationRef } from '../App';
 
+// Lazy-loaded messaging instance to prevent initialization race conditions
+let messagingInstance: any = null;
+const getMessagingInstance = () => {
+    if (!messagingInstance) {
+        messagingInstance = getMessaging();
+    }
+    return messagingInstance;
+};
+
 export const notificationService = {
     requestUserPermission: async () => {
-        const authStatus = await messaging().requestPermission();
+        const messaging = getMessagingInstance();
+        const authStatus = await requestPermission(messaging);
         const enabled =
-            authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-            authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+            authStatus === AuthorizationStatus.AUTHORIZED ||
+            authStatus === AuthorizationStatus.PROVISIONAL;
 
         if (enabled) {
             console.log('[NotificationService] Authorization status:', authStatus);
@@ -19,7 +38,8 @@ export const notificationService = {
 
     getFcmToken: async () => {
         try {
-            const fcmToken = await messaging().getToken();
+            const messaging = getMessagingInstance();
+            const fcmToken = await getToken(messaging);
             if (fcmToken) {
                 console.log('[NotificationService] FCM Token:', fcmToken);
                 await AsyncStorage.setItem('pushToken', fcmToken);
@@ -71,18 +91,20 @@ export const notificationService = {
     },
 
     setupListeners: () => {
+        const messaging = getMessagingInstance();
+
         // Foreground messages
-        const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+        const unsubscribeForeground = onMessage(messaging, async remoteMessage => {
             notificationService.onMessageReceived(remoteMessage);
         });
 
         // App opened from background/quit state
-        messaging().onNotificationOpenedApp(remoteMessage => {
+        onNotificationOpenedApp(messaging, remoteMessage => {
             notificationService.handleNotificationAction(remoteMessage.data);
         });
 
         // App opened from quit state
-        messaging().getInitialNotification().then(remoteMessage => {
+        getInitialNotification(messaging).then(remoteMessage => {
             if (remoteMessage) {
                 notificationService.handleNotificationAction(remoteMessage.data);
             }

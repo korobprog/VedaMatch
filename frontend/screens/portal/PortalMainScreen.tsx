@@ -12,6 +12,7 @@ import {
     Image,
     ImageBackground,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import {
@@ -74,6 +75,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         if (portalBackgroundType === 'image' && portalBackground) {
             return (
                 <ImageBackground
+                    key="bg-image"
                     source={{ uri: portalBackground }}
                     style={styles.container}
                     resizeMode="cover"
@@ -89,6 +91,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             const colors = portalBackground.split('|');
             return (
                 <LinearGradient
+                    key="bg-gradient"
                     colors={colors}
                     style={styles.container}
                     start={{ x: 0, y: 0 }}
@@ -100,7 +103,10 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         }
 
         return (
-            <View style={[styles.container, { backgroundColor: portalBackground || vTheme.colors.background }]}>
+            <View
+                key="bg-color"
+                style={[styles.container, { backgroundColor: portalBackground || vTheme.colors.background }]}
+            >
                 {children}
             </View>
         );
@@ -194,7 +200,12 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                         <TouchableOpacity onPress={() => setActiveTab(null)} activeOpacity={0.7}>
                             <Image
                                 source={require('../../assets/logo_tilak.png')}
-                                style={[styles.logoImage, isDarkMode && { tintColor: vTheme.colors.primary }]}
+                                style={[
+                                    styles.logoImage,
+                                    (portalBackgroundType === 'image')
+                                        ? { tintColor: '#ffffff' }
+                                        : (isDarkMode && { tintColor: vTheme.colors.primary })
+                                ]}
                                 resizeMode="contain"
                             />
                         </TouchableOpacity>
@@ -245,12 +256,61 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             <View style={[styles.header, { backgroundColor: 'transparent' }]}>
                 <View style={styles.headerLeft}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <TouchableOpacity
-                            onPress={() => setActiveTab(null)}
-                            style={[styles.avatarButton, { backgroundColor: vTheme.colors.backgroundSecondary, ...vTheme.shadows.soft }]}
-                        >
-                            <List size={22} color={vTheme.colors.primary} strokeWidth={2.5} />
-                        </TouchableOpacity>
+                        <View style={[
+                            styles.avatarButton,
+                            {
+                                backgroundColor: 'transparent',
+                                ...Platform.select({
+                                    ios: {
+                                        shadowColor: '#000',
+                                        shadowOffset: { width: 0, height: 4 },
+                                        shadowOpacity: 0.3,
+                                        shadowRadius: 8,
+                                    },
+                                    android: {
+                                        elevation: 8,
+                                    }
+                                })
+                            }
+                        ]}>
+                            <TouchableOpacity
+                                onPress={() => setActiveTab(null)}
+                                style={{
+                                    flex: 1,
+                                    width: '100%',
+                                    height: '100%',
+                                    borderRadius: 20,
+                                    overflow: 'hidden',
+                                    backgroundColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                                    borderColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.4)' : 'transparent',
+                                    borderWidth: (portalBackgroundType === 'image' || isDarkMode) ? 1.5 : 0,
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                }}
+                            >
+                                {(portalBackgroundType === 'image' || isDarkMode) && (
+                                    <BlurView
+                                        style={StyleSheet.absoluteFill}
+                                        blurType={isDarkMode ? "dark" : "light"}
+                                        blurAmount={10}
+                                        reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                                    />
+                                )}
+                                <View style={{
+                                    shadowColor: "#000",
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: (portalBackgroundType === 'image') ? 0.5 : 0,
+                                    shadowRadius: 2,
+                                    elevation: (portalBackgroundType === 'image') ? 5 : 0,
+                                }}>
+                                    <List
+                                        size={22}
+                                        color={(portalBackgroundType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
+                                        strokeWidth={2.5}
+                                    />
+                                </View>
+                            </TouchableOpacity>
+                        </View>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('InviteFriends')}
                             style={styles.iconButton}

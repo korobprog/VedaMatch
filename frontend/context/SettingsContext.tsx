@@ -28,8 +28,8 @@ interface SettingsContextType {
     selectModel: (modelId: string, provider: string) => void;
     setImageSize: (size: number) => void;
     setImagePosition: (position: 'left' | 'center' | 'right') => void;
-    assistantType: 'feather' | 'smiley';
-    setAssistantType: (type: 'feather' | 'smiley') => Promise<void>;
+    assistantType: 'feather' | 'smiley' | 'feather2';
+    setAssistantType: (type: 'feather' | 'smiley' | 'feather2') => Promise<void>;
 
     theme: typeof COLORS.dark;
     vTheme: typeof VedicLightTheme;
@@ -64,7 +64,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [isPortalOpen, setIsPortalOpen] = useState<boolean>(false);
     const [portalBackground, setPortalBackgroundState] = useState<string>('#ffffff');
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
-    const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley'>('feather');
+    const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
 
     const colorScheme = useColorScheme();
 
@@ -166,8 +166,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 }
 
                 const savedAssistant = await AsyncStorage.getItem('assistant_type');
-                if (savedAssistant === 'feather' || savedAssistant === 'smiley') {
-                    setAssistantTypeState(savedAssistant);
+                if (savedAssistant === 'feather' || savedAssistant === 'smiley' || savedAssistant === 'feather2') {
+                    setAssistantTypeState(savedAssistant as any);
+                } else if (savedAssistant === 'nanobanano') {
+                    // Migration fallback
+                    setAssistantTypeState('feather2');
                 }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
@@ -202,7 +205,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const setAssistantType = async (type: 'feather' | 'smiley') => {
+    const setAssistantType = async (type: 'feather' | 'smiley' | 'feather2') => {
         setAssistantTypeState(type);
         try {
             await AsyncStorage.setItem('assistant_type', type);

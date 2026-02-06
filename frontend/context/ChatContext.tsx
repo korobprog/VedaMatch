@@ -402,7 +402,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const handleNewChat = () => {
-        const assistantName = assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас";
+        const assistantName = assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас");
         setMessages([
             {
                 id: `welcome_${Date.now()}`,
