@@ -1,4 +1,3 @@
-// Portal Grid - Main grid component with drag & drop, pages, and widgets
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View,
@@ -10,6 +9,8 @@ import {
     TouchableOpacity,
     TextInput,
     Pressable,
+    Platform,
+    UIManager,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -23,6 +24,8 @@ import Animated, {
     withSpring,
     withTiming,
     runOnJS,
+    FadeIn,
+    FadeOut,
 } from 'react-native-reanimated';
 import LinearGradient from 'react-native-linear-gradient';
 import { Plus, FolderPlus, LayoutGrid, Settings } from 'lucide-react-native';
@@ -36,6 +39,7 @@ import { ClockWidget } from './ClockWidget';
 import { CalendarWidget } from './CalendarWidget';
 import { PortalWidgetWrapper } from './PortalWidgetWrapper';
 import { DraggablePortalItem } from './DraggablePortalItem';
+import { SkeletonIcon } from './SkeletonIcon';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -65,6 +69,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
         moveItemToQuickAccess,
     } = usePortalLayout();
 
+    const [isReady, setIsReady] = useState(false); // Delay rendering to prevent layout jumps
+
     const [newFolderName, setNewFolderName] = useState('');
     const [selectedFolder, setSelectedFolder] = useState<PortalFolderType | null>(null);
     const [showFolderModal, setShowFolderModal] = useState(false);
@@ -82,6 +88,14 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
     useEffect(() => {
         itemLayouts.current = {};
     }, [currentPage]);
+
+    // Delay rendering to allow layout to settle
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsReady(true);
+        }, 1200); // Extended time to ensure smooth transition
+        return () => clearTimeout(timer);
+    }, []);
 
     const page = layout.pages[currentPage];
     const items = page?.items || [];
@@ -237,6 +251,18 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
 
     // Render individual grid item
     const renderItem = useCallback((item: PortalItem | PortalFolderType) => {
+        if (!isReady) {
+            return (
+                <Animated.View
+                    key={`skeleton-${item.id}`}
+                    style={{ pointerEvents: 'none' }}
+                    exiting={FadeOut.duration(300)}
+                >
+                    <SkeletonIcon />
+                </Animated.View>
+            );
+        }
+
         let component = null;
         let pressHandler: () => void;
 
@@ -274,23 +300,24 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
         }
 
         return (
-            <DraggablePortalItem
-                key={item.id}
-                id={item.id}
-                isEditMode={isEditMode}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onLayout={(e) => handleItemLayout(item.id, e)}
-                onPress={pressHandler}
-                onSecondaryLongPress={item.type === 'folder'
-                    ? () => handleFolderPress(item as PortalFolderType, true)
-                    : () => setEditMode(true)
-                }
-            >
-                {component}
-            </DraggablePortalItem>
+            <Animated.View key={item.id} entering={FadeIn.duration(500)}>
+                <DraggablePortalItem
+                    id={item.id}
+                    isEditMode={isEditMode}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onLayout={(e) => handleItemLayout(item.id, e)}
+                    onPress={pressHandler}
+                    onSecondaryLongPress={item.type === 'folder'
+                        ? () => handleFolderPress(item as PortalFolderType, true)
+                        : () => setEditMode(true)
+                    }
+                >
+                    {component}
+                </DraggablePortalItem>
+            </Animated.View>
         );
-    }, [isEditMode, layout.iconSize, handleDragStart, handleFolderPress, handleServicePress, handleDragEnd, setEditMode]);
+    }, [isReady, isEditMode, layout.iconSize, handleDragStart, handleFolderPress, handleServicePress, handleDragEnd, setEditMode]);
 
     // Render dock item
     const renderDockItem = useCallback((item: PortalItem, index: number) => {
@@ -566,6 +593,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         justifyContent: 'flex-start',
         alignItems: 'flex-start',
+        backgroundColor: 'transparent', // Fix shadow warning
     },
     quickAccessDock: {
         position: 'absolute',
@@ -575,6 +603,7 @@ const styles = StyleSheet.create({
         height: 80,
         justifyContent: 'center',
         paddingHorizontal: 20,
+        backgroundColor: 'transparent', // Fix shadow warning
     },
     dockDivider: {
         position: 'absolute',
@@ -643,6 +672,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 20,
         borderWidth: 1,
+        // Add transparent background to fix shadow warning if no other bg is applied
+        backgroundColor: 'transparent',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,

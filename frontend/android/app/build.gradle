@@ -19,27 +19,7 @@ project.ext.react = [
     bundleInRelease: false
 ]
 
-    // Skip bundle and codegen tasks entirely
-    tasks.whenTaskAdded { task ->
-        if (task.name == 'createBundleReleaseJsAndAssets' || task.name == 'createBundleDebugJsAndAssets') {
-            task.enabled = false
-            task.actions.clear()
-            task.dependsOn = []
-            logger.quiet("Skipping bundle creation - using pre-bundled assets")
-            logger.lifecycle("Using pre-bundled JS bundle from src/main/assets/index.android.bundle")
-            def bundleFile = file('src/main/assets/index.android.bundle')
-            if (bundleFile.exists()) {
-                logger.lifecycle("✓ Bundle file exists at: ${bundleFile}")
-            } else {
-                logger.lifecycle("⚠️ Bundle file NOT FOUND at: ${bundleFile}")
-                logger.lifecycle(" Please ensure bundle is created before building APK")
-            }
-        }
-        if (task.name.contains('generateCodegen')) {
-            task.enabled = false
-            logger.quiet("Skipping codegen task: ${task.name}")
-        }
-    }
+
 
   android {
     ndkVersion rootProject.ext.ndkVersion

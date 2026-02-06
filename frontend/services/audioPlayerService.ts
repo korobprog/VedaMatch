@@ -58,7 +58,7 @@ class AudioPlayerService {
             this.isInitialized = true;
             console.log('TrackPlayer setup successful');
         } catch (error: any) {
-            if (error?.message?.includes('already initialized') || error?.message?.includes('Player has already been setup')) {
+            if (error?.message?.includes('already initialized') || error?.message?.includes('Player has already been setup') || error?.message?.includes('The player has already been initialized via setupPlayer')) {
                 this.isInitialized = true;
             } else {
                 console.error('TrackPlayer setup failed:', error);

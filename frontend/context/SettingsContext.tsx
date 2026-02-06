@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { modelsConfig } from '../config/models.config';
 import { useUser } from './UserContext';
-import { Alert, useColorScheme } from 'react-native';
+import { Alert, useColorScheme, Image } from 'react-native';
 import { COLORS } from '../components/chat/ChatConstants';
 import { VedicLightTheme, VedicDarkTheme } from '../theme/ModernVedicTheme';
 
@@ -45,6 +45,7 @@ interface SettingsContextType {
     portalBackground: string;
     portalBackgroundType: 'color' | 'gradient' | 'image';
     setPortalBackground: (bg: string, type: 'color' | 'gradient' | 'image') => Promise<void>;
+    isSettingsLoaded: boolean;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -62,8 +63,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     const [isPortalOpen, setIsPortalOpen] = useState<boolean>(false);
-    const [portalBackground, setPortalBackgroundState] = useState<string>('#ffffff');
-    const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('color');
+    // Default background
+    const defaultBgImage = Image.resolveAssetSource(require('../assets/vedamatch_bg.png')).uri;
+    const [portalBackground, setPortalBackgroundState] = useState<string>(defaultBgImage);
+    const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
 
     const colorScheme = useColorScheme();
@@ -145,6 +148,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     // Initial fetch on mount? 
     // Maybe better to lazy load when drawer opens, but user asked for "cached list".
     // We can fetch on app start silently.
+    const [isSettingsLoaded, setIsSettingsLoaded] = useState<boolean>(false);
+
     useEffect(() => {
         const loadSettings = async () => {
             try {
@@ -160,9 +165,19 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
                 const savedBg = await AsyncStorage.getItem('portal_background');
                 const savedBgType = await AsyncStorage.getItem('portal_background_type');
-                if (savedBg) setPortalBackgroundState(savedBg);
+
+                if (savedBg && savedBg !== 'undefined' && savedBg !== 'null') {
+                    setPortalBackgroundState(savedBg);
+                } else {
+                    // Fallback to default if nothing saved
+                    setPortalBackgroundState(defaultBgImage);
+                }
+
                 if (savedBgType === 'color' || savedBgType === 'gradient' || savedBgType === 'image') {
-                    setPortalBackgroundType(savedBgType);
+                    setPortalBackgroundType(savedBgType as any);
+                } else if (!savedBgType) {
+                    // Default to image if nothing saved
+                    setPortalBackgroundType('image');
                 }
 
                 const savedAssistant = await AsyncStorage.getItem('assistant_type');
@@ -174,6 +189,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
+            } finally {
+                setIsSettingsLoaded(true);
             }
         };
         loadSettings();
@@ -243,6 +260,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             setPortalBackground,
             assistantType,
             setAssistantType,
+            isSettingsLoaded,
         }}>
             {children}
         </SettingsContext.Provider>

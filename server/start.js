@@ -61,8 +61,25 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     process.exit(1);
   }
 
+  // Проверка порта 8000
+  const net = require('net');
+  const isPortTaken = (port) => new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(400);
+    socket.on('connect', () => { socket.destroy(); resolve(true); });
+    socket.on('timeout', () => { socket.destroy(); resolve(false); });
+    socket.on('error', () => { socket.destroy(); resolve(false); });
+    socket.connect(port, '127.0.0.1');
+  });
+
+  if (await isPortTaken(8000)) {
+    console.log('⚠️  Порт 8000 уже занят. Предполагаем, что бэкенд уже запущен.');
+    console.log('✅  Пропускаем запуск сервера.');
+    process.exit(0);
+  }
+
   // Запуск сервера (ВСЕГДА используем go run в dev-режиме для актуального кода)
-  console.log('🔥 Запускаю сервер на http://localhost:8081');
+  console.log('🔥 Запускаю сервер на http://localhost:8000');
   console.log('');
 
   const fs = require('fs');

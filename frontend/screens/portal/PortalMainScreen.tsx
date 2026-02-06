@@ -233,7 +233,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 </View>
 
                 {/* Grid View */}
-                <View style={styles.gridContent}>
+                <View style={[styles.gridContent, { backgroundColor: 'transparent' }]}>
                     <PortalGrid onServicePress={handleServicePress} />
                 </View>
 
@@ -297,6 +297,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                     />
                                 )}
                                 <View style={{
+                                    backgroundColor: 'transparent',
                                     shadowColor: "#000",
                                     shadowOffset: { width: 0, height: 2 },
                                     shadowOpacity: (portalBackgroundType === 'image') ? 0.5 : 0,

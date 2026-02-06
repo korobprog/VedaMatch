@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RNCallKeep from 'react-native-callkeep';
 import { Platform, PermissionsAndroid } from 'react-native';
@@ -159,9 +159,10 @@ const ThemedStatusBar = () => {
 
 const AppContent = () => {
   const { t } = useTranslation();
-  const { theme, isMenuOpen, setIsMenuOpen, isDarkMode, currentModel, selectModel, isPortalOpen, setIsPortalOpen } = useSettings();
+  const { theme, isMenuOpen, setIsMenuOpen, isDarkMode, currentModel, selectModel, isPortalOpen, setIsPortalOpen, isSettingsLoaded } = useSettings();
   const { isLoggedIn, isLoading, user } = useUser();
   const [showPreview, setShowPreview] = useState(true);
+  const [minLoadTime, setMinLoadTime] = useState(false); // Force min loading time to hide flashes
   // Keep sipUser ref or state if needed to manage connection
 
   // Use WebSocket to listen for incoming WebRTC calls
@@ -259,12 +260,20 @@ const AppContent = () => {
     initPlayer();
   }, []);
 
+  // Force minimum load time to prevent white flashes
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinLoadTime(true);
+    }, 1500); // 1.5 seconds minimum load time
+    return () => clearTimeout(timer);
+  }, []);
+
   // Show preview only for non-logged-in users
   if (showPreview && !isLoggedIn && !isLoading) {
     return <PreviewScreen onFinish={() => setShowPreview(false)} />;
   }
 
-  if (isLoading) {
+  if (isLoading || !isSettingsLoaded || !minLoadTime) {
     return (
       <SafeAreaView
         style={{ flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }}
@@ -281,18 +290,29 @@ const AppContent = () => {
     >
       <GlobalGestureHandler>
         <PortalLayoutProvider>
-          <NavigationContainer ref={navigationRef} linking={linking}>
+          <NavigationContainer
+            ref={navigationRef}
+            linking={linking}
+            theme={{
+              ...(isDarkMode ? DarkTheme : DefaultTheme),
+              colors: {
+                ...(isDarkMode ? DarkTheme.colors : DefaultTheme.colors),
+                background: 'transparent',
+              },
+            }}
+          >
             <ThemedStatusBar />
             <NotificationManager />
             <Stack.Navigator
               screenOptions={{
                 headerShown: false,
                 animation: 'slide_from_right',
+                contentStyle: { backgroundColor: 'transparent' }, // Fix gray flash during transition
               }}
             >
               {isLoggedIn ? (
                 <Stack.Group>
-                  <Stack.Screen name="Portal" component={PortalMainScreen} />
+                  <Stack.Screen name="Portal" component={PortalMainScreen} options={{ animation: 'fade' }} />
                   <Stack.Screen name="WidgetSelection" component={WidgetSelectionScreen} />
                   <Stack.Screen name="Chat" component={ChatScreen} />
                   <Stack.Screen name="CallScreen" component={CallScreen} options={{ headerShown: false }} />
@@ -407,7 +427,7 @@ const AppContent = () => {
                 </Stack.Group>
               ) : (
                 <Stack.Group>
-                  <Stack.Screen name="Login" component={LoginScreen} />
+                  <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
                   <Stack.Screen name="Registration" component={RegistrationScreen} />
                 </Stack.Group>
               )}

@@ -1,10 +1,19 @@
 const { execSync, spawn } = require('child_process');
 const path = require('path');
 
+const os = require('os');
+
+// Определение ОС
+const isWindows = os.platform() === 'win32';
+const HOME = os.homedir();
+
 // Пути к Android SDK
-const ANDROID_SDK = process.env.LOCALAPPDATA + '\\Android\\Sdk';
-const ADB_PATH = path.join(ANDROID_SDK, 'platform-tools', 'adb.exe');
-const EMULATOR_PATH = path.join(ANDROID_SDK, 'emulator', 'emulator.exe');
+const ANDROID_SDK = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || (isWindows
+    ? path.join(process.env.LOCALAPPDATA || path.join(HOME, 'AppData', 'Local'), 'Android', 'Sdk')
+    : path.join(HOME, 'Library', 'Android', 'sdk'));
+
+const ADB_PATH = path.join(ANDROID_SDK, 'platform-tools', isWindows ? 'adb.exe' : 'adb');
+const EMULATOR_PATH = path.join(ANDROID_SDK, 'emulator', isWindows ? 'emulator.exe' : 'emulator');
 
 // Имя эмулятора (можно переопределить через переменную окружения)
 const EMULATOR_NAME = process.env.ANDROID_EMULATOR || null;

@@ -4,7 +4,7 @@ const config = getDefaultConfig(__dirname);
 
 config.server = {
   ...config.server,
-  port: 8082,
+  port: 8081,
   // Fix for "Cannot read properties of undefined (reading 'handle')"
   enhanceMiddleware: (middleware, server) => {
     if (!middleware) {

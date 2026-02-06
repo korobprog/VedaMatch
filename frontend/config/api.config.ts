@@ -3,9 +3,9 @@ import { Platform } from 'react-native';
 
 // Значение по умолчанию для локальной разработки
 const DEFAULT_URL = Platform.select({
-    android: 'http://10.0.2.2:8081', // Use 10.0.2.2 for Android emulator
-    ios: 'http://127.0.0.1:8081',
-    default: 'http://127.0.0.1:8081'
+    android: 'http://10.0.2.2:8000', // Use 10.0.2.2 for Android emulator
+    ios: 'http://127.0.0.1:8000',
+    default: 'http://127.0.0.1:8000'
 }) as string;
 
 let rawUrl;
