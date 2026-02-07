@@ -3,11 +3,11 @@ services:
     image: redis:7-alpine
     container_name: rag-agent-redis
     restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD:-vedamatch2026} --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-vedamatch2026}", "ping" ]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -17,7 +17,7 @@ services:
     container_name: rag-agent-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-raguser}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-ragpassword}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-ragdb}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -37,7 +37,7 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER:-raguser}
-      DB_PASSWORD: ${DB_PASSWORD:-ragpassword}
+      DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-ragdb}
       API_OPEN_AI: ${API_OPEN_AI}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
@@ -55,7 +55,7 @@ services:
       TURN_HOST: ${TURN_EXTERNAL_IP:-45.150.9.229}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-vedamatch2026}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_DB: 0
       FFMPEG_PATH: /usr/bin/ffmpeg
       VIDEO_UPLOAD_MAX_SIZE: ${VIDEO_UPLOAD_MAX_SIZE:-2147483648}
