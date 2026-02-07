@@ -160,3 +160,6 @@ frontend/android/app/build/outputs/
 out/server/server_linux
 
 .env
+.env.backup
+
+server/.env

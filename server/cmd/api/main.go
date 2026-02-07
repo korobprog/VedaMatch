@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/handlers"
 	"rag-agent-server/internal/middleware"
@@ -15,6 +17,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	fiberwebsocket "github.com/gofiber/websocket/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -64,11 +67,27 @@ func main() {
 		StrictRouting:     false,                  // Allow /path and /path/ to be treated the same
 		BodyLimit:         2 * 1024 * 1024 * 1024, // 2GB for video uploads
 		StreamRequestBody: true,                   // Stream large uploads instead of buffering in memory
-		// Custom error handler to ensure CORS headers are always present
+		// Custom error handler with SECURE CORS validation
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			// Set CORS headers even on errors
-			c.Set("Access-Control-Allow-Origin", c.Get("Origin"))
-			c.Set("Access-Control-Allow-Credentials", "true")
+			// Strict allowlist matching the CORS config
+			allowedOrigins := map[string]bool{
+				"http://localhost:3000":      true,
+				"http://localhost:3001":      true,
+				"http://localhost:3005":      true,
+				"http://127.0.0.1:3005":      true,
+				"http://localhost:8081":      true,
+				"https://vedamatch.ru":       true,
+				"https://www.vedamatch.ru":   true,
+				"https://api.vedamatch.ru":   true,
+				"https://admin.vedamatch.ru": true,
+			}
+
+			origin := c.Get("Origin")
+			if allowedOrigins[origin] {
+				// Only set headers if Origin is explicitly allowed
+				c.Set("Access-Control-Allow-Origin", origin)
+				c.Set("Access-Control-Allow-Credentials", "true")
+			}
 
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
@@ -749,25 +768,59 @@ func main() {
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {
 		if fiberwebsocket.IsWebSocketUpgrade(c) {
-			c.Locals("allowed", true)
+			// Extract token from query parameter "token"
+			tokenString := c.Query("token")
+			if tokenString == "" {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing token"})
+			}
+
+			// Parse and validate token
+			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				}
+				return []byte(os.Getenv("JWT_SECRET")), nil
+			})
+
+			if err != nil || !token.Valid {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
+			}
+
+			// Extract claims
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if !ok {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid claims"})
+			}
+
+			// Store user ID in locals for the upgrade handler
+			userIdFloat, ok := claims["userId"].(float64)
+			if !ok {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid user ID in token"})
+			}
+			c.Locals("userId", uint(userIdFloat))
+
 			return c.Next()
 		}
 		return c.SendStatus(fiber.StatusUpgradeRequired)
 	})
 
 	api.Get("/ws/:id", fiberwebsocket.New(func(c *fiberwebsocket.Conn) {
-		// Get userId from params
-		userIdParam := c.Params("id")
-		userId, err := strconv.ParseUint(userIdParam, 10, 32)
-		if err != nil {
-			log.Println("Invalid user ID for WebSocket:", userIdParam)
-			return
+		// Get validated userID from locals (set in middleware) calls
+		// Note: We still keep :id in path for client compatibility but IGNORE it for security
+		// or verify it matches the token. Ideally, we should remove :id from path in v2.
+
+		userId := c.Locals("userId").(uint)
+
+		// Optional: Verify path param matches token (strict mode)
+		paramId, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+		if uint(paramId) != userId {
+			log.Printf("[WS-Security] Path ID %d DOES NOT MATCH Token ID %d. Using Token ID.", paramId, userId)
 		}
 
 		client := &websocket.Client{
 			Hub:    hub,
 			Conn:   c,
-			UserID: uint(userId),
+			UserID: userId,
 			Send:   make(chan websocket.WSMessage, 256),
 		}
 
