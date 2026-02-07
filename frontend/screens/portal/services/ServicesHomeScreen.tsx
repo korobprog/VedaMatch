@@ -77,7 +77,11 @@ const CategoryIcon = ({ name, color, size }: { name: string, color: string, size
 // Assuming InfinityIcon is already handled by import Infinity as InfinityIcon in previous thought if shared, 
 // but here I need to be careful with scope. I'll just use the icons directly in the render.
 
-export default function ServicesHomeScreen() {
+interface ServicesHomeScreenProps {
+    onBack?: () => void;
+}
+
+const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
 
@@ -169,7 +173,7 @@ export default function ServicesHomeScreen() {
             <View style={styles.headerTop}>
                 <TouchableOpacity
                     style={styles.backButton}
-                    onPress={() => navigation.goBack()}
+                    onPress={() => onBack ? onBack() : navigation.goBack()}
                 >
                     <ArrowLeft size={22} color="#fff" />
                 </TouchableOpacity>
@@ -608,3 +612,5 @@ const styles = StyleSheet.create({
         paddingVertical: 30,
     },
 });
+
+export default ServicesHomeScreen;

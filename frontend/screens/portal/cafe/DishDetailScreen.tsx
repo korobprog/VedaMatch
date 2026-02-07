@@ -9,10 +9,25 @@ import {
     ActivityIndicator,
     TextInput,
     Dimensions,
+    Platform,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Utensils, X, Scale, Flame, Timer, Check, Minus, Plus } from 'lucide-react-native';
+import {
+    Utensils,
+    X,
+    Scale,
+    Flame,
+    Timer,
+    Check,
+    Minus,
+    Plus,
+    Info,
+    Leaf,
+    Wheat
+} from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { Dish, DishModifier, SelectedModifier } from '../../../types/cafe';
 import { useCart } from '../../../contexts/CafeCartContext';
@@ -40,7 +55,7 @@ const DishDetailScreen: React.FC = () => {
     const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([]);
     const [note, setNote] = useState('');
 
-    const { cart, addToCart, initCart } = useCart();
+    const { addToCart } = useCart();
 
     useEffect(() => {
         loadDish();
@@ -52,7 +67,6 @@ const DishDetailScreen: React.FC = () => {
             const dishData = await cafeService.getDish(cafeId, dishId);
             setDish(dishData);
 
-            // Pre-select default modifiers
             if (dishData.modifiers) {
                 const defaults = dishData.modifiers
                     .filter((m: DishModifier) => m.isDefault && m.isAvailable)
@@ -108,28 +122,27 @@ const DishDetailScreen: React.FC = () => {
 
     const handleAddToCart = () => {
         if (!dish) return;
-
         addToCart(dish, quantity, removedIngredients, selectedModifiers, note, cafeId, cafeName);
         navigation.goBack();
     };
 
     if (loading) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
-            </View>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#F59E0B" />
+            </LinearGradient>
         );
     }
 
     if (!dish) {
         return (
-            <View style={styles.errorContainer}>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
+                <Info size={48} color="rgba(255,255,255,0.2)" />
                 <Text style={styles.errorText}>{t('cafe.dish.notFound')}</Text>
-            </View>
+            </LinearGradient>
         );
     }
 
-    // Group modifiers by groupName
     const modifierGroups = dish.modifiers?.reduce((acc, mod) => {
         const group = mod.groupName || t('cafe.dish.modifiers');
         if (!acc[group]) acc[group] = [];
@@ -139,164 +152,157 @@ const DishDetailScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Header with image */}
-                <View style={styles.imageContainer}>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <View style={styles.imageWrapper}>
                     {dish.imageUrl ? (
-                        <Image source={{ uri: dish.imageUrl }} style={styles.image} />
+                        <Image source={{ uri: dish.imageUrl }} style={styles.heroImg} />
                     ) : (
-                        <View style={[styles.image, styles.placeholderImage]}>
-                            <Utensils size={64} color="#8E8E93" strokeWidth={1} />
+                        <View style={styles.heroImgPlaceholder}>
+                            <Utensils size={64} color="rgba(255,255,255,0.1)" />
                         </View>
                     )}
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => navigation.goBack()}
-                    >
-                        <X size={24} color="#FFFFFF" strokeWidth={2} />
-                    </TouchableOpacity>
+                    <LinearGradient
+                        colors={['rgba(10, 10, 20, 0.6)', 'transparent', 'rgba(10, 10, 20, 0.95)']}
+                        style={StyleSheet.absoluteFill}
+                    />
+                    <SafeAreaView style={styles.headerControls} edges={['top']}>
+                        <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
+                            <X size={22} color="#fff" />
+                        </TouchableOpacity>
+                    </SafeAreaView>
                 </View>
 
-                {/* Dish info */}
-                <View style={styles.content}>
-                    <View style={styles.header}>
-                        <Text style={styles.name}>{dish.name}</Text>
-                        <View style={styles.badges}>
+                <View style={styles.contentOverlay}>
+                    <View style={styles.dishHeader}>
+                        <Text style={styles.dishName}>{dish.name}</Text>
+                        <View style={styles.badgesFlow}>
                             {!!dish.isVegetarian && (
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>🌱 {t('cafe.dish.vegetarian')}</Text>
-                                </View>
-                            )}
-                            {!!dish.isVegan && (
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>🥬 {t('cafe.dish.vegan')}</Text>
+                                <View style={styles.badgeGlass}>
+                                    <Leaf size={12} color="#10B981" />
+                                    <Text style={styles.badgeText}>{t('cafe.dish.vegetarian')}</Text>
                                 </View>
                             )}
                             {!!dish.isSpicy && (
-                                <View style={[styles.badge, styles.spicyBadge]}>
-                                    <Text style={styles.badgeText}>🌶️ {t('cafe.dish.spicy')}</Text>
+                                <View style={[styles.badgeGlass, styles.badgeSpicy]}>
+                                    <Flame size={12} color="#EF4444" />
+                                    <Text style={styles.badgeText}>{t('cafe.dish.spicy')}</Text>
                                 </View>
                             )}
                             {!!dish.isGlutenFree && (
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>🌾 {t('cafe.dish.glutenFree')}</Text>
+                                <View style={styles.badgeGlass}>
+                                    <Wheat size={12} color="#F59E0B" />
+                                    <Text style={styles.badgeText}>{t('cafe.dish.glutenFree')}</Text>
                                 </View>
                             )}
                         </View>
                     </View>
 
-                    {!!dish.description ? (
+                    {!!dish.description && (
                         <Text style={styles.description}>{dish.description}</Text>
-                    ) : null}
+                    )}
 
-                    <View style={styles.metaRow}>
-                        {!!dish.weight && dish.weight > 0 ? (
-                            <View style={styles.metaItem}>
-                                <Scale size={16} color="#8E8E93" strokeWidth={1.5} />
-                                <Text style={styles.metaText}>{dish.weight} {t('cafe.dish.weight')}</Text>
+                    <View style={styles.metaStrip}>
+                        {!!dish.weight && dish.weight > 0 && (
+                            <View style={styles.metaPill}>
+                                <Scale size={14} color="rgba(255,255,255,0.4)" />
+                                <Text style={styles.metaPillText}>{dish.weight} {t('cafe.dish.weight')}</Text>
                             </View>
-                        ) : null}
-                        {!!dish.calories && dish.calories > 0 ? (
-                            <View style={styles.metaItem}>
-                                <Flame size={16} color="#8E8E93" strokeWidth={1.5} />
-                                <Text style={styles.metaText}>{dish.calories} {t('cafe.dish.kcal')}</Text>
+                        )}
+                        {!!dish.calories && dish.calories > 0 && (
+                            <View style={styles.metaPill}>
+                                <Flame size={14} color="rgba(255,255,255,0.4)" />
+                                <Text style={styles.metaPillText}>{dish.calories} {t('cafe.dish.kcal')}</Text>
                             </View>
-                        ) : null}
-                        {!!dish.cookingTime && dish.cookingTime > 0 ? (
-                            <View style={styles.metaItem}>
-                                <Timer size={16} color="#8E8E93" strokeWidth={1.5} />
-                                <Text style={styles.metaText}>~{dish.cookingTime} {t('cafe.dish.mins')}</Text>
+                        )}
+                        {!!dish.cookingTime && dish.cookingTime > 0 && (
+                            <View style={styles.metaPill}>
+                                <Timer size={14} color="rgba(255,255,255,0.4)" />
+                                <Text style={styles.metaPillText}>~{dish.cookingTime} {t('cafe.dish.mins')}</Text>
                             </View>
-                        ) : null}
+                        )}
                     </View>
 
-                    {/* Removable ingredients */}
-                    {!!dish.ingredients && dish.ingredients.filter(i => i.isRemovable).length > 0 ? (
-                        <View style={styles.section}>
+                    {/* Ingredients Section */}
+                    {!!dish.ingredients && dish.ingredients.filter(i => i.isRemovable).length > 0 && (
+                        <View style={styles.sectionGlass}>
                             <Text style={styles.sectionTitle}>{t('cafe.dish.removeIngredients')}</Text>
-                            <View style={styles.ingredientsList}>
-                                {dish.ingredients.filter(i => i.isRemovable).map(ingredient => (
-                                    <TouchableOpacity
-                                        key={ingredient.id}
-                                        style={[
-                                            styles.ingredientChip,
-                                            removedIngredients.includes(ingredient.name) && styles.ingredientChipRemoved,
-                                        ]}
-                                        onPress={() => toggleIngredient(ingredient.name)}
-                                    >
-                                        <Text style={[
-                                            styles.ingredientChipText,
-                                            removedIngredients.includes(ingredient.name) && styles.ingredientChipTextRemoved,
-                                        ]}>
-                                            {ingredient.name}
-                                            {!!ingredient.isAllergen ? ' ⚠️' : null}
-                                        </Text>
-                                        {removedIngredients.includes(ingredient.name) ? (
-                                            <X size={14} color="#FF3B30" style={{ marginLeft: 4 }} strokeWidth={2} />
-                                        ) : null}
-                                    </TouchableOpacity>
-                                ))}
+                            <View style={styles.ingredientChips}>
+                                {dish.ingredients.filter(i => i.isRemovable).map(ingredient => {
+                                    const isRemoved = removedIngredients.includes(ingredient.name);
+                                    return (
+                                        <TouchableOpacity
+                                            key={ingredient.id}
+                                            style={[styles.chip, isRemoved && styles.chipRemoved]}
+                                            onPress={() => toggleIngredient(ingredient.name)}
+                                        >
+                                            <Text style={[styles.chipText, isRemoved && styles.chipTextRemoved]}>
+                                                {ingredient.name}
+                                                {ingredient.isAllergen ? ' ⚠️' : ''}
+                                            </Text>
+                                            {isRemoved && <X size={12} color="#EF4444" style={{ marginLeft: 6 }} />}
+                                        </TouchableOpacity>
+                                    );
+                                })}
                             </View>
                         </View>
-                    ) : null}
+                    )}
 
-                    {/* Modifiers */}
+                    {/* Modifiers Sections */}
                     {Object.entries(modifierGroups).map(([groupName, modifiers]) => (
-                        <View key={groupName} style={styles.section}>
+                        <View key={groupName} style={styles.sectionGlass}>
                             <Text style={styles.sectionTitle}>{groupName}</Text>
                             {modifiers.map(modifier => {
-                                const isSelected = selectedModifiers.some(m => m.modifier.id === modifier.id);
                                 const selectedMod = selectedModifiers.find(m => m.modifier.id === modifier.id);
+                                const isSelected = !!selectedMod;
 
                                 return (
                                     <TouchableOpacity
                                         key={modifier.id}
                                         style={[
-                                            styles.modifierItem,
-                                            isSelected && styles.modifierItemSelected,
-                                            !modifier.isAvailable && styles.modifierItemDisabled,
+                                            styles.modifierRow,
+                                            isSelected && styles.modifierRowSelected,
+                                            !modifier.isAvailable && styles.rowDisabled,
                                         ]}
                                         onPress={() => modifier.isAvailable && toggleModifier(modifier)}
-                                        disabled={!modifier.isAvailable}
+                                        activeOpacity={0.7}
                                     >
-                                        <View style={styles.modifierInfo}>
-                                            <View style={[
-                                                styles.modifierCheckbox,
-                                                isSelected && styles.modifierCheckboxSelected,
-                                            ]}>
-                                                {!!isSelected ? (
-                                                    <Check size={14} color="#FFFFFF" strokeWidth={2} />
-                                                ) : null}
+                                        <View style={styles.modifierLead}>
+                                            <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                                                {isSelected && <Check size={12} color="#1a1a2e" strokeWidth={3} />}
                                             </View>
-                                            <Text style={[
-                                                styles.modifierName,
-                                                !modifier.isAvailable && styles.modifierNameDisabled,
-                                            ]}>
+                                            <Text style={[styles.modifierName, !modifier.isAvailable && styles.textDisabled]}>
                                                 {modifier.name}
-                                                {!!modifier.isAvailable ? null : ` (${t('cafe.dish.outOfStock')})`}
+                                                {!modifier.isAvailable && ` (${t('cafe.dish.outOfStock')})`}
                                             </Text>
                                         </View>
-                                        <View style={styles.modifierRight}>
-                                            {!!isSelected && modifier.maxQuantity > 1 ? (
-                                                <View style={styles.modifierQuantity}>
+
+                                        <View style={styles.modifierTrail}>
+                                            {isSelected && modifier.maxQuantity > 1 && (
+                                                <View style={styles.miniQty}>
                                                     <TouchableOpacity
-                                                        style={styles.qtyButton}
-                                                        onPress={() => updateModifierQuantity(modifier.id, -1)}
+                                                        style={styles.miniQtyBtn}
+                                                        onPress={(e) => {
+                                                            e.stopPropagation();
+                                                            updateModifierQuantity(modifier.id, -1);
+                                                        }}
                                                     >
-                                                        <Minus size={16} color="#FFFFFF" strokeWidth={1.5} />
+                                                        <Minus size={14} color="#fff" />
                                                     </TouchableOpacity>
-                                                    <Text style={styles.qtyText}>{selectedMod?.quantity || 1}</Text>
+                                                    <Text style={styles.miniQtyVal}>{selectedMod.quantity}</Text>
                                                     <TouchableOpacity
-                                                        style={styles.qtyButton}
-                                                        onPress={() => updateModifierQuantity(modifier.id, 1)}
+                                                        style={styles.miniQtyBtn}
+                                                        onPress={(e) => {
+                                                            e.stopPropagation();
+                                                            updateModifierQuantity(modifier.id, 1);
+                                                        }}
                                                     >
-                                                        <Plus size={16} color="#FFFFFF" strokeWidth={1.5} />
+                                                        <Plus size={14} color="#fff" />
                                                     </TouchableOpacity>
                                                 </View>
-                                            ) : null}
-                                            <Text style={styles.modifierPrice}>
-                                                +{modifier.price} ₽
-                                            </Text>
+                                            )}
+                                            <Text style={styles.modifierPrice}>+{modifier.price} ₽</Text>
                                         </View>
                                     </TouchableOpacity>
                                 );
@@ -304,48 +310,55 @@ const DishDetailScreen: React.FC = () => {
                         </View>
                     ))}
 
-                    {/* Note */}
-                    <View style={styles.section}>
+                    {/* Note Box */}
+                    <View style={styles.sectionGlass}>
                         <Text style={styles.sectionTitle}>{t('cafe.dish.comment')}</Text>
                         <TextInput
-                            style={styles.noteInput}
+                            style={styles.textArea}
                             placeholder={t('cafe.dish.specialWishes')}
-                            placeholderTextColor="#8E8E93"
+                            placeholderTextColor="rgba(255,255,255,0.2)"
                             value={note}
                             onChangeText={setNote}
                             multiline
-                            numberOfLines={2}
+                            numberOfLines={3}
                         />
                     </View>
                 </View>
+                <View style={{ height: 120 }} />
             </ScrollView>
 
-            {/* Bottom bar */}
-            <View style={styles.bottomBar}>
-                <View style={styles.quantityContainer}>
-                    <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => setQuantity(Math.max(1, quantity - 1))}
-                    >
-                        <Minus size={24} color="#FFFFFF" />
+            {/* Floating Action Bar */}
+            <View style={styles.actionBar}>
+                <View style={styles.qtyAction}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => setQuantity(Math.max(1, quantity - 1))}>
+                        <Minus size={20} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={styles.quantityText}>{quantity}</Text>
-                    <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => setQuantity(quantity + 1)}
-                    >
-                        <Plus size={24} color="#FFFFFF" />
+                    <Text style={styles.actionQty}>{quantity}</Text>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => setQuantity(quantity + 1)}>
+                        <Plus size={20} color="#fff" />
                     </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.addButton, !dish.isAvailable && styles.addButtonDisabled]}
+                    style={[styles.mainAddBtn, !dish.isAvailable && styles.btnDisabled]}
                     onPress={handleAddToCart}
                     disabled={!dish.isAvailable}
                 >
-                    <Text style={styles.addButtonText}>
-                        {dish.isAvailable ? `${t('cafe.dish.addToCart')} · ${calculateTotal()} ₽` : t('cafe.dish.outOfStock')}
-                    </Text>
+                    <LinearGradient
+                        colors={['#F59E0B', '#D97706']}
+                        style={styles.addGradient}
+                    >
+                        {dish.isAvailable ? (
+                            <>
+                                <Text style={styles.addBtnText}>{t('cafe.dish.addToCart')}</Text>
+                                <View style={styles.priceStrip}>
+                                    <Text style={styles.finalPrice}>{calculateTotal()} ₽</Text>
+                                </View>
+                            </>
+                        ) : (
+                            <Text style={styles.addBtnText}>{t('cafe.dish.outOfStock')}</Text>
+                        )}
+                    </LinearGradient>
                 </TouchableOpacity>
             </View>
         </View>
@@ -355,266 +368,329 @@ const DishDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
     },
-    loadingContainer: {
+    centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#0D0D0D',
     },
     errorText: {
-        color: '#FF3B30',
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 16,
+        marginTop: 16,
     },
     scrollView: {
         flex: 1,
     },
-    imageContainer: {
-        position: 'relative',
+    scrollContent: {
+        paddingBottom: 40,
     },
-    image: {
-        width: width,
-        height: width * 0.75,
+    imageWrapper: {
+        width: '100%',
+        height: width * 0.9,
     },
-    placeholderImage: {
-        backgroundColor: '#1C1C1E',
+    heroImg: {
+        width: '100%',
+        height: '100%',
+    },
+    heroImgPlaceholder: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(255,255,255,0.03)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    backButton: {
+    headerControls: {
         position: 'absolute',
-        top: 48,
-        right: 16,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        top: 0,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'ios' ? 0 : 40,
+    },
+    closeBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    content: {
-        padding: 16,
+    contentOverlay: {
+        marginTop: -40,
+        paddingHorizontal: 20,
     },
-    header: {
+    dishHeader: {
+        marginBottom: 16,
+    },
+    dishName: {
+        color: '#fff',
+        fontSize: 32,
+        fontFamily: 'Cinzel-Bold',
         marginBottom: 12,
     },
-    name: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#FFFFFF',
-        marginBottom: 8,
-    },
-    badges: {
+    badgesFlow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 8,
     },
-    badge: {
-        backgroundColor: 'rgba(52, 199, 89, 0.15)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    spicyBadge: {
-        backgroundColor: 'rgba(255, 59, 48, 0.15)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    badgeText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-    },
-    description: {
-        color: '#8E8E93',
-        fontSize: 15,
-        lineHeight: 22,
-        marginBottom: 16,
-    },
-    metaRow: {
-        flexDirection: 'row',
-        gap: 16,
-        marginBottom: 24,
-    },
-    metaItem: {
+    badgeGlass: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    metaText: {
-        color: '#8E8E93',
-        fontSize: 14,
+    badgeSpicy: {
+        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+        borderColor: 'rgba(239, 68, 68, 0.2)',
     },
-    section: {
+    badgeText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    description: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 15,
+        lineHeight: 24,
+        marginBottom: 20,
+    },
+    metaStrip: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 32,
+    },
+    metaPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    metaPillText: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    sectionGlass: {
+        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        borderRadius: 24,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
         marginBottom: 24,
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FFFFFF',
-        marginBottom: 12,
+        color: '#fff',
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 20,
     },
-    ingredientsList: {
+    ingredientChips: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 8,
+        gap: 10,
     },
-    ingredientChip: {
+    chip: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1C1C1E',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.03)',
         borderWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: 'rgba(255,255,255,0.05)',
     },
-    ingredientChipRemoved: {
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
-        borderColor: '#FF3B30',
+    chipRemoved: {
+        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+        borderColor: 'rgba(239, 68, 68, 0.2)',
     },
-    ingredientChipText: {
-        color: '#FFFFFF',
+    chipText: {
+        color: 'rgba(255,255,255,0.6)',
         fontSize: 14,
+        fontWeight: '600',
     },
-    ingredientChipTextRemoved: {
-        color: '#FF3B30',
+    chipTextRemoved: {
+        color: '#EF4444',
         textDecorationLine: 'line-through',
     },
-    modifierItem: {
+    modifierRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#1C1C1E',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 8,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.05)',
     },
-    modifierItemSelected: {
-        backgroundColor: 'rgba(255, 107, 0, 0.15)',
-        borderWidth: 1,
-        borderColor: '#FF6B00',
+    modifierRowSelected: {
+        borderBottomColor: 'rgba(245, 158, 11, 0.2)',
     },
-    modifierItemDisabled: {
-        opacity: 0.5,
-    },
-    modifierInfo: {
+    modifierLead: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 16,
         flex: 1,
     },
-    modifierCheckbox: {
-        width: 22,
-        height: 22,
-        borderRadius: 6,
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderRadius: 8,
         borderWidth: 2,
-        borderColor: '#8E8E93',
-        marginRight: 12,
+        borderColor: 'rgba(255,255,255,0.2)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    modifierCheckboxSelected: {
-        backgroundColor: '#FF6B00',
-        borderColor: '#FF6B00',
+    checkboxSelected: {
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
     },
     modifierName: {
-        color: '#FFFFFF',
+        color: '#fff',
         fontSize: 15,
+        fontWeight: '600',
     },
-    modifierNameDisabled: {
-        color: '#8E8E93',
-    },
-    modifierRight: {
+    modifierTrail: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 16,
     },
-    modifierQuantity: {
+    miniQty: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 10,
+        padding: 4,
+        gap: 10,
     },
-    qtyButton: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#2C2C2E',
+    miniQtyBtn: {
+        width: 26,
+        height: 26,
+        borderRadius: 6,
+        backgroundColor: 'rgba(255,255,255,0.1)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    qtyText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '600',
-        minWidth: 20,
+    miniQtyVal: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '800',
+        minWidth: 15,
         textAlign: 'center',
     },
     modifierPrice: {
-        color: '#FF6B00',
+        color: '#F59E0B',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    rowDisabled: {
+        opacity: 0.3,
+    },
+    textDisabled: {
+        color: 'rgba(255,255,255,0.2)',
+    },
+    textArea: {
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 16,
+        padding: 16,
+        color: '#fff',
         fontSize: 14,
         fontWeight: '600',
-    },
-    noteInput: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 12,
-        padding: 12,
-        color: '#FFFFFF',
-        fontSize: 15,
-        minHeight: 60,
+        height: 100,
         textAlignVertical: 'top',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
-    bottomBar: {
+    actionBar: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
-        paddingBottom: 32,
-        backgroundColor: '#1C1C1E',
+        padding: 24,
+        paddingBottom: Platform.OS === 'ios' ? 44 : 24,
+        backgroundColor: 'rgba(10, 10, 20, 0.95)',
         borderTopWidth: 1,
-        borderTopColor: '#2C2C2E',
+        borderColor: 'rgba(255,255,255,0.05)',
+        gap: 20,
+    },
+    qtyAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 18,
+        padding: 6,
         gap: 16,
     },
-    quantityContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#2C2C2E',
-        borderRadius: 12,
-        padding: 4,
-    },
-    quantityButton: {
-        width: 40,
-        height: 40,
+    actionBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.1)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    quantityText: {
-        color: '#FFFFFF',
-        fontSize: 18,
-        fontWeight: '600',
-        minWidth: 32,
+    actionQty: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: '900',
+        minWidth: 30,
         textAlign: 'center',
     },
-    addButton: {
+    mainAddBtn: {
         flex: 1,
-        backgroundColor: '#FF6B00',
-        borderRadius: 12,
-        padding: 16,
+        borderRadius: 20,
+        overflow: 'hidden',
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.4,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    addGradient: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 18,
+        paddingHorizontal: 20,
     },
-    addButtonDisabled: {
-        backgroundColor: '#8E8E93',
+    addBtnText: {
+        color: '#1a1a2e',
+        fontSize: 15,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        flex: 1,
+        textAlign: 'center',
+        marginLeft: 20,
     },
-    addButtonText: {
-        color: '#FFFFFF',
+    priceStrip: {
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+    finalPrice: {
+        color: '#1a1a2e',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '900',
     },
+    btnDisabled: {
+        opacity: 0.5,
+    }
 });
 
 export default DishDetailScreen;

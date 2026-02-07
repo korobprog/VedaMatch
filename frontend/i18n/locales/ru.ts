@@ -362,6 +362,12 @@ export default {
             empty: 'Кафе не найдены',
             emptySubtext: 'Попробуйте изменить параметры поиска',
             loading: 'Загрузка кафе...',
+            create: 'Создать',
+            business: 'Бизнес',
+            map: 'Карта',
+            nearby: 'Рядом',
+            myCafe: 'Моё кафе',
+            manage: 'Управление',
         },
         detail: {
             title: 'Кафе',

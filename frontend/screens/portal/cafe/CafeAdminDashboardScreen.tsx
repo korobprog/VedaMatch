@@ -8,16 +8,37 @@ import {
     Image,
     ActivityIndicator,
     Alert,
+    Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Coffee, Receipt, Banknote, Clock, Hourglass, Hand, MinusCircle, Grid3X3, UtensilsCrossed, BarChart3, Settings, ChevronRight, Zap } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    ArrowLeft,
+    Coffee,
+    Receipt,
+    Banknote,
+    Clock,
+    Hourglass,
+    Hand,
+    MinusCircle,
+    Grid3X3,
+    UtensilsCrossed,
+    BarChart3,
+    Settings,
+    ChevronRight,
+    Zap,
+    LayoutDashboard
+} from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import {
     Cafe,
     OrderStatsResponse,
 } from '../../../types/cafe';
 import { RootStackParamList } from '../../../types/navigation';
+
+const { width } = Dimensions.get('window');
 
 interface QuickAction {
     id: string;
@@ -47,19 +68,14 @@ const CafeAdminDashboardScreen: React.FC = () => {
             setLoading(true);
             let targetId = cafeId;
 
-            // If cafeId is not in params, try to get user's cafe
             if (!targetId) {
-                console.log('[CafeAdminDashboard] No cafeId in params, fetching user\'s cafe...');
                 const myCafeResponse = await cafeService.getMyCafe();
-                console.log('[CafeAdminDashboard] getMyCafe response:', myCafeResponse);
                 if (myCafeResponse.hasCafe && myCafeResponse.cafe && myCafeResponse.cafe.id) {
                     targetId = myCafeResponse.cafe.id;
-                    console.log('[CafeAdminDashboard] Found user cafe with id:', targetId);
                 }
             }
 
             if (!targetId) {
-                console.log('[CafeAdminDashboard] No cafe found for current user');
                 setLoading(false);
                 return;
             }
@@ -83,7 +99,7 @@ const CafeAdminDashboardScreen: React.FC = () => {
             id: 'orders',
             label: t('cafe.dashboard.orders'),
             icon: 'receipt',
-            color: '#FF6B00',
+            color: '#F59E0B',
             route: 'StaffOrderBoard',
             badge: stats?.pendingOrders,
         },
@@ -91,49 +107,49 @@ const CafeAdminDashboardScreen: React.FC = () => {
             id: 'waiter',
             label: t('cafe.dashboard.calls'),
             icon: 'hand-left',
-            color: '#FF9500',
+            color: '#F59E0B',
             route: 'StaffWaiterCalls',
         },
         {
             id: 'stoplist',
             label: t('cafe.dashboard.stopList'),
             icon: 'remove-circle',
-            color: '#FF3B30',
+            color: '#EF4444',
             route: 'StaffStopList',
         },
         {
             id: 'tables',
             label: t('cafe.dashboard.tables'),
             icon: 'grid',
-            color: '#007AFF',
+            color: '#F59E0B',
             route: 'StaffTableEditor',
         },
         {
             id: 'menu',
             label: t('cafe.dashboard.menu'),
             icon: 'restaurant',
-            color: '#34C759',
+            color: '#F59E0B',
             route: 'StaffMenuEditor',
         },
         {
             id: 'history',
             label: t('cafe.dashboard.history'),
             icon: 'time',
-            color: '#8E8E93',
+            color: 'rgba(255,255,255,0.4)',
             route: 'StaffOrderHistory',
         },
         {
             id: 'stats',
             label: t('cafe.dashboard.stats'),
             icon: 'bar-chart',
-            color: '#5856D6',
+            color: '#F59E0B',
             route: 'StaffStats',
         },
         {
             id: 'settings',
             label: t('cafe.dashboard.settings'),
             icon: 'settings',
-            color: '#6B7280',
+            color: 'rgba(255,255,255,0.4)',
             route: 'CafeSettings',
         },
     ];
@@ -144,7 +160,7 @@ const CafeAdminDashboardScreen: React.FC = () => {
     };
 
     const renderActionIcon = (iconName: string, color: string) => {
-        const iconProps = { size: 24, color };
+        const iconProps = { size: 22, color };
         switch (iconName) {
             case 'receipt': return <Receipt {...iconProps} />;
             case 'hand-left': return <Hand {...iconProps} />;
@@ -160,80 +176,90 @@ const CafeAdminDashboardScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
-            </View>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#F59E0B" />
+            </LinearGradient>
         );
     }
 
     if (!cafe) {
         return (
-            <View style={styles.errorContainer}>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
+                <LayoutDashboard size={48} color="rgba(255,255,255,0.1)" />
                 <Text style={styles.errorText}>{t('cafe.dashboard.notFound')}</Text>
-            </View>
+            </LinearGradient>
         );
     }
 
     return (
         <View style={styles.container}>
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Header with cafe info */}
-                <View style={styles.header}>
-                    <View style={styles.headerContent}>
-                        <TouchableOpacity
-                            style={styles.backButton}
-                            onPress={() => navigation.goBack()}
-                        >
-                            <ArrowLeft size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
 
-                        <View style={styles.cafeInfo}>
+            <SafeAreaView style={styles.header} edges={['top']}>
+                <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
+                    <ArrowLeft size={22} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>{t('cafe.dashboard.title', 'Дашборд')}</Text>
+                <View style={{ width: 44 }} />
+            </SafeAreaView>
+
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {/* Cafe Header Card */}
+                <View style={styles.cafeCardGlass}>
+                    <View style={styles.cafeInfoRow}>
+                        <View style={styles.logoWrapper}>
                             {cafe.logoUrl ? (
-                                <Image source={{ uri: cafe.logoUrl }} style={styles.cafeLogo} />
+                                <Image source={{ uri: cafe.logoUrl }} style={styles.logoImg} />
                             ) : (
-                                <View style={styles.cafeLogoPlaceholder}>
-                                    <Coffee size={32} color="#FF6B00" />
+                                <View style={styles.logoPlaceholder}>
+                                    <Coffee size={28} color="#F59E0B" />
                                 </View>
                             )}
-                            <View style={styles.cafeDetails}>
-                                <Text style={styles.cafeName}>{cafe.name}</Text>
-                                <View style={styles.statusBadge}>
-                                    <View style={[
-                                        styles.statusDot,
-                                        { backgroundColor: cafe.status === 'active' ? '#34C759' : '#FF9500' }
-                                    ]} />
-                                    <Text style={styles.statusText}>
-                                        {cafe.status === 'active' ? t('cafe.dashboard.activeStatus') : t('cafe.dashboard.inactiveStatus')}
-                                    </Text>
-                                </View>
-                            </View>
+                            <View style={[
+                                styles.statusPill,
+                                { backgroundColor: cafe.status === 'active' ? '#10B981' : '#F59E0B' }
+                            ]} />
+                        </View>
+                        <View style={styles.cafeMeta}>
+                            <Text style={styles.cafeName}>{cafe.name}</Text>
+                            <Text style={styles.cafeStatus}>
+                                {cafe.status === 'active' ? t('cafe.dashboard.activeStatus') : t('cafe.dashboard.inactiveStatus')}
+                            </Text>
                         </View>
                     </View>
                 </View>
 
-                {/* Stats cards */}
+                {/* Stats Grid */}
                 {stats && (
-                    <View style={styles.statsContainer}>
+                    <View style={styles.statsStrip}>
                         <View style={styles.statsRow}>
-                            <View style={styles.statCard}>
-                                <Receipt size={24} color="#FF6B00" />
+                            <View style={styles.glassStat}>
+                                <View style={[styles.statIcon, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                                    <Receipt size={18} color="#F59E0B" />
+                                </View>
                                 <Text style={styles.statValue}>{stats.todayOrders}</Text>
                                 <Text style={styles.statLabel}>{t('cafe.dashboard.todayOrders')}</Text>
                             </View>
-                            <View style={styles.statCard}>
-                                <Banknote size={24} color="#34C759" />
+                            <View style={styles.glassStat}>
+                                <View style={[styles.statIcon, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+                                    <Banknote size={18} color="#10B981" />
+                                </View>
                                 <Text style={styles.statValue}>{stats.todayRevenue} ₽</Text>
                                 <Text style={styles.statLabel}>{t('cafe.dashboard.todayRevenue')}</Text>
                             </View>
                         </View>
                         <View style={styles.statsRow}>
-                            <View style={styles.statCard}>
-                                <Clock size={24} color="#007AFF" />
-                                <Text style={styles.statValue}>~{stats.avgPrepTime} {t('common.min') || 'мин'}</Text>
+                            <View style={styles.glassStat}>
+                                <View style={[styles.statIcon, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+                                    <Clock size={18} color="#3B82F6" />
+                                </View>
+                                <Text style={styles.statValue}>~{stats.avgPrepTime} {t('common.min')}</Text>
                                 <Text style={styles.statLabel}>{t('cafe.dashboard.avgTime')}</Text>
                             </View>
-                            <View style={styles.statCard}>
-                                <Hourglass size={24} color="#FF9500" />
+                            <View style={styles.glassStat}>
+                                <View style={[styles.statIcon, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                                    <Hourglass size={18} color="#F59E0B" />
+                                </View>
                                 <Text style={styles.statValue}>{stats.pendingOrders}</Text>
                                 <Text style={styles.statLabel}>{t('cafe.dashboard.activeOrders')}</Text>
                             </View>
@@ -241,48 +267,53 @@ const CafeAdminDashboardScreen: React.FC = () => {
                     </View>
                 )}
 
-                {/* Quick actions grid */}
-                <View style={styles.actionsSection}>
-                    <Text style={styles.sectionTitle}>{t('cafe.dashboard.management')}</Text>
+                {/* Quick Order Entry */}
+                <TouchableOpacity
+                    style={styles.lightningBtn}
+                    onPress={() => navigation.navigate('StaffOrderBoard', { cafeId: cafe.id, cafeName: cafe.name })}
+                    activeOpacity={0.8}
+                >
+                    <LinearGradient
+                        colors={['rgba(245, 158, 11, 0.15)', 'rgba(217, 119, 6, 0.05)']}
+                        style={styles.lightningGradient}
+                    >
+                        <View style={styles.lightningIconBox}>
+                            <Zap size={24} color="#F59E0B" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.lightningTitle}>{t('cafe.dashboard.openOrderBoard')}</Text>
+                            <Text style={styles.lightningSubtitle}>
+                                {t('cafe.dashboard.activeOrdersCount', { count: stats?.pendingOrders || 0 })}
+                            </Text>
+                        </View>
+                        <ChevronRight size={20} color="rgba(255,255,255,0.3)" />
+                    </LinearGradient>
+                </TouchableOpacity>
+
+                {/* Actions Grid */}
+                <View style={styles.actionsBox}>
+                    <Text style={styles.boxTitle}>{t('cafe.dashboard.management')}</Text>
                     <View style={styles.actionsGrid}>
                         {quickActions.map(action => (
                             <TouchableOpacity
                                 key={action.id}
-                                style={styles.actionCard}
+                                style={styles.actionItem}
                                 onPress={() => handleQuickAction(action)}
+                                activeOpacity={0.7}
                             >
-                                <View style={[styles.actionIcon, { backgroundColor: action.color + '20' }]}>
+                                <View style={styles.actionIconBox}>
                                     {renderActionIcon(action.icon, action.color)}
                                     {!!action.badge && action.badge > 0 && (
-                                        <View style={styles.badgeContainer}>
-                                            <Text style={styles.badgeText}>{action.badge}</Text>
+                                        <View style={styles.actionBadge}>
+                                            <Text style={styles.actionBadgeText}>{action.badge}</Text>
                                         </View>
                                     )}
                                 </View>
-                                <Text style={styles.actionLabel}>{action.label}</Text>
+                                <Text style={styles.actionLabel} numberOfLines={1}>{action.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
                 </View>
-
-                {/* Quick order entry */}
-                <TouchableOpacity
-                    style={styles.quickOrderButton}
-                    onPress={() => navigation.navigate('StaffOrderBoard', { cafeId: cafe.id, cafeName: cafe.name })}
-                >
-                    <View style={styles.quickOrderContent}>
-                        <View style={styles.quickOrderIcon}>
-                            <Zap size={28} color="#FFFFFF" />
-                        </View>
-                        <View>
-                            <Text style={styles.quickOrderTitle}>{t('cafe.dashboard.openOrderBoard')}</Text>
-                            <Text style={styles.quickOrderSubtitle}>
-                                {t('cafe.dashboard.activeOrdersCount', { count: stats?.pendingOrders || 0 })}
-                            </Text>
-                        </View>
-                    </View>
-                    <ChevronRight size={24} color="#8E8E93" />
-                </TouchableOpacity>
 
                 <View style={{ height: 40 }} />
             </ScrollView>
@@ -293,198 +324,233 @@ const CafeAdminDashboardScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
     },
-    loadingContainer: {
+    centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#0D0D0D',
     },
     errorText: {
-        color: '#FF3B30',
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 16,
+        marginTop: 16,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingBottom: 15,
+        zIndex: 10,
+    },
+    headerBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    headerTitle: {
+        color: '#fff',
+        fontSize: 18,
+        fontFamily: 'Cinzel-Bold',
     },
     scrollView: {
         flex: 1,
     },
-    header: {
-        backgroundColor: '#1C1C1E',
-        paddingTop: 48,
-        paddingBottom: 20,
-        paddingHorizontal: 16,
+    scrollContent: {
+        padding: 20,
     },
-    headerContent: {
+    cafeCardGlass: {
+        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        borderRadius: 24,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        marginBottom: 20,
+    },
+    cafeInfoRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 20,
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#2C2C2E',
+    logoWrapper: {
+        position: 'relative',
+    },
+    logoImg: {
+        width: 64,
+        height: 64,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    logoPlaceholder: {
+        width: 64,
+        height: 64,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.03)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    cafeInfo: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
+    statusPill: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        borderWidth: 3,
+        borderColor: '#1a1a2e',
     },
-    cafeLogo: {
-        width: 56,
-        height: 56,
-        borderRadius: 12,
-        marginRight: 12,
-    },
-    cafeLogoPlaceholder: {
-        width: 56,
-        height: 56,
-        borderRadius: 12,
-        backgroundColor: '#2C2C2E',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    cafeDetails: {
+    cafeMeta: {
         flex: 1,
     },
     cafeName: {
-        color: '#FFFFFF',
-        fontSize: 20,
-        fontWeight: 'bold',
+        color: '#fff',
+        fontSize: 22,
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 4,
     },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 4,
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 6,
-    },
-    statusText: {
-        color: '#8E8E93',
+    cafeStatus: {
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 13,
+        fontWeight: '600',
     },
-    statsContainer: {
-        padding: 16,
+    statsStrip: {
         gap: 12,
+        marginBottom: 20,
     },
     statsRow: {
         flexDirection: 'row',
         gap: 12,
     },
-    statCard: {
+    glassStat: {
         flex: 1,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        borderRadius: 20,
         padding: 16,
-        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    statIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        justifyContent: 'center',
         alignItems: 'center',
+        marginBottom: 8,
     },
     statValue: {
-        color: '#FFFFFF',
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginTop: 8,
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '900',
     },
     statLabel: {
-        color: '#8E8E93',
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 12,
-        marginTop: 4,
-    },
-    actionsSection: {
-        padding: 16,
-    },
-    sectionTitle: {
-        color: '#FFFFFF',
-        fontSize: 18,
         fontWeight: '600',
-        marginBottom: 16,
+        marginTop: 2,
+    },
+    lightningBtn: {
+        borderRadius: 24,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+        marginBottom: 20,
+    },
+    lightningGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 20,
+        gap: 16,
+    },
+    lightningIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 14,
+        backgroundColor: '#F59E0B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#F59E0B',
+        shadowRadius: 10,
+        shadowOpacity: 0.3,
+    },
+    lightningTitle: {
+        color: '#fff',
+        fontSize: 16,
+        fontFamily: 'Cinzel-Bold',
+    },
+    lightningSubtitle: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    actionsBox: {
+        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        borderRadius: 24,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    boxTitle: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 20,
     },
     actionsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 12,
+        gap: 16,
     },
-    actionCard: {
-        width: '23%',
+    actionItem: {
+        width: (width - 120) / 4,
         alignItems: 'center',
     },
-    actionIcon: {
-        width: 56,
-        height: 56,
+    actionIconBox: {
+        width: 52,
+        height: 52,
         borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.03)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
         position: 'relative',
     },
-    badgeContainer: {
+    actionBadge: {
         position: 'absolute',
         top: -4,
         right: -4,
-        backgroundColor: '#FF3B30',
-        borderRadius: 10,
-        minWidth: 20,
-        height: 20,
+        backgroundColor: '#EF4444',
+        borderRadius: 8,
+        minWidth: 18,
+        height: 18,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 6,
+        paddingHorizontal: 4,
+        borderWidth: 2,
+        borderColor: '#1a1a2e',
     },
-    badgeText: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: 'bold',
+    actionBadgeText: {
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: '900',
     },
     actionLabel: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        marginTop: 6,
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '700',
+        marginTop: 8,
         textAlign: 'center',
-    },
-    quickOrderButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#1C1C1E',
-        marginHorizontal: 16,
-        padding: 16,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#FF6B00',
-    },
-    quickOrderContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    quickOrderIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
-        backgroundColor: '#FF6B00',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    quickOrderTitle: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    quickOrderSubtitle: {
-        color: '#8E8E93',
-        fontSize: 13,
-        marginTop: 2,
-    },
+    }
 });
 
 export default CafeAdminDashboardScreen;

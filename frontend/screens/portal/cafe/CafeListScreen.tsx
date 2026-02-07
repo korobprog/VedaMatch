@@ -9,16 +9,46 @@ import {
     TextInput,
     ActivityIndicator,
     RefreshControl,
+    Dimensions,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Star, Clock, MapPin, Search, XCircle, Coffee, Flame, Sparkles, Utensils, ShoppingBag, Car, Map as MapIcon, UserCircle } from 'lucide-react-native';
+import {
+    Star,
+    Clock,
+    MapPin,
+    Search,
+    XCircle,
+    Coffee,
+    Flame,
+    Sparkles,
+    Utensils,
+    ShoppingBag,
+    Car,
+    Map as MapIcon,
+    UserCircle,
+    ArrowLeft,
+    PlusCircle,
+    Wallet,
+    Info
+} from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { Cafe, CafeFilters } from '../../../types/cafe';
+import { useWallet } from '../../../context/WalletContext';
 
-const CafeListScreen: React.FC = () => {
+const { width } = Dimensions.get('window');
+
+interface CafeListScreenProps {
+    onBack?: () => void;
+}
+
+const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
+    const { formattedBalance } = useWallet();
+
     const [cafes, setCafes] = useState<Cafe[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +88,7 @@ const CafeListScreen: React.FC = () => {
             const response = await cafeService.getCafes({
                 ...filters,
                 search: search || undefined,
-                page: reset ? 1 : filters.page,
+                page: reset ? 1 : (filters.page || 1),
             });
 
             if (reset) {
@@ -87,7 +117,7 @@ const CafeListScreen: React.FC = () => {
 
     const handleLoadMore = () => {
         if (!loading && hasMore) {
-            setFilters(prev => ({ ...prev, page: prev.page! + 1 }));
+            setFilters(prev => ({ ...prev, page: (prev.page || 1) + 1 }));
             loadCafes();
         }
     };
@@ -100,11 +130,12 @@ const CafeListScreen: React.FC = () => {
         navigation.navigate('CafeDetail', { cafeId: cafe.id });
     };
 
+    const handleWallet = () => {
+        navigation.navigate('Wallet');
+    };
+
     const renderCafeCard = ({ item }: { item: Cafe }) => {
-        // Safety check for undefined cafe data
-        if (!item || item.id === undefined) {
-            return null;
-        }
+        if (!item || item.id === undefined) return null;
 
         const rating = item.rating ?? 0;
         const reviewsCount = item.reviewsCount ?? 0;
@@ -113,57 +144,72 @@ const CafeListScreen: React.FC = () => {
             <TouchableOpacity
                 style={styles.cafeCard}
                 onPress={() => handleCafePress(item)}
-                activeOpacity={0.8}
+                activeOpacity={0.9}
             >
-                <Image
-                    source={{ uri: item.coverUrl || item.logoUrl || 'https://via.placeholder.com/400x200' }}
-                    style={styles.cafeImage}
-                />
-                <View style={styles.cafeOverlay}>
-                    {!!item.logoUrl ? (
-                        <Image source={{ uri: item.logoUrl }} style={styles.cafeLogo} />
-                    ) : null}
-                </View>
-                <View style={styles.cafeInfo}>
-                    <Text style={styles.cafeName}>{item.name || t('cafe.list.unnamed')}</Text>
-                    <View style={styles.cafeDetailsRow}>
-                        <View style={styles.ratingContainer}>
-                            <Star size={14} color="#FFD700" fill="#FFD700" />
+                {/* Image Section */}
+                <View style={styles.cardImageContainer}>
+                    <Image
+                        source={{ uri: item.coverUrl || item.logoUrl || 'https://via.placeholder.com/400x200' }}
+                        style={styles.cardImage}
+                    />
+                    <LinearGradient
+                        colors={['transparent', 'rgba(10, 10, 20, 0.9)']}
+                        style={styles.cardImageOverlay}
+                    />
+
+                    <View style={styles.cardTopBadges}>
+                        <View style={styles.ratingBadge}>
+                            <Star size={10} color="#F59E0B" fill="#F59E0B" />
                             <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
                             <Text style={styles.reviewsText}>({reviewsCount})</Text>
                         </View>
-                        {!!item.avgPrepTime && item.avgPrepTime > 0 ? (
-                            <View style={styles.prepTimeContainer}>
-                                <Clock size={14} color="#8E8E93" strokeWidth={1.5} />
-                                <Text style={styles.prepTimeText}>~{item.avgPrepTime} {t('common.min')}</Text>
+
+                        {item.hasDelivery && (
+                            <View style={styles.deliveryBadge}>
+                                <Car size={10} color="#F59E0B" />
+                                <Text style={styles.deliveryBadgeText}>{t('cafe.form.delivery')}</Text>
                             </View>
-                        ) : null}
+                        )}
                     </View>
-                    <View style={styles.addressContainer}>
-                        <MapPin size={12} color="#8E8E93" strokeWidth={1.5} />
-                        <Text style={styles.cafeAddress} numberOfLines={1}>
-                            {item.address || ''}
-                        </Text>
+
+                    {item.logoUrl && (
+                        <View style={styles.cardLogoContainer}>
+                            <Image source={{ uri: item.logoUrl }} style={styles.cardLogo} />
+                        </View>
+                    )}
+                </View>
+
+                {/* Info Section */}
+                <View style={styles.cardContent}>
+                    <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+
+                    <View style={styles.cardDetailsRow}>
+                        <View style={styles.detailItem}>
+                            <MapPin size={12} color="rgba(255, 255, 255, 0.5)" />
+                            <Text style={styles.detailText} numberOfLines={1}>{item.address}</Text>
+                        </View>
                     </View>
-                    <View style={styles.badgesContainer}>
-                        {!!item.hasDineIn ? (
-                            <View style={styles.badge}>
-                                <Utensils size={12} color="#E5E5EA" strokeWidth={1.5} />
-                                <Text style={styles.badgeText}>{t('cafe.form.dineIn')}</Text>
+
+                    <View style={styles.cardFooter}>
+                        <View style={styles.badgesRow}>
+                            {item.hasDineIn && (
+                                <View style={styles.miniBadge}>
+                                    <Utensils size={10} color="rgba(255, 255, 255, 0.6)" />
+                                </View>
+                            )}
+                            {item.hasTakeaway && (
+                                <View style={styles.miniBadge}>
+                                    <ShoppingBag size={10} color="rgba(255, 255, 255, 0.6)" />
+                                </View>
+                            )}
+                        </View>
+
+                        {!!item.avgPrepTime && (
+                            <View style={styles.timeInfo}>
+                                <Clock size={12} color="#F59E0B" />
+                                <Text style={styles.timeText}>{item.avgPrepTime} {t('common.min')}</Text>
                             </View>
-                        ) : null}
-                        {!!item.hasTakeaway ? (
-                            <View style={styles.badge}>
-                                <ShoppingBag size={12} color="#E5E5EA" strokeWidth={1.5} />
-                                <Text style={styles.badgeText}>{t('cafe.form.takeaway')}</Text>
-                            </View>
-                        ) : null}
-                        {!!item.hasDelivery ? (
-                            <View style={[styles.badge, styles.deliveryBadge]}>
-                                <Car size={12} color="#FF6B00" strokeWidth={1.5} />
-                                <Text style={[styles.badgeText, { color: '#FF6B00' }]}>{t('cafe.form.delivery')}</Text>
-                            </View>
-                        ) : null}
+                        )}
                     </View>
                 </View>
             </TouchableOpacity>
@@ -173,348 +219,495 @@ const CafeListScreen: React.FC = () => {
     const renderHeader = () => (
         <View style={styles.header}>
             <View style={styles.headerTop}>
-                <View>
-                    <Text style={styles.title}>{t('cafe.list.title')}</Text>
-                    <Text style={styles.subtitle}>{t('cafe.list.subtitle')}</Text>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => onBack ? onBack() : navigation.goBack()}
+                >
+                    <ArrowLeft size={22} color="#fff" />
+                </TouchableOpacity>
+
+                <View style={styles.headerTitleContainer}>
+                    <Text style={styles.headerTitle} numberOfLines={1}>
+                        {t('cafe.list.title')}
+                    </Text>
+                    <Text style={styles.headerSubtitle}>{t('cafe.list.subtitle')}</Text>
                 </View>
-                <View style={styles.headerActions}>
-                    <TouchableOpacity
-                        style={styles.headerActionBtn}
-                        onPress={() => navigation.navigate('CafesMap')}
+
+                <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
+                    <LinearGradient
+                        colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
+                        style={styles.walletInner}
                     >
-                        <MapIcon size={24} color="#FFFFFF" strokeWidth={1.5} />
-                    </TouchableOpacity>
+                        <Wallet size={14} color="#F59E0B" />
+                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.featuredActions}>
+                <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={styles.headerActionBtn}
+                        style={[styles.featuredCard, { backgroundColor: '#1e1e3a', borderColor: 'rgba(245, 158, 11, 0.2)' }]}
                         onPress={() => myCafe ? navigation.navigate('EditCafe', { cafeId: myCafe.id }) : navigation.navigate('CreateCafe')}
                     >
-                        <UserCircle size={24} color={myCafe ? '#FF6B00' : '#FFFFFF'} strokeWidth={1.5} />
+                        <LinearGradient
+                            colors={['rgba(245, 158, 11, 0.15)', 'transparent']}
+                            style={styles.cardGradient}
+                        />
+                        <View style={styles.actionIconOuter}>
+                            {myCafe ? (
+                                <UserCircle size={24} color="#F59E0B" />
+                            ) : (
+                                <PlusCircle size={24} color="#F59E0B" />
+                            )}
+                        </View>
+                        <View>
+                            <Text style={styles.featuredCardTitle}>{myCafe ? t('cafe.list.myCafe') : t('cafe.list.create')}</Text>
+                            <Text style={styles.featuredCardSub}>{myCafe ? t('cafe.list.manage') : t('cafe.list.business')}</Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.featuredCard, { backgroundColor: '#1a1a2e', borderColor: 'rgba(255,255,255,0.05)' }]}
+                        onPress={() => navigation.navigate('CafesMap')}
+                    >
+                        <View style={styles.actionIconOuter}>
+                            <MapIcon size={24} color="#fff" />
+                        </View>
+                        <View>
+                            <Text style={styles.featuredCardTitle}>{t('cafe.list.map')}</Text>
+                            <Text style={styles.featuredCardSub}>{t('cafe.list.nearby')}</Text>
+                        </View>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            <View style={styles.searchContainer}>
-                <Search size={20} color="#8E8E93" style={styles.searchIcon} strokeWidth={1.5} />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder={t('cafe.list.searchPlaceholder')}
-                    placeholderTextColor="#8E8E93"
-                    value={search}
-                    onChangeText={setSearch}
-                    onSubmitEditing={handleSearch}
-                    returnKeyType="search"
-                />
-                {search.length > 0 ? (
-                    <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true); }}>
-                        <XCircle size={20} color="#8E8E93" strokeWidth={1.5} />
-                    </TouchableOpacity>
-                ) : null}
+            <View style={styles.searchSection}>
+                <View style={styles.searchBackground}>
+                    <Search size={20} color="rgba(255,255,255,0.4)" />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder={t('cafe.list.searchPlaceholder')}
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        value={search}
+                        onChangeText={setSearch}
+                        onSubmitEditing={handleSearch}
+                    />
+                    {search.length > 0 && (
+                        <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true); }}>
+                            <XCircle size={20} color="rgba(255,255,255,0.4)" />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
-            <View style={styles.sortContainer}>
-                {[
-                    { type: 'rating', label: t('cafe.list.rating'), icon: Star, color: '#FFD700', fill: true },
-                    { type: 'popular', label: t('cafe.list.popular'), icon: Flame, color: '#FF6B00', fill: false },
-                    { type: 'newest', label: t('cafe.list.newest'), icon: Sparkles, color: '#5AC8FA', fill: false },
-                ].map((item) => {
-                    const isActive = filters.sort === item.type;
-                    return (
-                        <TouchableOpacity
-                            key={item.type}
-                            style={[
-                                styles.sortButton,
-                                isActive && styles.sortButtonActive,
-                            ]}
-                            onPress={() => {
-                                setFilters(prev => ({ ...prev, sort: item.type as any }));
-                                loadCafes(true);
-                            }}
-                        >
-                            <item.icon
-                                size={16}
-                                color={isActive ? '#FFFFFF' : item.color}
-                                fill={item.fill ? (isActive ? '#FFFFFF' : item.color) : 'none'}
-                                strokeWidth={1.5}
-                                style={{ marginRight: 6 }}
-                            />
-                            <Text style={[
-                                styles.sortButtonText,
-                                isActive && styles.sortButtonTextActive,
-                            ]}>
-                                {item.label}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
+            <View style={styles.sortSection}>
+                <FlatList
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    data={[
+                        { type: 'rating', label: t('cafe.list.rating'), icon: Star, color: '#FFD700' },
+                        { type: 'popular', label: t('cafe.list.popular'), icon: Flame, color: '#FF6B00' },
+                        { type: 'newest', label: t('cafe.list.newest'), icon: Sparkles, color: '#5AC8FA' },
+                    ]}
+                    contentContainerStyle={styles.sortList}
+                    renderItem={({ item }) => {
+                        const isActive = filters.sort === item.type;
+                        return (
+                            <TouchableOpacity
+                                style={[styles.sortPill, isActive && styles.sortPillActive]}
+                                onPress={() => {
+                                    setFilters(prev => ({ ...prev, sort: item.type as any }));
+                                    loadCafes(true);
+                                }}
+                            >
+                                <item.icon size={14} color={isActive ? '#1a1a2e' : item.color} fill={isActive ? '#1a1a2e' : 'none'} />
+                                <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    }}
+                    keyExtractor={item => item.type}
+                />
             </View>
         </View>
     );
 
-    if (loading && cafes.length === 0) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
-                <Text style={styles.loadingText}>{t('cafe.list.loading')}</Text>
-            </View>
-        );
-    }
-
     return (
-        <View style={styles.container}>
-            <FlatList
-                data={cafes}
-                renderItem={renderCafeCard}
-                keyExtractor={item => (item?.id ?? Math.random()).toString()}
-                ListHeaderComponent={renderHeader}
-                contentContainerStyle={styles.listContent}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-                }
-                onEndReached={handleLoadMore}
-                onEndReachedThreshold={0.5}
-                ListFooterComponent={
-                    loading && cafes.length > 0 ? (
-                        <ActivityIndicator size="small" color="#FF6B00" style={styles.footerLoader} />
-                    ) : null
-                }
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Coffee size={80} color="#2C2C2E" strokeWidth={1} />
-                        <Text style={styles.emptyText}>{t('cafe.list.empty')}</Text>
-                        <Text style={styles.emptySubtext}>{t('cafe.list.emptySubtext')}</Text>
+        <LinearGradient
+            colors={['#0a0a14', '#12122b']}
+            style={styles.gradient}
+        >
+            <SafeAreaView style={styles.container} edges={['top']}>
+                {loading && cafes.length === 0 ? (
+                    <View style={styles.centerContainer}>
+                        <ActivityIndicator size="large" color="#F59E0B" />
                     </View>
-                }
-            />
-        </View>
+                ) : (
+                    <FlatList
+                        data={cafes}
+                        renderItem={renderCafeCard}
+                        keyExtractor={item => item.id.toString()}
+                        ListHeaderComponent={renderHeader}
+                        contentContainerStyle={styles.listContent}
+                        numColumns={2}
+                        columnWrapperStyle={styles.columnWrapper}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={handleRefresh}
+                                tintColor="#F59E0B"
+                            />
+                        }
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.5}
+                        ListFooterComponent={
+                            loading && cafes.length > 0 ? (
+                                <ActivityIndicator size="small" color="#F59E0B" style={styles.footerLoader} />
+                            ) : null
+                        }
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}>
+                                <Coffee size={64} color="rgba(255, 255, 255, 0.1)" />
+                                <Text style={styles.emptyTitle}>{t('cafe.list.empty')}</Text>
+                                <Text style={styles.emptySubtitle}>{t('cafe.list.emptySubtext')}</Text>
+                            </View>
+                        }
+                    />
+                )}
+            </SafeAreaView>
+        </LinearGradient>
     );
 };
 
 const styles = StyleSheet.create({
+    gradient: {
+        flex: 1,
+    },
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
     },
-    loadingContainer: {
+    centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
-    },
-    loadingText: {
-        color: '#FFFFFF',
-        marginTop: 12,
-        fontSize: 16,
     },
     header: {
-        padding: 16,
-        paddingTop: 24,
-    },
-    title: {
-        fontSize: 34,
-        fontWeight: 'bold',
-        color: '#FFFFFF',
-        marginBottom: 4,
-        fontFamily: 'System', // Use system font stack
+        paddingTop: 10,
     },
     headerTop: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 24,
     },
-    headerActions: {
-        flexDirection: 'row',
-        gap: 12,
-        marginTop: 8,
-    },
-    headerActionBtn: {
+    backButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
-    subtitle: {
-        fontSize: 16,
-        color: '#8E8E93',
-        marginBottom: 24,
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: 'center',
     },
-    searchContainer: {
+    headerTitle: {
+        color: '#fff',
+        fontSize: 24,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        letterSpacing: 1,
+    },
+    headerSubtitle: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+        marginTop: 2,
+    },
+    walletButton: {
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    walletInner: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1C1C1E',
-        borderRadius: 16,
         paddingHorizontal: 14,
-        height: 50,
-        marginBottom: 20,
+        paddingVertical: 8,
+        gap: 6,
         borderWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderRadius: 20,
     },
-    searchIcon: {
-        marginRight: 10,
+    walletBalance: {
+        color: '#F59E0B',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    featuredActions: {
+        paddingHorizontal: 20,
+        marginBottom: 24,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    featuredCard: {
+        flex: 1,
+        height: 100,
+        borderRadius: 24,
+        borderWidth: 1,
+        padding: 16,
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    cardGradient: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    actionIconOuter: {
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    featuredCardTitle: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    featuredCardSub: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    searchSection: {
+        paddingHorizontal: 20,
+        marginBottom: 20,
+    },
+    searchBackground: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        height: 56,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
     searchInput: {
         flex: 1,
-        height: '100%',
-        color: '#FFFFFF',
-        fontSize: 16,
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+        marginLeft: 12,
     },
-    sortContainer: {
-        flexDirection: 'row',
-        gap: 8,
+    sortSection: {
+        marginBottom: 20,
     },
-    sortButton: {
+    sortList: {
+        paddingHorizontal: 20,
+        gap: 10,
+    },
+    sortPill: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         paddingHorizontal: 16,
         paddingVertical: 10,
-        backgroundColor: 'transparent',
-        borderRadius: 100,
-        borderWidth: 1,
-        borderColor: '#3A3A3C',
-    },
-    sortButtonActive: {
-        backgroundColor: '#FF6B00',
-        borderColor: '#FF6B00',
-    },
-    sortButtonText: {
-        color: '#8E8E93',
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    sortButtonTextActive: {
-        color: '#FFFFFF',
-        fontWeight: '600',
-    },
-    listContent: {
-        paddingBottom: 24,
-    },
-    cafeCard: {
-        marginHorizontal: 16,
-        marginBottom: 20,
-        backgroundColor: '#1C1C1E',
         borderRadius: 20,
-        overflow: 'hidden',
         borderWidth: 1,
-        borderColor: '#2C2C2E',
-    },
-    cafeImage: {
-        width: '100%',
-        height: 160,
-        backgroundColor: '#2C2C2E',
-    },
-    cafeOverlay: {
-        position: 'absolute',
-        top: 12,
-        left: 12,
-        zIndex: 1,
-    },
-    cafeLogo: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        borderWidth: 2,
-        borderColor: '#FFFFFF',
-    },
-    cafeInfo: {
-        padding: 16,
-    },
-    cafeName: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        marginBottom: 8,
-    },
-    cafeDetailsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    ratingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 6,
-        marginRight: 12,
-    },
-    ratingText: {
-        color: '#FFD700',
-        fontWeight: '700',
-        fontSize: 13,
-        marginLeft: 4,
-    },
-    reviewsText: {
-        color: '#8E8E93',
-        fontSize: 13,
-        marginLeft: 4,
-    },
-    prepTimeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    prepTimeText: {
-        color: '#8E8E93',
-        marginLeft: 4,
-        fontSize: 13,
-    },
-    addressContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-        gap: 6,
-    },
-    cafeAddress: {
-        color: '#8E8E93',
-        fontSize: 14,
-        flex: 1,
-    },
-    badgesContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
+        borderColor: 'rgba(255, 255, 255, 0.05)',
         gap: 8,
     },
-    badge: {
+    sortPillActive: {
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
+    },
+    sortPillLabel: {
+        color: 'rgba(255, 255, 255, 0.5)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    sortPillLabelActive: {
+        color: '#1a1a2e',
+    },
+    listContent: {
+        paddingBottom: 40,
+    },
+    columnWrapper: {
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+    },
+    cafeCard: {
+        width: (width - 52) / 2,
+        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        marginBottom: 16,
+        overflow: 'hidden',
+    },
+    cardImageContainer: {
+        width: '100%',
+        height: 120,
+        position: 'relative',
+    },
+    cardImage: {
+        width: '100%',
+        height: '100%',
+    },
+    cardImageOverlay: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    cardTopBadges: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        right: 8,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    ratingBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: '#2C2C2E',
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 8,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 10,
+        gap: 3,
+    },
+    ratingText: {
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: '800',
+    },
+    reviewsText: {
+        color: 'rgba(255, 255, 255, 0.5)',
+        fontSize: 8,
     },
     deliveryBadge: {
-        backgroundColor: 'rgba(255, 107, 0, 0.15)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 10,
+        gap: 3,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
     },
-    badgeText: {
-        color: '#E5E5EA',
-        fontSize: 12,
+    deliveryBadgeText: {
+        color: '#F59E0B',
+        fontSize: 8,
+        fontWeight: '700',
+    },
+    cardLogoContainer: {
+        position: 'absolute',
+        bottom: -15,
+        right: 12,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#1a1a2e',
+        padding: 2,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    cardLogo: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 16,
+    },
+    cardContent: {
+        padding: 12,
+        paddingTop: 16,
+    },
+    cardName: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 4,
+    },
+    cardDetailsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    detailItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        flex: 1,
+    },
+    detailText: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 10,
         fontWeight: '500',
     },
+    cardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 4,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        paddingTop: 8,
+    },
+    badgesRow: {
+        flexDirection: 'row',
+        gap: 6,
+    },
+    miniBadge: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    timeInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    timeText: {
+        color: '#F59E0B',
+        fontSize: 10,
+        fontWeight: '800',
+    },
     footerLoader: {
-        padding: 16,
+        paddingVertical: 20,
     },
     emptyContainer: {
         alignItems: 'center',
-        padding: 48,
-        marginTop: 40,
+        justifyContent: 'center',
+        paddingTop: 60,
+        gap: 16,
     },
-    emptyText: {
-        color: '#FFFFFF',
-        fontSize: 20,
-        fontWeight: '600',
-        marginTop: 16,
+    emptyTitle: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
     },
-    emptySubtext: {
-        color: '#8E8E93',
-        fontSize: 15,
-        marginTop: 8,
+    emptySubtitle: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: 13,
         textAlign: 'center',
-        lineHeight: 22,
-    },
+        paddingHorizontal: 40,
+    }
 });
 
 export default CafeListScreen;
+

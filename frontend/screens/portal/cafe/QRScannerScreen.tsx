@@ -9,11 +9,12 @@ import {
     Linking,
     Alert,
     Platform,
-    PermissionsAndroid,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { CameraOff, X, Zap, ZapOff, Search } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { CameraOff, X, Zap, ZapOff, Search, QrCode } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { QRCodeScanResult } from '../../../types/cafe';
 import { useCart } from '../../../contexts/CafeCartContext';
@@ -21,10 +22,7 @@ import { useCameraDevice, useCodeScanner, Camera } from 'react-native-vision-cam
 import { runOnJS } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
-const SCAN_AREA_SIZE = width * 0.7;
-
-// Note: This screen requires react-native-vision-camera or similar library
-// For now, we implement the logic and UI, camera integration can be added later
+const SCAN_AREA_SIZE = width * 0.75;
 
 interface QRScannerScreenProps {
     onScanSuccess?: (result: QRCodeScanResult) => void;
@@ -50,15 +48,9 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
         checkPermissions();
     }, []);
 
-    // Stop camera when screen loses focus
     useEffect(() => {
-        const unsubscribeFocus = navigation.addListener('focus', () => {
-            setIsActive(true);
-        });
-        const unsubscribeBlur = navigation.addListener('blur', () => {
-            setIsActive(false);
-        });
-
+        const unsubscribeFocus = navigation.addListener('focus', () => setIsActive(true));
+        const unsubscribeBlur = navigation.addListener('blur', () => setIsActive(false));
         return () => {
             unsubscribeFocus();
             unsubscribeBlur();
@@ -105,12 +97,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
                 Alert.alert(
                     t('cafe.qr.tableReservedTitle'),
                     t('cafe.qr.tableReservedMessage', { time: startTime }),
-                    [
-                        {
-                            text: t('common.ok'),
-                            onPress: () => finishScan(result)
-                        }
-                    ]
+                    [{ text: t('common.ok'), onPress: () => finishScan(result) }]
                 );
             } else {
                 finishScan(result);
@@ -132,9 +119,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
 
     const onCodeScannedJS = (value: string) => {
         const now = Date.now();
-        if (now - lastScanRef.current < 1500) {
-            return;
-        }
+        if (now - lastScanRef.current < 1500) return;
         lastScanRef.current = now;
         handleBarCodeScanned(value);
     };
@@ -144,45 +129,34 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
         onCodeScanned: (codes) => {
             'worklet';
             if (codes.length > 0 && codes[0]?.value) {
-                const value = codes[0].value;
-                runOnJS(onCodeScannedJS)(value);
+                runOnJS(onCodeScannedJS)(codes[0].value);
             }
         }
     });
 
-    const handleManualEntry = () => {
-        navigation.navigate('CafeList');
-    };
+    const handleManualEntry = () => navigation.navigate('CafeList');
 
     if (!hasPermission) {
         return (
             <View style={styles.container}>
-                <CameraOff size={64} color="#FF3B30" />
-                <Text style={styles.statusText}>{t('cafe.qr.noAccess')}</Text>
-                <Text style={styles.statusSubtext}>
-                    {t('cafe.qr.noAccessDesc')}
-                </Text>
-                <TouchableOpacity
-                    style={styles.settingsButton}
-                    onPress={() => Linking.openSettings()}
-                >
-                    <Text style={styles.settingsButtonText}>{t('cafe.qr.openSettings')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.manualButton}
-                    onPress={handleManualEntry}
-                >
-                    <Text style={styles.manualButtonText}>{t('cafe.qr.chooseManually')}</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
+                <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+                <View style={styles.permissionBox}>
+                    <View style={styles.iconCircle}>
+                        <CameraOff size={40} color="#EF4444" />
+                    </View>
+                    <Text style={styles.statusText}>{t('cafe.qr.noAccess')}</Text>
+                    <Text style={styles.statusSubtext}>{t('cafe.qr.noAccessDesc')}</Text>
 
-    if (device == null) {
-        return (
-            <View style={styles.container}>
-                <ActivityIndicator size="large" color="#FF6B00" />
-                <Text style={styles.statusText}>Checking camera...</Text>
+                    <TouchableOpacity style={styles.primaryBtn} onPress={() => Linking.openSettings()}>
+                        <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.btnGradient}>
+                            <Text style={styles.btnText}>{t('cafe.qr.openSettings')}</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={handleManualEntry}>
+                        <Text style={styles.secondaryBtnText}>{t('cafe.qr.chooseManually')}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         );
     }
@@ -190,80 +164,69 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
     return (
         <View style={styles.container}>
             <View style={styles.cameraContainer}>
-                <Camera
-                    style={StyleSheet.absoluteFill}
-                    device={device}
-                    isActive={isActive && !scanned}
-                    codeScanner={codeScanner}
-                    torch={flashOn ? 'on' : 'off'}
-                    photo={false}
-                    video={false}
-                    audio={false}
-                />
+                {device && (
+                    <Camera
+                        style={StyleSheet.absoluteFill}
+                        device={device}
+                        isActive={isActive && !scanned}
+                        codeScanner={codeScanner}
+                        torch={flashOn ? 'on' : 'off'}
+                    />
+                )}
             </View>
 
-            {/* Scan overlay */}
-            <View style={styles.overlay}>
-                {/* Header */}
+            <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
                 <View style={styles.header}>
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => navigation.goBack()}
-                    >
-                        <X size={28} color="#FFFFFF" />
+                    <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
+                        <X size={22} color="#fff" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>{t('cafe.qr.title')}</Text>
-                    <TouchableOpacity
-                        style={styles.flashButton}
-                        onPress={() => setFlashOn(!flashOn)}
-                    >
-                        {flashOn ? (
-                            <Zap size={24} color="#FFFFFF" />
-                        ) : (
-                            <ZapOff size={24} color="#FFFFFF" />
-                        )}
+                    <TouchableOpacity style={styles.headerBtn} onPress={() => setFlashOn(!flashOn)}>
+                        {flashOn ? <Zap size={22} color="#F59E0B" /> : <ZapOff size={22} color="#fff" />}
                     </TouchableOpacity>
                 </View>
 
-                {/* Scan area */}
-                <View style={styles.scanAreaContainer}>
-                    <View style={styles.scanArea}>
-                        {/* Corner decorations */}
-                        <View style={[styles.corner, styles.cornerTopLeft]} />
-                        <View style={[styles.corner, styles.cornerTopRight]} />
-                        <View style={[styles.corner, styles.cornerBottomLeft]} />
-                        <View style={[styles.corner, styles.cornerBottomRight]} />
+                <View style={styles.scanWrapper}>
+                    <View style={styles.scanFrame}>
+                        {/* Cutouts logic - we use a hole in a dark overlay */}
+                        <View style={styles.frameCornerTopLeft} />
+                        <View style={styles.frameCornerTopRight} />
+                        <View style={styles.frameCornerBottomLeft} />
+                        <View style={styles.frameCornerBottomRight} />
 
                         {loading && (
-                            <View style={styles.loadingOverlay}>
-                                <ActivityIndicator size="large" color="#FF6B00" />
-                                <Text style={styles.loadingText}>{t('cafe.qr.processing')}</Text>
+                            <View style={styles.loaderGlass}>
+                                <ActivityIndicator size="large" color="#F59E0B" />
+                                <Text style={styles.loaderText}>{t('cafe.qr.processing')}</Text>
                             </View>
+                        )}
+
+                        {!loading && !scanned && (
+                            <View style={styles.scanAnimLine} />
                         )}
                     </View>
                 </View>
 
-                {/* Instructions */}
-                <View style={styles.instructions}>
-                    <Text style={styles.instructionText}>
-                        {t('cafe.qr.instruction')}
-                    </Text>
-                    <Text style={styles.instructionSubtext}>
-                        {t('cafe.qr.instructionDesc')}
-                    </Text>
-                </View>
+                <View style={styles.footer}>
+                    <View style={styles.infoGlass}>
+                        <QrCode size={20} color="#F59E0B" />
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.infoHeadline}>{t('cafe.qr.instruction')}</Text>
+                            <Text style={styles.infoBody}>{t('cafe.qr.instructionDesc')}</Text>
+                        </View>
+                    </View>
 
-                {/* Bottom buttons */}
-                <View style={styles.bottomButtons}>
-                    <TouchableOpacity
-                        style={styles.manualEntryButton}
-                        onPress={handleManualEntry}
-                    >
-                        <Search size={20} color="#FFFFFF" />
-                        <Text style={styles.manualEntryText}>{t('cafe.qr.findCafe')}</Text>
+                    <TouchableOpacity style={styles.manualBtn} onPress={handleManualEntry}>
+                        <LinearGradient
+                            colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
+                            style={styles.manualBtnGradient}
+                        >
+                            <Search size={18} color="#fff" />
+                            <Text style={styles.manualBtnText}>{t('cafe.qr.findCafe')}</Text>
+                        </LinearGradient>
                     </TouchableOpacity>
                 </View>
-            </View>
+            </SafeAreaView>
         </View>
     );
 };
@@ -271,190 +234,208 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000000',
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: '#000',
     },
     cameraContainer: {
         ...StyleSheet.absoluteFillObject,
     },
-    mockCamera: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#1C1C1E',
-    },
-    mockCameraText: {
-        color: '#8E8E93',
-        fontSize: 16,
-        marginTop: 16,
-    },
-    mockScanButton: {
-        marginTop: 32,
-        backgroundColor: '#FF6B00',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 24,
-    },
-    mockScanButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '600',
-    },
     overlay: {
-        ...StyleSheet.absoluteFillObject,
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.3)',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: 48,
-        paddingHorizontal: 16,
-        paddingBottom: 16,
+        paddingHorizontal: 20,
+        paddingTop: 10,
     },
-    backButton: {
+    headerBtn: {
         width: 44,
         height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 14,
+        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: '#fff',
         fontSize: 18,
-        fontWeight: '600',
+        fontFamily: 'Cinzel-Bold',
     },
-    flashButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scanAreaContainer: {
+    scanWrapper: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    scanArea: {
+    scanFrame: {
         width: SCAN_AREA_SIZE,
         height: SCAN_AREA_SIZE,
         position: 'relative',
     },
-    corner: {
+    frameCornerTopLeft: {
         position: 'absolute',
+        top: 0,
+        left: 0,
         width: 40,
         height: 40,
-        borderColor: '#FF6B00',
-    },
-    cornerTopLeft: {
-        top: 0,
-        left: 0,
         borderTopWidth: 4,
         borderLeftWidth: 4,
-        borderTopLeftRadius: 12,
+        borderColor: '#F59E0B',
+        borderTopLeftRadius: 20,
     },
-    cornerTopRight: {
+    frameCornerTopRight: {
+        position: 'absolute',
         top: 0,
         right: 0,
+        width: 40,
+        height: 40,
         borderTopWidth: 4,
         borderRightWidth: 4,
-        borderTopRightRadius: 12,
+        borderColor: '#F59E0B',
+        borderTopRightRadius: 20,
     },
-    cornerBottomLeft: {
+    frameCornerBottomLeft: {
+        position: 'absolute',
         bottom: 0,
         left: 0,
+        width: 40,
+        height: 40,
         borderBottomWidth: 4,
         borderLeftWidth: 4,
-        borderBottomLeftRadius: 12,
+        borderColor: '#F59E0B',
+        borderBottomLeftRadius: 20,
     },
-    cornerBottomRight: {
+    frameCornerBottomRight: {
+        position: 'absolute',
         bottom: 0,
         right: 0,
+        width: 40,
+        height: 40,
         borderBottomWidth: 4,
         borderRightWidth: 4,
-        borderBottomRightRadius: 12,
+        borderColor: '#F59E0B',
+        borderBottomRightRadius: 20,
     },
-    loadingOverlay: {
+    scanAnimLine: {
+        position: 'absolute',
+        top: '50%',
+        left: '10%',
+        right: '10%',
+        height: 2,
+        backgroundColor: '#F59E0B',
+        shadowColor: '#F59E0B',
+        shadowRadius: 10,
+        shadowOpacity: 0.8,
+    },
+    loaderGlass: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: 'rgba(10, 10, 20, 0.8)',
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: 20,
     },
-    loadingText: {
-        color: '#FFFFFF',
-        marginTop: 12,
+    loaderText: {
+        color: '#fff',
+        marginTop: 16,
         fontSize: 14,
+        fontWeight: '600',
     },
-    instructions: {
-        paddingHorizontal: 32,
-        paddingVertical: 24,
+    footer: {
+        padding: 24,
+        gap: 20,
+    },
+    infoGlass: {
+        flexDirection: 'row',
         alignItems: 'center',
+        gap: 16,
+        backgroundColor: 'rgba(10, 10, 20, 0.7)',
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    instructionText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        textAlign: 'center',
-        marginBottom: 8,
+    infoHeadline: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 4,
     },
-    instructionSubtext: {
-        color: '#8E8E93',
-        fontSize: 14,
-        textAlign: 'center',
+    infoBody: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 13,
+        fontWeight: '500',
     },
-    bottomButtons: {
-        paddingHorizontal: 24,
-        paddingBottom: 40,
+    manualBtn: {
+        borderRadius: 16,
+        overflow: 'hidden',
     },
-    manualEntryButton: {
+    manualBtnGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        paddingVertical: 14,
-        borderRadius: 12,
+        paddingVertical: 16,
+        gap: 10,
     },
-    manualEntryText: {
-        color: '#FFFFFF',
-        fontSize: 16,
+    manualBtnText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    permissionBox: {
+        padding: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    iconCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
     },
     statusText: {
-        color: '#FFFFFF',
-        fontSize: 18,
-        fontWeight: '600',
-        marginTop: 16,
+        color: '#fff',
+        fontSize: 22,
+        fontFamily: 'Cinzel-Bold',
+        marginBottom: 12,
+        textAlign: 'center',
     },
     statusSubtext: {
-        color: '#8E8E93',
-        fontSize: 14,
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 15,
         textAlign: 'center',
-        marginTop: 8,
-        paddingHorizontal: 32,
+        lineHeight: 22,
+        marginBottom: 40,
     },
-    settingsButton: {
-        marginTop: 24,
-        backgroundColor: '#FF6B00',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 12,
+    primaryBtn: {
+        width: '100%',
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginBottom: 16,
     },
-    settingsButtonText: {
-        color: '#FFFFFF',
+    btnGradient: {
+        paddingVertical: 16,
+        alignItems: 'center',
+    },
+    btnText: {
+        color: '#1a1a2e',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '900',
+        textTransform: 'uppercase',
     },
-    manualButton: {
-        marginTop: 16,
-        paddingHorizontal: 24,
+    secondaryBtn: {
         paddingVertical: 12,
     },
-    manualButtonText: {
-        color: '#8E8E93',
+    secondaryBtnText: {
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 14,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
 });
 

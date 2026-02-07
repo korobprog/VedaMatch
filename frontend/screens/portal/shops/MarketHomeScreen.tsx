@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-    RefreshControl, ActivityIndicator, useColorScheme, Image
+    RefreshControl, ActivityIndicator, Image, Dimensions
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
 import { useSettings } from '../../../context/SettingsContext';
 import { Product, ProductCategoryConfig, ProductFilters } from '../../../types/market';
@@ -23,14 +24,19 @@ import {
     Book,
     Shirt,
     Salad,
-    ChevronRight,
     Search as SearchIcon,
-    X
+    X,
+    ArrowLeft,
+    Wallet
 } from 'lucide-react-native';
+import { useWallet } from '../../../context/WalletContext';
+
+const { width } = Dimensions.get('window');
 
 export const MarketHomeScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
+    const { formattedBalance } = useWallet();
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
 
     const { isDarkMode, vTheme } = useSettings();
@@ -127,11 +133,9 @@ export const MarketHomeScreen: React.FC = () => {
         const newCategory = categoryId === selectedCategory ? '' : categoryId;
         setSelectedCategory(newCategory);
         setPage(1);
-        // Instant feedback for better UX
         setProducts([]);
         setLoading(true);
 
-        // Use timeout to allow UI update before heavy fetch
         setTimeout(() => {
             loadProducts(1, true).finally(() => setLoading(false));
         }, 0);
@@ -147,7 +151,7 @@ export const MarketHomeScreen: React.FC = () => {
         navigation.navigate('ProductDetails', { productId: product.ID });
     };
 
-    const getCategoryIcon = (emoji: string, size = 16, color = '#666') => {
+    const getCategoryIcon = (emoji: string, size = 14, color = '#666') => {
         switch (emoji) {
             case '📚': return <Book size={size} color={color} />;
             case '👕': return <Shirt size={size} color={color} />;
@@ -171,7 +175,7 @@ export const MarketHomeScreen: React.FC = () => {
 
     const renderSkeleton = () => (
         <View style={styles.skeletonCard}>
-            <Skeleton height={140} borderRadius={14} />
+            <Skeleton height={140} borderRadius={20} />
             <View style={{ padding: 10 }}>
                 <Skeleton width="80%" height={16} style={{ marginBottom: 8 }} />
                 <Skeleton width="40%" height={12} style={{ marginBottom: 12 }} />
@@ -183,97 +187,116 @@ export const MarketHomeScreen: React.FC = () => {
     );
 
     const renderHeader = () => (
-        <View>
-            {/* Hero Section */}
-            <View style={[styles.heroSection, { backgroundColor: colors.primary }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <ShoppingBag size={32} color="#fff" style={{ marginRight: 12 }} />
-                    <Text style={styles.heroTitle}>{t('market.title')}</Text>
-                </View>
-                <Text style={styles.heroSubtitle}>
-                    {t('market.subtitle')}
-                </Text>
+        <View style={styles.header}>
+            <View style={styles.headerTop}>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
+                >
+                    <ArrowLeft size={22} color="#fff" />
+                </TouchableOpacity>
 
-                <View style={styles.heroButtons}>
-                    <TouchableOpacity style={styles.heroBtn} onPress={handleShopsPress}>
-                        <Store size={18} color="#fff" style={{ marginRight: 8 }} />
-                        <Text style={styles.heroBtnText}>{t('market.shops')}</Text>
+                <View style={styles.headerTitleContainer}>
+                    <Text style={styles.headerTitle} numberOfLines={1}>
+                        {t('market.title')}
+                    </Text>
+                    <Text style={styles.headerSubtitle}>{t('market.subtitle')}</Text>
+                </View>
+
+                <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
+                    <LinearGradient
+                        colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
+                        style={styles.walletInner}
+                    >
+                        <Wallet size={14} color="#F59E0B" />
+                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.featuredActions}>
+                <View style={styles.actionRow}>
+                    <TouchableOpacity
+                        style={[styles.featuredCard, { backgroundColor: 'rgba(30, 30, 58, 0.5)', borderColor: 'rgba(245, 158, 11, 0.2)' }]}
+                        onPress={handleShopsPress}
+                    >
+                        <LinearGradient
+                            colors={['rgba(245, 158, 11, 0.15)', 'transparent']}
+                            style={styles.cardGradient}
+                        />
+                        <View style={styles.actionIconOuter}>
+                            <Store size={22} color="#F59E0B" />
+                        </View>
+                        <View>
+                            <Text style={styles.featuredCardTitle}>{t('market.shops')}</Text>
+                            <Text style={styles.featuredCardSub}>{t('market.view_all_shops') || 'Все магазины'}</Text>
+                        </View>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.heroBtn} onPress={() => navigation.navigate('ShopsMap')}>
-                        <Map size={18} color="#fff" style={{ marginRight: 8 }} />
-                        <Text style={styles.heroBtnText}>{t('market.map.title')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.heroBtn} onPress={handleSellerDashboard}>
-                        <BarChart3 size={18} color="#fff" style={{ marginRight: 8 }} />
-                        <Text style={styles.heroBtnText}>{t('market.myShop')}</Text>
+
+                    <TouchableOpacity
+                        style={[styles.featuredCard, { backgroundColor: 'rgba(26, 26, 46, 0.5)', borderColor: 'rgba(255,255,255,0.05)' }]}
+                        onPress={() => navigation.navigate('ShopsMap')}
+                    >
+                        <View style={styles.actionIconOuter}>
+                            <Map size={22} color="#fff" />
+                        </View>
+                        <View>
+                            <Text style={styles.featuredCardTitle}>{t('market.map.title')}</Text>
+                            <Text style={styles.featuredCardSub}>{t('market.nearby') || 'Рядом со мной'}</Text>
+                        </View>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-                <View style={[styles.searchInputWrapper, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5' }]}>
-                    <Search size={18} color={isDarkMode ? '#888' : colors.textSecondary} style={{ marginRight: 8 }} />
+            <View style={styles.searchSection}>
+                <View style={styles.searchBackground}>
+                    <SearchIcon size={20} color="rgba(255,255,255,0.4)" />
                     <TextInput
-                        style={[styles.searchInput, { color: isDarkMode ? '#fff' : colors.text }]}
+                        style={styles.searchInput}
+                        placeholder={t('market.search')}
+                        placeholderTextColor="rgba(255,255,255,0.3)"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
-                        placeholder={t('market.search')}
-                        placeholderTextColor={isDarkMode ? '#888' : colors.textSecondary}
                         onSubmitEditing={handleSearch}
                         returnKeyType="search"
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => { setSearchQuery(''); loadProducts(1, true); }}>
-                            <X size={18} color={isDarkMode ? '#888' : colors.textSecondary} />
+                            <X size={20} color="rgba(255,255,255,0.4)" />
                         </TouchableOpacity>
                     )}
                 </View>
-                <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colors.primary }]} onPress={handleSearch}>
-                    <SearchIcon size={20} color="#fff" />
-                </TouchableOpacity>
             </View>
 
-            {/* Categories */}
             <View style={styles.categoriesSection}>
                 <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     data={[{ id: '', emoji: '🏷️', label: { ru: 'Все', en: 'All' } }, ...categories]}
                     keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[
-                                styles.categoryPill,
-                                {
-                                    backgroundColor: selectedCategory === item.id
-                                        ? colors.primary
-                                        : (isDarkMode ? '#333' : '#f0f0f0'),
-                                    borderColor: selectedCategory === item.id ? colors.primary : 'rgba(0,0,0,0.05)',
-                                    borderWidth: 1
-                                }
-                            ]}
-                            onPress={() => handleCategorySelect(item.id)}
-                        >
-                            <View style={{ marginRight: 6 }}>
-                                {getCategoryIcon(item.emoji, 14, selectedCategory === item.id ? '#fff' : colors.primary)}
-                            </View>
-                            <Text style={[
-                                styles.categoryLabel,
-                                { color: selectedCategory === item.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }
-                            ]}>
-                                {item.label[currentLang] || item.label.en}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
-                    contentContainerStyle={styles.categoriesList}
+                    renderItem={({ item }) => {
+                        const isActive = selectedCategory === item.id;
+                        return (
+                            <TouchableOpacity
+                                style={[styles.sortPill, isActive && styles.sortPillActive]}
+                                onPress={() => handleCategorySelect(item.id)}
+                            >
+                                <View style={styles.pillIcon}>
+                                    {getCategoryIcon(item.emoji, 14, isActive ? '#1a1a2e' : '#F59E0B')}
+                                </View>
+                                <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
+                                    {item.label[currentLang] || item.label.en}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    }}
+                    contentContainerStyle={styles.sortList}
                 />
             </View>
 
-            {/* Results Count */}
-            {!loading && (
+            {!loading && total > 0 && (
                 <View style={styles.resultsHeader}>
-                    <Text style={[styles.resultsCount, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                    <Text style={styles.resultsCount}>
                         {total} {t('market.productsFound')}
                     </Text>
                 </View>
@@ -285,162 +308,249 @@ export const MarketHomeScreen: React.FC = () => {
         if (!loadingMore) return null;
         return (
             <View style={styles.loadingFooter}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="small" color="#F59E0B" />
             </View>
         );
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: isDarkMode ? vTheme.colors.background : colors.background }}>
-            <FlatList
-                data={loading ? ([1, 2, 3, 4] as any) : products}
-                renderItem={loading ? renderSkeleton : renderProduct}
-                keyExtractor={(item, index) => loading ? `skel-${index}` : item.ID.toString()}
-                numColumns={2}
-                ListHeaderComponent={renderHeader}
-                ListFooterComponent={renderFooter}
-                ListEmptyComponent={
-                    <EmptyState
-                        icon={<ShoppingBag size={64} color={isDarkMode ? '#555' : colors.textSecondary} opacity={0.5} />}
-                        title={t('market.noProductsTitle')}
-                        message={t('market.noProductsMsg')}
-                        actionLabel={t('market.clearFilters')}
-                        onAction={() => {
-                            setSelectedCategory('');
-                            setSearchQuery('');
-                            loadProducts(1, true);
-                        }}
-                    />
-                }
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-                onEndReached={onLoadMore}
-                onEndReachedThreshold={0.5}
-                contentContainerStyle={styles.listContent}
-                columnWrapperStyle={styles.columnWrapper}
-                // List Optimization props
-                initialNumToRender={8}
-                maxToRenderPerBatch={10}
-                windowSize={5}
-                removeClippedSubviews={true}
-            />
-        </View>
+        <LinearGradient
+            colors={['#0a0a14', '#12122b']}
+            style={styles.gradient}
+        >
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <FlatList
+                    data={loading ? ([1, 2, 3, 4, 5, 6] as any) : products}
+                    renderItem={loading ? renderSkeleton : renderProduct}
+                    keyExtractor={(item, index) => loading ? `skel-${index}` : item.ID.toString()}
+                    numColumns={2}
+                    ListHeaderComponent={renderHeader}
+                    ListFooterComponent={renderFooter}
+                    ListEmptyComponent={
+                        !loading ? (
+                            <EmptyState
+                                icon={<ShoppingBag size={64} color="rgba(255,255,255,0.1)" />}
+                                title={t('market.noProductsTitle')}
+                                message={t('market.noProductsMsg')}
+                                actionLabel={t('market.clearFilters')}
+                                onAction={() => {
+                                    setSelectedCategory('');
+                                    setSearchQuery('');
+                                    loadProducts(1, true);
+                                }}
+                            />
+                        ) : null
+                    }
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor="#F59E0B"
+                        />
+                    }
+                    onEndReached={onLoadMore}
+                    onEndReachedThreshold={0.5}
+                    contentContainerStyle={styles.listContent}
+                    columnWrapperStyle={styles.columnWrapper}
+                    initialNumToRender={8}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
+                    removeClippedSubviews={true}
+                />
+            </SafeAreaView>
+        </LinearGradient>
     );
 };
 
 const styles = StyleSheet.create({
-    centerContainer: {
+    gradient: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
-    heroSection: {
-        padding: 24,
-        paddingTop: 16,
-        paddingBottom: 20,
+    container: {
+        flex: 1,
     },
-    heroTitle: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#fff',
-        textAlign: 'center',
+    header: {
+        paddingTop: 10,
     },
-    heroSubtitle: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.8)',
-        textAlign: 'center',
-        marginTop: 4,
-    },
-    heroButtons: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginTop: 16,
-        gap: 12,
-    },
-    heroBtn: {
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 20,
+    headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 20,
+        marginBottom: 24,
     },
-    heroBtnText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    searchContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 8,
-    },
-    searchInputWrapper: {
-        flex: 1,
-        height: 44,
-        borderRadius: 22,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-    },
-    searchInput: {
-        flex: 1,
-        height: '100%',
-        fontSize: 15,
-        paddingHorizontal: 4,
-    },
-    searchBtn: {
+    backButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    headerTitle: {
+        color: '#fff',
+        fontSize: 22,
+        fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        letterSpacing: 1,
+    },
+    headerSubtitle: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 9,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+        marginTop: 2,
+    },
+    walletButton: {
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    walletInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderRadius: 20,
+    },
+    walletBalance: {
+        color: '#F59E0B',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    featuredActions: {
+        paddingHorizontal: 20,
+        marginBottom: 24,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    featuredCard: {
+        flex: 1,
+        height: 90,
+        borderRadius: 24,
+        borderWidth: 1,
+        padding: 16,
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    cardGradient: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    actionIconOuter: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    featuredCardTitle: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    featuredCardSub: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 9,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    searchSection: {
+        paddingHorizontal: 20,
+        marginBottom: 20,
+    },
+    searchBackground: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        height: 54,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    searchInput: {
+        flex: 1,
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+        marginLeft: 12,
+    },
+    categoriesSection: {
+        marginBottom: 16,
+    },
+    sortList: {
+        paddingHorizontal: 20,
+        gap: 10,
+    },
+    sortPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+        gap: 8,
+    },
+    sortPillActive: {
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
+    },
+    pillIcon: {
+        width: 14,
+        height: 14,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    skeletonCard: {
-        flex: 1,
-        margin: 6,
-        borderRadius: 14,
-        overflow: 'hidden',
+    sortPillLabel: {
+        color: 'rgba(255, 255, 255, 0.5)',
+        fontSize: 12,
+        fontWeight: '700',
     },
-    categoriesSection: {
-        marginBottom: 8,
-    },
-    categoriesList: {
-        paddingHorizontal: 16,
-    },
-    categoryPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 18,
-        marginRight: 8,
-    },
-    categoryEmoji: {
-        fontSize: 14,
-        marginRight: 6,
-    },
-    categoryLabel: {
-        fontSize: 13,
-        fontWeight: '500',
+    sortPillLabelActive: {
+        color: '#1a1a2e',
     },
     resultsHeader: {
-        paddingHorizontal: 16,
-        paddingBottom: 8,
+        paddingHorizontal: 20,
+        paddingBottom: 12,
     },
     resultsCount: {
-        fontSize: 13,
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.4)',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
     listContent: {
-        paddingBottom: 20,
+        paddingBottom: 40,
     },
     columnWrapper: {
-        paddingHorizontal: 8,
+        justifyContent: 'space-between',
+        paddingHorizontal: 14,
+    },
+    skeletonCard: {
+        width: (width - 48) / 2,
+        margin: 7,
+        borderRadius: 20,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.02)',
     },
     loadingFooter: {
-        padding: 16,
+        paddingVertical: 20,
         alignItems: 'center',
     },
 });
+

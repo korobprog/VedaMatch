@@ -15,9 +15,12 @@ import {
     TextInput,
     Switch,
     Animated,
-    Share
+    Share,
+    StatusBar,
+    Platform
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { BlurView } from '@react-native-community/blur';
 import axios from 'axios';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
@@ -51,7 +54,8 @@ import {
     Share2,
     User,
     Wrench,
-    CircleHelp
+    CircleHelp,
+    X
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -74,7 +78,7 @@ interface Profile {
     lookingForBusiness?: string;
 }
 
-export const DatingScreen = () => {
+export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const { t } = useTranslation();
     const { user } = useUser();
     const { setChatRecipient } = useChat();
@@ -335,7 +339,6 @@ export const DatingScreen = () => {
             setFavoritingInProgress(true);
             try {
                 if (isFavorited) {
-                    // Need to find the favorite ID first - for now just show message
                     Alert.alert(t('common.info'), t('dating.removedFromFavorites'));
                     setIsFavorited(false);
                     setLikesCount(prev => Math.max(0, prev - 1));
@@ -356,7 +359,6 @@ export const DatingScreen = () => {
             }
         };
 
-        // Share handler
         const handleShare = async () => {
             try {
                 const shareUrl = datingService.getShareUrl(item.ID);
@@ -370,7 +372,6 @@ export const DatingScreen = () => {
             }
         };
 
-        // Auto-change slides logic
         useEffect(() => {
             if (displayPhotos.length <= 1 || isPaused) return;
 
@@ -388,1135 +389,1067 @@ export const DatingScreen = () => {
                     })
                 ]).start();
 
-                // Change index in the middle of fade
                 setTimeout(() => {
                     setActiveIndex((prev) => (prev + 1) % displayPhotos.length);
                 }, 500);
 
-            }, 5000); // Change every 5 seconds
+            }, 5000);
 
             return () => clearInterval(interval);
         }, [displayPhotos.length, isPaused]);
 
         const handleTap = (event: any) => {
             const x = event.nativeEvent.locationX;
-            const cardWidth = width - 34;
+            const cardWidth = width - 40;
 
-            setIsPaused(true); // Pause auto-rotation on manual interaction
-            // Resume after 10s
-            // setTimeout(() => setIsPaused(false), 10000); // Optional: resume later
+            setIsPaused(true);
 
             if (x < cardWidth * 0.3) {
-                // Tap left
                 if (activeIndex > 0) {
                     setActiveIndex(activeIndex - 1);
                 }
             } else if (x > cardWidth * 0.7) {
-                // Tap right
                 if (activeIndex < displayPhotos.length - 1) {
                     setActiveIndex(activeIndex + 1);
                 } else if (!isPreview) {
                     navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
                 }
             } else {
-                // Tap middle
                 if (!isPreview) {
                     navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
                 }
             }
         };
 
-
         const currentPhotoUrl = displayPhotos[activeIndex]?.url;
 
         return (
-            <View style={[styles.card, { backgroundColor: theme.header, borderColor: theme.borderColor }]}>
-                <View style={styles.avatarContainer}>
+            <Animated.View style={styles.cardContainer}>
+                <TouchableOpacity
+                    activeOpacity={1}
+                    onPress={handleTap}
+                    style={styles.cardImageContainer}
+                >
                     {displayPhotos.length > 0 ? (
-                        <View style={{ flex: 1 }}>
+                        <Animated.Image
+                            source={{ uri: datingService.getMediaUrl(currentPhotoUrl) }}
+                            style={[styles.fullCardImage, { opacity: fadeAnim }]}
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <LinearGradient
+                            colors={['#0f0f1a', '#1a1a2e', '#0f0f1a']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.cardImagePlaceholder}
+                        >
+                            <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
+                                <View style={{
+                                    width: 140,
+                                    height: 140,
+                                    borderRadius: 70,
+                                    backgroundColor: 'rgba(255,255,255,0.03)',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderWidth: 1,
+                                    borderColor: 'rgba(255,255,255,0.05)'
+                                }}>
+                                    <User size={80} color="rgba(245, 158, 11, 0.15)" strokeWidth={0.5} />
+                                </View>
+                                <Text style={{
+                                    color: 'rgba(255,255,255,0.2)',
+                                    marginTop: 20,
+                                    fontSize: 12,
+                                    letterSpacing: 2,
+                                    fontFamily: 'Cinzel-Regular'
+                                }}>
+                                    {t('dating.noPhoto')}
+                                </Text>
+                            </Animated.View>
+                        </LinearGradient>
+                    )}
+
+                    {/* Top Overlay Actions - Moved for better reach/visibility */}
+                    <View style={styles.cardTopActions}>
+                        {!isPreview && (
+                            <TouchableOpacity style={styles.cardActionCircle} onPress={handleShare}>
+                                <Share2 size={18} color="#fff" />
+                            </TouchableOpacity>
+                        )}
+                        {!isPreview && (
                             <TouchableOpacity
-                                activeOpacity={1}
-                                onPress={handleTap}
-                                style={{ width: '100%', height: 350 }}
+                                style={[styles.cardActionCircle, { marginLeft: 'auto' }]}
+                                onPress={handleToggleFavorite}
                             >
-                                <Animated.Image
-                                    source={{ uri: datingService.getMediaUrl(currentPhotoUrl) }}
-                                    style={[styles.avatar, { opacity: fadeAnim }]}
-                                    resizeMode="cover"
+                                <Heart
+                                    size={20}
+                                    color={isFavorited ? '#F59E0B' : '#fff'}
+                                    fill={isFavorited ? '#F59E0B' : 'transparent'}
                                 />
                             </TouchableOpacity>
-
-                            {/* Gradient Overlay for Top Indicators */}
-                            <LinearGradient
-                                colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0)']}
-                                style={styles.topGradient as any}
-                            />
-
-                            {/* Favorite Button - Top Right Corner */}
-                            {!isPreview && (
-                                <TouchableOpacity
-                                    style={styles.favoriteButton}
-                                    onPress={handleToggleFavorite}
-                                    disabled={favoritingInProgress}
-                                >
-                                    <Heart
-                                        size={24}
-                                        color={isFavorited ? vTheme.colors.accent : '#FFF'}
-                                        fill={isFavorited ? vTheme.colors.accent : 'transparent'}
-                                    />
-                                </TouchableOpacity>
-                            )}
-
-                            {/* Likes Counter - Below favorite button */}
-                            {!isPreview && likesCount > 0 && (
-                                <View style={styles.likesCounter}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <Heart size={12} color="#fff" fill="#fff" style={{ marginRight: 4 }} />
-                                        <Text style={styles.likesText}>{likesCount}</Text>
-                                    </View>
-                                </View>
-                            )}
-
-                            {/* Share Button - Top Left Corner */}
-                            {!isPreview && (
-                                <TouchableOpacity
-                                    style={styles.shareButton}
-                                    onPress={handleShare}
-                                >
-                                    <Share2 size={20} color="#FFF" />
-                                </TouchableOpacity>
-                            )}
-
-                            {/* Pagination Indicators (Bars) */}
-                            {displayPhotos.length > 1 && (
-                                <View style={styles.paginationContainer}>
-                                    {displayPhotos.map((_, i) => (
-                                        <View
-                                            key={i}
-                                            style={[
-                                                styles.paginationBar,
-                                                {
-                                                    backgroundColor: i === activeIndex ? 'white' : 'rgba(255,255,255,0.4)',
-                                                    width: ((width - 60) / displayPhotos.length) - 4
-                                                }
-                                            ]}
-                                        />
-                                    ))}
-                                </View>
-                            )}
-
-                            <View style={styles.tapToView}>
-                                <Text style={styles.tapText}>
-                                    {isPaused ? t('dating.tapToSlide') + ' (Paused)' : t('dating.tapToSlide')}
-                                </Text>
-                            </View>
-                        </View>
-                    ) : (
-                        <View style={[styles.avatarPlaceholder, { backgroundColor: theme.background }]}>
-                            <User size={60} color={theme.subText} strokeWidth={1} />
-                            <Text style={{ color: theme.subText, marginTop: 10 }}>{t('dating.noPhotos')}</Text>
-                        </View>
-                    )}
-                </View>
-                <View style={styles.cardInfo}>
-                    {/* Header row: Name + Action icons */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.name, { color: theme.text }]}>
-                                {item.spiritualName || 'Devotee'}
-                                {mode === 'family' && item.age ? `, ${item.age}` : ''}
-                            </Text>
-                            <Text style={[styles.city, { color: theme.subText }]}>{item.city}</Text>
-                        </View>
-
-                        {/* Share + Favorite icons */}
-                        {!isPreview && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <TouchableOpacity
-                                    style={{ padding: 8 }}
-                                    onPress={handleShare}
-                                >
-                                    <Share2 size={20} color={theme.subText} />
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={{ padding: 8 }}
-                                    onPress={handleToggleFavorite}
-                                    disabled={favoritingInProgress}
-                                >
-                                    <Heart
-                                        size={20}
-                                        color={isFavorited ? vTheme.colors.accent : theme.subText}
-                                        fill={isFavorited ? vTheme.colors.accent : 'transparent'}
-                                    />
-                                </TouchableOpacity>
-                                {likesCount > 0 && (
-                                    <Text style={{ fontSize: 11, color: theme.subText, marginLeft: 2 }}>{likesCount}</Text>
-                                )}
-                            </View>
                         )}
                     </View>
 
-                    {mode === 'business' ? (
-                        <View style={{ marginTop: 5 }}>
-                            {item.industry && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                    <Briefcase size={14} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
-                                    <Text style={[styles.path, { color: theme.accent, marginBottom: 0 }]}>{item.industry}</Text>
-                                </View>
-                            )}
-                            {item.skills && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Wrench size={14} color={theme.text} style={{ marginRight: 6 }} />
-                                    <Text style={[styles.skillsText, { color: theme.text, marginBottom: 0 }]}>{item.skills}</Text>
-                                </View>
-                            )}
+                    {/* Pagination Indicators - Sleeker design */}
+                    {displayPhotos.length > 1 && (
+                        <View style={styles.cardPagination}>
+                            {displayPhotos.map((_, i) => (
+                                <View
+                                    key={i}
+                                    style={[
+                                        styles.cardPaginationBar,
+                                        {
+                                            backgroundColor: i === activeIndex ? '#F59E0B' : 'rgba(255,255,255,0.2)',
+                                            flex: 1,
+                                            height: 2,
+                                        }
+                                    ]}
+                                />
+                            ))}
                         </View>
-                    ) : (
-                        <Text style={[styles.path, { color: theme.accent }]}>{item.madh}</Text>
                     )}
 
-                    <Text style={[styles.bio, { color: theme.text }]} numberOfLines={3}>
-                        {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || 'No bio yet')}
-                    </Text>
+                    {/* Info Overlay with stronger Liquid Glass fade */}
+                    <LinearGradient
+                        colors={['transparent', 'rgba(10, 10, 20, 0.4)', 'rgba(6, 6, 12, 0.98)']}
+                        style={styles.cardInfoOverlay}
+                    >
+                        {Platform.OS === 'ios' && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="dark"
+                                blurAmount={15}
+                                reducedTransparencyFallbackColor="rgba(0,0,0,0.9)"
+                            />
+                        )}
 
-                    {!isPreview && (
-                        <View style={styles.actions}>
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: theme.button }]}
-                                onPress={() => handleCheckCompatibility(item.ID)}
-                            >
-                                <Text style={{ color: theme.buttonText }}>
-                                    {mode === 'business' ? 'Connect' : t('dating.checkCompatibility')}
+                        <View style={styles.cardTextContainer}>
+                            <View style={styles.cardNameRow}>
+                                <Text style={styles.cardSpiritualName} numberOfLines={1}>
+                                    {item.spiritualName || 'Devotee'}
                                 </Text>
-                            </TouchableOpacity>
+                                {mode === 'family' && item.age ? (
+                                    <Text style={styles.cardAge}>, {item.age}</Text>
+                                ) : null}
+                            </View>
+
+                            <View style={styles.cardLocationRow}>
+                                <MapPin size={12} color="#F59E0B" style={{ marginRight: 6 }} />
+                                <Text style={styles.cardLocationText}>{item.city}</Text>
+                            </View>
+
+                            <View style={styles.cardTagRow}>
+                                {mode === 'business' ? (
+                                    <>
+                                        {item.industry && (
+                                            <View style={styles.cardTag}>
+                                                <Briefcase size={10} color="#F59E0B" />
+                                                <Text style={styles.cardTagText}>{item.industry}</Text>
+                                            </View>
+                                        )}
+                                    </>
+                                ) : (
+                                    <View style={styles.cardTag}>
+                                        <Sparkles size={10} color="#F59E0B" />
+                                        <Text style={styles.cardTagText}>{item.madh || 'Vaisnava'}</Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            <Text style={styles.cardBioText} numberOfLines={3}>
+                                {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || 'Seeking spiritual resonance...')}
+                            </Text>
+
+                            {!isPreview && (
+                                <View style={styles.cardFooterActions}>
+                                    <TouchableOpacity
+                                        activeOpacity={0.9}
+                                        style={styles.cardCompatibilityBtn}
+                                        onPress={() => handleCheckCompatibility(item.ID)}
+                                    >
+                                        <LinearGradient
+                                            colors={['#F59E0B', '#D67D3E']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={styles.cardCompatibilityGradient}
+                                        >
+                                            <Text style={styles.cardCompatibilityBtnText}>
+                                                {mode === 'business' ? 'Connect' : 'Astrological Analysis'}
+                                            </Text>
+                                            <Sparkles size={16} color="#000" />
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
-                    )}
-                </View>
-            </View >
+                    </LinearGradient>
+                </TouchableOpacity>
+            </Animated.View>
         );
     };
 
     return (
         <ProtectedScreen requireCompleteProfile={true}>
-            <View style={[styles.container, { backgroundColor: theme.background }]}>
-                <View style={[styles.topMenu, { borderBottomColor: theme.borderColor, alignItems: 'center' }]}>
-                    {/* Left Arrow */}
-                    <ChevronLeft size={20} color={theme.subText} style={{ marginRight: 5 }} />
-
-                    <TouchableOpacity
-                        style={[styles.iconBtn, { backgroundColor: vTheme.colors.backgroundSecondary }, vTheme.shadows.soft]}
-                        onPress={() => setShowStats(!showStats)}
-                    >
-                        <BarChart2 size={18} color={showStats ? vTheme.colors.primary : vTheme.colors.textSecondary} />
-                    </TouchableOpacity>
-
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={{ flex: 1 }}
-                        contentContainerStyle={{ alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 }}
-                    >
+            <LinearGradient colors={['#06060c', '#12122b', '#06060c']} style={styles.fullGradient}>
+                <StatusBar barStyle="light-content" />
+                <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+                    <View style={styles.premiumHeader}>
                         <TouchableOpacity
-                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
-                            onPress={() => setShowFilters(true)}
+                            style={styles.headerIconButton}
+                            onPress={() => onBack ? onBack() : (navigation.canGoBack() ? navigation.goBack() : null)}
                         >
-                            <Filter size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
-                            <Text style={styles.premiumMenuBtnText}>{t('dating.filter')}</Text>
+                            <ChevronLeft size={24} color="rgba(255,255,255,0.7)" />
                         </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
-                            onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
-                        >
-                            <UserPen size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
-                            <Text style={styles.premiumMenuBtnText}>{t('dating.editProfile')}</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>Dating</Text>
 
                         <TouchableOpacity
-                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
-                            onPress={() => fetchPreviewProfile()}
+                            style={[styles.headerIconButton, showStats && styles.headerIconButtonActive]}
+                            onPress={() => setShowStats(!showStats)}
                         >
-                            <Eye size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
-                            <Text style={styles.premiumMenuBtnText}>{t('settings.tabs.chat').replace('Чат', 'Превью') || 'Preview'}</Text>
+                            <BarChart2 size={20} color={showStats ? '#F59E0B' : 'rgba(255,255,255,0.7)'} />
                         </TouchableOpacity>
+                    </View>
 
-                        <TouchableOpacity
-                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
-                            onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
+                    <View style={styles.topActionScrollContainer}>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.topActionScrollContent}
                         >
-                            <ImageIcon size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
-                            <Text style={styles.premiumMenuBtnText}>Media</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.premiumMenuBtn, ModernVedicTheme.shadows.soft]}
-                            onPress={() => navigation.navigate('DatingFavorites')}
-                        >
-                            <Heart size={16} color={vTheme.colors.primary} style={{ marginRight: 6 }} />
-                            <Text style={styles.premiumMenuBtnText}>{t('dating.favorites')}</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
-
-                    {/* Right Arrow */}
-                    <ChevronRight size={20} color={theme.subText} style={{ marginLeft: 5 }} />
-                </View>
-
-                {/* Mode Switcher */}
-                <View style={{ backgroundColor: theme.background, paddingVertical: 12 }}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
-                        {[
-                            { key: 'family', label: 'Family', icon: <Heart size={18} color={mode === 'family' ? '#fff' : vTheme.colors.primary} /> },
-                            { key: 'business', label: 'Business', icon: <Briefcase size={18} color={mode === 'business' ? '#fff' : vTheme.colors.primary} /> },
-                            { key: 'friendship', label: 'Friends', icon: <Users size={18} color={mode === 'friendship' ? '#fff' : vTheme.colors.primary} /> },
-                            { key: 'seva', label: 'Seva', icon: <Flower2 size={18} color={mode === 'seva' ? '#fff' : vTheme.colors.primary} /> }
-                        ].map((m) => (
                             <TouchableOpacity
-                                key={m.key}
-                                style={[
-                                    styles.modeChip,
-                                    {
-                                        backgroundColor: mode === m.key ? vTheme.colors.primary : vTheme.colors.backgroundSecondary,
-                                        borderColor: mode === m.key ? vTheme.colors.primary : 'rgba(214, 125, 62, 0.2)',
-                                    },
-                                    vTheme.shadows.soft
-                                ]}
-                                onPress={() => {
-                                    setMode(m.key as any);
-                                    setLoading(true);
-                                }}
+                                style={styles.glassActionBtn}
+                                onPress={() => setShowFilters(true)}
                             >
-                                <View style={{ marginRight: 6 }}>{m.icon}</View>
-                                <Text style={{ color: mode === m.key ? '#fff' : ModernVedicTheme.colors.text, fontWeight: '700', fontSize: 13 }}>{m.label}</Text>
+                                <Filter size={16} color="#F59E0B" />
+                                <Text style={styles.glassActionText}>{t('dating.filter')}</Text>
                             </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
 
-                {/* Statistics Bar */}
-                {showStats && (
-                    <View style={[styles.statsBar, { borderBottomColor: theme.borderColor }]}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
                             <TouchableOpacity
-                                style={[
-                                    styles.statItem,
-                                    { backgroundColor: (!filterCity && !filterNew) ? vTheme.colors.accent : vTheme.colors.backgroundSecondary },
-                                    vTheme.shadows.soft
-                                ]}
-                                onPress={() => {
-                                    setFilterCity('');
-                                    setFilterNew(false);
-                                    fetchCandidates();
-                                }}
+                                style={styles.glassActionBtn}
+                                onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
                             >
-                                <Users2 size={20} color={(!filterCity && !filterNew) ? '#fff' : vTheme.colors.accent} style={{ marginRight: 8 }} />
-                                <View>
-                                    <Text style={[styles.statValue, { color: (!filterCity && !filterNew) ? '#fff' : theme.text }]}>{stats.total}</Text>
-                                    <Text style={[styles.statLabel, { color: (!filterCity && !filterNew) ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.totalProfiles', 'Всего анкет')}</Text>
-                                </View>
+                                <UserPen size={16} color="#F59E0B" />
+                                <Text style={styles.glassActionText}>{t('dating.editProfile')}</Text>
                             </TouchableOpacity>
+
                             <TouchableOpacity
-                                style={[
-                                    styles.statItem,
-                                    { backgroundColor: (filterCity === user?.city && filterCity !== '') ? vTheme.colors.accent : vTheme.colors.backgroundSecondary },
-                                    vTheme.shadows.soft
-                                ]}
-                                onPress={() => {
-                                    if (user?.city) {
-                                        if (filterCity === user.city) {
-                                            setFilterCity('');
-                                        } else {
-                                            setFilterCity(user.city);
-                                            setFilterNew(false);
-                                        }
-                                        fetchCandidates();
-                                    }
-                                }}
+                                style={styles.glassActionBtn}
+                                onPress={() => fetchPreviewProfile()}
                             >
-                                <MapPin size={20} color={(filterCity === user?.city && filterCity !== '') ? '#fff' : vTheme.colors.accent} style={{ marginRight: 8 }} />
-                                <View>
-                                    <Text style={[styles.statValue, { color: (filterCity === user?.city && filterCity !== '') ? '#fff' : theme.text }]}>{stats.city}</Text>
-                                    <Text style={[styles.statLabel, { color: (filterCity === user?.city && filterCity !== '') ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.inYourCity', 'В вашем городе')}</Text>
-                                </View>
+                                <Eye size={16} color="#F59E0B" />
+                                <Text style={styles.glassActionText}>Preview</Text>
                             </TouchableOpacity>
+
                             <TouchableOpacity
-                                style={[
-                                    styles.statItem,
-                                    { backgroundColor: filterNew ? vTheme.colors.accent : vTheme.colors.backgroundSecondary },
-                                    vTheme.shadows.soft
-                                ]}
-                                onPress={() => {
-                                    setFilterNew(!filterNew);
-                                    if (!filterNew) setFilterCity('');
-                                    fetchCandidates();
-                                }}
+                                style={styles.glassActionBtn}
+                                onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                             >
-                                <Sparkles size={20} color={filterNew ? '#fff' : vTheme.colors.accent} style={{ marginRight: 8 }} />
-                                <View>
-                                    <Text style={[styles.statValue, { color: filterNew ? '#fff' : theme.text }]}>{stats.new}</Text>
-                                    <Text style={[styles.statLabel, { color: filterNew ? 'rgba(255,255,255,0.8)' : theme.subText }]}>{t('dating.newLast24h', 'Новые (24ч)')}</Text>
-                                </View>
+                                <ImageIcon size={16} color="#F59E0B" />
+                                <Text style={styles.glassActionText}>Media</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.glassActionBtn}
+                                onPress={() => navigation.navigate('DatingFavorites')}
+                            >
+                                <Heart size={16} color="#F59E0B" />
+                                <Text style={styles.glassActionText}>{t('dating.favorites')}</Text>
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
-                )}
 
-                {loading ? (
-                    <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.accent} />
-                ) : candidates.length === 0 ? (
-                    <View style={styles.empty}>
-                        <Text style={{ color: theme.subText }}>{t('dating.noCandidates')}</Text>
-                        <Text style={{ color: theme.subText }}>{t('dating.joinPrompt')}</Text>
+                    {/* Mode Switcher */}
+                    <View style={styles.modeSwitcherContainer}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeScrollContent}>
+                            {[
+                                { key: 'family', label: 'Family', icon: <Heart size={16} /> },
+                                { key: 'business', label: 'Business', icon: <Briefcase size={16} /> },
+                                { key: 'friendship', label: 'Friends', icon: <Users size={16} /> },
+                                { key: 'seva', label: 'Seva', icon: <Flower2 size={16} /> }
+                            ].map((m) => (
+                                <TouchableOpacity
+                                    key={m.key}
+                                    style={[
+                                        styles.modeGlassChip,
+                                        mode === m.key && styles.modeGlassChipActive
+                                    ]}
+                                    onPress={() => {
+                                        setMode(m.key as any);
+                                        setLoading(true);
+                                    }}
+                                >
+                                    {React.cloneElement(m.icon as React.ReactElement, {
+                                        color: mode === m.key ? '#000' : 'rgba(255,255,255,0.4)',
+                                        size: 14
+                                    })}
+                                    <Text style={[
+                                        styles.modeGlassText,
+                                        mode === m.key && styles.modeGlassTextActive
+                                    ]}>{m.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
                     </View>
-                ) : (
-                    <FlatList<Profile>
-                        data={candidates}
-                        keyExtractor={(item) => item.ID.toString()}
-                        renderItem={({ item }) => <DatingCard item={item} />}
-                        contentContainerStyle={styles.list}
-                    />
-                )}
 
-                <Modal
-                    visible={showCompatibilityModal}
-                    transparent
-                    animationType="fade"
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header }]}>
-                            <Text style={[styles.modalTitle, { color: theme.accent }]}>{t('dating.compatibilityAnalysis')}</Text>
-
-                            <View style={{ alignItems: 'center', marginVertical: 10 }}>
-                                <Image
-                                    source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}/uploads/kolobok_astrologer.png` }}
-                                    style={{ width: 120, height: 120, borderRadius: 60 }}
-                                    resizeMode="cover"
-                                />
-                            </View>
-
-                            <ScrollView
-                                style={styles.modalBody}
-                                contentContainerStyle={styles.modalScrollContent}
-                                showsVerticalScrollIndicator={true}
-                            >
-                                {checkingComp ? (
-                                    <View style={{ paddingVertical: 20 }}>
-                                        <ActivityIndicator color={theme.accent} size="large" />
-                                        <Text style={[styles.modalText, { color: theme.subText, marginTop: 10 }]}>{t('dating.exploringStars')}</Text>
+                    {/* Statistics Bar */}
+                    {showStats && (
+                        <View style={styles.statsBar}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+                                <TouchableOpacity
+                                    style={styles.statItem}
+                                    onPress={() => { setFilterCity(''); setFilterNew(false); fetchCandidates(); }}
+                                >
+                                    <Users2 size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+                                    <View>
+                                        <Text style={styles.statValue}>{stats.total}</Text>
+                                        <Text style={styles.statLabel}>Total</Text>
                                     </View>
-                                ) : (
-                                    <Text style={[styles.modalText, { color: theme.text }]}>{compatibilityText}</Text>
-                                )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.statItem}
+                                    onPress={() => { if (user?.city) { setFilterCity(user.city); setFilterNew(false); fetchCandidates(); } }}
+                                >
+                                    <MapPin size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+                                    <View>
+                                        <Text style={styles.statValue}>{stats.city}</Text>
+                                        <Text style={styles.statLabel}>In {user?.city}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.statItem}
+                                    onPress={() => { setFilterNew(!filterNew); if (!filterNew) setFilterCity(''); fetchCandidates(); }}
+                                >
+                                    <Sparkles size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+                                    <View>
+                                        <Text style={styles.statValue}>{stats.new}</Text>
+                                        <Text style={styles.statLabel}>New (24h)</Text>
+                                    </View>
+                                </TouchableOpacity>
                             </ScrollView>
-                            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                                <TouchableOpacity
-                                    style={[styles.closeBtn, { backgroundColor: theme.header, flex: 1, borderWidth: 1, borderColor: theme.borderColor }]}
-                                    onPress={handleSaveFavorite}
-                                >
-                                    <Text style={{ color: theme.text }}>{t('dating.save')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.closeBtn, { backgroundColor: friendIds.includes(currentCandidateId || 0) ? theme.accent : '#4CAF50', flex: 1 }]}
-                                    onPress={handleConnect}
-                                >
-                                    <Text style={{ color: 'white' }}>
-                                        {friendIds.includes(currentCandidateId || 0) ? t('dating.chat') : t('dating.connect')}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.closeBtn, { backgroundColor: theme.button, flex: 1 }]}
-                                    onPress={() => setShowCompatibilityModal(false)}
-                                >
-                                    <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                                </TouchableOpacity>
-                            </View>
                         </View>
-                    </View>
-                </Modal>
+                    )}
 
-                {/* Filter Modal */}
-                <Modal
-                    visible={showFilters}
-                    transparent
-                    animationType="slide"
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                <Text style={[styles.modalTitle, { color: theme.text, marginBottom: 0 }]}>{t('dating.filters')}</Text>
-                                <TouchableOpacity onPress={() => setShowFilters(false)}>
-                                    <Text style={{ fontSize: 24, color: theme.subText }}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
+                    {loading ? (
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                            <ActivityIndicator size="large" color="#F59E0B" />
+                        </View>
+                    ) : candidates.length === 0 ? (
+                        <View style={styles.empty}>
+                            <Sparkles size={40} color="rgba(255,255,255,0.1)" style={{ marginBottom: 15 }} />
+                            <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>{t('dating.noCandidates')}</Text>
+                        </View>
+                    ) : (
+                        <FlatList<Profile>
+                            data={candidates}
+                            keyExtractor={(item) => item.ID.toString()}
+                            renderItem={({ item }) => <DatingCard item={item} />}
+                            contentContainerStyle={styles.list}
+                            showsVerticalScrollIndicator={false}
+                        />
+                    )}
 
-                            <ScrollView showsVerticalScrollIndicator={false}>
-                                {/* Business Filters */}
-                                {mode === 'business' && (
-                                    <>
-                                        <Text style={[styles.filterLabel, { color: theme.subText }]}>Skills</Text>
-                                        <TextInput
-                                            style={[styles.filterInput, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
-                                            value={filterSkills}
-                                            onChangeText={setFilterSkills}
-                                            placeholder="e.g. Management, Coding..."
-                                            placeholderTextColor={theme.subText}
+                    {/* Compatibility Modal */}
+                    <Modal visible={showCompatibilityModal} transparent animationType="fade">
+                        <View style={styles.modalOverlay}>
+                            <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>{t('dating.compatibilityAnalysis')}</Text>
+
+                                <View style={{ alignItems: 'center', marginVertical: 20 }}>
+                                    <View style={styles.avatarGlowContainer}>
+                                        <Image
+                                            source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}/uploads/kolobok_astrologer.png` }}
+                                            style={styles.astrologerImage}
+                                            resizeMode="cover"
                                         />
-
-                                        <Text style={[styles.filterLabel, { color: theme.subText }]}>Industry</Text>
-                                        <TextInput
-                                            style={[styles.filterInput, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor }]}
-                                            value={filterIndustry}
-                                            onChangeText={setFilterIndustry}
-                                            placeholder="e.g. IT, Wellness..."
-                                            placeholderTextColor={theme.subText}
-                                        />
-                                    </>
-                                )}
-
-                                {/* City */}
-                                <Text style={[styles.filterLabel, { color: theme.subText }]}>{t('registration.city')}</Text>
-                                <TouchableOpacity
-                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-                                    onPress={() => setShowCityPicker(true)}
-                                >
-                                    <Text style={{ color: filterCity ? theme.text : theme.subText }}>
-                                        {filterCity || t('dating.selectCity')}
-                                    </Text>
-                                </TouchableOpacity>
-
-                                {/* Age Row */}
-                                <Text style={[styles.filterLabel, { color: theme.subText }]}>{t('registration.dob')}</Text>
-                                <View style={styles.filterRow}>
-                                    <TextInput
-                                        style={[styles.filterInput, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 0 }]}
-                                        value={filterMinAge}
-                                        onChangeText={setFilterMinAge}
-                                        placeholder={t('dating.minAge')}
-                                        keyboardType="numeric"
-                                        placeholderTextColor={theme.subText}
-                                    />
-                                    <TextInput
-                                        style={[styles.filterInput, { flex: 1, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 0 }]}
-                                        value={filterMaxAge}
-                                        onChangeText={setFilterMaxAge}
-                                        placeholder={t('dating.maxAge')}
-                                        keyboardType="numeric"
-                                        placeholderTextColor={theme.subText}
-                                    />
+                                    </View>
                                 </View>
 
-                                {/* Tradition */}
-                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Tradition (Madh)</Text>
-                                <TouchableOpacity
-                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-                                    onPress={() => setShowMadhPicker(true)}
-                                >
-                                    <Text style={{ color: filterMadh ? theme.text : theme.subText }}>
-                                        {filterMadh || "Any"}
-                                    </Text>
-                                </TouchableOpacity>
+                                <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+                                    {checkingComp ? (
+                                        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                                            <ActivityIndicator color="#F59E0B" size="large" />
+                                            <Text style={[styles.modalText, { textAlign: 'center', marginTop: 15 }]}>{t('dating.exploringStars')}</Text>
+                                        </View>
+                                    ) : (
+                                        <Text style={styles.modalText}>{compatibilityText}</Text>
+                                    )}
+                                </ScrollView>
 
-                                {/* Yoga Style */}
-                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Yoga Style</Text>
-                                <TouchableOpacity
-                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-                                    onPress={() => setShowYogaPicker(true)}
-                                >
-                                    <Text style={{ color: filterYogaStyle ? theme.text : theme.subText }}>
-                                        {filterYogaStyle || "Any"}
-                                    </Text>
-                                </TouchableOpacity>
+                                <View style={styles.modalFooter}>
+                                    <TouchableOpacity style={styles.glassButtonSecondary} onPress={handleSaveFavorite}>
+                                        <Text style={styles.glassButtonText}>{t('dating.save')}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.premiumButtonPrimary}
+                                        onPress={handleConnect}
+                                    >
+                                        <LinearGradient colors={['#F59E0B', '#D67D3E']} style={styles.buttonGradient}>
+                                            <Text style={styles.premiumButtonText}>
+                                                {friendIds.includes(currentCandidateId || 0) ? t('dating.chat') : t('dating.connect')}
+                                            </Text>
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                </View>
 
-                                {/* Guna */}
-                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Guna</Text>
-                                <TouchableOpacity
-                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-                                    onPress={() => setShowGunaPicker(true)}
-                                >
-                                    <Text style={{ color: filterGuna ? theme.text : theme.subText }}>
-                                        {filterGuna || "Any"}
-                                    </Text>
+                                <TouchableOpacity style={styles.modalCloseLink} onPress={() => setShowCompatibilityModal(false)}>
+                                    <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                 </TouchableOpacity>
-
-                                {/* Identity */}
-                                <Text style={[styles.filterLabel, { color: theme.subText }]}>Identity</Text>
-                                <TouchableOpacity
-                                    style={[styles.filterInput, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-                                    onPress={() => setShowIdentityPicker(true)}
-                                >
-                                    <Text style={{ color: filterIdentity ? theme.text : theme.subText }}>
-                                        {filterIdentity || "Any"}
-                                    </Text>
-                                </TouchableOpacity>
-                            </ScrollView>
-
-                            <View style={styles.filterBtnContainer}>
-                                <TouchableOpacity
-                                    style={[styles.resetBtn, { borderColor: theme.borderColor }]}
-                                    onPress={() => {
-                                        setFilterCity('');
-                                        setFilterMinAge('');
-                                        setFilterMaxAge('');
-                                        setFilterMadh('');
-                                        setFilterYogaStyle('');
-                                        setFilterGuna('');
-                                        setFilterIdentity('');
-                                        setFilterSkills('');
-                                        setFilterIndustry('');
-                                        fetchCandidates();
-                                    }}
-                                >
-                                    <Text style={{ color: theme.text, fontWeight: '600' }}>{t('dating.reset')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.applyBtn, { backgroundColor: '#8D6E63' }]} // Brown accent color
-                                    onPress={() => {
-                                        setShowFilters(false);
-                                        fetchCandidates();
-                                    }}
-                                >
-                                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('dating.apply')}</Text>
-                                </TouchableOpacity>
-                            </View>
+                            </LinearGradient>
                         </View>
-                    </View>
-                </Modal>
+                    </Modal>
 
-                {/* Profile Preview Modal */}
-                <Modal
-                    visible={showPreview}
-                    transparent
-                    animationType="slide"
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.background, padding: 0, width: '95%', height: '90%', borderRadius: 20 }]}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 15, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.borderColor }}>
-                                <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>Profile Preview</Text>
-                                <TouchableOpacity onPress={() => setShowPreview(false)} style={{ padding: 5 }}>
-                                    <Text style={{ color: theme.subText, fontSize: 20 }}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
+                    {/* Filter Modal */}
+                    <Modal visible={showFilters} transparent animationType="slide">
+                        <View style={styles.modalOverlay}>
+                            <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { maxHeight: '85%' }]}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>{t('dating.filters')}</Text>
+                                </View>
 
-                            <View style={{ padding: 15, flex: 1 }}>
-                                {previewLoading ? (
-                                    <ActivityIndicator size="large" color={theme.primary} />
-                                ) : previewProfile ? (
-                                    <ScrollView showsVerticalScrollIndicator={false}>
-                                        <DatingCard item={previewProfile} isPreview={true} />
-                                        <Text style={{ color: theme.subText, textAlign: 'center', marginTop: 10 }}>
-                                            This is how others see your card
+                                <ScrollView showsVerticalScrollIndicator={false}>
+                                    {mode === 'business' && (
+                                        <>
+                                            <Text style={styles.filterLabel}>Skills</Text>
+                                            <TextInput
+                                                style={styles.filterInput}
+                                                value={filterSkills}
+                                                onChangeText={setFilterSkills}
+                                                placeholder="e.g. Management, Coding..."
+                                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                            />
+
+                                            <Text style={styles.filterLabel}>Industry</Text>
+                                            <TextInput
+                                                style={styles.filterInput}
+                                                value={filterIndustry}
+                                                onChangeText={setFilterIndustry}
+                                                placeholder="e.g. IT, Wellness..."
+                                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                            />
+                                        </>
+                                    )}
+
+                                    <Text style={styles.filterLabel}>{t('registration.city')}</Text>
+                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowCityPicker(true)}>
+                                        <Text style={{ color: filterCity ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                            {filterCity || t('dating.selectCity')}
                                         </Text>
-                                    </ScrollView>
-                                ) : (
-                                    <Text style={{ color: theme.text, textAlign: 'center' }}>Failed to load profile</Text>
-                                )}
-                            </View>
-                        </View>
-                    </View>
-                </Modal>
+                                    </TouchableOpacity>
 
-                {/* City Selection Modal */}
-                <Modal
-                    visible={showCityPicker}
-                    transparent
-                    animationType="fade"
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('dating.selectCity')}</Text>
+                                    <Text style={styles.filterLabel}>{t('registration.dob')}</Text>
+                                    <View style={styles.filterRow}>
+                                        <TextInput
+                                            style={[styles.filterInput, { flex: 1 }]}
+                                            value={filterMinAge}
+                                            onChangeText={setFilterMinAge}
+                                            placeholder={t('dating.minAge')}
+                                            keyboardType="numeric"
+                                            placeholderTextColor="rgba(255,255,255,0.3)"
+                                        />
+                                        <TextInput
+                                            style={[styles.filterInput, { flex: 1 }]}
+                                            value={filterMaxAge}
+                                            onChangeText={setFilterMaxAge}
+                                            placeholder={t('dating.maxAge')}
+                                            keyboardType="numeric"
+                                            placeholderTextColor="rgba(255,255,255,0.3)"
+                                        />
+                                    </View>
 
-                            <TextInput
-                                style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.borderColor, marginBottom: 10 }]}
-                                value={citySearchQuery}
-                                onChangeText={setCitySearchQuery}
-                                placeholder={t('dating.searchCity')}
-                                placeholderTextColor={theme.subText}
-                            />
+                                    <Text style={styles.filterLabel}>Tradition</Text>
+                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowMadhPicker(true)}>
+                                        <Text style={{ color: filterMadh ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                            {filterMadh || "Any"}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </ScrollView>
 
-                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                                <TouchableOpacity
-                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
-                                    onPress={() => {
-                                        setFilterCity('');
-                                        setShowCityPicker(false);
-                                    }}
-                                >
-                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{t('dating.allCities')}</Text>
-                                </TouchableOpacity>
-                                {filteredCities.map((city, index) => (
+                                <View style={styles.filterBtnContainer}>
                                     <TouchableOpacity
-                                        key={index}
-                                        style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                        style={styles.glassButtonSecondary}
                                         onPress={() => {
-                                            setFilterCity(city);
-                                            setShowCityPicker(false);
+                                            setFilterCity(''); setFilterMinAge(''); setFilterMaxAge('');
+                                            setFilterMadh(''); setFilterYogaStyle(''); setFilterGuna('');
+                                            setFilterIdentity(''); setFilterSkills(''); setFilterIndustry('');
+                                            fetchCandidates();
                                         }}
                                     >
-                                        <Text style={{ color: theme.text }}>{city}</Text>
+                                        <Text style={styles.glassButtonText}>{t('dating.reset')}</Text>
                                     </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-
-                            <TouchableOpacity
-                                style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]}
-                                onPress={() => setShowCityPicker(false)}
-                            >
-                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Modal>
-
-                {/* Madh Selection Modal */}
-                <Modal
-                    visible={showMadhPicker}
-                    transparent
-                    animationType="fade"
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Tradition</Text>
-
-                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                                <TouchableOpacity
-                                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
-                                    onPress={() => {
-                                        setFilterMadh('');
-                                        setShowMadhPicker(false);
-                                    }}
-                                >
-                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
-                                </TouchableOpacity>
-                                {DATING_TRADITIONS.map((madh, index) => (
                                     <TouchableOpacity
-                                        key={index}
-                                        style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                                        style={styles.premiumButtonPrimary}
+                                        onPress={() => { setShowFilters(false); fetchCandidates(); }}
+                                    >
+                                        <LinearGradient colors={['#F59E0B', '#D67D3E']} style={styles.buttonGradient}>
+                                            <Text style={styles.premiumButtonText}>{t('dating.apply')}</Text>
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                </View>
+                                <TouchableOpacity style={styles.modalCloseLink} onPress={() => setShowFilters(false)}>
+                                    <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
+                                </TouchableOpacity>
+                            </LinearGradient>
+                        </View>
+                    </Modal>
+
+                    {/* Profile Preview Modal */}
+                    <Modal visible={showPreview} transparent animationType="slide">
+                        <View style={styles.modalOverlay}>
+                            <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { height: '90%', padding: 0 }]}>
+                                <View style={styles.modalHeaderPremium}>
+                                    <Text style={styles.headerTitleSmall}>Profile Preview</Text>
+                                    <TouchableOpacity onPress={() => setShowPreview(false)}>
+                                        <X size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                </View>
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+                                    {previewLoading ? (
+                                        <ActivityIndicator size="large" color="#F59E0B" />
+                                    ) : previewProfile ? (
+                                        <>
+                                            <DatingCard item={previewProfile} isPreview={true} />
+                                            <Text style={styles.previewHint}>This is how others see your card</Text>
+                                        </>
+                                    ) : (
+                                        <Text style={styles.errorText}>Failed to load profile</Text>
+                                    )}
+                                </ScrollView>
+                            </LinearGradient>
+                        </View>
+                    </Modal>
+
+                    {/* City Selection Modal */}
+                    <Modal visible={showCityPicker} transparent animationType="fade">
+                        <View style={styles.modalOverlay}>
+                            <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { maxHeight: '80%' }]}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>{t('dating.selectCity')}</Text>
+                                </View>
+
+                                <TextInput
+                                    style={[styles.filterInput, { marginBottom: 20 }]}
+                                    value={citySearchQuery}
+                                    onChangeText={setCitySearchQuery}
+                                    placeholder={t('dating.searchCity')}
+                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                />
+
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                                    <TouchableOpacity
+                                        style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                        onPress={() => { setFilterCity(''); setShowCityPicker(false); }}
+                                    >
+                                        <Text style={{ color: '#F59E0B', fontWeight: 'bold' }}>{t('dating.allCities')}</Text>
+                                    </TouchableOpacity>
+                                    {filteredCities.map((city, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                            onPress={() => { setFilterCity(city); setShowCityPicker(false); }}
+                                        >
+                                            <Text style={{ color: '#fff', fontSize: 16 }}>{city}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+
+                                <TouchableOpacity style={styles.modalCloseLink} onPress={() => setShowCityPicker(false)}>
+                                    <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
+                                </TouchableOpacity>
+                            </LinearGradient>
+                        </View>
+                    </Modal>
+
+                    {/* Generic Selection Modal (Madh, Yoga, Guna, Identity) */}
+                    <Modal visible={showMadhPicker || showYogaPicker || showGunaPicker || showIdentityPicker} transparent animationType="fade">
+                        <View style={styles.modalOverlay}>
+                            <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { maxHeight: '80%' }]}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>
+                                        {showMadhPicker ? "Tradition" : showYogaPicker ? "Yoga Style" : showGunaPicker ? "Guna" : "Identity"}
+                                    </Text>
+                                </View>
+
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                                    <TouchableOpacity
+                                        style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
                                         onPress={() => {
-                                            setFilterMadh(madh);
-                                            setShowMadhPicker(false);
+                                            if (showMadhPicker) setFilterMadh('');
+                                            if (showYogaPicker) setFilterYogaStyle('');
+                                            if (showGunaPicker) setFilterGuna('');
+                                            if (showIdentityPicker) setFilterIdentity('');
+                                            setShowMadhPicker(false); setShowYogaPicker(false); setShowGunaPicker(false); setShowIdentityPicker(false);
                                         }}
                                     >
-                                        <Text style={{ color: theme.text }}>{madh}</Text>
+                                        <Text style={{ color: '#F59E0B', fontWeight: 'bold' }}>Show All</Text>
                                     </TouchableOpacity>
-                                ))}
-                            </ScrollView>
+                                    {(showMadhPicker ? DATING_TRADITIONS : showYogaPicker ? YOGA_STYLES : showGunaPicker ? GUNAS : IDENTITY_OPTIONS).map((opt, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                            onPress={() => {
+                                                if (showMadhPicker) { setFilterMadh(opt); setShowMadhPicker(false); }
+                                                if (showYogaPicker) { setFilterYogaStyle(opt); setShowYogaPicker(false); }
+                                                if (showGunaPicker) { setFilterGuna(opt); setShowGunaPicker(false); }
+                                                if (showIdentityPicker) { setFilterIdentity(opt); setShowIdentityPicker(false); }
+                                            }}
+                                        >
+                                            <Text style={{ color: '#fff', fontSize: 16 }}>{opt}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
 
-                            <TouchableOpacity
-                                style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]}
-                                onPress={() => setShowMadhPicker(false)}
-                            >
-                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Modal>
-
-                {/* Yoga Style Picker */}
-                <Modal visible={showYogaPicker} transparent animationType="fade">
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Yoga Style</Text>
-                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                                <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(''); setShowYogaPicker(false); }}>
-                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
+                                <TouchableOpacity
+                                    style={styles.modalCloseLink}
+                                    onPress={() => {
+                                        setShowMadhPicker(false); setShowYogaPicker(false);
+                                        setShowGunaPicker(false); setShowIdentityPicker(false);
+                                    }}
+                                >
+                                    <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                 </TouchableOpacity>
-                                {YOGA_STYLES.map((style, index) => (
-                                    <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterYogaStyle(style); setShowYogaPicker(false); }}>
-                                        <Text style={{ color: theme.text }}>{style}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowYogaPicker(false)}>
-                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                            </TouchableOpacity>
+                            </LinearGradient>
                         </View>
-                    </View>
-                </Modal>
-
-                {/* Guna Picker */}
-                <Modal visible={showGunaPicker} transparent animationType="fade">
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Guna</Text>
-                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                                <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(''); setShowGunaPicker(false); }}>
-                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
-                                </TouchableOpacity>
-                                {GUNAS.map((guna, index) => (
-                                    <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterGuna(guna); setShowGunaPicker(false); }}>
-                                        <Text style={{ color: theme.text }}>{guna}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowGunaPicker(false)}>
-                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Modal>
-
-                {/* Identity Picker */}
-                <Modal visible={showIdentityPicker} transparent animationType="fade">
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: theme.header, maxHeight: '60%' }]}>
-                            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Identity</Text>
-                            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                                <TouchableOpacity style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(''); setShowIdentityPicker(false); }}>
-                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Show All</Text>
-                                </TouchableOpacity>
-                                {IDENTITY_OPTIONS.map((opt, index) => (
-                                    <TouchableOpacity key={index} style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: theme.borderColor }} onPress={() => { setFilterIdentity(opt); setShowIdentityPicker(false); }}>
-                                        <Text style={{ color: theme.text }}>{opt}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.button, marginTop: 10 }]} onPress={() => setShowIdentityPicker(false)}>
-                                <Text style={{ color: theme.buttonText }}>{t('dating.close')}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Modal>
-            </View>
+                    </Modal>
+                </View>
+            </LinearGradient>
         </ProtectedScreen>
     );
 };
 
 const styles = StyleSheet.create({
+    fullGradient: {
+        flex: 1,
+    },
     container: {
         flex: 1,
     },
-    topMenu: {
-        flexDirection: 'row',
-        padding: 12,
-        justifyContent: 'space-around',
-        borderBottomWidth: 1,
-    },
-    menuBtn: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-    },
-    premiumMenuBtn: {
+    premiumHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 25,
-        marginRight: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(214, 125, 62, 0.15)', // Subtle primary color border
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingBottom: 15,
     },
-    premiumMenuBtnText: {
-        color: '#2A2A2A',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    iconBtn: {
+    headerIconButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(214, 125, 62, 0.1)',
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    headerIconButtonActive: {
+        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    headerTitle: {
+        color: '#fff',
+        fontSize: 24,
+        fontFamily: 'Cinzel-Regular',
+        letterSpacing: 3,
+    },
+    topActionScrollContainer: {
+        height: 48,
+        marginBottom: 15,
+    },
+    topActionScrollContent: {
+        paddingHorizontal: 20,
+        alignItems: 'center',
+        gap: 12,
+    },
+    glassActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        gap: 8,
+    },
+    glassActionText: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    modeSwitcherContainer: {
+        marginBottom: 20,
+    },
+    modeScrollContent: {
+        paddingHorizontal: 20,
+        gap: 12,
+    },
+    modeGlassChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 25,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+        gap: 10,
+    },
+    modeGlassChipActive: {
+        backgroundColor: '#F59E0B',
+        borderColor: '#F59E0B',
+    },
+    modeGlassText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 15,
+        fontFamily: 'Cinzel-Regular',
+    },
+    modeGlassTextActive: {
+        color: '#000',
+        fontWeight: '700',
     },
     statsBar: {
-        paddingVertical: 10,
-        borderBottomWidth: 1,
+        paddingBottom: 20,
     },
     statItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingVertical: 12,
+        paddingHorizontal: 18,
         borderRadius: 20,
-        marginRight: 12,
-        minWidth: 120,
         borderWidth: 1,
-        borderColor: 'rgba(154, 42, 42, 0.1)',
-    },
-    statEmoji: {
-        fontSize: 18,
-        marginRight: 8,
+        borderColor: 'rgba(255,255,255,0.08)',
+        marginRight: 12,
     },
     statValue: {
-        fontSize: 14,
-        fontWeight: 'bold',
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '800',
     },
     statLabel: {
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
     list: {
-        padding: 16,
+        paddingHorizontal: 20,
+        paddingBottom: 100,
+    },
+    cardContainer: {
+        width: width - 36,
+        height: 660,
+        marginBottom: 24,
+        borderRadius: 40,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    cardImageContainer: {
+        flex: 1,
+    },
+    fullCardImage: {
+        width: '100%',
+        height: '100%',
+    },
+    cardImagePlaceholder: {
+        flex: 1,
+        backgroundColor: '#0a0a14',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    cardPagination: {
+        position: 'absolute',
+        top: 20,
+        left: 30,
+        right: 30,
+        flexDirection: 'row',
+        gap: 6,
+    },
+    cardPaginationBar: {
+        height: 3,
+        borderRadius: 2,
+    },
+    cardTopActions: {
+        position: 'absolute',
+        top: 40,
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+    },
+    cardActionCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+    },
+    cardInfoOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        minHeight: 280,
+        padding: 24,
+        paddingBottom: 28,
+        justifyContent: 'flex-end',
+        overflow: 'hidden',
+    },
+    cardTextContainer: {
+        zIndex: 1,
+    },
+    cardNameRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+    },
+    cardSpiritualName: {
+        fontSize: 36,
+        fontFamily: 'Cinzel-Bold',
+        color: '#fff',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 10,
+    },
+    cardAge: {
+        fontSize: 22,
+        color: 'rgba(255,255,255,0.6)',
+        marginLeft: 8,
+        fontFamily: 'Cinzel-Regular',
+    },
+    cardLocationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+    },
+    cardLocationText: {
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.6)',
+        fontWeight: '600',
+    },
+    cardTagRow: {
+        flexDirection: 'row',
+        marginTop: 15,
+        gap: 10,
+    },
+    cardTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+        gap: 6,
+    },
+    cardTagText: {
+        color: '#F59E0B',
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    cardBioText: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.75)',
+        marginTop: 18,
+        lineHeight: 24,
+    },
+    cardFooterActions: {
+        marginTop: 25,
+    },
+    cardCompatibilityBtn: {
+        height: 60,
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    cardCompatibilityGradient: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+    },
+    cardCompatibilityBtnText: {
+        color: '#000',
+        fontSize: 16,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 1.5,
     },
     empty: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    card: {
-        borderRadius: 20,
-        marginBottom: 20,
-        borderWidth: 1,
-        overflow: 'hidden',
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    avatarContainer: {
-        height: 350,
-        position: 'relative',
-    },
-    avatar: {
-        width: '100%',
-        height: '100%',
-    },
-    avatarPlaceholder: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    topGradient: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 50,
-    },
-    paginationContainer: {
-        position: 'absolute',
-        top: 10,
-        left: 10,
-        right: 10,
-        flexDirection: 'row',
-        justifyContent: 'center',
-    },
-    paginationBar: {
-        height: 3,
-        borderRadius: 2,
-        marginHorizontal: 2,
-    },
-    tapToView: {
-        position: 'absolute',
-        bottom: 10,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-    },
-    tapText: {
-        color: 'white',
-        fontSize: 10,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 10,
-    },
-    photoCountBadge: {
-        position: 'absolute',
-        bottom: 15,
-        right: 15,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    photoCountText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    cardInfo: {
-        padding: 16,
-    },
-    name: {
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    city: {
-        fontSize: 14,
-        marginBottom: 4,
-    },
-    path: {
-        fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 8,
-    },
-    bio: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    actions: {
-        marginTop: 15,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-    },
-    actionBtn: {
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderRadius: 25,
-    },
-    actionBtnIcon: {
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        minHeight: 44,
-    },
-    modeChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 25,
-        marginRight: 10,
-        borderWidth: 1,
-    },
-    skillsText: {
-        fontSize: 12,
-        marginBottom: 4,
-        fontStyle: 'italic',
+        padding: 60,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.8)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
+        padding: 24,
     },
     modalContent: {
-        width: '90%',
-        borderRadius: 20,
-        padding: 20,
-        maxHeight: '80%',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
+        width: '100%',
+        borderRadius: 32,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+        overflow: 'hidden',
+    },
+    modalHeader: {
+        marginBottom: 24,
+        alignItems: 'center',
+    },
+    modalHeaderPremium: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 24,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.05)',
     },
     modalTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        marginBottom: 20,
+        fontSize: 26,
+        fontFamily: 'Cinzel-Bold',
+        color: '#F59E0B',
         textAlign: 'center',
+        letterSpacing: 1,
     },
-    filterLabel: {
+    headerTitleSmall: {
+        fontSize: 18,
+        fontFamily: 'Cinzel-Regular',
+        color: '#fff',
+        letterSpacing: 2,
+    },
+    modalText: {
+        fontSize: 17,
+        color: 'rgba(255,255,255,0.8)',
+        lineHeight: 28,
+    },
+    avatarGlowContainer: {
+        width: 130,
+        height: 130,
+        borderRadius: 65,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    astrologerImage: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+    },
+    modalFooter: {
+        flexDirection: 'row',
+        marginTop: 30,
+        gap: 12,
+    },
+    glassButtonSecondary: {
+        flex: 1,
+        height: 56,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+    },
+    glassButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    premiumButtonPrimary: {
+        flex: 1,
+        height: 56,
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    premiumButtonText: {
+        color: '#000',
+        fontSize: 16,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+    },
+    buttonGradient: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalCloseLink: {
+        marginTop: 20,
+        alignItems: 'center',
+    },
+    modalCloseLinkText: {
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 14,
         fontWeight: '600',
+        textDecorationLine: 'underline',
+    },
+    filterLabel: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
         marginBottom: 8,
+        marginTop: 20,
         marginLeft: 4,
     },
     filterInput: {
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 16,
+        padding: 16,
+        color: '#fff',
         fontSize: 16,
-        marginBottom: 15,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     filterRow: {
         flexDirection: 'row',
         gap: 15,
-        marginBottom: 15,
     },
     filterBtnContainer: {
         flexDirection: 'row',
-        gap: 15,
-        marginTop: 20,
+        marginTop: 30,
+        gap: 12,
     },
-    resetBtn: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 25,
-        alignItems: 'center',
+    previewHint: {
+        color: 'rgba(255,255,255,0.4)',
+        textAlign: 'center',
+        marginTop: 15,
+        fontSize: 13,
+    },
+    errorText: {
+        color: '#EF4444',
+        textAlign: 'center',
+    },
+    // Picker specific styles (keeping compatible names if used)
+    input: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 12,
+        padding: 12,
+        color: '#fff',
         borderWidth: 1,
-    },
-    applyBtn: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 25,
-        alignItems: 'center',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 2,
-        elevation: 3,
-    },
-    modalScrollContent: {
-        paddingHorizontal: 10,
-        paddingBottom: 20,
-    },
-    modalText: {
-        fontSize: 16,
-        lineHeight: 24,
-        textAlign: 'left',
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     closeBtn: {
         paddingVertical: 12,
         borderRadius: 25,
         alignItems: 'center',
-    },
-    input: {
-        borderWidth: 1,
-        borderRadius: 10,
-        padding: 10,
-        fontSize: 16,
-    },
-    // Favorite button styles
-    favoriteButton: {
-        position: 'absolute',
-        top: 50,
-        right: 15,
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 5,
-    },
-    // Likes counter styles
-    likesCounter: {
-        position: 'absolute',
-        top: 100,
-        right: 15,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    likesText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    // Modal body style (for compatibility modal)
-    modalBody: {
-        maxHeight: 300,
-        marginBottom: 10,
-    },
-    // Share button styles
-    shareButton: {
-        position: 'absolute',
-        top: 50,
-        left: 15,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 5,
     },
 });

@@ -362,6 +362,12 @@ export default {
             empty: 'No cafes found',
             emptySubtext: 'Try changing your search parameters',
             loading: 'Loading cafes...',
+            create: 'Create',
+            business: 'Business',
+            map: 'Map',
+            nearby: 'Nearby',
+            myCafe: 'My Cafe',
+            manage: 'Manage',
         },
         detail: {
             title: 'Cafe',

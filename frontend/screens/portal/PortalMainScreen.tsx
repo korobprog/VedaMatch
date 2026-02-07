@@ -158,12 +158,13 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
     }, [user, navigation]);
 
     const renderContent = () => {
+        const backToGrid = () => setActiveTab(null);
         switch (activeTab) {
             case 'contacts': return <ContactsScreen />;
             case 'chat': return <PortalChatScreen />;
             case 'calls': return <CallHistoryScreen />;
-            case 'dating': return <DatingScreen />;
-            case 'cafe': return <CafeListScreen />;
+            case 'dating': return <DatingScreen onBack={backToGrid} />;
+            case 'cafe': return <CafeListScreen onBack={backToGrid} />;
             case 'shops': return <MarketHomeScreen />;
             case 'ads': return <AdsScreen />;
             case 'library': return <LibraryHomeScreen />;
@@ -171,7 +172,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             case 'news': return <NewsScreen />;
             case 'multimedia': return <MultimediaHubScreen />;
             case 'travel': return <TravelHomeScreen />;
-            case 'services': return <ServicesHomeScreen />;
+            case 'services': return <ServicesHomeScreen onBack={backToGrid} />;
             default: return null;
         }
     };
@@ -252,100 +253,102 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         <BackgroundWrapper>
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-            {/* Header with back */}
-            <View style={[styles.header, { backgroundColor: 'transparent' }]}>
-                <View style={styles.headerLeft}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={[
-                            styles.avatarButton,
-                            {
-                                backgroundColor: 'transparent',
-                                ...Platform.select({
-                                    ios: {
-                                        shadowColor: '#000',
-                                        shadowOffset: { width: 0, height: 4 },
-                                        shadowOpacity: 0.3,
-                                        shadowRadius: 8,
-                                    },
-                                    android: {
-                                        elevation: 8,
-                                    }
-                                })
-                            }
-                        ]}>
-                            <TouchableOpacity
-                                onPress={() => setActiveTab(null)}
-                                style={{
-                                    flex: 1,
-                                    width: '100%',
-                                    height: '100%',
-                                    borderRadius: 20,
-                                    overflow: 'hidden',
-                                    backgroundColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
-                                    borderColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.4)' : 'transparent',
-                                    borderWidth: (portalBackgroundType === 'image' || isDarkMode) ? 1.5 : 0,
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                }}
-                            >
-                                {(portalBackgroundType === 'image' || isDarkMode) && (
-                                    <BlurView
-                                        style={StyleSheet.absoluteFill}
-                                        blurType={isDarkMode ? "dark" : "light"}
-                                        blurAmount={10}
-                                        reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
-                                    />
-                                )}
-                                <View style={{
+            {/* Header with back - Hidden if service manages its own header (like Dating) */}
+            {(activeTab !== 'dating' && activeTab !== 'cafe' && activeTab !== 'services') && (
+                <View style={[styles.header, { backgroundColor: 'transparent' }]}>
+                    <View style={styles.headerLeft}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <View style={[
+                                styles.avatarButton,
+                                {
                                     backgroundColor: 'transparent',
-                                    shadowColor: "#000",
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowOpacity: (portalBackgroundType === 'image') ? 0.5 : 0,
-                                    shadowRadius: 2,
-                                    elevation: (portalBackgroundType === 'image') ? 5 : 0,
-                                }}>
-                                    <List
-                                        size={22}
-                                        color={(portalBackgroundType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
-                                        strokeWidth={2.5}
-                                    />
-                                </View>
+                                    ...Platform.select({
+                                        ios: {
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 4 },
+                                            shadowOpacity: 0.3,
+                                            shadowRadius: 8,
+                                        },
+                                        android: {
+                                            elevation: 8,
+                                        }
+                                    })
+                                }
+                            ]}>
+                                <TouchableOpacity
+                                    onPress={() => setActiveTab(null)}
+                                    style={{
+                                        flex: 1,
+                                        width: '100%',
+                                        height: '100%',
+                                        borderRadius: 20,
+                                        overflow: 'hidden',
+                                        backgroundColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                                        borderColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.4)' : 'transparent',
+                                        borderWidth: (portalBackgroundType === 'image' || isDarkMode) ? 1.5 : 0,
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                    }}
+                                >
+                                    {(portalBackgroundType === 'image' || isDarkMode) && (
+                                        <BlurView
+                                            style={StyleSheet.absoluteFill}
+                                            blurType={isDarkMode ? "dark" : "light"}
+                                            blurAmount={10}
+                                            reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                                        />
+                                    )}
+                                    <View style={{
+                                        backgroundColor: 'transparent',
+                                        shadowColor: "#000",
+                                        shadowOffset: { width: 0, height: 2 },
+                                        shadowOpacity: (portalBackgroundType === 'image') ? 0.5 : 0,
+                                        shadowRadius: 2,
+                                        elevation: (portalBackgroundType === 'image') ? 5 : 0,
+                                    }}>
+                                        <List
+                                            size={22}
+                                            color={(portalBackgroundType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
+                                            strokeWidth={2.5}
+                                        />
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('InviteFriends')}
+                                style={styles.iconButton}
+                            >
+                                <Gift size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
+                            <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
                         </View>
+                    </View>
+
+                    <View style={styles.logoContainer}>
+                        {/* Logo hidden in rooms as per user request */}
+                    </View>
+
+                    <View style={styles.headerRight}>
                         <TouchableOpacity
-                            onPress={() => navigation.navigate('InviteFriends')}
+                            onPress={() => {
+                                setIsMenuOpen(true);
+                            }}
                             style={styles.iconButton}
                         >
-                            <Gift size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                            <MessageSquare size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
-                        <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('AppSettings')}
+                            style={styles.iconButton}
+                        >
+                            <Settings size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.iconButton}>
+                            <Bell size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
                     </View>
                 </View>
-
-                <View style={styles.logoContainer}>
-                    {/* Logo hidden in rooms as per user request */}
-                </View>
-
-                <View style={styles.headerRight}>
-                    <TouchableOpacity
-                        onPress={() => {
-                            setIsMenuOpen(true);
-                        }}
-                        style={styles.iconButton}
-                    >
-                        <MessageSquare size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('AppSettings')}
-                        style={styles.iconButton}
-                    >
-                        <Settings size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Bell size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                    </TouchableOpacity>
-                </View>
-            </View>
+            )}
 
             {/* Content Area */}
             <View style={styles.content}>

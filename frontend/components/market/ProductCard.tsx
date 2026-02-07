@@ -4,6 +4,7 @@ import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
 import { useSettings } from '../../context/SettingsContext';
 import { Product } from '../../types/market';
 import { getMediaUrl } from '../../utils/url';
+import { useTranslation } from 'react-i18next';
 import { Package, Store, Star } from 'lucide-react-native';
 
 interface ProductCardProps {
@@ -12,6 +13,7 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) => {
+    const { t } = useTranslation();
     const { isDarkMode, vTheme } = useSettings();
     const colors = vTheme.colors;
 
@@ -20,10 +22,12 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
 
     return (
         <TouchableOpacity
-            style={[styles.productCard, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}
+            style={styles.productCard}
             onPress={() => onPress(item)}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
         >
+            <View style={styles.glassBackground} />
+
             <View style={styles.productImageContainer}>
                 {item.mainImageUrl ? (
                     <Image
@@ -32,38 +36,42 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
                         resizeMode="cover"
                     />
                 ) : (
-                    <View style={[styles.productPlaceholder, { backgroundColor: colors.primary + '10' }]}>
-                        <Package size={32} color={colors.primary} />
+                    <View style={styles.productPlaceholder}>
+                        <Package size={32} color="rgba(255,255,255,0.15)" />
                     </View>
                 )}
+
                 {isOnSale && (
                     <View style={styles.saleBadge}>
                         <Text style={styles.saleText}>SALE</Text>
                     </View>
                 )}
+
                 {!item.trackStock || item.stock > 0 ? null : (
                     <View style={styles.outOfStockBadge}>
-                        <Text style={styles.outOfStockText}>Out of Stock</Text>
+                        <Text style={styles.outOfStockText}>
+                            {t ? t('market.outOfStock') : 'Out of Stock'}
+                        </Text>
                     </View>
                 )}
             </View>
 
             <View style={styles.productInfo}>
-                <Text style={[styles.productName, { color: isDarkMode ? '#fff' : colors.text }]} numberOfLines={2}>
+                <Text style={styles.productName} numberOfLines={2}>
                     {item.name}
                 </Text>
 
                 {item.shopInfo && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                        <Store size={10} color={isDarkMode ? '#aaa' : colors.textSecondary} style={{ marginRight: 4 }} />
-                        <Text style={[styles.shopName, { color: isDarkMode ? '#aaa' : colors.textSecondary, marginBottom: 0 }]} numberOfLines={1}>
+                    <View style={styles.shopRow}>
+                        <Store size={10} color="rgba(255,255,255,0.4)" style={{ marginRight: 4 }} />
+                        <Text style={styles.shopName} numberOfLines={1}>
                             {item.shopInfo.name}
                         </Text>
                     </View>
                 )}
 
                 <View style={styles.priceRow}>
-                    <Text style={[styles.price, { color: colors.primary }]}>
+                    <Text style={styles.price}>
                         {currentPrice.toLocaleString()} {item.currency}
                     </Text>
                     {isOnSale && (
@@ -74,16 +82,14 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
                 </View>
 
                 <View style={styles.statsRow}>
-                    {item.rating > 0 && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Star size={10} color="#FFA000" fill="#FFA000" style={{ marginRight: 2 }} />
-                            <Text style={[styles.rating, { color: '#FFA000' }]}>
-                                {item.rating.toFixed(1)}
-                            </Text>
-                        </View>
-                    )}
-                    <Text style={[styles.sales, { color: isDarkMode ? '#888' : colors.textSecondary }]}>
-                        {item.salesCount} sold
+                    <View style={styles.ratingBox}>
+                        <Star size={10} color="#F59E0B" fill="#F59E0B" />
+                        <Text style={styles.ratingText}>
+                            {item.rating > 0 ? item.rating.toFixed(1) : '5.0'}
+                        </Text>
+                    </View>
+                    <Text style={styles.salesText}>
+                        {item.salesCount} {t ? t('market.sold') || 'sold' : 'sold'}
                     </Text>
                 </View>
             </View>
@@ -95,17 +101,20 @@ const styles = StyleSheet.create({
     productCard: {
         flex: 1,
         margin: 6,
-        borderRadius: 14,
+        borderRadius: 24,
         overflow: 'hidden',
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)', // Base glass layer
+    },
+    glassBackground: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(25, 25, 45, 0.4)', // Darker glass tint
     },
     productImageContainer: {
         height: 140,
         position: 'relative',
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
     },
     productImage: {
         width: '100%',
@@ -119,69 +128,89 @@ const styles = StyleSheet.create({
     },
     saleBadge: {
         position: 'absolute',
-        top: 8,
-        left: 8,
-        backgroundColor: '#FF5722',
+        top: 10,
+        left: 10,
+        backgroundColor: '#F59E0B',
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 8,
     },
     saleText: {
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: 'bold',
+        color: '#1a1a2e',
+        fontSize: 9,
+        fontWeight: '900',
     },
     outOfStockBadge: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: 'rgba(0,0,0,0.6)',
         padding: 6,
     },
     outOfStockText: {
         color: '#fff',
-        fontSize: 11,
+        fontSize: 10,
         textAlign: 'center',
+        fontWeight: '700',
     },
     productInfo: {
-        padding: 10,
+        padding: 12,
     },
     productName: {
-        fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 4,
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '800',
         lineHeight: 18,
+        marginBottom: 6,
+    },
+    shopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
     },
     shopName: {
-        fontSize: 11,
-        marginBottom: 6,
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontWeight: '600',
     },
     priceRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
+        marginBottom: 8,
     },
     price: {
+        color: '#F59E0B',
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '900',
     },
     oldPrice: {
-        fontSize: 12,
-        color: '#999',
+        color: 'rgba(255,255,255,0.25)',
+        fontSize: 11,
         textDecorationLine: 'line-through',
     },
     statsRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 4,
-        gap: 8,
+        justifyContent: 'space-between',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
+        paddingTop: 8,
     },
-    rating: {
-        fontSize: 12,
-        fontWeight: '600',
+    ratingBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
     },
-    sales: {
+    ratingText: {
+        color: '#F59E0B',
         fontSize: 11,
+        fontWeight: '800',
+    },
+    salesText: {
+        color: 'rgba(255,255,255,0.3)',
+        fontSize: 10,
+        fontWeight: '600',
     },
 });

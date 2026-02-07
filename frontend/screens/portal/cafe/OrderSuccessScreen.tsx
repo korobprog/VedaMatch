@@ -6,11 +6,15 @@ import {
     TouchableOpacity,
     Animated,
     Easing,
+    Dimensions,
+    Platform,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Check, Clock, Bell, Eye } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { Check, Clock, Bell, Eye, Utensils } from 'lucide-react-native';
 
+const { width } = Dimensions.get('window');
 
 type RouteParams = {
     CafeOrderSuccess: {
@@ -47,8 +51,8 @@ const OrderSuccessScreen: React.FC = () => {
         // Fade in content
         Animated.timing(fadeAnim, {
             toValue: 1,
-            duration: 500,
-            delay: 300,
+            duration: 600,
+            delay: 400,
             useNativeDriver: true,
         }).start();
     }, []);
@@ -63,59 +67,83 @@ const OrderSuccessScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <Animated.View style={[styles.checkContainer, { transform: [{ scale: scaleAnim }] }]}>
-                <View style={styles.checkCircle}>
-                    <Check size={64} color="#FFFFFF" strokeWidth={3} />
-                </View>
-            </Animated.View>
+            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
 
-            <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-                <Text style={styles.title}>{t('cafe.success.title')}</Text>
-                <Text style={styles.orderNumber}>№ {orderNumber}</Text>
+            <View style={styles.centerBox}>
+                <Animated.View style={[styles.checkContainer, { transform: [{ scale: scaleAnim }] }]}>
+                    <LinearGradient
+                        colors={['#10B981', '#059669']}
+                        style={styles.checkCircle}
+                    >
+                        <Check size={56} color="#1a1a2e" strokeWidth={4} />
+                    </LinearGradient>
+                    <View style={styles.glow} />
+                </Animated.View>
 
-                <View style={styles.infoCard}>
-                    <View style={styles.infoRow}>
-                        <Clock size={24} color="#FF6B00" strokeWidth={1.5} />
-                        <View style={styles.infoTextContainer}>
-                            <Text style={styles.infoLabel}>{t('cafe.success.wait')}</Text>
-                            <Text style={styles.infoValue}>{t('cafe.success.waitDesc')}</Text>
+                <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+                    <Text style={styles.title}>{t('cafe.success.title')}</Text>
+                    <View style={styles.orderBadge}>
+                        <Text style={styles.orderLabel}>{t('cafe.cart.order')}</Text>
+                        <Text style={styles.orderNumber}>#{orderNumber}</Text>
+                    </View>
+
+                    <View style={styles.glassInfo}>
+                        <View style={styles.infoRow}>
+                            <View style={styles.iconBox}>
+                                <Clock size={20} color="#F59E0B" />
+                            </View>
+                            <View style={styles.textStack}>
+                                <Text style={styles.infoTitle}>{t('cafe.success.wait')}</Text>
+                                <Text style={styles.infoDesc}>{t('cafe.success.waitDesc')}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        <View style={styles.infoRow}>
+                            <View style={styles.iconBox}>
+                                <Bell size={20} color="#F59E0B" />
+                            </View>
+                            <View style={styles.textStack}>
+                                <Text style={styles.infoTitle}>{t('cafe.success.notif')}</Text>
+                                <Text style={styles.infoDesc}>{t('cafe.success.notifDesc')}</Text>
+                            </View>
                         </View>
                     </View>
 
-                    <View style={styles.divider} />
-
-                    <View style={styles.infoRow}>
-                        <Bell size={24} color="#FF6B00" strokeWidth={1.5} />
-                        <View style={styles.infoTextContainer}>
-                            <Text style={styles.infoLabel}>{t('cafe.success.notif')}</Text>
-                            <Text style={styles.infoValue}>{t('cafe.success.notifDesc')}</Text>
+                    <View style={styles.tipsGlass}>
+                        <View style={styles.tipsHeader}>
+                            <Utensils size={14} color="#F59E0B" />
+                            <Text style={styles.tipsTitle}>{t('cafe.success.useful')}</Text>
                         </View>
+                        <Text style={styles.tipsText}>
+                            {t('cafe.success.usefulDesc')}
+                        </Text>
                     </View>
-                </View>
+                </Animated.View>
+            </View>
 
-                <View style={styles.tipsCard}>
-                    <Text style={styles.tipsTitle}>💡 {t('cafe.success.useful')}</Text>
-                    <Text style={styles.tipsText}>
-                        {t('cafe.success.usefulDesc')}
-                    </Text>
-                </View>
-
-                <View style={styles.buttons}>
-                    <TouchableOpacity
-                        style={styles.primaryButton}
-                        onPress={handleTrackOrder}
+            <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
+                <TouchableOpacity
+                    style={styles.primaryBtn}
+                    onPress={handleTrackOrder}
+                    activeOpacity={0.8}
+                >
+                    <LinearGradient
+                        colors={['#F59E0B', '#D97706']}
+                        style={styles.btnGradient}
                     >
-                        <Eye size={20} color="#FFFFFF" strokeWidth={1.5} />
-                        <Text style={styles.primaryButtonText}>{t('cafe.success.track')}</Text>
-                    </TouchableOpacity>
+                        <Eye size={20} color="#1a1a2e" />
+                        <Text style={styles.primaryBtnText}>{t('cafe.success.track')}</Text>
+                    </LinearGradient>
+                </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={styles.secondaryButton}
-                        onPress={handleBackToMenu}
-                    >
-                        <Text style={styles.secondaryButtonText}>{t('cafe.cart.backToMenu')}</Text>
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                    style={styles.secondaryBtn}
+                    onPress={handleBackToMenu}
+                >
+                    <Text style={styles.secondaryBtnText}>{t('cafe.cart.backToMenu')}</Text>
+                </TouchableOpacity>
             </Animated.View>
         </View>
     );
@@ -124,116 +152,175 @@ const OrderSuccessScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
-        justifyContent: 'center',
-        alignItems: 'center',
         padding: 24,
     },
-    checkContainer: {
-        marginBottom: 32,
-    },
-    checkCircle: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: '#34C759',
+    centerBox: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#34C759',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-        elevation: 10,
+    },
+    checkContainer: {
+        marginBottom: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    checkCircle: {
+        width: 130,
+        height: 130,
+        borderRadius: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+        transform: [{ rotate: '45deg' }],
+        zIndex: 2,
+    },
+    glow: {
+        position: 'absolute',
+        width: 150,
+        height: 150,
+        borderRadius: 75,
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        zIndex: 1,
     },
     content: {
         width: '100%',
         alignItems: 'center',
     },
     title: {
-        fontSize: 28,
-        fontWeight: 'bold',
+        fontSize: 32,
+        fontFamily: 'Cinzel-Bold',
         color: '#FFFFFF',
-        marginBottom: 8,
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    orderBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 12,
+        marginBottom: 40,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    orderLabel: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 14,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
     orderNumber: {
-        fontSize: 18,
-        color: '#FF6B00',
-        fontWeight: '600',
-        marginBottom: 32,
+        fontSize: 16,
+        color: '#F59E0B',
+        fontWeight: '900',
     },
-    infoCard: {
+    glassInfo: {
         width: '100%',
-        backgroundColor: '#1C1C1E',
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 16,
+        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        borderRadius: 24,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        marginBottom: 20,
     },
     infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 16,
     },
-    infoTextContainer: {
-        marginLeft: 16,
+    iconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    textStack: {
         flex: 1,
     },
-    infoLabel: {
+    infoTitle: {
         color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '600',
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 2,
     },
-    infoValue: {
-        color: '#8E8E93',
+    infoDesc: {
+        color: 'rgba(255,255,255,0.4)',
         fontSize: 13,
-        marginTop: 2,
+        fontWeight: '600',
     },
     divider: {
         height: 1,
-        backgroundColor: '#2C2C2E',
-        marginVertical: 16,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        marginVertical: 20,
     },
-    tipsCard: {
+    tipsGlass: {
         width: '100%',
-        backgroundColor: 'rgba(255, 107, 0, 0.1)',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 32,
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.15)',
+    },
+    tipsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 10,
     },
     tipsTitle: {
-        color: '#FF6B00',
-        fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 8,
+        color: '#F59E0B',
+        fontSize: 13,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
     tipsText: {
-        color: '#8E8E93',
+        color: 'rgba(255,255,255,0.5)',
         fontSize: 13,
-        lineHeight: 18,
+        lineHeight: 20,
+        fontWeight: '500',
     },
-    buttons: {
+    footer: {
         width: '100%',
-        gap: 12,
+        gap: 16,
+        paddingBottom: Platform.OS === 'ios' ? 20 : 0,
     },
-    primaryButton: {
+    primaryBtn: {
+        borderRadius: 20,
+        overflow: 'hidden',
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.4,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    btnGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        backgroundColor: '#FF6B00',
-        padding: 16,
-        borderRadius: 14,
+        paddingVertical: 18,
+        gap: 10,
     },
-    primaryButtonText: {
-        color: '#FFFFFF',
-        fontSize: 17,
-        fontWeight: '600',
+    primaryBtnText: {
+        color: '#1a1a2e',
+        fontSize: 16,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
-    secondaryButton: {
-        padding: 16,
+    secondaryBtn: {
+        paddingVertical: 16,
         alignItems: 'center',
     },
-    secondaryButtonText: {
-        color: '#8E8E93',
-        fontSize: 15,
+    secondaryBtnText: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 14,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
 });
 

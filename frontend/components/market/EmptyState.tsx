@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
-import { ModernVedicTheme as vedicTheme } from '../../theme/ModernVedicTheme';
-
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSettings } from '../../context/SettingsContext';
 import { ShoppingBag } from 'lucide-react-native';
 
 interface EmptyStateProps {
@@ -13,14 +12,13 @@ interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
-    icon = '🔍',
+    icon,
     title,
     message,
     actionLabel,
     onAction
 }) => {
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { isDarkMode } = useSettings();
 
     return (
         <View style={styles.container}>
@@ -28,20 +26,21 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                 {typeof icon === 'string' ? (
                     <Text style={styles.icon}>{icon}</Text>
                 ) : (
-                    icon || <ShoppingBag size={64} color={colors.textSecondary} opacity={0.5} />
+                    icon || <ShoppingBag size={64} color="rgba(255,255,255,0.1)" />
                 )}
             </View>
-            <Text style={[styles.title, { color: isDarkMode ? '#fff' : colors.text }]}>
+            <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
                 {title}
             </Text>
-            <Text style={[styles.message, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+            <Text style={[styles.message, { color: isDarkMode ? 'rgba(255,255,255,0.4)' : '#666' }]}>
                 {message}
             </Text>
 
             {actionLabel && onAction && (
                 <TouchableOpacity
-                    style={[styles.button, { backgroundColor: colors.primary }]}
+                    style={[styles.button, { backgroundColor: '#F59E0B' }]}
                     onPress={onAction}
+                    activeOpacity={0.8}
                 >
                     <Text style={styles.buttonText}>{actionLabel}</Text>
                 </TouchableOpacity>
@@ -58,31 +57,32 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     iconContainer: {
-        marginBottom: 16,
+        marginBottom: 20,
     },
     icon: {
         fontSize: 64,
     },
     title: {
-        fontSize: 20,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '800',
         textAlign: 'center',
         marginBottom: 8,
     },
     message: {
-        fontSize: 15,
+        fontSize: 14,
         textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 24,
+        lineHeight: 20,
+        marginBottom: 30,
     },
     button: {
         paddingHorizontal: 24,
         paddingVertical: 12,
-        borderRadius: 24,
+        borderRadius: 20,
     },
     buttonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
+        color: '#1a1a2e',
+        fontSize: 14,
+        fontWeight: '900',
     },
 });
+
