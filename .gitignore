@@ -163,3 +163,42 @@ out/server/server_linux
 .env.backup
 
 server/.env
+
+# Binaries and Executables
+*.exe
+*.dll
+*.so
+*.dylib
+server_bin
+server_bin_debug
+server_linux
+veda_bin
+
+# Logs and Crash Reports
+*.log
+*.pid
+logcat_*.txt
+temp_logcat.txt
+bugreport-*.zip
+frontend/tsc_output*.txt
+frontend/android_errors.log
+frontend/crash_log.txt
+
+# Databases and Local Storage
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary Test Files
+*key_test*.txt
+*_test.txt
+model_search.txt
+proxy_vs_direct.txt
+available_models.txt
+config-full.txt
+
+# Docker
+enable-docker-commands.txt
+
+# Misc
+.docks/GIBRID_SEARCH.txt

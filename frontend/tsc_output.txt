@@ -1,3 +1,0 @@
-screens/RegistrationScreen.tsx(295,49): error TS2304: Cannot find name 'contactService'.
-screens/settings/AppSettingsScreen.tsx(278,56): error TS2339: Property 'error' does not exist on type '{ background: string; header: string; inputBackground: string; inputText: string; userBubble: string; botBubble: string; text: string; subText: string; borderColor: string; menuBackground: string; ... 4 more ...; buttonText: string; }'.
-screens/settings/AppSettingsScreen.tsx(279,52): error TS2339: Property 'error' does not exist on type '{ background: string; header: string; inputBackground: string; inputText: string; userBubble: string; botBubble: string; text: string; subText: string; borderColor: string; menuBackground: string; ... 4 more ...; buttonText: string; }'.

@@ -1,4 +1,0 @@
-=== Тестирование с API v1 ===
-
-GEMINI_API_KEY (v1/gemini-pro): ❌ code=404, models/gemini-pro is not found for API version v1, or is not supported for gener
-GEMINI_API_KEY_BACKUP (v1/gemini-pro): ❌ code=404, models/gemini-pro is not found for API version v1, or is not supported for gener
