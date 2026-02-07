@@ -84,13 +84,13 @@ services:
     network_mode: host # For better performance and NAT handling in production
     environment:
       - LOGGING_LEVEL=N
-      - USERS=${TURN_USER:-admin}:${TURN_PASSWORD:-krishna1284radha}
+      - USERS=${TURN_USER}:${TURN_PASSWORD}
       - REALM=${TURN_REALM:-vedamatch.ru}
       - LISTENING_PORT=3478
       - MIN_PORT=49152
       - MAX_PORT=49162
       - EXTERNAL_IP=${TURN_EXTERNAL_IP:-45.150.9.229}
-      - STATIC_AUTH_SECRET=${TURN_SECRET:-krishna1284radharamat145698uhgg}
+      - STATIC_AUTH_SECRET=${TURN_SECRET}
 
 volumes:
   postgres_data:
