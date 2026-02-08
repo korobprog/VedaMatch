@@ -327,8 +327,10 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 
 		// Check if this is a new unique donor
 		var existingDonationCount int64
-		if err := tx.Model(&models.CharityDonation{}).Where("project_id = ? AND donor_user_id = ? AND id != ?",
-			project.ID, donorUserID, donation.ID).Count(&existingDonationCount).Error; err != nil {
+		if err := tx.Model(&models.CharityDonation{}).Where(
+			"project_id = ? AND donor_user_id = ? AND status != ? AND id != ?",
+			project.ID, donorUserID, models.DonationStatusRefunded, donation.ID,
+		).Count(&existingDonationCount).Error; err != nil {
 			return err
 		}
 		if existingDonationCount == 0 {
@@ -478,6 +480,14 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		}
 
 		// 8. Update project stats
+		// Lock project row so unique_donors recalculation is serialized per project.
+		var lockedProject models.CharityProject
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").
+			First(&lockedProject, donation.ProjectID).Error; err != nil {
+			return err
+		}
+
 		projectRefundUpdates := map[string]interface{}{
 			"raised_amount":   gorm.Expr("raised_amount - ?", donation.Amount),
 			"donations_count": gorm.Expr("donations_count - 1"),

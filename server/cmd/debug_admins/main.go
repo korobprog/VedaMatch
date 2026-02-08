@@ -31,5 +31,6 @@ func main() {
 		fmt.Printf("ID: %d | Email: %s | Role: %s | Name: %s %s\n",
 			a.ID, a.Email, a.Role, a.KarmicName, a.SpiritualName)
 	}
-	fmt.Println("-------------------------------\n")
+	fmt.Println("-------------------------------")
+	fmt.Println()
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -26,19 +28,24 @@ func main() {
 
 	fmt.Printf("Resetting admin for: %s\n", email)
 
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("Failed to hash superadmin password: %v", err)
+	}
 
 	var user models.User
 	result := database.DB.Where("email = ?", email).First(&user)
 
 	if result.Error == nil {
 		fmt.Printf("User found (ID: %d). Updating to superadmin...\n", user.ID)
-		database.DB.Model(&user).Updates(map[string]interface{}{
+		if err := database.DB.Model(&user).Updates(map[string]interface{}{
 			"role":                "superadmin",
 			"password":            string(hashedPassword),
 			"is_profile_complete": true,
-		})
-	} else {
+		}).Error; err != nil {
+			log.Fatalf("Failed to update admin: %v", err)
+		}
+	} else if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		fmt.Println("User not found. Creating new superadmin...")
 		user = models.User{
 			Email:             email,
@@ -51,6 +58,8 @@ func main() {
 		if err := database.DB.Create(&user).Error; err != nil {
 			log.Fatalf("Failed to create admin: %v", err)
 		}
+	} else {
+		log.Fatalf("Failed to find user by email: %v", result.Error)
 	}
 
 	fmt.Println("Admin reset successful! Try logging in now.")
