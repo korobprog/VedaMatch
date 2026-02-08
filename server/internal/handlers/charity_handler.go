@@ -17,6 +17,14 @@ func GetUserID(c *fiber.Ctx) uint {
 	return middleware.GetUserID(c)
 }
 
+func requireAdmin(c *fiber.Ctx) error {
+	role := middleware.GetUserRole(c)
+	if role != "admin" && role != "superadmin" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Admin access required"})
+	}
+	return nil
+}
+
 type CharityHandler struct {
 	Service *services.CharityService
 }
@@ -267,6 +275,9 @@ func (h *CharityHandler) UploadEvidence(c *fiber.Ctx) error {
 
 // GetPendingOrganizations returns all organizations pending verification
 func (h *CharityHandler) GetPendingOrganizations(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
 	status := c.Query("status", "pending")
 
 	var orgs []models.CharityOrganization
@@ -285,6 +296,9 @@ func (h *CharityHandler) GetPendingOrganizations(c *fiber.Ctx) error {
 
 // ApproveOrganization approves a charity organization
 func (h *CharityHandler) ApproveOrganization(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
 	orgID, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid organization ID"})
@@ -309,6 +323,9 @@ func (h *CharityHandler) ApproveOrganization(c *fiber.Ctx) error {
 
 // RejectOrganization rejects a charity organization
 func (h *CharityHandler) RejectOrganization(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
 	orgID, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid organization ID"})
@@ -338,6 +355,9 @@ func (h *CharityHandler) RejectOrganization(c *fiber.Ctx) error {
 
 // GetPendingProjects returns all projects pending moderation
 func (h *CharityHandler) GetPendingProjects(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
 	status := c.Query("status", "moderation")
 
 	var projects []models.CharityProject
@@ -356,6 +376,9 @@ func (h *CharityHandler) GetPendingProjects(c *fiber.Ctx) error {
 
 // ApproveProject approves a charity project
 func (h *CharityHandler) ApproveProject(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
 	projectID, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid project ID"})
@@ -378,6 +401,9 @@ func (h *CharityHandler) ApproveProject(c *fiber.Ctx) error {
 
 // RejectProject rejects a charity project
 func (h *CharityHandler) RejectProject(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
 	projectID, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid project ID"})

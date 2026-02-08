@@ -222,6 +222,12 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 			return err
 		}
 
+		// Lock wallet row to prevent concurrent overspend
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(userWallet, userWallet.ID).Error; err != nil {
+			return err
+		}
+
 		if userWallet.Balance < totalAmount {
 			return errors.New("insufficient balance")
 		}
@@ -321,8 +327,10 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 
 		// Check if this is a new unique donor
 		var existingDonationCount int64
-		tx.Model(&models.CharityDonation{}).Where("project_id = ? AND donor_user_id = ? AND id != ?",
-			project.ID, donorUserID, donation.ID).Count(&existingDonationCount)
+		if err := tx.Model(&models.CharityDonation{}).Where("project_id = ? AND donor_user_id = ? AND id != ?",
+			project.ID, donorUserID, donation.ID).Count(&existingDonationCount).Error; err != nil {
+			return err
+		}
 		if existingDonationCount == 0 {
 			projectUpdates["unique_donors"] = gorm.Expr("unique_donors + ?", 1)
 		}
@@ -470,10 +478,24 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		}
 
 		// 8. Update project stats
-		if err := tx.Model(&models.CharityProject{}).Where("id = ?", donation.ProjectID).Updates(map[string]interface{}{
+		projectRefundUpdates := map[string]interface{}{
 			"raised_amount":   gorm.Expr("raised_amount - ?", donation.Amount),
 			"donations_count": gorm.Expr("donations_count - 1"),
-		}).Error; err != nil {
+		}
+
+		// Decrement unique donors if this was the user's last non-refunded donation
+		var remainingCount int64
+		if err := tx.Model(&models.CharityDonation{}).Where(
+			"project_id = ? AND donor_user_id = ? AND status != ? AND id != ?",
+			donation.ProjectID, donation.DonorUserID, models.DonationStatusRefunded, donation.ID,
+		).Count(&remainingCount).Error; err != nil {
+			return err
+		}
+		if remainingCount == 0 {
+			projectRefundUpdates["unique_donors"] = gorm.Expr("unique_donors - ?", 1)
+		}
+
+		if err := tx.Model(&models.CharityProject{}).Where("id = ?", donation.ProjectID).Updates(projectRefundUpdates).Error; err != nil {
 			return err
 		}
 
