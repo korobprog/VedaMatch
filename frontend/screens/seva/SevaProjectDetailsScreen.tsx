@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle } from 'lucide-react-native';
 import { CharityProject } from '../../types/charity';
 import { DonateModal } from '../../components/seva/DonateModal';
 import { EvidenceWall } from '../../components/seva/EvidenceWall';
+import { KarmaFeed } from '../../components/seva/KarmaFeed';
 import LinearGradient from 'react-native-linear-gradient';
 
 const SevaProjectDetailsScreen: React.FC = () => {
@@ -95,6 +96,9 @@ const SevaProjectDetailsScreen: React.FC = () => {
 
                     {/* Evidence Wall - Reports from Charity */}
                     <EvidenceWall projectId={project.id} projectTitle={project.title} />
+
+                    {/* Karma Feed - Recent Donations */}
+                    <KarmaFeed projectId={project.id} />
 
                     <View style={{ height: 100 }} />
                 </View>

@@ -506,6 +506,31 @@ func (s *CharityService) CreateEvidence(userID uint, projectID uint, evidenceTyp
 	return &evidence, nil
 }
 
+// GetRecentDonations returns recent non-anonymous donations for karma feed
+func (s *CharityService) GetRecentDonations(projectID uint, limit int) ([]models.CharityDonation, error) {
+	var donations []models.CharityDonation
+
+	query := database.DB.
+		Preload("DonorUser").
+		Preload("Project").
+		Where("is_anonymous = ?", false).
+		Order("created_at DESC")
+
+	if projectID > 0 {
+		query = query.Where("project_id = ?", projectID)
+	}
+
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	if err := query.Limit(limit).Find(&donations).Error; err != nil {
+		return nil, err
+	}
+
+	return donations, nil
+}
+
 // ==================== HELPERS ====================
 
 // generateSlug creates a URL-friendly slug from a title

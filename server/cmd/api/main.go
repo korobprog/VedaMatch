@@ -781,8 +781,9 @@ func main() {
 	protected.Get("/charity/my-donations", charityHandler.GetMyDonations) // NEW: Get user's donations
 	protected.Post("/charity/evidence", charityHandler.UploadEvidence)
 
-	// Public Charity Routes (Evidence Wall)
+	// Public Charity Routes (Evidence Wall & Karma Feed)
 	api.Get("/charity/evidence/:projectId", charityHandler.GetProjectEvidence) // Get project evidence
+	api.Get("/charity/karma-feed", charityHandler.GetKarmaFeed)                // Get recent donations for karma ticker
 
 	// Admin Routes (should be in admin group, adding here for brevity/mvp)
 	protected.Post("/admin/charity/approve-org/:id", charityHandler.ApproveOrganization)

@@ -135,6 +135,66 @@ func (h *CharityHandler) GetMyDonations(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"donations": donations})
 }
 
+// GetKarmaFeed returns recent public donations for karma ticker
+func (h *CharityHandler) GetKarmaFeed(c *fiber.Ctx) error {
+	projectIDStr := c.Query("projectId")
+	limitStr := c.Query("limit", "20")
+
+	var projectID uint = 0
+	if projectIDStr != "" {
+		if pid, err := strconv.Atoi(projectIDStr); err == nil {
+			projectID = uint(pid)
+		}
+	}
+
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	donations, err := h.Service.GetRecentDonations(projectID, limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Transform to karma feed format (hide sensitive data)
+	type KarmaItem struct {
+		ID           uint   `json:"id"`
+		DonorName    string `json:"donorName"`
+		DonorAvatar  string `json:"donorAvatar"`
+		ProjectTitle string `json:"projectTitle"`
+		Amount       int    `json:"amount"`
+		Message      string `json:"message"`
+		CreatedAt    string `json:"createdAt"`
+	}
+
+	feed := make([]KarmaItem, 0, len(donations))
+	for _, d := range donations {
+		item := KarmaItem{
+			ID:        d.ID,
+			Amount:    d.Amount,
+			Message:   d.KarmaMessage,
+			CreatedAt: d.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+
+		if d.DonorUser != nil {
+			item.DonorName = d.DonorUser.SpiritualName
+			if item.DonorName == "" {
+				item.DonorName = d.DonorUser.KarmicName
+			}
+			item.DonorAvatar = d.DonorUser.AvatarURL
+		}
+
+		if d.Project != nil {
+			item.ProjectTitle = d.Project.Title
+		}
+
+		feed = append(feed, item)
+	}
+
+	return c.JSON(fiber.Map{"feed": feed})
+}
+
 // ==================== EVIDENCE (REPORTS) ====================
 
 // GetProjectEvidence returns all evidence for a project

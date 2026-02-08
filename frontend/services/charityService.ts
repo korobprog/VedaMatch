@@ -84,6 +84,26 @@ class CharityService {
     }): Promise<CharityEvidence> {
         return this.post('/charity/evidence', token, data);
     }
+
+    // --- Karma Feed ---
+    async getKarmaFeed(projectId?: number, limit: number = 20): Promise<KarmaFeedItem[]> {
+        let endpoint = `/charity/karma-feed?limit=${limit}`;
+        if (projectId) {
+            endpoint += `&projectId=${projectId}`;
+        }
+        const result = await this.get(endpoint);
+        return result.feed || [];
+    }
+}
+
+export interface KarmaFeedItem {
+    id: number;
+    donorName: string;
+    donorAvatar?: string;
+    projectTitle: string;
+    amount: number;
+    message?: string;
+    createdAt: string;
 }
 
 export const charityService = new CharityService();
