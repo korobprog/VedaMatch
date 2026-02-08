@@ -1,0 +1,541 @@
+package services
+
+import (
+	"errors"
+	"fmt"
+	"log"
+	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/models"
+	"regexp"
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// CharityService handles charity operations
+type CharityService struct {
+	WalletService *WalletService
+}
+
+// NewCharityService creates a new charity service
+func NewCharityService(walletService *WalletService) *CharityService {
+	return &CharityService{
+		WalletService: walletService,
+	}
+}
+
+// ==================== ORGANIZATION ====================
+
+// CreateOrganization creates a new charity organization
+func (s *CharityService) CreateOrganization(userID uint, req models.CreateOrganizationRequest) (*models.CharityOrganization, error) {
+	// Create organization wallet
+	wallet := models.CharityOrganization{
+		Name:         req.Name,
+		Description:  req.Description,
+		Country:      req.Country,
+		City:         req.City,
+		Website:      req.Website,
+		Email:        req.Email,
+		Phone:        req.Phone,
+		DocumentURLs: req.DocumentURLs,
+		OwnerUserID:  userID,
+		Status:       models.OrgStatusDraft,
+		Slug:         generateSlug(req.Name),
+	}
+
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// Create Organization first
+		if err := tx.Create(&wallet).Error; err != nil {
+			return err
+		}
+
+		// Create Wallet for Organization
+		orgWallet := models.Wallet{
+			Type:           models.WalletTypeCharity,
+			OrganizationID: &wallet.ID,
+			Balance:        0,
+			TotalEarned:    0,
+			TotalSpent:     0,
+		}
+		if err := tx.Create(&orgWallet).Error; err != nil {
+			return err
+		}
+
+		// Update Organization with WalletID
+		wallet.WalletID = &orgWallet.ID
+		if err := tx.Save(&wallet).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return &wallet, nil
+}
+
+// UpdateOrganizationStatus (Admin only)
+func (s *CharityService) UpdateOrganizationStatus(orgID uint, status models.OrganizationStatus, adminID uint) error {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status": status,
+	}
+
+	if status == models.OrgStatusVerified {
+		updates["verified_at"] = &now
+		updates["verified_by_user_id"] = adminID
+	}
+
+	return database.DB.Model(&models.CharityOrganization{}).Where("id = ?", orgID).Updates(updates).Error
+}
+
+// ==================== PROJECT ====================
+
+// CreateProject creates a new fundraising campaign
+func (s *CharityService) CreateProject(userID uint, req models.CreateProjectRequest) (*models.CharityProject, error) {
+	// Verify user owns the organization
+	var org models.CharityOrganization
+	if err := database.DB.Where("id = ? AND owner_user_id = ?", req.OrganizationID, userID).First(&org).Error; err != nil {
+		return nil, errors.New("organization not found or access denied")
+	}
+
+	if org.Status != models.OrgStatusVerified {
+		return nil, errors.New("organization must be verified to create projects")
+	}
+
+	project := models.CharityProject{
+		OrganizationID:   req.OrganizationID,
+		Title:            req.Title,
+		Slug:             generateSlug(req.Title),
+		Description:      req.Description,
+		ShortDesc:        req.ShortDesc,
+		Category:         req.Category,
+		GoalAmount:       req.GoalAmount,
+		MinDonation:      req.MinDonation,
+		SuggestedAmounts: req.SuggestedAmounts,
+		ImpactMetrics:    req.ImpactMetrics,
+		StartDate:        req.StartDate,
+		EndDate:          req.EndDate,
+		Status:           models.ProjectStatusDraft, // Start as draft
+	}
+
+	if err := database.DB.Create(&project).Error; err != nil {
+		return nil, err
+	}
+
+	return &project, nil
+}
+
+// UpdateProjectStatus (Admin only)
+func (s *CharityService) UpdateProjectStatus(projectID uint, status models.ProjectStatus, adminID uint) error {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status": status,
+	}
+
+	if status == models.ProjectStatusActive {
+		updates["approved_at"] = &now
+		updates["approved_by"] = adminID
+	}
+
+	return database.DB.Model(&models.CharityProject{}).Where("id = ?", projectID).Updates(updates).Error
+}
+
+// ==================== DONATION ====================
+
+// Donate processes a donation transaction
+func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*models.DonateResponse, error) {
+	var response models.DonateResponse
+
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. Get Project and Organization
+		var project models.CharityProject
+		if err := tx.Preload("Organization").First(&project, req.ProjectID).Error; err != nil {
+			return errors.New("project not found")
+		}
+
+		if project.Status != models.ProjectStatusActive {
+			return errors.New("project is not active")
+		}
+
+		// Validate minimum donation
+		if project.MinDonation > 0 && req.Amount < project.MinDonation {
+			return fmt.Errorf("minimum donation is %d LKM", project.MinDonation)
+		}
+
+		// Check if project end date has passed
+		if project.EndDate != nil && time.Now().After(*project.EndDate) {
+			return errors.New("project fundraising period has ended")
+		}
+
+		// Check if goal already reached
+		if project.GoalAmount > 0 && project.RaisedAmount >= project.GoalAmount {
+			return errors.New("project has already reached its fundraising goal")
+		}
+
+		// Load platform settings once
+		var settings models.CharitySettings
+		tx.First(&settings)
+
+		// 2. Calculate Amounts
+		baseAmount := req.Amount
+		tipsAmount := 0
+
+		// Calculate tips
+		if req.IncludeTips {
+			percent := float32(5.0)
+			if req.TipsPercent > 0 {
+				percent = req.TipsPercent
+			} else if settings.DefaultTipsPercent > 0 {
+				percent = settings.DefaultTipsPercent
+			}
+
+			tipsAmount = int(float32(baseAmount) * percent / 100.0)
+		}
+
+		totalAmount := baseAmount + tipsAmount
+
+		// 3. Process Wallet Transaction
+		// Debit User
+		userWallet, err := s.WalletService.GetOrCreateWallet(donorUserID)
+		if err != nil {
+			return err
+		}
+
+		if userWallet.Balance < totalAmount {
+			return errors.New("insufficient balance")
+		}
+
+		// Debit total from user
+		newBalance := userWallet.Balance - totalAmount
+		if err := tx.Model(userWallet).Updates(map[string]interface{}{
+			"balance":     newBalance,
+			"total_spent": userWallet.TotalSpent + totalAmount,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Credit Project/Org Wallet
+		var orgWallet models.Wallet
+		if project.Organization.WalletID == nil {
+			return errors.New("organization wallet not configured")
+		}
+		if err := tx.First(&orgWallet, *project.Organization.WalletID).Error; err != nil {
+			return errors.New("organization wallet not found")
+		}
+
+		if err := tx.Model(&orgWallet).Updates(map[string]interface{}{
+			"balance":      orgWallet.Balance + baseAmount,
+			"total_earned": orgWallet.TotalEarned + baseAmount,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Credit Platform Wallet (Tips) - settings already loaded above
+		if tipsAmount > 0 && settings.PlatformWalletID != nil {
+			var platformWallet models.Wallet
+			if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err == nil {
+				tx.Model(&platformWallet).Updates(map[string]interface{}{
+					"balance":      platformWallet.Balance + tipsAmount,
+					"total_earned": platformWallet.TotalEarned + tipsAmount,
+				})
+			}
+		}
+
+		// 4. Create Transaction Records (One main debit, splits are internal logic but we record main)
+		walletTx := models.WalletTransaction{
+			WalletID:        userWallet.ID,
+			Type:            models.TransactionTypeDebit, // Or specialized TransactionTypeDonation
+			Amount:          totalAmount,
+			Description:     fmt.Sprintf("Donation to %s (%d + %d tips)", project.Title, baseAmount, tipsAmount),
+			RelatedWalletID: project.Organization.WalletID,
+			BalanceAfter:    newBalance,
+		}
+		if err := tx.Create(&walletTx).Error; err != nil {
+			return err
+		}
+
+		// 5. Create Donation Record with 24h refund period
+		// Calculate Impact
+		var impactSnapshot []models.ImpactValue
+		for _, metric := range project.ImpactMetrics {
+			if metric.UnitCost > 0 {
+				val := float64(baseAmount) / float64(metric.UnitCost)
+				impactSnapshot = append(impactSnapshot, models.ImpactValue{
+					Metric:  metric.Metric,
+					Value:   val,
+					LabelRu: metric.LabelRu,
+					LabelEn: metric.LabelEn,
+				})
+			}
+		}
+
+		// Set 24-hour refund window
+		refundDeadline := time.Now().Add(24 * time.Hour)
+
+		donation := models.CharityDonation{
+			DonorUserID:      donorUserID,
+			ProjectID:        project.ID,
+			Amount:           baseAmount,
+			TipsAmount:       tipsAmount,
+			TotalPaid:        totalAmount,
+			TransactionID:    &walletTx.ID,
+			KarmaMessage:     req.KarmaMessage,
+			IsAnonymous:      req.IsAnonymous,
+			WantsCertificate: req.WantsCertificate,
+			ImpactSnapshot:   impactSnapshot,
+			Status:           models.DonationStatusPending, // Pending for 24 hours
+			CanRefundUntil:   &refundDeadline,
+		}
+		if err := tx.Create(&donation).Error; err != nil {
+			return err
+		}
+
+		// 6. Update Project Stats
+		projectUpdates := map[string]interface{}{
+			"raised_amount":   project.RaisedAmount + baseAmount,
+			"donations_count": project.DonationsCount + 1,
+		}
+
+		// Check if this is a new unique donor
+		var existingDonationCount int64
+		tx.Model(&models.CharityDonation{}).Where("project_id = ? AND donor_user_id = ? AND id != ?",
+			project.ID, donorUserID, donation.ID).Count(&existingDonationCount)
+		if existingDonationCount == 0 {
+			projectUpdates["unique_donors"] = project.UniqueDonors + 1
+		}
+
+		tx.Model(&project).Updates(projectUpdates)
+
+		// Update Organization Stats
+		tx.Model(&models.CharityOrganization{}).Where("id = ?", project.OrganizationID).Updates(map[string]interface{}{
+			"total_raised": project.Organization.TotalRaised + baseAmount,
+		})
+
+		// 7. Karma Feed Entry
+		if req.KarmaMessage != "" {
+			note := models.CharityKarmaNote{
+				ProjectID:    project.ID,
+				AuthorUserID: donorUserID,
+				NoteType:     "donor_message",
+				Message:      req.KarmaMessage,
+				IsVisible:    true,
+				DonationID:   &donation.ID,
+			}
+			tx.Create(&note)
+		}
+
+		// Prepare Response
+		response = models.DonateResponse{
+			DonationID:     donation.ID,
+			TransactionID:  walletTx.ID,
+			AmountDonated:  baseAmount,
+			TipsAmount:     tipsAmount,
+			TotalPaid:      totalAmount,
+			NewBalance:     newBalance,
+			ImpactAchieved: impactSnapshot,
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[Charity] Donation success: User %d -> Project %d (Amount: %d)", donorUserID, req.ProjectID, response.TotalPaid)
+	return &response, nil
+}
+
+// RefundDonation processes a donation refund within the 24-hour window
+func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. Get Donation
+		var donation models.CharityDonation
+		if err := tx.Preload("Project.Organization").First(&donation, donationID).Error; err != nil {
+			return errors.New("donation not found")
+		}
+
+		// 2. Verify ownership
+		if donation.DonorUserID != userID {
+			return errors.New("access denied")
+		}
+
+		// 3. Check status
+		if donation.Status != models.DonationStatusPending {
+			return errors.New("donation cannot be refunded (already confirmed or refunded)")
+		}
+
+		// 4. Check refund deadline
+		if donation.CanRefundUntil == nil || time.Now().After(*donation.CanRefundUntil) {
+			return errors.New("refund period has expired (24 hours)")
+		}
+
+		// 5. Reverse wallet transactions
+		// Credit back to user
+		var userWallet models.Wallet
+		if err := tx.Where("user_id = ? AND type = ?", userID, models.WalletTypePersonal).First(&userWallet).Error; err != nil {
+			return errors.New("user wallet not found")
+		}
+
+		tx.Model(&userWallet).Updates(map[string]interface{}{
+			"balance":     userWallet.Balance + donation.TotalPaid,
+			"total_spent": userWallet.TotalSpent - donation.TotalPaid,
+		})
+
+		// Debit from organization wallet
+		if donation.Project.Organization.WalletID != nil {
+			var orgWallet models.Wallet
+			if err := tx.First(&orgWallet, *donation.Project.Organization.WalletID).Error; err == nil {
+				tx.Model(&orgWallet).Updates(map[string]interface{}{
+					"balance":      orgWallet.Balance - donation.Amount,
+					"total_earned": orgWallet.TotalEarned - donation.Amount,
+				})
+			}
+		}
+
+		// Debit from platform wallet (tips)
+		if donation.TipsAmount > 0 {
+			var settings models.CharitySettings
+			tx.First(&settings)
+			if settings.PlatformWalletID != nil {
+				var platformWallet models.Wallet
+				if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err == nil {
+					tx.Model(&platformWallet).Updates(map[string]interface{}{
+						"balance":      platformWallet.Balance - donation.TipsAmount,
+						"total_earned": platformWallet.TotalEarned - donation.TipsAmount,
+					})
+				}
+			}
+		}
+
+		// 6. Create refund transaction record
+		walletTx := models.WalletTransaction{
+			WalletID:     userWallet.ID,
+			Type:         models.TransactionTypeRefund,
+			Amount:       donation.TotalPaid,
+			Description:  fmt.Sprintf("Refund for donation to %s", donation.Project.Title),
+			BalanceAfter: userWallet.Balance + donation.TotalPaid,
+		}
+		tx.Create(&walletTx)
+
+		// 7. Update donation status
+		now := time.Now()
+		tx.Model(&donation).Updates(map[string]interface{}{
+			"status":      models.DonationStatusRefunded,
+			"refunded_at": &now,
+		})
+
+		// 8. Update project stats
+		tx.Model(&models.CharityProject{}).Where("id = ?", donation.ProjectID).Updates(map[string]interface{}{
+			"raised_amount":   gorm.Expr("raised_amount - ?", donation.Amount),
+			"donations_count": gorm.Expr("donations_count - 1"),
+		})
+
+		// 9. Update organization stats
+		tx.Model(&models.CharityOrganization{}).Where("id = ?", donation.Project.OrganizationID).Updates(map[string]interface{}{
+			"total_raised": gorm.Expr("total_raised - ?", donation.Amount),
+		})
+
+		log.Printf("[Charity] Refund success: Donation %d refunded to User %d (Amount: %d)", donationID, userID, donation.TotalPaid)
+		return nil
+	})
+}
+
+// GetUserDonations returns user's donation history
+func (s *CharityService) GetUserDonations(userID uint, status string) ([]models.CharityDonation, error) {
+	var donations []models.CharityDonation
+	query := database.DB.Preload("Project.Organization").Where("donor_user_id = ?", userID)
+
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	if err := query.Order("created_at DESC").Find(&donations).Error; err != nil {
+		return nil, err
+	}
+
+	return donations, nil
+}
+
+// ==================== EVIDENCE (REPORTS) ====================
+
+// GetProjectEvidence returns all evidence for a project
+func (s *CharityService) GetProjectEvidence(projectID uint) ([]models.CharityEvidence, error) {
+	var evidence []models.CharityEvidence
+	if err := database.DB.Where("project_id = ? AND is_approved = ?", projectID, true).
+		Order("created_at DESC").
+		Find(&evidence).Error; err != nil {
+		return nil, err
+	}
+	return evidence, nil
+}
+
+// CreateEvidence creates a new evidence record
+func (s *CharityService) CreateEvidence(userID uint, projectID uint, evidenceType models.EvidenceType, title, description, mediaURL, thumbnailURL string) (*models.CharityEvidence, error) {
+	// Verify user has permission (org owner or admin)
+	var project models.CharityProject
+	if err := database.DB.Preload("Organization").First(&project, projectID).Error; err != nil {
+		return nil, errors.New("project not found")
+	}
+
+	if project.Organization.OwnerUserID != userID {
+		return nil, errors.New("access denied: only organization owner can upload evidence")
+	}
+
+	evidence := models.CharityEvidence{
+		ProjectID:       projectID,
+		CreatedByUserID: userID,
+		Type:            evidenceType,
+		Title:           title,
+		Description:     description,
+		MediaURL:        mediaURL,
+		ThumbnailURL:    thumbnailURL,
+		IsApproved:      true, // Auto-approved for now
+	}
+
+	if err := database.DB.Create(&evidence).Error; err != nil {
+		return nil, err
+	}
+
+	// Update project last evidence date
+	database.DB.Model(&project).Update("last_evidence_at", time.Now())
+
+	return &evidence, nil
+}
+
+// ==================== HELPERS ====================
+
+// generateSlug creates a URL-friendly slug from a title
+func generateSlug(title string) string {
+	// Transliteration map for Cyrillic
+	cyrillicToLatin := map[rune]string{
+		'а': "a", 'б': "b", 'в': "v", 'г': "g", 'д': "d", 'е': "e", 'ё': "yo",
+		'ж': "zh", 'з': "z", 'и': "i", 'й': "y", 'к': "k", 'л': "l", 'м': "m",
+		'н': "n", 'о': "o", 'п': "p", 'р': "r", 'с': "s", 'т': "t", 'у': "u",
+		'ф': "f", 'х': "h", 'ц': "ts", 'ч': "ch", 'ш': "sh", 'щ': "sch",
+		'ъ': "", 'ы': "y", 'ь': "", 'э': "e", 'ю': "yu", 'я': "ya",
+	}
+
+	var result strings.Builder
+	for _, r := range strings.ToLower(title) {
+		if latin, ok := cyrillicToLatin[r]; ok {
+			result.WriteString(latin)
+		} else if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			result.WriteRune(r)
+		} else if r == ' ' || r == '-' || r == '_' {
+			result.WriteRune('-')
+		}
+	}
+
+	// Clean up multiple dashes and trim
+	slug := result.String()
+	re := regexp.MustCompile(`-+`)
+	slug = re.ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+
+	// Add timestamp for uniqueness
+	return fmt.Sprintf("%s-%d", slug, time.Now().Unix())
+}

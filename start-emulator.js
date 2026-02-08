@@ -101,6 +101,16 @@ async function main() {
     if (isEmulatorRunning()) {
         const devices = getConnectedDevices();
         console.log(`✅ Эмулятор уже запущен: ${devices.filter(d => d.startsWith('emulator-')).join(', ')}`);
+
+        // Ensure reverse proxy is active for already running emulator
+        try {
+            console.log('🔄 Настраиваю ADB reverse proxy (localhost:8000 -> device:8000)...');
+            execSync(`"${ADB_PATH}" reverse tcp:8000 tcp:8000`, { encoding: 'utf-8' });
+            console.log('✅ ADB Reverse настроен успешно');
+        } catch (e) {
+            console.warn('⚠️ Ошибка настройки ADB reverse:', e.message);
+        }
+
         process.exit(0);
     }
 
@@ -129,6 +139,14 @@ async function main() {
     // Ожидаем готовности
     try {
         await waitForEmulator();
+
+        try {
+            console.log('🔄 Настраиваю ADB reverse proxy (localhost:8000 -> device:8000)...');
+            execSync(`"${ADB_PATH}" reverse tcp:8000 tcp:8000`, { encoding: 'utf-8' });
+        } catch (e) {
+            console.warn('⚠️ Ошибка настройки ADB reverse:', e.message);
+        }
+
         console.log('\n🎉 Эмулятор готов! Продолжаю запуск...\n');
         process.exit(0);
     } catch (error) {

@@ -33,6 +33,7 @@ import {
     Music,
     Compass,
     Briefcase,
+    Heart,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -72,6 +73,7 @@ const IconComponents: Record<string, any> = {
     Music,
     Compass,
     Briefcase,
+    Heart,
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({

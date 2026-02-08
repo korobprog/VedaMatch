@@ -132,6 +132,8 @@ import {
   IncomingBookingsScreen,
   ServiceScheduleScreen,
 } from './screens/portal/services';
+import { SevaHubScreen, SevaProjectDetailsScreen } from './screens/seva';
+import MyDonationsScreen from './screens/seva/MyDonationsScreen';
 import WalletScreen from './screens/wallet/WalletScreen';
 import InviteFriendsScreen from './screens/portal/referral/InviteFriendsScreen';
 import { WalletProvider } from './context/WalletContext';
@@ -416,6 +418,11 @@ const AppContent = () => {
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="InviteFriends" component={InviteFriendsScreen} options={{ headerShown: false }} />
+
+                  {/* Seva Charity Routes */}
+                  <Stack.Screen name="SevaHub" component={SevaHubScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SevaProjectDetails" component={SevaProjectDetailsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="MyDonations" component={MyDonationsScreen} options={{ headerShown: false }} />
 
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

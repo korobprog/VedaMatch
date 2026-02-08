@@ -143,6 +143,7 @@ func main() {
 	serviceService := services.NewServiceService()
 	calendarService := services.NewCalendarService()
 	bookingService := services.NewBookingService(walletService, serviceService, referralService)
+	charityService := services.NewCharityService(walletService)
 	hub := websocket.NewHub()
 	go hub.Run()
 
@@ -186,6 +187,7 @@ func main() {
 	referralHandler := handlers.NewReferralHandler(referralService)
 	serviceHandler := handlers.NewServiceHandler()
 	bookingHandler := handlers.NewBookingHandler(bookingService, calendarService)
+	charityHandler := handlers.NewCharityHandler(charityService)
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -764,6 +766,26 @@ func main() {
 	protected.Get("/referral/stats", referralHandler.GetMyReferralStats)
 	protected.Get("/referral/list", referralHandler.GetMyReferrals)
 	api.Get("/referral/validate/:code", referralHandler.ValidateInviteCode) // Public endpoint
+
+	// Charity System (Seva)
+	// Public Routes
+	charity := api.Group("/charity")
+	charity.Get("/projects", charityHandler.GetProjects)
+	charity.Get("/organizations", charityHandler.GetOrganizations)
+
+	// Protected Routes
+	protected.Post("/charity/organizations", charityHandler.CreateOrganization)
+	protected.Post("/charity/projects", charityHandler.CreateProject)
+	protected.Post("/charity/donate", charityHandler.Donate)
+	protected.Post("/charity/refund/:id", charityHandler.RefundDonation)  // NEW: Refund donation within 24h
+	protected.Get("/charity/my-donations", charityHandler.GetMyDonations) // NEW: Get user's donations
+	protected.Post("/charity/evidence", charityHandler.UploadEvidence)
+
+	// Public Charity Routes (Evidence Wall)
+	api.Get("/charity/evidence/:projectId", charityHandler.GetProjectEvidence) // Get project evidence
+
+	// Admin Routes (should be in admin group, adding here for brevity/mvp)
+	protected.Post("/admin/charity/approve-org/:id", charityHandler.ApproveOrganization)
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {

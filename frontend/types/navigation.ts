@@ -101,4 +101,9 @@ export type RootStackParamList = {
     // Wallet Routes
     Wallet: undefined;
     InviteFriends: undefined;
+
+    // Seva Charity Routes
+    SevaHub: undefined;
+    SevaProjectDetails: { project: any };
+    MyDonations: undefined;
 };

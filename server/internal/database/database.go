@@ -104,17 +104,26 @@ func Connect() {
 		&models.ServiceSchedule{}, &models.ServiceBooking{},
 		// Wallet (Лакшми currency)
 		&models.Wallet{}, &models.WalletTransaction{},
+		// Charity (Seva module)
+		&models.CharityOrganization{}, &models.CharityProject{},
+		&models.CharityDonation{}, &models.CharityEvidence{},
+		&models.CharityKarmaNote{}, &models.CharitySettings{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
 	log.Println("Database Migrated")
+
+	// FIX: Ensure wallets.user_id is nullable (Postgres sometimes keeps NOT NULL after migration)
+	DB.Exec("ALTER TABLE wallets ALTER COLUMN user_id DROP NOT NULL")
+
 	InitializeSuperAdmin()
 	SeedMarket()
 	SeedEducation()
 	SeedMultimedia()
 	SeedTravel()
 	SeedWallets()
+	SeedCharity() // Initialize platform wallet and charity settings
 }
 
 func InitializeSuperAdmin() {

@@ -8,6 +8,15 @@ import (
 
 // ==================== WALLET (КОШЕЛЁК ЛАКШМИ) ====================
 
+// WalletType represents the type of wallet
+type WalletType string
+
+const (
+	WalletTypePersonal WalletType = "personal" // User's personal wallet
+	WalletTypeCharity  WalletType = "charity"  // Charity organization wallet
+	WalletTypePlatform WalletType = "platform" // Platform system wallet (for tips, fees)
+)
+
 // Wallet represents a user's LakshMoney (game currency) wallet
 type Wallet struct {
 	ID        uint           `gorm:"primarykey" json:"id"`
@@ -15,14 +24,20 @@ type Wallet struct {
 	UpdatedAt time.Time      `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	// Owner
-	UserID uint  `json:"userId" gorm:"not null;uniqueIndex"`
+	// Wallet type
+	Type WalletType `json:"type" gorm:"type:varchar(20);default:'personal';index"`
+
+	// Owner (nullable for platform wallet)
+	UserID *uint `json:"userId" gorm:"index"` // Changed: nullable, removed uniqueIndex
 	User   *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
+
+	// For charity wallets - link to organization
+	OrganizationID *uint `json:"organizationId" gorm:"index"`
 
 	// Balance in Лакшми
 	Balance        int `json:"balance" gorm:"default:0"`        // Active balance (can spend)
 	PendingBalance int `json:"pendingBalance" gorm:"default:0"` // Pending (locked until activation)
-	FrozenBalance  int `json:"frozenBalance" gorm:"default:0"`  // Frozen (held for bookings)
+	FrozenBalance  int `json:"frozenBalance" gorm:"default:0"`  // Frozen (held for bookings/charity)
 
 	// Statistics
 	TotalEarned int `json:"totalEarned" gorm:"default:0"` // Total credits received
@@ -49,12 +64,12 @@ func (w *Wallet) AfterFind(tx *gorm.DB) error {
 type TransactionType string
 
 const (
-	TransactionTypeCredit     TransactionType = "credit"      // Пополнение (заработок)
-	TransactionTypeDebit      TransactionType = "debit"       // Списание (оплата)
-	TransactionTypeBonus      TransactionType = "bonus"       // Бонус от системы
-	TransactionTypeRefund     TransactionType = "refund"      // Возврат
-	TransactionTypeHold       TransactionType = "hold"        // Заморозка (для бронирования)
-	TransactionTypeRelease    TransactionType = "release"     // Разморозка
+	TransactionTypeCredit      TransactionType = "credit"       // Пополнение (заработок)
+	TransactionTypeDebit       TransactionType = "debit"        // Списание (оплата)
+	TransactionTypeBonus       TransactionType = "bonus"        // Бонус от системы
+	TransactionTypeRefund      TransactionType = "refund"       // Возврат
+	TransactionTypeHold        TransactionType = "hold"         // Заморозка (для бронирования)
+	TransactionTypeRelease     TransactionType = "release"      // Разморозка
 	TransactionTypeAdminCharge TransactionType = "admin_charge" // Админ: начисление
 	TransactionTypeAdminSeize  TransactionType = "admin_seize"  // Админ: списание
 )
@@ -89,7 +104,7 @@ type WalletTransaction struct {
 	DedupKey string `json:"dedupKey" gorm:"type:varchar(100);index"`
 
 	// Admin audit trail
-	AdminID *uint `json:"adminId" gorm:"index"` // Who performed admin action
+	AdminID *uint  `json:"adminId" gorm:"index"`            // Who performed admin action
 	Reason  string `json:"reason" gorm:"type:varchar(500)"` // Reason for admin action
 }
 

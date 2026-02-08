@@ -139,6 +139,10 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             navigation.navigate('ServicesHome');
             return;
         }
+        if (serviceId === 'seva') {
+            navigation.navigate('SevaHub');
+            return;
+        }
 
         if (!user?.isProfileComplete) {
             Alert.alert(

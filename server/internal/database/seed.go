@@ -169,8 +169,10 @@ func SeedWallets() {
 	// Create wallets for each user
 	created := 0
 	for _, user := range usersWithoutWallet {
+		userID := user.ID // Create local copy for pointer
 		wallet := models.Wallet{
-			UserID:      user.ID,
+			UserID:      &userID,
+			Type:        models.WalletTypePersonal,
 			Balance:     1000, // Initial balance: 1000 Лакшми
 			TotalEarned: 0,
 			TotalSpent:  0,

@@ -36,7 +36,8 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 	// Create new wallet with Welcome Bonus (Pending)
 	// Strategy: 0 Active + 50 Pending (unlocked after profile completion)
 	wallet = models.Wallet{
-		UserID:         userID,
+		UserID:         &userID,
+		Type:           models.WalletTypePersonal,
 		Balance:        0,  // Active balance starts at 0
 		PendingBalance: 50, // Welcome bonus (locked)
 		FrozenBalance:  0,
@@ -69,9 +70,13 @@ func (s *WalletService) GetBalance(userID uint) (*models.WalletResponse, error) 
 		return nil, err
 	}
 
+	var respUserID uint
+	if wallet.UserID != nil {
+		respUserID = *wallet.UserID
+	}
 	return &models.WalletResponse{
 		ID:             wallet.ID,
-		UserID:         wallet.UserID,
+		UserID:         respUserID,
 		Balance:        wallet.Balance,
 		PendingBalance: wallet.PendingBalance,
 		FrozenBalance:  wallet.FrozenBalance,
@@ -108,7 +113,8 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 		err := tx.Where("user_id = ?", toUserID).First(&toWallet).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			toWallet = models.Wallet{
-				UserID:      toUserID,
+				UserID:      &toUserID,
+				Type:        models.WalletTypePersonal,
 				Balance:     1000,
 				TotalEarned: 0,
 				TotalSpent:  0,
@@ -640,7 +646,7 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 		err := tx.Where("user_id = ?", toUserID).First(&toWallet).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Create wallet for provider if doesn't exist
-			toWallet = models.Wallet{UserID: toUserID, Balance: 0, PendingBalance: 0, FrozenBalance: 0}
+			toWallet = models.Wallet{UserID: &toUserID, Type: models.WalletTypePersonal, Balance: 0, PendingBalance: 0, FrozenBalance: 0}
 			if err := tx.Create(&toWallet).Error; err != nil {
 				return err
 			}

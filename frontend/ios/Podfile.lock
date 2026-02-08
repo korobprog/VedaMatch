@@ -1433,7 +1433,7 @@ PODS:
   - react-native-track-player (4.1.2):
     - React-Core
     - SwiftAudioEx (= 1.1.0)
-  - react-native-video (6.19.0):
+  - react-native-video (6.18.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1446,7 +1446,7 @@ PODS:
     - React-featureflags
     - React-graphics
     - React-ImageManager
-    - react-native-video/Video (= 6.19.0)
+    - react-native-video/Video (= 6.18.0)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -1455,7 +1455,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-video/Video (6.19.0):
+  - react-native-video/Video (6.18.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1873,7 +1873,7 @@ PODS:
     - Yoga
   - RNFS (2.20.0):
     - React-Core
-  - RNGestureHandler (2.30.0):
+  - RNGestureHandler (2.20.2):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2024,7 +2024,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNSVG (15.0.0):
+  - RNSVG (15.11.1):
     - React-Core
   - RNVoipPushNotification (3.3.3):
     - React-Core
@@ -2419,7 +2419,7 @@ SPEC CHECKSUMS:
   react-native-safe-area-context: 758e894ca5a9bd1868d2a9cfbca7326a2b6bf9dc
   react-native-slider: cd9a16c488607c55182d68d8f144438ff615694c
   react-native-track-player: dd56f9948e03756a217c75e0a61aa04aab65b5a1
-  react-native-video: 87b6631edc8246400c2b5e439474180ea4751389
+  react-native-video: 7d7f9d33f1de578102d44f5603d44f47b9f66f76
   react-native-view-shot: f029866e664b709cef9d09b5f271892addeb648e
   react-native-webrtc: e8f0ce746353adc2744a2b933645e1aeb41eaa74
   react-native-webview: ee819e34405afee8b279f2182bcbbbc14024bea9
@@ -2461,11 +2461,11 @@ SPEC CHECKSUMS:
   RNFBApp: 43304dad103e992ec5032ad41fe52260d0b5504b
   RNFBMessaging: 1f709ea2b32d43c14dbaf10d139cc8e7f459fb4e
   RNFS: 89de7d7f4c0f6bafa05343c578f61118c8282ed8
-  RNGestureHandler: f739c583c29c124bbb1d957c9685b839800bc2a3
+  RNGestureHandler: 987692c2cbd41ad765a9195675f96b65ab1c0c99
   RNReanimated: afcb2afb627a8519d7fc0b7881082c796570067a
   RNScreens: 929d5858d322a2ae0cb272511f992c0acec69208
   RNShare: 1b2dc2495dfa39cf39621606624270e265e9c1ef
-  RNSVG: a9e095acf2e207f2ef491870523ed455636cf3b8
+  RNSVG: 86fecdfc637614ba9def63f7f3f2e7795e018356
   RNVoipPushNotification: 4998fe6724d421da616dca765da7dc421ff54c4e
   SDWebImage: a7f831e1a65eb5e285e3fb046a23fcfbf08e696d
   SDWebImageWebPCoder: 908b83b6adda48effe7667cd2b7f78c897e5111d
