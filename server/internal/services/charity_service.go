@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CharityService handles charity operations
@@ -138,6 +139,18 @@ func (s *CharityService) UpdateProjectStatus(projectID uint, status models.Proje
 	if status == models.ProjectStatusActive {
 		updates["approved_at"] = &now
 		updates["approved_by"] = adminID
+
+		// Set initial reporting deadline if not set
+		var project models.CharityProject
+		database.DB.First(&project, projectID)
+		if project.NextReportDue == nil {
+			days := project.ReportingPeriodDays
+			if days <= 0 {
+				days = 30
+			}
+			nextDue := now.AddDate(0, 0, days)
+			updates["next_report_due"] = &nextDue
+		}
 	}
 
 	return database.DB.Model(&models.CharityProject{}).Where("id = ?", projectID).Updates(updates).Error
@@ -177,14 +190,14 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 
 		// Load platform settings once
 		var settings models.CharitySettings
-		tx.First(&settings)
+		settingsErr := tx.First(&settings).Error
 
 		// 2. Calculate Amounts
 		baseAmount := req.Amount
 		tipsAmount := 0
 
 		// Calculate tips
-		if req.IncludeTips {
+		if req.IncludeTips && settings.TipsEnabled {
 			percent := float32(5.0)
 			if req.TipsPercent > 0 {
 				percent = req.TipsPercent
@@ -193,6 +206,11 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 			}
 
 			tipsAmount = int(float32(baseAmount) * percent / 100.0)
+		}
+
+		// Do not charge tips if platform wallet is not configured
+		if tipsAmount > 0 && (settingsErr != nil || settings.PlatformWalletID == nil) {
+			tipsAmount = 0
 		}
 
 		totalAmount := baseAmount + tipsAmount
@@ -217,7 +235,7 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 			return err
 		}
 
-		// Credit Project/Org Wallet
+		// Hold funds in Project/Org Wallet until confirmation
 		var orgWallet models.Wallet
 		if project.Organization.WalletID == nil {
 			return errors.New("organization wallet not configured")
@@ -227,8 +245,7 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		}
 
 		if err := tx.Model(&orgWallet).Updates(map[string]interface{}{
-			"balance":      orgWallet.Balance + baseAmount,
-			"total_earned": orgWallet.TotalEarned + baseAmount,
+			"frozen_balance": gorm.Expr("frozen_balance + ?", baseAmount),
 		}).Error; err != nil {
 			return err
 		}
@@ -236,11 +253,14 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		// Credit Platform Wallet (Tips) - settings already loaded above
 		if tipsAmount > 0 && settings.PlatformWalletID != nil {
 			var platformWallet models.Wallet
-			if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err == nil {
-				tx.Model(&platformWallet).Updates(map[string]interface{}{
-					"balance":      platformWallet.Balance + tipsAmount,
-					"total_earned": platformWallet.TotalEarned + tipsAmount,
-				})
+			if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&platformWallet).Updates(map[string]interface{}{
+				"balance":      platformWallet.Balance + tipsAmount,
+				"total_earned": platformWallet.TotalEarned + tipsAmount,
+			}).Error; err != nil {
+				return err
 			}
 		}
 
@@ -295,8 +315,8 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 
 		// 6. Update Project Stats
 		projectUpdates := map[string]interface{}{
-			"raised_amount":   project.RaisedAmount + baseAmount,
-			"donations_count": project.DonationsCount + 1,
+			"raised_amount":   gorm.Expr("raised_amount + ?", baseAmount),
+			"donations_count": gorm.Expr("donations_count + ?", 1),
 		}
 
 		// Check if this is a new unique donor
@@ -304,15 +324,19 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		tx.Model(&models.CharityDonation{}).Where("project_id = ? AND donor_user_id = ? AND id != ?",
 			project.ID, donorUserID, donation.ID).Count(&existingDonationCount)
 		if existingDonationCount == 0 {
-			projectUpdates["unique_donors"] = project.UniqueDonors + 1
+			projectUpdates["unique_donors"] = gorm.Expr("unique_donors + ?", 1)
 		}
 
-		tx.Model(&project).Updates(projectUpdates)
+		if err := tx.Model(&project).Updates(projectUpdates).Error; err != nil {
+			return err
+		}
 
 		// Update Organization Stats
-		tx.Model(&models.CharityOrganization{}).Where("id = ?", project.OrganizationID).Updates(map[string]interface{}{
-			"total_raised": project.Organization.TotalRaised + baseAmount,
-		})
+		if err := tx.Model(&models.CharityOrganization{}).Where("id = ?", project.OrganizationID).Updates(map[string]interface{}{
+			"total_raised": gorm.Expr("total_raised + ?", baseAmount),
+		}).Error; err != nil {
+			return err
+		}
 
 		// 7. Karma Feed Entry
 		if req.KarmaMessage != "" {
@@ -352,9 +376,11 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 // RefundDonation processes a donation refund within the 24-hour window
 func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		// 1. Get Donation
+		// 1. Get Donation (lock row to avoid race with confirm worker)
 		var donation models.CharityDonation
-		if err := tx.Preload("Project.Organization").First(&donation, donationID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Preload("Project.Organization").
+			First(&donation, donationID).Error; err != nil {
 			return errors.New("donation not found")
 		}
 
@@ -374,46 +400,51 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		}
 
 		// 5. Reverse wallet transactions
-			// Credit back to user
-			var userWallet models.Wallet
-			if err := tx.Where("user_id = ? AND type = ?", userID, models.WalletTypePersonal).First(&userWallet).Error; err != nil {
-				return errors.New("user wallet not found")
-			}
+		// Credit back to user
+		var userWallet models.Wallet
+		if err := tx.Where("user_id = ? AND type = ?", userID, models.WalletTypePersonal).First(&userWallet).Error; err != nil {
+			return errors.New("user wallet not found")
+		}
 
-			if err := tx.Model(&userWallet).Updates(map[string]interface{}{
-				"balance":     userWallet.Balance + donation.TotalPaid,
-				"total_spent": userWallet.TotalSpent - donation.TotalPaid,
-			}).Error; err != nil {
-				return err
-			}
+		if err := tx.Model(&userWallet).Updates(map[string]interface{}{
+			"balance":     userWallet.Balance + donation.TotalPaid,
+			"total_spent": userWallet.TotalSpent - donation.TotalPaid,
+		}).Error; err != nil {
+			return err
+		}
 
-		// Debit from organization wallet
-			if donation.Project.Organization.WalletID != nil {
-				var orgWallet models.Wallet
-				if err := tx.First(&orgWallet, *donation.Project.Organization.WalletID).Error; err == nil {
-					if err := tx.Model(&orgWallet).Updates(map[string]interface{}{
-						"balance":      orgWallet.Balance - donation.Amount,
-						"total_earned": orgWallet.TotalEarned - donation.Amount,
-					}).Error; err != nil {
-						return err
-					}
-				}
-			}
+		// Release held funds from organization wallet
+		if donation.Project.Organization.WalletID == nil {
+			return errors.New("organization wallet not configured")
+		}
+		var orgWallet models.Wallet
+		if err := tx.First(&orgWallet, *donation.Project.Organization.WalletID).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&orgWallet).Updates(map[string]interface{}{
+			"frozen_balance": gorm.Expr("frozen_balance - ?", donation.Amount),
+		}).Error; err != nil {
+			return err
+		}
 
 		// Debit from platform wallet (tips)
 		if donation.TipsAmount > 0 {
 			var settings models.CharitySettings
-			tx.First(&settings)
-			if settings.PlatformWalletID != nil {
-				var platformWallet models.Wallet
-					if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err == nil {
-						if err := tx.Model(&platformWallet).Updates(map[string]interface{}{
-							"balance":      platformWallet.Balance - donation.TipsAmount,
-							"total_earned": platformWallet.TotalEarned - donation.TipsAmount,
-						}).Error; err != nil {
-							return err
-						}
-					}
+			if err := tx.First(&settings).Error; err != nil {
+				return err
+			}
+			if settings.PlatformWalletID == nil {
+				return errors.New("platform wallet not configured")
+			}
+			var platformWallet models.Wallet
+			if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&platformWallet).Updates(map[string]interface{}{
+				"balance":      platformWallet.Balance - donation.TipsAmount,
+				"total_earned": platformWallet.TotalEarned - donation.TipsAmount,
+			}).Error; err != nil {
+				return err
 			}
 		}
 
@@ -425,25 +456,33 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 			Description:  fmt.Sprintf("Refund for donation to %s", donation.Project.Title),
 			BalanceAfter: userWallet.Balance + donation.TotalPaid,
 		}
-		tx.Create(&walletTx)
+		if err := tx.Create(&walletTx).Error; err != nil {
+			return err
+		}
 
 		// 7. Update donation status
 		now := time.Now()
-		tx.Model(&donation).Updates(map[string]interface{}{
+		if err := tx.Model(&donation).Updates(map[string]interface{}{
 			"status":      models.DonationStatusRefunded,
 			"refunded_at": &now,
-		})
+		}).Error; err != nil {
+			return err
+		}
 
 		// 8. Update project stats
-		tx.Model(&models.CharityProject{}).Where("id = ?", donation.ProjectID).Updates(map[string]interface{}{
+		if err := tx.Model(&models.CharityProject{}).Where("id = ?", donation.ProjectID).Updates(map[string]interface{}{
 			"raised_amount":   gorm.Expr("raised_amount - ?", donation.Amount),
 			"donations_count": gorm.Expr("donations_count - 1"),
-		})
+		}).Error; err != nil {
+			return err
+		}
 
 		// 9. Update organization stats
-		tx.Model(&models.CharityOrganization{}).Where("id = ?", donation.Project.OrganizationID).Updates(map[string]interface{}{
+		if err := tx.Model(&models.CharityOrganization{}).Where("id = ?", donation.Project.OrganizationID).Updates(map[string]interface{}{
 			"total_raised": gorm.Expr("total_raised - ?", donation.Amount),
-		})
+		}).Error; err != nil {
+			return err
+		}
 
 		log.Printf("[Charity] Refund success: Donation %d refunded to User %d (Amount: %d)", donationID, userID, donation.TotalPaid)
 		return nil

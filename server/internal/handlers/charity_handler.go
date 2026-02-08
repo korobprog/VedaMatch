@@ -49,7 +49,10 @@ func (h *CharityHandler) GetOrganizations(c *fiber.Ctx) error {
 	// Implement filtering logic here
 	// MVP: Return all non-draft
 	var orgs []models.CharityOrganization
-	// ... implementation ...
+	result := database.DB.Where("status != ?", models.OrgStatusDraft).Find(&orgs)
+	if result.Error != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": result.Error.Error()})
+	}
 	return c.JSON(orgs)
 }
 
@@ -323,6 +326,7 @@ func (h *CharityHandler) RejectOrganization(c *fiber.Ctx) error {
 	}
 
 	org.Status = models.OrgStatusBlocked
+	org.RejectionReason = req.Reason
 
 	if err := database.DB.Save(&org).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -391,6 +395,7 @@ func (h *CharityHandler) RejectProject(c *fiber.Ctx) error {
 	}
 
 	project.Status = models.ProjectStatusBlocked
+	project.RejectionReason = req.Reason
 
 	if err := database.DB.Save(&project).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

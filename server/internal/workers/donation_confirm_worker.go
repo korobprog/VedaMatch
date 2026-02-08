@@ -1,10 +1,13 @@
 package workers
 
 import (
+	"errors"
 	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // StartDonationConfirmWorker starts a background worker that auto-confirms donations
@@ -68,15 +71,39 @@ func processExpiredDonations() {
 func confirmDonation(donation *models.CharityDonation) error {
 	now := time.Now()
 
-	// Update donation status
-	result := database.DB.Model(donation).Updates(map[string]interface{}{
-		"status":       models.DonationStatusConfirmed,
-		"confirmed_at": &now,
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		// Confirm donation only if still pending
+		result := tx.Model(&models.CharityDonation{}).
+			Where("id = ? AND status = ?", donation.ID, models.DonationStatusPending).
+			Updates(map[string]interface{}{
+				"status":       models.DonationStatusConfirmed,
+				"confirmed_at": &now,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			// Donation already confirmed/refunded
+			return nil
+		}
+
+		// Move held funds to organization balance
+		if donation.Project == nil || donation.Project.Organization == nil || donation.Project.Organization.WalletID == nil {
+			return errors.New("organization wallet not configured")
+		}
+		var orgWallet models.Wallet
+		if err := tx.First(&orgWallet, *donation.Project.Organization.WalletID).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&orgWallet).Updates(map[string]interface{}{
+			"balance":        gorm.Expr("balance + ?", donation.Amount),
+			"frozen_balance": gorm.Expr("frozen_balance - ?", donation.Amount),
+			"total_earned":   gorm.Expr("total_earned + ?", donation.Amount),
+		}).Error; err != nil {
+			return err
+		}
+
+		return nil
 	})
-
-	if result.Error != nil {
-		return result.Error
-	}
-
-	return nil
 }

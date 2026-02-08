@@ -25,10 +25,10 @@ type Wallet struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Wallet type
-	Type WalletType `json:"type" gorm:"type:varchar(20);default:'personal';index"`
+	Type WalletType `json:"type" gorm:"type:varchar(20);default:'personal';index;uniqueIndex:ux_wallet_user_type"`
 
 	// Owner (nullable for platform wallet)
-	UserID *uint `json:"userId" gorm:"index"` // Changed: nullable, removed uniqueIndex
+	UserID *uint `json:"userId" gorm:"index;uniqueIndex:ux_wallet_user_type"` // Unique per user+type
 	User   *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
 
 	// For charity wallets - link to organization

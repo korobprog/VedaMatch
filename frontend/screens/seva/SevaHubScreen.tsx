@@ -108,8 +108,10 @@ const SevaHubScreen: React.FC = () => {
             ? Math.min(item.raisedAmount / item.goalAmount, 1)
             : 0;
 
+        const isPaused = item.nextReportDue && new Date(item.nextReportDue) < new Date();
+
         return (
-            <View style={styles.card}>
+            <View style={[styles.card, isPaused && { opacity: 0.8 }]}>
                 <TouchableOpacity
                     onPress={() => {
                         navigation.navigate('SevaProjectDetails', { project: item });
@@ -117,9 +119,15 @@ const SevaHubScreen: React.FC = () => {
                 >
                     <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
 
-                    {item.isUrgent && (
+                    {item.isUrgent && !isPaused && (
                         <View style={styles.urgentBadge}>
                             <Text style={styles.urgentText}>URGENT</Text>
+                        </View>
+                    )}
+
+                    {isPaused && (
+                        <View style={[styles.urgentBadge, { backgroundColor: '#FFA000' }]}>
+                            <Text style={styles.urgentText}>PAUSED: WAITING FOR REPORT</Text>
                         </View>
                     )}
 
@@ -151,10 +159,13 @@ const SevaHubScreen: React.FC = () => {
 
                 <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={styles.donateButton}
-                        onPress={() => openDonateModal(item)}
+                        style={[styles.donateButton, isPaused && { backgroundColor: '#444' }]}
+                        onPress={() => !isPaused && openDonateModal(item)}
+                        disabled={isPaused}
                     >
-                        <Text style={styles.donateButtonText}>Donate Now</Text>
+                        <Text style={[styles.donateButtonText, isPaused && { color: '#888' }]}>
+                            {isPaused ? 'Fundraising Paused' : 'Donate Now'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>

@@ -356,6 +356,28 @@ func (s *PushNotificationService) SendWalletBalanceActivated(userID uint, amount
 	return s.SendToUser(userID, message)
 }
 
+// SendCharityReportWarning notifies organization owner that a report is due soon or overdue
+func (s *PushNotificationService) SendCharityReportWarning(ownerID uint, projectName string, daysRemaining int) error {
+	title := "⚠️ Отчет по проекту"
+	body := ""
+	if daysRemaining > 0 {
+		body = fmt.Sprintf("Напоминание: до публикации отчета по проекту \"%s\" осталось %d дн.", projectName, daysRemaining)
+	} else {
+		body = fmt.Sprintf("Внимание! Отчет по проекту \"%s\" просрочен. Сбор средств приостановлен.", projectName)
+	}
+
+	message := PushMessage{
+		Title:    title,
+		Body:     body,
+		Priority: "high",
+		Data: map[string]string{
+			"type":   "charity_report_warning",
+			"screen": "CharityOwnerDashboard",
+		},
+	}
+	return s.SendToUser(ownerID, message)
+}
+
 // formatTime helper for readable time format in Russian
 func formatTime(t time.Time) string {
 	months := []string{"", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"}

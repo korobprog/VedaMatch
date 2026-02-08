@@ -59,6 +59,7 @@ export interface CharityProject {
     endDate?: string;
     isFeatured: boolean;
     isUrgent: boolean;
+    nextReportDue?: string;
 }
 
 export type DonationStatus = 'pending' | 'confirmed' | 'refunded';

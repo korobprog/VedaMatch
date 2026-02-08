@@ -2,25 +2,19 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
     Building2,
     CheckCircle,
     XCircle,
     Clock,
-    Users,
     DollarSign,
-    TrendingUp,
     Loader2,
-    AlertCircle,
-    ExternalLink,
     Mail,
     Globe,
     FileText,
     Heart
 } from 'lucide-react';
 import api from '@/lib/api';
-import Link from 'next/link';
 
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
@@ -233,89 +227,108 @@ export default function CharityAdminPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
-                                <AnimatePresence>
-                                    {organizations.map((org: any) => (
-                                        <motion.tr
-                                            key={org.ID}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            className="hover:bg-[var(--secondary)]/50 transition-colors"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 bg-[var(--secondary)] rounded-xl flex items-center justify-center border border-[var(--border)] overflow-hidden">
-                                                        {org.logoUrl ? (
-                                                            <img src={org.logoUrl} alt={org.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <Building2 className="w-6 h-6 text-[var(--muted-foreground)]" />
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold">{org.name}</p>
-                                                        <p className="text-xs text-[var(--muted-foreground)]">{org.country}, {org.city}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="space-y-1">
-                                                    {org.email && (
-                                                        <p className="text-xs flex items-center gap-1">
-                                                            <Mail className="w-3 h-3" /> {org.email}
-                                                        </p>
-                                                    )}
-                                                    {org.website && (
-                                                        <a
-                                                            href={org.website}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-xs flex items-center gap-1 text-blue-500 hover:underline"
-                                                        >
-                                                            <Globe className="w-3 h-3" /> Website
-                                                        </a>
+                                {organizations.map((org: any) => org?.ID ? (
+                                    <tr
+                                        key={org.ID}
+                                        className="hover:bg-[var(--secondary)]/50 transition-colors"
+                                    >
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 bg-[var(--secondary)] rounded-xl flex items-center justify-center border border-[var(--border)] overflow-hidden">
+                                                    {org.logoUrl ? (
+                                                        <img src={org.logoUrl} alt={org.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Building2 className="w-6 h-6 text-[var(--muted-foreground)]" />
                                                     )}
                                                 </div>
-                                            </td>
-                                            <td className="px-6 py-4">
+                                                <div>
+                                                    <p className="font-semibold">{org.name}</p>
+                                                    <p className="text-xs text-[var(--muted-foreground)]">{org.country}, {org.city}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="space-y-1">
+                                                {org.email && (
+                                                    <p className="text-xs flex items-center gap-1">
+                                                        <Mail className="w-3 h-3" /> {org.email}
+                                                    </p>
+                                                )}
+                                                {org.website && (
+                                                    <a
+                                                        href={org.website}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs flex items-center gap-1 text-blue-500 hover:underline"
+                                                    >
+                                                        <Globe className="w-3 h-3" /> Website
+                                                    </a>
+                                                )}
+                                                {org.documentUrls && org.documentUrls.length > 0 && (
+                                                    <div className="pt-2 flex flex-wrap gap-1 border-t border-[var(--border)] mt-1">
+                                                        {org.documentUrls.map((doc: string, idx: number) => (
+                                                            <a
+                                                                key={idx}
+                                                                href={doc}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="px-2 py-1 rounded bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors text-[10px] font-medium flex items-center gap-1"
+                                                                title={`Document ${idx + 1}`}
+                                                            >
+                                                                <FileText className="w-3 h-3" />
+                                                                Doc {idx + 1}
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex flex-col items-center gap-1">
                                                 <StatusBadge status={org.status} />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs space-y-1">
-                                                    <p>Projects: {org.totalProjects || 0}</p>
-                                                    <p>Raised: {(org.totalRaised || 0).toLocaleString()} LKM</p>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {org.status === 'pending' && (
-                                                        <>
-                                                            <button
-                                                                onClick={() => handleApproveOrg(org.ID)}
-                                                                disabled={actionLoading === `org-${org.ID}`}
-                                                                className="p-2 rounded-lg bg-emerald-50 text-emerald-500 hover:bg-emerald-100 transition-all"
-                                                                title="Approve"
-                                                            >
-                                                                {actionLoading === `org-${org.ID}` ? (
-                                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                                ) : (
-                                                                    <CheckCircle className="w-5 h-5" />
-                                                                )}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleRejectOrg(org.ID)}
-                                                                disabled={actionLoading === `org-${org.ID}`}
-                                                                className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all"
-                                                                title="Reject"
-                                                            >
-                                                                <XCircle className="w-5 h-5" />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </motion.tr>
-                                    ))}
-                                </AnimatePresence>
+                                                {org.status === 'blocked' && org.rejectionReason && (
+                                                    <p className="text-[10px] text-red-500 max-w-[200px] italic">
+                                                        Reason: {org.rejectionReason}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-xs space-y-1">
+                                                <p>Projects: {org.totalProjects || 0}</p>
+                                                <p>Raised: {(org.totalRaised || 0).toLocaleString()} LKM</p>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {org.status === 'pending' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleApproveOrg(org.ID)}
+                                                            disabled={actionLoading === `org-${org.ID}`}
+                                                            className="p-2 rounded-lg bg-emerald-50 text-emerald-500 hover:bg-emerald-100 transition-all"
+                                                            title="Approve"
+                                                        >
+                                                            {actionLoading === `org-${org.ID}` ? (
+                                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                                            ) : (
+                                                                <CheckCircle className="w-5 h-5" />
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRejectOrg(org.ID)}
+                                                            disabled={actionLoading === `org-${org.ID}`}
+                                                            className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                                                            title="Reject"
+                                                        >
+                                                            <XCircle className="w-5 h-5" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : null)}
                             </tbody>
                         </table>
                         {organizations.length === 0 && (
@@ -357,77 +370,79 @@ export default function CharityAdminPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
-                                <AnimatePresence>
-                                    {projects.map((project: any) => (
-                                        <motion.tr
-                                            key={project.ID}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            className="hover:bg-[var(--secondary)]/50 transition-colors"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-16 h-12 bg-[var(--secondary)] rounded-lg overflow-hidden border border-[var(--border)]">
-                                                        {project.coverUrl ? (
-                                                            <img src={project.coverUrl} alt={project.title} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center">
-                                                                <FileText className="w-5 h-5 text-[var(--muted-foreground)]" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold line-clamp-1">{project.title}</p>
-                                                        <p className="text-xs text-[var(--muted-foreground)]">{project.category}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm">{project.Organization?.name || 'Unknown'}</p>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm">
-                                                    <p className="font-semibold">{(project.goalAmount || 0).toLocaleString()} LKM</p>
-                                                    <p className="text-xs text-[var(--muted-foreground)]">
-                                                        Raised: {(project.raisedAmount || 0).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <StatusBadge status={project.status} />
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {project.status === 'moderation' && (
-                                                        <>
-                                                            <button
-                                                                onClick={() => handleApproveProject(project.ID)}
-                                                                disabled={actionLoading === `project-${project.ID}`}
-                                                                className="p-2 rounded-lg bg-emerald-50 text-emerald-500 hover:bg-emerald-100 transition-all"
-                                                                title="Approve"
-                                                            >
-                                                                {actionLoading === `project-${project.ID}` ? (
-                                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                                ) : (
-                                                                    <CheckCircle className="w-5 h-5" />
-                                                                )}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleRejectProject(project.ID)}
-                                                                disabled={actionLoading === `project-${project.ID}`}
-                                                                className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all"
-                                                                title="Reject"
-                                                            >
-                                                                <XCircle className="w-5 h-5" />
-                                                            </button>
-                                                        </>
+                                {projects.map((project: any) => project?.ID ? (
+                                    <tr
+                                        key={project.ID}
+                                        className="hover:bg-[var(--secondary)]/50 transition-colors"
+                                    >
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-16 h-12 bg-[var(--secondary)] rounded-lg overflow-hidden border border-[var(--border)]">
+                                                    {project.coverUrl ? (
+                                                        <img src={project.coverUrl} alt={project.title} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <FileText className="w-5 h-5 text-[var(--muted-foreground)]" />
+                                                        </div>
                                                     )}
                                                 </div>
-                                            </td>
-                                        </motion.tr>
-                                    ))}
-                                </AnimatePresence>
+                                                <div>
+                                                    <p className="font-semibold line-clamp-1">{project.title}</p>
+                                                    <p className="text-xs text-[var(--muted-foreground)]">{project.category}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-sm">{project.Organization?.name || 'Unknown'}</p>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-sm">
+                                                <p className="font-semibold">{(project.goalAmount || 0).toLocaleString()} LKM</p>
+                                                <p className="text-xs text-[var(--muted-foreground)]">
+                                                    Raised: {(project.raisedAmount || 0).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <StatusBadge status={project.status} />
+                                                {project.status === 'blocked' && project.rejectionReason && (
+                                                    <p className="text-[10px] text-red-500 max-w-[200px] italic">
+                                                        Reason: {project.rejectionReason}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {project.status === 'moderation' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleApproveProject(project.ID)}
+                                                            disabled={actionLoading === `project-${project.ID}`}
+                                                            className="p-2 rounded-lg bg-emerald-50 text-emerald-500 hover:bg-emerald-100 transition-all"
+                                                            title="Approve"
+                                                        >
+                                                            {actionLoading === `project-${project.ID}` ? (
+                                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                                            ) : (
+                                                                <CheckCircle className="w-5 h-5" />
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRejectProject(project.ID)}
+                                                            disabled={actionLoading === `project-${project.ID}`}
+                                                            className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all"
+                                                            title="Reject"
+                                                        >
+                                                            <XCircle className="w-5 h-5" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : null)}
                             </tbody>
                         </table>
                         {projects.length === 0 && (

@@ -44,6 +44,7 @@ type CharityOrganization struct {
 	Status           OrganizationStatus `json:"status" gorm:"type:varchar(20);default:'draft'"`
 	VerifiedAt       *time.Time         `json:"verifiedAt"`
 	VerifiedByUserID *uint              `json:"verifiedByUserId"`
+	RejectionReason  string             `json:"rejectionReason" gorm:"type:text"`
 
 	// Documents (S3 paths in /charity/documents/)
 	DocumentURLs []string `json:"documentUrls" gorm:"type:jsonb;serializer:json"`
@@ -116,9 +117,10 @@ type CharityProject struct {
 	SuggestedAmounts []int `json:"suggestedAmounts" gorm:"type:jsonb;serializer:json"` // e.g. [100, 500, 1000]
 
 	// Status
-	Status     ProjectStatus `json:"status" gorm:"type:varchar(20);default:'draft'"`
-	ApprovedAt *time.Time    `json:"approvedAt"`
-	ApprovedBy *uint         `json:"approvedBy"`
+	Status          ProjectStatus `json:"status" gorm:"type:varchar(20);default:'draft'"`
+	ApprovedAt      *time.Time    `json:"approvedAt"`
+	ApprovedBy      *uint         `json:"approvedBy"`
+	RejectionReason string        `json:"rejectionReason" gorm:"type:text"`
 
 	// Deadlines
 	StartDate *time.Time `json:"startDate"`

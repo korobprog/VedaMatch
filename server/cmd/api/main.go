@@ -61,6 +61,9 @@ func main() {
 	// Start Donation Auto-Confirm Worker (confirms donations after 24h cooling-off period)
 	workers.StartDonationConfirmWorker()
 
+	// Start Charity Report Worker (monitors reporting deadlines and sends warnings)
+	workers.StartCharityReportWorker()
+
 	// Start Video Transcoding Worker (background job for video processing)
 	transcodingWorker := workers.StartWorkerInBackground(2) // 2 concurrent workers
 	defer transcodingWorker.Stop()
@@ -102,9 +105,9 @@ func main() {
 
 	// CORS Middleware
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000, http://localhost:3001, http://localhost:3005, http://127.0.0.1:3005, http://localhost:8081, https://vedamatch.ru, https://www.vedamatch.ru, https://api.vedamatch.ru, https://admin.vedamatch.ru",
+		AllowOrigins:     "*",
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Admin-ID",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Admin-ID,X-CSRF-Token",
 		AllowCredentials: true,
 	}))
 
@@ -789,13 +792,13 @@ func main() {
 	api.Get("/charity/karma-feed", charityHandler.GetKarmaFeed)                // Get recent donations for karma ticker
 
 	// Admin Charity Routes
-	protected.Get("/admin/charity/stats", charityHandler.GetCharityStats)
-	protected.Get("/admin/charity/organizations", charityHandler.GetPendingOrganizations)
-	protected.Post("/admin/charity/organizations/:id/approve", charityHandler.ApproveOrganization)
-	protected.Post("/admin/charity/organizations/:id/reject", charityHandler.RejectOrganization)
-	protected.Get("/admin/charity/projects", charityHandler.GetPendingProjects)
-	protected.Post("/admin/charity/projects/:id/approve", charityHandler.ApproveProject)
-	protected.Post("/admin/charity/projects/:id/reject", charityHandler.RejectProject)
+	admin.Get("/charity/stats", charityHandler.GetCharityStats)
+	admin.Get("/charity/organizations", charityHandler.GetPendingOrganizations)
+	admin.Post("/charity/organizations/:id/approve", charityHandler.ApproveOrganization)
+	admin.Post("/charity/organizations/:id/reject", charityHandler.RejectOrganization)
+	admin.Get("/charity/projects", charityHandler.GetPendingProjects)
+	admin.Post("/charity/projects/:id/approve", charityHandler.ApproveProject)
+	admin.Post("/charity/projects/:id/reject", charityHandler.RejectProject)
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {
