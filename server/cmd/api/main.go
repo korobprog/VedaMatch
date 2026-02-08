@@ -58,6 +58,9 @@ func main() {
 	// Start Booking Reminder Worker
 	workers.StartBookingReminderWorker()
 
+	// Start Donation Auto-Confirm Worker (confirms donations after 24h cooling-off period)
+	workers.StartDonationConfirmWorker()
+
 	// Start Video Transcoding Worker (background job for video processing)
 	transcodingWorker := workers.StartWorkerInBackground(2) // 2 concurrent workers
 	defer transcodingWorker.Stop()
