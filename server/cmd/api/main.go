@@ -788,8 +788,14 @@ func main() {
 	api.Get("/charity/evidence/:projectId", charityHandler.GetProjectEvidence) // Get project evidence
 	api.Get("/charity/karma-feed", charityHandler.GetKarmaFeed)                // Get recent donations for karma ticker
 
-	// Admin Routes (should be in admin group, adding here for brevity/mvp)
-	protected.Post("/admin/charity/approve-org/:id", charityHandler.ApproveOrganization)
+	// Admin Charity Routes
+	protected.Get("/admin/charity/stats", charityHandler.GetCharityStats)
+	protected.Get("/admin/charity/organizations", charityHandler.GetPendingOrganizations)
+	protected.Post("/admin/charity/organizations/:id/approve", charityHandler.ApproveOrganization)
+	protected.Post("/admin/charity/organizations/:id/reject", charityHandler.RejectOrganization)
+	protected.Get("/admin/charity/projects", charityHandler.GetPendingProjects)
+	protected.Post("/admin/charity/projects/:id/approve", charityHandler.ApproveProject)
+	protected.Post("/admin/charity/projects/:id/reject", charityHandler.RejectProject)
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {

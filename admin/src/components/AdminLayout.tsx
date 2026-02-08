@@ -50,6 +50,7 @@ const menuItems = [
     { icon: Compass, label: 'Yatra Travel', path: '/yatra' },
     { icon: Mail, label: '  └ Templates', path: '/yatra/templates' },
     { icon: Send, label: '  └ Broadcast', path: '/yatra/broadcast' },
+    { icon: Heart, label: 'Seva (Charity)', path: '/charity' },
     { icon: Sparkles, label: 'AI Models', path: '/ai-models' },
     { icon: Route, label: 'Polza AI', path: '/polza' },
     { icon: MessageSquare, label: 'AI Prompts', path: '/ai-prompts' },

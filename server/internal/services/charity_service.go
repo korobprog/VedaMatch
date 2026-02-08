@@ -374,27 +374,31 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		}
 
 		// 5. Reverse wallet transactions
-		// Credit back to user
-		var userWallet models.Wallet
-		if err := tx.Where("user_id = ? AND type = ?", userID, models.WalletTypePersonal).First(&userWallet).Error; err != nil {
-			return errors.New("user wallet not found")
-		}
+			// Credit back to user
+			var userWallet models.Wallet
+			if err := tx.Where("user_id = ? AND type = ?", userID, models.WalletTypePersonal).First(&userWallet).Error; err != nil {
+				return errors.New("user wallet not found")
+			}
 
-		tx.Model(&userWallet).Updates(map[string]interface{}{
-			"balance":     userWallet.Balance + donation.TotalPaid,
-			"total_spent": userWallet.TotalSpent - donation.TotalPaid,
-		})
+			if err := tx.Model(&userWallet).Updates(map[string]interface{}{
+				"balance":     userWallet.Balance + donation.TotalPaid,
+				"total_spent": userWallet.TotalSpent - donation.TotalPaid,
+			}).Error; err != nil {
+				return err
+			}
 
 		// Debit from organization wallet
-		if donation.Project.Organization.WalletID != nil {
-			var orgWallet models.Wallet
-			if err := tx.First(&orgWallet, *donation.Project.Organization.WalletID).Error; err == nil {
-				tx.Model(&orgWallet).Updates(map[string]interface{}{
-					"balance":      orgWallet.Balance - donation.Amount,
-					"total_earned": orgWallet.TotalEarned - donation.Amount,
-				})
+			if donation.Project.Organization.WalletID != nil {
+				var orgWallet models.Wallet
+				if err := tx.First(&orgWallet, *donation.Project.Organization.WalletID).Error; err == nil {
+					if err := tx.Model(&orgWallet).Updates(map[string]interface{}{
+						"balance":      orgWallet.Balance - donation.Amount,
+						"total_earned": orgWallet.TotalEarned - donation.Amount,
+					}).Error; err != nil {
+						return err
+					}
+				}
 			}
-		}
 
 		// Debit from platform wallet (tips)
 		if donation.TipsAmount > 0 {
@@ -402,12 +406,14 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 			tx.First(&settings)
 			if settings.PlatformWalletID != nil {
 				var platformWallet models.Wallet
-				if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err == nil {
-					tx.Model(&platformWallet).Updates(map[string]interface{}{
-						"balance":      platformWallet.Balance - donation.TipsAmount,
-						"total_earned": platformWallet.TotalEarned - donation.TipsAmount,
-					})
-				}
+					if err := tx.First(&platformWallet, *settings.PlatformWalletID).Error; err == nil {
+						if err := tx.Model(&platformWallet).Updates(map[string]interface{}{
+							"balance":      platformWallet.Balance - donation.TipsAmount,
+							"total_earned": platformWallet.TotalEarned - donation.TipsAmount,
+						}).Error; err != nil {
+							return err
+						}
+					}
 			}
 		}
 

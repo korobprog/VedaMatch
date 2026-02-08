@@ -7,6 +7,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -261,13 +262,165 @@ func (h *CharityHandler) UploadEvidence(c *fiber.Ctx) error {
 
 // ==================== ADMIN ====================
 
-// ApproveOrganization
-func (h *CharityHandler) ApproveOrganization(c *fiber.Ctx) error {
-	// Verify admin role
-	// ...
-	orgID, _ := strconv.Atoi(c.Params("id"))
+// GetPendingOrganizations returns all organizations pending verification
+func (h *CharityHandler) GetPendingOrganizations(c *fiber.Ctx) error {
+	status := c.Query("status", "pending")
 
-	// Update status
-	// ...
-	return c.JSON(fiber.Map{"status": "approved", "id": orgID})
+	var orgs []models.CharityOrganization
+	query := database.DB.Preload("OwnerUser").Order("created_at DESC")
+
+	if status != "all" {
+		query = query.Where("status = ?", status)
+	}
+
+	if err := query.Find(&orgs).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"organizations": orgs})
+}
+
+// ApproveOrganization approves a charity organization
+func (h *CharityHandler) ApproveOrganization(c *fiber.Ctx) error {
+	orgID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid organization ID"})
+	}
+
+	var org models.CharityOrganization
+	if err := database.DB.First(&org, orgID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Organization not found"})
+	}
+
+	now := time.Now()
+	org.Status = models.OrgStatusVerified
+	org.VerifiedAt = &now
+
+	if err := database.DB.Save(&org).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	log.Printf("[Admin] Approved organization %d: %s", orgID, org.Name)
+	return c.JSON(fiber.Map{"status": "approved", "organization": org})
+}
+
+// RejectOrganization rejects a charity organization
+func (h *CharityHandler) RejectOrganization(c *fiber.Ctx) error {
+	orgID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid organization ID"})
+	}
+
+	type RejectRequest struct {
+		Reason string `json:"reason"`
+	}
+	var req RejectRequest
+	c.BodyParser(&req)
+
+	var org models.CharityOrganization
+	if err := database.DB.First(&org, orgID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Organization not found"})
+	}
+
+	org.Status = models.OrgStatusBlocked
+
+	if err := database.DB.Save(&org).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	log.Printf("[Admin] Rejected organization %d: %s (reason: %s)", orgID, org.Name, req.Reason)
+	return c.JSON(fiber.Map{"status": "rejected", "organization": org})
+}
+
+// GetPendingProjects returns all projects pending moderation
+func (h *CharityHandler) GetPendingProjects(c *fiber.Ctx) error {
+	status := c.Query("status", "moderation")
+
+	var projects []models.CharityProject
+	query := database.DB.Preload("Organization").Order("created_at DESC")
+
+	if status != "all" {
+		query = query.Where("status = ?", status)
+	}
+
+	if err := query.Find(&projects).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"projects": projects})
+}
+
+// ApproveProject approves a charity project
+func (h *CharityHandler) ApproveProject(c *fiber.Ctx) error {
+	projectID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid project ID"})
+	}
+
+	var project models.CharityProject
+	if err := database.DB.First(&project, projectID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Project not found"})
+	}
+
+	project.Status = models.ProjectStatusActive
+
+	if err := database.DB.Save(&project).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	log.Printf("[Admin] Approved project %d: %s", projectID, project.Title)
+	return c.JSON(fiber.Map{"status": "approved", "project": project})
+}
+
+// RejectProject rejects a charity project
+func (h *CharityHandler) RejectProject(c *fiber.Ctx) error {
+	projectID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid project ID"})
+	}
+
+	type RejectRequest struct {
+		Reason string `json:"reason"`
+	}
+	var req RejectRequest
+	c.BodyParser(&req)
+
+	var project models.CharityProject
+	if err := database.DB.First(&project, projectID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Project not found"})
+	}
+
+	project.Status = models.ProjectStatusBlocked
+
+	if err := database.DB.Save(&project).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	log.Printf("[Admin] Rejected project %d: %s (reason: %s)", projectID, project.Title, req.Reason)
+	return c.JSON(fiber.Map{"status": "rejected", "project": project})
+}
+
+// GetCharityStats returns charity dashboard statistics
+func (h *CharityHandler) GetCharityStats(c *fiber.Ctx) error {
+	var stats struct {
+		TotalOrganizations   int64 `json:"totalOrganizations"`
+		PendingOrganizations int64 `json:"pendingOrganizations"`
+		TotalProjects        int64 `json:"totalProjects"`
+		ActiveProjects       int64 `json:"activeProjects"`
+		PendingProjects      int64 `json:"pendingProjects"`
+		TotalDonations       int64 `json:"totalDonations"`
+		TotalRaised          int64 `json:"totalRaised"`
+		PendingDonations     int64 `json:"pendingDonations"`
+	}
+
+	database.DB.Model(&models.CharityOrganization{}).Count(&stats.TotalOrganizations)
+	database.DB.Model(&models.CharityOrganization{}).Where("status = ?", models.OrgStatusPending).Count(&stats.PendingOrganizations)
+	database.DB.Model(&models.CharityProject{}).Count(&stats.TotalProjects)
+	database.DB.Model(&models.CharityProject{}).Where("status = ?", models.ProjectStatusActive).Count(&stats.ActiveProjects)
+	database.DB.Model(&models.CharityProject{}).Where("status = ?", models.ProjectStatusModeration).Count(&stats.PendingProjects)
+	database.DB.Model(&models.CharityDonation{}).Count(&stats.TotalDonations)
+	database.DB.Model(&models.CharityDonation{}).Select("COALESCE(SUM(amount), 0)").Row().Scan(&stats.TotalRaised)
+	database.DB.Model(&models.CharityDonation{}).Where("status = ?", models.DonationStatusPending).Count(&stats.PendingDonations)
+
+	return c.JSON(stats)
 }
