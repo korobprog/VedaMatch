@@ -38,6 +38,8 @@ import { cafeService } from '../../../services/cafeService';
 import { Cafe, CafeFilters } from '../../../types/cafe';
 import { useWallet } from '../../../context/WalletContext';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -49,6 +51,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
     const { formattedBalance } = useWallet();
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
 
     const [cafes, setCafes] = useState<Cafe[]>([]);
     const [loading, setLoading] = useState(true);
@@ -160,14 +164,14 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
                     <View style={styles.cardTopBadges}>
                         <View style={styles.ratingBadge}>
-                            <Star size={10} color="#F59E0B" fill="#F59E0B" />
+                            <Star size={10} color={colors.accent} fill={colors.accent} />
                             <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
                             <Text style={styles.reviewsText}>({reviewsCount})</Text>
                         </View>
 
                         {item.hasDelivery && (
                             <View style={styles.deliveryBadge}>
-                                <Car size={10} color="#F59E0B" />
+                                <Car size={10} color={colors.accent} />
                                 <Text style={styles.deliveryBadgeText}>{t('cafe.form.delivery')}</Text>
                             </View>
                         )}
@@ -207,7 +211,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
                         {!!item.avgPrepTime && (
                             <View style={styles.timeInfo}>
-                                <Clock size={12} color="#F59E0B" />
+                                <Clock size={12} color={colors.accent} />
                                 <Text style={styles.timeText}>{item.avgPrepTime} {t('common.min')}</Text>
                             </View>
                         )}
@@ -224,7 +228,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                     style={styles.backButton}
                     onPress={() => onBack ? onBack() : navigation.goBack()}
                 >
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
 
                 <View style={styles.headerTitleContainer}>
@@ -236,11 +240,11 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
                 <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
                     <LinearGradient
-                        colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
-                        style={styles.walletInner}
+                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
+                        style={[styles.walletInner, { borderColor: colors.accentSoft }]}
                     >
-                        <Wallet size={14} color="#F59E0B" />
-                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                        <Wallet size={14} color={colors.accent} />
+                        <Text style={[styles.walletBalance, { color: colors.accent }]}>{formattedBalance}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -248,18 +252,18 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             <View style={styles.featuredActions}>
                 <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: '#1e1e3a', borderColor: 'rgba(245, 158, 11, 0.2)' }]}
+                        style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.accentSoft }]}
                         onPress={() => myCafe ? navigation.navigate('EditCafe', { cafeId: myCafe.id }) : navigation.navigate('CreateCafe')}
                     >
                         <LinearGradient
-                            colors={['rgba(245, 158, 11, 0.15)', 'transparent']}
+                            colors={[roleTheme.accentSoft, 'transparent']}
                             style={styles.cardGradient}
                         />
                         <View style={styles.actionIconOuter}>
                             {myCafe ? (
-                                <UserCircle size={24} color="#F59E0B" />
+                                <UserCircle size={24} color={colors.accent} />
                             ) : (
-                                <PlusCircle size={24} color="#F59E0B" />
+                                <PlusCircle size={24} color={colors.accent} />
                             )}
                         </View>
                         <View>
@@ -296,7 +300,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                     />
                     {search.length > 0 && (
                         <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true); }}>
-                            <XCircle size={20} color="rgba(255,255,255,0.4)" />
+                            <XCircle size={20} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -307,8 +311,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     data={[
-                        { type: 'rating', label: t('cafe.list.rating'), icon: Star, color: '#FFD700' },
-                        { type: 'popular', label: t('cafe.list.popular'), icon: Flame, color: '#FF6B00' },
+                        { type: 'rating', label: t('cafe.list.rating'), icon: Star, color: colors.accent },
+                        { type: 'popular', label: t('cafe.list.popular'), icon: Flame, color: roleTheme.accentStrong },
                         { type: 'newest', label: t('cafe.list.newest'), icon: Sparkles, color: '#5AC8FA' },
                     ]}
                     contentContainerStyle={styles.sortList}
@@ -337,13 +341,13 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
     return (
         <LinearGradient
-            colors={['#0a0a14', '#12122b']}
+            colors={roleTheme.gradient}
             style={styles.gradient}
         >
             <SafeAreaView style={styles.container} edges={['top']}>
                 {loading && cafes.length === 0 ? (
                     <View style={styles.centerContainer}>
-                        <ActivityIndicator size="large" color="#F59E0B" />
+                        <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
                     <FlatList
@@ -363,14 +367,14 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
-                                tintColor="#F59E0B"
+                                tintColor={colors.accent}
                             />
                         }
                         onEndReached={handleLoadMore}
                         onEndReachedThreshold={0.5}
                         ListFooterComponent={
                             loading && cafes.length > 0 ? (
-                                <ActivityIndicator size="small" color="#F59E0B" style={styles.footerLoader} />
+                                <ActivityIndicator size="small" color={colors.accent} style={styles.footerLoader} />
                             ) : null
                         }
                         ListEmptyComponent={

@@ -43,6 +43,8 @@ import {
 import { useWallet } from '../../../context/WalletContext';
 import ServiceCard from './components/ServiceCard';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -85,6 +87,8 @@ interface ServicesHomeScreenProps {
 const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
 
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
@@ -176,7 +180,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                     style={styles.backButton}
                     onPress={() => onBack ? onBack() : navigation.goBack()}
                 >
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
 
                 <View style={styles.headerTitleContainer}>
@@ -192,11 +196,11 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
                 <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
                     <LinearGradient
-                        colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
-                        style={styles.walletInner}
+                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
+                        style={[styles.walletInner, { borderColor: colors.accentSoft }]}
                     >
-                        <Wallet size={14} color="#F59E0B" />
-                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                        <Wallet size={14} color={colors.accent} />
+                        <Text style={[styles.walletBalance, { color: colors.accent }]}>{formattedBalance}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -205,15 +209,15 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
             <View style={styles.featuredActions}>
                 <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: '#1e1e3a', borderColor: 'rgba(245, 158, 11, 0.2)' }]}
+                        style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.accentSoft }]}
                         onPress={handleCreateService}
                     >
                         <LinearGradient
-                            colors={['rgba(245, 158, 11, 0.15)', 'transparent']}
+                            colors={[roleTheme.accentSoft, 'transparent']}
                             style={styles.cardGradient}
                         />
                         <View style={styles.actionIconOuter}>
-                            <PlusCircle size={24} color="#F59E0B" />
+                            <PlusCircle size={24} color={colors.accent} />
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>Создать</Text>
@@ -222,11 +226,11 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: '#1a1a2e', borderColor: 'rgba(255,255,255,0.05)' }]}
+                        style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                         onPress={handleIncomingBookings}
                     >
                         <View style={styles.actionIconOuter}>
-                            <Users size={24} color="#fff" />
+                            <Users size={24} color={colors.textPrimary} />
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>Заказы</Text>
@@ -237,13 +241,13 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
                 <View style={[styles.actionRow, { marginTop: 12 }]}>
                     <TouchableOpacity style={styles.miniAction} onPress={handleMyBookings}>
-                        <History size={18} color="rgba(255,255,255,0.6)" />
-                        <Text style={styles.miniActionLabel}>Мои записи</Text>
+                        <History size={18} color={colors.textSecondary} />
+                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>Мои записи</Text>
                     </TouchableOpacity>
                     <View style={styles.miniDivider} />
                     <TouchableOpacity style={styles.miniAction} onPress={handleMyServices}>
-                        <Briefcase size={18} color="rgba(255,255,255,0.6)" />
-                        <Text style={styles.miniActionLabel}>Библиотека</Text>
+                        <Briefcase size={18} color={colors.textSecondary} />
+                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>Библиотека</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -251,11 +255,11 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
             {/* Search - Floating Style */}
             <View style={styles.searchSection}>
                 <View style={styles.searchBackground}>
-                    <Search size={20} color="rgba(255,255,255,0.4)" />
+                    <Search size={20} color={colors.textSecondary} />
                     <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: colors.textPrimary }]}
                         placeholder="Кого вы ищете сегодня?"
-                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                     />
@@ -276,14 +280,14 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                     >
                         <LinearGradient
                             colors={selectedCategory === cat.key
-                                ? ['#F59E0B', '#D97706']
+                                ? [roleTheme.accent, roleTheme.accentStrong]
                                 : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
                             style={styles.categoryCircle}
                         >
                             <CategoryIcon
                                 name={cat.iconName}
                                 size={22}
-                                color={selectedCategory === cat.key ? '#fff' : 'rgba(255,255,255,0.6)'}
+                                color={selectedCategory === cat.key ? '#fff' : colors.textSecondary}
                             />
                         </LinearGradient>
                         <Text style={[
@@ -301,17 +305,17 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const renderEmpty = () => (
         <View style={styles.emptyContainer}>
             <View style={styles.emptyIconCircle}>
-                <Search size={40} color="rgba(255,255,255,0.2)" />
+                <Search size={40} color={colors.textSecondary} />
             </View>
-            <Text style={styles.emptyTitle}>Услуги не найдены</Text>
-            <Text style={styles.emptySubtitle}>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Услуги не найдены</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
                 Попробуйте изменить категорию или уточнить запрос
             </Text>
             <TouchableOpacity
-                style={styles.emptyButton}
+                style={[styles.emptyButton, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
                 onPress={handleCreateService}
             >
-                <Text style={styles.emptyButtonText}>Создать первую услугу</Text>
+                <Text style={[styles.emptyButtonText, { color: '#FFFFFF' }]}>Создать первую услугу</Text>
             </TouchableOpacity>
         </View>
     );
@@ -320,14 +324,14 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         if (!hasMore || services.length === 0) return null;
         return (
             <View style={styles.footerLoader}>
-                <ActivityIndicator color="#FFD700" />
+                <ActivityIndicator color={colors.accent} />
             </View>
         );
     };
 
     return (
         <LinearGradient
-            colors={['#0a0a14', '#12122b']}
+            colors={roleTheme.gradient}
             style={styles.gradient}
         >
             <SafeAreaView style={styles.container} edges={['top']}>
@@ -336,7 +340,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
                 {loading && services.length === 0 ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#FFD700" />
+                        <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
                     <FlatList
@@ -352,7 +356,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={onRefresh}
-                                tintColor="#FFD700"
+                                tintColor={colors.accent}
                             />
                         }
                         onEndReached={onLoadMore}

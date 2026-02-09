@@ -340,16 +340,37 @@ export const removeItemFromFolder = (
     folderId: string,
     itemId: string
 ): PortalLayout => {
-    const newLayout = { ...layout };
+    const newLayout: PortalLayout = {
+        ...layout,
+        pages: layout.pages.map((p) => ({
+            ...p,
+            items: p.items.map((it) => it.type === 'folder' ? { ...it, items: [...it.items] } : { ...it }),
+            widgets: [...p.widgets],
+        })),
+        quickAccess: [...layout.quickAccess],
+    };
     const page = newLayout.pages[pageIndex];
+    if (!page) return layout;
 
     const folder = page.items.find(i => i.id === folderId) as PortalFolder | undefined;
     if (folder && folder.type === 'folder') {
         const item = folder.items.find(i => i.id === itemId);
         if (item) {
+            // Remove from folder and normalize positions
             folder.items = folder.items.filter(i => i.id !== itemId);
-            // Add item back to main grid
-            page.items.push({ ...item, position: page.items.length });
+            folder.items = folder.items.map((i, idx) => ({ ...i, position: idx }));
+
+            // If service already exists in grid/quick access, avoid duplicate keys/items
+            const existsInGrid = page.items.some(i => i.type === 'service' && i.serviceId === item.serviceId);
+            const existsInQuickAccess = newLayout.quickAccess.some(i => i.serviceId === item.serviceId);
+
+            if (!existsInGrid && !existsInQuickAccess) {
+                page.items.push({
+                    ...item,
+                    id: `item-${item.serviceId}-${Date.now()}`,
+                    position: page.items.length,
+                });
+            }
         }
     }
 

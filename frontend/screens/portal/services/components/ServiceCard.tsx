@@ -18,6 +18,8 @@ import {
     ACCESS_LABELS,
 } from '../../../../services/serviceService';
 import { formatBalance } from '../../../../services/walletService';
+import { useUser } from '../../../../context/UserContext';
+import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 import {
     Star,
     Calendar,
@@ -56,6 +58,8 @@ interface ServiceCardProps {
 }
 
 export default function ServiceCard({ service, onPress, compact = false }: ServiceCardProps) {
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
     const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
     const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
 
@@ -83,21 +87,21 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                         />
                     ) : (
                         <LinearGradient
-                            colors={['#1e1e3a', '#12122b']}
+                            colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
                             style={styles.compactImagePlaceholder}
                         >
-                            <CategoryIcon name={iconName} size={32} color="rgba(245, 158, 11, 0.2)" />
+                            <CategoryIcon name={iconName} size={32} color={colors.accentSoft} />
                         </LinearGradient>
                     )}
                 </View>
                 <View style={styles.compactContent}>
-                    <Text style={styles.compactTitle} numberOfLines={1}>{service.title}</Text>
+                    <Text style={[styles.compactTitle, { color: colors.textPrimary }]} numberOfLines={1}>{service.title}</Text>
                     <View style={styles.compactMeta}>
-                        <CategoryIcon name={iconName} size={12} color="rgba(245, 158, 11, 0.7)" />
-                        <Text style={styles.compactCategory}>{categoryLabel}</Text>
+                        <CategoryIcon name={iconName} size={12} color={colors.accent} />
+                        <Text style={[styles.compactCategory, { color: colors.textSecondary }]}>{categoryLabel}</Text>
                     </View>
                     {minPrice > 0 && (
-                        <Text style={styles.compactPrice}>от {formatBalance(minPrice)}</Text>
+                        <Text style={[styles.compactPrice, { color: colors.accent }]}>от {formatBalance(minPrice)}</Text>
                     )}
                 </View>
             </TouchableOpacity>
@@ -106,7 +110,7 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
 
     return (
         <TouchableOpacity
-            style={styles.card}
+            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => onPress(service)}
             activeOpacity={0.9}
         >
@@ -119,10 +123,10 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                     />
                 ) : (
                     <LinearGradient
-                        colors={['#1e1e3a', '#12122b']}
+                        colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
                         style={styles.imagePlaceholder}
                     >
-                        <CategoryIcon name={iconName} size={40} color="rgba(245, 158, 11, 0.2)" />
+                        <CategoryIcon name={iconName} size={40} color={colors.accentSoft} />
                     </LinearGradient>
                 )}
 
@@ -132,14 +136,14 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                 />
 
                 <View style={styles.topBadges}>
-                    <View style={styles.categoryBadge}>
-                        <CategoryIcon name={iconName} size={10} color="#F59E0B" />
+                    <View style={[styles.categoryBadge, { borderColor: colors.border }]}>
+                        <CategoryIcon name={iconName} size={10} color={colors.accent} />
                         <Text style={styles.categoryBadgeText}>{categoryLabel}</Text>
                     </View>
 
                     {service.rating > 0 && (
-                        <View style={styles.ratingBadge}>
-                            <Star size={10} color="#F59E0B" fill="#F59E0B" />
+                        <View style={[styles.ratingBadge, { borderColor: colors.accentSoft }]}>
+                            <Star size={10} color={colors.accent} fill={colors.accent} />
                             <Text style={styles.ratingText}>{service.rating.toFixed(1)}</Text>
                         </View>
                     )}
@@ -148,23 +152,23 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
 
             {/* Content Section */}
             <View style={styles.content}>
-                <Text style={styles.title} numberOfLines={2}>{service.title}</Text>
+                <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{service.title}</Text>
 
                 <View style={styles.ownerRow}>
-                    <View style={styles.ownerAvatarPlaceholder}>
-                        <Crown size={10} color="#F59E0B" />
+                    <View style={[styles.ownerAvatarPlaceholder, { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft }]}>
+                        <Crown size={10} color={colors.accent} />
                     </View>
-                    <Text style={styles.ownerName} numberOfLines={1}>{ownerName}</Text>
+                    <Text style={[styles.ownerName, { color: colors.textSecondary }]} numberOfLines={1}>{ownerName}</Text>
                 </View>
 
                 <View style={styles.footer}>
                     <View style={styles.priceRow}>
                         <Text style={styles.priceFrom}>от</Text>
-                        <Text style={styles.priceValue}>{formatBalance(minPrice)}</Text>
+                        <Text style={[styles.priceValue, { color: colors.accent }]}>{formatBalance(minPrice)}</Text>
                     </View>
 
-                    <View style={styles.actionArrow}>
-                        <Sparkles size={12} color="#F59E0B" />
+                    <View style={[styles.actionArrow, { backgroundColor: colors.accentSoft }]}>
+                        <Sparkles size={12} color={colors.accent} />
                     </View>
                 </View>
             </View>

@@ -33,6 +33,8 @@ import {
 import { cafeService } from '../../../services/cafeService';
 import { Cafe, Dish, MenuResponse } from '../../../types/cafe';
 import { useCart } from '../../../contexts/CafeCartContext';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -49,6 +51,8 @@ const CafeDetailScreen: React.FC = () => {
     const route = useRoute<RouteProp<RouteParams, 'CafeDetail'>>();
     const { t } = useTranslation();
     const { cafeId, tableId, tableNumber } = route.params;
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
 
     const [cafe, setCafe] = useState<Cafe | null>(null);
     const [menu, setMenu] = useState<MenuResponse | null>(null);
@@ -120,15 +124,15 @@ const CafeDetailScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
             </LinearGradient>
         );
     }
 
     if (!cafe) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
                 <Info size={48} color="rgba(255, 255, 255, 0.2)" />
                 <Text style={styles.errorText}>{t('cafe.dashboard.notFound')}</Text>
             </LinearGradient>
@@ -140,7 +144,7 @@ const CafeDetailScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             <LinearGradient
-                colors={['#0a0a14', '#12122b']}
+                colors={roleTheme.gradient}
                 style={StyleSheet.absoluteFill}
             />
 
@@ -163,7 +167,7 @@ const CafeDetailScreen: React.FC = () => {
                             <View style={styles.titleContainer}>
                                 <Text style={styles.cafeName}>{cafe.name}</Text>
                                 <View style={styles.ratingRow}>
-                                    <Star size={14} color="#F59E0B" fill="#F59E0B" />
+                                    <Star size={14} color={colors.accent} fill={colors.accent} />
                                     <Text style={styles.ratingText}>{cafe.rating.toFixed(1)}</Text>
                                     <Text style={styles.reviewsText}>({cafe.reviewsCount} {t('cafe.detail.reviews')})</Text>
                                 </View>
@@ -180,7 +184,7 @@ const CafeDetailScreen: React.FC = () => {
                         <View style={styles.detailsGrid}>
                             <View style={styles.detailItem}>
                                 <View style={styles.detailIcon}>
-                                    <MapPin size={16} color="#F59E0B" />
+                                    <MapPin size={16} color={colors.accent} />
                                 </View>
                                 <Text style={styles.detailText} numberOfLines={2}>{cafe.address}</Text>
                             </View>
@@ -221,12 +225,12 @@ const CafeDetailScreen: React.FC = () => {
                 {!!tableId && (
                     <View style={styles.tableBanner}>
                         <LinearGradient
-                            colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
+                            colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={styles.tableBannerGradient}
                         >
-                            <Utensils size={18} color="#F59E0B" />
+                            <Utensils size={18} color={colors.accent} />
                             <Text style={styles.tableBannerText}>
                                 {t('cafe.detail.tableInfo', { tableNumber })}
                             </Text>

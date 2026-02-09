@@ -18,6 +18,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { newsService, NewsItem } from '../../../services/newsService';
 import { RootStackParamList } from '../../../types/navigation';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +31,8 @@ export const NewsDetailScreen = () => {
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const navigation = useNavigation();
     const route = useRoute<NewsDetailRouteProp>();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, true);
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
     const { newsId } = route.params;
@@ -74,7 +78,7 @@ export const NewsDetailScreen = () => {
     if (loading) {
         return (
             <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-                <ActivityIndicator size="large" color={theme.primary || '#6366f1'} />
+                <ActivityIndicator size="large" color={roleColors.accent} />
                 <Text style={[styles.loadingText, { color: theme.subText }]}>
                     {lang === 'en' ? 'Loading...' : 'Загрузка...'}
                 </Text>
@@ -90,7 +94,7 @@ export const NewsDetailScreen = () => {
                     {error || (lang === 'en' ? 'News not found' : 'Новость не найдена')}
                 </Text>
                 <TouchableOpacity
-                    style={[styles.retryButton, { backgroundColor: theme.primary || '#6366f1' }]}
+                    style={[styles.retryButton, { backgroundColor: roleColors.accent }]}
                     onPress={loadNewsDetail}
                 >
                     <Text style={styles.retryButtonText}>
@@ -101,7 +105,7 @@ export const NewsDetailScreen = () => {
                     style={styles.backButton}
                     onPress={handleGoBack}
                 >
-                    <Text style={[styles.backButtonText, { color: theme.primary || '#6366f1' }]}>
+                    <Text style={[styles.backButtonText, { color: roleColors.accent }]}>
                         {lang === 'en' ? '← Back' : '← Назад'}
                     </Text>
                 </TouchableOpacity>
@@ -114,12 +118,12 @@ export const NewsDetailScreen = () => {
             {/* Header with back button */}
             <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
                 <TouchableOpacity onPress={handleGoBack} style={styles.headerButton}>
-                    <Text style={[styles.headerButtonText, { color: theme.primary || '#6366f1' }]}>
+                    <Text style={[styles.headerButtonText, { color: roleColors.accent }]}>
                         ← {lang === 'en' ? 'Back' : 'Назад'}
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleShare} style={styles.headerButton}>
-                    <Text style={[styles.headerButtonText, { color: theme.primary || '#6366f1' }]}>
+                    <Text style={[styles.headerButtonText, { color: roleColors.accent }]}>
                         {lang === 'en' ? 'Share' : 'Поделиться'} ↗
                     </Text>
                 </TouchableOpacity>
@@ -187,10 +191,10 @@ export const NewsDetailScreen = () => {
                     {/* Original Source Button (for Video/Audio) */}
                     {news.originalUrl && (
                         <TouchableOpacity
-                            style={[styles.sourceButton, { borderColor: theme.primary || '#6366f1' }]}
+                            style={[styles.sourceButton, { borderColor: roleColors.accent }]}
                             onPress={() => Linking.openURL(news.originalUrl)}
                         >
-                            <Text style={[styles.sourceButtonText, { color: theme.primary || '#6366f1' }]}>
+                            <Text style={[styles.sourceButtonText, { color: roleColors.accent }]}>
                                 {lang === 'en' ? '📺 View Original (Video/Audio)' : '📺 Перейти к источнику (Видео/Аудио)'}
                             </Text>
                         </TouchableOpacity>

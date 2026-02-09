@@ -1,0 +1,593 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Role themed UI components renders PrimaryButton in devotee theme 1`] = `
+<View
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onBlur={[Function]}
+  onClick={[Function]}
+  onFocus={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 12,
+        "borderWidth": 1,
+        "justifyContent": "center",
+        "minHeight": 44,
+        "paddingHorizontal": 16,
+      },
+      {
+        "backgroundColor": "#F97316",
+        "borderColor": "rgba(255,255,255,0.18)",
+        "opacity": 1,
+        "paddingVertical": 12,
+      },
+      undefined,
+    ]
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 15,
+          "fontWeight": "700",
+        },
+        {
+          "color": "#FFFFFF",
+        },
+      ]
+    }
+  >
+    Continue
+  </Text>
+</View>
+`;
+
+exports[`Role themed UI components renders PrimaryButton in in_goodness theme 1`] = `
+<View
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onBlur={[Function]}
+  onClick={[Function]}
+  onFocus={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 12,
+        "borderWidth": 1,
+        "justifyContent": "center",
+        "minHeight": 44,
+        "paddingHorizontal": 16,
+      },
+      {
+        "backgroundColor": "#22C55E",
+        "borderColor": "rgba(255,255,255,0.18)",
+        "opacity": 1,
+        "paddingVertical": 12,
+      },
+      undefined,
+    ]
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 15,
+          "fontWeight": "700",
+        },
+        {
+          "color": "#FFFFFF",
+        },
+      ]
+    }
+  >
+    Continue
+  </Text>
+</View>
+`;
+
+exports[`Role themed UI components renders PrimaryButton in user theme 1`] = `
+<View
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onBlur={[Function]}
+  onClick={[Function]}
+  onFocus={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 12,
+        "borderWidth": 1,
+        "justifyContent": "center",
+        "minHeight": 44,
+        "paddingHorizontal": 16,
+      },
+      {
+        "backgroundColor": "#6B7280",
+        "borderColor": "rgba(255,255,255,0.18)",
+        "opacity": 1,
+        "paddingVertical": 12,
+      },
+      undefined,
+    ]
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 15,
+          "fontWeight": "700",
+        },
+        {
+          "color": "#FFFFFF",
+        },
+      ]
+    }
+  >
+    Continue
+  </Text>
+</View>
+`;
+
+exports[`Role themed UI components renders PrimaryButton in yogi theme 1`] = `
+<View
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onBlur={[Function]}
+  onClick={[Function]}
+  onFocus={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 12,
+        "borderWidth": 1,
+        "justifyContent": "center",
+        "minHeight": 44,
+        "paddingHorizontal": 16,
+      },
+      {
+        "backgroundColor": "#0EA5E9",
+        "borderColor": "rgba(255,255,255,0.18)",
+        "opacity": 1,
+        "paddingVertical": 12,
+      },
+      undefined,
+    ]
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 15,
+          "fontWeight": "700",
+        },
+        {
+          "color": "#FFFFFF",
+        },
+      ]
+    }
+  >
+    Continue
+  </Text>
+</View>
+`;
+
+exports[`Role themed UI components renders SectionHeader in devotee theme 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 14,
+        "borderWidth": 1,
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "minHeight": 44,
+        "paddingHorizontal": 14,
+        "paddingVertical": 12,
+      },
+      {
+        "backgroundColor": "rgba(15,23,42,0.6)",
+        "borderColor": "rgba(255,255,255,0.18)",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      {
+        "flex": 1,
+      }
+    }
+  >
+    <Text
+      style={
+        [
+          {
+            "fontSize": 16,
+            "fontWeight": "800",
+          },
+          {
+            "color": "#F8FAFC",
+          },
+        ]
+      }
+    >
+      Header
+    </Text>
+    <Text
+      style={
+        [
+          {
+            "fontSize": 12,
+            "lineHeight": 17,
+            "marginTop": 2,
+          },
+          {
+            "color": "rgba(248,250,252,0.72)",
+          },
+        ]
+      }
+    >
+      Subtitle
+    </Text>
+  </View>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 13,
+          "fontWeight": "700",
+          "marginLeft": 10,
+        },
+        {
+          "color": "#F97316",
+        },
+      ]
+    }
+  >
+    Action
+  </Text>
+</View>
+`;
+
+exports[`Role themed UI components renders SectionHeader in in_goodness theme 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 14,
+        "borderWidth": 1,
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "minHeight": 44,
+        "paddingHorizontal": 14,
+        "paddingVertical": 12,
+      },
+      {
+        "backgroundColor": "rgba(15,23,42,0.6)",
+        "borderColor": "rgba(255,255,255,0.18)",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      {
+        "flex": 1,
+      }
+    }
+  >
+    <Text
+      style={
+        [
+          {
+            "fontSize": 16,
+            "fontWeight": "800",
+          },
+          {
+            "color": "#F8FAFC",
+          },
+        ]
+      }
+    >
+      Header
+    </Text>
+    <Text
+      style={
+        [
+          {
+            "fontSize": 12,
+            "lineHeight": 17,
+            "marginTop": 2,
+          },
+          {
+            "color": "rgba(248,250,252,0.72)",
+          },
+        ]
+      }
+    >
+      Subtitle
+    </Text>
+  </View>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 13,
+          "fontWeight": "700",
+          "marginLeft": 10,
+        },
+        {
+          "color": "#22C55E",
+        },
+      ]
+    }
+  >
+    Action
+  </Text>
+</View>
+`;
+
+exports[`Role themed UI components renders SectionHeader in user theme 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 14,
+        "borderWidth": 1,
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "minHeight": 44,
+        "paddingHorizontal": 14,
+        "paddingVertical": 12,
+      },
+      {
+        "backgroundColor": "rgba(15,23,42,0.6)",
+        "borderColor": "rgba(255,255,255,0.18)",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      {
+        "flex": 1,
+      }
+    }
+  >
+    <Text
+      style={
+        [
+          {
+            "fontSize": 16,
+            "fontWeight": "800",
+          },
+          {
+            "color": "#F8FAFC",
+          },
+        ]
+      }
+    >
+      Header
+    </Text>
+    <Text
+      style={
+        [
+          {
+            "fontSize": 12,
+            "lineHeight": 17,
+            "marginTop": 2,
+          },
+          {
+            "color": "rgba(248,250,252,0.72)",
+          },
+        ]
+      }
+    >
+      Subtitle
+    </Text>
+  </View>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 13,
+          "fontWeight": "700",
+          "marginLeft": 10,
+        },
+        {
+          "color": "#6B7280",
+        },
+      ]
+    }
+  >
+    Action
+  </Text>
+</View>
+`;
+
+exports[`Role themed UI components renders SectionHeader in yogi theme 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "borderRadius": 14,
+        "borderWidth": 1,
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "minHeight": 44,
+        "paddingHorizontal": 14,
+        "paddingVertical": 12,
+      },
+      {
+        "backgroundColor": "rgba(15,23,42,0.6)",
+        "borderColor": "rgba(255,255,255,0.18)",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      {
+        "flex": 1,
+      }
+    }
+  >
+    <Text
+      style={
+        [
+          {
+            "fontSize": 16,
+            "fontWeight": "800",
+          },
+          {
+            "color": "#F8FAFC",
+          },
+        ]
+      }
+    >
+      Header
+    </Text>
+    <Text
+      style={
+        [
+          {
+            "fontSize": 12,
+            "lineHeight": 17,
+            "marginTop": 2,
+          },
+          {
+            "color": "rgba(248,250,252,0.72)",
+          },
+        ]
+      }
+    >
+      Subtitle
+    </Text>
+  </View>
+  <Text
+    style={
+      [
+        {
+          "fontSize": 13,
+          "fontWeight": "700",
+          "marginLeft": 10,
+        },
+        {
+          "color": "#0EA5E9",
+        },
+      ]
+    }
+  >
+    Action
+  </Text>
+</View>
+`;

@@ -144,7 +144,7 @@ import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+import { navigationRef } from './navigation/navigationRef';
 
 // Component to handle StatusBar styling based on theme context
 const ThemedStatusBar = () => {

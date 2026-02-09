@@ -209,6 +209,7 @@ export const PortalDrawer: React.FC<PortalDrawerProps> = ({
                     visible={showRoleInfo}
                     title={roleDescriptor?.title || 'Роль'}
                     servicesHint={roleDescriptor?.servicesHint || []}
+                    role={roleDescriptor?.role}
                     onClose={() => setShowRoleInfo(false)}
                 />
             </GestureHandlerRootView>

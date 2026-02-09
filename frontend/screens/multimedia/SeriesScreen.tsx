@@ -11,10 +11,11 @@ import {
     Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Film, Search, Play, Loader2, ArrowLeft, Layers, Calendar } from 'lucide-react-native';
-import { ScrollView } from 'react-native';
+import { Film, Search, Loader2, ArrowLeft, Layers, Calendar } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { multimediaService } from '../../services/multimediaService';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -51,6 +52,8 @@ interface Episode {
 export const SeriesScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [series, setSeries] = useState<Series[]>([]);
@@ -79,19 +82,18 @@ export const SeriesScreen: React.FC = () => {
 
     const renderSeriesCard = ({ item }: { item: Series }) => {
         const seasonsCount = item.seasons?.length || 0;
-        const episodesCount = item.seasons?.reduce((acc, s) => acc + (s.episodes?.length || 0), 0) || 0;
 
         return (
             <TouchableOpacity
-                style={[styles.seriesCard, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}
+                style={[styles.seriesCard, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
                 onPress={() => navigation.navigate('SeriesDetail', { series: item })}
                 activeOpacity={0.8}
             >
                 {item.coverImageURL ? (
                     <Image source={{ uri: item.coverImageURL }} style={styles.poster} />
                 ) : (
-                    <View style={[styles.posterPlaceholder, { backgroundColor: `${vTheme.colors.primary}15` }]}>
-                        <Film size={40} color={vTheme.colors.primary} />
+                    <View style={[styles.posterPlaceholder, { backgroundColor: roleColors.accentSoft }]}>
+                        <Film size={40} color={roleColors.accent} />
                     </View>
                 )}
 
@@ -99,7 +101,7 @@ export const SeriesScreen: React.FC = () => {
                 <View style={styles.cardOverlay}>
                     <View style={styles.badgeContainer}>
                         {item.isFeatured && (
-                            <View style={[styles.featuredBadge, { backgroundColor: vTheme.colors.accent }]}>
+                            <View style={[styles.featuredBadge, { backgroundColor: roleColors.accent }]}>
                                 <Text style={styles.featuredText}>★ ТОП</Text>
                             </View>
                         )}
@@ -107,28 +109,28 @@ export const SeriesScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.cardInfo}>
-                    <Text style={[styles.seriesTitle, { color: vTheme.colors.text }]} numberOfLines={2}>
+                    <Text style={[styles.seriesTitle, { color: roleColors.textPrimary }]} numberOfLines={2}>
                         {item.title}
                     </Text>
 
                     <View style={styles.metaRow}>
                         {item.year && (
                             <View style={styles.metaItem}>
-                                <Calendar size={12} color={vTheme.colors.textSecondary} />
-                                <Text style={[styles.metaText, { color: vTheme.colors.textSecondary }]}>{item.year}</Text>
+                                <Calendar size={12} color={roleColors.textSecondary} />
+                                <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.year}</Text>
                             </View>
                         )}
                         <View style={styles.metaItem}>
-                            <Layers size={12} color={vTheme.colors.textSecondary} />
-                            <Text style={[styles.metaText, { color: vTheme.colors.textSecondary }]}>
+                            <Layers size={12} color={roleColors.textSecondary} />
+                            <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
                                 {seasonsCount} сез.
                             </Text>
                         </View>
                     </View>
 
                     {item.genre && (
-                        <View style={[styles.genreBadge, { backgroundColor: `${vTheme.colors.accent}20` }]}>
-                            <Text style={[styles.genreText, { color: vTheme.colors.accent }]}>{item.genre}</Text>
+                        <View style={[styles.genreBadge, { backgroundColor: roleColors.accentSoft }]}>
+                            <Text style={[styles.genreText, { color: roleColors.accent }]}>{item.genre}</Text>
                         </View>
                     )}
                 </View>
@@ -137,23 +139,23 @@ export const SeriesScreen: React.FC = () => {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: roleColors.background }]}>
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+            <View style={[styles.header, { backgroundColor: roleColors.background }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={vTheme.colors.text} />
+                    <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Сериалы</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Сериалы</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             {/* Search */}
-            <View style={[styles.searchContainer, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}>
-                <Search size={20} color={vTheme.colors.textSecondary} />
+            <View style={[styles.searchContainer, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border, ...vTheme.shadows.soft }]}>
+                <Search size={20} color={roleColors.textSecondary} />
                 <TextInput
-                    style={[styles.searchInput, { color: vTheme.colors.text }]}
+                    style={[styles.searchInput, { color: roleColors.textPrimary }]}
                     placeholder="Поиск сериалов..."
-                    placeholderTextColor={vTheme.colors.textSecondary}
+                    placeholderTextColor={roleColors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
                 />
@@ -162,8 +164,8 @@ export const SeriesScreen: React.FC = () => {
             {/* Content */}
             {loading ? (
                 <View style={styles.center}>
-                    <Loader2 size={32} color={vTheme.colors.primary} />
-                    <Text style={[styles.loadingText, { color: vTheme.colors.textSecondary }]}>Загрузка сериалов...</Text>
+                    <Loader2 size={32} color={roleColors.accent} />
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка сериалов...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -177,13 +179,13 @@ export const SeriesScreen: React.FC = () => {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={() => { setRefreshing(true); loadSeries(); }}
-                            tintColor={vTheme.colors.primary}
+                            tintColor={roleColors.accent}
                         />
                     }
                     ListEmptyComponent={
                         <View style={styles.center}>
-                            <Film size={48} color={vTheme.colors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>
+                            <Film size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>
                                 Сериалы пока не добавлены
                             </Text>
                         </View>
@@ -223,6 +225,7 @@ const styles = StyleSheet.create({
         marginTop: 0,
         paddingHorizontal: 16,
         borderRadius: 16,
+        borderWidth: 1,
     },
     searchInput: {
         flex: 1,

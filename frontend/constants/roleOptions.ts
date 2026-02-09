@@ -18,7 +18,7 @@ export const ROLE_OPTIONS: RoleOption[] = [
     subtitle: 'Стартовый профиль',
     description: 'Для мягкого входа в экосистему сервисов.',
     image: require('../assets/roles/user.png'),
-    servicesHint: ['Новости', 'Библиотека', 'Обучение'],
+    servicesHint: ['Новости', 'Библиотека', 'Обучение', 'Кафе'],
     highlightColor: '#6B7280',
   },
   {

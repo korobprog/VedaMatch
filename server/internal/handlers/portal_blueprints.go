@@ -38,12 +38,13 @@ var portalBlueprints = map[string]PortalBlueprint{
 		Title:          "Искатель",
 		Description:    "Базовый портрет для повседневной духовной практики.",
 		HighlightColor: "#6B7280",
-		QuickAccess:    []string{"contacts", "chat", "news"},
-		HeroServices:   []string{"news", "library", "education"},
+		QuickAccess:    []string{"contacts", "chat", "cafe"},
+		HeroServices:   []string{"news", "library", "education", "cafe"},
 		ServicesHint: []ServiceHint{
 			{ServiceID: "news", Title: "Новости", Filters: []string{"community", "daily_digest"}},
 			{ServiceID: "library", Title: "Библиотека", Filters: []string{"beginner_path", "daily_reading"}},
 			{ServiceID: "education", Title: "Обучение", Filters: []string{"foundations"}},
+			{ServiceID: "cafe", Title: "Кафе", Filters: []string{"sattvic_menu", "prasadam_only"}},
 		},
 	},
 	models.RoleInGoodness: {

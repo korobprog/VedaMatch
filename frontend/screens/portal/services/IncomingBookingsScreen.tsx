@@ -40,6 +40,8 @@ import {
     STATUS_COLORS,
     formatDuration,
 } from '../../../services/bookingService';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -53,6 +55,8 @@ const FILTER_TABS: { key: FilterTab; label: string }[] = [
 
 export default function IncomingBookingsScreen() {
     const navigation = useNavigation<any>();
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
 
     const [bookings, setBookings] = useState<ServiceBooking[]>([]);
     const [loading, setLoading] = useState(true);
@@ -210,7 +214,7 @@ export default function IncomingBookingsScreen() {
     };
 
     const renderBookingCard = (booking: ServiceBooking) => {
-        const statusColor = STATUS_COLORS[booking.status] || '#F59E0B';
+        const statusColor = STATUS_COLORS[booking.status] || colors.accent;
         const isProcessing = processingId === booking.id;
         const soon = isStartingSoon(booking);
         const past = isPast(booking);
@@ -226,7 +230,7 @@ export default function IncomingBookingsScreen() {
                     </View>
                     {soon && (
                         <View style={styles.soonBadge}>
-                            <Sparkles size={10} color="#F59E0B" />
+                            <Sparkles size={10} color={colors.accent} />
                             <Text style={styles.soonText}>Срочно</Text>
                         </View>
                     )}
@@ -264,11 +268,11 @@ export default function IncomingBookingsScreen() {
 
                 <View style={styles.infoRow}>
                     <View style={styles.infoItem}>
-                        <Calendar size={14} color="#F59E0B" />
+                        <Calendar size={14} color={colors.accent} />
                         <Text style={styles.infoText}>{formatDate(booking.scheduledAt)}</Text>
                     </View>
                     <View style={styles.infoItem}>
-                        <Clock size={14} color="#F59E0B" />
+                        <Clock size={14} color={colors.accent} />
                         <Text style={styles.infoText}>{formatTime(booking.scheduledAt)}</Text>
                     </View>
                     <View style={styles.priceContainer}>
@@ -291,7 +295,7 @@ export default function IncomingBookingsScreen() {
 
                 <View style={styles.actionsGrid}>
                     <TouchableOpacity style={styles.chatButton} onPress={() => handleOpenChat(booking)}>
-                        <MessageCircle size={20} color="#F59E0B" />
+                        <MessageCircle size={20} color={colors.accent} />
                     </TouchableOpacity>
 
                     {booking.status === 'pending' && (
@@ -366,11 +370,11 @@ export default function IncomingBookingsScreen() {
     );
 
     return (
-        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+        <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle}>Входящие записи</Text>
@@ -403,7 +407,7 @@ export default function IncomingBookingsScreen() {
 
                 {loading ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#F59E0B" />
+                        <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
                     <ScrollView
@@ -411,7 +415,7 @@ export default function IncomingBookingsScreen() {
                         contentContainerStyle={styles.contentContainer}
                         showsVerticalScrollIndicator={false}
                         refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#F59E0B" />
+                            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />
                         }
                     >
                         {bookings.length === 0 ? renderEmptyState() : bookings.map(renderBookingCard)}

@@ -36,6 +36,7 @@ import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../.
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import {
     BarChart2,
     Filter,
@@ -85,6 +86,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const { setChatRecipient } = useChat();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { isDarkMode, theme, vTheme } = useSettings();
+    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, true);
 
     const [candidates, setCandidates] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
@@ -484,8 +486,8 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             >
                                 <Heart
                                     size={20}
-                                    color={isFavorited ? '#F59E0B' : '#fff'}
-                                    fill={isFavorited ? '#F59E0B' : 'transparent'}
+                                    color={isFavorited ? roleColors.accent : '#fff'}
+                                    fill={isFavorited ? roleColors.accent : 'transparent'}
                                 />
                             </TouchableOpacity>
                         )}
@@ -500,7 +502,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     style={[
                                         styles.cardPaginationBar,
                                         {
-                                            backgroundColor: i === activeIndex ? '#F59E0B' : 'rgba(255,255,255,0.2)',
+                                            backgroundColor: i === activeIndex ? roleColors.accent : 'rgba(255,255,255,0.2)',
                                             flex: 1,
                                             height: 2,
                                         }
@@ -535,7 +537,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             </View>
 
                             <View style={styles.cardLocationRow}>
-                                <MapPin size={12} color="#F59E0B" style={{ marginRight: 6 }} />
+                                <MapPin size={12} color={roleColors.accent} style={{ marginRight: 6 }} />
                                 <Text style={styles.cardLocationText}>{item.city}</Text>
                             </View>
 
@@ -544,14 +546,14 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <>
                                         {item.industry && (
                                             <View style={styles.cardTag}>
-                                                <Briefcase size={10} color="#F59E0B" />
+                                                <Briefcase size={10} color={roleColors.accent} />
                                                 <Text style={styles.cardTagText}>{item.industry}</Text>
                                             </View>
                                         )}
                                     </>
                                 ) : (
                                     <View style={styles.cardTag}>
-                                        <Sparkles size={10} color="#F59E0B" />
+                                        <Sparkles size={10} color={roleColors.accent} />
                                         <Text style={styles.cardTagText}>{item.madh || 'Vaisnava'}</Text>
                                     </View>
                                 )}
@@ -569,7 +571,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         onPress={() => handleCheckCompatibility(item.ID)}
                                     >
                                         <LinearGradient
-                                            colors={['#F59E0B', '#D67D3E']}
+                                            colors={[roleTheme.accent, roleTheme.accentStrong]}
                                             start={{ x: 0, y: 0 }}
                                             end={{ x: 1, y: 0 }}
                                             style={styles.cardCompatibilityGradient}
@@ -591,7 +593,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
     return (
         <ProtectedScreen requireCompleteProfile={true}>
-            <LinearGradient colors={['#06060c', '#12122b', '#06060c']} style={styles.fullGradient}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.fullGradient}>
                 <StatusBar barStyle="light-content" />
                 <View style={[styles.container, { backgroundColor: 'transparent' }]}>
                     <View style={styles.premiumHeader}>
@@ -608,7 +610,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             style={[styles.headerIconButton, showStats && styles.headerIconButtonActive]}
                             onPress={() => setShowStats(!showStats)}
                         >
-                            <BarChart2 size={20} color={showStats ? '#F59E0B' : 'rgba(255,255,255,0.7)'} />
+                            <BarChart2 size={20} color={showStats ? roleColors.accent : 'rgba(255,255,255,0.7)'} />
                         </TouchableOpacity>
                     </View>
                     <GodModeStatusBanner />
@@ -623,7 +625,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 style={styles.glassActionBtn}
                                 onPress={() => setShowFilters(true)}
                             >
-                                <Filter size={16} color="#F59E0B" />
+                                <Filter size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>{t('dating.filter')}</Text>
                             </TouchableOpacity>
 
@@ -631,7 +633,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 style={styles.glassActionBtn}
                                 onPress={() => user?.ID && navigation.navigate('EditDatingProfile', { userId: user.ID })}
                             >
-                                <UserPen size={16} color="#F59E0B" />
+                                <UserPen size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>{t('dating.editProfile')}</Text>
                             </TouchableOpacity>
 
@@ -639,7 +641,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 style={styles.glassActionBtn}
                                 onPress={() => fetchPreviewProfile()}
                             >
-                                <Eye size={16} color="#F59E0B" />
+                                <Eye size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>Preview</Text>
                             </TouchableOpacity>
 
@@ -647,7 +649,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 style={styles.glassActionBtn}
                                 onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                             >
-                                <ImageIcon size={16} color="#F59E0B" />
+                                <ImageIcon size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>Media</Text>
                             </TouchableOpacity>
 
@@ -655,7 +657,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 style={styles.glassActionBtn}
                                 onPress={() => navigation.navigate('DatingFavorites')}
                             >
-                                <Heart size={16} color="#F59E0B" />
+                                <Heart size={16} color={roleColors.accent} />
                                 <Text style={styles.glassActionText}>{t('dating.favorites')}</Text>
                             </TouchableOpacity>
                         </ScrollView>
@@ -702,7 +704,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     style={styles.statItem}
                                     onPress={() => { setFilterCity(''); setFilterNew(false); fetchCandidates(); }}
                                 >
-                                    <Users2 size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+                                    <Users2 size={20} color={roleColors.accent} style={{ marginRight: 8 }} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.total}</Text>
                                         <Text style={styles.statLabel}>Total</Text>
@@ -712,7 +714,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     style={styles.statItem}
                                     onPress={() => { if (user?.city) { setFilterCity(user.city); setFilterNew(false); fetchCandidates(); } }}
                                 >
-                                    <MapPin size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+                                    <MapPin size={20} color={roleColors.accent} style={{ marginRight: 8 }} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.city}</Text>
                                         <Text style={styles.statLabel}>In {user?.city}</Text>
@@ -722,7 +724,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     style={styles.statItem}
                                     onPress={() => { setFilterNew(!filterNew); if (!filterNew) setFilterCity(''); fetchCandidates(); }}
                                 >
-                                    <Sparkles size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+                                    <Sparkles size={20} color={roleColors.accent} style={{ marginRight: 8 }} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.new}</Text>
                                         <Text style={styles.statLabel}>New (24h)</Text>
@@ -734,7 +736,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
                     {loading ? (
                         <View style={{ flex: 1, justifyContent: 'center' }}>
-                            <ActivityIndicator size="large" color="#F59E0B" />
+                            <ActivityIndicator size="large" color={roleColors.accent} />
                         </View>
                     ) : candidates.length === 0 ? (
                         <View style={styles.empty}>
@@ -771,7 +773,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
                                     {checkingComp ? (
                                         <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                                            <ActivityIndicator color="#F59E0B" size="large" />
+                                            <ActivityIndicator color={roleColors.accent} size="large" />
                                             <Text style={[styles.modalText, { textAlign: 'center', marginTop: 15 }]}>{t('dating.exploringStars')}</Text>
                                         </View>
                                     ) : (
@@ -787,7 +789,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         style={styles.premiumButtonPrimary}
                                         onPress={handleConnect}
                                     >
-                                        <LinearGradient colors={['#F59E0B', '#D67D3E']} style={styles.buttonGradient}>
+                                        <LinearGradient colors={[roleTheme.accent, roleTheme.accentStrong]} style={styles.buttonGradient}>
                                             <Text style={styles.premiumButtonText}>
                                                 {friendIds.includes(currentCandidateId || 0) ? t('dating.chat') : t('dating.connect')}
                                             </Text>
@@ -885,7 +887,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         style={styles.premiumButtonPrimary}
                                         onPress={() => { setShowFilters(false); fetchCandidates(); }}
                                     >
-                                        <LinearGradient colors={['#F59E0B', '#D67D3E']} style={styles.buttonGradient}>
+                                        <LinearGradient colors={[roleTheme.accent, roleTheme.accentStrong]} style={styles.buttonGradient}>
                                             <Text style={styles.premiumButtonText}>{t('dating.apply')}</Text>
                                         </LinearGradient>
                                     </TouchableOpacity>
@@ -910,7 +912,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 </View>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
                                     {previewLoading ? (
-                                        <ActivityIndicator size="large" color="#F59E0B" />
+                                        <ActivityIndicator size="large" color={roleColors.accent} />
                                     ) : previewProfile ? (
                                         <>
                                             <DatingCard item={previewProfile} isPreview={true} />
@@ -946,7 +948,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
                                         onPress={() => { setFilterCity(''); setShowCityPicker(false); }}
                                     >
-                                        <Text style={{ color: '#F59E0B', fontWeight: 'bold' }}>{t('dating.allCities')}</Text>
+                                        <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>{t('dating.allCities')}</Text>
                                     </TouchableOpacity>
                                     {filteredCities.map((city, index) => (
                                         <TouchableOpacity
@@ -988,7 +990,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                             setShowMadhPicker(false); setShowYogaPicker(false); setShowGunaPicker(false); setShowIdentityPicker(false);
                                         }}
                                     >
-                                        <Text style={{ color: '#F59E0B', fontWeight: 'bold' }}>Show All</Text>
+                                        <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Show All</Text>
                                     </TouchableOpacity>
                                     {(showMadhPicker ? DATING_TRADITIONS : showYogaPicker ? YOGA_STYLES : showGunaPicker ? GUNAS : IDENTITY_OPTIONS).map((opt, index) => (
                                         <TouchableOpacity

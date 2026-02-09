@@ -2,11 +2,14 @@ import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ServiceHint } from '../../types/portalBlueprint';
+import { PortalRole } from '../../types/portalBlueprint';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 interface RoleInfoModalProps {
   visible: boolean;
   title: string;
   servicesHint: ServiceHint[] | string[];
+  role?: PortalRole | string;
   onClose: () => void;
   onEditRole?: () => void;
 }
@@ -15,17 +18,21 @@ export const RoleInfoModal: React.FC<RoleInfoModalProps> = ({
   visible,
   title,
   servicesHint,
+  role,
   onClose,
   onEditRole
 }) => {
   const { t } = useTranslation();
+  const { colors } = useRoleTheme(role, true);
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.title}>{t(`portal.roles.${title.toLowerCase()}`, title)}</Text>
-          <Text style={styles.subtitle}>{t('portal.priority_services_hint', 'Этим сервисам вы получите приоритет в портале:')}</Text>
+        <Pressable style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]} onPress={(e) => e.stopPropagation()}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t(`portal.roles.${title.toLowerCase()}`, title)}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t('portal.priority_services_hint', 'Этим сервисам вы получите приоритет в портале:')}
+          </Text>
           {servicesHint.map((hint, index) => {
             const labelKey = typeof hint === 'string' ? hint : hint.title;
             const filters = typeof hint === 'string' ? [] : hint.filters || [];
@@ -34,10 +41,10 @@ export const RoleInfoModal: React.FC<RoleInfoModalProps> = ({
             const label = t(`services.titles.${labelKey.toLowerCase()}`, labelKey);
 
             return (
-              <View key={`${label}-${index}`} style={styles.itemRow}>
-                <Text style={styles.itemText}>• {label}</Text>
+              <View key={`${label}-${index}`} style={[styles.itemRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.itemText, { color: colors.textPrimary }]}>• {label}</Text>
                 {filters.length > 0 && (
-                  <Text style={styles.filterText}>
+                  <Text style={[styles.filterText, { color: colors.textSecondary }]}>
                     {filters.map(f => t(`portal.filters.${f}`, f)).join(', ')}
                   </Text>
                 )}
@@ -48,10 +55,10 @@ export const RoleInfoModal: React.FC<RoleInfoModalProps> = ({
           <View style={styles.footer}>
             {onEditRole && (
               <Pressable onPress={onEditRole} style={styles.editButton}>
-                <Text style={styles.editButtonText}>{t('portal.change_role', 'Изменить роль')}</Text>
+                <Text style={[styles.editButtonText, { color: colors.textPrimary }]}>{t('portal.change_role', 'Изменить роль')}</Text>
               </Pressable>
             )}
-            <Pressable onPress={onClose} style={styles.button}>
+            <Pressable onPress={onClose} style={[styles.button, { backgroundColor: colors.accent }]}>
               <Text style={styles.buttonText}>{t('common.got_it', 'Понятно')}</Text>
             </Pressable>
           </View>

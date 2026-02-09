@@ -40,6 +40,8 @@ import {
 } from 'lucide-react-native';
 import { useSettings } from '../../../context/SettingsContext';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -65,6 +67,8 @@ export const NewsScreen = () => {
     const { vTheme, isDarkMode } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const navigation = useNavigation();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, true);
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
     const [news, setNews] = useState<NewsItem[]>([]);
@@ -225,10 +229,10 @@ export const NewsScreen = () => {
                             styles.categoryPill,
                             {
                                 backgroundColor: selectedMadh === item.id
-                                    ? '#8D6E63'
+                                    ? roleColors.accent
                                     : (isDarkMode ? '#2C2C2E' : '#fff'),
                                 borderColor: selectedMadh === item.id
-                                    ? '#8D6E63'
+                                    ? roleColors.accent
                                     : (isDarkMode ? '#3A3A3C' : '#ddd')
                             }
                         ]}
@@ -372,12 +376,12 @@ export const NewsScreen = () => {
                                     {newsService.formatDate(item.publishedAt)}
                                 </Text>
                                 {item.isImportant && (
-                                    <Zap size={12} color="#f59e0b" style={{ marginLeft: 6 }} />
+                                    <Zap size={12} color={roleColors.accent} style={{ marginLeft: 6 }} />
                                 )}
                             </View>
                             <View style={styles.cardActions}>
                                 <TouchableOpacity onPress={() => toggleFavorite(item.sourceId)}>
-                                    <Star size={16} color={isFavorite ? '#f59e0b' : vTheme.colors.textSecondary} fill={isFavorite ? '#f59e0b' : 'transparent'} />
+                                    <Star size={16} color={isFavorite ? roleColors.accent : vTheme.colors.textSecondary} fill={isFavorite ? roleColors.accent : 'transparent'} />
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => toggleSubscription(item.sourceId)}>
                                     {isSubscribed ? <Bell size={16} color={vTheme.colors.primary} /> : <BellOff size={16} color={vTheme.colors.textSecondary} />}
@@ -414,7 +418,7 @@ export const NewsScreen = () => {
         if (!hasMore) return null;
         return (
             <View style={styles.footer}>
-                <ActivityIndicator size="small" color={theme.primary || '#6366f1'} />
+                <ActivityIndicator size="small" color={roleColors.accent} />
             </View>
         );
     };
@@ -439,7 +443,7 @@ export const NewsScreen = () => {
     if (loading && news.length === 0) {
         return (
             <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-                <ActivityIndicator size="large" color={theme.primary || '#6366f1'} />
+                <ActivityIndicator size="large" color={roleColors.accent} />
                 <Text style={[styles.loadingText, { color: theme.subText }]}>
                     {lang === 'en' ? 'Loading news...' : 'Загрузка новостей...'}
                 </Text>
@@ -453,7 +457,7 @@ export const NewsScreen = () => {
                 <AlertCircle size={48} color={theme.primary} style={{ marginBottom: 16 }} />
                 <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
                 <TouchableOpacity
-                    style={[styles.retryButton, { backgroundColor: theme.primary || '#6366f1' }]}
+                    style={[styles.retryButton, { backgroundColor: roleColors.accent }]}
                     onPress={() => loadNews(1, true)}
                 >
                     <Text style={styles.retryButtonText}>
@@ -477,7 +481,7 @@ export const NewsScreen = () => {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
-                        tintColor={theme.primary || '#6366f1'}
+                        tintColor={roleColors.accent}
                     />
                 }
                 onEndReached={handleLoadMore}

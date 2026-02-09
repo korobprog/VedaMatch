@@ -17,6 +17,8 @@ import { educationService } from '../../../services/educationService';
 import { ExamQuestion, UserExamAttempt } from '../../../types/education';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../../context/SettingsContext';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type ExamTrainerRouteProp = RouteProp<RootStackParamList, 'ExamTrainer'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExamTrainer'>;
@@ -27,6 +29,8 @@ export const ExamTrainerScreen: React.FC = () => {
     const { moduleId, title } = route.params;
     const { t } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, true);
 
     const [questions, setQuestions] = useState<ExamQuestion[]>([]);
     const [loading, setLoading] = useState(true);
@@ -75,7 +79,7 @@ export const ExamTrainerScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <ActivityIndicator size="large" color={vTheme.colors.primary} />
+                <ActivityIndicator size="large" color={roleColors.accent} />
             </View>
         );
     }
@@ -87,7 +91,7 @@ export const ExamTrainerScreen: React.FC = () => {
                 <Text style={[styles.resultTitle, { color: vTheme.colors.text }]}>
                     {result.passed ? t('education.congrats') : t('education.tryAgain')}
                 </Text>
-                <Text style={[styles.resultScore, { color: vTheme.colors.primary }]}>
+                <Text style={[styles.resultScore, { color: roleColors.accent }]}>
                     {t('education.yourResult')}: {result.score} / {result.total_points}
                 </Text>
                 <Text style={[styles.resultSub, { color: vTheme.colors.textSecondary }]}>
@@ -96,7 +100,7 @@ export const ExamTrainerScreen: React.FC = () => {
                         : t('education.failedMsg')}
                 </Text>
                 <TouchableOpacity
-                    style={[styles.primaryButton, { backgroundColor: vTheme.colors.primary }]}
+                    style={[styles.primaryButton, { backgroundColor: roleColors.accent }]}
                     onPress={() => navigation.goBack()}
                 >
                     <Text style={styles.primaryButtonText}>{t('education.backToCourse')}</Text>
@@ -111,7 +115,7 @@ export const ExamTrainerScreen: React.FC = () => {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <View style={[styles.progressBarContainer, { backgroundColor: isDarkMode ? '#333' : '#E0E0E0' }]}>
-                <View style={[styles.progressBar, { width: `${((currentIndex + 1) / questions.length) * 100}%`, backgroundColor: vTheme.colors.primary }]} />
+                <View style={[styles.progressBar, { width: `${((currentIndex + 1) / questions.length) * 100}%`, backgroundColor: roleColors.accent }]} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -120,7 +124,7 @@ export const ExamTrainerScreen: React.FC = () => {
                 <View style={[styles.questionCard, { backgroundColor: vTheme.colors.surface }]}>
                     <Text style={[styles.questionText, { color: vTheme.colors.text }]}>{currentQuestion?.text}</Text>
                     {currentQuestion?.verse_reference && (
-                        <Text style={[styles.verseRef, { color: vTheme.colors.primary }]}>{t('education.source')}: {currentQuestion.verse_reference}</Text>
+                        <Text style={[styles.verseRef, { color: roleColors.accent }]}>{t('education.source')}: {currentQuestion.verse_reference}</Text>
                     )}
                 </View>
 
@@ -131,14 +135,14 @@ export const ExamTrainerScreen: React.FC = () => {
                             style={[
                                 styles.optionButton,
                                 { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider },
-                                answers[currentQuestion.ID] === option.ID && [styles.optionSelected, { borderColor: vTheme.colors.primary, backgroundColor: vTheme.colors.primary + '10' }]
+                                answers[currentQuestion.ID] === option.ID && [styles.optionSelected, { borderColor: roleColors.accent, backgroundColor: roleColors.accent + '10' }]
                             ]}
                             onPress={() => handleSelectOption(currentQuestion.ID, option.ID)}
                         >
                             <Text style={[
                                 styles.optionText,
                                 { color: vTheme.colors.text },
-                                answers[currentQuestion.ID] === option.ID && [styles.optionTextSelected, { color: vTheme.colors.primary }]
+                                answers[currentQuestion.ID] === option.ID && [styles.optionTextSelected, { color: roleColors.accent }]
                             ]}>
                                 {option.text}
                             </Text>
@@ -159,7 +163,7 @@ export const ExamTrainerScreen: React.FC = () => {
 
                 {!isLast ? (
                     <TouchableOpacity
-                        style={[styles.primaryButton, { flex: 1, backgroundColor: vTheme.colors.primary }]}
+                        style={[styles.primaryButton, { flex: 1, backgroundColor: roleColors.accent }]}
                         onPress={() => setCurrentIndex(prev => prev + 1)}
                         disabled={!answers[currentQuestion?.ID]}
                     >
@@ -167,7 +171,7 @@ export const ExamTrainerScreen: React.FC = () => {
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
-                        style={[styles.primaryButton, { flex: 1, backgroundColor: vTheme.colors.primary }]}
+                        style={[styles.primaryButton, { flex: 1, backgroundColor: roleColors.accent }]}
                         onPress={handleSubmit}
                         disabled={submitting || !answers[currentQuestion?.ID]}
                     >

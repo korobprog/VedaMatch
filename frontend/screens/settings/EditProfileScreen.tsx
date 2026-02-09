@@ -37,6 +37,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RoleSelectionSection } from '../../components/roles/RoleSelectionSection';
 import { PortalRole } from '../../types/portalBlueprint';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
@@ -115,6 +116,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         yoga: false,
         dating: false
     });
+    const { colors: roleColors, roleTheme } = useRoleTheme(role, true);
 
     useEffect(() => {
         loadProfile();
@@ -324,7 +326,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         if (portalBackgroundType === 'image' && portalBackground) {
             return (
                 <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover">
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}>{children}</View>
+                    <View style={{ flex: 1, backgroundColor: roleColors.overlay }}>{children}</View>
                 </ImageBackground>
             );
         }
@@ -335,7 +337,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         return (
             <BackgroundWrapper>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color="#FFB74D" />
+                    <ActivityIndicator size="large" color={roleColors.accent} />
                 </View>
             </BackgroundWrapper>
         );
@@ -356,14 +358,14 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     />
                 )}
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-                    <Text style={[styles.headerButtonText, { color: 'rgba(255,255,255,0.7)' }]}>{t('common.cancel') || 'Cancel'}</Text>
+                    <Text style={[styles.headerButtonText, { color: roleColors.textSecondary }]}>{t('common.cancel') || 'Cancel'}</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('profile.datingProfile')}</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>{t('profile.datingProfile')}</Text>
                 <TouchableOpacity onPress={handleSave} style={styles.headerButton} disabled={saving}>
                     {saving ? (
-                        <ActivityIndicator size="small" color="#FFB74D" />
+                        <ActivityIndicator size="small" color={roleColors.accent} />
                     ) : (
-                        <Text style={[styles.headerButtonText, { color: '#FFB74D', fontWeight: '800' }]}>{t('common.save') || 'Save'}</Text>
+                        <Text style={[styles.headerButtonText, { color: roleColors.accent, fontWeight: '800' }]}>{t('common.save') || 'Save'}</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -386,7 +388,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     <Switch
                         value={godModeEnabled}
                         onValueChange={setGodModeEnabled}
-                        trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(0, 137, 123, 0.6)' }}
+                        trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
                         thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
                     />
                 </View>
@@ -402,7 +404,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     <Switch
                         value={datingEnabled}
                         onValueChange={setDatingEnabled}
-                        trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(0, 137, 123, 0.6)' }}
+                        trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
                         thumbColor={datingEnabled ? '#fff' : '#f4f3f4'}
                     />
                 </View>
@@ -500,11 +502,11 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 key={opt.key}
                                 style={[
                                     styles.chip,
-                                    intentions.includes(opt.key) && { backgroundColor: 'rgba(255,183,77,0.15)', borderColor: '#FFB74D' }
+                                    intentions.includes(opt.key) && { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
                                 ]}
                                 onPress={() => toggleIntention(opt.key)}
                             >
-                                <Text style={{ color: intentions.includes(opt.key) ? '#FFB74D' : 'rgba(248,250,252,0.6)', fontWeight: '600' }}>
+                                <Text style={{ color: intentions.includes(opt.key) ? roleColors.accent : roleColors.textSecondary, fontWeight: '600' }}>
                                     {t(`dating.intentions.${opt.key}`)}
                                 </Text>
                             </TouchableOpacity>
@@ -513,8 +515,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
                     {/* Business Section (Conditional) */}
                     {intentions.includes('business') && (
-                        <View style={{ marginBottom: 15, padding: 15, backgroundColor: 'rgba(255,183,77,0.05)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,183,77,0.2)' }}>
-                            <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 5, color: '#FFB74D' }]}>{t('dating.businessProfile')}</Text>
+                        <View style={{ marginBottom: 15, padding: 15, backgroundColor: roleColors.accentSoft, borderRadius: 12, borderWidth: 1, borderColor: roleColors.accent }}>
+                            <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 5, color: roleColors.accent }]}>{t('dating.businessProfile')}</Text>
 
                             <Text style={[styles.label, { marginTop: 10 }]}>{t('dating.skills')}</Text>
                             <TextInput
@@ -541,7 +543,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                         style={[styles.input, { justifyContent: 'center' }]}
                         onPress={() => setShowMadhPicker(true)}
                     >
-                        <Text style={{ color: madh ? '#F8FAFC' : 'rgba(248,250,252,0.4)', fontSize: 16 }}>
+                        <Text style={{ color: madh ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
                             {madh || t('dating.selectTradition')}
                         </Text>
                     </TouchableOpacity>
@@ -551,7 +553,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                         style={[styles.input, { justifyContent: 'center' }]}
                         onPress={() => setShowYogaPicker(true)}
                     >
-                        <Text style={{ color: yogaStyle ? '#F8FAFC' : 'rgba(248,250,252,0.4)', fontSize: 16 }}>
+                        <Text style={{ color: yogaStyle ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
                             {yogaStyle || t('dating.selectStyle')}
                         </Text>
                     </TouchableOpacity>
@@ -561,7 +563,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                         style={[styles.input, { justifyContent: 'center' }]}
                         onPress={() => setShowGunaPicker(true)}
                     >
-                        <Text style={{ color: guna ? '#F8FAFC' : 'rgba(248,250,252,0.4)', fontSize: 16 }}>
+                        <Text style={{ color: guna ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
                             {guna || t('dating.selectGuna')}
                         </Text>
                     </TouchableOpacity>

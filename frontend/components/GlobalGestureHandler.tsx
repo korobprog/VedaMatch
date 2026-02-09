@@ -7,6 +7,7 @@ import {
 } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
+import { navigationRef } from '../navigation/navigationRef';
 
 interface GlobalGestureHandlerProps {
     children: ReactNode;
@@ -31,7 +32,11 @@ export const GlobalGestureHandler: React.FC<GlobalGestureHandlerProps> = ({
 
             // Left-to-right swipe from left edge → открыть ПОРТАЛ (слева)
             if (!isPortalOpen && isFromLeftEdge && event.translationX > SWIPE_THRESHOLD) {
-                setIsPortalOpen(true);
+                // ПРОВЕРКА: Если мы уже на экране Portal, не открываем еще один выдвижной портал
+                const currentRouteName = navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : '';
+                if (currentRouteName !== 'Portal') {
+                    setIsPortalOpen(true);
+                }
             }
 
             // Right-to-left swipe from right edge → открыть меню настроек (справа)

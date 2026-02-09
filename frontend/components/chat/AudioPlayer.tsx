@@ -112,12 +112,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 		<View style={styles.container}>
 			<TouchableOpacity
 				onPress={handlePlayPause}
-				style={[styles.playButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+				style={[styles.playButton, { backgroundColor: 'rgba(255, 183, 77, 0.15)' }]}
 			>
 				{isPlaying ? (
-					<Pause size={20} color={theme.primary} fill={theme.primary} />
+					<Pause size={18} color="#FFB74D" fill="#FFB74D" />
 				) : (
-					<Play size={20} color={theme.primary} fill={theme.primary} style={{ marginLeft: 3 }} />
+					<Play size={18} color="#FFB74D" fill="#FFB74D" style={{ marginLeft: 3 }} />
 				)}
 			</TouchableOpacity>
 
@@ -128,14 +128,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 					onValueChange={handleSliderChange}
 					minimumValue={0}
 					maximumValue={1}
-					minimumTrackTintColor={theme.primary}
-					maximumTrackTintColor={isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}
-					thumbTintColor={theme.primary}
+					minimumTrackTintColor="#FFB74D"
+					maximumTrackTintColor="rgba(255, 255, 255, 0.15)"
+					thumbTintColor="#FFB74D"
 					disabled={!url}
 				/>
 				<View style={styles.timeRow}>
-					<Text style={[styles.timeText, { color: theme.subText }]}>{formatTime(currentPosition)}</Text>
-					<Text style={[styles.timeText, { color: theme.subText }]}>{formatTime(totalDuration)}</Text>
+					<Text style={[styles.timeText, { color: 'rgba(248, 250, 252, 0.6)' }]}>{formatTime(currentPosition)}</Text>
+					<Text style={[styles.timeText, { color: 'rgba(248, 250, 252, 0.6)' }]}>{formatTime(totalDuration)}</Text>
 				</View>
 			</View>
 		</View>

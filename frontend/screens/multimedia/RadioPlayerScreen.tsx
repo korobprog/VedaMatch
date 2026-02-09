@@ -25,6 +25,8 @@ import { ActivityIndicator } from 'react-native';
 import { audioPlayerService } from '../../services/audioPlayerService';
 import { RadioStation } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,6 +34,8 @@ export const RadioPlayerScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { roleTheme, colors } = useRoleTheme(user?.role, isDarkMode);
     const playbackState = usePlaybackState();
     const { station } = route.params as { station: RadioStation };
     const [volume, setVolume] = useState(0.7);
@@ -92,7 +96,7 @@ export const RadioPlayerScreen: React.FC = () => {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
             <LinearGradient
-                colors={isDarkMode ? ['#1a1c2c', '#4a192c'] : [vTheme.colors.primary, '#f8fafc']}
+                colors={isDarkMode ? roleTheme.gradient : [roleTheme.accentStrong, colors.background]}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -102,12 +106,12 @@ export const RadioPlayerScreen: React.FC = () => {
                 <View style={styles.header}>
                     <TouchableOpacity
                         onPress={() => navigation.goBack()}
-                        style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
+                        style={[styles.iconButton, { backgroundColor: colors.accentSoft }]}
                     >
                         <ChevronDown size={28} color="#fff" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Прямой эфир</Text>
-                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.accentSoft }]}>
                         <Share2 size={24} color="#fff" />
                     </TouchableOpacity>
                 </View>
@@ -117,11 +121,11 @@ export const RadioPlayerScreen: React.FC = () => {
                         {station.logoUrl ? (
                             <Image source={{ uri: station.logoUrl }} style={styles.logo} />
                         ) : (
-                            <View style={[styles.logoPlaceholder, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                            <View style={[styles.logoPlaceholder, { backgroundColor: colors.accentSoft }]}>
                                 <RadioIcon size={width * 0.3} color="#fff" />
                             </View>
                         )}
-                        <View style={[styles.liveBadge, { backgroundColor: vTheme.colors.accent }]}>
+                        <View style={[styles.liveBadge, { backgroundColor: colors.accent }]}>
                             <Text style={styles.liveText}>LIVE</Text>
                         </View>
                     </View>
@@ -134,8 +138,8 @@ export const RadioPlayerScreen: React.FC = () => {
                                 styles.statusDot,
                                 {
                                     backgroundColor: (isPlaying || isBuffering || station.status === 'online')
-                                        ? '#4ade80'
-                                        : station.status === 'offline' ? '#f87171' : '#fbbf24'
+                                        ? colors.success
+                                        : station.status === 'offline' ? colors.danger : colors.warning
                                 }
                             ]} />
                             <Text style={styles.statusLabel}>
@@ -145,7 +149,7 @@ export const RadioPlayerScreen: React.FC = () => {
                             </Text>
                         </View>
 
-                        <Text style={[styles.description, { color: errorMessage ? '#ff6b6b' : 'rgba(255,255,255,0.7)' }]}>
+                        <Text style={[styles.description, { color: errorMessage ? colors.danger : 'rgba(255,255,255,0.78)' }]}>
                             {errorMessage || (isBuffering ? 'Подключение к серверу...' : (station.description || 'Радиостанция духовного вещания'))}
                         </Text>
                     </View>
@@ -157,28 +161,28 @@ export const RadioPlayerScreen: React.FC = () => {
                             disabled={isBuffering && !errorMessage}
                         >
                             {isBuffering ? (
-                                <ActivityIndicator size="large" color={vTheme.colors.primary} />
+                                <ActivityIndicator size="large" color={colors.accent} />
                             ) : isPlaying ? (
-                                <Pause size={42} color={vTheme.colors.primary} fill={vTheme.colors.primary} />
+                                <Pause size={42} color={colors.accent} fill={colors.accent} />
                             ) : (
-                                <Play size={42} color={vTheme.colors.primary} fill={vTheme.colors.primary} style={{ marginLeft: 6 }} />
+                                <Play size={42} color={colors.accent} fill={colors.accent} style={{ marginLeft: 6 }} />
                             )}
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 <View style={styles.footer}>
-                    <View style={[styles.volumeContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                        <Volume2 size={20} color={isDarkMode ? '#fff' : vTheme.colors.text} style={{ opacity: 0.8 }} />
+                    <View style={[styles.volumeContainer, { backgroundColor: colors.accentSoft }]}>
+                        <Volume2 size={20} color="#fff" style={{ opacity: 0.9 }} />
                         <Slider
                             style={styles.volumeSlider}
                             minimumValue={0}
                             maximumValue={1}
                             value={volume}
                             onValueChange={handleVolumeChange}
-                            minimumTrackTintColor={vTheme.colors.primary}
-                            maximumTrackTintColor={isDarkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)'}
-                            thumbTintColor={vTheme.colors.primary}
+                            minimumTrackTintColor={colors.accent}
+                            maximumTrackTintColor={'rgba(255,255,255,0.35)'}
+                            thumbTintColor={colors.accent}
                         />
                     </View>
                 </View>

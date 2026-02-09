@@ -12,6 +12,7 @@ import {
     Platform,
     UIManager,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import { useNavigation } from '@react-navigation/native';
 import {
     GestureDetector,
@@ -76,6 +77,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         addNewPage,
         moveItemToFolder,
         moveItemToQuickAccess,
+        reorderGridItems,
     } = usePortalLayout();
 
     const [isReady, setIsReady] = useState(false); // Delay rendering to prevent layout jumps
@@ -219,36 +221,53 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             return;
         }
 
-        // 3. Check folders collision
-        const folders = page.items.filter(i => i.type === 'folder');
-        if (folders.length === 0) return;
+        // 3. Check items collision (swap/reorder or move to folder)
+        const allItems = page.items;
+        if (allItems.length === 0) return;
 
-        let foundFolder: string | null = null;
+        let targetId: string | null = null;
         let measureCount = 0;
-        const totalFolders = folders.length;
+        const totalItems = allItems.length;
 
         const checkComplete = () => {
             measureCount++;
-            if (measureCount >= totalFolders) {
-                if (foundFolder) {
-                    runOnJS(moveItemToFolder)(itemId, foundFolder);
+            if (measureCount >= totalItems) {
+                if (targetId && targetId !== itemId) {
+                    const fromIndex = allItems.findIndex(i => i.id === itemId);
+                    const toIndex = allItems.findIndex(i => i.id === targetId);
+                    const targetItem = allItems[toIndex];
+                    const movingItem = allItems[fromIndex];
+
+                    if (!movingItem || !targetItem) return;
+
+                    // Priority: Move to folder if service is dragged onto folder
+                    if (movingItem.type === 'service' && targetItem.type === 'folder') {
+                        console.log('[DragEnd] 📁 Moving item into folder:', targetItem.id);
+                        runOnJS(moveItemToFolder)(itemId, targetItem.id);
+                    } else if (fromIndex !== -1 && toIndex !== -1) {
+                        // Otherwise reorder/swap
+                        console.log('[DragEnd] 🔄 Reordering items:', fromIndex, '->', toIndex);
+                        runOnJS(reorderGridItems)(fromIndex, toIndex);
+                    }
                 }
             }
         };
 
-        folders.forEach(folder => {
-            const ref = itemRefs.current[folder.id];
+        allItems.forEach(item => {
+            const ref = itemRefs.current[item.id];
             if (ref) {
                 (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
                     if (x !== undefined && y !== undefined && width > 0 && height > 0) {
-                        const folderMargin = 50;
-                        const isInsideFolder = (
-                            absX >= x - folderMargin &&
-                            absX <= x + width + folderMargin &&
-                            absY >= y - folderMargin &&
-                            absY <= y + height + folderMargin
+                        const hitSlop = 20;
+                        const isInside = (
+                            absX >= x - hitSlop &&
+                            absX <= x + width + hitSlop &&
+                            absY >= y - hitSlop &&
+                            absY <= y + height + hitSlop
                         );
-                        if (isInsideFolder && !foundFolder) foundFolder = folder.id;
+                        if (isInside && !targetId && item.id !== itemId) {
+                            targetId = item.id;
+                        }
                     }
                     checkComplete();
                 });
@@ -256,7 +275,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 checkComplete();
             }
         });
-    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess]);
+    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess, reorderGridItems]);
 
 
     // Render individual grid item
@@ -297,7 +316,10 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             if (!service) return null;
             pressHandler = () => handleServicePress(item.serviceId);
             component = (
-                <View pointerEvents="none">
+                <View
+                    pointerEvents="none"
+                    ref={(ref) => { itemRefs.current[item.id] = ref; }}
+                >
                     <PortalIcon
                         service={service}
                         isEditMode={isEditMode}
@@ -446,39 +468,55 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     // Edit mode toolbar
     const renderEditToolbar = () => (
         <Animated.View
+            entering={FadeIn.duration(300)}
+            exiting={FadeOut.duration(300)}
             style={[
-                styles.editToolbar,
+                styles.editToolbarContainer,
                 {
-                    backgroundColor: isDarkMode ? '#1A1A1A' : '#F5F5F5',
-                    borderColor: vTheme.colors.primary,
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
                 }
             ]}
         >
-            <TouchableOpacity
-                onPress={() => setShowNewFolderInput(true)}
-                style={styles.toolbarButton}
+            <BlurView
+                style={[styles.editToolbarBlur, { borderRadius: 32 }]}
+                blurType={isDarkMode ? "dark" : "light"}
+                blurAmount={15}
+                reducedTransparencyFallbackColor="white"
             >
-                <FolderPlus size={20} color={vTheme.colors.primary} />
-                <Text style={[styles.toolbarText, { color: vTheme.colors.text }]}>Папка</Text>
-            </TouchableOpacity>
+                <View style={styles.editToolbarContent}>
+                    <TouchableOpacity
+                        onPress={() => setShowNewFolderInput(true)}
+                        style={styles.toolbarButton}
+                    >
+                        <FolderPlus size={20} color="#FFFFFF" />
+                        <Text style={[styles.toolbarText, { color: "#FFFFFF" }]}>Папка</Text>
+                    </TouchableOpacity>
 
-            <TouchableOpacity
-                onPress={() => {
-                    onCloseDrawer?.();
-                    navigation.navigate('WidgetSelection');
-                }}
-                style={styles.toolbarButton}
-            >
-                <LayoutGrid size={20} color={vTheme.colors.primary} />
-                <Text style={[styles.toolbarText, { color: vTheme.colors.text }]}>Виджет</Text>
-            </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => {
+                            onCloseDrawer?.();
+                            navigation.navigate('WidgetSelection');
+                        }}
+                        style={styles.toolbarButton}
+                    >
+                        <LayoutGrid size={20} color="#FFFFFF" />
+                        <Text style={[styles.toolbarText, { color: "#FFFFFF" }]}>Виджет</Text>
+                    </TouchableOpacity>
 
-            <TouchableOpacity
-                onPress={() => setEditMode(false)}
-                style={[styles.doneButton, { backgroundColor: vTheme.colors.primary }]}
-            >
-                <Text style={styles.doneText}>Готово</Text>
-            </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setEditMode(false)}
+                        style={styles.doneButton}
+                    >
+                        <LinearGradient
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            colors={['#FFAD66', '#FF8533']}
+                            style={StyleSheet.absoluteFill}
+                        />
+                        <Text style={styles.doneText}>Готово</Text>
+                    </TouchableOpacity>
+                </View>
+            </BlurView>
         </Animated.View>
     );
 
@@ -517,10 +555,15 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     <View style={[
                         styles.newFolderContainer,
                         {
-                            backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
-                            borderColor: vTheme.colors.primary,
+                            borderColor: 'transparent',
                         }
                     ]}>
+                        <BlurView
+                            style={Platform.OS === 'ios' ? { ...StyleSheet.absoluteFillObject, borderRadius: 32 } : { position: 'absolute', top: 0, left: 0, bottom: 0, right: 0, borderRadius: 32 }}
+                            blurType={isDarkMode ? "dark" : "light"}
+                            blurAmount={20}
+                            reducedTransparencyFallbackColor={isDarkMode ? "#1E1E1E" : "#FFFFFF"}
+                        />
                         <TextInput
                             style={[styles.newFolderInput, { color: vTheme.colors.text }]}
                             placeholder="Название папки..."
@@ -530,12 +573,14 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                             autoFocus
                             onSubmitEditing={handleCreateFolder}
                         />
-                        <TouchableOpacity onPress={handleCreateFolder} style={styles.createButton}>
-                            <Text style={[styles.createText, { color: vTheme.colors.primary }]}>Создать</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowNewFolderInput(false)}>
-                            <Text style={[styles.cancelText, { color: vTheme.colors.textSecondary }]}>Отмена</Text>
-                        </TouchableOpacity>
+                        <View style={styles.newFolderActions}>
+                            <TouchableOpacity onPress={handleCreateFolder} style={styles.createButton}>
+                                <Text style={[styles.createText, { color: vTheme.colors.primary }]}>Создать</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setShowNewFolderInput(false)} style={styles.cancelButton}>
+                                <Text style={[styles.cancelText, { color: vTheme.colors.textSecondary }]}>Отмена</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
             </View>
@@ -552,19 +597,26 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
             {/* Floating Dock Area */}
             <View style={styles.quickAccessDock}>
-                <View
-                    ref={dockRef}
-                    onLayout={handleDockLayout}
-                    style={styles.dockItems}
+                <BlurView
+                    style={styles.dockBlur}
+                    blurType={isDarkMode ? "dark" : "light"}
+                    blurAmount={12}
+                    reducedTransparencyFallbackColor="transparent"
                 >
-                    {quickAccess.map(renderDockItem)}
-                    {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
-                        <View key={`empty-${i}`} style={[
-                            styles.emptyDockSlot,
-                            { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }
-                        ]} />
-                    ))}
-                </View>
+                    <View
+                        ref={dockRef}
+                        onLayout={handleDockLayout}
+                        style={styles.dockItems}
+                    >
+                        {quickAccess.map(renderDockItem)}
+                        {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
+                            <View key={`empty-${i}`} style={[
+                                styles.emptyDockSlot,
+                                { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }
+                            ]} />
+                        ))}
+                    </View>
+                </BlurView>
             </View>
 
             {layout.pages.length > 1 && renderPageDots()}
@@ -623,13 +675,20 @@ const styles = StyleSheet.create({
     },
     quickAccessDock: {
         position: 'absolute',
-        bottom: 20,
+        bottom: 25,
         left: 20,
         right: 20,
-        height: 80,
+        height: 76,
+        borderRadius: 38,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'transparent',
+    },
+    dockBlur: {
+        flex: 1,
         justifyContent: 'center',
         paddingHorizontal: 20,
-        backgroundColor: 'transparent', // Fix shadow warning
     },
     dockDivider: {
         position: 'absolute',
@@ -686,67 +745,91 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginLeft: 8,
     },
-    editToolbar: {
+    editToolbarContainer: {
         position: 'absolute',
         bottom: 120,
         left: 20,
         right: 20,
+        borderRadius: 32,
+        overflow: 'hidden',
+        backgroundColor: 'transparent',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    editToolbarBlur: {
+        width: '100%',
+    },
+    editToolbarContent: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 14,
         paddingHorizontal: 16,
-        borderRadius: 20,
-        borderWidth: 1,
-        // Add transparent background to fix shadow warning if no other bg is applied
-        backgroundColor: 'transparent',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 10,
     },
     toolbarButton: {
         alignItems: 'center',
+        paddingHorizontal: 12,
     },
     toolbarText: {
-        fontSize: 10,
+        fontSize: 11,
+        fontWeight: '500',
         marginTop: 4,
     },
     doneButton: {
-        paddingHorizontal: 20,
-        paddingVertical: 8,
-        borderRadius: 16,
+        paddingHorizontal: 22,
+        paddingVertical: 10,
+        borderRadius: 18,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 4,
     },
     doneText: {
         color: '#FFF',
-        fontWeight: '600',
-        fontSize: 14,
+        fontWeight: '700',
+        fontSize: 15,
     },
     newFolderContainer: {
         position: 'absolute',
-        top: '40%',
-        left: 20,
-        right: 20,
-        padding: 16,
-        borderRadius: 16,
-        borderWidth: 2,
+        top: '35%',
+        left: 40,
+        right: 40,
+        padding: 24,
+        borderRadius: 32,
+        overflow: 'hidden',
+        backgroundColor: 'transparent',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 15,
+        shadowOffset: { width: 0, height: 16 },
+        shadowOpacity: 0.45,
+        shadowRadius: 24,
+        elevation: 20,
     },
     newFolderInput: {
-        fontSize: 16,
+        fontSize: 18,
+        fontWeight: '500',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
-        marginBottom: 12,
+        borderBottomColor: 'rgba(255,255,255,0.2)',
+        marginBottom: 20,
+    },
+    newFolderActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 16,
     },
     createButton: {
-        alignSelf: 'flex-end',
-        marginBottom: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    cancelButton: {
+        paddingHorizontal: 8,
+        paddingVertical: 8,
     },
     createText: {
         fontSize: 16,

@@ -36,6 +36,7 @@ import { useUser } from '../../../context/UserContext';
 import { mapService } from '../../../services/mapService';
 import { geoLocationService } from '../../../services/geoLocationService';
 import { MapMarker, MapCluster, MapFilters, MarkerType } from '../../../types/map';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 // Initial coordinates - Moscow
 const INITIAL_LAT = 55.7558;
@@ -48,8 +49,9 @@ interface Props {
 
 export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
-    const { vTheme, isDarkMode } = useSettings();
+    const { isDarkMode } = useSettings();
     const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
 
     const webViewRef = useRef<WebView>(null);
     const bottomSheetRef = useRef<BottomSheet>(null);
@@ -57,6 +59,13 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     const lastZoomRef = useRef<number>(10);
 
     const snapPoints = useMemo(() => ['10%', '50%', '90%'], []);
+    const markerColors = useMemo(() => ({
+        user: colors.accent,
+        shop: colors.success,
+        ad: colors.danger,
+        cafe: colors.warning,
+        default: colors.textSecondary,
+    }), [colors.accent, colors.danger, colors.success, colors.textSecondary, colors.warning]);
 
     // State
     const [markers, setMarkers] = useState<MapMarker[]>([]);
@@ -354,11 +363,11 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             return mapConfig.markers[type].color;
         }
         switch (type) {
-            case 'user': return '#7C3AED';
-            case 'shop': return '#059669';
-            case 'ad': return '#DC2626';
-            case 'cafe': return '#EA580C';
-            default: return '#6B7280';
+            case 'user': return markerColors.user;
+            case 'shop': return markerColors.shop;
+            case 'ad': return markerColors.ad;
+            case 'cafe': return markerColors.cafe;
+            default: return markerColors.default;
         }
     };
 
@@ -569,10 +578,10 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         };
 
         var colors = {
-            user: '#7C3AED',
-            shop: '#059669',
-            ad: '#DC2626',
-            cafe: '#EA580C'
+            user: '${markerColors.user}',
+            shop: '${markerColors.shop}',
+            ad: '${markerColors.ad}',
+            cafe: '${markerColors.cafe}'
         };
 
         function updateMarkers(markers) {
@@ -636,7 +645,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                 if (visibleCount === 0) return;
 
                 // Determine color based on content type (considering only visible)
-                var color = '#7C3AED'; // Default purple
+                var color = '${markerColors.user}';
                 var u = activeFilters.user ? (c.userCount || 0) : 0;
                 var s = activeFilters.shop ? (c.shopCount || 0) : 0;
                 var a = activeFilters.ad ? (c.adCount || 0) : 0;
@@ -644,13 +653,13 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
 
                 // Simple logic: pick dominant color of visible items
                 if (cf > 0 && cf >= u && cf >= s && cf >= a) {
-                    color = '#EA580C'; // Orange (cafes)
+                    color = '${markerColors.cafe}';
                 } else if (s > 0 && s >= u && s >= a && s >= cf) {
-                    color = '#059669'; // Green (shops)
+                    color = '${markerColors.shop}';
                 } else if (a > 0 && a >= u && a >= s && a >= cf) {
-                    color = '#DC2626'; // Red (ads)
+                    color = '${markerColors.ad}';
                 } else if (u > 0) {
-                    color = '#7C3AED'; // Purple (users)
+                    color = '${markerColors.user}';
                 }
                 
                 // If cluster is very large, use black/dark
@@ -685,7 +694,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             });
             
             var polyline = L.polyline(latlngs, {
-                color: '#7C3AED',
+                color: '${colors.accent}',
                 weight: 4,
                 opacity: 0.8
             });
@@ -703,7 +712,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             
             var icon = L.divIcon({
                 className: '',
-                html: '<div class="custom-marker" style="background-color:#F59E0B"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>',
+                html: '<div class="custom-marker" style="background-color:${colors.warning}"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>',
                 iconSize: [32, 32],
                 iconAnchor: [16, 32],
                 popupAnchor: [0, -32]
@@ -720,7 +729,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     `;
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             {/* WebView Map */}
             <WebView
                 ref={webViewRef}
@@ -737,20 +746,20 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             />
 
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
+            <View style={[styles.header, { backgroundColor: colors.surfaceElevated }]}>
                 <TouchableOpacity
                     style={styles.backButton}
                     onPress={() => navigation?.goBack()}
                 >
-                    <ArrowLeft size={24} color={vTheme.colors.text} />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
 
-                <View style={[styles.searchContainer, { backgroundColor: vTheme.colors.background }]}>
-                    <Search size={18} color={vTheme.colors.textSecondary} style={styles.searchIcon} />
+                <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Search size={18} color={colors.textSecondary} style={styles.searchIcon} />
                     <TextInput
-                        style={[styles.searchInput, { color: vTheme.colors.text }]}
+                        style={[styles.searchInput, { color: colors.textPrimary }]}
                         placeholder={t('map.search_placeholder', 'Поиск по адресу...')}
-                        placeholderTextColor={vTheme.colors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={handleSearch}
                         returnKeyType="search"
@@ -761,7 +770,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                             setSearchResults([]);
                             Keyboard.dismiss();
                         }} style={styles.clearButton}>
-                            <X size={18} color={vTheme.colors.textSecondary} />
+                            <X size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -769,20 +778,20 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
 
             {/* Search Results Dropdown */}
             {searchResults.length > 0 && (
-                <View style={[styles.searchResultsContainer, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
+                <View style={[styles.searchResultsContainer, { backgroundColor: colors.surfaceElevated }]}>
                     <FlatList
                         data={searchResults}
                         keyExtractor={(item, index) => index.toString()}
                         renderItem={({ item }) => (
                             <TouchableOpacity
-                                style={[styles.searchItem, { borderBottomColor: vTheme.colors.divider }]}
+                                style={[styles.searchItem, { borderBottomColor: colors.border }]}
                                 onPress={() => handleSelectResult(item)}
                             >
                                 <View style={styles.searchItemIcon}>
-                                    <Search size={16} color={vTheme.colors.textSecondary} />
+                                    <Search size={16} color={colors.textSecondary} />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={[styles.searchItemText, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.searchItemText, { color: colors.textPrimary }]}>
                                         {item.properties.formatted}
                                     </Text>
                                 </View>
@@ -794,48 +803,64 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             )}
 
             {/* Filter buttons */}
-            <View style={[styles.filterBar, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
+            <View style={[styles.filterBar, { backgroundColor: colors.surfaceElevated }]}>
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.filterBarContent}
                 >
                     <TouchableOpacity
-                        style={[styles.filterChip, filters.showUsers && styles.filterChipActive]}
+                        style={[
+                            styles.filterChip,
+                            { borderColor: colors.border },
+                            filters.showUsers && { ...styles.filterChipActive, backgroundColor: markerColors.user, borderColor: markerColors.user },
+                        ]}
                         onPress={() => toggleFilter('showUsers')}
                     >
-                        <Users size={14} color={filters.showUsers ? '#fff' : vTheme.colors.text} />
-                        <Text style={[styles.filterChipText, { color: filters.showUsers ? '#fff' : vTheme.colors.text }]}>
+                        <Users size={14} color={filters.showUsers ? '#fff' : colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: filters.showUsers ? '#fff' : colors.textPrimary }]}>
                             Люди
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.filterChip, filters.showShops && { ...styles.filterChipActive, backgroundColor: '#059669' }]}
+                        style={[
+                            styles.filterChip,
+                            { borderColor: colors.border },
+                            filters.showShops && { ...styles.filterChipActive, backgroundColor: markerColors.shop, borderColor: markerColors.shop },
+                        ]}
                         onPress={() => toggleFilter('showShops')}
                     >
-                        <Store size={14} color={filters.showShops ? '#fff' : vTheme.colors.text} />
-                        <Text style={[styles.filterChipText, { color: filters.showShops ? '#fff' : vTheme.colors.text }]}>
+                        <Store size={14} color={filters.showShops ? '#fff' : colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: filters.showShops ? '#fff' : colors.textPrimary }]}>
                             Магазины
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.filterChip, filters.showAds && { ...styles.filterChipActive, backgroundColor: '#DC2626' }]}
+                        style={[
+                            styles.filterChip,
+                            { borderColor: colors.border },
+                            filters.showAds && { ...styles.filterChipActive, backgroundColor: markerColors.ad, borderColor: markerColors.ad },
+                        ]}
                         onPress={() => toggleFilter('showAds')}
                     >
-                        <Tag size={14} color={filters.showAds ? '#fff' : vTheme.colors.text} />
-                        <Text style={[styles.filterChipText, { color: filters.showAds ? '#fff' : vTheme.colors.text }]}>
+                        <Tag size={14} color={filters.showAds ? '#fff' : colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: filters.showAds ? '#fff' : colors.textPrimary }]}>
                             Объявления
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.filterChip, filters.showCafes && { ...styles.filterChipActive, backgroundColor: '#EA580C' }]}
+                        style={[
+                            styles.filterChip,
+                            { borderColor: colors.border },
+                            filters.showCafes && { ...styles.filterChipActive, backgroundColor: markerColors.cafe, borderColor: markerColors.cafe },
+                        ]}
                         onPress={() => toggleFilter('showCafes')}
                     >
-                        <Coffee size={14} color={filters.showCafes ? '#fff' : vTheme.colors.text} />
-                        <Text style={[styles.filterChipText, { color: filters.showCafes ? '#fff' : vTheme.colors.text }]}>
+                        <Coffee size={14} color={filters.showCafes ? '#fff' : colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: filters.showCafes ? '#fff' : colors.textPrimary }]}>
                             Кафе
                         </Text>
                     </TouchableOpacity>
@@ -845,16 +870,16 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             {/* Floating action buttons */}
             <View style={styles.fabContainer}>
                 <TouchableOpacity
-                    style={[styles.fab, { backgroundColor: vTheme.colors.backgroundSecondary }]}
+                    style={[styles.fab, { backgroundColor: colors.surfaceElevated }]}
                     onPress={handleLocateMe}
                 >
-                    <LocateFixed size={22} color={vTheme.colors.primary} />
+                    <LocateFixed size={22} color={colors.accent} />
                 </TouchableOpacity>
             </View>
 
             {/* Selected marker info */}
             {selectedMarker && (
-                <View style={[styles.infoCard, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
+                <View style={[styles.infoCard, { backgroundColor: colors.surfaceElevated }]}>
                     <View style={styles.infoHeader}>
                         <View style={[styles.infoIcon, { backgroundColor: getMarkerColor(selectedMarker.type) }]}>
                             {selectedMarker.type === 'user' && <Users size={20} color="#fff" />}
@@ -863,16 +888,16 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                             {selectedMarker.type === 'cafe' && <Coffee size={20} color="#fff" />}
                         </View>
                         <View style={styles.infoContent}>
-                            <Text style={[styles.infoTitle, { color: vTheme.colors.text }]}>
+                            <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>
                                 {selectedMarker.title}
                             </Text>
                             {selectedMarker.subtitle && (
-                                <Text style={[styles.infoSubtitle, { color: vTheme.colors.textSecondary }]}>
+                                <Text style={[styles.infoSubtitle, { color: colors.textSecondary }]}>
                                     {selectedMarker.subtitle}
                                 </Text>
                             )}
                             {selectedMarker.distance !== undefined && (
-                                <Text style={[styles.infoDistance, { color: vTheme.colors.primary }]}>
+                                <Text style={[styles.infoDistance, { color: colors.accent }]}>
                                     {mapService.formatDistance(selectedMarker.distance)}
                                 </Text>
                             )}
@@ -881,20 +906,20 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                             style={styles.closeButton}
                             onPress={() => setSelectedMarker(null)}
                         >
-                            <X size={20} color={vTheme.colors.textSecondary} />
+                            <X size={20} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.infoActions}>
                         <TouchableOpacity
-                            style={[styles.actionButton, { backgroundColor: vTheme.colors.primary }]}
+                            style={[styles.actionButton, { backgroundColor: colors.accent }]}
                             onPress={handleBuildRoute}
                         >
                             <Route size={16} color="#fff" />
                             <Text style={styles.actionButtonText}>Маршрут</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.actionButton, { backgroundColor: vTheme.colors.backgroundSecondary, borderWidth: 1, borderColor: vTheme.colors.divider }]}
+                            style={[styles.actionButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
                             onPress={() => {
                                 if (selectedMarker.type === 'user') {
                                     navigation?.navigate('ContactProfile', { userId: selectedMarker.id });
@@ -907,7 +932,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                 }
                             }}
                         >
-                            <Text style={[styles.actionButtonText, { color: vTheme.colors.text }]}>Подробнее</Text>
+                            <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>Подробнее</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -918,11 +943,11 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                 ref={bottomSheetRef}
                 index={0}
                 snapPoints={snapPoints}
-                backgroundStyle={{ backgroundColor: vTheme.colors.backgroundSecondary }}
-                handleIndicatorStyle={{ backgroundColor: vTheme.colors.divider }}
+                backgroundStyle={{ backgroundColor: colors.surfaceElevated }}
+                handleIndicatorStyle={{ backgroundColor: colors.border }}
             >
                 <View style={styles.sheetContainer}>
-                    <Text style={[styles.sheetTitle, { color: vTheme.colors.text }]}>
+                    <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
                         {t('map.near_objects', 'Объекты поблизости')} ({markers.length})
                     </Text>
                     <BottomSheetFlatList
@@ -930,7 +955,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                         keyExtractor={(item) => `${item.type}-${item.id}`}
                         renderItem={({ item }) => (
                             <TouchableOpacity
-                                style={[styles.card, { backgroundColor: vTheme.colors.background }]}
+                                style={[styles.card, { backgroundColor: colors.surface }]}
                                 onPress={() => handleFocusMarker(item)}
                             >
                                 <View style={styles.cardMain}>
@@ -951,16 +976,16 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                         )}
                                     </View>
                                     <View style={styles.cardContent}>
-                                        <Text style={[styles.cardTitle, { color: vTheme.colors.text }]} numberOfLines={1}>
+                                        <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1}>
                                             {item.title}
                                         </Text>
                                         {item.subtitle && (
-                                            <Text style={[styles.cardSubtitle, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>
+                                            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
                                                 {item.subtitle}
                                             </Text>
                                         )}
                                         {item.distance !== undefined && (
-                                            <Text style={[styles.cardDistance, { color: vTheme.colors.primary }]}>
+                                            <Text style={[styles.cardDistance, { color: colors.accent }]}>
                                                 {mapService.formatDistance(item.distance)}
                                             </Text>
                                         )}
@@ -968,7 +993,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                 </View>
                                 <View style={styles.cardActions}>
                                     <TouchableOpacity
-                                        style={[styles.smallActionButton, { backgroundColor: vTheme.colors.primary }]}
+                                        style={[styles.smallActionButton, { backgroundColor: colors.accent }]}
                                         onPress={() => {
                                             setSelectedMarker(item);
                                             handleBuildRoute();
@@ -978,11 +1003,11 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                         <Text style={styles.smallActionButtonText}>Маршрут</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={[styles.smallActionButton, { backgroundColor: vTheme.colors.backgroundSecondary, borderWidth: 1, borderColor: vTheme.colors.divider }]}
+                                        style={[styles.smallActionButton, { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }]}
                                         onPress={() => handleDetails(item)}
                                     >
-                                        <ExternalLink size={16} color={vTheme.colors.text} />
-                                        <Text style={[styles.smallActionButtonText, { color: vTheme.colors.text }]}>Инфо</Text>
+                                        <ExternalLink size={16} color={colors.textPrimary} />
+                                        <Text style={[styles.smallActionButtonText, { color: colors.textPrimary }]}>Инфо</Text>
                                     </TouchableOpacity>
                                 </View>
                             </TouchableOpacity>
@@ -990,7 +1015,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                         contentContainerStyle={styles.listContent}
                         ListEmptyComponent={
                             <View style={styles.emptyContainer}>
-                                <Text style={{ color: vTheme.colors.textSecondary }}>
+                                <Text style={{ color: colors.textSecondary }}>
                                     {t('map.no_markers_visible', 'В этой области нет объектов')}
                                 </Text>
                             </View>
@@ -1002,7 +1027,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             {/* Loading overlay */}
             {isLoading && (
                 <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color={vTheme.colors.primary} />
+                    <ActivityIndicator size="large" color={colors.accent} />
                 </View>
             )}
         </View>
@@ -1071,12 +1096,12 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: 'transparent',
         borderWidth: 1,
-        borderColor: '#e5e5e5',
+        borderColor: 'transparent',
         gap: 4,
     },
     filterChipActive: {
-        backgroundColor: '#7C3AED',
-        borderColor: '#7C3AED',
+        backgroundColor: '#6B7280',
+        borderColor: '#6B7280',
     },
     filterChipText: {
         fontSize: 12,
@@ -1165,7 +1190,7 @@ const styles = StyleSheet.create({
     },
     loadingOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        backgroundColor: 'rgba(2,6,23,0.45)',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 999,
@@ -1261,7 +1286,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingHorizontal: 0,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+        borderColor: 'transparent',
         marginLeft: 8,
     },
     searchIcon: {

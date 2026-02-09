@@ -4,6 +4,7 @@ import { Compass, HelpCircle, Heart, Infinity, Leaf } from 'lucide-react-native'
 import { ROLE_OPTIONS } from '../../constants/roleOptions';
 import { PortalBlueprint, PortalRole } from '../../types/portalBlueprint';
 import { RoleInfoModal } from './RoleInfoModal';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 interface RoleSelectionSectionProps {
   selectedRole: string;
@@ -25,6 +26,7 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   blueprints,
   autoOpenHint = false,
 }) => {
+  const { colors } = useRoleTheme(selectedRole, true);
   const [infoRole, setInfoRole] = useState<PortalRole | null>(null);
   const autoOpenedRef = useRef(false);
 
@@ -54,8 +56,10 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.title}>Роль в портале</Text>
-        <Text style={styles.subtitle}>Роль влияет на быстрый доступ, приоритет сервисов и подсказки.</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Роль в портале</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Роль влияет на быстрый доступ, приоритет сервисов и подсказки.
+        </Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
@@ -65,13 +69,17 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
             <Pressable
               key={option.id}
               onPress={() => onSelectRole(option.id)}
-              style={[
-                styles.card,
-                selected && {
-                  borderColor: option.highlightColor,
-                  shadowColor: option.highlightColor,
-                  shadowOpacity: 0.22,
-                  shadowRadius: 10,
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+              selected && {
+                borderColor: option.highlightColor,
+                shadowColor: option.highlightColor,
+                shadowOpacity: 0.22,
+                shadowRadius: 10,
                   elevation: 5,
                 },
               ]}
@@ -84,7 +92,7 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
                 <Pressable
                   onPress={() => setInfoRole(option.id)}
                   hitSlop={10}
-                  style={styles.helpButton}
+                  style={[styles.helpButton, { backgroundColor: colors.overlay, borderColor: colors.border }]}
                   testID={`role-help-${option.id}`}
                 >
                   <HelpCircle size={16} color="#FFFFFF" />
@@ -93,13 +101,15 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
 
               <View style={styles.content}>
                 <View style={styles.titleRow}>
-                  <Text style={[styles.cardTitle, selected && { color: option.highlightColor }]}>{option.title}</Text>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }, selected && { color: option.highlightColor }]}>
+                  {option.title}
+                </Text>
                   <View style={[styles.iconBadge, { backgroundColor: `${option.highlightColor}20` }]}>
                     {roleIcon(option.id, option.highlightColor)}
                   </View>
                 </View>
-                <Text style={styles.cardSubtitle}>{option.subtitle}</Text>
-                <Text style={styles.cardDescription}>{option.description}</Text>
+                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{option.subtitle}</Text>
+                <Text style={[styles.cardDescription, { color: colors.textPrimary }]}>{option.description}</Text>
 
                 {selected && (
                   <View style={[styles.selectedChip, { backgroundColor: option.highlightColor }]}>
@@ -116,6 +126,7 @@ export const RoleSelectionSection: React.FC<RoleSelectionSectionProps> = ({
         visible={!!infoRole}
         title={activeOption.title}
         servicesHint={servicesHint}
+        role={infoRole || selectedRole}
         onClose={() => setInfoRole(null)}
       />
     </View>

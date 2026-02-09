@@ -31,6 +31,8 @@ import {
     Wallet
 } from 'lucide-react-native';
 import { useWallet } from '../../../context/WalletContext';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -38,6 +40,8 @@ export const MarketHomeScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
+    const { user } = useUser();
+    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, true);
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
 
     const { isDarkMode, vTheme } = useSettings();
@@ -194,7 +198,7 @@ export const MarketHomeScreen: React.FC = () => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={roleColors.textPrimary} />
                 </TouchableOpacity>
 
                 <View style={styles.headerTitleContainer}>
@@ -206,11 +210,11 @@ export const MarketHomeScreen: React.FC = () => {
 
                 <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
                     <LinearGradient
-                        colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
-                        style={styles.walletInner}
+                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
+                        style={[styles.walletInner, { borderColor: roleColors.accentSoft }]}
                     >
-                        <Wallet size={14} color="#F59E0B" />
-                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                        <Wallet size={14} color={roleColors.accent} />
+                        <Text style={[styles.walletBalance, { color: roleColors.accent }]}>{formattedBalance}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -218,15 +222,15 @@ export const MarketHomeScreen: React.FC = () => {
             <View style={styles.featuredActions}>
                 <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: 'rgba(30, 30, 58, 0.5)', borderColor: 'rgba(245, 158, 11, 0.2)' }]}
+                        style={[styles.featuredCard, { backgroundColor: roleColors.surface, borderColor: roleColors.accentSoft }]}
                         onPress={handleShopsPress}
                     >
                         <LinearGradient
-                            colors={['rgba(245, 158, 11, 0.15)', 'transparent']}
+                            colors={[roleTheme.accentSoft, 'transparent']}
                             style={styles.cardGradient}
                         />
                         <View style={styles.actionIconOuter}>
-                            <Store size={22} color="#F59E0B" />
+                            <Store size={22} color={roleColors.accent} />
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>{t('market.shops')}</Text>
@@ -253,9 +257,9 @@ export const MarketHomeScreen: React.FC = () => {
                 <View style={styles.searchBackground}>
                     <SearchIcon size={20} color="rgba(255,255,255,0.4)" />
                     <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: roleColors.textPrimary }]}
                         placeholder={t('market.search')}
-                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        placeholderTextColor={roleColors.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         onSubmitEditing={handleSearch}
@@ -283,7 +287,7 @@ export const MarketHomeScreen: React.FC = () => {
                                 onPress={() => handleCategorySelect(item.id)}
                             >
                                 <View style={styles.pillIcon}>
-                                    {getCategoryIcon(item.emoji, 14, isActive ? '#1a1a2e' : '#F59E0B')}
+                                    {getCategoryIcon(item.emoji, 14, isActive ? '#1a1a2e' : roleColors.accent)}
                                 </View>
                                 <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
                                     {item.label[currentLang] || item.label.en}
@@ -309,14 +313,14 @@ export const MarketHomeScreen: React.FC = () => {
         if (!loadingMore) return null;
         return (
             <View style={styles.loadingFooter}>
-                <ActivityIndicator size="small" color="#F59E0B" />
+                <ActivityIndicator size="small" color={roleColors.accent} />
             </View>
         );
     };
 
     return (
         <LinearGradient
-            colors={['#0a0a14', '#12122b']}
+            colors={roleTheme.gradient}
             style={styles.gradient}
         >
             <SafeAreaView style={styles.container} edges={['top']}>
@@ -351,7 +355,7 @@ export const MarketHomeScreen: React.FC = () => {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            tintColor="#F59E0B"
+                            tintColor={roleColors.accent}
                         />
                     }
                     onEndReached={onLoadMore}

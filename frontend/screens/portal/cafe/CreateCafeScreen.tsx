@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Camera, Utensils, Pencil, Info, MapPin, Phone, Globe, MessageCircle, Instagram, Truck, ShoppingBag, UtensilsCrossed } from 'lucide-react-native';
 import { launchImageLibrary, PhotoQuality } from 'react-native-image-picker';
 import { cafeService } from '../../../services/cafeService';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -28,6 +30,8 @@ const CreateCafeScreen = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
     const cafeId = route.params?.cafeId;
     const isEditing = !!cafeId;
 
@@ -153,19 +157,19 @@ const CreateCafeScreen = () => {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
             </LinearGradient>
         );
     }
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <SafeAreaView style={styles.header} edges={['top']}>
                 <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>
                     {isEditing ? t('cafe.form.editTitle') : t('cafe.form.registerTitle')}
@@ -223,7 +227,7 @@ const CreateCafeScreen = () => {
                         {/* Basic Info Group */}
                         <View style={styles.glassGroup}>
                             <View style={styles.groupHeader}>
-                                <Info size={18} color="#F59E0B" />
+                                <Info size={18} color={colors.accent} />
                                 <Text style={styles.groupTitle}>{t('cafe.form.basicInfo')}</Text>
                             </View>
                             <View style={styles.inputBox}>
@@ -251,7 +255,7 @@ const CreateCafeScreen = () => {
                         {/* Location Group */}
                         <View style={styles.glassGroup}>
                             <View style={styles.groupHeader}>
-                                <MapPin size={18} color="#F59E0B" />
+                                <MapPin size={18} color={colors.accent} />
                                 <Text style={styles.groupTitle}>{t('cafe.form.location')}</Text>
                             </View>
                             <View style={styles.inputBox}>
@@ -277,7 +281,7 @@ const CreateCafeScreen = () => {
                         {/* Contact Group */}
                         <View style={styles.glassGroup}>
                             <View style={styles.groupHeader}>
-                                <Phone size={18} color="#F59E0B" />
+                                <Phone size={18} color={colors.accent} />
                                 <Text style={styles.groupTitle}>{t('cafe.form.contactSocial')}</Text>
                             </View>
                             <View style={styles.inputBox}>
@@ -331,7 +335,7 @@ const CreateCafeScreen = () => {
                         {/* Services Group */}
                         <View style={styles.glassGroup}>
                             <View style={styles.groupHeader}>
-                                <Truck size={18} color="#F59E0B" />
+                                <Truck size={18} color={colors.accent} />
                                 <Text style={styles.groupTitle}>{t('cafe.form.services')}</Text>
                             </View>
                             <View style={styles.switchRow}>
@@ -342,7 +346,7 @@ const CreateCafeScreen = () => {
                                 <Switch
                                     value={hasDineIn}
                                     onValueChange={setHasDineIn}
-                                    trackColor={{ false: '#1a1a2e', true: '#F59E0B' }}
+                                    trackColor={{ false: '#1a1a2e', true: colors.accent }}
                                     thumbColor={Platform.OS === 'ios' ? '#fff' : (hasDineIn ? '#fff' : '#444')}
                                 />
                             </View>
@@ -354,7 +358,7 @@ const CreateCafeScreen = () => {
                                 <Switch
                                     value={hasTakeaway}
                                     onValueChange={setHasTakeaway}
-                                    trackColor={{ false: '#1a1a2e', true: '#F59E0B' }}
+                                    trackColor={{ false: '#1a1a2e', true: colors.accent }}
                                     thumbColor={Platform.OS === 'ios' ? '#fff' : (hasTakeaway ? '#fff' : '#444')}
                                 />
                             </View>
@@ -366,7 +370,7 @@ const CreateCafeScreen = () => {
                                 <Switch
                                     value={hasDelivery}
                                     onValueChange={setHasDelivery}
-                                    trackColor={{ false: '#1a1a2e', true: '#F59E0B' }}
+                                    trackColor={{ false: '#1a1a2e', true: colors.accent }}
                                     thumbColor={Platform.OS === 'ios' ? '#fff' : (hasDelivery ? '#fff' : '#444')}
                                 />
                             </View>
@@ -378,7 +382,7 @@ const CreateCafeScreen = () => {
                             disabled={submitting}
                         >
                             <LinearGradient
-                                colors={['#F59E0B', '#D97706']}
+                                colors={[roleTheme.accent, roleTheme.accentStrong]}
                                 style={styles.submitGradient}
                             >
                                 {submitting ? (

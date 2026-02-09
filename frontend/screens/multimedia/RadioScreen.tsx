@@ -7,17 +7,20 @@ import {
     TouchableOpacity,
     Image,
     RefreshControl,
-    ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Radio as RadioIcon, Play, Loader2, ArrowLeft, Search } from 'lucide-react-native';
-import { ScrollView, TextInput } from 'react-native';
+import { Radio as RadioIcon, Play, Loader2, ArrowLeft } from 'lucide-react-native';
+import { ScrollView } from 'react-native';
 import { multimediaService, RadioStation } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const RadioScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [stations, setStations] = useState<RadioStation[]>([]);
@@ -48,55 +51,55 @@ export const RadioScreen: React.FC = () => {
 
     const renderStation = ({ item }: { item: RadioStation }) => (
         <TouchableOpacity
-            style={[styles.stationCard, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}
+            style={[styles.stationCard, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
             onPress={() => navigation.navigate('RadioPlayer', { station: item })}
         >
             {item.logoUrl ? (
                 <Image source={{ uri: item.logoUrl }} style={styles.logo} />
             ) : (
-                <View style={[styles.logoPlaceholder, { backgroundColor: `${vTheme.colors.primary}10` }]}>
-                    <RadioIcon size={32} color={vTheme.colors.primary} />
+                <View style={[styles.logoPlaceholder, { backgroundColor: roleColors.accentSoft }]}>
+                    <RadioIcon size={32} color={roleColors.accent} />
                 </View>
             )}
             <View style={styles.info}>
-                <Text style={[styles.name, { color: vTheme.colors.text }]}>{item.name}</Text>
-                <Text style={[styles.description, { color: vTheme.colors.textSecondary }]} numberOfLines={2}>
+                <Text style={[styles.name, { color: roleColors.textPrimary }]}>{item.name}</Text>
+                <Text style={[styles.description, { color: roleColors.textSecondary }]} numberOfLines={2}>
                     {item.description || 'Духовное радио вещание'}
                 </Text>
                 <View style={styles.meta}>
                     <View style={[
                         styles.liveBadge,
-                        { backgroundColor: item.status === 'online' ? '#4ade8020' : '#f8717120' }
+                        { backgroundColor: item.status === 'online' ? roleColors.success + '33' : roleColors.danger + '33' }
                     ]}>
                         <View style={[
                             styles.liveDot,
-                            { backgroundColor: item.status === 'online' ? '#4ade80' : '#f87171' }
+                            { backgroundColor: item.status === 'online' ? roleColors.success : roleColors.danger }
                         ]} />
                         <Text style={[
                             styles.liveText,
-                            { color: item.status === 'online' ? '#166534' : '#991b1b' }
+                            { color: item.status === 'online' ? roleColors.success : roleColors.danger }
                         ]}>
                             {item.status === 'online' ? 'В СЕТИ' : 'ОФФЛАЙН'}
                         </Text>
                     </View>
                     {item.viewerCount > 0 && (
-                        <Text style={[styles.viewerCount, { color: vTheme.colors.textSecondary }]}>👥 {item.viewerCount}</Text>
+                        <Text style={[styles.viewerCount, { color: roleColors.textSecondary }]}>👥 {item.viewerCount}</Text>
                     )}
                 </View>
             </View>
-            <View style={[styles.playButton, { backgroundColor: `${vTheme.colors.primary}10` }]}>
-                <Play size={24} color={vTheme.colors.primary} fill={vTheme.colors.primary} />
+            <View style={[styles.playButton, { backgroundColor: roleColors.accentSoft }]}>
+                <Play size={24} color={roleColors.accent} fill={roleColors.accent} />
             </View>
         </TouchableOpacity>
     );
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
-            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: roleColors.background }]}>
+            <View style={[styles.header, { backgroundColor: roleColors.background }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={vTheme.colors.text} />
+                    <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Онлайн-радио</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Онлайн-радио</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -106,22 +109,26 @@ export const RadioScreen: React.FC = () => {
                     <TouchableOpacity
                         style={[
                             styles.filterChip,
-                            !selectedMadh ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                            !selectedMadh
+                                ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                         ]}
                         onPress={() => setSelectedMadh(undefined)}
                     >
-                        <Text style={[styles.filterText, !selectedMadh ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>Все Традиции</Text>
+                        <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
                     </TouchableOpacity>
                     {MADH_OPTIONS.map((m) => (
                         <TouchableOpacity
                             key={m.id}
                             style={[
                                 styles.filterChip,
-                                selectedMadh === m.id ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                                selectedMadh === m.id
+                                    ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                    : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                             ]}
                             onPress={() => setSelectedMadh(m.id)}
                         >
-                            <Text style={[styles.filterText, selectedMadh === m.id ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>
+                            <Text style={[styles.filterText, selectedMadh === m.id ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>
                                 {m.label}
                             </Text>
                         </TouchableOpacity>
@@ -131,8 +138,8 @@ export const RadioScreen: React.FC = () => {
 
             {loading ? (
                 <View style={styles.center}>
-                    <Loader2 size={32} color={vTheme.colors.primary} />
-                    <Text style={[styles.loadingText, { color: vTheme.colors.textSecondary }]}>Загрузка станций...</Text>
+                    <Loader2 size={32} color={roleColors.accent} />
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка станций...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -141,12 +148,12 @@ export const RadioScreen: React.FC = () => {
                     keyExtractor={(item) => item.ID.toString()}
                     contentContainerStyle={styles.list}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadStations(); }} tintColor={vTheme.colors.primary} />
+                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadStations(); }} tintColor={roleColors.accent} />
                     }
                     ListEmptyComponent={
                         <View style={styles.center}>
-                            <RadioIcon size={48} color={vTheme.colors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>Радиостанции пока не добавлены</Text>
+                            <RadioIcon size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Радиостанции пока не добавлены</Text>
                         </View>
                     }
                 />

@@ -32,6 +32,7 @@ import { useWallet } from '../../../context/WalletContext';
 import { useUser } from '../../../context/UserContext';
 import ServiceCalendar from './components/ServiceCalendar';
 import TariffSelector from './components/TariffSelector';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type RouteParams = {
     params: {
@@ -55,6 +56,7 @@ export default function ServiceBookingScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
     const { wallet, refreshWallet, formattedBalance } = useWallet();
 
     const serviceId = route.params?.serviceId;
@@ -227,9 +229,9 @@ export default function ServiceBookingScreen() {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
                 <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#FFD700" />
+                    <ActivityIndicator size="large" color={colors.accent} />
                 </View>
             </LinearGradient>
         );
@@ -237,7 +239,7 @@ export default function ServiceBookingScreen() {
 
     if (!service) {
         return (
-            <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
                 <SafeAreaView style={styles.container}>
                     <View style={styles.errorContainer}>
                         <Text style={styles.errorIcon}>😔</Text>
@@ -252,7 +254,7 @@ export default function ServiceBookingScreen() {
     }
 
     return (
-        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+        <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
                 {/* Fixed Premium Header */}
                 <View style={styles.header}>
@@ -277,7 +279,7 @@ export default function ServiceBookingScreen() {
                                 {service.owner && (
                                     <View style={styles.ownerLine}>
                                         <View style={styles.ownerCircle}>
-                                            <User size={10} color="#F59E0B" />
+                                            <User size={10} color={colors.accent} />
                                         </View>
                                         <Text style={styles.ownerKarmicName}>{service.owner.karmicName}</Text>
                                     </View>
@@ -285,9 +287,9 @@ export default function ServiceBookingScreen() {
                             </View>
                             <View style={styles.channelBadge}>
                                 {service.channel === 'offline' ? (
-                                    <MapPin size={12} color="#F59E0B" />
+                                    <MapPin size={12} color={colors.accent} />
                                 ) : (
-                                    <Video size={12} color="#F59E0B" />
+                                    <Video size={12} color={colors.accent} />
                                 )}
                                 <Text style={styles.channelLabel}>{CHANNEL_LABELS[service.channel]}</Text>
                             </View>

@@ -11,10 +11,16 @@ import { ArrowLeft, Share2, Info } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import Video from 'react-native-video';
 import { TVChannel } from '../../services/multimediaService';
+import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const TVPlayerScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation();
+    const { isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { channel } = route.params as { channel: TVChannel };
 
     const isYouTube = channel.streamUrl.includes('youtube.com') || channel.streamUrl.includes('youtu.be');
@@ -52,7 +58,7 @@ export const TVPlayerScreen: React.FC = () => {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <SafeAreaView style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color="#fff" />
@@ -66,19 +72,19 @@ export const TVPlayerScreen: React.FC = () => {
             <View style={styles.playerWrapper}>
                 {renderPlayer()}
                 {channel.isLive && (
-                    <View style={styles.liveOverlay}>
+                    <View style={[styles.liveOverlay, { backgroundColor: colors.danger }]}>
                         <View style={styles.liveDot} />
                         <Text style={styles.liveText}>ПРЯМОЙ ЭФИР</Text>
                     </View>
                 )}
             </View>
 
-            <View style={styles.infoSection}>
+            <View style={[styles.infoSection, { backgroundColor: colors.surfaceElevated }]}>
                 <View style={styles.infoTitleRow}>
-                    <Info size={20} color="#6366F1" />
-                    <Text style={styles.infoTitle}>О канале</Text>
+                    <Info size={20} color={colors.accent} />
+                    <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>О канале</Text>
                 </View>
-                <Text style={styles.description}>
+                <Text style={[styles.description, { color: colors.textSecondary }]}>
                     {channel.description || 'Трансляция духовных мероприятий и лекций в прямом эфире.'}
                 </Text>
             </View>
@@ -89,7 +95,6 @@ export const TVPlayerScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#111',
     },
     header: {
         flexDirection: 'row',
@@ -163,11 +168,9 @@ const styles = StyleSheet.create({
     infoTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#111827',
     },
     description: {
         fontSize: 14,
-        color: '#4B5563',
         lineHeight: 22,
     },
 });

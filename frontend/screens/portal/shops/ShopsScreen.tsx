@@ -24,6 +24,8 @@ import {
     PlusCircle
 } from 'lucide-react-native';
 import { useWallet } from '../../../context/WalletContext';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -31,6 +33,8 @@ export const ShopsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
+    const { user } = useUser();
+    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, true);
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
 
     const { isDarkMode, vTheme } = useSettings();
@@ -146,7 +150,7 @@ export const ShopsScreen: React.FC = () => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={roleColors.textPrimary} />
                 </TouchableOpacity>
 
                 <View style={styles.headerTitleContainer}>
@@ -158,11 +162,11 @@ export const ShopsScreen: React.FC = () => {
 
                 <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
                     <LinearGradient
-                        colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
-                        style={styles.walletInner}
+                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
+                        style={[styles.walletInner, { borderColor: roleColors.accentSoft }]}
                     >
-                        <Wallet size={14} color="#F59E0B" />
-                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                        <Wallet size={14} color={roleColors.accent} />
+                        <Text style={[styles.walletBalance, { color: roleColors.accent }]}>{formattedBalance}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -170,15 +174,15 @@ export const ShopsScreen: React.FC = () => {
             <View style={styles.featuredActions}>
                 <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: 'rgba(30, 30, 58, 0.5)', borderColor: 'rgba(245, 158, 11, 0.2)' }]}
+                        style={[styles.featuredCard, { backgroundColor: roleColors.surface, borderColor: roleColors.accentSoft }]}
                         onPress={() => navigation.navigate('CreateShop')}
                     >
                         <LinearGradient
-                            colors={['rgba(245, 158, 11, 0.15)', 'transparent']}
+                            colors={[roleTheme.accentSoft, 'transparent']}
                             style={styles.cardGradient}
                         />
                         <View style={styles.actionIconOuter}>
-                            <PlusCircle size={22} color="#F59E0B" />
+                            <PlusCircle size={22} color={roleColors.accent} />
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>{t('market.shop.create')}</Text>
@@ -203,11 +207,11 @@ export const ShopsScreen: React.FC = () => {
 
             <View style={styles.searchSection}>
                 <View style={styles.searchBackground}>
-                    <SearchIcon size={20} color="rgba(255,255,255,0.4)" />
+                    <SearchIcon size={20} color={roleColors.textSecondary} />
                     <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: roleColors.textPrimary }]}
                         placeholder={t('market.searchShops')}
-                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        placeholderTextColor={roleColors.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         onSubmitEditing={handleSearch}
@@ -215,7 +219,7 @@ export const ShopsScreen: React.FC = () => {
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => { setSearchQuery(''); loadShops(1, true); }}>
-                            <X size={20} color="rgba(255,255,255,0.4)" />
+                            <X size={20} color={roleColors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -234,7 +238,7 @@ export const ShopsScreen: React.FC = () => {
                                 style={[styles.sortPill, isActive && styles.sortPillActive]}
                                 onPress={() => handleCategorySelect(item.id)}
                             >
-                                <Tag size={12} color={isActive ? '#1a1a2e' : '#F59E0B'} style={{ marginRight: 6 }} />
+                                <Tag size={12} color={isActive ? '#1a1a2e' : roleColors.accent} style={{ marginRight: 6 }} />
                                 <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
                                     {item.label[currentLang] || item.label.en}
                                 </Text>
@@ -259,22 +263,22 @@ export const ShopsScreen: React.FC = () => {
         if (!loadingMore) return null;
         return (
             <View style={styles.loadingFooter}>
-                <ActivityIndicator size="small" color="#F59E0B" />
+                <ActivityIndicator size="small" color={roleColors.accent} />
             </View>
         );
     };
 
     if (loading && shops.length === 0) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={roleColors.accent} />
             </LinearGradient>
         );
     }
 
     return (
         <LinearGradient
-            colors={['#0a0a14', '#12122b']}
+            colors={roleTheme.gradient}
             style={styles.gradient}
         >
             <SafeAreaView style={styles.container} edges={['top']}>
@@ -297,7 +301,7 @@ export const ShopsScreen: React.FC = () => {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            tintColor="#F59E0B"
+                            tintColor={roleColors.accent}
                         />
                     }
                     onEndReached={onLoadMore}
@@ -503,5 +507,3 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 });
-
-

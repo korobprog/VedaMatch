@@ -26,6 +26,8 @@ import {
 import { yatraService } from '../../../services/yatraService';
 import { Shelter, ShelterReview, SHELTER_TYPE_LABELS, AMENITY_LABELS } from '../../../types/yatra';
 import LinearGradient from 'react-native-linear-gradient';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const ShelterDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -41,6 +43,8 @@ const ShelterDetailScreen: React.FC = () => {
     const [rating, setRating] = useState(5);
     const [comment, setComment] = useState('');
     const [submittingReview, setSubmittingReview] = useState(false);
+    const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, true);
 
     const loadShelter = useCallback(async () => {
         try {
@@ -143,7 +147,7 @@ const ShelterDetailScreen: React.FC = () => {
     if (loading || !shelter) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF9500" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -153,7 +157,7 @@ const ShelterDetailScreen: React.FC = () => {
     const coverImage = photos.length > 0 ? photos[0] : shelter.host?.avatarUrl;
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }}>
                 {/* Header Image */}
                 <View style={styles.imageContainer}>
@@ -186,7 +190,7 @@ const ShelterDetailScreen: React.FC = () => {
                         )}
                         <Text style={styles.title}>{shelter.title}</Text>
                         <View style={styles.ratingRow}>
-                            <Star size={16} color="#FFD700" fill="#FFD700" />
+                            <Star size={16} color={colors.accent} fill={colors.accent} />
                             <Text style={styles.ratingText}>
                                 {shelter.rating.toFixed(1)} <Text style={styles.reviewsCount}>({shelter.reviewsCount} отзывов)</Text>
                             </Text>
@@ -207,7 +211,7 @@ const ShelterDetailScreen: React.FC = () => {
                     <View style={styles.hostRow}>
                         <Image
                             source={{ uri: shelter.host?.avatarUrl || 'https://via.placeholder.com/50' }}
-                            style={styles.hostAvatar}
+                            style={[styles.hostAvatar, { borderColor: colors.accent }]}
                         />
                         <View style={styles.hostInfo}>
                             <Text style={styles.hostLabel}>Хозяин</Text>

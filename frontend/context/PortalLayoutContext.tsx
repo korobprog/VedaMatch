@@ -7,6 +7,7 @@ import {
     PortalPage,
     PortalWidget,
     createDefaultLayout,
+    DEFAULT_SERVICES,
     FOLDER_COLORS,
 } from '../types/portal';
 import {
@@ -23,6 +24,262 @@ import {
     moveItemToQuickAccess,
 } from '../services/portalLayoutService';
 import { useUser } from './UserContext';
+
+const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education']);
+const SEEKER_LOCKED_FOLDER_NAME = 'Откроется после профиля';
+const SEEKER_LOCKED_FOLDER_ID = 'folder-seeker-locked';
+const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((s) => s.id));
+const SEEKER_ALWAYS_ACCESSIBLE = new Set([...SEEKER_ALLOWED_WITHOUT_PROFILE, 'settings', 'history', 'seva']);
+
+const normalizeRu = (value: string) =>
+    (value || '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .trim();
+
+const sanitizeAllFolders = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((p) => ({
+            ...p,
+            items: p.items.map((item) => item.type === 'folder'
+                ? { ...item, items: [...item.items] }
+                : { ...item }),
+            widgets: [...p.widgets],
+        })),
+        quickAccess: [...inputLayout.quickAccess],
+    };
+
+    let changed = false;
+
+    layout.pages = layout.pages.map((page) => {
+        const cleanedItems = page.items.map((item, index) => {
+            if (item.type !== 'folder') {
+                if (item.position !== index) {
+                    changed = true;
+                }
+                return { ...item, position: index };
+            }
+
+            const cleanedFolderItems = item.items
+                .filter((folderItem) => VALID_SERVICE_IDS.has(folderItem.serviceId))
+                .reduce<PortalItem[]>((acc, folderItem) => {
+                    if (!acc.some((x) => x.serviceId === folderItem.serviceId)) {
+                        acc.push(folderItem);
+                    } else {
+                        changed = true;
+                    }
+                    return acc;
+                }, [])
+                .map((folderItem, folderIndex) => ({ ...folderItem, position: folderIndex }));
+
+            if (cleanedFolderItems.length !== item.items.length || item.position !== index) {
+                changed = true;
+            }
+
+            return {
+                ...item,
+                items: cleanedFolderItems,
+                position: index,
+            };
+        });
+
+        return {
+            ...page,
+            items: cleanedItems,
+        };
+    });
+
+    if (changed) {
+        layout.lastModified = Date.now();
+        layout.syncedWithServer = false;
+    }
+
+    return { layout, changed };
+};
+
+const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, isProfileComplete?: boolean): { layout: PortalLayout; changed: boolean } => {
+    const isSeeker = (role || 'user') === 'user';
+    if (!isSeeker || isProfileComplete) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((p) => ({
+            ...p,
+            items: p.items.map((item) => item.type === 'folder'
+                ? { ...item, items: [...item.items] }
+                : { ...item }),
+            widgets: [...p.widgets],
+        })),
+        quickAccess: [...inputLayout.quickAccess],
+    };
+
+    if (layout.pages.length === 0) {
+        return { layout, changed: false };
+    }
+
+    let changed = false;
+    const firstPage = layout.pages[0];
+    const lockedCandidates = firstPage.items.filter((item) => {
+        if (item.type !== 'folder') return false;
+        const n = normalizeRu(item.name);
+        const isById = item.id === SEEKER_LOCKED_FOLDER_ID;
+        const isByName = n.includes('откро') && n.includes('проф');
+        return isById || isByName;
+    }) as PortalFolder[];
+
+    let lockedFolder: PortalFolder;
+    if (lockedCandidates.length > 0) {
+        lockedFolder = lockedCandidates[0];
+    } else {
+        lockedFolder = {
+            id: SEEKER_LOCKED_FOLDER_ID,
+            name: SEEKER_LOCKED_FOLDER_NAME,
+            type: 'folder',
+            color: FOLDER_COLORS[6],
+            items: [],
+            position: firstPage.items.length,
+        };
+        firstPage.items.push(lockedFolder);
+        changed = true;
+    }
+
+    if (lockedFolder.id !== SEEKER_LOCKED_FOLDER_ID || lockedFolder.name !== SEEKER_LOCKED_FOLDER_NAME) {
+        lockedFolder.id = SEEKER_LOCKED_FOLDER_ID;
+        lockedFolder.name = SEEKER_LOCKED_FOLDER_NAME;
+        changed = true;
+    }
+
+    const lockedByServiceId = new Map<string, PortalItem>();
+    const existingMainServiceIds = new Set<string>();
+    layout.pages.forEach((page) => {
+        page.items.forEach((item) => {
+            if (item.type === 'service') {
+                existingMainServiceIds.add(item.serviceId);
+            }
+        });
+    });
+
+    const allowedFromLocked: PortalItem[] = [];
+    const mergedLockedItems = lockedCandidates.flatMap((folder) => folder.items);
+    mergedLockedItems.forEach((item) => {
+        if (SEEKER_ALLOWED_WITHOUT_PROFILE.has(item.serviceId)) {
+            allowedFromLocked.push(item);
+            changed = true;
+            return;
+        }
+        lockedByServiceId.set(item.serviceId, item);
+    });
+
+    layout.pages.forEach((page) => {
+        const keptItems: (PortalItem | PortalFolder)[] = [];
+        page.items.forEach((item) => {
+            if (item.type !== 'service') {
+                keptItems.push(item);
+                return;
+            }
+
+            if (SEEKER_ALWAYS_ACCESSIBLE.has(item.serviceId)) {
+                keptItems.push(item);
+                return;
+            }
+
+            if (!lockedByServiceId.has(item.serviceId)) {
+                lockedByServiceId.set(item.serviceId, { ...item, position: 0 });
+                changed = true;
+            } else {
+                changed = true;
+            }
+        });
+        page.items = keptItems.map((item, index) => ({ ...item, position: index }));
+    });
+
+    // Rebuild locked folder from canonical blocked service list for Seeker
+    const blockedServiceIds = DEFAULT_SERVICES
+        .map((service) => service.id)
+        .filter((serviceId) => !SEEKER_ALWAYS_ACCESSIBLE.has(serviceId));
+    const canonicalLockedItems: PortalItem[] = blockedServiceIds.map((serviceId) => {
+        const existing = lockedByServiceId.get(serviceId);
+        if (existing) {
+            return existing;
+        }
+        changed = true;
+        return {
+            id: `item-${serviceId}-locked`,
+            serviceId,
+            type: 'service',
+            position: 0,
+        };
+    });
+    lockedByServiceId.clear();
+    canonicalLockedItems.forEach((item) => lockedByServiceId.set(item.serviceId, item));
+
+    const filteredQuickAccess = layout.quickAccess.filter((item) => SEEKER_ALLOWED_WITHOUT_PROFILE.has(item.serviceId));
+    if (filteredQuickAccess.length !== layout.quickAccess.length) {
+        changed = true;
+    }
+    layout.quickAccess = filteredQuickAccess.map((item, index) => ({ ...item, position: index }));
+
+    if (allowedFromLocked.length > 0) {
+        allowedFromLocked.forEach((item) => {
+            if (existingMainServiceIds.has(item.serviceId)) {
+                return;
+            }
+            firstPage.items.push({
+                id: item.id,
+                serviceId: item.serviceId,
+                type: 'service',
+                position: firstPage.items.length,
+            });
+            existingMainServiceIds.add(item.serviceId);
+            changed = true;
+        });
+    }
+
+    const sanitizedLockedItems = Array.from(lockedByServiceId.values())
+        .filter((item) => VALID_SERVICE_IDS.has(item.serviceId))
+        .reduce<PortalItem[]>((acc, item) => {
+            if (!acc.some((x) => x.serviceId === item.serviceId)) {
+                acc.push(item);
+            }
+            return acc;
+        }, [])
+        .map((item, index) => ({ ...item, position: index }));
+    if (sanitizedLockedItems.length !== lockedFolder.items.length) {
+        changed = true;
+    }
+    lockedFolder.items = sanitizedLockedItems;
+    firstPage.items = firstPage.items.filter((item) => {
+        if (item.type !== 'folder') return true;
+        if (item.id === lockedFolder.id) return true;
+        const n = normalizeRu(item.name);
+        const isLegacyLocked = n.includes('откро') && n.includes('проф');
+        if (isLegacyLocked) {
+            changed = true;
+            return false;
+        }
+        return true;
+    });
+
+    const folderIndex = firstPage.items.findIndex((item) => item.type === 'folder' && item.id === lockedFolder.id);
+    if (folderIndex >= 0) {
+        firstPage.items[folderIndex] = { ...lockedFolder, position: folderIndex };
+    } else {
+        firstPage.items.push({ ...lockedFolder, position: firstPage.items.length });
+        changed = true;
+    }
+
+    firstPage.items = firstPage.items.map((item, index) => ({ ...item, position: index }));
+
+    if (changed) {
+        layout.lastModified = Date.now();
+        layout.syncedWithServer = false;
+    }
+
+    return { layout, changed };
+};
 
 interface PortalLayoutContextType {
     layout: PortalLayout;
@@ -99,7 +356,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 }
 
                 const savedLayout = await initializeLayout(role, blueprint);
-                setLayout(savedLayout);
+                const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
+                const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
+                if (sanitizedChanged || changed) {
+                    await saveLocalLayout(adjustedLayout);
+                }
+                setLayout(adjustedLayout);
             } catch (error) {
                 console.warn('Failed to initialize portal layout:', error);
             } finally {
@@ -107,7 +369,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             }
         };
         init();
-    }, [setActiveMath, setGodModeFilters, setRoleDescriptor, user?.ID, user?.godModeEnabled, user?.role]);
+    }, [setActiveMath, setGodModeFilters, setRoleDescriptor, user?.ID, user?.godModeEnabled, user?.role, user?.isProfileComplete]);
 
     // Save layout whenever it changes
     const updateLayout = useCallback((newLayout: PortalLayout) => {
@@ -257,12 +519,17 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
     const refreshLayout = useCallback(async () => {
         setIsLoading(true);
         try {
-            const savedLayout = await initializeLayout();
-            setLayout(savedLayout);
+            const savedLayout = await initializeLayout(user?.role || 'user');
+            const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
+            const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
+            if (sanitizedChanged || changed) {
+                await saveLocalLayout(adjustedLayout);
+            }
+            setLayout(adjustedLayout);
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [user?.isProfileComplete, user?.role]);
 
     return (
         <PortalLayoutContext.Provider

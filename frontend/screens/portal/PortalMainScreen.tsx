@@ -152,7 +152,11 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             return;
         }
 
-        if (!user?.isProfileComplete) {
+        const isSeeker = (user?.role || 'user') === 'user';
+        const seekerAllowedWithoutProfile = ['chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education'];
+        const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
+
+        if (!user?.isProfileComplete && !canUseWithoutCompleteProfile) {
             Alert.alert(
                 'Profile Incomplete',
                 'Please complete your registration to access this service.',
@@ -210,17 +214,19 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     </View>
 
                     <View style={styles.logoContainer}>
-                        <TouchableOpacity onPress={() => setActiveTab(null)} activeOpacity={0.7}>
-                            <Image
-                                source={require('../../assets/logo_tilak.png')}
-                                style={[
-                                    styles.logoImage,
-                                    (portalBackgroundType === 'image')
-                                        ? { tintColor: '#ffffff' }
-                                        : (isDarkMode && { tintColor: vTheme.colors.primary })
-                                ]}
-                                resizeMode="contain"
-                            />
+                        <TouchableOpacity onPress={() => setActiveTab(null)} activeOpacity={0.85} style={styles.logoPressable}>
+                            <View style={styles.logoGlass}>
+                                <Image
+                                    source={require('../../assets/logo_tilak.png')}
+                                    style={[
+                                        styles.logoImage,
+                                        (portalBackgroundType === 'image')
+                                            ? { tintColor: '#ffffff' }
+                                            : (isDarkMode && { tintColor: vTheme.colors.primary })
+                                    ]}
+                                    resizeMode="contain"
+                                />
+                            </View>
                         </TouchableOpacity>
                     </View>
 
@@ -296,6 +302,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     visible={showRoleInfo}
                     title={roleDescriptor?.title || 'Роль'}
                     servicesHint={roleDescriptor?.servicesHint || []}
+                    role={roleDescriptor?.role}
                     onClose={() => setShowRoleInfo(false)}
                     onEditRole={() => {
                         setShowRoleInfo(false);
@@ -437,8 +444,8 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     logoImage: {
-        width: 120,
-        height: 40,
+        width: 92,
+        height: 30,
     },
     headerLeft: {
         flex: 1,
@@ -448,6 +455,14 @@ const styles = StyleSheet.create({
         flex: 2,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    logoPressable: {
+        borderRadius: 18,
+    },
+    logoGlass: {
+        height: 42,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     headerRight: {
         flex: 1,

@@ -45,6 +45,8 @@ import {
     CATEGORY_LABELS,
     CATEGORY_ICON_NAMES,
 } from '../../../services/serviceService';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const STATUS_CONFIG: Record<ServiceStatus, { label: string; color: string }> = {
     draft: { label: 'Черновик', color: '#9E9E9E' },
@@ -69,6 +71,8 @@ const CategoryIcon = ({ name, color, size }: { name: string, color: string, size
 
 export default function MyServicesScreen() {
     const navigation = useNavigation<any>();
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
 
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
@@ -187,10 +191,10 @@ export default function MyServicesScreen() {
                         <Image source={{ uri: service.coverImageUrl }} style={styles.coverImage} />
                     ) : (
                         <LinearGradient
-                            colors={['#1a1a2e', '#16213e']}
+                            colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
                             style={styles.coverPlaceholder}
                         >
-                            <CategoryIcon name={iconName} size={40} color="rgba(255, 215, 0, 0.4)" />
+                            <CategoryIcon name={iconName} size={40} color={colors.accentSoft} />
                         </LinearGradient>
                     )}
                     <View style={[styles.statusBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
@@ -205,7 +209,7 @@ export default function MyServicesScreen() {
                 <View style={styles.cardBody}>
                     <Text style={styles.serviceTitle} numberOfLines={2}>{service.title}</Text>
                     <View style={styles.categoryRow}>
-                        <CategoryIcon name={iconName} size={12} color="#FFD700" />
+                        <CategoryIcon name={iconName} size={12} color={colors.accent} />
                         <Text style={styles.serviceCategory}>
                             {CATEGORY_LABELS[service.category]}
                         </Text>
@@ -225,7 +229,7 @@ export default function MyServicesScreen() {
                         </View>
                         {service.rating > 0 && (
                             <View style={styles.statItem}>
-                                <Star size={14} color="#FFD700" fill="#FFD700" />
+                                <Star size={14} color={colors.accent} fill={colors.accent} />
                                 <Text style={styles.statValue}>{service.rating.toFixed(1)}</Text>
                             </View>
                         )}
@@ -238,7 +242,7 @@ export default function MyServicesScreen() {
                         style={styles.actionButton}
                         onPress={() => handleEditService(service)}
                     >
-                        <Edit3 size={18} color="#FFD700" />
+                        <Edit3 size={18} color={colors.accent} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -272,34 +276,34 @@ export default function MyServicesScreen() {
                     style={styles.scheduleLink}
                     onPress={() => handleManageSchedule(service)}
                 >
-                    <Calendar size={16} color="#FFD700" />
-                    <Text style={styles.scheduleLinkText}>Настроить расписание и слоты</Text>
+                    <Calendar size={16} color={colors.accent} />
+                    <Text style={[styles.scheduleLinkText, { color: colors.accent }]}>Настроить расписание и слоты</Text>
                 </TouchableOpacity>
             </View>
         );
     };
 
     return (
-        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+        <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
                 {/* Fixed Premium Header */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle}>Управление услугами</Text>
                         <Text style={styles.headerSubtitle}>Ваши духовные предложения</Text>
                     </View>
                     <TouchableOpacity style={styles.addButton} onPress={handleCreateService}>
-                        <Plus size={22} color="#F59E0B" />
+                        <Plus size={22} color={colors.accent} />
                     </TouchableOpacity>
                 </View>
 
                 {/* Content Body */}
                 {loading ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#F59E0B" />
+                        <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
                     <ScrollView
@@ -310,7 +314,7 @@ export default function MyServicesScreen() {
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
-                                tintColor="#F59E0B"
+                                tintColor={colors.accent}
                             />
                         }
                     >

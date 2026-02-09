@@ -12,10 +12,14 @@ import { useNavigation } from '@react-navigation/native';
 import { Tv, Play, Loader2, ArrowLeft } from 'lucide-react-native';
 import { multimediaService, TVChannel } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const TVScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [channels, setChannels] = useState<TVChannel[]>([]);
@@ -38,49 +42,49 @@ export const TVScreen: React.FC = () => {
 
     const renderChannel = ({ item }: { item: TVChannel }) => (
         <TouchableOpacity
-            style={[styles.channelCard, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}
+            style={[styles.channelCard, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
             onPress={() => navigation.navigate('TVPlayer', { channel: item })}
         >
             <View style={styles.logoContainer}>
                 {item.logoUrl ? (
                     <Image source={{ uri: item.logoUrl }} style={styles.logo} />
                 ) : (
-                    <View style={[styles.logoPlaceholder, { backgroundColor: `${vTheme.colors.primary}10` }]}>
-                        <Tv size={40} color={vTheme.colors.primary} />
+                    <View style={[styles.logoPlaceholder, { backgroundColor: roleColors.accentSoft }]}>
+                        <Tv size={40} color={roleColors.accent} />
                     </View>
                 )}
                 {item.isLive && (
-                    <View style={[styles.liveBadge, { backgroundColor: vTheme.colors.accent }]}>
+                    <View style={[styles.liveBadge, { backgroundColor: roleColors.accent }]}>
                         <Text style={styles.liveText}>LIVE</Text>
                     </View>
                 )}
             </View>
             <View style={styles.info}>
-                <Text style={[styles.name, { color: vTheme.colors.text }]}>{item.name}</Text>
-                <Text style={[styles.type, { color: vTheme.colors.textSecondary }]}>
+                <Text style={[styles.name, { color: roleColors.textPrimary }]}>{item.name}</Text>
+                <Text style={[styles.type, { color: roleColors.textSecondary }]}>
                     {item.streamType === 'youtube' ? 'YouTube Трансляция' : 'Прямой эфир'}
                 </Text>
             </View>
             <View style={styles.playIcon}>
-                <Play size={24} color={vTheme.colors.primary} fill={vTheme.colors.primary} />
+                <Play size={24} color={roleColors.accent} fill={roleColors.accent} />
             </View>
         </TouchableOpacity>
     );
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
-            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: roleColors.background }]}>
+            <View style={[styles.header, { backgroundColor: roleColors.background }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={vTheme.colors.text} />
+                    <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Духовное ТВ</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Духовное ТВ</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             {loading ? (
                 <View style={styles.center}>
-                    <Loader2 size={32} color={vTheme.colors.primary} />
-                    <Text style={[styles.loadingText, { color: vTheme.colors.textSecondary }]}>Загрузка каналов...</Text>
+                    <Loader2 size={32} color={roleColors.accent} />
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка каналов...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -89,12 +93,12 @@ export const TVScreen: React.FC = () => {
                     keyExtractor={(item) => item.ID.toString()}
                     contentContainerStyle={styles.list}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadChannels(); }} tintColor={vTheme.colors.primary} />
+                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadChannels(); }} tintColor={roleColors.accent} />
                     }
                     ListEmptyComponent={
                         <View style={styles.center}>
-                            <Tv size={48} color={vTheme.colors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>Каналы пока не добавлены</Text>
+                            <Tv size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Каналы пока не добавлены</Text>
                         </View>
                     }
                 />

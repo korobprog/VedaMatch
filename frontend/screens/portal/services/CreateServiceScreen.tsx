@@ -58,6 +58,8 @@ import {
     uploadServicePhoto,
 } from '../../../services/serviceService';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -98,6 +100,8 @@ export default function CreateServiceScreen() {
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const serviceId = route.params?.serviceId;
     const isEditing = !!serviceId;
+    const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
 
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -290,7 +294,7 @@ export default function CreateServiceScreen() {
     };
 
     return (
-        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+        <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
                 {/* Fixed Premium Header */}
                 <View style={styles.header}>
@@ -320,7 +324,7 @@ export default function CreateServiceScreen() {
 
                 {loading ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#F59E0B" />
+                        <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
                     <KeyboardAvoidingView
@@ -338,7 +342,7 @@ export default function CreateServiceScreen() {
                                             style={styles.imageOverlay}
                                         >
                                             <View style={styles.cameraCircleSmall}>
-                                                <Camera size={20} color="#F59E0B" />
+                                                <Camera size={20} color={colors.accent} />
                                             </View>
                                         </LinearGradient>
                                     </View>
@@ -349,7 +353,7 @@ export default function CreateServiceScreen() {
                                             style={styles.coverPlaceholderGradient}
                                         />
                                         <View style={styles.cameraCircle}>
-                                            <Camera size={28} color="#F59E0B" />
+                                            <Camera size={28} color={colors.accent} />
                                         </View>
                                         <Text style={styles.coverPlaceholderText}>Добавить обложку</Text>
                                         <Text style={styles.coverPlaceholderSubtext}>Рекомендуем 1200x800px</Text>
@@ -398,7 +402,7 @@ export default function CreateServiceScreen() {
                                             onPress={() => setShowCategoryPicker(!showCategoryPicker)}
                                         >
                                             <View style={styles.pickerIconCircle}>
-                                                <CategoryIcon name={CATEGORY_ICON_NAMES[category]} size={14} color="#F59E0B" />
+                                                <CategoryIcon name={CATEGORY_ICON_NAMES[category]} size={14} color={colors.accent} />
                                             </View>
                                             <Text style={styles.pickerText}>{CATEGORY_LABELS[category]}</Text>
                                             <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
@@ -418,7 +422,7 @@ export default function CreateServiceScreen() {
                                                         setShowCategoryPicker(false);
                                                     }}
                                                 >
-                                                    <CategoryIcon name={CATEGORY_ICON_NAMES[cat]} size={16} color={category === cat ? '#000' : '#F59E0B'} />
+                                                    <CategoryIcon name={CATEGORY_ICON_NAMES[cat]} size={16} color={category === cat ? '#000' : colors.accent} />
                                                     <Text style={[styles.pickerItemText, category === cat && styles.pickerItemTextActive]}>
                                                         {CATEGORY_LABELS[cat]}
                                                     </Text>
@@ -437,7 +441,7 @@ export default function CreateServiceScreen() {
                                             onPress={() => setShowChannelPicker(!showChannelPicker)}
                                         >
                                             <View style={styles.pickerIconCircle}>
-                                                {channel === 'offline' ? <MapPin size={14} color="#F59E0B" /> : <Video size={14} color="#F59E0B" />}
+                                                {channel === 'offline' ? <MapPin size={14} color={colors.accent} /> : <Video size={14} color={colors.accent} />}
                                             </View>
                                             <Text style={styles.pickerText}>{CHANNEL_LABELS[channel]}</Text>
                                             <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
@@ -452,7 +456,7 @@ export default function CreateServiceScreen() {
                                             onPress={() => setShowAccessPicker(!showAccessPicker)}
                                         >
                                             <View style={styles.pickerIconCircle}>
-                                                <Globe size={14} color="#F59E0B" />
+                                                <Globe size={14} color={colors.accent} />
                                             </View>
                                             <Text style={styles.pickerText}>{ACCESS_LABELS[accessType]}</Text>
                                             <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
@@ -527,7 +531,7 @@ export default function CreateServiceScreen() {
                                     onPress={handleAddTariff}
                                     activeOpacity={0.7}
                                 >
-                                    <Plus size={14} color="#F59E0B" />
+                                    <Plus size={14} color={colors.accent} />
                                     <Text style={styles.addTariffText}>Добавить</Text>
                                 </TouchableOpacity>
                             </View>

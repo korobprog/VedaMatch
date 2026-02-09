@@ -21,6 +21,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'EducationHome'>;
 
@@ -29,6 +30,7 @@ export const EducationHomeScreen: React.FC = () => {
     const { user } = useUser();
     const { t } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
+    const { colors: roleColors } = useRoleTheme(user?.role, true);
     const [courses, setCourses] = useState<EducationCourse[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -61,10 +63,10 @@ export const EducationHomeScreen: React.FC = () => {
             onPress={() => navigation.navigate('CourseDetails', { courseId: item.ID })}
         >
             <View style={[styles.courseImagePlaceholder, { backgroundColor: isDarkMode ? '#2C2C2E' : '#F5F5F5' }]}>
-                <Book size={40} color={vTheme.colors.primary} />
+                <Book size={40} color={roleColors.accent} />
             </View>
             <View style={styles.courseInfo}>
-                <Text style={[styles.courseOrg, { color: vTheme.colors.primary }]}>{item.organization}</Text>
+                <Text style={[styles.courseOrg, { color: roleColors.accent }]}>{item.organization}</Text>
                 <Text style={[styles.courseTitle, { color: vTheme.colors.text }]}>{item.title}</Text>
                 <Text style={[styles.courseDesc, { color: vTheme.colors.textSecondary }]} numberOfLines={2}>
                     {item.description}
@@ -79,7 +81,7 @@ export const EducationHomeScreen: React.FC = () => {
     if (loading && !refreshing) {
         return (
             <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <ActivityIndicator size="large" color={vTheme.colors.primary} />
+                <ActivityIndicator size="large" color={roleColors.accent} />
             </View>
         );
     }
@@ -87,11 +89,11 @@ export const EducationHomeScreen: React.FC = () => {
     return (
         <ScrollView
             style={[styles.container, { backgroundColor: vTheme.colors.background }]}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={vTheme.colors.primary} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={roleColors.accent} />}
         >
             <GodModeStatusBanner />
             <View style={[styles.header, { backgroundColor: vTheme.colors.surface, borderBottomColor: vTheme.colors.divider }]}>
-                <Text style={[styles.headerTitle, { color: vTheme.colors.primary }]}>{t('education.title')}</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.accent }]}>{t('education.title')}</Text>
                 <Text style={[styles.headerSub, { color: vTheme.colors.textSecondary }]}>{t('education.subtitle')}</Text>
             </View>
 

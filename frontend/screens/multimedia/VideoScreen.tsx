@@ -14,10 +14,14 @@ import { Film, Search, Play, Loader2, ArrowLeft } from 'lucide-react-native';
 import { ScrollView } from 'react-native';
 import { multimediaService, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const VideoScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [videos, setVideos] = useState<MediaTrack[]>([]);
@@ -53,15 +57,15 @@ export const VideoScreen: React.FC = () => {
 
     const renderVideo = ({ item }: { item: MediaTrack }) => (
         <TouchableOpacity
-            style={[styles.videoCard, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}
+            style={[styles.videoCard, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
             onPress={() => navigation.navigate('VideoPlayer', { video: item })}
         >
             <View style={styles.thumbnailContainer}>
                 {item.thumbnailUrl ? (
                     <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
                 ) : (
-                    <View style={[styles.thumbnailPlaceholder, { backgroundColor: `${vTheme.colors.primary}10` }]}>
-                        <Film size={40} color={vTheme.colors.primary} />
+                    <View style={[styles.thumbnailPlaceholder, { backgroundColor: roleColors.accentSoft }]}>
+                        <Film size={40} color={roleColors.accent} />
                     </View>
                 )}
                 <View style={styles.durationBadge}>
@@ -72,29 +76,29 @@ export const VideoScreen: React.FC = () => {
                 </View>
             </View>
             <View style={styles.info}>
-                <Text style={[styles.title, { color: vTheme.colors.text }]} numberOfLines={2}>{item.title}</Text>
-                <Text style={[styles.artist, { color: vTheme.colors.textSecondary }]}>{item.artist || 'Неизвестный автор'}</Text>
-                <Text style={[styles.stats, { color: vTheme.colors.textSecondary, opacity: 0.6 }]}>👁️ {item.viewCount} просмотров</Text>
+                <Text style={[styles.title, { color: roleColors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
+                <Text style={[styles.artist, { color: roleColors.textSecondary }]}>{item.artist || 'Неизвестный автор'}</Text>
+                <Text style={[styles.stats, { color: roleColors.textSecondary, opacity: 0.72 }]}>👁️ {item.viewCount} просмотров</Text>
             </View>
         </TouchableOpacity>
     );
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
-            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: roleColors.background }]}>
+            <View style={[styles.header, { backgroundColor: roleColors.background }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={vTheme.colors.text} />
+                    <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Кинотеатр</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Кинотеатр</Text>
                 <View style={{ width: 40 }} />
             </View>
 
-            <View style={[styles.searchContainer, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}>
-                <Search size={20} color={vTheme.colors.textSecondary} />
+            <View style={[styles.searchContainer, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border, ...vTheme.shadows.soft }]}>
+                <Search size={20} color={roleColors.textSecondary} />
                 <TextInput
-                    style={[styles.searchInput, { color: vTheme.colors.text }]}
+                    style={[styles.searchInput, { color: roleColors.textPrimary }]}
                     placeholder="Поиск фильмов, лекций..."
-                    placeholderTextColor={vTheme.colors.textSecondary}
+                    placeholderTextColor={roleColors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
                     onSubmitEditing={() => { setLoading(true); loadVideos(); }}
@@ -107,22 +111,26 @@ export const VideoScreen: React.FC = () => {
                     <TouchableOpacity
                         style={[
                             styles.filterChip,
-                            !selectedMadh ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                            !selectedMadh
+                                ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                         ]}
                         onPress={() => setSelectedMadh(undefined)}
                     >
-                        <Text style={[styles.filterText, !selectedMadh ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>Все Традиции</Text>
+                        <Text style={[styles.filterText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
                     </TouchableOpacity>
                     {MADH_OPTIONS.map((m) => (
                         <TouchableOpacity
                             key={m.id}
                             style={[
                                 styles.filterChip,
-                                selectedMadh === m.id ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                                selectedMadh === m.id
+                                    ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                    : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                             ]}
                             onPress={() => setSelectedMadh(m.id)}
                         >
-                            <Text style={[styles.filterText, selectedMadh === m.id ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>
+                            <Text style={[styles.filterText, selectedMadh === m.id ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>
                                 {m.label}
                             </Text>
                         </TouchableOpacity>
@@ -132,8 +140,8 @@ export const VideoScreen: React.FC = () => {
 
             {loading ? (
                 <View style={styles.center}>
-                    <Loader2 size={32} color={vTheme.colors.primary} />
-                    <Text style={[styles.loadingText, { color: vTheme.colors.textSecondary }]}>Загрузка фильмов...</Text>
+                    <Loader2 size={32} color={roleColors.accent} />
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка фильмов...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -142,12 +150,12 @@ export const VideoScreen: React.FC = () => {
                     keyExtractor={(item) => item.ID.toString()}
                     contentContainerStyle={styles.list}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadVideos(); }} tintColor={vTheme.colors.primary} />
+                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadVideos(); }} tintColor={roleColors.accent} />
                     }
                     ListEmptyComponent={
                         <View style={styles.center}>
-                            <Film size={48} color={vTheme.colors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>Видео пока не добавлены</Text>
+                            <Film size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Видео пока не добавлены</Text>
                         </View>
                     }
                 />
@@ -185,6 +193,7 @@ const styles = StyleSheet.create({
         marginTop: 0,
         paddingHorizontal: 16,
         borderRadius: 16,
+        borderWidth: 1,
     },
     searchInput: {
         flex: 1,

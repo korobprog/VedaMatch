@@ -109,8 +109,12 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
         ],
     }));
 
+    const validItems = folder.items.filter((item) =>
+        DEFAULT_SERVICES.some((service) => service.id === item.serviceId)
+    );
+
     // Get preview icons (max 4)
-    const previewItems = folder.items.slice(0, 4);
+    const previewItems = validItems.slice(0, 4);
     const previewIcons = previewItems.map(item => {
         const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
         return service;
@@ -204,9 +208,9 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                 )}
 
                 {/* Item count badge */}
-                {folder.items.length > 0 && (
+                {validItems.length > 0 && (
                     <View style={[styles.countBadge, { backgroundColor: folder.color }]}>
-                        <Text style={styles.countText}>{folder.items.length}</Text>
+                        <Text style={styles.countText}>{validItems.length}</Text>
                     </View>
                 )}
             </Pressable>

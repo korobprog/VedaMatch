@@ -19,6 +19,8 @@ import { ArrowLeft, Camera, MapPin, Plus, Trash, Calendar, DollarSign } from 'lu
 import { launchImageLibrary } from 'react-native-image-picker';
 import { yatraService } from '../../../services/yatraService';
 import { YATRA_THEME_LABELS, YatraTheme } from '../../../types/yatra';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type CreateYatraScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateYatra'>;
 
@@ -32,6 +34,8 @@ const CreateYatraScreen = () => {
     const route = useRoute<any>();
     const yatraId = route.params?.yatraId;
     const isEditing = !!yatraId;
+    const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, false);
 
     const [loading, setLoading] = useState(isEditing);
     const [submitting, setSubmitting] = useState(false);
@@ -174,7 +178,7 @@ const CreateYatraScreen = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF9500" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -186,7 +190,7 @@ const CreateYatraScreen = () => {
         >
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#333" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{isEditing ? 'Редактировать Тур' : 'Создать Новый Тур'}</Text>
             </View>
@@ -201,7 +205,7 @@ const CreateYatraScreen = () => {
                         <Image source={{ uri: yatraService.getImageUrl(coverImage) }} style={styles.coverImage} />
                     ) : (
                         <View style={styles.uploadPlaceholder}>
-                            <Camera size={40} color="#999" />
+                            <Camera size={40} color={colors.textSecondary} />
                             <Text style={styles.uploadText}>Добавить обложку</Text>
                         </View>
                     )}
@@ -225,10 +229,10 @@ const CreateYatraScreen = () => {
                         {THEMES.map((t) => (
                             <TouchableOpacity
                                 key={t.key}
-                                style={[styles.themeChip, theme === t.key && styles.themeChipActive]}
+                                style={[styles.themeChip, theme === t.key && styles.themeChipActive, theme === t.key && { borderColor: colors.accent }]}
                                 onPress={() => setTheme(t.key as YatraTheme)}
                             >
-                                <Text style={[styles.themeText, theme === t.key && styles.themeTextActive]}>
+                                <Text style={[styles.themeText, theme === t.key && styles.themeTextActive, theme === t.key && { color: colors.accent }]}>
                                     {t.label}
                                 </Text>
                             </TouchableOpacity>
@@ -280,7 +284,7 @@ const CreateYatraScreen = () => {
                         <View style={styles.halfInput}>
                             <Text style={styles.label}>Стоимость (примерно)</Text>
                             <View style={styles.inputContainer}>
-                                <DollarSign size={18} color="#666" style={styles.inputIcon} />
+                                <DollarSign size={18} color={colors.textSecondary} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.inputWithIcon}
                                     placeholder="50000 rub"
@@ -317,7 +321,7 @@ const CreateYatraScreen = () => {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Маршрут</Text>
-                        <TouchableOpacity onPress={handleAddPoint} style={styles.addButton}>
+                        <TouchableOpacity onPress={handleAddPoint} style={[styles.addButton, { backgroundColor: colors.accent }]}>
                             <Plus size={16} color="#FFF" />
                             <Text style={styles.addButtonText}>Добавить</Text>
                         </TouchableOpacity>
@@ -326,7 +330,7 @@ const CreateYatraScreen = () => {
                     {routePoints.map((point, index) => (
                         <View key={point.id} style={styles.pointCard}>
                             <View style={styles.pointHeader}>
-                                <View style={styles.pointNumber}>
+                                <View style={[styles.pointNumber, { backgroundColor: colors.accent }]}>
                                     <Text style={styles.pointNumberText}>{index + 1}</Text>
                                 </View>
                                 <TextInput
@@ -353,7 +357,7 @@ const CreateYatraScreen = () => {
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.submitButton, submitting && styles.disabledButton]}
+                    style={[styles.submitButton, { backgroundColor: colors.accent, shadowColor: colors.accent }, submitting && styles.disabledButton]}
                     onPress={handleSubmit}
                     disabled={submitting}
                 >

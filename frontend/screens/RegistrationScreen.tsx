@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     View,
@@ -37,6 +37,7 @@ import DeviceInfo from 'react-native-device-info';
 import { RoleSelectionSection } from '../components/roles/RoleSelectionSection';
 import { PortalRole } from '../types/portalBlueprint';
 import { useSettings as usePortalSettings } from '../context/SettingsContext';
+import { useRoleTheme } from '../hooks/useRoleTheme';
 
 // Custom Components & Hooks
 import { useLocation } from '../hooks/useLocation';
@@ -102,6 +103,26 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
+    const { colors: roleColors, roleTheme } = useRoleTheme(role, true);
+    const isSeekerRole = role === 'user';
+    const isInGoodnessRole = role === 'in_goodness';
+    const isLiteProfileRole = isSeekerRole || isInGoodnessRole;
+
+    useEffect(() => {
+        if (!isLiteProfileRole) {
+            return;
+        }
+
+        setSpiritualName('');
+        setMadh('');
+        setYogaStyle('');
+        setMentor('');
+        setGuna('');
+        setIdentity(IDENTITY_OPTIONS[0]);
+        if (isSeekerRole) {
+            setDiet(DIET_OPTIONS[2]);
+        }
+    }, [isLiteProfileRole, isSeekerRole]);
 
     const handleCountrySelect = async (cData: any) => {
         setCountry(cData.name.common);
@@ -165,7 +186,10 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             }
         } else {
             if (!karmicName) {
-                Alert.alert(t('registration.required'), t('registration.karmicNameRequired'));
+                Alert.alert(
+                    t('registration.required'),
+                    isSeekerRole ? t('registration.nameRequired') : t('registration.karmicNameRequired')
+                );
                 return;
             }
         }
@@ -208,15 +232,15 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     country,
                     city,
                     karmicName,
-                    spiritualName,
+                    spiritualName: isLiteProfileRole ? '' : spiritualName,
                     dob: dob.toISOString(),
-                    madh,
-                    mentor,
+                    madh: isLiteProfileRole ? '' : madh,
+                    mentor: isLiteProfileRole ? '' : mentor,
                     gender,
-                    identity,
-                    yogaStyle,
-                    guna,
-                    diet,
+                    identity: isLiteProfileRole ? '' : identity,
+                    yogaStyle: isLiteProfileRole ? '' : yogaStyle,
+                    guna: isLiteProfileRole ? '' : guna,
+                    diet: isSeekerRole ? '' : diet,
                     role,
                     godModeEnabled,
                 };
@@ -285,7 +309,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         if (portalBackgroundType === 'image' && portalBackground) {
             return (
                 <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover">
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}>{children}</View>
+                    <View style={{ flex: 1, backgroundColor: roleColors.overlay }}>{children}</View>
                 </ImageBackground>
             );
         }
@@ -309,14 +333,14 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}
                     style={styles.backButton}
                 >
-                    <Text style={[styles.backText, { color: '#F8FAFC' }]}>← {t('registration.back')}</Text>
+                    <Text style={[styles.backText, { color: roleColors.textPrimary }]}>← {t('registration.back')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: '#F8FAFC' }]}>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>
                     {phase === 'initial' ? 'Sign Up' : t('registration.title')}
                 </Text>
                 {phase === 'profile' ? (
                     <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                        <Text style={[styles.skipText, { color: '#FFB74D' }]}>Skip</Text>
+                        <Text style={[styles.skipText, { color: roleColors.accent }]}>Skip</Text>
                     </TouchableOpacity>
                 ) : (
                     <View style={{ width: 60 }} />
@@ -328,7 +352,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     <View style={styles.logoWrapper}>
                         <Image
                             source={require('../assets/logo_tilak.png')}
-                            style={[styles.logoImage, { tintColor: '#FFB74D' }]}
+                            style={[styles.logoImage, { tintColor: roleColors.accent }]}
                             resizeMode="contain"
                         />
                     </View>
@@ -387,7 +411,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             <Switch
                                 value={godModeEnabled}
                                 onValueChange={setGodModeEnabled}
-                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(0, 137, 123, 0.6)' }}
+                                trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
                                 thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
                             />
                         </View>
@@ -411,20 +435,22 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
                         {/* Name Fields */}
                         <FormInput
-                            label={t('registration.karmicName')}
+                            label={isSeekerRole ? t('registration.name') : t('registration.karmicName')}
                             theme={theme}
                             value={karmicName}
                             onChangeText={setKarmicName}
                             placeholder="e.g., Ivan Ivanov"
                         />
 
-                        <FormInput
-                            label={t('registration.spiritualName')}
-                            theme={theme}
-                            value={spiritualName}
-                            onChangeText={setSpiritualName}
-                            placeholder="e.g., Das Anu Das"
-                        />
+                        {!isLiteProfileRole && (
+                            <FormInput
+                                label={t('registration.spiritualName')}
+                                theme={theme}
+                                value={spiritualName}
+                                onChangeText={setSpiritualName}
+                                placeholder="e.g., Das Anu Das"
+                            />
+                        )}
 
 
                         {/* Date of Birth */}
@@ -527,7 +553,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                             style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
                                             onPress={() => setCityInputMode(true)}
                                         >
-                                            <Text style={{ color: theme.accent, fontSize: 18 }}>✎</Text>
+                                            <Text style={{ color: roleColors.accent, fontSize: 18 }}>✎</Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>
@@ -573,83 +599,97 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             </View>
                         )}
 
-                        {/* Madh */}
-                        <FormSelect
-                            label={t('registration.madh')}
-                            value={madh}
-                            placeholder="Select Tradition"
-                            theme={theme}
-                            onPress={() => setShowMadhPicker(!showMadhPicker)}
-                        />
-                        {showMadhPicker && (
-                            <PickerContainer theme={theme}>
-                                <PickerItem label="None" theme={theme} onPress={() => { setMadh(''); setShowMadhPicker(false); }} />
-                                {DATING_TRADITIONS.map((m) => (
-                                    <PickerItem key={m} label={m} theme={theme} onPress={() => { setMadh(m); setShowMadhPicker(false); }} />
-                                ))}
-                            </PickerContainer>
+                        {!isLiteProfileRole && (
+                            <>
+                                {/* Madh */}
+                                <FormSelect
+                                    label={t('registration.madh')}
+                                    value={madh}
+                                    placeholder="Select Tradition"
+                                    theme={theme}
+                                    onPress={() => setShowMadhPicker(!showMadhPicker)}
+                                />
+                                {showMadhPicker && (
+                                    <PickerContainer theme={theme}>
+                                        <PickerItem label="None" theme={theme} onPress={() => { setMadh(''); setShowMadhPicker(false); }} />
+                                        {DATING_TRADITIONS.map((m) => (
+                                            <PickerItem key={m} label={m} theme={theme} onPress={() => { setMadh(m); setShowMadhPicker(false); }} />
+                                        ))}
+                                    </PickerContainer>
+                                )}
+                            </>
                         )}
 
-                        {/* Mentor */}
-                        <FormInput
-                            label={t('registration.mentor')}
-                            theme={theme}
-                            value={mentor}
-                            onChangeText={setMentor}
-                            placeholder="Current Shiksha/Diksha Guru"
-                        />
-
-                        {/* Identity */}
-                        <RadioGroup
-                            label={t('registration.identity')}
-                            options={IDENTITY_OPTIONS}
-                            value={identity}
-                            onChange={setIdentity}
-                            theme={theme}
-                            layout="row"
-                        />
-
-                        {/* Yoga Style */}
-                        <FormSelect
-                            label="Yoga Style"
-                            value={yogaStyle}
-                            placeholder="Select Yoga Style"
-                            theme={theme}
-                            onPress={() => setShowYogaPicker(!showYogaPicker)}
-                        />
-                        {showYogaPicker && (
-                            <PickerContainer theme={theme}>
-                                {YOGA_STYLES.map((y) => (
-                                    <PickerItem key={y} label={y} theme={theme} onPress={() => { setYogaStyle(y); setShowYogaPicker(false); }} />
-                                ))}
-                            </PickerContainer>
+                        {!isLiteProfileRole && (
+                            <FormInput
+                                label={t('registration.mentor')}
+                                theme={theme}
+                                value={mentor}
+                                onChangeText={setMentor}
+                                placeholder="Current Shiksha/Diksha Guru"
+                            />
                         )}
 
-                        {/* Guna */}
-                        <FormSelect
-                            label="Mode of Nature (Guna)"
-                            value={guna}
-                            placeholder="Select Guna"
-                            theme={theme}
-                            onPress={() => setShowGunaPicker(!showGunaPicker)}
-                        />
-                        {showGunaPicker && (
-                            <PickerContainer theme={theme}>
-                                {GUNAS.map((g) => (
-                                    <PickerItem key={g} label={g} theme={theme} onPress={() => { setGuna(g); setShowGunaPicker(false); }} />
-                                ))}
-                            </PickerContainer>
+                        {!isLiteProfileRole && (
+                            <RadioGroup
+                                label={t('registration.identity')}
+                                options={IDENTITY_OPTIONS}
+                                value={identity}
+                                onChange={setIdentity}
+                                theme={theme}
+                                layout="row"
+                            />
                         )}
 
-                        {/* Diet */}
-                        <RadioGroup
-                            label={t('registration.diet')}
-                            options={DIET_OPTIONS}
-                            value={diet}
-                            onChange={setDiet}
-                            theme={theme}
-                            layout="row"
-                        />
+                        {!isLiteProfileRole && (
+                            <>
+                                {/* Yoga Style */}
+                                <FormSelect
+                                    label="Yoga Style"
+                                    value={yogaStyle}
+                                    placeholder="Select Yoga Style"
+                                    theme={theme}
+                                    onPress={() => setShowYogaPicker(!showYogaPicker)}
+                                />
+                                {showYogaPicker && (
+                                    <PickerContainer theme={theme}>
+                                        {YOGA_STYLES.map((y) => (
+                                            <PickerItem key={y} label={y} theme={theme} onPress={() => { setYogaStyle(y); setShowYogaPicker(false); }} />
+                                        ))}
+                                    </PickerContainer>
+                                )}
+                            </>
+                        )}
+
+                        {!isLiteProfileRole && (
+                            <>
+                                <FormSelect
+                                    label="Mode of Nature (Guna)"
+                                    value={guna}
+                                    placeholder="Select Guna"
+                                    theme={theme}
+                                    onPress={() => setShowGunaPicker(!showGunaPicker)}
+                                />
+                                {showGunaPicker && (
+                                    <PickerContainer theme={theme}>
+                                        {GUNAS.map((g) => (
+                                            <PickerItem key={g} label={g} theme={theme} onPress={() => { setGuna(g); setShowGunaPicker(false); }} />
+                                        ))}
+                                    </PickerContainer>
+                                )}
+                            </>
+                        )}
+
+                        {!isSeekerRole && (
+                            <RadioGroup
+                                label={t('registration.diet')}
+                                options={DIET_OPTIONS}
+                                value={diet}
+                                onChange={setDiet}
+                                theme={theme}
+                                layout="row"
+                            />
+                        )}
                     </>
                 )}
 
@@ -673,7 +713,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     activeOpacity={0.8}
                 >
                     <LinearGradient
-                        colors={['#FFB74D', '#F57C00']}
+                        colors={[roleTheme.accent, roleTheme.accentStrong]}
                         style={[styles.submitButton, { opacity: loading ? 0.7 : 1 }]}
                     >
                         {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>{phase === 'initial' ? 'Next' : (phase === 'profile' ? 'Update Profile' : t('registration.submit'))}</Text>}
@@ -686,7 +726,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         onPress={() => navigation.navigate('Login')}
                     >
                         <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
-                            Already have an account? <Text style={{ color: '#FFB74D', fontWeight: 'bold' }}>Login</Text>
+                            Already have an account? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Login</Text>
                         </Text>
                     </TouchableOpacity>
                 )}

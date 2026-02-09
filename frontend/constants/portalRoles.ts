@@ -6,12 +6,13 @@ export const FALLBACK_PORTAL_BLUEPRINTS: Record<string, PortalBlueprint> = {
     title: 'Искатель',
     description: 'Базовый портал для повседневной практики.',
     highlightColor: '#6B7280',
-    quickAccess: ['contacts', 'chat', 'news'],
-    heroServices: ['news', 'library', 'education'],
+    quickAccess: ['contacts', 'chat', 'cafe'],
+    heroServices: ['news', 'library', 'education', 'cafe'],
     servicesHint: [
       { serviceId: 'news', title: 'Новости', filters: ['community', 'daily_digest'] },
       { serviceId: 'library', title: 'Библиотека', filters: ['beginner_path', 'daily_reading'] },
       { serviceId: 'education', title: 'Обучение', filters: ['foundations'] },
+      { serviceId: 'cafe', title: 'Кафе', filters: ['sattvic_menu', 'prasadam_only'] },
     ],
   },
   in_goodness: {

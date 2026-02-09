@@ -10,7 +10,7 @@ import {
 import { getApp } from '@react-native-firebase/app';
 import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { navigationRef } from '../App';
+import { navigationRef } from '../navigation/navigationRef';
 
 // Lazy-loaded messaging instance to prevent initialization race conditions
 let messagingInstance: any = null;

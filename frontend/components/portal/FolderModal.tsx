@@ -8,7 +8,6 @@ import {
     TouchableOpacity,
     TextInput,
     Pressable,
-    ScrollView,
     KeyboardAvoidingView,
     Platform,
     StyleSheet as RNStyleSheet,
@@ -86,6 +85,15 @@ export const FolderModal: React.FC<FolderModalProps> = ({
         return DEFAULT_SERVICES.find(s => s.id === item.serviceId);
     };
 
+    const displayItems = folder.items.reduce<PortalItem[]>((acc, item) => {
+        const isValid = !!getServiceForItem(item);
+        const duplicate = acc.some((x) => x.serviceId === item.serviceId);
+        if (isValid && !duplicate) {
+            acc.push(item);
+        }
+        return acc;
+    }, []);
+
     return (
         <Modal
             visible={visible}
@@ -106,14 +114,14 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                     backgroundColor: isPhotoBg
                                         ? 'transparent'
                                         : (isDarkMode ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)'),
-                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : folder.color,
+                                    borderWidth: 0,
                                 },
                             ]}
                             onPress={(e) => e.stopPropagation()}
                         >
                             {(isPhotoBg || isDarkMode) && (
                                 <BlurView
-                                    style={[RNStyleSheet.absoluteFill, { borderRadius: 24 }]}
+                                    style={[RNStyleSheet.absoluteFill, { borderRadius: 32 }]}
                                     blurType={isDarkMode ? "dark" : "light"}
                                     blurAmount={15}
                                     reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
@@ -121,13 +129,6 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                             )}
                             {/* Header */}
                             <View style={styles.header}>
-                                <TouchableOpacity
-                                    onPress={() => setShowColorPicker(!showColorPicker)}
-                                    style={[styles.colorButton, { backgroundColor: folder.color }]}
-                                >
-                                    <Palette size={16} color="#FFF" />
-                                </TouchableOpacity>
-
                                 {isEditing ? (
                                     <View style={styles.editContainer}>
                                         <TextInput
@@ -152,17 +153,26 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                         </TouchableOpacity>
                                     </View>
                                 ) : (
-                                    <TouchableOpacity onPress={() => setIsEditing(true)}>
+                                    <TouchableOpacity
+                                        onPress={() => setIsEditing(true)}
+                                        onLongPress={() => setShowColorPicker(!showColorPicker)}
+                                        style={styles.nameContainer}
+                                    >
                                         <Text style={[styles.folderName, { color: isPhotoBg ? '#ffffff' : vTheme.colors.text }]}>
                                             {folder.name}
                                         </Text>
                                     </TouchableOpacity>
                                 )}
-
-                                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                                    <X size={20} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
-                                </TouchableOpacity>
                             </View>
+
+                            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                                <BlurView
+                                    style={RNStyleSheet.absoluteFill}
+                                    blurType={isDarkMode ? "light" : "dark"}
+                                    blurAmount={10}
+                                />
+                                <X size={18} color="#ffffff" />
+                            </TouchableOpacity>
 
                             {/* Color picker */}
                             {showColorPicker && (
@@ -185,13 +195,9 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                             )}
 
                             {/* Items grid */}
-                            <ScrollView
-                                style={styles.itemsScroll}
-                                contentContainerStyle={styles.itemsGrid}
-                                showsVerticalScrollIndicator={false}
-                            >
-                                {folder.items.length > 0 ? (
-                                    folder.items.map((item) => {
+                            <View style={styles.itemsGrid}>
+                                {displayItems.length > 0 ? (
+                                    displayItems.map((item) => {
                                         const service = getServiceForItem(item);
                                         if (!service) return null;
                                         return (
@@ -201,7 +207,8 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                                     isEditMode={false}
                                                     onPress={() => onItemPress(item)}
                                                     onLongPress={() => onRemoveItem(item.id)}
-                                                    size="medium"
+                                                    size="small"
+                                                    showLabel={false}
                                                 />
                                             </View>
                                         );
@@ -216,7 +223,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                         </Text>
                                     </View>
                                 )}
-                            </ScrollView>
+                            </View>
                         </Pressable>
                     </Animated.View>
                 </KeyboardAvoidingView>
@@ -237,17 +244,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     container: {
-        width: 280,
+        width: 320,
         minHeight: 200,
-        maxHeight: 400,
-        borderRadius: 24,
-        borderWidth: 1.5,
-        padding: 16,
-        overflow: 'hidden',
+        borderRadius: 32,
+        padding: 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.35,
+        shadowRadius: 24,
         elevation: 20,
     },
     header: {
@@ -263,11 +267,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    folderName: {
-        fontSize: 18,
-        fontWeight: '600',
+    nameContainer: {
         flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 4,
+    },
+    folderName: {
+        fontSize: 20,
+        fontWeight: '800',
         textAlign: 'center',
+        letterSpacing: -0.6,
+        textShadowColor: 'rgba(0,0,0,0.1)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     editContainer: {
         flex: 1,
@@ -292,7 +305,24 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     closeButton: {
-        padding: 4,
+        position: 'absolute',
+        top: -12,
+        right: -12,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.25)',
+        borderWidth: 1.2,
+        borderColor: 'rgba(255,255,255,0.45)',
+        overflow: 'hidden',
+        zIndex: 1000,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 12,
     },
     colorPicker: {
         flexDirection: 'row',
@@ -310,13 +340,10 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         borderColor: '#FFF',
     },
-    itemsScroll: {
-        flex: 1,
-    },
     itemsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         paddingVertical: 8,
     },
     emptyState: {
@@ -334,6 +361,8 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     iconWrapper: {
-        marginBottom: 8,
+        width: '20%',
+        alignItems: 'center',
+        marginBottom: 4,
     },
 });

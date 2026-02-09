@@ -17,6 +17,8 @@ import { EducationCourse, EducationModule } from '../../../types/education';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../../context/SettingsContext';
 import { BookOpen, ChevronRight } from 'lucide-react-native';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type CourseDetailsRouteProp = RouteProp<RootStackParamList, 'CourseDetails'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'CourseDetails'>;
@@ -27,6 +29,8 @@ export const CourseDetailsScreen: React.FC = () => {
     const { courseId } = route.params;
     const { t } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, true);
 
     const [course, setCourse] = useState<EducationCourse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -48,7 +52,7 @@ export const CourseDetailsScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <ActivityIndicator size="large" color={vTheme.colors.primary} />
+                <ActivityIndicator size="large" color={roleColors.accent} />
             </View>
         );
     }
@@ -74,7 +78,7 @@ export const CourseDetailsScreen: React.FC = () => {
         <SafeAreaView style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={[styles.header, { backgroundColor: vTheme.colors.surface }]}>
-                    <Text style={[styles.orgBadge, { backgroundColor: vTheme.colors.primary + '20', color: vTheme.colors.primary }]}>{course.organization}</Text>
+                    <Text style={[styles.orgBadge, { backgroundColor: roleColors.accent + '20', color: roleColors.accent }]}>{course.organization}</Text>
                     <Text style={[styles.title, { color: vTheme.colors.text }]}>{course.title}</Text>
                     <Text style={[styles.description, { color: vTheme.colors.textSecondary }]}>{course.description}</Text>
 
@@ -83,8 +87,8 @@ export const CourseDetailsScreen: React.FC = () => {
                             style={[styles.bookButton, { backgroundColor: vTheme.colors.primary + '10', borderColor: vTheme.colors.primary + '30' }]}
                             onPress={handleOpenBook}
                         >
-                            <BookOpen size={20} color={vTheme.colors.primary} />
-                            <Text style={[styles.bookButtonText, { color: vTheme.colors.primary }]}>Читать оригинал</Text>
+                            <BookOpen size={20} color={roleColors.accent} />
+                            <Text style={[styles.bookButtonText, { color: roleColors.accent }]}>Читать оригинал</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -97,14 +101,14 @@ export const CourseDetailsScreen: React.FC = () => {
                             style={[styles.moduleCard, { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }]}
                             onPress={() => navigation.navigate('ExamTrainer', { moduleId: module.ID, title: module.title })}
                         >
-                            <View style={[styles.moduleNumberContainer, { backgroundColor: vTheme.colors.primary }]}>
+                            <View style={[styles.moduleNumberContainer, { backgroundColor: roleColors.accent }]}>
                                 <Text style={styles.moduleNumber}>{index + 1}</Text>
                             </View>
                             <View style={styles.moduleInfo}>
                                 <Text style={[styles.moduleTitle, { color: vTheme.colors.text }]}>{module.title}</Text>
                                 <Text style={[styles.moduleDesc, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>{module.description}</Text>
                             </View>
-                            <ChevronRight size={20} color={vTheme.colors.primary} />
+                            <ChevronRight size={20} color={roleColors.accent} />
                         </TouchableOpacity>
                     ))}
                 </View>

@@ -48,6 +48,7 @@ import {
 } from '../../../services/serviceService';
 import { formatBalance } from '../../../services/walletService';
 import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -75,6 +76,7 @@ export default function ServiceDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, true);
 
     const serviceId = route.params?.serviceId;
 
@@ -144,9 +146,9 @@ export default function ServiceDetailScreen() {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.gradient}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
                 <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#FFD700" />
+                    <ActivityIndicator size="large" color={colors.accent} />
                 </View>
             </LinearGradient>
         );
@@ -154,7 +156,7 @@ export default function ServiceDetailScreen() {
 
     if (!service) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.gradient}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
                 <SafeAreaView style={styles.container}>
                     <View style={styles.errorContainer}>
                         <View style={styles.errorCircle}>
@@ -174,15 +176,15 @@ export default function ServiceDetailScreen() {
     const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
 
     return (
-        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+        <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
                 {/* Custom Floating Header */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={handleShare}>
-                        <Share2 size={20} color="#fff" />
+                        <Share2 size={20} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
@@ -190,7 +192,7 @@ export default function ServiceDetailScreen() {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.scrollContent}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F59E0B" />
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
                     }
                 >
                     {/* Immersive Cover Section */}
@@ -199,10 +201,10 @@ export default function ServiceDetailScreen() {
                             <Image source={{ uri: service.coverImageUrl }} style={styles.coverImage} />
                         ) : (
                             <LinearGradient
-                                colors={['#1e1e3a', '#12122b']}
+                                colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
                                 style={styles.coverPlaceholder}
                             >
-                                <CategoryIcon name={iconName} size={100} color="rgba(245, 158, 11, 0.1)" />
+                                <CategoryIcon name={iconName} size={100} color={colors.accentSoft} />
                             </LinearGradient>
                         )}
                         <LinearGradient
@@ -210,8 +212,8 @@ export default function ServiceDetailScreen() {
                             style={styles.coverOverlay}
                         />
                         <View style={styles.categoryBadgeContainer}>
-                            <View style={styles.categoryBadge}>
-                                <CategoryIcon name={iconName} size={12} color="#F59E0B" />
+                            <View style={[styles.categoryBadge, { borderColor: colors.accentSoft }]}>
+                                <CategoryIcon name={iconName} size={12} color={colors.accent} />
                                 <Text style={styles.categoryBadgeText}>{categoryLabel}</Text>
                             </View>
                         </View>
@@ -245,7 +247,7 @@ export default function ServiceDetailScreen() {
                                     </Text>
                                 </View>
                                 <TouchableOpacity style={styles.chatIconButton} onPress={handleChat}>
-                                    <MessageCircle size={18} color="#F59E0B" />
+                                    <MessageCircle size={18} color={colors.accent} />
                                 </TouchableOpacity>
                             </TouchableOpacity>
                         )}
@@ -253,7 +255,7 @@ export default function ServiceDetailScreen() {
                         {/* Stats Grid - Glass Cards */}
                         <View style={styles.statsGrid}>
                             <View style={styles.statBox}>
-                                <Star size={16} color="#F59E0B" fill="#F59E0B" />
+                                <Star size={16} color={colors.accent} fill={colors.accent} />
                                 <Text style={styles.statValue}>{service.rating > 0 ? service.rating.toFixed(1) : '5.0'}</Text>
                                 <Text style={styles.statLabel}>Рейтинг</Text>
                             </View>

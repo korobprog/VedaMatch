@@ -20,12 +20,16 @@ import {
 import { yatraService } from '../../../services/yatraService';
 import { Yatra, Shelter, YatraFilters, ShelterFilters, YATRA_THEME_LABELS, SHELTER_TYPE_LABELS } from '../../../types/yatra';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type TabType = 'yatras' | 'shelters';
 
 const TravelHomeScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, true);
     const [activeTab, setActiveTab] = useState<TabType>('yatras');
     const [search, setSearch] = useState('');
 
@@ -121,7 +125,7 @@ const TravelHomeScreen: React.FC = () => {
                     <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
 
                     <View style={styles.cardRow}>
-                        <MapPin size={14} color="#FF9500" strokeWidth={2} />
+                        <MapPin size={14} color={colors.accent} strokeWidth={2} />
                         <Text style={styles.cardRowText}>
                             {item.startCity} → {item.endCity}
                         </Text>
@@ -196,7 +200,7 @@ const TravelHomeScreen: React.FC = () => {
                     <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
 
                     <View style={styles.cardRow}>
-                        <MapPin size={14} color="#FF9500" strokeWidth={2} />
+                        <MapPin size={14} color={colors.accent} strokeWidth={2} />
                         <Text style={styles.cardRowText} numberOfLines={1}>
                             {item.city}{item.nearTemple ? ` • ${item.nearTemple}` : ''}
                         </Text>
@@ -232,13 +236,13 @@ const TravelHomeScreen: React.FC = () => {
             <View style={styles.headerTop}>
                 <View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                        <Footprints size={32} color="#FF9500" />
+                        <Footprints size={32} color={colors.accent} />
                         <Text style={[styles.title, { marginBottom: 0 }]}>Yatra Seva</Text>
                     </View>
                     <Text style={styles.subtitle}>Духовные путешествия вместе</Text>
                 </View>
                 <TouchableOpacity
-                    style={styles.addButton}
+                    style={[styles.addButton, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
                     onPress={() => navigation.navigate(activeTab === 'yatras' ? 'CreateYatra' : 'CreateShelter')}
                 >
                     <Plus size={24} color="#FFFFFF" strokeWidth={2} />
@@ -246,11 +250,11 @@ const TravelHomeScreen: React.FC = () => {
             </View>
 
             <View style={styles.searchContainer}>
-                <Search size={20} color="#8E8E93" style={styles.searchIcon} strokeWidth={1.5} />
+                <Search size={20} color={colors.textSecondary} style={styles.searchIcon} strokeWidth={1.5} />
                 <TextInput
-                    style={styles.searchInput}
+                    style={[styles.searchInput, { color: colors.textPrimary }]}
                     placeholder={activeTab === 'yatras' ? 'Поиск туров...' : 'Поиск жилья...'}
-                    placeholderTextColor="#8E8E93"
+                    placeholderTextColor={colors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
                     onSubmitEditing={handleSearch}
@@ -258,26 +262,26 @@ const TravelHomeScreen: React.FC = () => {
                 />
                 {search.length > 0 && (
                     <TouchableOpacity onPress={() => { setSearch(''); handleSearch(); }}>
-                        <XCircle size={20} color="#8E8E93" strokeWidth={1.5} />
+                        <XCircle size={20} color={colors.textSecondary} strokeWidth={1.5} />
                     </TouchableOpacity>
                 )}
             </View>
 
             <View style={styles.tabContainer}>
                 <TouchableOpacity
-                    style={[styles.tab, activeTab === 'yatras' && styles.tabActive]}
+                    style={[styles.tab, activeTab === 'yatras' && styles.tabActive, activeTab === 'yatras' && { backgroundColor: colors.accent }]}
                     onPress={() => setActiveTab('yatras')}
                 >
-                    <Compass size={18} color={activeTab === 'yatras' ? '#FFFFFF' : '#8E8E93'} strokeWidth={2} />
+                    <Compass size={18} color={activeTab === 'yatras' ? '#FFFFFF' : colors.textSecondary} strokeWidth={2} />
                     <Text style={[styles.tabText, activeTab === 'yatras' && styles.tabTextActive]}>
                         Туры
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.tab, activeTab === 'shelters' && styles.tabActive]}
+                    style={[styles.tab, activeTab === 'shelters' && styles.tabActive, activeTab === 'shelters' && { backgroundColor: colors.accent }]}
                     onPress={() => setActiveTab('shelters')}
                 >
-                    <Home size={18} color={activeTab === 'shelters' ? '#FFFFFF' : '#8E8E93'} strokeWidth={2} />
+                    <Home size={18} color={activeTab === 'shelters' ? '#FFFFFF' : colors.textSecondary} strokeWidth={2} />
                     <Text style={[styles.tabText, activeTab === 'shelters' && styles.tabTextActive]}>
                         Жильё
                     </Text>
@@ -293,8 +297,8 @@ const TravelHomeScreen: React.FC = () => {
     if (isLoading && data.length === 0) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF9500" />
-                <Text style={styles.loadingText}>Загрузка...</Text>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={[styles.loadingText, { color: colors.textPrimary }]}>Загрузка...</Text>
             </View>
         );
     }
@@ -328,7 +332,7 @@ const TravelHomeScreen: React.FC = () => {
                     : 'Добавьте своё жильё или попробуйте другой поиск'}
             </Text>
             <TouchableOpacity
-                style={styles.emptyButton}
+                style={[styles.emptyButton, { backgroundColor: colors.accent }]}
                 onPress={() => navigation.navigate(activeTab === 'yatras' ? 'CreateYatra' : 'CreateShelter')}
             >
                 <Plus size={20} color="#FFFFFF" strokeWidth={2} />
@@ -340,7 +344,7 @@ const TravelHomeScreen: React.FC = () => {
     );
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             {activeTab === 'yatras' ? (
                 <FlatList<Yatra>
                     data={yatras}
@@ -353,7 +357,7 @@ const TravelHomeScreen: React.FC = () => {
                         </>
                     }
                     contentContainerStyle={styles.listContent}
-                    refreshControl={<RefreshControl {...refreshControlProps} />}
+                    refreshControl={<RefreshControl {...refreshControlProps} tintColor={colors.accent} />}
                     ListEmptyComponent={emptyComponent}
                 />
             ) : (
@@ -368,7 +372,7 @@ const TravelHomeScreen: React.FC = () => {
                         </>
                     }
                     contentContainerStyle={styles.listContent}
-                    refreshControl={<RefreshControl {...refreshControlProps} />}
+                    refreshControl={<RefreshControl {...refreshControlProps} tintColor={colors.accent} />}
                     ListEmptyComponent={emptyComponent}
                 />
             )}

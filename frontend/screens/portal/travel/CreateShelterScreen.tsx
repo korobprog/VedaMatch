@@ -20,6 +20,8 @@ import { ArrowLeft, Camera, Home, Wifi, Coffee, MapPin, Phone } from 'lucide-rea
 import { launchImageLibrary } from 'react-native-image-picker';
 import { yatraService } from '../../../services/yatraService';
 import { SHELTER_TYPE_LABELS, AMENITY_LABELS, ShelterType } from '../../../types/yatra';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type CreateShelterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateShelter'>;
 
@@ -38,6 +40,8 @@ const CreateShelterScreen = () => {
     const route = useRoute<any>();
     const shelterId = route.params?.shelterId;
     const isEditing = !!shelterId;
+    const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, false);
 
     const [loading, setLoading] = useState(isEditing);
     const [submitting, setSubmitting] = useState(false);
@@ -173,7 +177,7 @@ const CreateShelterScreen = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#10B981" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -185,7 +189,7 @@ const CreateShelterScreen = () => {
         >
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#333" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{isEditing ? 'Редактировать Жилье' : 'Добавить Жилье'}</Text>
             </View>
@@ -200,7 +204,7 @@ const CreateShelterScreen = () => {
                         <Image source={{ uri: yatraService.getImageUrl(coverImage) }} style={styles.coverImage} />
                     ) : (
                         <View style={styles.uploadPlaceholder}>
-                            <Camera size={40} color="#999" />
+                            <Camera size={40} color={colors.textSecondary} />
                             <Text style={styles.uploadText}>Фото жилья</Text>
                         </View>
                     )}
@@ -213,10 +217,10 @@ const CreateShelterScreen = () => {
                         {TYPES.map((t) => (
                             <TouchableOpacity
                                 key={t.key}
-                                style={[styles.typeChip, type === t.key && styles.typeChipActive]}
+                                style={[styles.typeChip, type === t.key && styles.typeChipActive, type === t.key && { borderColor: colors.accent }]}
                                 onPress={() => setType(t.key as ShelterType)}
                             >
-                                <Text style={[styles.typeText, type === t.key && styles.typeTextActive]}>
+                                <Text style={[styles.typeText, type === t.key && styles.typeTextActive, type === t.key && { color: colors.accent }]}>
                                     {t.label}
                                 </Text>
                             </TouchableOpacity>
@@ -289,10 +293,10 @@ const CreateShelterScreen = () => {
                         {AMENITIES.map((a) => (
                             <TouchableOpacity
                                 key={a.key}
-                                style={[styles.amenityChip, selectedAmenities.includes(a.key) && styles.amenityChipActive]}
+                                style={[styles.amenityChip, selectedAmenities.includes(a.key) && styles.amenityChipActive, selectedAmenities.includes(a.key) && { borderColor: colors.accent }]}
                                 onPress={() => toggleAmenity(a.key)}
                             >
-                                <Text style={[styles.amenityText, selectedAmenities.includes(a.key) && styles.amenityTextActive]}>
+                                <Text style={[styles.amenityText, selectedAmenities.includes(a.key) && styles.amenityTextActive, selectedAmenities.includes(a.key) && { color: colors.accent }]}>
                                     {a.label}
                                 </Text>
                             </TouchableOpacity>
@@ -307,7 +311,7 @@ const CreateShelterScreen = () => {
                         <Switch
                             value={isSevaAvailable}
                             onValueChange={setIsSevaAvailable}
-                            trackColor={{ false: "#E5E7EB", true: "#10B981" }}
+                            trackColor={{ false: '#E5E7EB', true: colors.accent }}
                         />
                     </View>
                     {isSevaAvailable && (
@@ -324,7 +328,7 @@ const CreateShelterScreen = () => {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Контакты и Правила</Text>
                     <View style={styles.inputContainer}>
-                        <Phone size={18} color="#666" style={styles.inputIcon} />
+                        <Phone size={18} color={colors.textSecondary} style={styles.inputIcon} />
                         <TextInput
                             style={styles.inputWithIcon}
                             placeholder="WhatsApp / Телефон"
@@ -343,7 +347,7 @@ const CreateShelterScreen = () => {
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.submitButton, submitting && styles.disabledButton]}
+                    style={[styles.submitButton, { backgroundColor: colors.accent, shadowColor: colors.accent }, submitting && styles.disabledButton]}
                     onPress={handleSubmit}
                     disabled={submitting}
                 >

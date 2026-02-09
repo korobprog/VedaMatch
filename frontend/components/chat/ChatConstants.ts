@@ -1,23 +1,25 @@
 export const COLORS = {
     // Dark mode: Deep Himalayan Night (Charcoal, Bronze, Slate)
     dark: {
-        background: '#121212', // Near black, very solid
-        header: '#1E1E1E',     // Matrix grey/Dark stone
-        inputBackground: '#2C2C2C',
-        inputText: '#E0E0E0',  // Light grey, readable
-        userBubble: '#8D6E63', // Muted Earth/Bronze
-        botBubble: '#263238',  // Dark Blue Grey (Slate)
-        text: '#E0E0E0',
-        subText: '#9E9E9E',
-        borderColor: '#333333',
-        menuBackground: '#1E1E1E',
-        iconColor: '#D7CCC8',  // Pale bronze
-        accent: '#FFB74D',     // Subtle Gold for highlights
-        primary: '#FF9933',    // Saffron Brand Color
-        error: '#FF5252',      // Error Red
-        button: '#5D4037',     // Match registration
-        buttonText: '#D7CCC8',
-        card: '#1E1E1E',
+        background: '#0F172A', // Dark Indigo/Slate
+        header: 'rgba(15, 23, 42, 0.8)',
+        inputBackground: 'rgba(15, 23, 42, 0.65)',
+        inputText: '#F8FAFC',
+        userBubble: 'rgba(255, 183, 77, 0.15)',
+        botBubble: 'rgba(255, 255, 255, 0.08)',
+        text: '#F8FAFC',
+        subText: 'rgba(248, 250, 252, 0.6)',
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        menuBackground: 'rgba(15, 23, 42, 0.95)',
+        iconColor: '#F8FAFC',
+        accent: '#FFB74D',
+        primary: '#FFB74D',
+        error: '#F87171',
+        button: '#FFB74D',
+        buttonText: '#121212',
+        card: 'rgba(15, 23, 42, 0.8)',
+        glass: 'rgba(255, 255, 255, 0.06)',
+        glassBorder: 'rgba(255, 255, 255, 0.18)',
     },
     // Light mode: Vedic Temple Day (Warm Stone, Copper, Clay)
     light: {
