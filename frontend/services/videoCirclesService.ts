@@ -88,6 +88,8 @@ export interface VideoCircleFilters {
   matha?: string;
   category?: string;
   status?: VideoCircleStatus;
+  scope?: 'all' | 'friends';
+  roleScope?: Array<'user' | 'in_goodness' | 'yogi' | 'devotee'>;
   page?: number;
   limit?: number;
   sort?: 'newest' | 'oldest' | 'expires_soon';
@@ -104,6 +106,10 @@ class VideoCirclesService {
     if (filters.matha) params.append('matha', filters.matha);
     if (filters.category) params.append('category', filters.category);
     if (filters.status) params.append('status', filters.status);
+    if (filters.scope) params.append('scope', filters.scope);
+    if (filters.roleScope && filters.roleScope.length > 0) {
+      params.append('role_scope', filters.roleScope.join(','));
+    }
     if (filters.page) params.append('page', String(filters.page));
     if (filters.limit) params.append('limit', String(filters.limit));
     if (filters.sort) params.append('sort', filters.sort);
@@ -163,7 +169,15 @@ class VideoCirclesService {
       throw new Error('Failed to fetch video tariffs');
     }
     const data = await response.json();
-    return data.tariffs || [];
+    // Normalize GORM fields (ID -> id, UpdatedAt -> updatedAt)
+    return (data.tariffs || []).map((t: any) => ({
+      id: t.ID || t.id,
+      code: t.code,
+      priceLkm: t.priceLkm,
+      durationMinutes: t.durationMinutes,
+      isActive: t.isActive,
+      updatedAt: t.UpdatedAt || t.updatedAt,
+    }));
   }
 
   async createVideoTariff(payload: UpsertVideoTariffPayload): Promise<VideoTariff> {

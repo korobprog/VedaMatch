@@ -19,13 +19,15 @@ import {
     addItemToFolder,
     removeItemFromFolder,
     reorderItems,
+    deleteGridItem,
     createPage,
     createFolder,
     moveItemToQuickAccess,
+    reorderWidgets,
 } from '../services/portalLayoutService';
 import { useUser } from './UserContext';
 
-const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education']);
+const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles']);
 const SEEKER_LOCKED_FOLDER_NAME = 'Откроется после профиля';
 const SEEKER_LOCKED_FOLDER_ID = 'folder-seeker-locked';
 const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((s) => s.id));
@@ -281,6 +283,91 @@ const groupLockedServicesForSeeker = (inputLayout: PortalLayout, role?: string, 
     return { layout, changed };
 };
 
+const ensureVideoCirclesShortcut = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    const hasShortcutInQuickAccess = inputLayout.quickAccess.some((item) => item.serviceId === 'video_circles');
+    const hasShortcutInPages = inputLayout.pages.some((page) =>
+        page.items.some((item) => {
+            if (item.type === 'service') return item.serviceId === 'video_circles';
+            return item.items.some((folderItem) => folderItem.serviceId === 'video_circles');
+        })
+    );
+
+    if (hasShortcutInQuickAccess || hasShortcutInPages) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((p) => ({
+            ...p,
+            items: p.items.map((item) => item.type === 'folder'
+                ? { ...item, items: [...item.items] }
+                : { ...item }),
+            widgets: [...p.widgets],
+        })),
+        quickAccess: [...inputLayout.quickAccess],
+    };
+
+    if (layout.pages.length === 0) {
+        layout.pages.push({
+            id: 'page-1',
+            items: [],
+            widgets: [],
+            order: 0,
+        });
+    }
+
+    const firstPage = layout.pages[0];
+    firstPage.items.push({
+        id: 'item-video_circles',
+        serviceId: 'video_circles',
+        type: 'service',
+        position: firstPage.items.length,
+    });
+    firstPage.items = firstPage.items.map((item, index) => ({ ...item, position: index }));
+
+    layout.lastModified = Date.now();
+    layout.syncedWithServer = false;
+    return { layout, changed: true };
+};
+
+const ensureVideoCirclesDefaultWidget = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    if (inputLayout.pages.length === 0) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const hasCirclesWidget = inputLayout.pages.some((page) =>
+        page.widgets.some((widget) => widget.type === 'circles_quick' || widget.type === 'circles_panel')
+    );
+    if (hasCirclesWidget) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((p) => ({
+            ...p,
+            items: p.items.map((item) => item.type === 'folder'
+                ? { ...item, items: [...item.items] }
+                : { ...item }),
+            widgets: [...p.widgets],
+        })),
+        quickAccess: [...inputLayout.quickAccess],
+    };
+
+    const firstPage = layout.pages[0];
+    firstPage.widgets.push({
+        id: `widget-circles-quick-${Date.now()}`,
+        type: 'circles_quick',
+        size: '1x1',
+        position: firstPage.widgets.length,
+    });
+
+    layout.lastModified = Date.now();
+    layout.syncedWithServer = false;
+    return { layout, changed: true };
+};
+
 interface PortalLayoutContextType {
     layout: PortalLayout;
     isEditMode: boolean;
@@ -302,6 +389,7 @@ interface PortalLayoutContextType {
     moveItemToQuickAccess: (itemId: string, targetPosition: number) => void;
     removeItemFromFolder: (folderId: string, itemId: string) => void;
     reorderGridItems: (fromIndex: number, toIndex: number) => void;
+    deleteGridItem: (itemId: string) => void;
 
     // Page operations
     addNewPage: () => void;
@@ -311,6 +399,7 @@ interface PortalLayoutContextType {
     // Widget operations
     addWidget: (widget: Omit<PortalWidget, 'id' | 'position'>) => void;
     removeWidget: (widgetId: string) => void;
+    reorderWidgets: (fromIndex: number, toIndex: number) => void;
 
     // Settings
     setGridColumns: (columns: number) => void;
@@ -358,10 +447,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 const savedLayout = await initializeLayout(role, blueprint);
                 const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
                 const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
-                if (sanitizedChanged || changed) {
-                    await saveLocalLayout(adjustedLayout);
+                const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
+                const { layout: layoutWithWidget, changed: circlesWidgetChanged } = ensureVideoCirclesDefaultWidget(layoutWithCircles);
+                if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged) {
+                    await saveLocalLayout(layoutWithWidget);
                 }
-                setLayout(adjustedLayout);
+                setLayout(layoutWithWidget);
             } catch (error) {
                 console.warn('Failed to initialize portal layout:', error);
             } finally {
@@ -457,6 +548,11 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
         updateLayout(newLayout);
     }, [layout, currentPage, updateLayout]);
 
+    const deleteGridItemAction = useCallback((itemId: string) => {
+        const newLayout = deleteGridItem(layout, currentPage, itemId);
+        updateLayout(newLayout);
+    }, [layout, currentPage, updateLayout]);
+
     // === Page Operations ===
     const addNewPage = useCallback(() => {
         const newLayout = { ...layout };
@@ -504,6 +600,11 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
         updateLayout(newLayout);
     }, [layout, currentPage, updateLayout]);
 
+    const reorderWidgetsAction = useCallback((fromIndex: number, toIndex: number) => {
+        const newLayout = reorderWidgets(layout, currentPage, fromIndex, toIndex);
+        updateLayout(newLayout);
+    }, [layout, currentPage, updateLayout]);
+
     // === Settings ===
     const setGridColumns = useCallback((columns: number) => {
         const newLayout = { ...layout, gridColumns: columns };
@@ -522,10 +623,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             const savedLayout = await initializeLayout(user?.role || 'user');
             const { layout: sanitizedLayout, changed: sanitizedChanged } = sanitizeAllFolders(savedLayout);
             const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
-            if (sanitizedChanged || changed) {
-                await saveLocalLayout(adjustedLayout);
+            const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
+            const { layout: layoutWithWidget, changed: circlesWidgetChanged } = ensureVideoCirclesDefaultWidget(layoutWithCircles);
+            if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged) {
+                await saveLocalLayout(layoutWithWidget);
             }
-            setLayout(adjustedLayout);
+            setLayout(layoutWithWidget);
         } finally {
             setIsLoading(false);
         }
@@ -548,10 +651,12 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 moveItemToQuickAccess: moveItemToQuickAccessAction,
                 removeItemFromFolder: removeItemFromFolderAction,
                 reorderGridItems,
+                deleteGridItem: deleteGridItemAction,
                 addNewPage,
                 deletePage,
                 addWidget: addWidgetAction,
                 removeWidget: removeWidgetAction,
+                reorderWidgets: reorderWidgetsAction,
                 setGridColumns,
                 setIconSize,
                 refreshLayout,

@@ -10,19 +10,21 @@ import {
     Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ChevronLeft, Plus, Trash2, Clock, Calendar as CalendarIcon, Check } from 'lucide-react-native';
+import { ChevronLeft, Plus, Trash2, Clock, Calendar as CalendarIcon, Film } from 'lucide-react-native';
 import { RootStackParamList } from '../../types/navigation';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { ClockWidget } from '../../components/portal/ClockWidget';
 import { CalendarWidget } from '../../components/portal/CalendarWidget';
+import { CirclesPanelWidget } from '../../components/portal/CirclesPanelWidget';
+import { CirclesQuickWidget } from '../../components/portal/CirclesQuickWidget';
 
 const { width } = Dimensions.get('window');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WidgetSelection'>;
 
 interface WidgetOption {
-    type: 'clock' | 'calendar';
+    type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel';
     size: '1x1' | '2x1' | '2x2';
     title: string;
     description: string;
@@ -50,6 +52,20 @@ const WIDGET_OPTIONS: WidgetOption[] = [
         title: 'Календарь',
         description: 'Полный обзор месяца с подсветкой текущей даты',
         icon: CalendarIcon,
+    },
+    {
+        type: 'circles_quick',
+        size: '1x1',
+        title: 'Кружки (быстрый)',
+        description: 'Открытие ленты, удержание для быстрого создания',
+        icon: Film,
+    },
+    {
+        type: 'circles_panel',
+        size: '2x2',
+        title: 'Панель кружков',
+        description: 'Создать, кружки друзей, лента и мини-превью',
+        icon: Film,
     },
 ];
 
@@ -82,6 +98,10 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
                 return <ClockWidget size={option.size} />;
             case 'calendar':
                 return <CalendarWidget size={option.size as any} />;
+            case 'circles_quick':
+                return <CirclesQuickWidget />;
+            case 'circles_panel':
+                return <CirclesPanelWidget />;
             default:
                 return null;
         }
@@ -168,7 +188,13 @@ const WidgetSelectionScreen: React.FC<Props> = ({ navigation }) => {
                                 >
                                     <View style={styles.activeInfo}>
                                         <Text style={[styles.activeTitle, { color: vTheme.colors.text }]}>
-                                            {widget.type === 'clock' ? 'Часы' : 'Календарь'} ({widget.size})
+                                            {widget.type === 'clock'
+                                                ? 'Часы'
+                                                : widget.type === 'calendar'
+                                                    ? 'Календарь'
+                                                    : widget.type === 'circles_quick'
+                                                        ? 'Кружки (быстрый)'
+                                                        : 'Панель кружков'} ({widget.size})
                                         </Text>
                                     </View>
                                     <TouchableOpacity

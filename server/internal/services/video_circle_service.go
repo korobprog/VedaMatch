@@ -139,7 +139,7 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 	}
 
 	now := time.Now()
-	query := s.db.Model(&models.VideoCircle{})
+	query := s.db.Model(&models.VideoCircle{}).Joins("JOIN users ON users.id = video_circles.author_id")
 
 	status := strings.TrimSpace(strings.ToLower(params.Status))
 	if status == "" {
@@ -159,6 +159,22 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 	}
 
 	allowAllMatha := user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)
+	normalizedRoleScope := normalizePortalRoleScope(params.RoleScope)
+	if allowAllMatha {
+		if len(normalizedRoleScope) > 0 {
+			query = query.Where("LOWER(users.role) IN ?", normalizedRoleScope)
+		}
+	} else {
+		if len(normalizedRoleScope) == 0 {
+			if normalizedUserRole := strings.ToLower(strings.TrimSpace(user.Role)); normalizedUserRole != "" {
+				normalizedRoleScope = []string{normalizedUserRole}
+			}
+		}
+		if len(normalizedRoleScope) > 0 {
+			query = query.Where("LOWER(users.role) IN ?", normalizedRoleScope)
+		}
+	}
+
 	if allowAllMatha {
 		if params.Matha != "" {
 			query = query.Where("matha = ?", params.Matha)
@@ -170,6 +186,14 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 			// Profile without matha cannot access multi-matha feed by query override.
 			query = query.Where("1 = 0")
 		}
+	}
+
+	scope := strings.ToLower(strings.TrimSpace(params.Scope))
+	if scope == "friends" {
+		query = query.Where(
+			"video_circles.author_id IN (?)",
+			s.db.Model(&models.Friend{}).Select("friend_id").Where("user_id = ?", userID),
+		)
 	}
 
 	sort := strings.TrimSpace(strings.ToLower(params.Sort))
@@ -232,6 +256,33 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		Limit:      params.Limit,
 		TotalPages: totalPages,
 	}, nil
+}
+
+func normalizePortalRoleScope(values []string) []string {
+	allowed := map[string]struct{}{
+		models.RoleUser:       {},
+		models.RoleInGoodness: {},
+		models.RoleYogi:       {},
+		models.RoleDevotee:    {},
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		role := strings.ToLower(strings.TrimSpace(value))
+		if role == "" {
+			continue
+		}
+		if _, ok := allowed[role]; !ok {
+			continue
+		}
+		if _, exists := seen[role]; exists {
+			continue
+		}
+		seen[role] = struct{}{}
+		result = append(result, role)
+	}
+	return result
 }
 
 func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error) {

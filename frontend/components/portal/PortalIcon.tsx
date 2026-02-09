@@ -6,6 +6,7 @@ import {
     TouchableOpacity,
     StyleSheet,
     Pressable,
+    Platform,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -31,6 +32,7 @@ import {
     Coffee,
     Utensils,
     Music,
+    Film,
     Compass,
     Briefcase,
     Heart,
@@ -49,6 +51,8 @@ interface PortalIconProps {
     showLabel?: boolean;
     roleHighlight?: boolean;
     mathBadge?: string;
+    onSecondaryLongPress?: () => void;
+    onRemove?: () => void;
 }
 
 const ICON_SIZES = {
@@ -73,6 +77,7 @@ const IconComponents: Record<string, any> = {
     Coffee,
     Utensils,
     Music,
+    Film,
     Compass,
     Briefcase,
     Heart,
@@ -89,6 +94,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     showLabel = true,
     roleHighlight = false,
     mathBadge,
+    onRemove,
 }) => {
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const rotation = useSharedValue(0);
@@ -167,6 +173,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                             shadowOpacity: roleHighlight ? 0.35 : 0,
                             shadowRadius: roleHighlight ? 8 : 0,
                             shadowOffset: { width: 0, height: 2 },
+                            marginBottom: showLabel ? 6 : 0,
                         },
                     ]}
                 >
@@ -211,7 +218,11 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
 
                 {/* Delete button in edit mode */}
                 {isEditMode && (
-                    <TouchableOpacity style={styles.deleteButton}>
+                    <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={onRemove}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
                         <View style={styles.deleteIcon}>
                             <Text style={styles.deleteText}>−</Text>
                         </View>
@@ -239,8 +250,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 6,
         overflow: 'hidden',
+        // Убираем отступ, если нет текста под иконкой
+        marginBottom: 0,
+        paddingTop: Platform.OS === 'android' ? 3 : 0, // Вернули к центру
     },
     label: {
         fontWeight: '500',

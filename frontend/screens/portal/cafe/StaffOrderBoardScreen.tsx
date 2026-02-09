@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -17,12 +17,13 @@ import { cafeService } from '../../../services/cafeService';
 import {
     CafeOrder,
     CafeOrderStatus,
-    getOrderStatusLabel,
-    getOrderStatusColor,
-    getOrderTypeLabel,
     ActiveOrdersResponse,
     OrderStatsResponse,
 } from '../../../types/cafe';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 3;
@@ -38,7 +39,11 @@ const StaffOrderBoardScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'StaffOrderBoard'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId, cafeName } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [activeOrders, setActiveOrders] = useState<ActiveOrdersResponse | null>(null);
     const [stats, setStats] = useState<OrderStatsResponse | null>(null);
@@ -122,9 +127,9 @@ const StaffOrderBoardScreen: React.FC = () => {
     };
 
     const renderOrderTypeIcon = (orderType: string) => {
-        if (orderType === 'dine_in') return <UtensilsCrossed size={14} color="#8E8E93" />;
-        if (orderType === 'takeaway') return <ShoppingBag size={14} color="#8E8E93" />;
-        return <Car size={14} color="#8E8E93" />;
+        if (orderType === 'dine_in') return <UtensilsCrossed size={14} color={colors.textSecondary} />;
+        if (orderType === 'takeaway') return <ShoppingBag size={14} color={colors.textSecondary} />;
+        return <Car size={14} color={colors.textSecondary} />;
     };
 
     const renderOrderCard = (order: CafeOrder) => {
@@ -210,7 +215,7 @@ const StaffOrderBoardScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
+                <ActivityIndicator size="large" color={colors.accent} />
                 <Text style={styles.loadingText}>{t('cafe.staff.board.loading')}</Text>
             </View>
         );
@@ -221,14 +226,14 @@ const StaffOrderBoardScreen: React.FC = () => {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={24} color="#FFFFFF" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>{cafeName}</Text>
                     <Text style={styles.headerSubtitle}>{t('cafe.staff.board.title')}</Text>
                 </View>
                 <TouchableOpacity onPress={() => navigation.navigate('StaffWaiterCalls', { cafeId, cafeName })}>
-                    <Hand size={24} color="#FFFFFF" />
+                    <Hand size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
@@ -251,7 +256,7 @@ const StaffOrderBoardScreen: React.FC = () => {
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statItem}>
-                        <Text style={stats.avgPrepTime > 0 ? styles.statValue : { color: '#8E8E93' }}>
+                        <Text style={stats.avgPrepTime > 0 ? styles.statValue : { color: colors.textSecondary }}>
                             ~{stats.avgPrepTime} {t('common.min')}
                         </Text>
                         <Text style={styles.statLabel}>{t('cafe.staff.board.avgTime')}</Text>
@@ -271,9 +276,9 @@ const StaffOrderBoardScreen: React.FC = () => {
             >
                 {activeOrders && (
                     <>
-                        {renderColumn(t('cafe.staff.board.columns.new'), activeOrders.new, '#FF9500')}
-                        {renderColumn(t('cafe.staff.board.columns.preparing'), activeOrders.preparing, '#5856D6')}
-                        {renderColumn(t('cafe.staff.board.columns.ready'), activeOrders.ready, '#34C759')}
+                        {renderColumn(t('cafe.staff.board.columns.new'), activeOrders.new, colors.warning)}
+                        {renderColumn(t('cafe.staff.board.columns.preparing'), activeOrders.preparing, colors.accent)}
+                        {renderColumn(t('cafe.staff.board.columns.ready'), activeOrders.ready, colors.success)}
                     </>
                 )}
             </ScrollView>
@@ -284,21 +289,21 @@ const StaffOrderBoardScreen: React.FC = () => {
                     style={styles.bottomButton}
                     onPress={() => navigation.navigate('StaffStopList', { cafeId, cafeName })}
                 >
-                    <MinusCircle size={20} color="#FF3B30" />
+                    <MinusCircle size={20} color={colors.danger} />
                     <Text style={styles.bottomButtonText}>{t('cafe.staff.board.stopList')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.bottomButton}
                     onPress={() => navigation.navigate('StaffOrderHistory', { cafeId, cafeName })}
                 >
-                    <Clock size={20} color="#8E8E93" />
+                    <Clock size={20} color={colors.textSecondary} />
                     <Text style={styles.bottomButtonText}>{t('cafe.staff.board.history')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.bottomButton}
                     onPress={() => navigation.navigate('StaffTableEditor', { cafeId, cafeName })}
                 >
-                    <Grid3X3 size={20} color="#007AFF" />
+                    <Grid3X3 size={20} color={colors.accent} />
                     <Text style={styles.bottomButtonText}>{t('cafe.staff.board.tables')}</Text>
                 </TouchableOpacity>
             </View>
@@ -306,19 +311,19 @@ const StaffOrderBoardScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginTop: 12,
     },
     header: {
@@ -327,23 +332,23 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         paddingTop: 48,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
     },
     headerCenter: {
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
     },
     headerSubtitle: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     statsBar: {
         flexDirection: 'row',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 12,
         marginHorizontal: 12,
         marginTop: 12,
@@ -354,18 +359,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     statValue: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: 'bold',
     },
     statLabel: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 11,
         marginTop: 2,
     },
     statDivider: {
         width: 1,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.border,
         marginVertical: 4,
     },
     columnsContainer: {
@@ -383,14 +388,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 12,
         borderRadius: 8,
         borderTopWidth: 3,
         marginBottom: 8,
     },
     columnTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -400,7 +405,7 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     columnBadgeText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 12,
         fontWeight: 'bold',
     },
@@ -408,14 +413,14 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     orderCard: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 8,
         padding: 10,
         marginBottom: 8,
     },
     orderCardUrgent: {
         borderWidth: 1,
-        borderColor: '#FF3B30',
+        borderColor: colors.danger,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -424,12 +429,12 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     orderNumber: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: 'bold',
     },
     orderTime: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     orderType: {
@@ -438,7 +443,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     orderTypeText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 11,
         marginLeft: 4,
     },
@@ -446,12 +451,12 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     orderItem: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 12,
         marginBottom: 2,
     },
     moreItems: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 11,
         fontStyle: 'italic',
     },
@@ -461,18 +466,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     orderTotal: {
-        color: '#FF6B00',
+        color: colors.accent,
         fontSize: 13,
         fontWeight: 'bold',
     },
     actionButton: {
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 6,
     },
     actionButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 11,
         fontWeight: '600',
     },
@@ -481,12 +486,12 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     emptyColumnText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     bottomActions: {
         flexDirection: 'row',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 12,
         paddingBottom: 32,
         gap: 12,
@@ -497,12 +502,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         padding: 12,
         borderRadius: 10,
     },
     bottomButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 13,
     },
 });

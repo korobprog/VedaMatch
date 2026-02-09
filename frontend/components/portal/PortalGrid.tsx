@@ -38,6 +38,8 @@ import { PortalFolderComponent } from './PortalFolder';
 import { FolderModal } from './FolderModal';
 import { ClockWidget } from './ClockWidget';
 import { CalendarWidget } from './CalendarWidget';
+import { CirclesQuickWidget } from './CirclesQuickWidget';
+import { CirclesPanelWidget } from './CirclesPanelWidget';
 import { PortalWidgetWrapper } from './PortalWidgetWrapper';
 import { DraggablePortalItem } from './DraggablePortalItem';
 import { SkeletonIcon } from './SkeletonIcon';
@@ -78,6 +80,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         moveItemToFolder,
         moveItemToQuickAccess,
         reorderGridItems,
+        reorderWidgets,
+        deleteGridItem,
     } = usePortalLayout();
 
     const [isReady, setIsReady] = useState(false); // Delay rendering to prevent layout jumps
@@ -89,6 +93,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const [isDraggingItem, setIsDraggingItem] = useState(false);
     const itemLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
     const itemRefs = useRef<Record<string, View | null>>({});
+    const widgetRefs = useRef<Record<string, View | null>>({});
     const gridRef = useRef<View>(null);
 
     // Dock references
@@ -193,7 +198,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
         if (!page) return;
 
-        // 1. Check Quick Access Dock collision
+        // 1. Check Quick Access Dock collision (only for items, not widgets)
+        const isItem = items.some(i => i.id === itemId);
         const margin = 30;
         const d = dockOffset.current;
         const isInsideDock = (
@@ -203,12 +209,9 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             absY <= d.y + d.height + margin
         );
 
-        if (isInsideDock) {
-            // Find specific slot in dock
+        if (isItem && isInsideDock) {
             const slotWidth = d.width / 3;
             const slotIndex = Math.min(2, Math.floor((absX - d.x) / slotWidth));
-
-            console.log('[DragEnd] ✅ Moving item to Quick Access slot:', slotIndex);
             runOnJS(moveItemToQuickAccess)(itemId, slotIndex);
             return;
         }
@@ -216,66 +219,82 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         // 2. Check if item was in Dock and dropped outside -> Move back to Grid
         const isInDock = quickAccess.some(i => i.id === itemId);
         if (isInDock && !isInsideDock) {
-            console.log('[DragEnd] ⬇️ Moving item back to grid from dock');
             runOnJS(moveItemToQuickAccess)(itemId, -1);
             return;
         }
 
-        // 3. Check items collision (swap/reorder or move to folder)
+        // 3. Collision Logic
         const allItems = page.items;
-        if (allItems.length === 0) return;
-
+        const allWidgets = page.widgets;
         let targetId: string | null = null;
-        let measureCount = 0;
-        const totalItems = allItems.length;
 
-        const checkComplete = () => {
-            measureCount++;
-            if (measureCount >= totalItems) {
-                if (targetId && targetId !== itemId) {
-                    const fromIndex = allItems.findIndex(i => i.id === itemId);
-                    const toIndex = allItems.findIndex(i => i.id === targetId);
-                    const targetItem = allItems[toIndex];
-                    const movingItem = allItems[fromIndex];
-
-                    if (!movingItem || !targetItem) return;
-
-                    // Priority: Move to folder if service is dragged onto folder
-                    if (movingItem.type === 'service' && targetItem.type === 'folder') {
-                        console.log('[DragEnd] 📁 Moving item into folder:', targetItem.id);
-                        runOnJS(moveItemToFolder)(itemId, targetItem.id);
-                    } else if (fromIndex !== -1 && toIndex !== -1) {
-                        // Otherwise reorder/swap
-                        console.log('[DragEnd] 🔄 Reordering items:', fromIndex, '->', toIndex);
-                        runOnJS(reorderGridItems)(fromIndex, toIndex);
-                    }
-                }
-            }
-        };
-
-        allItems.forEach(item => {
-            const ref = itemRefs.current[item.id];
-            if (ref) {
-                (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-                    if (x !== undefined && y !== undefined && width > 0 && height > 0) {
-                        const hitSlop = 20;
-                        const isInside = (
-                            absX >= x - hitSlop &&
-                            absX <= x + width + hitSlop &&
-                            absY >= y - hitSlop &&
-                            absY <= y + height + hitSlop
-                        );
-                        if (isInside && !targetId && item.id !== itemId) {
-                            targetId = item.id;
+        if (isItem) {
+            let measureCount = 0;
+            const checkComplete = () => {
+                measureCount++;
+                if (measureCount >= allItems.length) {
+                    if (targetId && targetId !== itemId) {
+                        const fromIndex = allItems.findIndex(i => i.id === itemId);
+                        const toIndex = allItems.findIndex(i => i.id === targetId);
+                        const targetItem = allItems[toIndex];
+                        const movingItem = allItems[fromIndex];
+                        if (movingItem?.type === 'service' && targetItem?.type === 'folder') {
+                            runOnJS(moveItemToFolder)(itemId, targetItem.id);
+                        } else if (fromIndex !== -1 && toIndex !== -1) {
+                            runOnJS(reorderGridItems)(fromIndex, toIndex);
                         }
                     }
-                    checkComplete();
+                }
+            };
+            allItems.forEach(item => {
+                const ref = itemRefs.current[item.id];
+                if (ref) {
+                    (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+                        if (x !== undefined && y !== undefined && width > 0 && height > 0) {
+                            const hitSlop = 20;
+                            if (absX >= x - hitSlop && absX <= x + width + hitSlop && absY >= y - hitSlop && absY <= y + height + hitSlop) {
+                                if (!targetId && item.id !== itemId) targetId = item.id;
+                            }
+                        }
+                        checkComplete();
+                    });
+                } else checkComplete();
+            });
+        } else {
+            // Widget Drop
+            const isWidget = widgets.some(w => w.id === itemId);
+            if (isWidget) {
+                let measureCount = 0;
+                const checkComplete = () => {
+                    measureCount++;
+                    if (measureCount >= allWidgets.length) {
+                        if (targetId && targetId !== itemId) {
+                            const fromIndex = allWidgets.findIndex(w => w.id === itemId);
+                            const toIndex = allWidgets.findIndex(w => w.id === targetId);
+                            if (fromIndex !== -1 && toIndex !== -1) {
+                                runOnJS(reorderWidgets)(fromIndex, toIndex);
+                            }
+                        }
+                    }
+                };
+                allWidgets.forEach(widget => {
+                    const ref = widgetRefs.current[widget.id];
+                    if (ref) {
+                        (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+                            if (x !== undefined && y !== undefined && width > 0 && height > 0) {
+                                const hitSlop = 10;
+                                if (absX >= x - hitSlop && absX <= x + width + hitSlop && absY >= y - hitSlop && absY <= y + height + hitSlop) {
+                                    if (!targetId && widget.id !== itemId) targetId = widget.id;
+                                }
+                            }
+                            checkComplete();
+                        });
+                    } else checkComplete();
                 });
-            } else {
-                checkComplete();
             }
-        });
-    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess, reorderGridItems]);
+        }
+    }, [page, quickAccess, moveItemToFolder, moveItemToQuickAccess, reorderGridItems, reorderWidgets, items, widgets]);
+
 
 
     // Render individual grid item
@@ -283,7 +302,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         if (!isReady) {
             return (
                 <Animated.View
-                    key={`skeleton-${item.id}`}
+                    key={`skeleton - ${item.id} `}
                     style={{ pointerEvents: 'none' }}
                     exiting={FadeOut.duration(300)}
                 >
@@ -299,7 +318,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             pressHandler = () => handleFolderPress(item);
             component = (
                 <View
-                    pointerEvents="none"
+                    pointerEvents="box-none"
                     ref={(ref) => { itemRefs.current[item.id] = ref; }}
                 >
                     <PortalFolderComponent
@@ -308,6 +327,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         onPress={() => { }}
                         onLongPress={() => { }}
                         size={layout.iconSize}
+                        onRemove={() => deleteFolder(item.id)}
                     />
                 </View>
             );
@@ -317,7 +337,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             pressHandler = () => handleServicePress(item.serviceId);
             component = (
                 <View
-                    pointerEvents="none"
+                    pointerEvents="box-none"
                     ref={(ref) => { itemRefs.current[item.id] = ref; }}
                 >
                     <PortalIcon
@@ -327,7 +347,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         onLongPress={() => { }}
                         size={layout.iconSize}
                         roleHighlight={highlightedServices.has(service.id)}
-                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel}` : undefined}
+                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel} ` : undefined}
+                        onRemove={() => deleteGridItem(item.id)}
                     />
                 </View>
             );
@@ -392,7 +413,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         size={layout.iconSize}
                         showLabel={false}
                         roleHighlight={highlightedServices.has(service.id)}
-                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel}` : undefined}
+                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel} ` : undefined}
                     />
                 </View>
             </DraggablePortalItem>
@@ -400,7 +421,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode, highlightedServices, godModeEnabled, activeMathLabel]);
 
     // Render widget
-    const renderWidget = useCallback((widget: { id: string; type: 'clock' | 'calendar'; size: string }) => {
+    const renderWidget = useCallback((widget: { id: string; type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel'; size: string }) => {
         let widgetComponent = null;
         switch (widget.type) {
             case 'clock':
@@ -409,20 +430,39 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             case 'calendar':
                 widgetComponent = <CalendarWidget />;
                 break;
+            case 'circles_quick':
+                widgetComponent = <CirclesQuickWidget />;
+                break;
+            case 'circles_panel':
+                widgetComponent = <CirclesPanelWidget />;
+                break;
         }
 
         if (!widgetComponent) return null;
 
         return (
-            <PortalWidgetWrapper
+            <DraggablePortalItem
                 key={widget.id}
+                id={widget.id}
                 isEditMode={isEditMode}
-                onRemove={() => removeWidget(widget.id)}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onSecondaryLongPress={() => setEditMode(true)}
             >
-                {widgetComponent}
-            </PortalWidgetWrapper>
+                <View
+                    pointerEvents="box-none"
+                    ref={(ref) => { widgetRefs.current[widget.id] = ref; }}
+                >
+                    <PortalWidgetWrapper
+                        isEditMode={isEditMode}
+                        onRemove={() => removeWidget(widget.id)}
+                    >
+                        {widgetComponent}
+                    </PortalWidgetWrapper>
+                </View>
+            </DraggablePortalItem>
         );
-    }, [isEditMode, removeWidget]);
+    }, [isEditMode, removeWidget, handleDragStart, handleDragEnd, setEditMode]);
 
     // Page indicator dots
     const renderPageDots = () => (
@@ -466,30 +506,44 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     );
 
     // Edit mode toolbar
-    const renderEditToolbar = () => (
-        <Animated.View
-            entering={FadeIn.duration(300)}
-            exiting={FadeOut.duration(300)}
-            style={[
-                styles.editToolbarContainer,
-                {
-                    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                }
-            ]}
-        >
-            <BlurView
-                style={[styles.editToolbarBlur, { borderRadius: 32 }]}
-                blurType={isDarkMode ? "dark" : "light"}
-                blurAmount={15}
-                reducedTransparencyFallbackColor="white"
+    const renderEditToolbar = () => {
+        const isPhotoBg = portalBackgroundType === 'image';
+
+        return (
+            <Animated.View
+                entering={FadeIn.duration(300)}
+                exiting={FadeOut.duration(300)}
+                style={[
+                    styles.editToolbarContainer,
+                    {
+                        // Как в CalendarWidget: transparent на фото, полупрозрачный на обычном фоне
+                        backgroundColor: isPhotoBg
+                            ? 'transparent'
+                            : (isDarkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.9)'),
+                        borderColor: isPhotoBg
+                            ? 'rgba(255,255,255,0.3)'
+                            : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                    }
+                ]}
             >
+                {/* BlurView как в CalendarWidget - показываем на фото или в dark mode */}
+                {(isPhotoBg || isDarkMode) && (
+                    <BlurView
+                        style={[StyleSheet.absoluteFill, { borderRadius: 32 }]}
+                        blurType={isDarkMode ? "dark" : "light"}
+                        blurAmount={Platform.OS === 'android' ? 20 : 10}
+                        reducedTransparencyFallbackColor={isDarkMode ? "rgba(30,30,30,0.8)" : "rgba(0,0,0,0.5)"}
+                        pointerEvents="none"
+                    />
+                )}
+
                 <View style={styles.editToolbarContent}>
                     <TouchableOpacity
                         onPress={() => setShowNewFolderInput(true)}
                         style={styles.toolbarButton}
                     >
-                        <FolderPlus size={20} color="#FFFFFF" />
-                        <Text style={[styles.toolbarText, { color: "#FFFFFF" }]}>Папка</Text>
+                        <FolderPlus size={20} color={isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E")} />
+                        <Text style={[styles.toolbarText, { color: isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E") }]}>Папка</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -499,8 +553,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         }}
                         style={styles.toolbarButton}
                     >
-                        <LayoutGrid size={20} color="#FFFFFF" />
-                        <Text style={[styles.toolbarText, { color: "#FFFFFF" }]}>Виджет</Text>
+                        <LayoutGrid size={20} color={isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E")} />
+                        <Text style={[styles.toolbarText, { color: isPhotoBg ? "#FFFFFF" : (isDarkMode ? "#FFFFFF" : "#1E1E1E") }]}>Виджет</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -516,9 +570,9 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                         <Text style={styles.doneText}>Готово</Text>
                     </TouchableOpacity>
                 </View>
-            </BlurView>
-        </Animated.View>
-    );
+            </Animated.View>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -610,7 +664,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     >
                         {quickAccess.map(renderDockItem)}
                         {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
-                            <View key={`empty-${i}`} style={[
+                            <View key={`empty - ${i} `} style={[
                                 styles.emptyDockSlot,
                                 { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }
                             ]} />
@@ -707,6 +761,7 @@ const styles = StyleSheet.create({
         height: 60,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingTop: Platform.OS === 'android' ? 4 : 0, // Уменьшили для центровки
     },
     emptyDockSlot: {
         width: 60,
@@ -747,17 +802,18 @@ const styles = StyleSheet.create({
     },
     editToolbarContainer: {
         position: 'absolute',
-        bottom: 120,
+        bottom: Platform.OS === 'android' ? 112 : 120, // Немного приподняли для Android (было 105), чтобы не было конфликтов с доком
         left: 20,
         right: 20,
         borderRadius: 32,
-        overflow: 'hidden',
+        // overflow: 'hidden', // Убрали, чтобы не мешало кликам на Android
         backgroundColor: 'transparent',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.25,
         shadowRadius: 16,
-        elevation: 10,
+        elevation: 20, // Повысили еще немного
+        zIndex: 1000, // Гарантируем, что панель поверх всего
     },
     editToolbarBlur: {
         width: '100%',
@@ -768,6 +824,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 14,
         paddingHorizontal: 16,
+        // Убрали лишний paddingTop для идеальной центровки значка внутри бокса
     },
     toolbarButton: {
         alignItems: 'center',
@@ -781,6 +838,7 @@ const styles = StyleSheet.create({
     doneButton: {
         paddingHorizontal: 22,
         paddingVertical: 10,
+        paddingTop: Platform.OS === 'android' ? 12 : 10, // Уменьшили для центровки
         borderRadius: 18,
         overflow: 'hidden',
         shadowColor: '#000',

@@ -10,9 +10,12 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Calendar, Filter } from 'lucide-react-native';
-import { cafeService } from '../../../services/cafeService';
+import { ArrowLeft, Calendar } from 'lucide-react-native';
 import { CafeOrder } from '../../../types/cafe';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type RouteParams = {
     StaffOrderHistory: {
@@ -27,7 +30,11 @@ const StaffOrderHistoryScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'StaffOrderHistory'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId, cafeName } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [orders, setOrders] = useState<CafeOrder[]>([]);
     const [loading, setLoading] = useState(true);
@@ -152,7 +159,7 @@ const StaffOrderHistoryScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
+                <ActivityIndicator size="large" color={colors.accent} />
                 <Text style={styles.loadingText}>{t('cafe.staff.history.loading')}</Text>
             </View>
         );
@@ -165,7 +172,7 @@ const StaffOrderHistoryScreen: React.FC = () => {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={24} color="#FFFFFF" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>{cafeName}</Text>
@@ -204,7 +211,7 @@ const StaffOrderHistoryScreen: React.FC = () => {
             >
                 {filteredOrders.length === 0 ? (
                     <View style={styles.emptyState}>
-                        <Calendar size={64} color="#8E8E93" />
+                        <Calendar size={64} color={colors.textSecondary} />
                         <Text style={styles.emptyTitle}>{t('cafe.staff.history.empty')}</Text>
                         <Text style={styles.emptyDesc}>{t('cafe.staff.history.emptyDesc')}</Text>
                     </View>
@@ -216,19 +223,19 @@ const StaffOrderHistoryScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginTop: 12,
     },
     header: {
@@ -237,23 +244,23 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         paddingTop: 48,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
     },
     headerCenter: {
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
     },
     headerSubtitle: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     statsBar: {
         flexDirection: 'row',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 16,
         marginHorizontal: 12,
         marginTop: 12,
@@ -264,18 +271,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     statValue: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: 'bold',
     },
     statLabel: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 11,
         marginTop: 2,
     },
     statDivider: {
         width: 1,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.border,
         marginVertical: 4,
     },
     filterBar: {
@@ -289,19 +296,19 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 12,
         borderRadius: 8,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         alignItems: 'center',
     },
     filterButtonActive: {
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
     },
     filterButtonText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
     filterButtonTextActive: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
     },
     scrollView: {
         flex: 1,
@@ -310,15 +317,15 @@ const styles = StyleSheet.create({
         padding: 12,
     },
     orderCard: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 12,
         padding: 12,
         marginBottom: 12,
         borderLeftWidth: 4,
-        borderLeftColor: '#34C759',
+        borderLeftColor: colors.success,
     },
     orderCardCancelled: {
-        borderLeftColor: '#FF3B30',
+        borderLeftColor: colors.danger,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -327,12 +334,12 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     orderNumber: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: 'bold',
     },
     orderDate: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
         marginTop: 2,
     },
@@ -347,30 +354,30 @@ const styles = StyleSheet.create({
         borderRadius: 6,
     },
     statusCompleted: {
-        backgroundColor: '#34C75933',
-        color: '#34C759',
+        backgroundColor: colors.accentSoft,
+        color: colors.success,
     },
     statusCancelled: {
-        backgroundColor: '#FF3B3033',
-        color: '#FF3B30',
+        backgroundColor: colors.accentSoft,
+        color: colors.danger,
     },
     orderDetails: {
         marginBottom: 8,
     },
     orderType: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     orderItems: {
         marginBottom: 8,
     },
     orderItem: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 13,
         marginBottom: 2,
     },
     moreItems: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 11,
         fontStyle: 'italic',
     },
@@ -379,10 +386,10 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         paddingTop: 8,
         borderTopWidth: 1,
-        borderTopColor: '#2C2C2E',
+        borderTopColor: colors.border,
     },
     orderTotal: {
-        color: '#FF6B00',
+        color: colors.accent,
         fontSize: 16,
         fontWeight: 'bold',
     },
@@ -393,13 +400,13 @@ const styles = StyleSheet.create({
         paddingVertical: 60,
     },
     emptyTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
         marginTop: 16,
     },
     emptyDesc: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
         marginTop: 8,
         textAlign: 'center',

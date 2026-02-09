@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Pencil, RotateCcw, Trash2 } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
@@ -21,6 +22,7 @@ import { VideoCircle, videoCirclesService } from '../../services/videoCirclesSer
 
 export const MyVideoCirclesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const { isDarkMode } = useSettings();
   const { user } = useUser();
   const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
@@ -40,12 +42,12 @@ export const MyVideoCirclesScreen: React.FC = () => {
       setItems(res.circles);
     } catch (error) {
       console.error('Failed to load my circles:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить ваши кружки');
+      Alert.alert(t('common.error'), t('videoCircles.errorLoad'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -57,17 +59,17 @@ export const MyVideoCirclesScreen: React.FC = () => {
   };
 
   const handleDelete = (id: number) => {
-    Alert.alert('Удалить кружок?', 'Кружок будет удалён из ленты.', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('videoCircles.deleteConfirm'), t('videoCircles.deleteDesc'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Удалить',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await videoCirclesService.deleteCircle(id);
             setItems((prev) => prev.filter((item) => item.id !== id));
           } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось удалить кружок');
+            Alert.alert(t('common.error'), t('videoCircles.failedDelete'));
           }
         },
       },
@@ -101,7 +103,7 @@ export const MyVideoCirclesScreen: React.FC = () => {
       setItems((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
       closeEdit();
     } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось обновить кружок');
+      Alert.alert(t('common.error'), t('videoCircles.failedUpdate'));
       setSavingEdit(false);
     }
   };
@@ -110,9 +112,9 @@ export const MyVideoCirclesScreen: React.FC = () => {
     try {
       const updated = await videoCirclesService.republishCircle(circle.id, 60);
       setItems((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-      Alert.alert('Готово', 'Кружок продлён на 60 минут');
+      Alert.alert(t('common.success'), t('videoCircles.republished'));
     } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось продлить кружок');
+      Alert.alert(t('common.error'), t('videoCircles.failedRepublish'));
     }
   };
 
@@ -130,7 +132,7 @@ export const MyVideoCirclesScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={22} color={roleColors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: roleColors.textPrimary }]}>Мои кружки</Text>
+        <Text style={[styles.title, { color: roleColors.textPrimary }]}>{t('videoCircles.myCircles')}</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -141,11 +143,11 @@ export const MyVideoCirclesScreen: React.FC = () => {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: roleColors.textSecondary }}>У вас пока нет кружков</Text>
+            <Text style={{ color: roleColors.textSecondary }}>{t('videoCircles.noMyCircles')}</Text>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}> 
+          <View style={[styles.card, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
             <View style={styles.row}>
               <View style={styles.previewWrap}>
                 {item.thumbnailUrl ? (
@@ -156,7 +158,7 @@ export const MyVideoCirclesScreen: React.FC = () => {
               </View>
               <View style={styles.info}>
                 <Text style={{ color: roleColors.textPrimary, fontWeight: '700' }} numberOfLines={1}>
-                  {item.category || 'Без категории'}
+                  {item.category ? t(`videoCircles.categories.${item.category}`) : t('videoCircles.noCategory')}
                 </Text>
                 <Text style={{ color: roleColors.textSecondary, marginTop: 4 }} numberOfLines={1}>
                   {item.city || '—'} • {item.matha || '—'}
@@ -184,34 +186,34 @@ export const MyVideoCirclesScreen: React.FC = () => {
       <Modal visible={!!editing} animationType="slide" transparent onRequestClose={closeEdit}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
-            <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>Редактирование кружка</Text>
+            <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>{t('videoCircles.editTitle')}</Text>
             <TextInput
               value={editCity}
               onChangeText={setEditCity}
-              placeholder="City"
+              placeholder={t('registration.city')}
               placeholderTextColor={roleColors.textSecondary}
               style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
             />
             <TextInput
               value={editMatha}
               onChangeText={setEditMatha}
-              placeholder="Matha"
+              placeholder={t('dating.madh')}
               placeholderTextColor={roleColors.textSecondary}
               style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
             />
             <TextInput
               value={editCategory}
               onChangeText={setEditCategory}
-              placeholder="Category"
+              placeholder={t('ads.create.category')}
               placeholderTextColor={roleColors.textSecondary}
               style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.secondaryBtn, { borderColor: roleColors.border }]} onPress={closeEdit} disabled={savingEdit}>
-                <Text style={{ color: roleColors.textSecondary }}>Отмена</Text>
+                <Text style={{ color: roleColors.textSecondary }}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: roleColors.accent }]} onPress={submitEdit} disabled={savingEdit}>
-                {savingEdit ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Сохранить</Text>}
+                {savingEdit ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>

@@ -18,7 +18,7 @@ export interface PortalFolder {
 
 export interface PortalWidget {
     id: string;
-    type: 'clock' | 'calendar';
+    type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel';
     size: '1x1' | '2x1' | '2x2';
     position: number;
 }
@@ -61,6 +61,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'library', label: 'Библиотека', icon: 'Book', color: '#43A047' },
     { id: 'education', label: 'Обучение', icon: 'GraduationCap', color: '#8B5CF6' },
     { id: 'multimedia', label: 'Медия', icon: 'Music', color: '#6366F1' },
+    { id: 'video_circles', label: 'Кружки', icon: 'Film', color: '#EA580C' },
     { id: 'news', label: 'Новости', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },

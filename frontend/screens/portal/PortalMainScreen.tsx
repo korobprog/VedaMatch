@@ -9,7 +9,6 @@ import {
     ScrollView,
     Alert,
     Platform,
-    Image,
     ImageBackground,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
@@ -41,6 +40,7 @@ import {
     Leaf,
     Infinity,
     Heart,
+    Film,
 } from 'lucide-react-native';
 
 import { ContactsScreen } from './contacts/ContactsScreen';
@@ -67,7 +67,7 @@ import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFil
 
 const { width } = Dimensions.get('window');
 
-type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services';
+type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services';
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
@@ -147,13 +147,17 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             navigation.navigate('ServicesHome');
             return;
         }
+        if (serviceId === 'video_circles') {
+            navigation.navigate('VideoCirclesScreen');
+            return;
+        }
         if (serviceId === 'seva') {
             navigation.navigate('SevaHub');
             return;
         }
 
         const isSeeker = (user?.role || 'user') === 'user';
-        const seekerAllowedWithoutProfile = ['contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education'];
+        const seekerAllowedWithoutProfile = ['contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles'];
         const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
 
         if (!user?.isProfileComplete && !canUseWithoutCompleteProfile) {
@@ -214,20 +218,28 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     </View>
 
                     <View style={styles.logoContainer}>
-                        <TouchableOpacity onPress={() => setActiveTab(null)} activeOpacity={0.85} style={styles.logoPressable}>
-                            <View style={styles.logoGlass}>
-                                <Image
-                                    source={require('../../assets/logo_tilak.png')}
-                                    style={[
-                                        styles.logoImage,
-                                        (portalBackgroundType === 'image')
-                                            ? { tintColor: '#ffffff' }
-                                            : (isDarkMode && { tintColor: vTheme.colors.primary })
-                                    ]}
-                                    resizeMode="contain"
+                        <View style={styles.logoRow}>
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('VideoCirclesScreen')}
+                                activeOpacity={0.9}
+                                style={[
+                                    styles.circlesHeaderButton,
+                                    {
+                                        backgroundColor: (portalBackgroundType === 'image' || isDarkMode)
+                                            ? 'rgba(255,255,255,0.14)'
+                                            : vTheme.colors.backgroundSecondary,
+                                        borderColor: (portalBackgroundType === 'image' || isDarkMode)
+                                            ? 'rgba(255,255,255,0.35)'
+                                            : vTheme.colors.divider,
+                                    },
+                                ]}
+                            >
+                                <Film
+                                    size={16}
+                                    color={(portalBackgroundType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
                                 />
-                            </View>
-                        </TouchableOpacity>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     <View style={styles.headerRight}>
@@ -443,10 +455,6 @@ const styles = StyleSheet.create({
         paddingBottom: 8,
         zIndex: 10,
     },
-    logoImage: {
-        width: 92,
-        height: 30,
-    },
     headerLeft: {
         flex: 1,
         alignItems: 'flex-start',
@@ -456,11 +464,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    logoPressable: {
-        borderRadius: 18,
+    logoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
-    logoGlass: {
-        height: 42,
+    circlesHeaderButton: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },

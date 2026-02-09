@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Pencil, Plus } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
@@ -23,6 +24,7 @@ const TARIFF_CODES: UpsertVideoTariffPayload['code'][] = ['lkm_boost', 'city_boo
 
 export const VideoTariffsAdminScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const { isDarkMode } = useSettings();
   const { user } = useUser();
   const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
@@ -44,12 +46,12 @@ export const VideoTariffsAdminScreen: React.FC = () => {
       setTariffs(list);
     } catch (error) {
       console.error('Failed to load tariffs:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить тарифы');
+      Alert.alert(t('common.error'), t('videoTariffs.errorLoad'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadTariffs();
@@ -91,7 +93,7 @@ export const VideoTariffsAdminScreen: React.FC = () => {
 
   const submit = async () => {
     if (!canSubmit) {
-      Alert.alert('Ошибка', 'Проверьте цену и длительность');
+      Alert.alert(t('common.error'), t('videoTariffs.validationError'));
       return;
     }
     setSaving(true);
@@ -110,10 +112,10 @@ export const VideoTariffsAdminScreen: React.FC = () => {
       }
       closeModal();
       await loadTariffs();
-      Alert.alert('Готово', 'Тариф сохранён');
+      Alert.alert(t('common.success'), t('videoTariffs.successSave'));
     } catch (error) {
       console.error('Failed to save tariff:', error);
-      Alert.alert('Ошибка', 'Не удалось сохранить тариф');
+      Alert.alert(t('common.error'), t('videoTariffs.errorSave'));
       setSaving(false);
     }
   };
@@ -132,7 +134,7 @@ export const VideoTariffsAdminScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <ArrowLeft size={22} color={roleColors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: roleColors.textPrimary }]}>Video Tariffs</Text>
+        <Text style={[styles.title, { color: roleColors.textPrimary }]}>{t('videoTariffs.title')}</Text>
         <TouchableOpacity onPress={openCreate} style={styles.iconBtn}>
           <Plus size={22} color={roleColors.textPrimary} />
         </TouchableOpacity>
@@ -147,9 +149,11 @@ export const VideoTariffsAdminScreen: React.FC = () => {
           <View style={[styles.card, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
             <View style={styles.row}>
               <View style={styles.info}>
-                <Text style={{ color: roleColors.textPrimary, fontWeight: '700' }}>{item.code}</Text>
+                <Text style={{ color: roleColors.textPrimary, fontWeight: '700' }}>
+                  {t(`videoTariffs.${item.code}`)}
+                </Text>
                 <Text style={{ color: roleColors.textSecondary, marginTop: 4 }}>
-                  {item.priceLkm} LKM • {item.durationMinutes} min • {item.isActive ? 'active' : 'inactive'}
+                  {item.priceLkm} LKM • {item.durationMinutes} {t('common.min')} • {item.isActive ? t('videoTariffs.active') : t('videoTariffs.inactive')}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => openEdit(item)} style={styles.iconBtn}>
@@ -164,7 +168,7 @@ export const VideoTariffsAdminScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
             <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>
-              {editingId ? 'Редактировать тариф' : 'Новый тариф'}
+              {editingId ? t('videoTariffs.editTariff') : t('videoTariffs.newTariff')}
             </Text>
 
             <View style={styles.codesRow}>
@@ -180,7 +184,9 @@ export const VideoTariffsAdminScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  <Text style={{ color: code === itemCode ? '#fff' : roleColors.textPrimary, fontSize: 12 }}>{itemCode}</Text>
+                  <Text style={{ color: code === itemCode ? '#fff' : roleColors.textPrimary, fontSize: 12 }}>
+                    {t(`videoTariffs.${itemCode}`)}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -189,7 +195,7 @@ export const VideoTariffsAdminScreen: React.FC = () => {
               value={priceLkm}
               onChangeText={setPriceLkm}
               keyboardType="numeric"
-              placeholder="Price LKM"
+              placeholder={t('videoTariffs.priceLkm')}
               placeholderTextColor={roleColors.textSecondary}
               style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
             />
@@ -197,21 +203,21 @@ export const VideoTariffsAdminScreen: React.FC = () => {
               value={durationMinutes}
               onChangeText={setDurationMinutes}
               keyboardType="numeric"
-              placeholder="Duration minutes"
+              placeholder={t('videoTariffs.durationMinutes')}
               placeholderTextColor={roleColors.textSecondary}
               style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
             />
             <View style={styles.switchRow}>
-              <Text style={{ color: roleColors.textPrimary }}>Active</Text>
+              <Text style={{ color: roleColors.textPrimary }}>{t('videoTariffs.isActive')}</Text>
               <Switch value={isActive} onValueChange={setIsActive} />
             </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.secondaryBtn, { borderColor: roleColors.border }]} onPress={closeModal} disabled={saving}>
-                <Text style={{ color: roleColors.textSecondary }}>Отмена</Text>
+                <Text style={{ color: roleColors.textSecondary }}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: roleColors.accent }]} onPress={submit} disabled={saving}>
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Сохранить</Text>}
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>

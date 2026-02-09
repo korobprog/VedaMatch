@@ -129,6 +129,47 @@ func TestNormalizeMathaParam(t *testing.T) {
 	}
 }
 
+func TestParseRoleScopeParam(t *testing.T) {
+	tests := []struct {
+		name     string
+		query    string
+		expected []string
+	}{
+		{name: "empty when absent", query: "/", expected: nil},
+		{name: "single valid role", query: "/?role_scope=user", expected: []string{"user"}},
+		{name: "multiple valid roles", query: "/?role_scope=user,yogi,devotee", expected: []string{"user", "yogi", "devotee"}},
+		{name: "invalid values ignored", query: "/?role_scope=user,invalid,admin", expected: []string{"user"}},
+		{name: "deduplicates and trims", query: "/?role_scope= user ,yogi,user ", expected: []string{"user", "yogi"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := fiber.New()
+			app.Get("/", func(c *fiber.Ctx) error {
+				got := parseRoleScopeParam(c)
+				if len(got) != len(tt.expected) {
+					t.Fatalf("parseRoleScopeParam() len = %d, want %d", len(got), len(tt.expected))
+				}
+				for i := range got {
+					if got[i] != tt.expected[i] {
+						t.Fatalf("parseRoleScopeParam()[%d] = %q, want %q", i, got[i], tt.expected[i])
+					}
+				}
+				return c.SendStatus(fiber.StatusOK)
+			})
+
+			req := httptest.NewRequest("GET", tt.query, nil)
+			res, err := app.Test(req)
+			if err != nil {
+				t.Fatalf("app.Test error: %v", err)
+			}
+			if res.StatusCode != fiber.StatusOK {
+				t.Fatalf("status = %d, want %d", res.StatusCode, fiber.StatusOK)
+			}
+		})
+	}
+}
+
 func TestAddInteractionLegacy_RequiresCircleID(t *testing.T) {
 	app := fiber.New()
 	handler := NewVideoCircleHandlerWithService(&mockVideoCircleService{})

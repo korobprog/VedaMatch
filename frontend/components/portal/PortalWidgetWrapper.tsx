@@ -74,6 +74,7 @@ export const PortalWidgetWrapper: React.FC<PortalWidgetWrapperProps> = ({
                     style={styles.deleteButton}
                     onPress={onRemove}
                     activeOpacity={0.8}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <View style={styles.deleteIcon}>
                         <Text style={styles.deleteText}>−</Text>

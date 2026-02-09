@@ -71,15 +71,24 @@ bash /Users/mamu/Documents/vedicai/script/video_circles_smoke.sh
 1. `user_a` (без god mode) запрашивает `GET /api/video-circles`.
 - Ожидаемо: видит только `matha=user_a.madh`.
 
-2. `user_b` (без god mode) запрашивает `GET /api/video-circles`.
+2. `user_a` (без god mode) без `role_scope`.
+- Ожидаемо: видит только свой `role-type`.
+
+3. `user_a` с `role_scope=yogi,devotee`.
+- Ожидаемо: видит только эти role-type, но строго внутри `matha=user_a.madh`.
+
+4. `user_b` (без god mode) запрашивает `GET /api/video-circles`.
 - Ожидаемо: не видит `user_a` кружки из другой matha.
 
-3. Пользователь с `godModeEnabled=true` запрашивает `GET /api/video-circles`.
+5. Пользователь с `godModeEnabled=true` запрашивает `GET /api/video-circles`.
 - Ожидаемо: видит кружки разных matha.
 
-4. Проверка alias:
+6. Проверка alias:
 - `?matha=...`, `?madh=...`, `?math=...`.
 - Ожидаемо: приоритет `matha > madh > math`.
+
+7. Проверка `scope=friends`.
+- Ожидаемо: лента ограничена кружками авторов из friend-list.
 
 ## Expiry / scheduler
 
@@ -112,6 +121,9 @@ bash /Users/mamu/Documents/vedicai/script/video_circles_smoke.sh
 - таймер уменьшается каждую секунду.
 - кнопки like/comment/chat обновляют счетчики.
 - фильтры `city/matha/category/status` работают.
+- role-chips отправляют `role_scope`.
+- переключатель `Лента/Кружки друзей` отправляет `scope`.
+- кнопка `+` показывает выбор `Снять кружок/Выбрать из галереи`.
 
 2. `MyVideoCirclesScreen`:
 - отображает кружки пользователя.

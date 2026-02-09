@@ -95,13 +95,15 @@ type VideoCircleBillingLog struct {
 }
 
 type VideoCircleListParams struct {
-	City     string
-	Matha    string
-	Category string
-	Status   string
-	Sort     string
-	Page     int
-	Limit    int
+	City      string
+	Matha     string
+	Category  string
+	Status    string
+	Scope     string
+	RoleScope []string
+	Sort      string
+	Page      int
+	Limit     int
 }
 
 type VideoCircleResponse struct {

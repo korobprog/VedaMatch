@@ -50,13 +50,15 @@ func (h *VideoCircleHandler) GetVideoCircles(c *fiber.Ctx) error {
 	}
 
 	params := models.VideoCircleListParams{
-		City:     strings.TrimSpace(c.Query("city")),
-		Matha:    normalizeMathaParam(c),
-		Category: strings.TrimSpace(c.Query("category")),
-		Status:   strings.TrimSpace(c.Query("status")),
-		Sort:     strings.TrimSpace(c.Query("sort")),
-		Page:     c.QueryInt("page", 1),
-		Limit:    c.QueryInt("limit", 20),
+		City:      strings.TrimSpace(c.Query("city")),
+		Matha:     normalizeMathaParam(c),
+		Category:  strings.TrimSpace(c.Query("category")),
+		Status:    strings.TrimSpace(c.Query("status")),
+		Scope:     strings.TrimSpace(c.Query("scope")),
+		RoleScope: parseRoleScopeParam(c),
+		Sort:      strings.TrimSpace(c.Query("sort")),
+		Page:      c.QueryInt("page", 1),
+		Limit:     c.QueryInt("limit", 20),
 	}
 
 	result, err := h.service.ListCircles(userID, middleware.GetUserRole(c), params)
@@ -403,6 +405,40 @@ func normalizeMathaParam(c *fiber.Ctx) string {
 		return matha
 	}
 	return strings.TrimSpace(c.Query("math"))
+}
+
+func parseRoleScopeParam(c *fiber.Ctx) []string {
+	raw := strings.TrimSpace(c.Query("role_scope"))
+	if raw == "" {
+		return nil
+	}
+
+	allowed := map[string]struct{}{
+		models.RoleUser:       {},
+		models.RoleInGoodness: {},
+		models.RoleYogi:       {},
+		models.RoleDevotee:    {},
+	}
+
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]struct{}, len(parts))
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		role := strings.ToLower(strings.TrimSpace(part))
+		if role == "" {
+			continue
+		}
+		if _, ok := allowed[role]; !ok {
+			continue
+		}
+		if _, exists := seen[role]; exists {
+			continue
+		}
+		seen[role] = struct{}{}
+		result = append(result, role)
+	}
+
+	return result
 }
 
 func saveUploadedCircleFile(c *fiber.Ctx, fileHeader *multipart.FileHeader, fileKind string) (string, error) {

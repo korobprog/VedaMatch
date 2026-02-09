@@ -14,7 +14,11 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, RefreshCw, UtensilsCrossed, AlertCircle, FileText, CreditCard, Hand, MessageCircle, Check, CheckCheck } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
-import { WaiterCall, WaiterCallStatus, getWaiterCallReasonLabel } from '../../../types/cafe';
+import { WaiterCall, WaiterCallStatus } from '../../../types/cafe';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type RouteParams = {
     StaffWaiterCalls: {
@@ -27,7 +31,11 @@ const StaffWaiterCallsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'StaffWaiterCalls'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId, cafeName } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [calls, setCalls] = useState<WaiterCall[]>([]);
     const [loading, setLoading] = useState(true);
@@ -102,10 +110,10 @@ const StaffWaiterCallsScreen: React.FC = () => {
 
     const getStatusColor = (status: WaiterCallStatus): string => {
         switch (status) {
-            case 'pending': return '#FF9500';
-            case 'acknowledged': return '#007AFF';
-            case 'completed': return '#8E8E93';
-            default: return '#8E8E93';
+            case 'pending': return colors.warning;
+            case 'acknowledged': return colors.accent;
+            case 'completed': return colors.textSecondary;
+            default: return colors.textSecondary;
         }
     };
 
@@ -122,10 +130,10 @@ const StaffWaiterCallsScreen: React.FC = () => {
     };
 
     const renderReasonIcon = (reason: string) => {
-        if (reason === 'order') return <FileText size={16} color="#FFFFFF" />;
-        if (reason === 'payment') return <CreditCard size={16} color="#FFFFFF" />;
-        if (reason === 'service') return <Hand size={16} color="#FFFFFF" />;
-        return <MessageCircle size={16} color="#FFFFFF" />;
+        if (reason === 'order') return <FileText size={16} color={colors.textPrimary} />;
+        if (reason === 'payment') return <CreditCard size={16} color={colors.textPrimary} />;
+        if (reason === 'service') return <Hand size={16} color={colors.textPrimary} />;
+        return <MessageCircle size={16} color={colors.textPrimary} />;
     };
 
     const renderCallItem = ({ item: call }: { item: WaiterCall }) => {
@@ -139,7 +147,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
             ]}>
                 <View style={styles.callHeader}>
                     <View style={styles.tableInfo}>
-                        <UtensilsCrossed size={20} color="#FF6B00" />
+                        <UtensilsCrossed size={20} color={colors.accent} />
                         <Text style={styles.tableName}>
                             {t('cafe.detail.tableInfo', { tableNumber: call.table?.number || call.tableId })}
                         </Text>
@@ -171,7 +179,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
                             style={styles.acknowledgeButton}
                             onPress={() => handleAcknowledge(call)}
                         >
-                            <Check size={18} color="#FFFFFF" />
+                            <Check size={18} color={colors.textPrimary} />
                             <Text style={styles.buttonText}>{t('cafe.staff.waiterCalls.accept')}</Text>
                         </TouchableOpacity>
                     )}
@@ -180,7 +188,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
                             style={styles.completeButton}
                             onPress={() => handleComplete(call)}
                         >
-                            <CheckCheck size={18} color="#FFFFFF" />
+                            <CheckCheck size={18} color={colors.textPrimary} />
                             <Text style={styles.buttonText}>{t('cafe.staff.waiterCalls.served')}</Text>
                         </TouchableOpacity>
                     )}
@@ -197,7 +205,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -207,18 +215,18 @@ const StaffWaiterCallsScreen: React.FC = () => {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={24} color="#FFFFFF" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.staff.waiterCalls.title')}</Text>
                 <TouchableOpacity onPress={() => loadCalls()}>
-                    <RefreshCw size={24} color="#FFFFFF" />
+                    <RefreshCw size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
             {/* Pending count banner */}
             {pendingCalls.length > 0 && (
                 <View style={styles.alertBanner}>
-                    <AlertCircle size={20} color="#FF9500" />
+                    <AlertCircle size={20} color={colors.warning} />
                     <Text style={styles.alertText}>
                         {t(`cafe.staff.waiterCalls.alert_${pendingCalls.length === 1 ? 'one' : 'many'}`, { count: pendingCalls.length })}
                     </Text>
@@ -235,7 +243,7 @@ const StaffWaiterCallsScreen: React.FC = () => {
                 }
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Hand size={64} color="#8E8E93" />
+                        <Hand size={64} color={colors.textSecondary} />
                         <Text style={styles.emptyTitle}>{t('cafe.staff.waiterCalls.noCalls')}</Text>
                         <Text style={styles.emptyText}>
                             {t('cafe.staff.waiterCalls.noCallsDesc')}
@@ -247,16 +255,16 @@ const StaffWaiterCallsScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -264,10 +272,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         paddingTop: 48,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
     },
@@ -276,11 +284,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        backgroundColor: 'rgba(255, 149, 0, 0.15)',
+        backgroundColor: colors.accentSoft,
         padding: 12,
     },
     alertText: {
-        color: '#FF9500',
+        color: colors.warning,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -288,14 +296,14 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     callCard: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 12,
         padding: 16,
         marginBottom: 12,
     },
     callCardUrgent: {
         borderWidth: 2,
-        borderColor: '#FF9500',
+        borderColor: colors.warning,
     },
     callHeader: {
         flexDirection: 'row',
@@ -309,7 +317,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     tableName: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -340,16 +348,16 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     reasonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 15,
     },
     noteText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
         marginBottom: 8,
     },
     timeText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     callActions: {
@@ -362,7 +370,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        backgroundColor: '#007AFF',
+        backgroundColor: colors.accent,
         padding: 12,
         borderRadius: 10,
     },
@@ -372,12 +380,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        backgroundColor: '#34C759',
+        backgroundColor: colors.success,
         padding: 12,
         borderRadius: 10,
     },
     buttonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -386,13 +394,13 @@ const styles = StyleSheet.create({
         padding: 48,
     },
     emptyTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
         marginTop: 16,
     },
     emptyText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
         textAlign: 'center',
         marginTop: 8,

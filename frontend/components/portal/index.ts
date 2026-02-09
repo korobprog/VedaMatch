@@ -6,3 +6,5 @@ export { FolderModal } from './FolderModal';
 export { ClockWidget } from './ClockWidget';
 export { CalendarWidget } from './CalendarWidget';
 export { PortalWidgetWrapper } from './PortalWidgetWrapper';
+export { CirclesQuickWidget } from './CirclesQuickWidget';
+export { CirclesPanelWidget } from './CirclesPanelWidget';

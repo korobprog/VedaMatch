@@ -37,12 +37,20 @@ import {
     Dish,
 } from '../../../types/cafe';
 import { RootStackParamList } from '../../../types/navigation';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const StaffMenuEditorScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RootStackParamList, 'StaffMenuEditor'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId, cafeName } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [categories, setCategories] = useState<CafeCategory[]>([]);
     const [loading, setLoading] = useState(true);
@@ -205,20 +213,20 @@ const StaffMenuEditorScreen: React.FC = () => {
                 <Switch
                     value={dish.isAvailable}
                     onValueChange={() => handleToggleDishAvailability(dish)}
-                    trackColor={{ false: '#3A3A3C', true: '#34C759' }}
-                    thumbColor="#FFFFFF"
+                    trackColor={{ false: colors.border, true: colors.success }}
+                    thumbColor={colors.surfaceElevated}
                 />
                 <TouchableOpacity
                     style={styles.iconButton}
                     onPress={() => navigation.navigate('DishDetail', { cafeId, dishId: dish.id, cafeName })}
                 >
-                    <Edit2 size={20} color="#8E8E93" />
+                    <Edit2 size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.iconButton}
                     onPress={() => handleDeleteDish(dish)}
                 >
-                    <Trash2 size={20} color="#FF3B30" />
+                    <Trash2 size={20} color={colors.danger} />
                 </TouchableOpacity>
             </View>
         </View>
@@ -227,7 +235,7 @@ const StaffMenuEditorScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -240,7 +248,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <ArrowLeft size={24} color="#FFFFFF" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerTitleContainer}>
                     <Text style={styles.headerTitle}>{t('cafe.dashboard.menu')}</Text>
@@ -257,24 +265,24 @@ const StaffMenuEditorScreen: React.FC = () => {
                         }
                     }}
                 >
-                    <Plus size={24} color="#FFFFFF" />
+                    <Plus size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
             {/* Search Bar */}
             <View style={styles.searchSection}>
                 <View style={styles.searchContainer}>
-                    <Search size={20} color="#8E8E93" />
+                    <Search size={20} color={colors.textSecondary} />
                     <TextInput
                         style={styles.searchInput}
                         placeholder={t('common.search')}
-                        placeholderTextColor="#8E8E93"
+                        placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                     />
                 </View>
                 <TouchableOpacity style={styles.filterButton}>
-                    <Filter size={20} color="#FFFFFF" />
+                    <Filter size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
@@ -292,9 +300,9 @@ const StaffMenuEditorScreen: React.FC = () => {
                                 </Text>
                             </View>
                             {expandedCategories[category.id] ? (
-                                <ChevronUp size={24} color="#8E8E93" />
+                                <ChevronUp size={24} color={colors.textSecondary} />
                             ) : (
-                                <ChevronDown size={24} color="#8E8E93" />
+                                <ChevronDown size={24} color={colors.textSecondary} />
                             )}
                         </TouchableOpacity>
 
@@ -312,7 +320,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                                         setDishModalVisible(true);
                                     }}
                                 >
-                                    <Plus size={18} color="#FF6B00" />
+                                    <Plus size={18} color={colors.accent} />
                                     <Text style={styles.addDishText}>{t('cafe.menu.addDish')}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -324,7 +332,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                     style={styles.addCategoryButton}
                     onPress={() => setCategoryModalVisible(true)}
                 >
-                    <Plus size={24} color="#FFFFFF" />
+                    <Plus size={24} color={colors.textPrimary} />
                     <Text style={styles.addCategoryText}>{t('cafe.menu.addCategory')}</Text>
                 </TouchableOpacity>
 
@@ -351,13 +359,13 @@ const StaffMenuEditorScreen: React.FC = () => {
                             <View style={styles.modalHeader}>
                                 <Text style={styles.modalTitle}>{t('cafe.menu.addCategory')}</Text>
                                 <TouchableOpacity onPress={() => setCategoryModalVisible(false)}>
-                                    <X size={24} color="#FFFFFF" />
+                                    <X size={24} color={colors.textPrimary} />
                                 </TouchableOpacity>
                             </View>
                             <TextInput
                                 style={styles.modalInput}
                                 placeholder={t('cafe.settings.name')}
-                                placeholderTextColor="#3A3A3C"
+                                placeholderTextColor={colors.textSecondary}
                                 value={newCategoryName}
                                 onChangeText={setNewCategoryName}
                                 autoFocus
@@ -393,21 +401,21 @@ const StaffMenuEditorScreen: React.FC = () => {
                             <View style={styles.modalHeader}>
                                 <Text style={styles.modalTitle}>{t('cafe.menu.addDish')}</Text>
                                 <TouchableOpacity onPress={() => setDishModalVisible(false)}>
-                                    <X size={24} color="#FFFFFF" />
+                                    <X size={24} color={colors.textPrimary} />
                                 </TouchableOpacity>
                             </View>
                             <ScrollView>
                                 <TextInput
                                     style={styles.modalInput}
                                     placeholder={t('cafe.dish.name')}
-                                    placeholderTextColor="#3A3A3C"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={newDish.name}
                                     onChangeText={(text) => setNewDish(prev => ({ ...prev, name: text }))}
                                 />
                                 <TextInput
                                     style={styles.modalInput}
                                     placeholder={t('market.price')}
-                                    placeholderTextColor="#3A3A3C"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={newDish.price}
                                     onChangeText={(text) => setNewDish(prev => ({ ...prev, price: text }))}
                                     keyboardType="numeric"
@@ -415,7 +423,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                                 <TextInput
                                     style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
                                     placeholder={t('market.description')}
-                                    placeholderTextColor="#3A3A3C"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={newDish.description}
                                     onChangeText={(text) => setNewDish(prev => ({ ...prev, description: text }))}
                                     multiline
@@ -435,16 +443,16 @@ const StaffMenuEditorScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -452,13 +460,13 @@ const styles = StyleSheet.create({
         paddingTop: 48,
         paddingBottom: 20,
         paddingHorizontal: 16,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
     },
     backButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -467,19 +475,19 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 20,
         fontWeight: 'bold',
     },
     headerSubtitle: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 13,
     },
     addButton: {
         width: 40,
         height: 40,
         borderRadius: 12,
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -492,14 +500,14 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 12,
         paddingHorizontal: 12,
         height: 44,
     },
     searchInput: {
         flex: 1,
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginLeft: 8,
         fontSize: 16,
     },
@@ -507,7 +515,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 12,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -522,9 +530,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: 16,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderBottomWidth: 1,
-        borderBottomColor: '#2C2C2E',
+        borderBottomColor: colors.border,
     },
     categoryTitleGroup: {
         flexDirection: 'row',
@@ -532,34 +540,34 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     categoryName: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
     },
     categoryCount: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 10,
     },
     dishesList: {
         paddingHorizontal: 16,
-        backgroundColor: '#151517',
+        backgroundColor: colors.surface,
     },
     dishCard: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#2C2C2E',
+        borderBottomColor: colors.border,
     },
     dishImageContainer: {
         width: 60,
         height: 60,
         borderRadius: 8,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surfaceElevated,
         overflow: 'hidden',
     },
     dishImage: {
@@ -571,12 +579,12 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
     dishName: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '500',
     },
     dishPrice: {
-        color: '#FF6B00',
+        color: colors.accent,
         fontSize: 15,
         fontWeight: 'bold',
         marginTop: 4,
@@ -597,7 +605,7 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     addDishText: {
-        color: '#FF6B00',
+        color: colors.accent,
         fontSize: 15,
         fontWeight: '500',
     },
@@ -605,23 +613,23 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         margin: 16,
         padding: 16,
         borderRadius: 12,
         borderStyle: 'dashed',
         borderWidth: 1,
-        borderColor: '#3A3A3C',
+        borderColor: colors.border,
         gap: 10,
     },
     addCategoryText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         padding: 20,
     },
@@ -629,11 +637,11 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     modalCard: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 20,
         padding: 24,
         borderWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: colors.border,
     },
     modalHeader: {
         flexDirection: 'row',
@@ -642,27 +650,27 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     modalTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 20,
         fontWeight: 'bold',
     },
     modalInput: {
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 14,
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         marginBottom: 16,
     },
     modalButton: {
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         borderRadius: 12,
         padding: 16,
         alignItems: 'center',
         marginTop: 8,
     },
     modalButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: 'bold',
     },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -17,6 +17,10 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Search, MinusCircle, UtensilsCrossed } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { Dish, CafeCategory } from '../../../types/cafe';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type RouteParams = {
     StaffStopList: {
@@ -29,7 +33,11 @@ const StaffStopListScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'StaffStopList'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId, cafeName } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [dishes, setDishes] = useState<Dish[]>([]);
     const [categories, setCategories] = useState<CafeCategory[]>([]);
@@ -177,8 +185,8 @@ const StaffStopListScreen: React.FC = () => {
                     <Switch
                         value={isAvailable}
                         onValueChange={() => toggleDishAvailability(dish)}
-                        trackColor={{ false: '#FF3B30', true: '#34C759' }}
-                        thumbColor="#FFFFFF"
+                        trackColor={{ false: colors.danger, true: colors.success }}
+                        thumbColor={colors.textPrimary}
                     />
                 </View>
             </View>
@@ -188,7 +196,7 @@ const StaffStopListScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -198,7 +206,7 @@ const StaffStopListScreen: React.FC = () => {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
+                    <ArrowLeft size={24} color={colors.textPrimary} strokeWidth={2} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>{t('cafe.staff.stopList.title')}</Text>
@@ -211,11 +219,11 @@ const StaffStopListScreen: React.FC = () => {
 
             {/* Search */}
             <View style={styles.searchContainer}>
-                <Search size={20} color="#8E8E93" strokeWidth={1.5} />
+                <Search size={20} color={colors.textSecondary} strokeWidth={1.5} />
                 <TextInput
                     style={styles.searchInput}
                     placeholder={t('cafe.staff.stopList.searchPlaceholder')}
-                    placeholderTextColor="#8E8E93"
+                    placeholderTextColor={colors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
                 />
@@ -266,7 +274,7 @@ const StaffStopListScreen: React.FC = () => {
                 >
                     <MinusCircle
                         size={16}
-                        color={showStopOnly ? '#FFFFFF' : '#FF3B30'}
+                        color={showStopOnly ? colors.textPrimary : colors.danger}
                         strokeWidth={1.5}
                     />
                     <Text style={[
@@ -286,7 +294,7 @@ const StaffStopListScreen: React.FC = () => {
                 contentContainerStyle={styles.listContent}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <UtensilsCrossed size={48} color="#8E8E93" strokeWidth={1} />
+                        <UtensilsCrossed size={48} color={colors.textSecondary} strokeWidth={1} />
                         <Text style={styles.emptyText}>{t('cafe.staff.stopList.noDishes')}</Text>
                     </View>
                 }
@@ -307,7 +315,7 @@ const StaffStopListScreen: React.FC = () => {
                         disabled={saving}
                     >
                         {saving ? (
-                            <ActivityIndicator color="#FFFFFF" size="small" />
+                            <ActivityIndicator color={colors.textPrimary} size="small" />
                         ) : (
                             <Text style={styles.saveButtonText}>
                                 {t('cafe.staff.stopList.save', { count: pendingChanges.size })}
@@ -320,16 +328,16 @@ const StaffStopListScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -337,24 +345,24 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         paddingTop: 48,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
     },
     headerCenter: {
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
     },
     headerSubtitle: {
-        color: '#FF3B30',
+        color: colors.danger,
         fontSize: 12,
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         margin: 12,
         paddingHorizontal: 12,
         borderRadius: 10,
@@ -362,7 +370,7 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         height: 40,
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginLeft: 8,
     },
     filtersContainer: {
@@ -375,19 +383,19 @@ const styles = StyleSheet.create({
     filterButton: {
         paddingHorizontal: 14,
         paddingVertical: 8,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 16,
         marginRight: 8,
     },
     filterButtonActive: {
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
     },
     filterButtonText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 13,
     },
     filterButtonTextActive: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontWeight: '600',
     },
     stopOnlyButton: {
@@ -396,21 +404,21 @@ const styles = StyleSheet.create({
         gap: 4,
         paddingHorizontal: 12,
         paddingVertical: 8,
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+        backgroundColor: colors.accentSoft,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#FF3B30',
+        borderColor: colors.danger,
     },
     stopOnlyButtonActive: {
-        backgroundColor: '#FF3B30',
-        borderColor: '#FF3B30',
+        backgroundColor: colors.danger,
+        borderColor: colors.danger,
     },
     stopOnlyText: {
-        color: '#FF3B30',
+        color: colors.danger,
         fontSize: 12,
     },
     stopOnlyTextActive: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
     },
     listContent: {
         padding: 12,
@@ -418,19 +426,19 @@ const styles = StyleSheet.create({
     dishItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 12,
         borderRadius: 12,
         marginBottom: 8,
     },
     dishItemUnavailable: {
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+        backgroundColor: colors.accentSoft,
         borderWidth: 1,
-        borderColor: '#FF3B30',
+        borderColor: colors.danger,
     },
     dishItemChanged: {
         borderWidth: 2,
-        borderColor: '#FF6B00',
+        borderColor: colors.accent,
     },
     dishImage: {
         width: 56,
@@ -442,21 +450,21 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     dishName: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '500',
     },
     dishNameUnavailable: {
-        color: '#FF3B30',
+        color: colors.danger,
         textDecorationLine: 'line-through',
     },
     dishCategory: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
         marginTop: 2,
     },
     dishPrice: {
-        color: '#FF6B00',
+        color: colors.accent,
         fontSize: 14,
         fontWeight: '600',
         marginTop: 4,
@@ -466,7 +474,7 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
     switchLabel: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 10,
         marginBottom: 4,
     },
@@ -475,30 +483,30 @@ const styles = StyleSheet.create({
         padding: 48,
     },
     emptyText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         marginTop: 12,
     },
     saveBar: {
         flexDirection: 'row',
         padding: 16,
         paddingBottom: 32,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         gap: 12,
     },
     cancelButton: {
         flex: 1,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         padding: 14,
         borderRadius: 12,
         alignItems: 'center',
     },
     cancelButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 15,
     },
     saveButton: {
         flex: 2,
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         padding: 14,
         borderRadius: 12,
         alignItems: 'center',
@@ -507,7 +515,7 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     saveButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '600',
     },

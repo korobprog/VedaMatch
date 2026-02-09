@@ -24,6 +24,10 @@ import LinearGradient from 'react-native-linear-gradient';
 import { cafeService } from '../../../services/cafeService';
 import { OrderStatsResponse } from '../../../types/cafe';
 import { RootStackParamList } from '../../../types/navigation';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
@@ -31,7 +35,11 @@ const StaffStatsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RootStackParamList, 'StaffStats'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId, cafeName } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [stats, setStats] = useState<OrderStatsResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -64,11 +72,11 @@ const StaffStatsScreen: React.FC = () => {
                 {trend && (
                     <View style={styles.trendContainer}>
                         {trend.startsWith('+') ? (
-                            <TrendingUp size={14} color="#34C759" />
+                            <TrendingUp size={14} color={colors.success} />
                         ) : (
-                            <TrendingDown size={14} color="#FF3B30" />
+                            <TrendingDown size={14} color={colors.danger} />
                         )}
-                        <Text style={[styles.trendText, { color: trend.startsWith('+') ? '#34C759' : '#FF3B30' }]}>
+                        <Text style={[styles.trendText, { color: trend.startsWith('+') ? colors.success : colors.danger }]}>
                             {trend}
                         </Text>
                     </View>
@@ -80,7 +88,7 @@ const StaffStatsScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -93,14 +101,14 @@ const StaffStatsScreen: React.FC = () => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <ArrowLeft size={24} color="#FFFFFF" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerTitleContainer}>
                     <Text style={styles.headerTitle}>{t('cafe.dashboard.stats')}</Text>
                     <Text style={styles.headerSubtitle}>{cafeName}</Text>
                 </View>
                 <TouchableOpacity style={styles.calendarButton}>
-                    <Calendar size={24} color="#FFFFFF" />
+                    <Calendar size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
@@ -126,28 +134,28 @@ const StaffStatsScreen: React.FC = () => {
                         t('cafe.dashboard.todayRevenue'),
                         `${stats?.todayRevenue || 0} ₽`,
                         DollarSign,
-                        '#34C759',
+                        colors.success,
                         '+12.5%'
                     )}
                     {renderStatCard(
                         t('cafe.dashboard.todayOrders'),
                         stats?.todayOrders || 0,
                         ShoppingBag,
-                        '#FF6B00',
+                        colors.accent,
                         '+5.2%'
                     )}
                     {renderStatCard(
                         t('cafe.stats.totalCustomers') || 'Customers',
                         '124',
                         Users,
-                        '#007AFF',
+                        colors.warning,
                         '-2.4%'
                     )}
                     {renderStatCard(
                         t('cafe.dashboard.avgTime'),
                         `${stats?.avgPrepTime || 0} ${t('common.min')}`,
                         Clock,
-                        '#5856D6'
+                        colors.textSecondary
                     )}
                 </View>
 
@@ -156,7 +164,7 @@ const StaffStatsScreen: React.FC = () => {
                     <Text style={styles.sectionTitle}>{t('cafe.stats.revenueOverTime') || 'Revenue Overview'}</Text>
                     <View style={styles.chartContainer}>
                         <LinearGradient
-                            colors={['rgba(255, 107, 0, 0.2)', 'rgba(255, 107, 0, 0)']}
+                            colors={[colors.accentSoft, 'transparent']}
                             style={styles.chartGradient}
                         />
                         <View style={styles.chartBars}>
@@ -176,16 +184,16 @@ const StaffStatsScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -193,13 +201,13 @@ const styles = StyleSheet.create({
         paddingTop: 48,
         paddingBottom: 20,
         paddingHorizontal: 16,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
     },
     backButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -208,19 +216,19 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 20,
         fontWeight: 'bold',
     },
     headerSubtitle: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 13,
     },
     calendarButton: {
         width: 40,
         height: 40,
         borderRadius: 12,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -229,7 +237,7 @@ const styles = StyleSheet.create({
     },
     rangeSelector: {
         flexDirection: 'row',
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         margin: 16,
         padding: 4,
         borderRadius: 12,
@@ -241,15 +249,15 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     activeRangeTab: {
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
     },
     rangeTabText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '500',
     },
     activeRangeTabText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
     },
     statsGrid: {
         flexDirection: 'row',
@@ -258,7 +266,7 @@ const styles = StyleSheet.create({
     },
     statCard: {
         width: (width - 40) / 2,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         margin: 5,
         padding: 16,
         borderRadius: 16,
@@ -275,11 +283,11 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     statTitle: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 13,
     },
     statValue: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 20,
         fontWeight: 'bold',
     },
@@ -297,13 +305,13 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     sectionTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
         marginBottom: 16,
     },
     chartContainer: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 16,
         height: 200,
         padding: 16,
@@ -329,12 +337,12 @@ const styles = StyleSheet.create({
     },
     bar: {
         width: 12,
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         borderRadius: 6,
         minHeight: 4,
     },
     barLabel: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 10,
         marginTop: 10,
     },

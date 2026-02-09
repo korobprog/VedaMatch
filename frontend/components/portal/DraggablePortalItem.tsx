@@ -194,6 +194,7 @@ export const DraggablePortalItem: React.FC<DraggablePortalItemProps> = ({
             <Animated.View
                 style={[styles.container, animatedStyle]}
                 onLayout={handleLayout}
+                pointerEvents="box-none"
             >
                 {children}
             </Animated.View>

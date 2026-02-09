@@ -8,6 +8,10 @@ QA checklist для ручной проверки:
 
 - `/Users/mamu/Documents/vedicai/docs/video-circles-qa-checklist.md`
 
+Go-live checklist:
+
+- `/Users/mamu/Documents/vedicai/docs/video-circles-go-live-checklist.md`
+
 ## Base URL
 
 - `http://<host>:8080/api`
@@ -40,6 +44,8 @@ Query params:
 - `madh` (optional, alias fallback)
 - `math` (optional, alias fallback)
 - `category` (optional)
+- `scope` (optional): `all | friends`
+- `role_scope` (optional CSV): `user,in_goodness,yogi,devotee`
 - `status` (optional, default filter active+not expired)
 - `sort` (optional): `newest | oldest | expires_soon`
 - `page` (optional, default `1`)
@@ -50,6 +56,16 @@ Query params:
 - Обычный пользователь: сервер принудительно применяет `user.madh`, даже если в query передан другой `matha`.
 - `godModeEnabled=true` или `role=superadmin`: ограничение по профилю выключается; можно видеть все matha.
 - При передаче нескольких alias используется приоритет: `matha > madh > math`.
+
+Правила видимости по role-type:
+
+- Обычный пользователь: если `role_scope` не передан, сервер применяет `role=user.role`.
+- Обычный пользователь: если `role_scope` передан, применяется только допустимый whitelist (`user,in_goodness,yogi,devotee`).
+- `godModeEnabled=true` или `role=superadmin`: роль-фильтр не принудительный, но может быть явно передан в query.
+
+Friends scope:
+
+- `scope=friends` дополнительно ограничивает авторов до списка друзей текущего пользователя.
 
 Response 200:
 

@@ -513,3 +513,36 @@ export const removeWidget = (
     );
     return newLayout;
 };
+// Helper: Delete item from grid
+export const deleteGridItem = (
+    layout: PortalLayout,
+    pageIndex: number,
+    itemId: string
+): PortalLayout => {
+    const newLayout = { ...layout };
+    const page = newLayout.pages[pageIndex];
+    page.items = page.items.filter(i => i.id !== itemId);
+    return newLayout;
+};
+
+// Helper: Reorder widgets
+export const reorderWidgets = (
+    layout: PortalLayout,
+    pageIndex: number,
+    fromIndex: number,
+    toIndex: number
+): PortalLayout => {
+    const newLayout = { ...layout };
+    const widgets = [...newLayout.pages[pageIndex].widgets];
+    const [moved] = widgets.splice(fromIndex, 1);
+    widgets.splice(toIndex, 0, moved);
+
+    // Update positions
+    widgets.forEach((widget, index) => {
+        widget.position = index;
+    });
+
+    newLayout.pages[pageIndex].widgets = widgets;
+    return newLayout;
+};
+

@@ -16,6 +16,10 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, PlusCircle, X, Trash2 } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { CafeTable } from '../../../types/cafe';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width, height } = Dimensions.get('window');
 const EDITOR_WIDTH = width - 32;
@@ -43,7 +47,11 @@ const StaffTableEditorScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'StaffTableEditor'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId, cafeName } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [tables, setTables] = useState<TablePosition[]>([]);
     const [loading, setLoading] = useState(true);
@@ -265,7 +273,7 @@ const StaffTableEditorScreen: React.FC = () => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF6B00" />
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
@@ -275,14 +283,14 @@ const StaffTableEditorScreen: React.FC = () => {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={24} color="#FFFFFF" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>{t('cafe.staff.tables.title')}</Text>
                     <Text style={styles.headerSubtitle}>{t('cafe.staff.tables.count', { count: tables.length })}</Text>
                 </View>
                 <TouchableOpacity onPress={handleAddTable}>
-                    <PlusCircle size={28} color="#FF6B00" />
+                    <PlusCircle size={28} color={colors.accent} />
                 </TouchableOpacity>
             </View>
 
@@ -327,7 +335,7 @@ const StaffTableEditorScreen: React.FC = () => {
                         disabled={saving}
                     >
                         {saving ? (
-                            <ActivityIndicator color="#FFFFFF" size="small" />
+                            <ActivityIndicator color={colors.textPrimary} size="small" />
                         ) : (
                             <Text style={styles.saveButtonText}>{t('cafe.staff.tables.save')}</Text>
                         )}
@@ -347,7 +355,7 @@ const StaffTableEditorScreen: React.FC = () => {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>{t('cafe.staff.tables.editTitle')}</Text>
                             <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                                <X size={24} color="#FFFFFF" />
+                                <X size={24} color={colors.textPrimary} />
                             </TouchableOpacity>
                         </View>
 
@@ -358,7 +366,7 @@ const StaffTableEditorScreen: React.FC = () => {
                                 value={editNumber}
                                 onChangeText={setEditNumber}
                                 keyboardType="numeric"
-                                placeholderTextColor="#8E8E93"
+                                placeholderTextColor={colors.textSecondary}
                             />
 
                             <Text style={styles.inputLabel}>{t('cafe.staff.tables.name')}</Text>
@@ -367,7 +375,7 @@ const StaffTableEditorScreen: React.FC = () => {
                                 value={editName}
                                 onChangeText={setEditName}
                                 placeholder={t('cafe.staff.tables.namePlaceholder')}
-                                placeholderTextColor="#8E8E93"
+                                placeholderTextColor={colors.textSecondary}
                             />
 
                             <Text style={styles.inputLabel}>{t('cafe.staff.tables.seats')}</Text>
@@ -376,7 +384,7 @@ const StaffTableEditorScreen: React.FC = () => {
                                 value={editSeats}
                                 onChangeText={setEditSeats}
                                 keyboardType="numeric"
-                                placeholderTextColor="#8E8E93"
+                                placeholderTextColor={colors.textSecondary}
                             />
                         </View>
 
@@ -385,7 +393,7 @@ const StaffTableEditorScreen: React.FC = () => {
                                 style={styles.deleteButton}
                                 onPress={handleDeleteTable}
                             >
-                                <Trash2 size={20} color="#FF3B30" />
+                                <Trash2 size={20} color={colors.danger} />
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.updateButton}
@@ -401,16 +409,16 @@ const StaffTableEditorScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0D0D0D',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -418,26 +426,26 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         paddingTop: 48,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
     },
     headerCenter: {
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
     },
     headerSubtitle: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     instructions: {
         padding: 12,
-        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+        backgroundColor: colors.accentSoft,
     },
     instructionText: {
-        color: '#FF6B00',
+        color: colors.accent,
         fontSize: 12,
         textAlign: 'center',
     },
@@ -447,7 +455,7 @@ const styles = StyleSheet.create({
     },
     editor: {
         flex: 1,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 12,
         overflow: 'hidden',
         position: 'relative',
@@ -463,19 +471,19 @@ const styles = StyleSheet.create({
     gridCell: {
         flex: 1,
         borderWidth: 0.5,
-        borderColor: '#2C2C2E',
+        borderColor: colors.border,
     },
     table: {
         position: 'absolute',
         width: TABLE_SIZE,
         height: TABLE_SIZE,
         borderRadius: 8,
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
     },
     tableOccupied: {
-        backgroundColor: '#34C759',
+        backgroundColor: colors.success,
     },
     tableInner: {
         flex: 1,
@@ -483,35 +491,35 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     tableNumber: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: 'bold',
     },
     tableSeats: {
-        color: 'rgba(255,255,255,0.7)',
+        color: colors.textSecondary,
         fontSize: 10,
     },
     saveBar: {
         flexDirection: 'row',
         padding: 16,
         paddingBottom: 32,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         gap: 12,
     },
     cancelButton: {
         flex: 1,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         padding: 14,
         borderRadius: 12,
         alignItems: 'center',
     },
     cancelButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 15,
     },
     saveButton: {
         flex: 2,
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         padding: 14,
         borderRadius: 12,
         alignItems: 'center',
@@ -520,17 +528,17 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     saveButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '600',
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: colors.overlay,
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingBottom: 40,
@@ -541,10 +549,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#2C2C2E',
+        borderBottomColor: colors.border,
     },
     modalTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
     },
@@ -552,16 +560,16 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     inputLabel: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 13,
         marginBottom: 6,
         marginTop: 12,
     },
     input: {
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         borderRadius: 10,
         padding: 14,
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
     },
     modalActions: {
@@ -572,20 +580,20 @@ const styles = StyleSheet.create({
     deleteButton: {
         width: 48,
         height: 48,
-        backgroundColor: 'rgba(255, 59, 48, 0.15)',
+        backgroundColor: colors.accentSoft,
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },
     updateButton: {
         flex: 1,
-        backgroundColor: '#FF6B00',
+        backgroundColor: colors.accent,
         padding: 14,
         borderRadius: 12,
         alignItems: 'center',
     },
     updateButtonText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
     },

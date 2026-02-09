@@ -73,7 +73,7 @@ export type RootStackParamList = {
     RadioScreen: undefined;
     AudioScreen: undefined;
     VideoScreen: undefined;
-    VideoCirclesScreen: undefined;
+    VideoCirclesScreen: { openPublish?: boolean; scope?: 'all' | 'friends' } | undefined;
     MyVideoCirclesScreen: undefined;
     VideoTariffsAdminScreen: undefined;
     TVScreen: undefined;

@@ -36,6 +36,7 @@ interface PortalFolderProps {
     onLongPress: () => void;
     size?: 'small' | 'medium' | 'large';
     onLayout?: (event: any) => void;
+    onRemove?: () => void;
 }
 
 const FOLDER_SIZES = {
@@ -63,6 +64,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
     onLongPress,
     size = 'medium',
     onLayout,
+    onRemove,
 }) => {
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const rotation = useSharedValue(0);
@@ -200,7 +202,11 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
 
                 {/* Delete button in edit mode */}
                 {isEditMode && (
-                    <TouchableOpacity style={styles.deleteButton}>
+                    <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={onRemove}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
                         <View style={styles.deleteIcon}>
                             <Text style={styles.deleteText}>−</Text>
                         </View>
