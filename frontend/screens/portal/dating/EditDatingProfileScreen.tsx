@@ -135,7 +135,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         if (profile.datingEnabled) {
             if (!profile.bio.trim() || !profile.interests.trim() || !profile.lookingFor.trim() ||
                 !profile.maritalStatus.trim() || !profile.dob || !profile.birthTime || !profile.birthPlaceLink || !profile.city) {
-                Alert.alert(t('common.info'), t('registration.requiredFieldsForDating') || 'Для активации профиля в знакомствах необходимо заполнить все поля, включая город и астрологические данные.');
+                Alert.alert(t('common.info'), t('registration.requiredFieldsForDating') || 'Для активации профиля в Союзе необходимо заполнить все поля, включая город и астрологические данные.');
                 return;
             }
         }

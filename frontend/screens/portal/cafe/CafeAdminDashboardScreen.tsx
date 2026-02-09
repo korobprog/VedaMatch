@@ -37,6 +37,9 @@ import {
     OrderStatsResponse,
 } from '../../../types/cafe';
 import { RootStackParamList } from '../../../types/navigation';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -53,6 +56,9 @@ const CafeAdminDashboardScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RootStackParamList, 'EditCafe'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId } = route.params || {};
 
     const [cafe, setCafe] = useState<Cafe | null>(null);
@@ -99,7 +105,7 @@ const CafeAdminDashboardScreen: React.FC = () => {
             id: 'orders',
             label: t('cafe.dashboard.orders'),
             icon: 'receipt',
-            color: '#F59E0B',
+            color: colors.accent,
             route: 'StaffOrderBoard',
             badge: stats?.pendingOrders,
         },
@@ -107,49 +113,49 @@ const CafeAdminDashboardScreen: React.FC = () => {
             id: 'waiter',
             label: t('cafe.dashboard.calls'),
             icon: 'hand-left',
-            color: '#F59E0B',
+            color: colors.accent,
             route: 'StaffWaiterCalls',
         },
         {
             id: 'stoplist',
             label: t('cafe.dashboard.stopList'),
             icon: 'remove-circle',
-            color: '#EF4444',
+            color: colors.danger,
             route: 'StaffStopList',
         },
         {
             id: 'tables',
             label: t('cafe.dashboard.tables'),
             icon: 'grid',
-            color: '#F59E0B',
+            color: colors.accent,
             route: 'StaffTableEditor',
         },
         {
             id: 'menu',
             label: t('cafe.dashboard.menu'),
             icon: 'restaurant',
-            color: '#F59E0B',
+            color: colors.accent,
             route: 'StaffMenuEditor',
         },
         {
             id: 'history',
             label: t('cafe.dashboard.history'),
             icon: 'time',
-            color: 'rgba(255,255,255,0.4)',
+            color: colors.textSecondary,
             route: 'StaffOrderHistory',
         },
         {
             id: 'stats',
             label: t('cafe.dashboard.stats'),
             icon: 'bar-chart',
-            color: '#F59E0B',
+            color: colors.accent,
             route: 'StaffStats',
         },
         {
             id: 'settings',
             label: t('cafe.dashboard.settings'),
             icon: 'settings',
-            color: 'rgba(255,255,255,0.4)',
+            color: colors.textSecondary,
             route: 'CafeSettings',
         },
     ];
@@ -176,53 +182,53 @@ const CafeAdminDashboardScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
             </LinearGradient>
         );
     }
 
     if (!cafe) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <LayoutDashboard size={48} color="rgba(255,255,255,0.1)" />
-                <Text style={styles.errorText}>{t('cafe.dashboard.notFound')}</Text>
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <LayoutDashboard size={48} color={colors.textSecondary} />
+                <Text style={[styles.errorText, { color: colors.textSecondary }]}>{t('cafe.dashboard.notFound')}</Text>
             </LinearGradient>
         );
     }
 
     return (
-        <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <SafeAreaView style={styles.header} edges={['top']}>
-                <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={22} color="#fff" />
+                <TouchableOpacity style={[styles.headerBtn, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('cafe.dashboard.title', 'Дашборд')}</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t('cafe.dashboard.title', 'Дашборд')}</Text>
                 <View style={{ width: 44 }} />
             </SafeAreaView>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Cafe Header Card */}
-                <View style={styles.cafeCardGlass}>
+                <View style={[styles.cafeCardGlass, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
                     <View style={styles.cafeInfoRow}>
                         <View style={styles.logoWrapper}>
                             {cafe.logoUrl ? (
                                 <Image source={{ uri: cafe.logoUrl }} style={styles.logoImg} />
                             ) : (
-                                <View style={styles.logoPlaceholder}>
-                                    <Coffee size={28} color="#F59E0B" />
+                                <View style={[styles.logoPlaceholder, { borderColor: colors.border }]}>
+                                    <Coffee size={28} color={colors.accent} />
                                 </View>
                             )}
                             <View style={[
                                 styles.statusPill,
-                                { backgroundColor: cafe.status === 'active' ? '#10B981' : '#F59E0B' }
+                                { backgroundColor: cafe.status === 'active' ? colors.success : colors.accent, borderColor: colors.background }
                             ]} />
                         </View>
                         <View style={styles.cafeMeta}>
-                            <Text style={styles.cafeName}>{cafe.name}</Text>
-                            <Text style={styles.cafeStatus}>
+                            <Text style={[styles.cafeName, { color: colors.textPrimary }]}>{cafe.name}</Text>
+                            <Text style={[styles.cafeStatus, { color: colors.textSecondary }]}>
                                 {cafe.status === 'active' ? t('cafe.dashboard.activeStatus') : t('cafe.dashboard.inactiveStatus')}
                             </Text>
                         </View>
@@ -233,35 +239,35 @@ const CafeAdminDashboardScreen: React.FC = () => {
                 {stats && (
                     <View style={styles.statsStrip}>
                         <View style={styles.statsRow}>
-                            <View style={styles.glassStat}>
-                                <View style={[styles.statIcon, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-                                    <Receipt size={18} color="#F59E0B" />
+                            <View style={[styles.glassStat, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                                <View style={[styles.statIcon, { backgroundColor: colors.accentSoft }]}>
+                                    <Receipt size={18} color={colors.accent} />
                                 </View>
-                                <Text style={styles.statValue}>{stats.todayOrders}</Text>
-                                <Text style={styles.statLabel}>{t('cafe.dashboard.todayOrders')}</Text>
+                                <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.todayOrders}</Text>
+                                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('cafe.dashboard.todayOrders')}</Text>
                             </View>
-                            <View style={styles.glassStat}>
-                                <View style={[styles.statIcon, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
-                                    <Banknote size={18} color="#10B981" />
+                            <View style={[styles.glassStat, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                                <View style={[styles.statIcon, { backgroundColor: colors.accentSoft }]}>
+                                    <Banknote size={18} color={colors.success} />
                                 </View>
-                                <Text style={styles.statValue}>{stats.todayRevenue} ₽</Text>
-                                <Text style={styles.statLabel}>{t('cafe.dashboard.todayRevenue')}</Text>
+                                <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.todayRevenue} ₽</Text>
+                                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('cafe.dashboard.todayRevenue')}</Text>
                             </View>
                         </View>
                         <View style={styles.statsRow}>
-                            <View style={styles.glassStat}>
-                                <View style={[styles.statIcon, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
-                                    <Clock size={18} color="#3B82F6" />
+                            <View style={[styles.glassStat, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                                <View style={[styles.statIcon, { backgroundColor: colors.accentSoft }]}>
+                                    <Clock size={18} color={colors.warning} />
                                 </View>
-                                <Text style={styles.statValue}>~{stats.avgPrepTime} {t('common.min')}</Text>
-                                <Text style={styles.statLabel}>{t('cafe.dashboard.avgTime')}</Text>
+                                <Text style={[styles.statValue, { color: colors.textPrimary }]}>~{stats.avgPrepTime} {t('common.min')}</Text>
+                                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('cafe.dashboard.avgTime')}</Text>
                             </View>
-                            <View style={styles.glassStat}>
-                                <View style={[styles.statIcon, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-                                    <Hourglass size={18} color="#F59E0B" />
+                            <View style={[styles.glassStat, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                                <View style={[styles.statIcon, { backgroundColor: colors.accentSoft }]}>
+                                    <Hourglass size={18} color={colors.accent} />
                                 </View>
-                                <Text style={styles.statValue}>{stats.pendingOrders}</Text>
-                                <Text style={styles.statLabel}>{t('cafe.dashboard.activeOrders')}</Text>
+                                <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.pendingOrders}</Text>
+                                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('cafe.dashboard.activeOrders')}</Text>
                             </View>
                         </View>
                     </View>
@@ -274,25 +280,25 @@ const CafeAdminDashboardScreen: React.FC = () => {
                     activeOpacity={0.8}
                 >
                     <LinearGradient
-                        colors={['rgba(245, 158, 11, 0.15)', 'rgba(217, 119, 6, 0.05)']}
+                        colors={[colors.accentSoft, colors.surfaceElevated]}
                         style={styles.lightningGradient}
                     >
-                        <View style={styles.lightningIconBox}>
-                            <Zap size={24} color="#F59E0B" />
+                        <View style={[styles.lightningIconBox, { backgroundColor: colors.accent, shadowColor: colors.accent }]}>
+                            <Zap size={24} color={colors.background} />
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.lightningTitle}>{t('cafe.dashboard.openOrderBoard')}</Text>
-                            <Text style={styles.lightningSubtitle}>
+                            <Text style={[styles.lightningTitle, { color: colors.textPrimary }]}>{t('cafe.dashboard.openOrderBoard')}</Text>
+                            <Text style={[styles.lightningSubtitle, { color: colors.textSecondary }]}>
                                 {t('cafe.dashboard.activeOrdersCount', { count: stats?.pendingOrders || 0 })}
                             </Text>
                         </View>
-                        <ChevronRight size={20} color="rgba(255,255,255,0.3)" />
+                        <ChevronRight size={20} color={colors.textSecondary} />
                     </LinearGradient>
                 </TouchableOpacity>
 
                 {/* Actions Grid */}
-                <View style={styles.actionsBox}>
-                    <Text style={styles.boxTitle}>{t('cafe.dashboard.management')}</Text>
+                <View style={[styles.actionsBox, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                    <Text style={[styles.boxTitle, { color: colors.textSecondary }]}>{t('cafe.dashboard.management')}</Text>
                     <View style={styles.actionsGrid}>
                         {quickActions.map(action => (
                             <TouchableOpacity
@@ -301,15 +307,15 @@ const CafeAdminDashboardScreen: React.FC = () => {
                                 onPress={() => handleQuickAction(action)}
                                 activeOpacity={0.7}
                             >
-                                <View style={styles.actionIconBox}>
+                                <View style={[styles.actionIconBox, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                                     {renderActionIcon(action.icon, action.color)}
                                     {!!action.badge && action.badge > 0 && (
-                                        <View style={styles.actionBadge}>
+                                        <View style={[styles.actionBadge, { backgroundColor: colors.danger, borderColor: colors.background }]}>
                                             <Text style={styles.actionBadgeText}>{action.badge}</Text>
                                         </View>
                                     )}
                                 </View>
-                                <Text style={styles.actionLabel} numberOfLines={1}>{action.label}</Text>
+                                <Text style={[styles.actionLabel, { color: colors.textPrimary }]} numberOfLines={1}>{action.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -405,7 +411,7 @@ const styles = StyleSheet.create({
         height: 16,
         borderRadius: 8,
         borderWidth: 3,
-        borderColor: '#1a1a2e',
+        borderColor: 'transparent',
     },
     cafeMeta: {
         flex: 1,
@@ -473,10 +479,10 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 14,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'white',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#F59E0B',
+        shadowColor: 'white',
         shadowRadius: 10,
         shadowOpacity: 0.3,
     },
@@ -529,7 +535,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: -4,
         right: -4,
-        backgroundColor: '#EF4444',
+        backgroundColor: 'white',
         borderRadius: 8,
         minWidth: 18,
         height: 18,
@@ -537,7 +543,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 4,
         borderWidth: 2,
-        borderColor: '#1a1a2e',
+        borderColor: 'transparent',
     },
     actionBadgeText: {
         color: '#fff',

@@ -69,6 +69,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
         { id: 'radio', title: 'Радио', icon: Radio, color: roleColors.accent, screen: 'RadioScreen' },
         { id: 'audio', title: 'Аудио', icon: Music, color: roleColors.accent, screen: 'AudioScreen' },
         { id: 'video', title: 'Видео', icon: Film, color: roleColors.warning, screen: 'VideoScreen' },
+        { id: 'circles', title: 'Кружки', icon: Film, color: roleColors.warning, screen: 'VideoCirclesScreen' },
         { id: 'series', title: 'Сериалы', icon: TvIcon, color: roleColors.accent, screen: 'SeriesScreen' },
         { id: 'tv', title: 'ТВ', icon: TvIcon, color: roleColors.success, screen: 'TVScreen' },
         { id: 'favorites', title: 'Избранное', icon: Heart, color: roleColors.danger, screen: 'FavoritesScreen' },

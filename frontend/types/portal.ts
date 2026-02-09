@@ -53,7 +53,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'chat', label: 'Чат', icon: 'MessageCircle', color: '#6B5B53' },
     { id: 'calls', label: 'Звонки', icon: 'Phone', color: '#10B981' },
     { id: 'groups', label: 'Группы', icon: 'Users', color: '#F59E0B' },
-    { id: 'dating', label: 'Знакомства', icon: 'Sparkles', color: '#EC4899' },
+    { id: 'dating', label: 'Союз', icon: 'Sparkles', color: '#EC4899' },
 
     { id: 'cafe', label: 'Кафе', icon: 'Coffee', color: '#FF6B00' },
     { id: 'shops', label: 'Магазины', icon: 'ShoppingBag', color: '#D67D3E' },

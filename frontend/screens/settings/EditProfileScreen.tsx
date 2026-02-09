@@ -397,9 +397,9 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <View style={styles.switchRow}>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.label}>
-                            {t('dating.enableProfile') || 'Enable Dating Profile'}
+                            {t('dating.enableProfile') || 'Enable Union Profile'}
                         </Text>
-                        <Text style={styles.helperText}>Видимость вашего профиля в знакомствах</Text>
+                        <Text style={styles.helperText}>Видимость вашего профиля в Союзе</Text>
                     </View>
                     <Switch
                         value={datingEnabled}

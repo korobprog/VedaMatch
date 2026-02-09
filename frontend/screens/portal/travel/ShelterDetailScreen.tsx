@@ -28,6 +28,7 @@ import { Shelter, ShelterReview, SHELTER_TYPE_LABELS, AMENITY_LABELS } from '../
 import LinearGradient from 'react-native-linear-gradient';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 const ShelterDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -44,7 +45,8 @@ const ShelterDetailScreen: React.FC = () => {
     const [comment, setComment] = useState('');
     const [submittingReview, setSubmittingReview] = useState(false);
     const { user } = useUser();
-    const { colors } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
 
     const loadShelter = useCallback(async () => {
         try {
@@ -146,7 +148,7 @@ const ShelterDetailScreen: React.FC = () => {
 
     if (loading || !shelter) {
         return (
-            <View style={styles.loadingContainer}>
+            <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
                 <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
@@ -171,35 +173,35 @@ const ShelterDetailScreen: React.FC = () => {
                     />
 
                     <TouchableOpacity
-                        style={styles.backButton}
+                        style={[styles.backButton, { backgroundColor: colors.overlay }]}
                         onPress={() => navigation.goBack()}
                     >
-                        <ChevronLeft size={28} color="#FFFFFF" strokeWidth={2} />
+                        <ChevronLeft size={28} color={colors.textPrimary} strokeWidth={2} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-                        <Share2 size={24} color="#FFFFFF" />
+                    <TouchableOpacity style={[styles.shareButton, { backgroundColor: colors.overlay }]} onPress={handleShare}>
+                        <Share2 size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
 
                     <View style={styles.headerContent}>
                         {shelter.sevaExchange && (
-                            <View style={styles.sevaBadge}>
-                                <Heart size={12} color="#FFFFFF" fill="#FFFFFF" />
+                            <View style={[styles.sevaBadge, { backgroundColor: colors.danger }]}>
+                                <Heart size={12} color="white" fill="white" />
                                 <Text style={styles.sevaText}>Seva Exchange</Text>
                             </View>
                         )}
-                        <Text style={styles.title}>{shelter.title}</Text>
+                        <Text style={[styles.title, { color: colors.textPrimary }]}>{shelter.title}</Text>
                         <View style={styles.ratingRow}>
                             <Star size={16} color={colors.accent} fill={colors.accent} />
-                            <Text style={styles.ratingText}>
-                                {shelter.rating.toFixed(1)} <Text style={styles.reviewsCount}>({shelter.reviewsCount} отзывов)</Text>
+                            <Text style={[styles.ratingText, { color: colors.textPrimary }]}>
+                                {shelter.rating.toFixed(1)} <Text style={[styles.reviewsCount, { color: colors.textSecondary }]}>({shelter.reviewsCount} отзывов)</Text>
                             </Text>
-                            <Text style={styles.dot}>•</Text>
-                            <Text style={styles.typeText}>{SHELTER_TYPE_LABELS[shelter.type] || shelter.type}</Text>
+                            <Text style={[styles.dot, { color: colors.textSecondary }]}>•</Text>
+                            <Text style={[styles.typeText, { color: colors.textSecondary }]}>{SHELTER_TYPE_LABELS[shelter.type] || shelter.type}</Text>
                         </View>
                         <View style={styles.locationRow}>
-                            <MapPin size={16} color="#E5E5EA" />
-                            <Text style={styles.locationText}>
+                            <MapPin size={16} color={colors.textSecondary} />
+                            <Text style={[styles.locationText, { color: colors.textSecondary }]}>
                                 {shelter.city}, {shelter.country}
                             </Text>
                         </View>
@@ -207,51 +209,51 @@ const ShelterDetailScreen: React.FC = () => {
                 </View>
 
                 {/* Host Info */}
-                <View style={styles.hostSection}>
+                <View style={[styles.hostSection, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
                     <View style={styles.hostRow}>
                         <Image
                             source={{ uri: shelter.host?.avatarUrl || 'https://via.placeholder.com/50' }}
                             style={[styles.hostAvatar, { borderColor: colors.accent }]}
                         />
                         <View style={styles.hostInfo}>
-                            <Text style={styles.hostLabel}>Хозяин</Text>
-                            <Text style={styles.hostName}>
+                            <Text style={[styles.hostLabel, { color: colors.textSecondary }]}>Хозяин</Text>
+                            <Text style={[styles.hostName, { color: colors.textPrimary }]}>
                                 {shelter.host?.spiritualName || shelter.host?.karmicName || 'Пользователь'}
                             </Text>
                         </View>
                         <TouchableOpacity
-                            style={styles.chatButton}
+                            style={[styles.chatButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
                             onPress={() => navigation.navigate('ChatRoom', { recipientId: shelter.hostId })}
                         >
-                            <MessageCircle size={20} color="#FFFFFF" />
+                            <MessageCircle size={20} color={colors.textPrimary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Description */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionHeader}>Описание</Text>
-                    <Text style={styles.descriptionText}>{shelter.description}</Text>
+                <View style={[styles.section, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Описание</Text>
+                    <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{shelter.description}</Text>
 
                     {shelter.nearTemple && (
-                        <View style={styles.templeBox}>
-                            <MapPin size={20} color="#34C759" />
-                            <Text style={styles.templeText}>Рядом с храмом: {shelter.nearTemple}</Text>
+                        <View style={[styles.templeBox, { backgroundColor: colors.accentSoft }]}>
+                            <MapPin size={20} color={colors.success} />
+                            <Text style={[styles.templeText, { color: colors.success }]}>Рядом с храмом: {shelter.nearTemple}</Text>
                         </View>
                     )}
                 </View>
 
                 {/* Amenities */}
                 {amenities.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionHeader}>Удобства</Text>
+                    <View style={[styles.section, { borderBottomColor: colors.border }]}>
+                        <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Удобства</Text>
                         <View style={styles.amenitiesGrid}>
                             {amenities.map(key => {
                                 const Icon = getAmenityIcon(key);
                                 return (
                                     <View key={key} style={styles.amenityItem}>
-                                        <Icon size={24} color="#8E8E93" strokeWidth={1.5} />
-                                        <Text style={styles.amenityText}>
+                                        <Icon size={24} color={colors.textSecondary} strokeWidth={1.5} />
+                                        <Text style={[styles.amenityText, { color: colors.textSecondary }]}>
                                             {AMENITY_LABELS[key] || key}
                                         </Text>
                                     </View>
@@ -262,34 +264,34 @@ const ShelterDetailScreen: React.FC = () => {
                 )}
 
                 {/* Rules */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionHeader}>Правила дома</Text>
+                <View style={[styles.section, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Правила дома</Text>
                     <View style={styles.ruleList}>
                         {shelter.vegetarianOnly && (
                             <View style={styles.ruleItem}>
-                                <CheckCircle size={20} color="#34C759" />
-                                <Text style={styles.ruleText}>Только вегетарианская еда</Text>
+                                <CheckCircle size={20} color={colors.success} />
+                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Только вегетарианская еда</Text>
                             </View>
                         )}
                         {shelter.noSmoking && (
                             <View style={styles.ruleItem}>
-                                <CheckCircle size={20} color="#34C759" />
-                                <Text style={styles.ruleText}>Курение запрещено</Text>
+                                <CheckCircle size={20} color={colors.success} />
+                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Курение запрещено</Text>
                             </View>
                         )}
                         {shelter.noAlcohol && (
                             <View style={styles.ruleItem}>
-                                <CheckCircle size={20} color="#34C759" />
-                                <Text style={styles.ruleText}>Алкоголь запрещён</Text>
+                                <CheckCircle size={20} color={colors.success} />
+                                <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Алкоголь запрещён</Text>
                             </View>
                         )}
                         <View style={styles.ruleItem}>
-                            <Clock size={20} color="#8E8E93" />
-                            <Text style={styles.ruleText}>Мин. срок аренды: {shelter.minStay} дн.</Text>
+                            <Clock size={20} color={colors.textSecondary} />
+                            <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Мин. срок аренды: {shelter.minStay} дн.</Text>
                         </View>
                     </View>
                     {shelter.houseRules ? (
-                        <Text style={[styles.descriptionText, { marginTop: 12 }]}>
+                        <Text style={[styles.descriptionText, { marginTop: 12, color: colors.textSecondary }]}>
                             {shelter.houseRules}
                         </Text>
                     ) : null}
@@ -297,13 +299,13 @@ const ShelterDetailScreen: React.FC = () => {
 
                 {/* Seva Exchange Details */}
                 {shelter.sevaExchange && (
-                    <View style={styles.section}>
-                        <View style={styles.sevaBox}>
+                    <View style={[styles.section, { borderBottomColor: colors.border }]}>
+                        <View style={[styles.sevaBox, { backgroundColor: colors.surfaceElevated, borderColor: colors.danger }]}>
                             <View style={styles.sevaHeader}>
-                                <Heart size={24} color="#FFFFFF" fill="#FF2D55" />
-                                <Text style={styles.sevaBoxTitle}>Сева (Служение)</Text>
+                                <Heart size={24} color={colors.danger} fill={colors.danger} />
+                                <Text style={[styles.sevaBoxTitle, { color: colors.danger }]}>Сева (Служение)</Text>
                             </View>
-                            <Text style={styles.sevaBoxText}>
+                            <Text style={[styles.sevaBoxText, { color: colors.textSecondary }]}>
                                 {shelter.sevaDescription || 'Хозяин предлагает проживание в обмен на помощь. Свяжитесь для деталей.'}
                             </Text>
                         </View>
@@ -312,55 +314,55 @@ const ShelterDetailScreen: React.FC = () => {
 
                 {/* Reviews */}
                 {reviews.length > 0 && (
-                    <View style={styles.section}>
+                    <View style={[styles.section, { borderBottomColor: colors.border }]}>
                         <View style={styles.reviewsHeader}>
-                            <Text style={styles.sectionHeader}>Отзывы</Text>
+                            <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Отзывы</Text>
                             <TouchableOpacity onPress={() => setReviewModalVisible(true)}>
-                                <Text style={styles.seeAllText}>Написать отзыв</Text>
+                                <Text style={[styles.seeAllText, { color: colors.accent }]}>Написать отзыв</Text>
                             </TouchableOpacity>
                         </View>
                         {reviews.map(review => (
-                            <View key={review.id} style={styles.reviewCard}>
+                            <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.surfaceElevated }]}>
                                 <View style={styles.reviewHeader}>
                                     <View style={styles.reviewAuthor}>
                                         <Image
                                             source={{ uri: review.author?.avatarUrl || 'https://via.placeholder.com/30' }}
                                             style={styles.reviewAvatar}
                                         />
-                                        <Text style={styles.reviewName}>
+                                        <Text style={[styles.reviewName, { color: colors.textPrimary }]}>
                                             {review.author?.spiritualName || review.author?.karmicName}
                                         </Text>
                                     </View>
                                     <View style={styles.reviewRating}>
-                                        <Star size={14} color="#FFD700" fill="#FFD700" />
-                                        <Text style={styles.reviewRatingText}>{review.rating}</Text>
+                                        <Star size={14} color={colors.warning} fill={colors.warning} />
+                                        <Text style={[styles.reviewRatingText, { color: colors.warning }]}>{review.rating}</Text>
                                     </View>
                                 </View>
-                                <Text style={styles.reviewText}>{review.comment}</Text>
+                                <Text style={[styles.reviewText, { color: colors.textSecondary }]}>{review.comment}</Text>
                             </View>
                         ))}
                     </View>
                 )}
 
                 {reviews.length === 0 && (
-                    <View style={styles.section}>
+                    <View style={[styles.section, { borderBottomColor: colors.border }]}>
                         <View style={styles.reviewsHeader}>
-                            <Text style={styles.sectionHeader}>Отзывы</Text>
+                            <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Отзывы</Text>
                             <TouchableOpacity onPress={() => setReviewModalVisible(true)}>
-                                <Text style={styles.seeAllText}>Написать первым</Text>
+                                <Text style={[styles.seeAllText, { color: colors.accent }]}>Написать первым</Text>
                             </TouchableOpacity>
                         </View>
-                        <Text style={{ color: '#8E8E93' }}>Пока нет отзывов. Будьте первым!</Text>
+                        <Text style={{ color: colors.textSecondary }}>Пока нет отзывов. Будьте первым!</Text>
                     </View>
                 )}
 
             </ScrollView>
 
             {/* Bottom Action Bar */}
-            <View style={styles.actionBar}>
+            <View style={[styles.actionBar, { backgroundColor: colors.surfaceElevated, borderTopColor: colors.border }]}>
                 <View style={styles.priceContainer}>
-                    <Text style={styles.priceLabel}>Цена за ночь</Text>
-                    <Text style={styles.priceValue}>
+                    <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Цена за ночь</Text>
+                    <Text style={[styles.priceValue, { color: colors.textPrimary }]}>
                         {shelter.pricePerNight || 'Договорная'}
                     </Text>
                 </View>
@@ -368,18 +370,18 @@ const ShelterDetailScreen: React.FC = () => {
                 <View style={styles.actionButtons}>
                     {shelter.whatsapp && (
                         <TouchableOpacity
-                            style={[styles.contactButton, { backgroundColor: '#25D366' }]}
+                            style={[styles.contactButton, { backgroundColor: colors.success }]}
                             onPress={() => handleContact('whatsapp')}
                         >
-                            <MessageCircle size={24} color="#FFFFFF" />
+                            <MessageCircle size={24} color={colors.background} />
                         </TouchableOpacity>
                     )}
                     {shelter.phone && (
                         <TouchableOpacity
-                            style={[styles.contactButton, { backgroundColor: '#34C759' }]}
+                            style={[styles.contactButton, { backgroundColor: colors.accent }]}
                             onPress={() => handleContact('phone')}
                         >
-                            <Phone size={24} color="#FFFFFF" />
+                            <Phone size={24} color={colors.background} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -396,12 +398,12 @@ const ShelterDetailScreen: React.FC = () => {
                     <View style={styles.modalOverlay}>
                         <KeyboardAvoidingView
                             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                            style={styles.modalContent}
+                            style={[styles.modalContent, { backgroundColor: colors.surfaceElevated }]}
                         >
                             <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>Написать отзыв</Text>
+                                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Написать отзыв</Text>
                                 <TouchableOpacity onPress={() => setReviewModalVisible(false)}>
-                                    <Text style={styles.closeButtonText}>Закрыть</Text>
+                                    <Text style={[styles.closeButtonText, { color: colors.accent }]}>Закрыть</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -410,17 +412,17 @@ const ShelterDetailScreen: React.FC = () => {
                                     <TouchableOpacity key={r} onPress={() => setRating(r)} style={{ padding: 8 }}>
                                         <Star
                                             size={32}
-                                            color={r <= rating ? '#FFD700' : '#444'}
-                                            fill={r <= rating ? '#FFD700' : 'transparent'}
+                                            color={r <= rating ? colors.warning : colors.border}
+                                            fill={r <= rating ? colors.warning : 'transparent'}
                                         />
                                     </TouchableOpacity>
                                 ))}
                             </View>
 
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { backgroundColor: colors.surface, color: colors.textPrimary, borderColor: colors.border }]}
                                 placeholder="Расскажите о вашем опыте..."
-                                placeholderTextColor="#666"
+                                placeholderTextColor={colors.textSecondary}
                                 multiline
                                 numberOfLines={4}
                                 value={comment}
@@ -428,11 +430,11 @@ const ShelterDetailScreen: React.FC = () => {
                             />
 
                             <TouchableOpacity
-                                style={[styles.submitButton, submittingReview && { opacity: 0.7 }]}
+                                style={[styles.submitButton, { backgroundColor: colors.accent }, submittingReview && { opacity: 0.7 }]}
                                 onPress={handleSubmitReview}
                                 disabled={submittingReview}
                             >
-                                <Text style={styles.submitButtonText}>
+                                <Text style={[styles.submitButtonText, { color: colors.background }]}>
                                     {submittingReview ? 'Отправка...' : 'Опубликовать'}
                                 </Text>
                             </TouchableOpacity>

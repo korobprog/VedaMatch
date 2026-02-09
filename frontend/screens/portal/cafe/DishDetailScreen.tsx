@@ -31,6 +31,9 @@ import {
 import { cafeService } from '../../../services/cafeService';
 import { Dish, DishModifier, SelectedModifier } from '../../../types/cafe';
 import { useCart } from '../../../contexts/CafeCartContext';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -47,6 +50,9 @@ const DishDetailScreen: React.FC = () => {
     const route = useRoute<RouteProp<RouteParams, 'DishDetail'>>();
     const { t } = useTranslation();
     const { cafeId, dishId, cafeName } = route.params;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
 
     const [dish, setDish] = useState<Dish | null>(null);
     const [loading, setLoading] = useState(true);
@@ -128,17 +134,17 @@ const DishDetailScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
             </LinearGradient>
         );
     }
 
     if (!dish) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <Info size={48} color="rgba(255,255,255,0.2)" />
-                <Text style={styles.errorText}>{t('cafe.dish.notFound')}</Text>
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <Info size={48} color={colors.textSecondary} />
+                <Text style={[styles.errorText, { color: colors.textSecondary }]}>{t('cafe.dish.notFound')}</Text>
             </LinearGradient>
         );
     }
@@ -151,8 +157,8 @@ const DishDetailScreen: React.FC = () => {
     }, {} as Record<string, DishModifier[]>) || {};
 
     return (
-        <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.imageWrapper}>
@@ -169,30 +175,30 @@ const DishDetailScreen: React.FC = () => {
                     />
                     <SafeAreaView style={styles.headerControls} edges={['top']}>
                         <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
-                            <X size={22} color="#fff" />
+                            <X size={22} color={colors.textPrimary} />
                         </TouchableOpacity>
                     </SafeAreaView>
                 </View>
 
                 <View style={styles.contentOverlay}>
                     <View style={styles.dishHeader}>
-                        <Text style={styles.dishName}>{dish.name}</Text>
+                        <Text style={[styles.dishName, { color: colors.textPrimary }]}>{dish.name}</Text>
                         <View style={styles.badgesFlow}>
                             {!!dish.isVegetarian && (
                                 <View style={styles.badgeGlass}>
-                                    <Leaf size={12} color="#10B981" />
+                                    <Leaf size={12} color={colors.success} />
                                     <Text style={styles.badgeText}>{t('cafe.dish.vegetarian')}</Text>
                                 </View>
                             )}
                             {!!dish.isSpicy && (
-                                <View style={[styles.badgeGlass, styles.badgeSpicy]}>
-                                    <Flame size={12} color="#EF4444" />
+                                <View style={[styles.badgeGlass, styles.badgeSpicy, { borderColor: colors.danger }]}>
+                                    <Flame size={12} color={colors.danger} />
                                     <Text style={styles.badgeText}>{t('cafe.dish.spicy')}</Text>
                                 </View>
                             )}
                             {!!dish.isGlutenFree && (
                                 <View style={styles.badgeGlass}>
-                                    <Wheat size={12} color="#F59E0B" />
+                                    <Wheat size={12} color={colors.warning} />
                                     <Text style={styles.badgeText}>{t('cafe.dish.glutenFree')}</Text>
                                 </View>
                             )}
@@ -200,25 +206,25 @@ const DishDetailScreen: React.FC = () => {
                     </View>
 
                     {!!dish.description && (
-                        <Text style={styles.description}>{dish.description}</Text>
+                        <Text style={[styles.description, { color: colors.textSecondary }]}>{dish.description}</Text>
                     )}
 
                     <View style={styles.metaStrip}>
                         {!!dish.weight && dish.weight > 0 && (
                             <View style={styles.metaPill}>
-                                <Scale size={14} color="rgba(255,255,255,0.4)" />
+                                <Scale size={14} color={colors.textSecondary} />
                                 <Text style={styles.metaPillText}>{dish.weight} {t('cafe.dish.weight')}</Text>
                             </View>
                         )}
                         {!!dish.calories && dish.calories > 0 && (
                             <View style={styles.metaPill}>
-                                <Flame size={14} color="rgba(255,255,255,0.4)" />
+                                <Flame size={14} color={colors.textSecondary} />
                                 <Text style={styles.metaPillText}>{dish.calories} {t('cafe.dish.kcal')}</Text>
                             </View>
                         )}
                         {!!dish.cookingTime && dish.cookingTime > 0 && (
                             <View style={styles.metaPill}>
-                                <Timer size={14} color="rgba(255,255,255,0.4)" />
+                                <Timer size={14} color={colors.textSecondary} />
                                 <Text style={styles.metaPillText}>~{dish.cookingTime} {t('cafe.dish.mins')}</Text>
                             </View>
                         )}
@@ -227,7 +233,7 @@ const DishDetailScreen: React.FC = () => {
                     {/* Ingredients Section */}
                     {!!dish.ingredients && dish.ingredients.filter(i => i.isRemovable).length > 0 && (
                         <View style={styles.sectionGlass}>
-                            <Text style={styles.sectionTitle}>{t('cafe.dish.removeIngredients')}</Text>
+                            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('cafe.dish.removeIngredients')}</Text>
                             <View style={styles.ingredientChips}>
                                 {dish.ingredients.filter(i => i.isRemovable).map(ingredient => {
                                     const isRemoved = removedIngredients.includes(ingredient.name);
@@ -237,11 +243,11 @@ const DishDetailScreen: React.FC = () => {
                                             style={[styles.chip, isRemoved && styles.chipRemoved]}
                                             onPress={() => toggleIngredient(ingredient.name)}
                                         >
-                                            <Text style={[styles.chipText, isRemoved && styles.chipTextRemoved]}>
+                                            <Text style={[styles.chipText, isRemoved && styles.chipTextRemoved, isRemoved && { color: colors.danger }]}>
                                                 {ingredient.name}
                                                 {ingredient.isAllergen ? ' ⚠️' : ''}
                                             </Text>
-                                            {isRemoved && <X size={12} color="#EF4444" style={{ marginLeft: 6 }} />}
+                                            {isRemoved && <X size={12} color={colors.danger} style={{ marginLeft: 6 }} />}
                                         </TouchableOpacity>
                                     );
                                 })}
@@ -252,7 +258,7 @@ const DishDetailScreen: React.FC = () => {
                     {/* Modifiers Sections */}
                     {Object.entries(modifierGroups).map(([groupName, modifiers]) => (
                         <View key={groupName} style={styles.sectionGlass}>
-                            <Text style={styles.sectionTitle}>{groupName}</Text>
+                            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{groupName}</Text>
                             {modifiers.map(modifier => {
                                 const selectedMod = selectedModifiers.find(m => m.modifier.id === modifier.id);
                                 const isSelected = !!selectedMod;
@@ -269,8 +275,8 @@ const DishDetailScreen: React.FC = () => {
                                         activeOpacity={0.7}
                                     >
                                         <View style={styles.modifierLead}>
-                                            <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                                                {isSelected && <Check size={12} color="#1a1a2e" strokeWidth={3} />}
+                                            <View style={[styles.checkbox, isSelected && styles.checkboxSelected, isSelected && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
+                                                {isSelected && <Check size={12} color={colors.background} strokeWidth={3} />}
                                             </View>
                                             <Text style={[styles.modifierName, !modifier.isAvailable && styles.textDisabled]}>
                                                 {modifier.name}
@@ -288,7 +294,7 @@ const DishDetailScreen: React.FC = () => {
                                                             updateModifierQuantity(modifier.id, -1);
                                                         }}
                                                     >
-                                                        <Minus size={14} color="#fff" />
+                                                        <Minus size={14} color={colors.textPrimary} />
                                                     </TouchableOpacity>
                                                     <Text style={styles.miniQtyVal}>{selectedMod.quantity}</Text>
                                                     <TouchableOpacity
@@ -298,11 +304,11 @@ const DishDetailScreen: React.FC = () => {
                                                             updateModifierQuantity(modifier.id, 1);
                                                         }}
                                                     >
-                                                        <Plus size={14} color="#fff" />
+                                                        <Plus size={14} color={colors.textPrimary} />
                                                     </TouchableOpacity>
                                                 </View>
                                             )}
-                                            <Text style={styles.modifierPrice}>+{modifier.price} ₽</Text>
+                                            <Text style={[styles.modifierPrice, { color: colors.accent }]}>+{modifier.price} ₽</Text>
                                         </View>
                                     </TouchableOpacity>
                                 );
@@ -312,11 +318,11 @@ const DishDetailScreen: React.FC = () => {
 
                     {/* Note Box */}
                     <View style={styles.sectionGlass}>
-                        <Text style={styles.sectionTitle}>{t('cafe.dish.comment')}</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('cafe.dish.comment')}</Text>
                         <TextInput
-                            style={styles.textArea}
+                            style={[styles.textArea, { color: colors.textPrimary, borderColor: colors.border }]}
                             placeholder={t('cafe.dish.specialWishes')}
-                            placeholderTextColor="rgba(255,255,255,0.2)"
+                            placeholderTextColor={colors.textSecondary}
                             value={note}
                             onChangeText={setNote}
                             multiline
@@ -331,32 +337,32 @@ const DishDetailScreen: React.FC = () => {
             <View style={styles.actionBar}>
                 <View style={styles.qtyAction}>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => setQuantity(Math.max(1, quantity - 1))}>
-                        <Minus size={20} color="#fff" />
+                        <Minus size={20} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <Text style={styles.actionQty}>{quantity}</Text>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => setQuantity(quantity + 1)}>
-                        <Plus size={20} color="#fff" />
+                        <Plus size={20} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.mainAddBtn, !dish.isAvailable && styles.btnDisabled]}
+                    style={[styles.mainAddBtn, { shadowColor: colors.accent }, !dish.isAvailable && styles.btnDisabled]}
                     onPress={handleAddToCart}
                     disabled={!dish.isAvailable}
                 >
                     <LinearGradient
-                        colors={['#F59E0B', '#D97706']}
+                        colors={[colors.accent, roleTheme.accentStrong]}
                         style={styles.addGradient}
                     >
                         {dish.isAvailable ? (
                             <>
-                                <Text style={styles.addBtnText}>{t('cafe.dish.addToCart')}</Text>
+                                <Text style={[styles.addBtnText, { color: colors.background }]}>{t('cafe.dish.addToCart')}</Text>
                                 <View style={styles.priceStrip}>
-                                    <Text style={styles.finalPrice}>{calculateTotal()} ₽</Text>
+                                    <Text style={[styles.finalPrice, { color: colors.background }]}>{calculateTotal()} ₽</Text>
                                 </View>
                             </>
                         ) : (
-                            <Text style={styles.addBtnText}>{t('cafe.dish.outOfStock')}</Text>
+                            <Text style={[styles.addBtnText, { color: colors.background }]}>{t('cafe.dish.outOfStock')}</Text>
                         )}
                     </LinearGradient>
                 </TouchableOpacity>

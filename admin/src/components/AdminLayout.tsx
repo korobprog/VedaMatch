@@ -41,7 +41,7 @@ const menuItems = [
     { icon: PieChart, label: 'Financials (P&L)', path: '/financials' },
     { icon: Music, label: 'Multimedia Hub', path: '/multimedia' },
     { icon: Film, label: '  └ TV Series', path: '/series' }, // Indented with tree symbol
-    { icon: Heart, label: 'Dating', path: '/dating' },
+    { icon: Heart, label: 'Union', path: '/dating' },
     { icon: ShoppingBag, label: 'Ads', path: '/ads' },
     { icon: MapPin, label: 'Map', path: '/map' },
     { icon: Newspaper, label: 'News', path: '/news' },

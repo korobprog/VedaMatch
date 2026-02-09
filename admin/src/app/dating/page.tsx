@@ -60,8 +60,8 @@ export default function DatingManagementPage() {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Dating Management</h1>
-                    <p className="text-[var(--muted-foreground)] mt-1">Moderate and manage community dating profiles</p>
+                    <h1 className="text-3xl font-bold tracking-tight">Union Management</h1>
+                    <p className="text-[var(--muted-foreground)] mt-1">Moderate and manage community union profiles</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="px-4 py-2 bg-pink-500/10 text-pink-500 rounded-full text-sm font-semibold border border-pink-500/20">

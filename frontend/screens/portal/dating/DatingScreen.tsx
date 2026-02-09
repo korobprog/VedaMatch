@@ -604,7 +604,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             <ChevronLeft size={24} color="rgba(255,255,255,0.7)" />
                         </TouchableOpacity>
 
-                        <Text style={styles.headerTitle}>Dating</Text>
+                        <Text style={styles.headerTitle}>Union</Text>
 
                         <TouchableOpacity
                             style={[styles.headerIconButton, showStats && styles.headerIconButtonActive]}

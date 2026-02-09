@@ -49,6 +49,11 @@ func main() {
 
 	// Initialize Services
 	services.InitScheduler()
+	videoCircleService := services.NewVideoCircleService()
+	if err := videoCircleService.EnsureDefaultTariffs(); err != nil {
+		log.Printf("[VideoCircles] failed to ensure default tariffs: %v", err)
+	}
+	services.StartVideoCircleExpiryScheduler()
 
 	// Start News Scheduler (background job for fetching news from sources)
 	services.StartNewsScheduler()
@@ -195,6 +200,7 @@ func main() {
 	bookingHandler := handlers.NewBookingHandler(bookingService, calendarService)
 	charityHandler := handlers.NewCharityHandler(charityService)
 	systemHandler := handlers.NewSystemHandler()
+	videoCircleHandler := handlers.NewVideoCircleHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -290,6 +296,9 @@ func main() {
 	// Public AI Routes (Legacy/Frontend Compat)
 	api.Post("/v1/chat/completions", chatHandler.HandleChat)
 	api.Get("/v1/models", aiHandler.GetClientModels)
+
+	// Public Video Circle Tariffs
+	api.Get("/video-tariffs", videoCircleHandler.GetTariffs)
 
 	// Public Yatra Travel Routes (Spiritual Pilgrimage Service)
 	// IMPORTANT: Must be registered BEFORE protected group
@@ -447,6 +456,10 @@ func main() {
 	admin.Post("/multimedia/tv", multimediaHandler.CreateTVChannel)
 	admin.Put("/multimedia/tv/:id", multimediaHandler.UpdateTVChannel)
 	admin.Delete("/multimedia/tv/:id", multimediaHandler.DeleteTVChannel)
+
+	// Admin Video Circle Tariffs
+	admin.Post("/video-tariffs", videoCircleHandler.CreateTariff)
+	admin.Put("/video-tariffs/:id", videoCircleHandler.UpdateTariff)
 
 	// Series (TV Shows, Multi-episode content)
 	seriesHandler := handlers.NewSeriesHandler()
@@ -617,6 +630,11 @@ func main() {
 	protected.Get("/multimedia/favorites", multimediaHandler.GetFavorites)
 	protected.Post("/multimedia/tracks/:id/favorite", multimediaHandler.AddToFavorites)
 	protected.Delete("/multimedia/tracks/:id/favorite", multimediaHandler.RemoveFromFavorites)
+
+	// Video Circles
+	protected.Get("/video-circles", videoCircleHandler.GetVideoCircles)
+	protected.Post("/video-circles/:id/interactions", videoCircleHandler.AddInteraction)
+	protected.Post("/video-circles/:id/boost", videoCircleHandler.BoostCircle)
 
 	// Ads Routes
 	protected.Post("/ads/upload-photo", adsHandler.UploadAdPhoto)

@@ -1,0 +1,547 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/url"
+	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/models"
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+var (
+	ErrCircleExpired   = errors.New("circle expired")
+	ErrInsufficientLKM = errors.New("insufficient lkm")
+)
+
+type VideoCircleService struct {
+	db     *gorm.DB
+	wallet *WalletService
+	s3     *S3Service
+}
+
+func NewVideoCircleService() *VideoCircleService {
+	return &VideoCircleService{
+		db:     database.DB,
+		wallet: NewWalletService(),
+		s3:     NewS3Service(),
+	}
+}
+
+func (s *VideoCircleService) EnsureDefaultTariffs() error {
+	defaults := []models.VideoTariff{
+		{Code: models.VideoTariffCodeLKMBoost, PriceLkm: 10, DurationMinutes: 60, IsActive: true},
+		{Code: models.VideoTariffCodeCityBoost, PriceLkm: 20, DurationMinutes: 120, IsActive: true},
+		{Code: models.VideoTariffCodePremiumBoost, PriceLkm: 30, DurationMinutes: 180, IsActive: true},
+	}
+
+	for _, item := range defaults {
+		var existing models.VideoTariff
+		err := s.db.Where("code = ?", item.Code).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if createErr := s.db.Create(&item).Error; createErr != nil {
+				return createErr
+			}
+			continue
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *VideoCircleService) ListTariffs() ([]models.VideoTariff, error) {
+	var tariffs []models.VideoTariff
+	err := s.db.Order("code ASC").Find(&tariffs).Error
+	return tariffs, err
+}
+
+func (s *VideoCircleService) CreateTariff(req models.VideoTariffUpsertRequest, updatedBy uint) (*models.VideoTariff, error) {
+	if req.Code == "" {
+		return nil, errors.New("code is required")
+	}
+	if req.DurationMinutes <= 0 {
+		return nil, errors.New("durationMinutes must be > 0")
+	}
+	if req.PriceLkm < 0 {
+		return nil, errors.New("priceLkm must be >= 0")
+	}
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+	item := &models.VideoTariff{
+		Code:            req.Code,
+		PriceLkm:        req.PriceLkm,
+		DurationMinutes: req.DurationMinutes,
+		IsActive:        isActive,
+		UpdatedBy:       &updatedBy,
+	}
+	if err := s.db.Create(item).Error; err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (s *VideoCircleService) UpdateTariff(id uint, req models.VideoTariffUpsertRequest, updatedBy uint) (*models.VideoTariff, error) {
+	var item models.VideoTariff
+	if err := s.db.First(&item, id).Error; err != nil {
+		return nil, err
+	}
+
+	updates := map[string]interface{}{
+		"updated_by": updatedBy,
+	}
+	if req.Code != "" {
+		updates["code"] = req.Code
+	}
+	if req.PriceLkm >= 0 {
+		updates["price_lkm"] = req.PriceLkm
+	}
+	if req.DurationMinutes > 0 {
+		updates["duration_minutes"] = req.DurationMinutes
+	}
+	if req.IsActive != nil {
+		updates["is_active"] = *req.IsActive
+	}
+	if err := s.db.Model(&item).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.First(&item, id).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *VideoCircleService) ListCircles(userID uint, role string, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error) {
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.Limit < 1 || params.Limit > 100 {
+		params.Limit = 20
+	}
+
+	now := time.Now()
+	query := s.db.Model(&models.VideoCircle{})
+
+	status := strings.TrimSpace(strings.ToLower(params.Status))
+	if status == "" {
+		query = query.Where("status = ? AND expires_at > ?", models.VideoCircleStatusActive, now)
+	} else {
+		query = query.Where("status = ?", status)
+		if status == string(models.VideoCircleStatusActive) {
+			query = query.Where("expires_at > ?", now)
+		}
+	}
+
+	if params.City != "" {
+		query = query.Where("city = ?", params.City)
+	}
+	if params.Category != "" {
+		query = query.Where("category = ?", params.Category)
+	}
+
+	allowAllMatha := user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)
+	if allowAllMatha {
+		if params.Matha != "" {
+			query = query.Where("matha = ?", params.Matha)
+		}
+	} else {
+		if user.Madh != "" {
+			query = query.Where("matha = ?", user.Madh)
+		} else if params.Matha != "" {
+			query = query.Where("matha = ?", params.Matha)
+		}
+	}
+
+	sort := strings.TrimSpace(strings.ToLower(params.Sort))
+	switch sort {
+	case "expires_soon":
+		query = query.Order("expires_at ASC")
+	case "oldest":
+		query = query.Order("created_at ASC")
+	default:
+		query = query.Order("created_at DESC")
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var circles []models.VideoCircle
+	offset := (params.Page - 1) * params.Limit
+	if err := query.Offset(offset).Limit(params.Limit).Find(&circles).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]models.VideoCircleResponse, 0, len(circles))
+	for _, c := range circles {
+		remaining := int(c.ExpiresAt.Sub(now).Seconds())
+		if remaining < 0 {
+			remaining = 0
+		}
+		items = append(items, models.VideoCircleResponse{
+			ID:                 c.ID,
+			AuthorID:           c.AuthorID,
+			MediaURL:           c.MediaURL,
+			ThumbnailURL:       c.ThumbnailURL,
+			City:               c.City,
+			Matha:              c.Matha,
+			Category:           c.Category,
+			Status:             c.Status,
+			DurationSec:        c.DurationSec,
+			ExpiresAt:          c.ExpiresAt,
+			RemainingSec:       remaining,
+			PremiumBoostActive: c.PremiumBoostActive,
+			LikeCount:          c.LikeCount,
+			CommentCount:       c.CommentCount,
+			ChatCount:          c.ChatCount,
+			CreatedAt:          c.CreatedAt,
+		})
+	}
+
+	totalPages := int(total) / params.Limit
+	if int(total)%params.Limit > 0 {
+		totalPages++
+	}
+
+	log.Printf("circle_list user_id=%d role=%s total=%d page=%d", userID, role, total, params.Page)
+	return &models.VideoCircleListResponse{
+		Circles:    items,
+		Total:      total,
+		Page:       params.Page,
+		Limit:      params.Limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (s *VideoCircleService) AddInteraction(circleID, userID uint, req models.VideoCircleInteractionRequest) (*models.VideoCircleInteractionResponse, error) {
+	var circle models.VideoCircle
+	now := time.Now()
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return nil, err
+	}
+	if circle.Status != models.VideoCircleStatusActive || !circle.ExpiresAt.After(now) {
+		return nil, ErrCircleExpired
+	}
+
+	interactionType := req.Type
+	action := strings.TrimSpace(strings.ToLower(req.Action))
+	if action == "" {
+		action = "add"
+	}
+
+	likedByUser := false
+	switch interactionType {
+	case models.VideoCircleInteractionLike:
+		if action != "toggle" {
+			action = "toggle"
+		}
+		var existing models.VideoCircleInteraction
+		err := s.db.Where("circle_id = ? AND user_id = ? AND type = ?", circleID, userID, models.VideoCircleInteractionLike).First(&existing).Error
+		if err == nil {
+			if err := s.db.Delete(&existing).Error; err != nil {
+				return nil, err
+			}
+			if err := s.db.Model(&circle).Update("like_count", gorm.Expr("GREATEST(like_count - 1, 0)")).Error; err != nil {
+				return nil, err
+			}
+			likedByUser = false
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			newRecord := models.VideoCircleInteraction{
+				CircleID: circleID,
+				UserID:   userID,
+				Type:     models.VideoCircleInteractionLike,
+				Value:    1,
+			}
+			if err := s.db.Create(&newRecord).Error; err != nil {
+				return nil, err
+			}
+			if err := s.db.Model(&circle).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
+				return nil, err
+			}
+			likedByUser = true
+		} else {
+			return nil, err
+		}
+	case models.VideoCircleInteractionComment:
+		if action != "add" {
+			return nil, errors.New("comment action must be add")
+		}
+		record := models.VideoCircleInteraction{CircleID: circleID, UserID: userID, Type: models.VideoCircleInteractionComment, Value: 1}
+		if err := s.db.Create(&record).Error; err != nil {
+			return nil, err
+		}
+		if err := s.db.Model(&circle).Update("comment_count", gorm.Expr("comment_count + 1")).Error; err != nil {
+			return nil, err
+		}
+	case models.VideoCircleInteractionChat:
+		if action != "add" {
+			return nil, errors.New("chat action must be add")
+		}
+		record := models.VideoCircleInteraction{CircleID: circleID, UserID: userID, Type: models.VideoCircleInteractionChat, Value: 1}
+		if err := s.db.Create(&record).Error; err != nil {
+			return nil, err
+		}
+		if err := s.db.Model(&circle).Update("chat_count", gorm.Expr("chat_count + 1")).Error; err != nil {
+			return nil, err
+		}
+	default:
+		return nil, errors.New("unknown interaction type")
+	}
+
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return nil, err
+	}
+
+	log.Printf("circle_interaction circle_id=%d user_id=%d type=%s action=%s", circleID, userID, interactionType, action)
+	return &models.VideoCircleInteractionResponse{
+		CircleID:     circleID,
+		LikeCount:    circle.LikeCount,
+		CommentCount: circle.CommentCount,
+		ChatCount:    circle.ChatCount,
+		LikedByUser:  likedByUser,
+	}, nil
+}
+
+func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req models.VideoBoostRequest) (*models.VideoBoostResponse, error) {
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+
+	var circle models.VideoCircle
+	now := time.Now()
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return nil, err
+	}
+	if circle.Status != models.VideoCircleStatusActive || !circle.ExpiresAt.After(now) {
+		return nil, ErrCircleExpired
+	}
+
+	code := mapBoostTypeToTariffCode(req.BoostType)
+	if code == "" {
+		return nil, errors.New("invalid boostType")
+	}
+
+	var tariff models.VideoTariff
+	if err := s.db.Where("code = ? AND is_active = ?", code, true).First(&tariff).Error; err != nil {
+		return nil, err
+	}
+
+	walletBefore, err := s.wallet.GetOrCreateWallet(userID)
+	if err != nil {
+		return nil, err
+	}
+	balanceBefore := walletBefore.Balance
+	charged := 0
+	bypassReason := ""
+	isBypass := user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)
+	if isBypass {
+		bypassReason = "god_mode_or_superadmin"
+	} else {
+		charged = tariff.PriceLkm
+		if charged > 0 {
+			dedupKey := fmt.Sprintf("video-circle-boost:%d:%d:%s:%d", circleID, userID, req.BoostType, time.Now().UnixNano())
+			if spendErr := s.wallet.Spend(userID, charged, dedupKey, fmt.Sprintf("Video circle %s boost", req.BoostType)); spendErr != nil {
+				if strings.Contains(strings.ToLower(spendErr.Error()), "insufficient") {
+					return nil, ErrInsufficientLKM
+				}
+				return nil, spendErr
+			}
+		}
+	}
+
+	success := false
+	defer func() {
+		if !success && charged > 0 {
+			_ = s.wallet.Refund(userID, charged, "Video circle boost rollback", nil)
+		}
+	}()
+
+	startAt := now
+	if circle.ExpiresAt.After(now) {
+		startAt = circle.ExpiresAt
+	}
+	newExpires := startAt.Add(time.Duration(tariff.DurationMinutes) * time.Minute)
+	updates := map[string]interface{}{
+		"expires_at": newExpires,
+	}
+	if req.BoostType == models.VideoBoostTypePremium {
+		updates["premium_boost_active"] = true
+	}
+	if err := s.db.Model(&circle).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+
+	walletAfter, err := s.wallet.GetOrCreateWallet(userID)
+	if err != nil {
+		return nil, err
+	}
+	balanceAfter := walletAfter.Balance
+
+	billingLog := models.VideoCircleBillingLog{
+		CircleID:      circleID,
+		UserID:        userID,
+		BoostType:     req.BoostType,
+		TariffID:      tariff.ID,
+		ChargedLkm:    charged,
+		BypassReason:  bypassReason,
+		BalanceBefore: balanceBefore,
+		BalanceAfter:  balanceAfter,
+	}
+	if err := s.db.Create(&billingLog).Error; err != nil {
+		return nil, err
+	}
+
+	success = true
+	remaining := int(newExpires.Sub(now).Seconds())
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	log.Printf("circle_boost circle_id=%d user_id=%d boost_type=%s charged=%d bypass=%t", circleID, userID, req.BoostType, charged, isBypass)
+	return &models.VideoBoostResponse{
+		CircleID:           circleID,
+		BoostType:          string(req.BoostType),
+		ChargedLkm:         charged,
+		BypassReason:       bypassReason,
+		ExpiresAt:          newExpires,
+		RemainingSec:       remaining,
+		PremiumBoostActive: req.BoostType == models.VideoBoostTypePremium || circle.PremiumBoostActive,
+		BalanceBefore:      balanceBefore,
+		BalanceAfter:       balanceAfter,
+	}, nil
+}
+
+func (s *VideoCircleService) ExpireCirclesBatch(limit int) (int, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+
+	now := time.Now()
+	var circles []models.VideoCircle
+	if err := s.db.Where("status = ? AND expires_at <= ?", models.VideoCircleStatusActive, now).
+		Order("expires_at ASC").
+		Limit(limit).
+		Find(&circles).Error; err != nil {
+		return 0, err
+	}
+
+	for _, circle := range circles {
+		if err := s.db.Model(&models.VideoCircle{}).
+			Where("id = ? AND status = ?", circle.ID, models.VideoCircleStatusActive).
+			Update("status", models.VideoCircleStatusExpired).Error; err != nil {
+			log.Printf("circle_expire circle_id=%d error=%v", circle.ID, err)
+			continue
+		}
+		go s.CleanupExpiredS3(circle.ID)
+	}
+
+	if len(circles) > 0 {
+		log.Printf("circle_expire expired_count=%d", len(circles))
+	}
+	return len(circles), nil
+}
+
+func (s *VideoCircleService) CleanupExpiredS3(circleID uint) {
+	if s.s3 == nil {
+		return
+	}
+	var circle models.VideoCircle
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		log.Printf("circle_s3_cleanup circle_id=%d error=%v", circleID, err)
+		return
+	}
+
+	keys := make(map[string]struct{})
+	for _, raw := range []string{circle.MediaURL, circle.ThumbnailURL} {
+		key := normalizeS3Key(s.s3, raw)
+		if key != "" {
+			keys[key] = struct{}{}
+		}
+	}
+
+	for key := range keys {
+		if err := s.s3.DeleteFile(context.Background(), key); err != nil {
+			log.Printf("circle_s3_cleanup circle_id=%d key=%s error=%v", circleID, key, err)
+			continue
+		}
+
+		if idx := strings.LastIndex(key, "/"); idx > 0 {
+			prefix := key[:idx+1]
+			files, err := s.s3.ListFiles(context.Background(), prefix)
+			if err == nil {
+				for _, file := range files {
+					_ = s.s3.DeleteFile(context.Background(), file.Key)
+				}
+			}
+		}
+	}
+
+	log.Printf("circle_s3_cleanup circle_id=%d keys=%d", circleID, len(keys))
+}
+
+func StartVideoCircleExpiryScheduler() {
+	if GlobalScheduler == nil {
+		return
+	}
+	service := NewVideoCircleService()
+	GlobalScheduler.RegisterTask("video_circle_expiry", 1, func() {
+		if _, err := service.ExpireCirclesBatch(200); err != nil {
+			log.Printf("circle_expire scheduler_error=%v", err)
+		}
+	})
+}
+
+func mapBoostTypeToTariffCode(boostType models.VideoBoostType) models.VideoTariffCode {
+	switch boostType {
+	case models.VideoBoostTypeLKM:
+		return models.VideoTariffCodeLKMBoost
+	case models.VideoBoostTypeCity:
+		return models.VideoTariffCodeCityBoost
+	case models.VideoBoostTypePremium:
+		return models.VideoTariffCodePremiumBoost
+	default:
+		return ""
+	}
+}
+
+func normalizeS3Key(s3Service *S3Service, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		parsed, err := url.Parse(raw)
+		if err == nil {
+			path := strings.TrimPrefix(parsed.Path, "/")
+			if path != "" {
+				if extracted := s3Service.ExtractS3Path(raw); extracted != "" && extracted != raw {
+					return extracted
+				}
+				return path
+			}
+		}
+	}
+
+	if extracted := s3Service.ExtractS3Path(raw); extracted != "" && extracted != raw {
+		return extracted
+	}
+
+	return raw
+}

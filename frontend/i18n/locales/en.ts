@@ -648,7 +648,7 @@ export default {
         searchTabs: {
             contacts: 'Contacts',
             chat: 'Chat',
-            dating: 'Dating',
+            dating: 'Union',
             shops: 'Shops',
             ads: 'Ads',
             news: 'News',
@@ -795,7 +795,7 @@ export default {
         tabs: {
             contacts: 'Contacts',
             chat: 'Chat',
-            dating: 'Dating',
+            dating: 'Union',
             shops: 'Shops',
             ads: 'Ads',
             news: 'News',
@@ -890,8 +890,8 @@ export default {
         guna: 'Guna',
         selectGuna: 'Select Guna',
         diet: 'Diet',
-        profile: 'Dating Profile',
-        enableProfile: 'Enable Dating Profile',
+        profile: 'Union Profile',
+        enableProfile: 'Enable Union Profile',
         bio: 'About Me',
         bioPlaceholder: 'Tell about yourself',
         interests: 'Interests',

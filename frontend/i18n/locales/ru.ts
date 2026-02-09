@@ -663,7 +663,7 @@ export default {
         searchTabs: {
             contacts: 'Контактах',
             chat: 'Чате',
-            dating: 'Знакомствах',
+            dating: 'Союзе',
             shops: 'Магазинах',
             ads: 'Объявлениях',
             news: 'Новостях',
@@ -779,7 +779,7 @@ export default {
         locationDetected: 'Локация определена',
         locationDetectionFailed: 'Не удалось определить локацию. Проверьте разрешение на геолокацию.',
         detectingLocation: 'Определение локации...',
-        requiredFieldsForDating: 'Для активации профиля в знакомствах необходимо заполнить все поля, включая город и астрологические данные.'
+        requiredFieldsForDating: 'Для активации профиля в Союзе необходимо заполнить все поля, включая город и астрологические данные.'
     },
     settings: {
         title: 'Портал',
@@ -812,7 +812,7 @@ export default {
         tabs: {
             contacts: 'Контакты',
             chat: 'Чат',
-            dating: 'Знакомства',
+            dating: 'Союз',
             shops: 'Магазины',
             ads: 'Объявления',
             news: 'Новости',
@@ -923,8 +923,8 @@ export default {
         guna: 'Гуна',
         selectGuna: 'Выберите гуну',
         diet: 'Питание',
-        profile: 'Профиль знакомств',
-        enableProfile: 'Включить профиль знакомств',
+        profile: 'Профиль Союза',
+        enableProfile: 'Включить профиль Союза',
         bio: 'О себе',
         bioPlaceholder: 'Расскажите о себе',
         interests: 'Интересы',

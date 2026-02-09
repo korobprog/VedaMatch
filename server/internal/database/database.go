@@ -87,6 +87,8 @@ func Connect() {
 		&models.RadioStation{}, &models.TVChannel{},
 		&models.UserMediaSuggestion{}, &models.UserMediaFavorite{},
 		&models.UserMediaHistory{},
+		&models.VideoCircle{}, &models.VideoCircleInteraction{},
+		&models.VideoTariff{}, &models.VideoCircleBillingLog{},
 		// Video-specific models
 		&models.VideoQuality{}, &models.VideoSubtitle{},
 		&models.UserVideoProgress{}, &models.VideoTranscodingJob{},
@@ -113,6 +115,11 @@ func Connect() {
 		log.Fatal("Failed to migrate database:", err)
 	}
 	log.Println("Database Migrated")
+
+	// Partial unique index for like toggle (only one like per user per circle)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_video_circle_like_unique
+		ON video_circle_interactions (circle_id, user_id, type)
+		WHERE type = 'like'`)
 
 	// FIX: Ensure wallets.user_id is nullable (Postgres sometimes keeps NOT NULL after migration)
 	DB.Exec("ALTER TABLE wallets ALTER COLUMN user_id DROP NOT NULL")

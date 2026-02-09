@@ -127,7 +127,7 @@ export default function UsersPage() {
                                     <th className="px-6 py-4 font-semibold">User</th>
                                     <th className="px-6 py-4 font-semibold">Location</th>
                                     <th className="px-6 py-4 font-semibold">Role</th>
-                                    <th className="px-6 py-4 font-semibold">Dating</th>
+                                    <th className="px-6 py-4 font-semibold">Union</th>
                                     <th className="px-6 py-4 font-semibold">Device</th>
                                     <th className="px-6 py-4 font-semibold">Status</th>
                                     <th className="px-6 py-4 font-semibold text-right">Actions</th>

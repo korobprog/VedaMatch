@@ -16,7 +16,7 @@ const SERVICES = [
     { id: 'contacts', label: 'Контакты', icon: Users, color: 'bg-blue-600', path: '/contacts' },
     { id: 'chat', label: 'Чат', icon: MessageCircle, color: 'bg-[#4a3e36]', path: '/chat' },
     { id: 'calls', label: 'Звонки', icon: Phone, color: 'bg-emerald-600', path: '/calls' },
-    { id: 'dating', label: 'Знакомства', icon: Sparkles, color: 'bg-pink-600', path: '/dating' },
+    { id: 'dating', label: 'Союз', icon: Sparkles, color: 'bg-pink-600', path: '/dating' },
     { id: 'cafe', label: 'Кафе', icon: Coffee, color: 'bg-orange-700', path: '/cafe' },
     { id: 'shops', label: 'Магазины', icon: ShoppingBag, color: 'bg-[#b8632c]', path: '/shops' },
     { id: 'ads', label: 'Объявления', icon: Megaphone, color: 'bg-red-600', path: '/ads' },

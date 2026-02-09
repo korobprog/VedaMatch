@@ -31,6 +31,7 @@ import { MultimediaHubScreen } from './screens/multimedia/MultimediaHubScreen';
 import { RadioScreen } from './screens/multimedia/RadioScreen';
 import { AudioScreen } from './screens/multimedia/AudioScreen';
 import { VideoScreen } from './screens/multimedia/VideoScreen';
+import { VideoCirclesScreen } from './screens/multimedia/VideoCirclesScreen';
 import { TVScreen } from './screens/multimedia/TVScreen';
 import { AudioPlayerScreen } from './screens/multimedia/AudioPlayerScreen';
 import { RadioPlayerScreen } from './screens/multimedia/RadioPlayerScreen';
@@ -392,6 +393,7 @@ const AppContent = () => {
                   <Stack.Screen name="RadioScreen" component={RadioScreen} />
                   <Stack.Screen name="AudioScreen" component={AudioScreen} />
                   <Stack.Screen name="VideoScreen" component={VideoScreen} />
+                  <Stack.Screen name="VideoCirclesScreen" component={VideoCirclesScreen} />
                   <Stack.Screen name="TVScreen" component={TVScreen} />
                   <Stack.Screen name="FavoritesScreen" component={FavoritesScreen} />
                   <Stack.Screen name="SeriesScreen" component={SeriesScreen} />
