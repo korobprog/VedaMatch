@@ -5,9 +5,10 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
+import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { Product, CartItem, ProductVariant } from '../../../types/market';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
@@ -38,8 +39,14 @@ export const ProductDetailsScreen: React.FC = () => {
     const route = useRoute<RouteProp<RouteParams, 'ProductDetails'>>();
     const productId = route.params.productId;
 
-    const { isDarkMode, vTheme } = useSettings();
-    const colors = vTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const accent = colors.accent;
+    const textPrimary = colors.textPrimary;
+    const textSecondary = colors.textSecondary;
+    const surface = colors.surface;
+    const surfaceElevated = colors.surfaceElevated;
 
     const [loading, setLoading] = useState(true);
     const [product, setProduct] = useState<Product | null>(null);
@@ -261,7 +268,7 @@ export const ProductDetailsScreen: React.FC = () => {
 
     if (loading || !product) {
         return (
-            <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+            <View style={{ flex: 1, backgroundColor: colors.background }}>
                 <ScrollView>
                     <Skeleton height={width} borderRadius={0} />
                     <View style={{ padding: 16 }}>
@@ -285,7 +292,7 @@ export const ProductDetailsScreen: React.FC = () => {
     const originalPrice = getOriginalPrice();
 
     return (
-        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <ScrollView>
                 {/* Image Gallery */}
                 <View style={styles.imageSection}>
@@ -306,8 +313,8 @@ export const ProductDetailsScreen: React.FC = () => {
                                 resizeMode="cover"
                             />
                         )) : (
-                            <View style={[styles.mainImage, styles.placeholderImage, { backgroundColor: colors.primary + '10' }]}>
-                                <Package size={80} color={colors.primary} opacity={0.3} />
+                            <View style={[styles.mainImage, styles.placeholderImage, { backgroundColor: accent + '10' }]}>
+                                <Package size={80} color={accent} opacity={0.3} />
                             </View>
                         )}
                     </ScrollView>
@@ -320,7 +327,7 @@ export const ProductDetailsScreen: React.FC = () => {
                                     key={index}
                                     style={[
                                         styles.indicator,
-                                        { backgroundColor: index === selectedImageIndex ? colors.primary : 'rgba(255,255,255,0.5)' }
+                                        { backgroundColor: index === selectedImageIndex ? accent : 'rgba(255,255,255,0.5)' }
                                     ]}
                                 />
                             ))}
@@ -329,7 +336,7 @@ export const ProductDetailsScreen: React.FC = () => {
 
                     {/* Favorite button */}
                     <TouchableOpacity style={styles.favoriteBtn} onPress={handleToggleFavorite}>
-                        <Heart size={24} color={isFavorite ? '#FF5252' : '#fff'} fill={isFavorite ? '#FF5252' : 'transparent'} />
+                        <Heart size={24} color={isFavorite ? colors.danger : textPrimary} fill={isFavorite ? colors.danger : 'transparent'} />
                     </TouchableOpacity>
 
                     {/* Sale badge */}
@@ -345,16 +352,16 @@ export const ProductDetailsScreen: React.FC = () => {
                 <View style={styles.content}>
                     {/* Shop info */}
                     {product.shopInfo && (
-                        <TouchableOpacity style={[styles.shopCard, { backgroundColor: isDarkMode ? '#252525' : '#f5f5f5' }]} onPress={handleShopPress}>
-                            <View style={[styles.shopLogo, { backgroundColor: colors.primary + '15' }]}>
+                        <TouchableOpacity style={[styles.shopCard, { backgroundColor: surfaceElevated }]} onPress={handleShopPress}>
+                            <View style={[styles.shopLogo, { backgroundColor: accent + '15' }]}>
                                 {product.shopInfo.logoUrl ? (
                                     <Image source={{ uri: getMediaUrl(product.shopInfo.logoUrl) || '' }} style={styles.shopLogoImage} />
                                 ) : (
-                                    <Store size={20} color={colors.primary} />
+                                    <Store size={20} color={accent} />
                                 )}
                             </View>
                             <View style={styles.shopInfo}>
-                                <Text style={[styles.shopName, { color: isDarkMode ? '#fff' : colors.text }]}>
+                                <Text style={[styles.shopName, { color: textPrimary }]}>
                                     {product.shopInfo.name}
                                 </Text>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
@@ -362,23 +369,23 @@ export const ProductDetailsScreen: React.FC = () => {
                                     <Text style={[styles.shopCity, { color: colors.textSecondary, marginTop: 0 }]}>
                                         {product.shopInfo.city} •
                                     </Text>
-                                    <Star size={12} color="#FFA000" fill="#FFA000" style={{ marginHorizontal: 4 }} />
+                                    <Star size={12} color={colors.warning} fill={colors.warning} style={{ marginHorizontal: 4 }} />
                                     <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
                                         {product.shopInfo.rating.toFixed(1)}
                                     </Text>
                                 </View>
                             </View>
-                            <ChevronRight size={20} color={colors.primary} />
+                            <ChevronRight size={20} color={accent} />
                         </TouchableOpacity>
                     )}
 
                     {/* Product name & price */}
-                    <Text style={[styles.productName, { color: isDarkMode ? '#fff' : colors.text }]}>
+                    <Text style={[styles.productName, { color: textPrimary }]}>
                         {product.name}
                     </Text>
 
                     <View style={styles.priceSection}>
-                        <Text style={[styles.currentPrice, { color: colors.primary }]}>
+                        <Text style={[styles.currentPrice, { color: accent }]}>
                             {currentPrice.toLocaleString()} {product.currency}
                         </Text>
                         {isOnSale() && (
@@ -392,20 +399,20 @@ export const ProductDetailsScreen: React.FC = () => {
                     <View style={styles.statsRow}>
                         {product.rating > 0 && (
                             <View style={styles.statItem}>
-                                <Star size={14} color="#FFA000" fill="#FFA000" />
-                                <Text style={{ color: '#FFA000', fontWeight: '700' }}>{product.rating.toFixed(1)}</Text>
+                                <Star size={14} color={colors.warning} fill={colors.warning} />
+                                <Text style={{ color: colors.warning, fontWeight: '700' }}>{product.rating.toFixed(1)}</Text>
                                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
                                     ({product.reviewsCount})
                                 </Text>
                             </View>
                         )}
                         <View style={styles.statItem}>
-                            <Text style={{ color: isDarkMode ? '#aaa' : colors.textSecondary }}>
+                            <Text style={{ color: textSecondary }}>
                                 {product.salesCount} {t('market.sold')}
                             </Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Text style={{ color: isDarkMode ? '#aaa' : colors.textSecondary }}>
+                            <Text style={{ color: textSecondary }}>
                                 {product.viewsCount} {t('market.views')}
                             </Text>
                         </View>
@@ -414,7 +421,7 @@ export const ProductDetailsScreen: React.FC = () => {
                     {/* Variants */}
                     {product.variants && product.variants.length > 0 && (
                         <View style={styles.variantsSection}>
-                            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                                 {t('market.selectOption') || 'Select Option'}
                             </Text>
                             <View style={styles.variantsList}>
@@ -424,8 +431,8 @@ export const ProductDetailsScreen: React.FC = () => {
                                         style={[
                                             styles.variantBtn,
                                             {
-                                                backgroundColor: selectedVariant?.ID === variant.ID ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0'),
-                                                borderColor: selectedVariant?.ID === variant.ID ? colors.primary : 'transparent',
+                                                backgroundColor: selectedVariant?.ID === variant.ID ? accent : (surfaceElevated),
+                                                borderColor: selectedVariant?.ID === variant.ID ? accent : 'transparent',
                                             }
                                         ]}
                                         onPress={() => handleSelectVariant(variant)}
@@ -434,7 +441,7 @@ export const ProductDetailsScreen: React.FC = () => {
                                         <Text style={[
                                             styles.variantLabel,
                                             {
-                                                color: selectedVariant?.ID === variant.ID ? '#fff' : (isDarkMode ? '#fff' : colors.text),
+                                                color: textPrimary,
                                                 opacity: variant.stock <= 0 ? 0.5 : 1
                                             }
                                         ]}>
@@ -451,26 +458,26 @@ export const ProductDetailsScreen: React.FC = () => {
 
                     {/* Quantity */}
                     <View style={styles.quantitySection}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                             {t('market.quantity')}
                         </Text>
                         <View style={styles.quantityControls}>
                             <TouchableOpacity
-                                style={[styles.quantityBtn, { backgroundColor: isDarkMode ? '#333' : '#f0f0f0' }]}
+                                style={[styles.quantityBtn, { backgroundColor: surfaceElevated }]}
                                 onPress={() => handleQuantityChange(-1)}
                                 disabled={quantity <= 1}
                             >
-                                <Minus size={20} color={quantity <= 1 ? '#999' : colors.text} />
+                                <Minus size={20} color={quantity <= 1 ? textSecondary : textPrimary} />
                             </TouchableOpacity>
-                            <Text style={[styles.quantityValue, { color: isDarkMode ? '#fff' : colors.text }]}>
+                            <Text style={[styles.quantityValue, { color: textPrimary }]}>
                                 {quantity}
                             </Text>
                             <TouchableOpacity
-                                style={[styles.quantityBtn, { backgroundColor: isDarkMode ? '#333' : '#f0f0f0' }]}
+                                style={[styles.quantityBtn, { backgroundColor: surfaceElevated }]}
                                 onPress={() => handleQuantityChange(1)}
                                 disabled={quantity >= getStock()}
                             >
-                                <Plus size={20} color={quantity >= getStock() ? '#999' : colors.text} />
+                                <Plus size={20} color={quantity >= getStock() ? textSecondary : textPrimary} />
                             </TouchableOpacity>
                             <Text style={[styles.stockInfo, { color: colors.textSecondary }]}>
                                 {isInStock() ? `${getStock()} ${t('market.available')}` : t('market.outOfStock')}
@@ -481,14 +488,14 @@ export const ProductDetailsScreen: React.FC = () => {
                     {/* Description */}
                     {product.shortDescription && (
                         <View style={styles.descriptionSection}>
-                            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                                 {t('market.description')}
                             </Text>
-                            <Text style={[styles.description, { color: isDarkMode ? '#ddd' : colors.text }]}>
+                            <Text style={[styles.description, { color: textPrimary }]}>
                                 {product.shortDescription}
                             </Text>
                             {product.fullDescription && (
-                                <Text style={[styles.description, { color: isDarkMode ? '#aaa' : colors.textSecondary, marginTop: 8 }]}>
+                                <Text style={[styles.description, { color: textSecondary, marginTop: 8 }]}>
                                     {product.fullDescription}
                                 </Text>
                             )}
@@ -498,14 +505,14 @@ export const ProductDetailsScreen: React.FC = () => {
                     {/* Reviews Section */}
                     <View style={styles.reviewsSection}>
                         <View style={styles.reviewsHeader}>
-                            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                                 {t('market.reviews')} ({product.reviewsCount})
                             </Text>
                             <TouchableOpacity
-                                style={[styles.addReviewBtn, { backgroundColor: colors.primary + '20' }]}
+                                style={[styles.addReviewBtn, { backgroundColor: accent + '20' }]}
                                 onPress={() => handleAddReview()}
                             >
-                                <Text style={[styles.addReviewText, { color: colors.primary }]}>
+                                <Text style={[styles.addReviewText, { color: accent }]}>
                                     + {t('market.addReview')}
                                 </Text>
                             </TouchableOpacity>
@@ -525,17 +532,17 @@ export const ProductDetailsScreen: React.FC = () => {
                             </View>
                         ) : reviews.length > 0 ? (
                             reviews.map((review) => (
-                                <View key={review.ID} style={[styles.reviewCard, { borderBottomColor: isDarkMode ? '#333' : '#eee' }]}>
+                                <View key={review.ID} style={[styles.reviewCard, { borderBottomColor: colors.border }]}>
                                     <View style={styles.reviewUserRow}>
-                                        <View style={[styles.userAvatar, { backgroundColor: colors.primary + '15' }]}>
-                                            <User size={16} color={colors.primary} />
+                                        <View style={[styles.userAvatar, { backgroundColor: accent + '15' }]}>
+                                            <User size={16} color={accent} />
                                         </View>
                                         <View style={styles.reviewUserInfo}>
-                                            <Text style={[styles.reviewUserName, { color: isDarkMode ? '#fff' : colors.text }]}>
+                                            <Text style={[styles.reviewUserName, { color: textPrimary }]}>
                                                 {review.user?.name || 'User'}
                                             </Text>
                                             <View style={styles.reviewRatingRow}>
-                                                <Text style={{ color: '#FFA000', fontSize: 12 }}>
+                                                <Text style={{ color: colors.warning, fontSize: 12 }}>
                                                     {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
                                                 </Text>
                                                 {review.isVerifiedPurchase && (
@@ -550,11 +557,11 @@ export const ProductDetailsScreen: React.FC = () => {
                                         </Text>
                                     </View>
                                     {review.title && (
-                                        <Text style={[styles.reviewTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                                        <Text style={[styles.reviewTitle, { color: textPrimary }]}>
                                             {review.title}
                                         </Text>
                                     )}
-                                    <Text style={[styles.reviewComment, { color: isDarkMode ? '#ccc' : colors.textSecondary }]}>
+                                    <Text style={[styles.reviewComment, { color: textSecondary }]}>
                                         {review.comment}
                                     </Text>
                                 </View>
@@ -571,18 +578,18 @@ export const ProductDetailsScreen: React.FC = () => {
 
                         {product.reviewsCount > reviews.length && (
                             <TouchableOpacity style={styles.loadMoreReviews} onPress={loadMoreReviews}>
-                                <Text style={{ color: colors.primary }}>{t('market.loadMoreReviews')}</Text>
+                                <Text style={{ color: accent }}>{t('market.loadMoreReviews')}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
 
                     {/* Contact Seller */}
                     <TouchableOpacity
-                        style={[styles.contactBtn, { borderColor: colors.primary, marginTop: 24 }]}
+                        style={[styles.contactBtn, { borderColor: accent, marginTop: 24 }]}
                         onPress={handleContactSeller}
                     >
-                        <MessageCircle size={20} color={colors.primary} />
-                        <Text style={[styles.contactBtnText, { color: colors.primary }]}>
+                        <MessageCircle size={20} color={accent} />
+                        <Text style={[styles.contactBtnText, { color: accent }]}>
                             {t('market.contactSeller')}
                         </Text>
                     </TouchableOpacity>
@@ -590,24 +597,24 @@ export const ProductDetailsScreen: React.FC = () => {
             </ScrollView>
 
             {/* Bottom action bar */}
-            <View style={[styles.bottomBar, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}>
+            <View style={[styles.bottomBar, { backgroundColor: surface }]}>
                 <View style={styles.totalSection}>
                     <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>{t('market.total')}</Text>
-                    <Text style={[styles.totalPrice, { color: colors.primary }]}>
+                    <Text style={[styles.totalPrice, { color: accent }]}>
                         {(currentPrice * quantity).toLocaleString()} {product.currency}
                     </Text>
                 </View>
 
                 <View style={styles.actionButtons}>
                     <TouchableOpacity
-                        style={[styles.cartBtn, { backgroundColor: isDarkMode ? '#333' : '#f0f0f0' }]}
+                        style={[styles.cartBtn, { backgroundColor: surfaceElevated }]}
                         onPress={handleAddToCart}
                         disabled={!isInStock()}
                     >
-                        <ShoppingCart size={24} color={!isInStock() ? '#999' : colors.text} />
+                        <ShoppingCart size={24} color={!isInStock() ? textSecondary : textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.buyBtn, { backgroundColor: isInStock() ? colors.gradientStart : '#ccc' }]}
+                        style={[styles.buyBtn, { backgroundColor: isInStock() ? accent : colors.border }]}
                         onPress={handleBuyNow}
                         disabled={!isInStock()}
                     >
@@ -667,13 +674,13 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 16,
         left: 16,
-        backgroundColor: '#FF5722',
+        backgroundColor: 'rgba(249,115,22,1)',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 8,
     },
     saleText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontWeight: 'bold',
         fontSize: 14,
     },
@@ -728,7 +735,7 @@ const styles = StyleSheet.create({
     },
     originalPrice: {
         fontSize: 16,
-        color: '#999',
+        color: 'rgba(153,153,153,1)',
         textDecorationLine: 'line-through',
     },
     statsRow: {
@@ -769,7 +776,7 @@ const styles = StyleSheet.create({
     },
     outOfStock: {
         fontSize: 10,
-        color: '#f44336',
+        color: 'rgba(239,68,68,1)',
         marginTop: 2,
     },
     quantitySection: {
@@ -872,13 +879,13 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     verifiedBadge: {
-        backgroundColor: '#E8F5E9',
+        backgroundColor: 'rgba(232,245,233,1)',
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 4,
     },
     verifiedText: {
-        color: '#2E7D32',
+        color: 'rgba(46,125,50,1)',
         fontSize: 10,
         fontWeight: 'bold',
     },
@@ -912,7 +919,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: 'rgba(0,0,0,0.1)',
         elevation: 10,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: -3 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -946,7 +953,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     buyBtnText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: 'bold',
     },

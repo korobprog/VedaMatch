@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-    Image, ActivityIndicator, useColorScheme, Alert
+    Image, ActivityIndicator, Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
-import { CartItem, DeliveryType, Product, ProductVariant } from '../../../types/market';
+import { CartItem, DeliveryType, ProductVariant } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type RouteParams = {
     Checkout: {
@@ -23,9 +26,10 @@ export const CheckoutScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'Checkout'>>();
     const initialItems = route.params?.items || [];
-
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -162,30 +166,30 @@ export const CheckoutScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
 
     return (
         <ProtectedScreen>
-            <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+            <View style={styles.screen}>
                 <ScrollView contentContainerStyle={styles.container}>
-                    <Text style={[styles.headerTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                    <Text style={styles.headerTitle}>
                         Checkout
                     </Text>
 
                     {/* Cart Items */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.sectionTitle}>
                             Your Items ({cartItems.length})
                         </Text>
 
                         {cartItems.map((item, index) => (
                             <View
                                 key={`${item.productId}-${item.variantId || 0}`}
-                                style={[styles.cartItem, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}
+                                style={styles.cartItem}
                             >
                                 <View style={styles.itemImageContainer}>
                                     {item.product?.mainImageUrl ? (
@@ -194,14 +198,14 @@ export const CheckoutScreen: React.FC = () => {
                                             style={styles.itemImage}
                                         />
                                     ) : (
-                                        <View style={[styles.itemPlaceholder, { backgroundColor: colors.primary + '20' }]}>
+                                        <View style={styles.itemPlaceholder}>
                                             <Text style={{ fontSize: 24 }}>📦</Text>
                                         </View>
                                     )}
                                 </View>
 
                                 <View style={styles.itemInfo}>
-                                    <Text style={[styles.itemName, { color: isDarkMode ? '#fff' : colors.text }]} numberOfLines={2}>
+                                    <Text style={styles.itemName} numberOfLines={2}>
                                         {item.product?.name}
                                     </Text>
                                     {item.variant && (
@@ -209,7 +213,7 @@ export const CheckoutScreen: React.FC = () => {
                                             {item.variant.name || item.variant.sku}
                                         </Text>
                                     )}
-                                    <Text style={[styles.itemPrice, { color: colors.primary }]}>
+                                    <Text style={styles.itemPrice}>
                                         {getItemPrice(item).toLocaleString()} {item.product?.currency || 'RUB'}
                                     </Text>
                                 </View>
@@ -217,23 +221,23 @@ export const CheckoutScreen: React.FC = () => {
                                 <View style={styles.itemActions}>
                                     <View style={styles.quantityRow}>
                                         <TouchableOpacity
-                                            style={[styles.qtyBtn, { backgroundColor: isDarkMode ? '#333' : '#f0f0f0' }]}
+                                            style={styles.qtyBtn}
                                             onPress={() => handleQuantityChange(index, -1)}
                                         >
-                                            <Text style={{ color: colors.text }}>−</Text>
+                                            <Text style={{ color: colors.textPrimary }}>−</Text>
                                         </TouchableOpacity>
-                                        <Text style={[styles.qtyValue, { color: isDarkMode ? '#fff' : colors.text }]}>
+                                        <Text style={styles.qtyValue}>
                                             {item.quantity}
                                         </Text>
                                         <TouchableOpacity
-                                            style={[styles.qtyBtn, { backgroundColor: isDarkMode ? '#333' : '#f0f0f0' }]}
+                                            style={styles.qtyBtn}
                                             onPress={() => handleQuantityChange(index, 1)}
                                         >
-                                            <Text style={{ color: colors.text }}>+</Text>
+                                            <Text style={{ color: colors.textPrimary }}>+</Text>
                                         </TouchableOpacity>
                                     </View>
                                     <TouchableOpacity onPress={() => handleRemoveItem(index)}>
-                                        <Text style={{ color: '#f44336', fontSize: 12 }}>Remove</Text>
+                                        <Text style={{ color: colors.danger, fontSize: 12 }}>Remove</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -242,7 +246,7 @@ export const CheckoutScreen: React.FC = () => {
 
                     {/* Delivery Type */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.sectionTitle}>
                             Delivery Method
                         </Text>
 
@@ -251,14 +255,14 @@ export const CheckoutScreen: React.FC = () => {
                                 style={[
                                     styles.deliveryOption,
                                     {
-                                        backgroundColor: deliveryType === 'delivery' ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0'),
-                                        borderColor: deliveryType === 'delivery' ? colors.primary : 'transparent'
+                                        backgroundColor: deliveryType === 'delivery' ? colors.accent : colors.surfaceElevated,
+                                        borderColor: deliveryType === 'delivery' ? colors.accent : 'transparent'
                                     }
                                 ]}
                                 onPress={() => setDeliveryType('delivery')}
                             >
                                 <Text style={{ fontSize: 24 }}>🚚</Text>
-                                <Text style={[styles.deliveryLabel, { color: deliveryType === 'delivery' ? '#fff' : (isDarkMode ? '#fff' : colors.text) }]}>
+                                <Text style={[styles.deliveryLabel, { color: colors.textPrimary }]}>
                                     Delivery
                                 </Text>
                             </TouchableOpacity>
@@ -267,14 +271,14 @@ export const CheckoutScreen: React.FC = () => {
                                 style={[
                                     styles.deliveryOption,
                                     {
-                                        backgroundColor: deliveryType === 'pickup' ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0'),
-                                        borderColor: deliveryType === 'pickup' ? colors.primary : 'transparent'
+                                        backgroundColor: deliveryType === 'pickup' ? colors.accent : colors.surfaceElevated,
+                                        borderColor: deliveryType === 'pickup' ? colors.accent : 'transparent'
                                     }
                                 ]}
                                 onPress={() => setDeliveryType('pickup')}
                             >
                                 <Text style={{ fontSize: 24 }}>🏪</Text>
-                                <Text style={[styles.deliveryLabel, { color: deliveryType === 'pickup' ? '#fff' : (isDarkMode ? '#fff' : colors.text) }]}>
+                                <Text style={[styles.deliveryLabel, { color: colors.textPrimary }]}>
                                     Pickup
                                 </Text>
                             </TouchableOpacity>
@@ -286,7 +290,7 @@ export const CheckoutScreen: React.FC = () => {
                                     Delivery Address *
                                 </Text>
                                 <TextInput
-                                    style={[styles.input, styles.textArea, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                    style={[styles.input, styles.textArea]}
                                     value={deliveryAddress}
                                     onChangeText={setDeliveryAddress}
                                     placeholder="Street, building, apartment..."
@@ -299,7 +303,7 @@ export const CheckoutScreen: React.FC = () => {
                                     Delivery Notes
                                 </Text>
                                 <TextInput
-                                    style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                    style={styles.input}
                                     value={deliveryNote}
                                     onChangeText={setDeliveryNote}
                                     placeholder="Intercom, floor, etc."
@@ -311,13 +315,13 @@ export const CheckoutScreen: React.FC = () => {
 
                     {/* Contact Info */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.sectionTitle}>
                             Contact Information
                         </Text>
 
                         <Text style={[styles.label, { color: colors.textSecondary }]}>Your Name *</Text>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={buyerName}
                             onChangeText={setBuyerName}
                             placeholder="How should we call you?"
@@ -326,7 +330,7 @@ export const CheckoutScreen: React.FC = () => {
 
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>Phone</Text>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={buyerPhone}
                             onChangeText={setBuyerPhone}
                             placeholder="+7 999 123 45 67"
@@ -336,7 +340,7 @@ export const CheckoutScreen: React.FC = () => {
 
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>Email</Text>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={buyerEmail}
                             onChangeText={setBuyerEmail}
                             placeholder="your@email.com"
@@ -347,7 +351,7 @@ export const CheckoutScreen: React.FC = () => {
 
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>Note for Seller</Text>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={buyerNote}
                             onChangeText={setBuyerNote}
                             placeholder="Any special requests?"
@@ -356,8 +360,8 @@ export const CheckoutScreen: React.FC = () => {
                     </View>
 
                     {/* Order Summary */}
-                    <View style={[styles.summaryCard, { backgroundColor: isDarkMode ? '#252525' : '#f9f9f9' }]}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                    <View style={styles.summaryCard}>
+                        <Text style={styles.sectionTitle}>
                             Order Summary
                         </Text>
 
@@ -365,42 +369,42 @@ export const CheckoutScreen: React.FC = () => {
                             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
                                 Subtotal ({cartItems.reduce((s, i) => s + i.quantity, 0)} items)
                             </Text>
-                            <Text style={[styles.summaryValue, { color: isDarkMode ? '#fff' : colors.text }]}>
+                            <Text style={styles.summaryValue}>
                                 {getSubtotal().toLocaleString()} RUB
                             </Text>
                         </View>
 
                         <View style={styles.summaryRow}>
                             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Delivery</Text>
-                            <Text style={[styles.summaryValue, { color: '#4CAF50' }]}>
+                            <Text style={[styles.summaryValue, { color: colors.success }]}>
                                 {deliveryType === 'delivery' ? 'Discuss with seller' : 'Free (Pickup)'}
                             </Text>
                         </View>
 
                         <View style={[styles.summaryRow, styles.totalRow]}>
-                            <Text style={[styles.totalLabel, { color: isDarkMode ? '#fff' : colors.text }]}>Total</Text>
-                            <Text style={[styles.totalValue, { color: colors.primary }]}>
+                            <Text style={styles.totalLabel}>Total</Text>
+                            <Text style={styles.totalValue}>
                                 {getTotal().toLocaleString()} RUB
                             </Text>
                         </View>
                     </View>
 
                     {/* Info notice */}
-                    <View style={[styles.infoCard, { backgroundColor: colors.primary + '15' }]}>
+                    <View style={styles.infoCard}>
                         <Text style={{ fontSize: 20 }}>💬</Text>
-                        <Text style={[styles.infoText, { color: colors.primary }]}>
+                        <Text style={styles.infoText}>
                             Payment and delivery details will be arranged with the seller via messenger after order confirmation.
                         </Text>
                     </View>
 
                     {/* Submit */}
                     <TouchableOpacity
-                        style={[styles.submitBtn, { backgroundColor: colors.gradientStart }]}
+                        style={styles.submitBtn}
                         onPress={handleSubmitOrder}
                         disabled={submitting}
                     >
                         {submitting ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color={colors.textPrimary} />
                         ) : (
                             <Text style={styles.submitText}>Place Order</Text>
                         )}
@@ -411,11 +415,16 @@ export const CheckoutScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+    },
     centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.background,
     },
     container: {
         padding: 16,
@@ -426,6 +435,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textAlign: 'center',
         marginBottom: 20,
+        color: colors.textPrimary,
     },
     section: {
         marginBottom: 24,
@@ -434,6 +444,7 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: '700',
         marginBottom: 12,
+        color: colors.textPrimary,
     },
     label: {
         fontSize: 13,
@@ -446,7 +457,9 @@ const styles = StyleSheet.create({
         padding: 14,
         fontSize: 16,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.1)',
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+        color: colors.textPrimary,
     },
     textArea: {
         minHeight: 70,
@@ -458,6 +471,7 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         marginBottom: 10,
         elevation: 2,
+        backgroundColor: colors.surface,
     },
     itemImageContainer: {
         width: 70,
@@ -474,6 +488,7 @@ const styles = StyleSheet.create({
         height: '100%',
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.accentSoft,
     },
     itemInfo: {
         flex: 1,
@@ -482,6 +497,7 @@ const styles = StyleSheet.create({
     itemName: {
         fontSize: 14,
         fontWeight: '600',
+        color: colors.textPrimary,
     },
     itemVariant: {
         fontSize: 12,
@@ -491,6 +507,7 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: 'bold',
         marginTop: 4,
+        color: colors.accent,
     },
     itemActions: {
         alignItems: 'flex-end',
@@ -507,12 +524,14 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.surfaceElevated,
     },
     qtyValue: {
         fontSize: 15,
         fontWeight: '600',
         minWidth: 24,
         textAlign: 'center',
+        color: colors.textPrimary,
     },
     deliveryOptions: {
         flexDirection: 'row',
@@ -534,6 +553,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 16,
         marginBottom: 16,
+        backgroundColor: colors.surfaceElevated,
     },
     summaryRow: {
         flexDirection: 'row',
@@ -546,20 +566,23 @@ const styles = StyleSheet.create({
     summaryValue: {
         fontSize: 14,
         fontWeight: '500',
+        color: colors.textPrimary,
     },
     totalRow: {
         marginTop: 8,
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.1)',
+        borderTopColor: colors.border,
     },
     totalLabel: {
         fontSize: 17,
         fontWeight: 'bold',
+        color: colors.textPrimary,
     },
     totalValue: {
         fontSize: 20,
         fontWeight: 'bold',
+        color: colors.accent,
     },
     infoCard: {
         flexDirection: 'row',
@@ -568,20 +591,23 @@ const styles = StyleSheet.create({
         gap: 12,
         marginBottom: 20,
         alignItems: 'center',
+        backgroundColor: colors.accentSoft,
     },
     infoText: {
         flex: 1,
         fontSize: 13,
         lineHeight: 18,
+        color: colors.accent,
     },
     submitBtn: {
         padding: 18,
         borderRadius: 30,
         alignItems: 'center',
         elevation: 6,
+        backgroundColor: colors.accent,
     },
     submitText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: 'bold',
     },

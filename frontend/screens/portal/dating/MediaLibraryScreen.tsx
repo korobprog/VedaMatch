@@ -8,7 +8,6 @@ import {
     TouchableOpacity,
     Alert,
     ActivityIndicator,
-    useColorScheme,
     Dimensions,
     Modal,
     ScrollView
@@ -19,7 +18,8 @@ import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../../types/navigation';
 import { useUser } from '../../../context/UserContext';
 import { datingService } from '../../../services/datingService';
-import { COLORS } from '../../../components/chat/ChatConstants';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 3;
@@ -36,8 +36,15 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
     const { userId, readOnly } = route.params as any;
     const { user: currentUser } = useUser();
     const { t } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
+    const theme = {
+        background: colors.background,
+        borderColor: colors.border,
+        text: colors.textPrimary,
+        subText: colors.textSecondary,
+        accent: colors.accent,
+    };
     const [photos, setPhotos] = useState<Media[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -292,7 +299,7 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     profileBadgeText: {
-        color: 'white',
+        color: 'rgba(255,255,255,1)',
         fontSize: 10,
         fontWeight: 'bold',
     },
@@ -302,7 +309,7 @@ const styles = StyleSheet.create({
         margin: 6,
         borderRadius: 8,
         borderWidth: 2,
-        borderColor: '#ccc',
+        borderColor: 'rgba(204,204,204,1)',
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',

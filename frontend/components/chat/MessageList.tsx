@@ -5,7 +5,6 @@ import {
     ActivityIndicator,
     Text,
     Image,
-    Keyboard,
     StyleSheet,
     useColorScheme,
     Dimensions,
@@ -46,11 +45,21 @@ export const MessageList: React.FC<MessageListProps> = ({
     onNavigateToMap,
 }) => {
     const { t, i18n } = useTranslation();
-    const { messages, isLoading, isTyping, recipientUser, deleteMessage } = useChat();
+    const { messages, isLoading, isTyping, recipientUser, deleteMessage, isUploading } = useChat();
     const { assistantType } = useSettings();
     const isDarkMode = useColorScheme() === 'dark';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const flatListRef = useRef<FlatList>(null);
+    const lastContentHeightRef = useRef(0);
+    const autoScrollFrameRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (autoScrollFrameRef.current !== null) {
+                cancelAnimationFrame(autoScrollFrameRef.current);
+            }
+        };
+    }, []);
 
     const formatMessageTime = (dateStr?: string) => {
         if (!dateStr) return '';
@@ -354,6 +363,19 @@ export const MessageList: React.FC<MessageListProps> = ({
         );
     };
 
+    const handleContentSizeChange = (_width: number, height: number) => {
+        if (Math.abs(height - lastContentHeightRef.current) < 2) return;
+        lastContentHeightRef.current = height;
+
+        if (autoScrollFrameRef.current !== null) {
+            cancelAnimationFrame(autoScrollFrameRef.current);
+        }
+
+        autoScrollFrameRef.current = requestAnimationFrame(() => {
+            flatListRef.current?.scrollToEnd({ animated: !isUploading });
+        });
+    };
+
     return (
         <View style={styles.chatContainer}>
             <View style={styles.overlay}>
@@ -363,8 +385,9 @@ export const MessageList: React.FC<MessageListProps> = ({
                     renderItem={renderMessage}
                     keyExtractor={(item: any) => item.id}
                     contentContainerStyle={styles.listContent}
-                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                    onScrollBeginDrag={() => Keyboard.dismiss()}
+                    keyboardDismissMode="none"
+                    keyboardShouldPersistTaps="always"
+                    onContentSizeChange={handleContentSizeChange}
                 />
                 {isLoading && (
                     <View style={styles.statusBox}>

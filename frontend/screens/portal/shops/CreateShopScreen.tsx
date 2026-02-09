@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-    Image, Alert, ActivityIndicator, useColorScheme
+    Image, Alert, ActivityIndicator
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
 import { ShopCategory, ShopCategoryConfig } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 import {
     Store,
     Image as ImageIcon,
@@ -20,8 +23,7 @@ import {
     Mail,
     Send,
     Instagram,
-    Globe,
-    Camera
+    Globe
 } from 'lucide-react-native';
 
 type RouteParams = {
@@ -35,9 +37,10 @@ export const CreateShopScreen: React.FC = () => {
     const shopId = route.params?.shopId;
     const isEditing = !!shopId;
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
-
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(false);
     const [checkingPermission, setCheckingPermission] = useState(true);
@@ -198,9 +201,9 @@ export const CreateShopScreen: React.FC = () => {
 
     if (checkingPermission) {
         return (
-            <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: isDarkMode ? '#fff' : colors.text }]}>
+            <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={styles.loadingText}>
                     {t('loading') || 'Loading...'}
                 </Text>
             </View>
@@ -209,16 +212,16 @@ export const CreateShopScreen: React.FC = () => {
 
     if (!canCreate) {
         return (
-            <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
+            <View style={styles.centerContainer}>
                 <Store size={64} color={colors.textSecondary} opacity={0.5} style={{ marginBottom: 16 }} />
-                <Text style={[styles.errorTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                <Text style={styles.errorTitle}>
                     {t('market.shop.cannotCreate') || 'Cannot Create Shop'}
                 </Text>
-                <Text style={[styles.errorMessage, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                <Text style={styles.errorMessage}>
                     {permissionMessage}
                 </Text>
                 <TouchableOpacity
-                    style={[styles.backButton, { backgroundColor: colors.primary }]}
+                    style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
                     <Text style={styles.backButtonText}>{t('back') || 'Go Back'}</Text>
@@ -229,43 +232,43 @@ export const CreateShopScreen: React.FC = () => {
 
     return (
         <ProtectedScreen>
-            <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+            <View style={styles.screen}>
                 <ScrollView contentContainerStyle={styles.container}>
-                    <Text style={[styles.headerTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                    <Text style={styles.headerTitle}>
                         {t('market.shop.create') || 'Create Your Shop'}
                     </Text>
-                    <Text style={[styles.headerSubtitle, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                    <Text style={styles.headerSubtitle}>
                         {t('market.shop.createSubtitle') || 'Start selling your products to the community'}
                     </Text>
 
                     {/* Logo & Cover */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.sectionTitle}>
                             {t('market.shop.branding') || 'Branding'}
                         </Text>
 
                         <View style={styles.imageRow}>
-                            <TouchableOpacity style={[styles.logoPickerBtn, { borderColor: colors.primary }]} onPress={handlePickLogo}>
+                            <TouchableOpacity style={styles.logoPickerBtn} onPress={handlePickLogo}>
                                 {logoAsset ? (
                                     <Image source={{ uri: logoAsset.uri }} style={styles.logoPreview} />
                                 ) : existingLogo ? (
                                     <Image source={{ uri: getMediaUrl(existingLogo) || '' }} style={styles.logoPreview} />
                                 ) : (
                                     <View style={styles.logoPlaceholder}>
-                                        <Store size={32} color={colors.primary} />
+                                        <Store size={32} color={colors.accent} />
                                         <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>{t('market.shop.logo') || 'Logo'}</Text>
                                     </View>
                                 )}
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={[styles.coverPickerBtn, { borderColor: colors.primary }]} onPress={handlePickCover}>
+                            <TouchableOpacity style={styles.coverPickerBtn} onPress={handlePickCover}>
                                 {coverAsset ? (
                                     <Image source={{ uri: coverAsset.uri }} style={styles.coverPreview} />
                                 ) : existingCover ? (
                                     <Image source={{ uri: getMediaUrl(existingCover) || '' }} style={styles.coverPreview} />
                                 ) : (
                                     <View style={styles.coverPlaceholder}>
-                                        <ImageIcon size={24} color={colors.primary} />
+                                        <ImageIcon size={24} color={colors.accent} />
                                         <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>{t('market.shop.cover') || 'Cover'}</Text>
                                     </View>
                                 )}
@@ -275,7 +278,7 @@ export const CreateShopScreen: React.FC = () => {
 
                     {/* Category Selection */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.sectionTitle}>
                             {t('market.shop.category') || 'Category'}
                         </Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -285,16 +288,16 @@ export const CreateShopScreen: React.FC = () => {
                                     style={[
                                         styles.categoryPill,
                                         {
-                                            backgroundColor: selectedCategory === cat.id ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0'),
-                                            borderColor: selectedCategory === cat.id ? colors.primary : 'transparent'
+                                            backgroundColor: selectedCategory === cat.id ? colors.accent : colors.surfaceElevated,
+                                            borderColor: selectedCategory === cat.id ? colors.accent : 'transparent'
                                         }
                                     ]}
                                     onPress={() => setSelectedCategory(cat.id)}
                                 >
-                                    <Tag size={16} color={selectedCategory === cat.id ? '#fff' : colors.primary} style={{ marginRight: 6 }} />
+                                    <Tag size={16} color={selectedCategory === cat.id ? colors.textPrimary : colors.accent} style={{ marginRight: 6 }} />
                                     <Text style={[
                                         styles.categoryLabel,
-                                        { color: selectedCategory === cat.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }
+                                        { color: selectedCategory === cat.id ? colors.textPrimary : colors.textPrimary }
                                     ]}>
                                         {cat.label[currentLang] || cat.label.en}
                                     </Text>
@@ -305,7 +308,7 @@ export const CreateShopScreen: React.FC = () => {
 
                     {/* Basic Info */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.sectionTitle}>
                             {t('market.shop.basicInfo') || 'Basic Information'}
                         </Text>
 
@@ -316,7 +319,7 @@ export const CreateShopScreen: React.FC = () => {
                             </Text>
                         </View>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={name}
                             onChangeText={setName}
                             placeholder={t('market.shop.namePlaceholder') || "e.g. Vedic Treasures"}
@@ -328,7 +331,7 @@ export const CreateShopScreen: React.FC = () => {
                             {t('market.shop.description') || 'Description'}
                         </Text>
                         <TextInput
-                            style={[styles.input, styles.textArea, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={[styles.input, styles.textArea]}
                             value={description}
                             onChangeText={setDescription}
                             placeholder={t('market.shop.descPlaceholder') || "Tell customers about your shop..."}
@@ -345,7 +348,7 @@ export const CreateShopScreen: React.FC = () => {
                             </Text>
                         </View>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={city}
                             onChangeText={setCity}
                             placeholder={t('market.shop.cityPlaceholder') || "e.g. Moscow"}
@@ -356,7 +359,7 @@ export const CreateShopScreen: React.FC = () => {
                             {t('market.shop.address') || 'Address (optional)'}
                         </Text>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={address}
                             onChangeText={setAddress}
                             placeholder={t('market.shop.addressPlaceholder') || "Street, building, etc."}
@@ -366,7 +369,7 @@ export const CreateShopScreen: React.FC = () => {
 
                     {/* Contact Info */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.sectionTitle}>
                             {t('market.shop.contactInfo') || 'Contact Information'}
                         </Text>
 
@@ -377,7 +380,7 @@ export const CreateShopScreen: React.FC = () => {
                             </Text>
                         </View>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={phone}
                             onChangeText={setPhone}
                             placeholder="+7 999 123 45 67"
@@ -392,7 +395,7 @@ export const CreateShopScreen: React.FC = () => {
                             </Text>
                         </View>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={email}
                             onChangeText={setEmail}
                             placeholder="shop@example.com"
@@ -408,7 +411,7 @@ export const CreateShopScreen: React.FC = () => {
                             </Text>
                         </View>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={telegram}
                             onChangeText={setTelegram}
                             placeholder="@username"
@@ -423,7 +426,7 @@ export const CreateShopScreen: React.FC = () => {
                             </Text>
                         </View>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={instagram}
                             onChangeText={setInstagram}
                             placeholder="@shopname"
@@ -438,7 +441,7 @@ export const CreateShopScreen: React.FC = () => {
                             </Text>
                         </View>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={styles.input}
                             value={website}
                             onChangeText={setWebsite}
                             placeholder="https://yourshop.com"
@@ -450,12 +453,12 @@ export const CreateShopScreen: React.FC = () => {
 
                     {/* Submit Button */}
                     <TouchableOpacity
-                        style={[styles.submitBtn, { backgroundColor: colors.gradientStart }]}
+                        style={styles.submitBtn}
                         onPress={handleSubmit}
                         disabled={loading}
                     >
                         {loading ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color={colors.textPrimary} />
                         ) : (
                             <Text style={styles.submitText}>
                                 {t('market.shop.createBtn') || 'Create Shop'}
@@ -463,7 +466,7 @@ export const CreateShopScreen: React.FC = () => {
                         )}
                     </TouchableOpacity>
 
-                    <Text style={[styles.disclaimer, { color: isDarkMode ? '#888' : colors.textSecondary }]}>
+                    <Text style={styles.disclaimer}>
                         {t('market.shop.disclaimer') || 'Your shop will be reviewed by moderators before becoming active.'}
                     </Text>
                 </ScrollView>
@@ -472,16 +475,22 @@ export const CreateShopScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+    },
     centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
+        backgroundColor: colors.background,
     },
     loadingText: {
         marginTop: 16,
         fontSize: 16,
+        color: colors.textPrimary,
     },
     errorIcon: {
         fontSize: 64,
@@ -491,19 +500,22 @@ const styles = StyleSheet.create({
         fontSize: 22,
         fontWeight: 'bold',
         marginBottom: 8,
+        color: colors.textPrimary,
     },
     errorMessage: {
         fontSize: 16,
         textAlign: 'center',
         marginBottom: 24,
+        color: colors.textSecondary,
     },
     backButton: {
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 20,
+        backgroundColor: colors.accent,
     },
     backButtonText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -515,12 +527,14 @@ const styles = StyleSheet.create({
         fontSize: 26,
         fontWeight: 'bold',
         textAlign: 'center',
+        color: colors.textPrimary,
     },
     headerSubtitle: {
         fontSize: 14,
         textAlign: 'center',
         marginTop: 8,
         marginBottom: 24,
+        color: colors.textSecondary,
     },
     section: {
         marginBottom: 24,
@@ -529,6 +543,7 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         marginBottom: 12,
+        color: colors.textPrimary,
     },
     imageRow: {
         flexDirection: 'row',
@@ -541,6 +556,7 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderStyle: 'dashed',
         overflow: 'hidden',
+        borderColor: colors.accent,
     },
     logoPreview: {
         width: '100%',
@@ -558,6 +574,7 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderStyle: 'dashed',
         overflow: 'hidden',
+        borderColor: colors.accent,
     },
     coverPreview: {
         width: '100%',
@@ -591,6 +608,7 @@ const styles = StyleSheet.create({
     categoryLabel: {
         fontSize: 14,
         fontWeight: '500',
+        color: colors.textPrimary,
     },
     label: {
         fontSize: 13,
@@ -603,7 +621,9 @@ const styles = StyleSheet.create({
         padding: 14,
         fontSize: 16,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.1)',
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+        color: colors.textPrimary,
     },
     textArea: {
         minHeight: 100,
@@ -615,13 +635,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 8,
         elevation: 6,
-        shadowColor: '#000',
+        backgroundColor: colors.accent,
+        shadowColor: colors.border,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
     },
     submitText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: 'bold',
     },
@@ -629,5 +650,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         textAlign: 'center',
         marginTop: 16,
+        color: colors.textSecondary,
     },
 });

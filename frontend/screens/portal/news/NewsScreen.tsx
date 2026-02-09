@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     FlatList,
-    useColorScheme,
     TouchableOpacity,
     Image,
     ActivityIndicator,
@@ -12,7 +11,6 @@ import {
     Dimensions
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { COLORS } from '../../../components/chat/ChatConstants';
 import { newsService, NewsItem } from '../../../services/newsService';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -42,6 +40,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
@@ -64,11 +63,11 @@ const MADH_FILTERS = [
 
 export const NewsScreen = () => {
     const { t, i18n } = useTranslation();
-    const { vTheme, isDarkMode } = useSettings();
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { isDarkMode } = useSettings();
     const navigation = useNavigation();
     const { user } = useUser();
-    const { colors: roleColors } = useRoleTheme(user?.role, true);
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
     const [news, setNews] = useState<NewsItem[]>([]);
@@ -183,19 +182,18 @@ export const NewsScreen = () => {
     };
 
     const renderCategoryPills = () => (
-        <View style={[styles.categoriesContainer, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.categoriesContainer, { backgroundColor: colors.background }]}>
             {/* Personalized Toggle */}
             <View style={styles.personalizedToggleContainer}>
                 <TouchableOpacity
                     onPress={() => setPersonalized(true)}
                     style={[
                         styles.toggleButton,
-                        { borderColor: vTheme.colors.divider },
-                        personalized && { backgroundColor: vTheme.colors.primary, borderColor: vTheme.colors.primary }
+                        personalized && { backgroundColor: colors.accent, borderColor: colors.accent }
                     ]}
                 >
-                    <Rss size={14} color={personalized ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.toggleText, { color: personalized ? '#fff' : vTheme.colors.textSecondary }]}>
+                    <Rss size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.toggleText, { color: colors.textPrimary }]}>
                         {lang === 'en' ? 'My Feed' : 'Моя лента'}
                     </Text>
                 </TouchableOpacity>
@@ -203,12 +201,11 @@ export const NewsScreen = () => {
                     onPress={() => setPersonalized(false)}
                     style={[
                         styles.toggleButton,
-                        { borderColor: vTheme.colors.divider },
-                        !personalized && { backgroundColor: isDarkMode ? '#334155' : '#cbd5e1', borderColor: isDarkMode ? '#334155' : '#cbd5e1' }
+                        !personalized && { backgroundColor: colors.surfaceElevated, borderColor: colors.border }
                     ]}
                 >
-                    <Globe size={14} color={!personalized ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.toggleText, { color: !personalized ? '#fff' : vTheme.colors.textSecondary }]}>
+                    <Globe size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.toggleText, { color: colors.textPrimary }]}>
                         {lang === 'en' ? 'All' : 'Все'}
                     </Text>
                 </TouchableOpacity>
@@ -229,22 +226,18 @@ export const NewsScreen = () => {
                             styles.categoryPill,
                             {
                                 backgroundColor: selectedMadh === item.id
-                                    ? roleColors.accent
-                                    : (isDarkMode ? '#2C2C2E' : '#fff'),
+                                    ? colors.accent
+                                    : colors.surface,
                                 borderColor: selectedMadh === item.id
-                                    ? roleColors.accent
-                                    : (isDarkMode ? '#3A3A3C' : '#ddd')
+                                    ? colors.accent
+                                    : colors.border
                             }
                         ]}
                     >
-                        {item.id === '' && <Building2 size={14} color={selectedMadh === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
+                        {item.id === '' && <Building2 size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />}
                         <Text style={[
                             styles.categoryPillText,
-                            {
-                                color: selectedMadh === item.id
-                                    ? '#fff'
-                                    : vTheme.colors.text
-                            }
+                            { color: colors.textPrimary }
                         ]}>
                             {lang === 'en' ? item.labelEn : item.label}
                         </Text>
@@ -266,26 +259,22 @@ export const NewsScreen = () => {
                             styles.categoryPill,
                             {
                                 backgroundColor: selectedCategory === item.id
-                                    ? vTheme.colors.primary
-                                    : (isDarkMode ? '#2C2C2E' : '#fff'),
+                                    ? colors.accent
+                                    : colors.surface,
                                 borderColor: selectedCategory === item.id
-                                    ? vTheme.colors.primary
-                                    : (isDarkMode ? '#3A3A3C' : '#ddd')
+                                    ? colors.accent
+                                    : colors.border
                             }
                         ]}
                     >
-                        {item.id === '' && <LayoutGrid size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
-                        {item.id === 'spiritual' && <Sun size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
-                        {item.id === 'events' && <Calendar size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
-                        {item.id === 'education' && <GraduationCap size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
-                        {item.id === 'wellness' && <Heart size={14} color={selectedCategory === item.id ? '#fff' : vTheme.colors.textSecondary} style={{ marginRight: 6 }} />}
+                        {item.id === '' && <LayoutGrid size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />}
+                        {item.id === 'spiritual' && <Sun size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />}
+                        {item.id === 'events' && <Calendar size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />}
+                        {item.id === 'education' && <GraduationCap size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />}
+                        {item.id === 'wellness' && <Heart size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />}
                         <Text style={[
                             styles.categoryPillText,
-                            {
-                                color: selectedCategory === item.id
-                                    ? '#fff'
-                                    : vTheme.colors.text
-                            }
+                            { color: colors.textPrimary }
                         ]}>
                             {lang === 'en' ? item.labelEn : item.label}
                         </Text>
@@ -303,7 +292,7 @@ export const NewsScreen = () => {
         return (
             <TouchableOpacity
                 style={[
-                    isHero ? styles.heroCard : [styles.card, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider, borderWidth: 1 }],
+                    isHero ? styles.heroCard : [styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, borderWidth: 1 }],
                 ]}
                 activeOpacity={0.8}
                 onPress={() => {
@@ -318,10 +307,10 @@ export const NewsScreen = () => {
                     />
                 ) : (
                     <LinearGradient
-                        colors={isDarkMode ? ['#1e293b', '#334155'] : ['#e0e7ff', '#c7d2fe']}
+                        colors={[colors.surfaceElevated, colors.surface]}
                         style={isHero ? styles.heroImage : styles.cardImage}
                     >
-                        <Newspaper size={isHero ? 64 : 32} color={isDarkMode ? '#475569' : '#94a3b8'} />
+                        <Newspaper size={isHero ? 64 : 32} color={colors.textSecondary} />
                     </LinearGradient>
                 )}
 
@@ -334,7 +323,7 @@ export const NewsScreen = () => {
                             <View style={styles.heroTopActions}>
                                 {item.isImportant && (
                                     <View style={styles.importantBadge}>
-                                        <Zap size={12} color="#fff" style={{ marginRight: 4 }} />
+                                        <Zap size={12} color={colors.textPrimary} style={{ marginRight: 4 }} />
                                         <Text style={styles.importantBadgeText}>{lang === 'en' ? 'Important' : 'Важное'}</Text>
                                     </View>
                                 )}
@@ -343,13 +332,13 @@ export const NewsScreen = () => {
                                         onPress={() => toggleFavorite(item.sourceId)}
                                         style={styles.heroActionBtn}
                                     >
-                                        <Star size={18} color={isFavorite ? '#fcd34d' : '#fff'} fill={isFavorite ? '#fcd34d' : 'transparent'} />
+                                        <Star size={18} color={isFavorite ? colors.warning : colors.textPrimary} fill={isFavorite ? colors.warning : 'transparent'} />
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={() => toggleSubscription(item.sourceId)}
                                         style={styles.heroActionBtn}
                                     >
-                                        {isSubscribed ? <Bell size={18} color="#fff" /> : <BellOff size={18} color="#fff" />}
+                                        {isSubscribed ? <Bell size={18} color={colors.textPrimary} /> : <BellOff size={18} color={colors.textPrimary} />}
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -372,38 +361,38 @@ export const NewsScreen = () => {
                     <View style={styles.cardContent}>
                         <View style={styles.cardHeaderRow}>
                             <View style={styles.cardMeta}>
-                                <Text style={[styles.cardDate, { color: vTheme.colors.textSecondary }]}>
+                                <Text style={[styles.cardDate, { color: colors.textSecondary }]}>
                                     {newsService.formatDate(item.publishedAt)}
                                 </Text>
                                 {item.isImportant && (
-                                    <Zap size={12} color={roleColors.accent} style={{ marginLeft: 6 }} />
+                                    <Zap size={12} color={colors.accent} style={{ marginLeft: 6 }} />
                                 )}
                             </View>
                             <View style={styles.cardActions}>
                                 <TouchableOpacity onPress={() => toggleFavorite(item.sourceId)}>
-                                    <Star size={16} color={isFavorite ? roleColors.accent : vTheme.colors.textSecondary} fill={isFavorite ? roleColors.accent : 'transparent'} />
+                                    <Star size={16} color={isFavorite ? colors.accent : colors.textSecondary} fill={isFavorite ? colors.accent : 'transparent'} />
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => toggleSubscription(item.sourceId)}>
-                                    {isSubscribed ? <Bell size={16} color={vTheme.colors.primary} /> : <BellOff size={16} color={vTheme.colors.textSecondary} />}
+                                    {isSubscribed ? <Bell size={16} color={colors.accent} /> : <BellOff size={16} color={colors.textSecondary} />}
                                 </TouchableOpacity>
                             </View>
                         </View>
-                        <Text style={[styles.cardTitle, { color: vTheme.colors.text }]} numberOfLines={2}>
+                        <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={2}>
                             {newsService.cleanText(item.title)}
                         </Text>
-                        <Text style={[styles.cardSummary, { color: vTheme.colors.textSecondary }]} numberOfLines={2}>
+                        <Text style={[styles.cardSummary, { color: colors.textSecondary }]} numberOfLines={2}>
                             {newsService.cleanText(item.summary)}
                         </Text>
                         <View style={styles.cardFooter}>
                             {item.category && (
-                                <View style={[styles.categoryTag, { backgroundColor: vTheme.colors.background }]}>
-                                    <Text style={[styles.categoryTagText, { color: vTheme.colors.textSecondary }]}>
+                                <View style={[styles.categoryTag, { backgroundColor: colors.background }]}>
+                                    <Text style={[styles.categoryTagText, { color: colors.textSecondary }]}>
                                         {item.category}
                                     </Text>
                                 </View>
                             )}
                             {item.sourceName && (
-                                <Text style={[styles.sourceName, { color: vTheme.colors.primary }]}>
+                                <Text style={[styles.sourceName, { color: colors.accent }]}>
                                     {item.sourceName}
                                 </Text>
                             )}
@@ -418,7 +407,7 @@ export const NewsScreen = () => {
         if (!hasMore) return null;
         return (
             <View style={styles.footer}>
-                <ActivityIndicator size="small" color={roleColors.accent} />
+                <ActivityIndicator size="small" color={colors.accent} />
             </View>
         );
     };
@@ -426,12 +415,12 @@ export const NewsScreen = () => {
     const renderEmpty = () => {
         if (loading) return null;
         return (
-            <View style={[styles.emptyContainer, { backgroundColor: vTheme.colors.background }]}>
-                <Inbox size={64} color={vTheme.colors.textSecondary} style={{ marginBottom: 16, opacity: 0.5 }} />
-                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+            <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
+                <Inbox size={64} color={colors.textSecondary} style={{ marginBottom: 16, opacity: 0.5 }} />
+                <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
                     {lang === 'en' ? 'No news yet' : 'Новостей пока нет'}
                 </Text>
-                <Text style={[styles.emptyText, { color: theme.subText }]}>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                     {lang === 'en'
                         ? 'Check back later for updates'
                         : 'Загляните позже для обновлений'}
@@ -442,9 +431,9 @@ export const NewsScreen = () => {
 
     if (loading && news.length === 0) {
         return (
-            <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-                <ActivityIndicator size="large" color={roleColors.accent} />
-                <Text style={[styles.loadingText, { color: theme.subText }]}>
+            <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
                     {lang === 'en' ? 'Loading news...' : 'Загрузка новостей...'}
                 </Text>
             </View>
@@ -453,11 +442,11 @@ export const NewsScreen = () => {
 
     if (error && news.length === 0) {
         return (
-            <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-                <AlertCircle size={48} color={theme.primary} style={{ marginBottom: 16 }} />
-                <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
+            <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+                <AlertCircle size={48} color={colors.accent} style={{ marginBottom: 16 }} />
+                <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error}</Text>
                 <TouchableOpacity
-                    style={[styles.retryButton, { backgroundColor: roleColors.accent }]}
+                    style={[styles.retryButton, { backgroundColor: colors.accent }]}
                     onPress={() => loadNews(1, true)}
                 >
                     <Text style={styles.retryButtonText}>
@@ -469,7 +458,7 @@ export const NewsScreen = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <GodModeStatusBanner />
             {renderCategoryPills()}
             <FlatList
@@ -481,7 +470,7 @@ export const NewsScreen = () => {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
-                        tintColor={roleColors.accent}
+                        tintColor={colors.accent}
                     />
                 }
                 onEndReached={handleLoadMore}
@@ -494,9 +483,10 @@ export const NewsScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: colors.background,
     },
     centered: {
         justifyContent: 'center',
@@ -525,6 +515,8 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         borderWidth: 1,
         alignItems: 'center',
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
     },
     toggleText: {
         fontSize: 13,
@@ -544,7 +536,7 @@ const styles = StyleSheet.create({
         marginRight: 8,
         alignItems: 'center',
         elevation: 1,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
@@ -560,7 +552,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         overflow: 'hidden',
         elevation: 4,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.15,
         shadowRadius: 8,
@@ -596,7 +588,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -606,12 +598,12 @@ const styles = StyleSheet.create({
     heroTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#fff',
+        color: colors.textPrimary,
         marginBottom: 6,
     },
     heroSummary: {
         fontSize: 14,
-        color: 'rgba(255,255,255,0.85)',
+        color: colors.textSecondary,
         lineHeight: 20,
         marginBottom: 8,
     },
@@ -622,19 +614,19 @@ const styles = StyleSheet.create({
     },
     heroDate: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.7)',
+        color: colors.textSecondary,
     },
     heroCategory: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.7)',
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        color: colors.textSecondary,
+        backgroundColor: colors.overlay,
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 8,
         overflow: 'hidden',
     },
     importantBadge: {
-        backgroundColor: '#f59e0b',
+        backgroundColor: colors.accent,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
@@ -645,7 +637,7 @@ const styles = StyleSheet.create({
     importantBadgeText: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#fff',
+        color: colors.textPrimary,
     },
 
     // Regular Card
@@ -655,7 +647,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         flexDirection: 'row',
         elevation: 2,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -769,7 +761,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     retryButtonText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },

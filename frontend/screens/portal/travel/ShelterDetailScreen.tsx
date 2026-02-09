@@ -29,6 +29,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const ShelterDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -47,6 +48,7 @@ const ShelterDetailScreen: React.FC = () => {
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const loadShelter = useCallback(async () => {
         try {
@@ -186,7 +188,7 @@ const ShelterDetailScreen: React.FC = () => {
                     <View style={styles.headerContent}>
                         {shelter.sevaExchange && (
                             <View style={[styles.sevaBadge, { backgroundColor: colors.danger }]}>
-                                <Heart size={12} color="white" fill="white" />
+                                <Heart size={12} color={colors.textPrimary} fill={colors.textPrimary} />
                                 <Text style={styles.sevaText}>Seva Exchange</Text>
                             </View>
                         )}
@@ -446,16 +448,16 @@ const ShelterDetailScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000000',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#000000',
+        backgroundColor: colors.background,
     },
     content: {
         flex: 1,
@@ -508,7 +510,7 @@ const styles = StyleSheet.create({
         right: 20,
     },
     sevaBadge: {
-        backgroundColor: '#FF2D55',
+        backgroundColor: colors.danger,
         alignSelf: 'flex-start',
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -519,14 +521,14 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     sevaText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontWeight: 'bold',
         fontSize: 12,
     },
     title: {
         fontSize: 32,
         fontWeight: 'bold',
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginBottom: 8,
         lineHeight: 38,
         textShadowColor: 'rgba(0,0,0,0.5)',
@@ -539,22 +541,22 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     ratingText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontWeight: 'bold',
         fontSize: 16,
         marginLeft: 6,
     },
     reviewsCount: {
         fontWeight: 'normal',
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 14,
     },
     dot: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         marginHorizontal: 8,
     },
     typeText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 16,
     },
     locationRow: {
@@ -563,18 +565,18 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     locationText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 16,
         fontWeight: '500',
     },
     hostSection: {
         padding: 20,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         marginHorizontal: 16,
         marginTop: -30,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: colors.border,
     },
     hostRow: {
         flexDirection: 'row',
@@ -585,7 +587,7 @@ const styles = StyleSheet.create({
         height: 50,
         borderRadius: 25,
         borderWidth: 2,
-        borderColor: '#FF9500',
+        borderColor: colors.accent,
     },
     hostInfo: {
         flex: 1,
@@ -593,11 +595,11 @@ const styles = StyleSheet.create({
     },
     hostLabel: {
         fontSize: 12,
-        color: '#8E8E93',
+        color: colors.textSecondary,
         marginBottom: 2,
     },
     hostName: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
     },
@@ -605,27 +607,27 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#3A3A3C',
+        borderColor: colors.border,
     },
     section: {
         marginTop: 24,
         paddingHorizontal: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#1C1C1E',
+        borderBottomColor: colors.border,
         paddingBottom: 24,
     },
     sectionHeader: {
         fontSize: 22,
         fontWeight: 'bold',
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginBottom: 16,
     },
     descriptionText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 16,
         lineHeight: 24,
     },
@@ -639,7 +641,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     templeText: {
-        color: '#34C759',
+        color: colors.success,
         fontSize: 15,
         fontWeight: '600',
         flex: 1,
@@ -657,7 +659,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     amenityText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 15,
     },
     ruleList: {
@@ -669,11 +671,11 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     ruleText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 16,
     },
     sevaBox: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 20,
         borderRadius: 16,
         borderWidth: 1,
@@ -686,12 +688,12 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     sevaBoxTitle: {
-        color: '#FF2D55',
+        color: colors.danger,
         fontSize: 18,
         fontWeight: 'bold',
     },
     sevaBoxText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 15,
         lineHeight: 22,
     },
@@ -702,12 +704,12 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     seeAllText: {
-        color: '#FF9500',
+        color: colors.accent,
         fontSize: 16,
         fontWeight: '600',
     },
     reviewCard: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 16,
         padding: 16,
         marginBottom: 12,
@@ -729,7 +731,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     reviewName: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -739,12 +741,12 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     reviewRatingText: {
-        color: '#FFD700',
+        color: colors.warning,
         fontWeight: 'bold',
         fontSize: 12,
     },
     reviewText: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
         lineHeight: 20,
     },
@@ -753,24 +755,24 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 16,
         paddingBottom: 32,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderTopWidth: 1,
-        borderTopColor: '#2C2C2E',
+        borderTopColor: colors.border,
     },
     priceContainer: {
         flex: 1,
     },
     priceLabel: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
     },
     priceValue: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 22,
         fontWeight: 'bold',
     },
@@ -791,7 +793,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
@@ -804,12 +806,12 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     modalTitle: {
-        color: '#FFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: 'bold',
     },
     closeButtonText: {
-        color: '#FF9500',
+        color: colors.accent,
         fontSize: 16,
     },
     ratingSelect: {
@@ -818,22 +820,22 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     input: {
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 12,
-        color: '#FFF',
+        color: colors.textPrimary,
         minHeight: 100,
         textAlignVertical: 'top',
         marginBottom: 20,
     },
     submitButton: {
-        backgroundColor: '#FF9500',
+        backgroundColor: colors.accent,
         borderRadius: 12,
         padding: 16,
         alignItems: 'center',
     },
     submitButtonText: {
-        color: '#000',
+        color: colors.background,
         fontWeight: 'bold',
         fontSize: 16,
     },

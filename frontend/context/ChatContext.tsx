@@ -25,7 +25,7 @@ interface ChatContextType {
     isLoading: boolean;
     showMenu: boolean;
     setShowMenu: (show: boolean) => void;
-    handleSendMessage: () => void;
+    handleSendMessage: (textOverride?: string) => Promise<boolean>;
     handleStopRequest: () => void;
     handleNewChat: () => void;
     handleMenuOption: (option: string, onNavigateToPortal: (tab: any) => void) => void;
@@ -69,7 +69,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const { user: currentUser } = useUser();
     const { addListener } = useWebSocket();
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const recordingStartedAtRef = useRef<number | null>(null);
 
     const isFirstRun = useRef(true);
 
@@ -333,43 +333,51 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const handleSendP2PMessage = async (text: string) => {
-        if (!recipientId || !currentUser?.ID) return;
+    const handleSendP2PMessage = async (text: string): Promise<boolean> => {
+        if (!recipientId || !currentUser?.ID) return false;
 
         try {
             setIsLoading(true);
             const savedMsg = await messageService.sendMessage(currentUser.ID, recipientId, text);
             // No need to manually add to state anymore, WS will handle it
             // This ensures consistency and sync across devices
-            setInputText('');
+            return Boolean(savedMsg);
         } catch (error) {
             console.error('Failed to send P2P message', error);
+            return false;
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleSendMessage = async () => {
-        if (!inputText.trim() || isLoading) return;
+    const handleSendMessage = async (textOverride?: string): Promise<boolean> => {
+        const rawInput = textOverride ?? inputText;
+        const trimmedInput = rawInput.trim();
+        if (!trimmedInput || isLoading) return false;
 
         // Check if AI prompt or P2P
-        if (inputText.startsWith('/') || !recipientId) {
-            const textToBot = inputText.startsWith('/') ? inputText.substring(1).trim() : inputText.trim();
-            if (!textToBot) return;
+        if (rawInput.startsWith('/') || !recipientId) {
+            const textToBot = rawInput.startsWith('/') ? rawInput.substring(1).trim() : trimmedInput;
+            if (!textToBot) return false;
 
             // Add user message to UI
             const newUserMessage: Message = {
                 id: `user_${Date.now()}`,
-                text: inputText.trim(),
+                text: trimmedInput,
                 sender: 'user',
             };
             setMessages((prev) => [...prev, newUserMessage]);
             setInputText('');
 
             await handleSendToAI(textToBot);
+            return true;
         } else {
             // P2P Mode
-            await handleSendP2PMessage(inputText.trim());
+            const sent = await handleSendP2PMessage(trimmedInput);
+            if (sent) {
+                setInputText('');
+            }
+            return sent;
         }
     };
 
@@ -403,17 +411,30 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
     const handleNewChat = () => {
         const assistantName = assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас");
-        setMessages([
-            {
-                id: `welcome_${Date.now()}`,
-                text: `${assistantName}. ${t('chat.welcome')}`,
-                sender: 'bot',
-            }
-        ]);
-        setCurrentChatId(null);
+        const welcomeMessages: Message[] = [{
+            id: `welcome_${Date.now()}`,
+            text: `${assistantName}. ${t('chat.welcome')}`,
+            sender: 'bot',
+        }];
+        const chatId = Date.now().toString();
+        const newChat: ChatHistory = {
+            id: chatId,
+            title: t('chat.history'),
+            messages: welcomeMessages,
+            timestamp: Date.now(),
+        };
+
+        const updatedHistory = [newChat, ...history];
+
+        setMessages(welcomeMessages);
+        setCurrentChatId(chatId);
+        setHistory(updatedHistory);
         setRecipientId(null);
         setRecipientUser(null);
         setShowMenu(false);
+
+        AsyncStorage.setItem('chat_history', JSON.stringify(updatedHistory))
+            .catch((e) => console.error('Failed to save new chat history', e));
     };
 
     const loadChat = (id: string) => {
@@ -430,7 +451,16 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         const updated = history.filter(h => h.id !== id);
         setHistory(updated);
         if (currentChatId === id) {
-            handleNewChat();
+            // When deleting the active chat, reset UI without re-adding a new history item.
+            const assistantName = assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас");
+            setMessages([{
+                id: `welcome_${Date.now()}`,
+                text: `${assistantName}. ${t('chat.welcome')}`,
+                sender: 'bot',
+            }]);
+            setCurrentChatId(null);
+            setRecipientId(null);
+            setRecipientUser(null);
         }
         try {
             await AsyncStorage.setItem('chat_history', JSON.stringify(updated));
@@ -539,31 +569,28 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const startRecording = async () => {
         try {
             await mediaService.startRecording();
+            recordingStartedAtRef.current = Date.now();
             setIsRecording(true);
             setRecordingDuration(0);
-            recordingTimerRef.current = setInterval(() => {
-                setRecordingDuration(prev => prev + 1);
-            }, 1000);
         } catch (error) {
             console.error('Failed to start recording:', error);
         }
     };
 
     const stopRecording = async () => {
-        if (recordingTimerRef.current) {
-            clearInterval(recordingTimerRef.current);
-            recordingTimerRef.current = null;
-        }
-
         try {
-            console.log('🛑 Stopping audio recording, duration:', recordingDuration);
-            const finalDuration = recordingDuration;
+            const durationFromTimestamp = recordingStartedAtRef.current
+                ? Math.max(1, Math.floor((Date.now() - recordingStartedAtRef.current) / 1000))
+                : 0;
+            const finalDuration = durationFromTimestamp || recordingDuration;
+            console.log('🛑 Stopping audio recording, duration:', finalDuration);
             const media = await mediaService.stopRecording();
             console.log('📦 Stopped recording, media object:', media);
             media.duration = finalDuration; // Use duration from context timer
 
             setIsRecording(false);
             setRecordingDuration(0);
+            recordingStartedAtRef.current = null;
             console.log('🚀 Calling handleSendMedia with audio...');
             await handleSendMedia(media);
             console.log('✅ handleSendMedia completed');
@@ -571,15 +598,11 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to stop recording:', error);
             setIsRecording(false);
             setRecordingDuration(0);
+            recordingStartedAtRef.current = null;
         }
     };
 
     const cancelRecording = async () => {
-        if (recordingTimerRef.current) {
-            clearInterval(recordingTimerRef.current);
-            recordingTimerRef.current = null;
-        }
-
         try {
             await mediaService.stopRecording();
         } catch (error) {
@@ -588,6 +611,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
         setIsRecording(false);
         setRecordingDuration(0);
+        recordingStartedAtRef.current = null;
     };
 
     return (

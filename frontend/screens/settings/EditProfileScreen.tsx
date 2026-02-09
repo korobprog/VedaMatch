@@ -116,7 +116,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         yoga: false,
         dating: false
     });
-    const { colors: roleColors, roleTheme } = useRoleTheme(role, true);
+    const { colors: roleColors, roleTheme } = useRoleTheme(role, isPortalDarkMode);
 
     useEffect(() => {
         loadProfile();

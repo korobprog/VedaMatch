@@ -103,7 +103,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
-    const { colors: roleColors, roleTheme } = useRoleTheme(role, true);
+    const { colors: roleColors, roleTheme } = useRoleTheme(role, isPortalDarkMode);
     const isSeekerRole = role === 'user';
     const isInGoodnessRole = role === 'in_goodness';
     const isLiteProfileRole = isSeekerRole || isInGoodnessRole;

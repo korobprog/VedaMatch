@@ -10,8 +10,6 @@ import {
     Alert,
     ActivityIndicator,
     Vibration,
-    PanResponder,
-    Animated,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { BlurView } from '@react-native-community/blur';
@@ -22,7 +20,7 @@ import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { Image } from 'react-native';
 import { getMediaUrl } from '../../utils/url';
-import { mediaService, MediaFile } from '../../services/mediaService';
+import { mediaService } from '../../services/mediaService';
 import { AudioRecorder } from './AudioRecorder';
 import { Mic, Send, Camera, Paperclip, User, Search, VolumeX, Pin, Share2, Trash2, Ban, Flag, Image as LucideImage } from 'lucide-react-native';
 
@@ -35,15 +33,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
     const { t } = useTranslation();
     const {
-        inputText,
-        setInputText,
         handleSendMessage,
         handleStopRequest,
         handleSendMedia,
         isLoading,
         showMenu,
         setShowMenu,
-        handleNewChat,
         recipientUser,
         isUploading,
     } = useChat();
@@ -51,6 +46,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const { user: currentUser } = useUser();
     const { vTheme } = useSettings();
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const longPressTriggeredRef = useRef(false);
 
     const {
         isRecording,
@@ -60,23 +56,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     } = useChat();
 
     // Local states for new logic
+    const [draftText, setDraftText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
-    const [isLocked, setIsLocked] = useState(false);
-    const lockedRef = useRef(false);
-    const lockAnim = useRef(new Animated.Value(0)).current;
-
-    // Sync ref with state
-    useEffect(() => {
-        lockedRef.current = isLocked;
-    }, [isLocked]);
-
-    // Reset lock state when recording ends
-    useEffect(() => {
-        if (!isRecording) {
-            setIsLocked(false);
-            lockedRef.current = false;
-        }
-    }, [isRecording]);
 
     const handlePickImage = async () => {
         try {
@@ -112,51 +93,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     };
 
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: () => true,
-            onPanResponderGrant: () => {
-                Vibration.vibrate(50);
-                startRecording();
-                setIsLocked(false);
-                lockedRef.current = false;
-                lockAnim.setValue(0);
-            },
-            onPanResponderMove: (_, gestureState) => {
-                // If dragged up significantly, lock
-                if (gestureState.dy < -50 && !lockedRef.current) {
-                    setIsLocked(true);
-                    lockedRef.current = true;
-                    Vibration.vibrate(50); // Feedback
-                    Animated.spring(lockAnim, {
-                        toValue: 1,
-                        useNativeDriver: true
-                    }).start();
-                }
-            },
-            onPanResponderRelease: (_, gestureState) => {
-                if (lockedRef.current) {
-                    // Stay recording
-                } else {
-                    // Stop and send
-                    stopRecording();
-                }
-            },
-            onPanResponderTerminate: () => {
-                if (!lockedRef.current) {
-                    cancelRecording();
-                }
-            },
-        })
-    ).current;
+    const onSendPress = async () => {
+        if (longPressTriggeredRef.current) {
+            longPressTriggeredRef.current = false;
+            return;
+        }
 
-
-    const onSendPress = () => {
         if (isLoading) {
             handleStopRequest();
-        } else {
-            handleSendMessage();
+            return;
+        }
+        const sent = await handleSendMessage(draftText);
+        if (sent) {
+            setDraftText('');
         }
     };
 
@@ -168,10 +117,29 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         cancelRecording();
     };
 
+    const onMicPress = async () => {
+        setShowMenu(false);
+        Vibration.vibrate(30);
+        if (isRecording) {
+            await stopRecording();
+            return;
+        }
+        await startRecording();
+    };
+
+    const onSendLongPress = async () => {
+        if (isLoading || isUploading || draftText.trim().length > 0) {
+            return;
+        }
+
+        longPressTriggeredRef.current = true;
+        await onMicPress();
+    };
+
     const avatarUrl = getMediaUrl(recipientUser?.avatarUrl);
 
     const handleTextChange = (text: string) => {
-        setInputText(text);
+        setDraftText(text);
 
         if (recipientUser?.ID && currentUser?.ID && recipientUser.ID !== currentUser.ID) {
             sendTypingIndicator(recipientUser.ID, true);
@@ -194,7 +162,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         };
     }, []);
 
-    const showSendButton = (inputText.length > 0 || isFocused) && !isRecording;
+    const showSendButton = (draftText.length > 0 || isFocused) && !isRecording;
 
     const getMenuIcon = (option: string, color: string) => {
         switch (option) {
@@ -327,10 +295,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             style={[styles.input, { color: '#F8FAFC' }]}
                             placeholder={t('chat.placeholder')}
                             placeholderTextColor="rgba(248,250,252,0.66)"
-                            value={inputText}
+                            value={draftText}
                             onChangeText={handleTextChange}
-                            onSubmitEditing={handleSendMessage}
+                            onSubmitEditing={onSendPress}
                             multiline
+                            blurOnSubmit={false}
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
                             editable={!isLoading && !isRecording} // Unblocked isUploading
@@ -341,6 +310,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 {showSendButton ? (
                     <TouchableOpacity
                         onPress={onSendPress}
+                        onLongPress={onSendLongPress}
+                        delayLongPress={350}
                         style={styles.sendButton}
                         disabled={false} // Unblocked isUploading
                     >
@@ -353,22 +324,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         )}
                     </TouchableOpacity>
                 ) : (
-                    <View
-                        {...panResponder.panHandlers}
-                        style={styles.micButtonContainer}
+                    <TouchableOpacity
+                        onPress={onMicPress}
+                        style={styles.sendButton}
+                        activeOpacity={0.8}
                     >
-                        <TouchableOpacity
-                            activeOpacity={1}
-                            style={styles.sendButton}
-                        >
-                            <Mic size={24} color={isRecording ? '#F87171' : '#F8FAFC'} />
-                        </TouchableOpacity>
-                    </View>
+                        <Mic size={24} color={isRecording ? '#F87171' : '#F8FAFC'} />
+                    </TouchableOpacity>
                 )}
             </View>
 
             <AudioRecorder
-                isLocked={isLocked}
+                isLocked
                 onSend={onLockedSend}
                 onCancel={onLockedCancel}
             />
@@ -435,8 +402,11 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 16,
-        paddingVertical: 8,
+        lineHeight: 22,
+        paddingTop: Platform.OS === 'ios' ? 8 : 4,
+        paddingBottom: Platform.OS === 'ios' ? 8 : 4,
         paddingHorizontal: 8,
+        textAlignVertical: 'center',
         maxHeight: 120,
     },
     sendButton: {

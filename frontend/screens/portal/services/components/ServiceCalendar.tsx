@@ -139,7 +139,7 @@ export default function ServiceCalendar({
             {/* Calendar Grid */}
             {loading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator color="#F59E0B" size="large" />
+                    <ActivityIndicator color="rgba(245,158,11,1)" size="large" />
                 </View>
             ) : (
                 <View style={styles.calendarGrid}>
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.08)',
     },
     monthTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -311,22 +311,22 @@ const styles = StyleSheet.create({
         borderColor: 'transparent',
     },
     dayToday: {
-        borderColor: '#F59E0B',
+        borderColor: 'rgba(245,158,11,1)',
     },
     daySelected: {
-        backgroundColor: '#fff',
-        borderColor: '#fff',
+        backgroundColor: 'rgba(255,255,255,1)',
+        borderColor: 'rgba(255,255,255,1)',
     },
     dayDisabled: {
         opacity: 0.2,
     },
     dayText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '700',
     },
     dayTextSelected: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontWeight: '900',
     },
     dayTextDisabled: {
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
         width: 4,
         height: 4,
         borderRadius: 2,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         position: 'absolute',
         bottom: 6,
     },
@@ -357,12 +357,12 @@ const styles = StyleSheet.create({
     headerIndicator: {
         width: 4,
         height: 12,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         borderRadius: 2,
         marginRight: 10,
     },
     timeSlotsTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '800',
         flex: 1,
@@ -370,14 +370,14 @@ const styles = StyleSheet.create({
     durationBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
         gap: 4,
     },
     durationText: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontSize: 11,
         fontWeight: '900',
     },
@@ -406,19 +406,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     timeSlotSelected: {
-        backgroundColor: '#fff',
-        borderColor: '#fff',
+        backgroundColor: 'rgba(255,255,255,1)',
+        borderColor: 'rgba(255,255,255,1)',
     },
     timeSlotUnavailable: {
         opacity: 0.1,
     },
     timeSlotText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '800',
     },
     timeSlotTextSelected: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
     },
     timeSlotTextUnavailable: {
         // Matches opacity

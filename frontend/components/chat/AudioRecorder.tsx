@@ -5,12 +5,10 @@ import {
 	TouchableOpacity,
 	StyleSheet,
 	useColorScheme,
-	ActivityIndicator,
-	Animated,
 } from 'react-native';
 import { useChat } from '../../context/ChatContext';
 import { COLORS } from './ChatConstants';
-import { ChevronUp, Lock, Trash2, Send } from 'lucide-react-native';
+import { Trash2, Send } from 'lucide-react-native';
 
 interface AudioRecorderProps {
 	isLocked?: boolean;
@@ -27,39 +25,33 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 	const theme = isDarkMode ? COLORS.dark : COLORS.light;
 	const {
 		isRecording,
-		recordingDuration: duration,
 		cancelRecording,
 		stopRecording, // Default context fallback
-		isUploading: isSending,
 	} = useChat();
 
-	const slideAnim = useRef(new Animated.Value(0)).current;
+	const [duration, setDuration] = useState(0);
+	const startedAtRef = useRef<number | null>(null);
 
 	useEffect(() => {
-		let animation: Animated.CompositeAnimation | null = null;
-		if (isRecording && !isLocked) {
-			animation = Animated.loop(
-				Animated.sequence([
-					Animated.timing(slideAnim, {
-						toValue: -10,
-						duration: 600,
-						useNativeDriver: true,
-					}),
-					Animated.timing(slideAnim, {
-						toValue: 0,
-						duration: 600,
-						useNativeDriver: true,
-					}),
-				])
-			);
-			animation.start();
-		} else {
-			slideAnim.setValue(0);
+		if (!isRecording) {
+			setDuration(0);
+			startedAtRef.current = null;
+			return;
 		}
+
+		startedAtRef.current = Date.now();
+		setDuration(0);
+
+		const timer = setInterval(() => {
+			if (!startedAtRef.current) return;
+			const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000));
+			setDuration(elapsedSeconds);
+		}, 1000);
+
 		return () => {
-			if (animation) animation.stop();
+			clearInterval(timer);
 		};
-	}, [isRecording, isLocked]);
+	}, [isRecording]);
 
 	const formatTime = (seconds: number): string => {
 		const mins = Math.floor(seconds / 60);
@@ -74,49 +66,24 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
 	if (!isRecording) return null;
 
-	if (!isRecording) return null;
-
 	return (
 		<View style={styles.container}>
-			{isLocked ? (
-				<View style={[styles.lockedContainer, { backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF' }]}>
-					<TouchableOpacity onPress={handleCancel} style={styles.actionButton}>
-						<Trash2 size={24} color="#FF3B30" />
-					</TouchableOpacity>
+			<View style={[styles.lockedContainer, { backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF' }]}>
+				<TouchableOpacity onPress={handleCancel} style={styles.actionButton}>
+					<Trash2 size={24} color="#FF3B30" />
+				</TouchableOpacity>
 
-					<View style={styles.timerContainer}>
-						<Animated.View style={[styles.recordingDot, {
-							opacity: slideAnim.interpolate({
-								inputRange: [-10, 0],
-								outputRange: [0.5, 1]
-							})
-						}]} />
-						<Text style={[styles.timerText, { color: theme.text }]}>
-							{formatTime(duration)}
-						</Text>
-					</View>
-
-					<TouchableOpacity onPress={handleSend} style={styles.actionButton}>
-						<Send size={24} color={theme.primary} style={{ marginLeft: 2 }} />
-					</TouchableOpacity>
+				<View style={styles.timerContainer}>
+					<View style={styles.recordingDot} />
+					<Text style={[styles.timerText, { color: theme.text }]}>
+						{formatTime(duration)}
+					</Text>
 				</View>
-			) : (
-				<View style={styles.holdingContainer}>
-					<View style={styles.lockHintWrapper}>
-						<Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
-							<ChevronUp size={20} color="#FFFFFF" />
-						</Animated.View>
-						<Lock size={14} color="#FFFFFF" style={{ marginTop: 2, opacity: 0.8 }} />
-					</View>
 
-					<View style={[styles.holdingIndicator, { backgroundColor: theme.botBubble }]}>
-						<View style={styles.recordingDot} />
-						<Text style={[styles.timerText, { color: theme.text }]}>
-							{formatTime(duration)}
-						</Text>
-					</View>
-				</View>
-			)}
+				<TouchableOpacity onPress={handleSend} style={styles.actionButton}>
+					<Send size={24} color={theme.primary} style={{ marginLeft: 2 }} />
+				</TouchableOpacity>
+			</View>
 		</View>
 	);
 };
@@ -144,27 +111,6 @@ const styles = StyleSheet.create({
 		shadowRadius: 12,
 		elevation: 8,
 	},
-	holdingContainer: {
-		alignItems: 'center',
-		gap: 16,
-	},
-	lockHintWrapper: {
-		alignItems: 'center',
-		justifyContent: 'center',
-		backgroundColor: 'rgba(0,0,0,0.6)',
-		paddingVertical: 8,
-		paddingHorizontal: 12,
-		borderRadius: 20,
-		marginBottom: 4,
-	},
-	holdingIndicator: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		paddingHorizontal: 16,
-		paddingVertical: 10,
-		borderRadius: 20,
-		gap: 8,
-	},
 	timerContainer: {
 		flexDirection: 'row',
 		alignItems: 'center',
@@ -184,9 +130,5 @@ const styles = StyleSheet.create({
 	},
 	actionButton: {
 		padding: 8,
-	},
-	lockHint: {
-		alignItems: 'center',
-		marginBottom: 10,
 	},
 });

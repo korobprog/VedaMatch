@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    useColorScheme,
     Image,
     TouchableOpacity,
     ActivityIndicator,
@@ -15,11 +14,12 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
-import { COLORS } from '../../../components/chat/ChatConstants';
 import { newsService, NewsItem } from '../../../services/newsService';
 import { RootStackParamList } from '../../../types/navigation';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
@@ -27,12 +27,12 @@ type NewsDetailRouteProp = RouteProp<RootStackParamList, 'NewsDetail'>;
 
 export const NewsDetailScreen = () => {
     const { t, i18n } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { isDarkMode } = useSettings();
     const navigation = useNavigation();
     const route = useRoute<NewsDetailRouteProp>();
     const { user } = useUser();
-    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
     const { newsId } = route.params;
@@ -77,9 +77,9 @@ export const NewsDetailScreen = () => {
 
     if (loading) {
         return (
-            <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-                <ActivityIndicator size="large" color={roleColors.accent} />
-                <Text style={[styles.loadingText, { color: theme.subText }]}>
+            <View style={[styles.container, styles.centered]}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={styles.loadingText}>
                     {lang === 'en' ? 'Loading...' : 'Загрузка...'}
                 </Text>
             </View>
@@ -88,13 +88,13 @@ export const NewsDetailScreen = () => {
 
     if (error || !news) {
         return (
-            <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
+            <View style={[styles.container, styles.centered]}>
                 <Text style={styles.errorEmoji}>😕</Text>
-                <Text style={[styles.errorText, { color: theme.text }]}>
+                <Text style={styles.errorText}>
                     {error || (lang === 'en' ? 'News not found' : 'Новость не найдена')}
                 </Text>
                 <TouchableOpacity
-                    style={[styles.retryButton, { backgroundColor: roleColors.accent }]}
+                    style={[styles.retryButton, { backgroundColor: colors.accent }]}
                     onPress={loadNewsDetail}
                 >
                     <Text style={styles.retryButtonText}>
@@ -105,7 +105,7 @@ export const NewsDetailScreen = () => {
                     style={styles.backButton}
                     onPress={handleGoBack}
                 >
-                    <Text style={[styles.backButtonText, { color: roleColors.accent }]}>
+                    <Text style={[styles.backButtonText, { color: colors.accent }]}>
                         {lang === 'en' ? '← Back' : '← Назад'}
                     </Text>
                 </TouchableOpacity>
@@ -114,16 +114,16 @@ export const NewsDetailScreen = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={styles.container}>
             {/* Header with back button */}
-            <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
+            <View style={styles.header}>
                 <TouchableOpacity onPress={handleGoBack} style={styles.headerButton}>
-                    <Text style={[styles.headerButtonText, { color: roleColors.accent }]}>
+                    <Text style={[styles.headerButtonText, { color: colors.accent }]}>
                         ← {lang === 'en' ? 'Back' : 'Назад'}
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleShare} style={styles.headerButton}>
-                    <Text style={[styles.headerButtonText, { color: roleColors.accent }]}>
+                    <Text style={[styles.headerButtonText, { color: colors.accent }]}>
                         {lang === 'en' ? 'Share' : 'Поделиться'} ↗
                     </Text>
                 </TouchableOpacity>
@@ -143,7 +143,7 @@ export const NewsDetailScreen = () => {
                     />
                 ) : (
                     <LinearGradient
-                        colors={[roleColors.accentSoft, roleColors.surfaceElevated]}
+                        colors={[colors.accentSoft, colors.surfaceElevated]}
                         style={styles.heroImage}
                     >
                         <Text style={styles.placeholderEmoji}>📰</Text>
@@ -155,53 +155,53 @@ export const NewsDetailScreen = () => {
                     {/* Meta info */}
                     <View style={styles.metaContainer}>
                         {news.isImportant && (
-                            <View style={[styles.importantBadge, { backgroundColor: roleColors.accent }]}>
-                                <Text style={[styles.importantBadgeText, { color: roleColors.background }]}>
+                            <View style={[styles.importantBadge, { backgroundColor: colors.accent }]}>
+                                <Text style={[styles.importantBadgeText, { color: colors.background }]}>
                                     ⚡ {lang === 'en' ? 'Important' : 'Важное'}
                                 </Text>
                             </View>
                         )}
-                        <Text style={[styles.date, { color: theme.subText }]}>
+                        <Text style={styles.date}>
                             {newsService.formatDate(news.publishedAt)}
                         </Text>
-                        {news.category && (
-                            <View style={[styles.categoryTag, { backgroundColor: theme.header }]}>
-                                <Text style={[styles.categoryTagText, { color: theme.subText }]}>
+                        {news.category ? (
+                            <View style={styles.categoryTag}>
+                                <Text style={styles.categoryTagText}>
                                     {news.category}
                                 </Text>
                             </View>
-                        )}
+                        ) : null}
                     </View>
 
                     {/* Title */}
-                    <Text style={[styles.title, { color: theme.text }]}>
+                    <Text style={styles.title}>
                         {newsService.cleanText(news.title)}
                     </Text>
 
                     {/* Summary */}
                     {news.summary && (
-                        <Text style={[styles.summary, { color: theme.subText }]}>
+                        <Text style={styles.summary}>
                             {newsService.cleanText(news.summary)}
                         </Text>
                     )}
 
                     {/* Divider */}
-                    <View style={[styles.divider, { backgroundColor: theme.borderColor }]} />
+                    <View style={styles.divider} />
 
                     {/* Original Source Button (for Video/Audio) */}
                     {typeof news.originalUrl === 'string' && news.originalUrl.length > 0 && (
                         <TouchableOpacity
-                            style={[styles.sourceButton, { borderColor: roleColors.accent }]}
+                            style={[styles.sourceButton, { borderColor: colors.accent }]}
                             onPress={() => Linking.openURL(news.originalUrl as string)}
                         >
-                            <Text style={[styles.sourceButtonText, { color: roleColors.accent }]}>
+                            <Text style={[styles.sourceButtonText, { color: colors.accent }]}>
                                 {lang === 'en' ? '📺 View Original (Video/Audio)' : '📺 Перейти к источнику (Видео/Аудио)'}
                             </Text>
                         </TouchableOpacity>
                     )}
 
                     {/* Content */}
-                    <Text style={[styles.content, { color: theme.text }]}>
+                    <Text style={styles.content}>
                         {newsService.cleanText(news.content || news.summary) || (lang === 'en' ? 'No content available' : 'Содержимое недоступно')}
                     </Text>
 
@@ -214,9 +214,9 @@ export const NewsDetailScreen = () => {
                                 return (
                                     <View
                                         key={index}
-                                        style={[styles.tag, { backgroundColor: theme.header }]}
+                                        style={styles.tag}
                                     >
-                                        <Text style={[styles.tagText, { color: theme.subText }]}>
+                                        <Text style={styles.tagText}>
                                             #{trimmedTag}
                                         </Text>
                                     </View>
@@ -227,7 +227,7 @@ export const NewsDetailScreen = () => {
 
                     {/* Views count */}
                     <View style={styles.statsContainer}>
-                        <Text style={[styles.statsText, { color: theme.subText }]}>
+                        <Text style={styles.statsText}>
                             👁 {news.viewsCount || 0} {lang === 'en' ? 'views' : 'просмотров'}
                         </Text>
                     </View>
@@ -237,9 +237,10 @@ export const NewsDetailScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: colors.background,
     },
     centered: {
         justifyContent: 'center',
@@ -252,6 +253,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
+        backgroundColor: colors.surfaceElevated,
+        borderBottomColor: colors.border,
     },
     headerButton: {
         paddingVertical: 4,
@@ -287,7 +290,6 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     importantBadge: {
-        backgroundColor: 'white',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
@@ -295,41 +297,47 @@ const styles = StyleSheet.create({
     importantBadgeText: {
         fontSize: 12,
         fontWeight: '600',
-        color: 'white',
     },
     date: {
         fontSize: 13,
+        color: colors.textSecondary,
     },
     categoryTag: {
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
+        backgroundColor: colors.surfaceElevated,
     },
     categoryTagText: {
         fontSize: 12,
         fontWeight: '500',
+        color: colors.textSecondary,
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
         lineHeight: 32,
         marginBottom: 12,
+        color: colors.textPrimary,
     },
     summary: {
         fontSize: 16,
         lineHeight: 24,
         fontStyle: 'italic',
         marginBottom: 16,
+        color: colors.textSecondary,
     },
     divider: {
         height: 1,
         width: '100%',
         marginVertical: 16,
+        backgroundColor: colors.border,
     },
     content: {
         fontSize: 16,
         lineHeight: 26,
         textAlign: 'justify',
+        color: colors.textPrimary,
     },
     sourceButton: {
         flexDirection: 'row',
@@ -356,23 +364,27 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
+        backgroundColor: colors.surfaceElevated,
     },
     tagText: {
         fontSize: 13,
         fontWeight: '500',
+        color: colors.textSecondary,
     },
     statsContainer: {
         marginTop: 24,
         paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.1)',
+        borderTopColor: colors.border,
     },
     statsText: {
         fontSize: 13,
+        color: colors.textSecondary,
     },
     loadingText: {
         marginTop: 12,
         fontSize: 14,
+        color: colors.textSecondary,
     },
     errorEmoji: {
         fontSize: 48,
@@ -382,6 +394,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginBottom: 16,
         textAlign: 'center',
+        color: colors.textPrimary,
     },
     retryButton: {
         paddingHorizontal: 24,
@@ -390,7 +403,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     retryButtonText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },

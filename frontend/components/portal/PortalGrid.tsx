@@ -402,7 +402,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 onSecondaryLongPress={() => setEditMode(true)}
             >
                 <View
-                    pointerEvents="none"
                     style={styles.dockItemWrapper}
                 >
                     <PortalIcon
@@ -656,21 +655,21 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     blurType={isDarkMode ? "dark" : "light"}
                     blurAmount={12}
                     reducedTransparencyFallbackColor="transparent"
+                    pointerEvents="none"
+                />
+                <View
+                    ref={dockRef}
+                    onLayout={handleDockLayout}
+                    style={styles.dockItems}
                 >
-                    <View
-                        ref={dockRef}
-                        onLayout={handleDockLayout}
-                        style={styles.dockItems}
-                    >
-                        {quickAccess.map(renderDockItem)}
-                        {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
-                            <View key={`empty - ${i} `} style={[
-                                styles.emptyDockSlot,
-                                { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }
-                            ]} />
-                        ))}
-                    </View>
-                </BlurView>
+                    {quickAccess.map(renderDockItem)}
+                    {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
+                        <View key={`empty - ${i} `} style={[
+                            styles.emptyDockSlot,
+                            { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }
+                        ]} />
+                    ))}
+                </View>
             </View>
 
             {layout.pages.length > 1 && renderPageDots()}
@@ -740,9 +739,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     dockBlur: {
-        flex: 1,
-        justifyContent: 'center',
-        paddingHorizontal: 20,
+        ...StyleSheet.absoluteFillObject,
     },
     dockDivider: {
         position: 'absolute',
@@ -752,6 +749,11 @@ const styles = StyleSheet.create({
         height: 1,
     },
     dockItems: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 20,
+        right: 20,
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',

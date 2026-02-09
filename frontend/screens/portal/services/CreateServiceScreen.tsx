@@ -60,6 +60,7 @@ import {
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -101,7 +102,8 @@ export default function CreateServiceScreen() {
     const serviceId = route.params?.serviceId;
     const isEditing = !!serviceId;
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
 
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -299,7 +301,7 @@ export default function CreateServiceScreen() {
                 {/* Fixed Premium Header */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle}>
@@ -315,9 +317,9 @@ export default function CreateServiceScreen() {
                         disabled={saving || loading}
                     >
                         {saving ? (
-                            <ActivityIndicator size="small" color="#000" />
+                            <ActivityIndicator size="small" color={colors.textPrimary} />
                         ) : (
-                            <Save size={20} color="#000" />
+                            <Save size={20} color={colors.textPrimary} />
                         )}
                     </TouchableOpacity>
                 </View>
@@ -422,7 +424,7 @@ export default function CreateServiceScreen() {
                                                         setShowCategoryPicker(false);
                                                     }}
                                                 >
-                                                    <CategoryIcon name={CATEGORY_ICON_NAMES[cat]} size={16} color={category === cat ? '#000' : colors.accent} />
+                                                    <CategoryIcon name={CATEGORY_ICON_NAMES[cat]} size={16} color={category === cat ? colors.textPrimary : colors.accent} />
                                                     <Text style={[styles.pickerItemText, category === cat && styles.pickerItemTextActive]}>
                                                         {CATEGORY_LABELS[cat]}
                                                     </Text>
@@ -625,7 +627,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
         textAlign: 'center',
@@ -650,10 +652,10 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#F59E0B',
+        shadowColor: 'rgba(245,158,11,1)',
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.3,
         shadowRadius: 10,
@@ -730,7 +732,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.1)',
     },
     coverPlaceholderText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '800',
     },
@@ -752,11 +754,11 @@ const styles = StyleSheet.create({
     headingIndicator: {
         width: 4,
         height: 14,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         borderRadius: 2,
     },
     formSectionTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
     },
@@ -777,7 +779,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         paddingHorizontal: 20,
         paddingVertical: 16,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '500',
         borderWidth: 1,
@@ -811,7 +813,7 @@ const styles = StyleSheet.create({
     },
     pickerText: {
         flex: 1,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '700',
         marginLeft: 12,
@@ -825,7 +827,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(245, 158, 11, 0.2)',
         zIndex: 100,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.5,
         shadowRadius: 20,
@@ -842,8 +844,8 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     pickerItemActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
+        borderColor: 'rgba(245,158,11,1)',
     },
     pickerItemText: {
         color: 'rgba(255,255,255,0.6)',
@@ -851,7 +853,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     pickerItemTextActive: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -871,7 +873,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     addTariffText: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 13,
         fontWeight: '800',
     },
@@ -899,17 +901,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     customRadioActive: {
-        borderColor: '#F59E0B',
+        borderColor: 'rgba(245,158,11,1)',
     },
     customRadioDot: {
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
     },
     tariffTitleInput: {
         flex: 1,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '800',
         padding: 0,
@@ -940,7 +942,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     paramInput: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '900',
         textAlign: 'center',

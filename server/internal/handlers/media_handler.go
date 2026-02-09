@@ -192,7 +192,7 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 
 	allowedTypes := map[string][]string{
 		"image":    {"image/jpeg", "image/png", "image/gif", "image/webp"},
-		"audio":    {"audio/mpeg", "audio/mp4", "audio/wav", "audio/webm"},
+		"audio":    {"audio/mpeg", "audio/mp4", "audio/wav", "audio/webm", "audio/m4a", "audio/x-m4a", "audio/aac", "audio/x-wav"},
 		"document": {"application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"},
 	}
 
@@ -209,7 +209,7 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 		})
 	}
 
-	contentType := file.Header.Get("Content-Type")
+	contentType := normalizeUploadedContentType(mediaType, file.Header.Get("Content-Type"), file.Filename)
 	if !contains(mimeTypes, contentType) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fmt.Sprintf("Invalid file type %s for media type %s", contentType, mediaType),
@@ -314,4 +314,55 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeUploadedContentType(mediaType, rawContentType, fileName string) string {
+	contentType := strings.ToLower(strings.TrimSpace(rawContentType))
+	if idx := strings.Index(contentType, ";"); idx != -1 {
+		contentType = strings.TrimSpace(contentType[:idx])
+	}
+	if contentType != "" {
+		switch contentType {
+		case "audio/x-m4a", "audio/m4a":
+			return "audio/mp4"
+		case "audio/x-wav":
+			return "audio/wav"
+		}
+		return contentType
+	}
+
+	ext := strings.ToLower(filepath.Ext(fileName))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".m4a":
+		return "audio/mp4"
+	case ".wav":
+		return "audio/wav"
+	case ".webm":
+		return "audio/webm"
+	case ".aac":
+		return "audio/aac"
+	case ".pdf":
+		return "application/pdf"
+	case ".doc":
+		return "application/msword"
+	case ".docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case ".txt":
+		return "text/plain"
+	}
+
+	if mediaType == "audio" {
+		return "audio/mp4"
+	}
+	return "application/octet-stream"
 }

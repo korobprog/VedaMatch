@@ -8,7 +8,6 @@ import {
     ScrollView,
     Switch,
     ActivityIndicator,
-    useColorScheme,
     Alert,
     Modal,
     FlatList,
@@ -17,8 +16,9 @@ import {
 import DatePicker from 'react-native-date-picker';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
-import { COLORS } from '../../../components/chat/ChatConstants';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { datingService } from '../../../services/datingService';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
@@ -36,9 +36,21 @@ const INTENTION_OPTIONS = [
 export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { userId } = route.params;
-    const { login } = useUser();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { user, login } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const theme = {
+        background: colors.background,
+        header: colors.surface,
+        borderColor: colors.border,
+        text: colors.textPrimary,
+        subText: colors.textSecondary,
+        accent: colors.accent,
+        inputBackground: colors.surfaceElevated,
+        button: colors.accent,
+        buttonText: colors.textPrimary,
+    };
+    const styles = React.useMemo(() => createStyles(theme), [theme]);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -253,7 +265,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         <Switch
                             value={profile.datingEnabled}
                             onValueChange={(val) => setProfile({ ...profile, datingEnabled: val })}
-                            trackColor={{ false: '#767577', true: theme.accent }}
+                            trackColor={{ false: theme.borderColor, true: theme.accent }}
                         />
                     </View>
 
@@ -317,7 +329,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                                 ]}
                                 onPress={() => toggleIntention(opt.key)}
                             >
-                                <Text style={{ color: profile.intentions.includes(opt.key) ? '#fff' : theme.text, fontWeight: '500' }}>
+                                <Text style={{ color: profile.intentions.includes(opt.key) ? theme.buttonText : theme.text, fontWeight: '500' }}>
                                     {t(opt.labelKey)}
                                 </Text>
                             </TouchableOpacity>
@@ -646,7 +658,17 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: {
+    background: string;
+    header: string;
+    borderColor: string;
+    text: string;
+    subText: string;
+    accent: string;
+    inputBackground: string;
+    button: string;
+    buttonText: string;
+}) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -672,14 +694,14 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: theme.borderColor,
     },
     label: {
         fontSize: 15,
         fontWeight: '700',
         marginTop: 15,
         marginBottom: 8,
-        color: '#333',
+        color: theme.text,
     },
     infoText: {
         fontSize: 13,
@@ -695,7 +717,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         marginTop: 25,
         marginBottom: 10,
-        color: '#8D6E63',
+        color: theme.accent,
     },
     input: {
         borderWidth: 1,
@@ -710,7 +732,7 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: '#eee',
+        backgroundColor: theme.borderColor,
         marginVertical: 20,
     },
     modalContainer: {
@@ -756,8 +778,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderRadius: 25,
         borderWidth: 1,
-        borderColor: '#8D6E63',
-        backgroundColor: '#fff',
+        borderColor: theme.accent,
+        backgroundColor: theme.inputBackground,
         alignItems: 'center',
         marginBottom: 20,
     },
@@ -799,14 +821,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 20,
         marginBottom: 40,
-        shadowColor: "#000",
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
     saveButtonText: {
-        color: '#fff',
+        color: theme.buttonText,
         fontSize: 16,
         fontWeight: 'bold',
     },

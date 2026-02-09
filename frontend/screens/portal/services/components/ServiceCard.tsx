@@ -20,6 +20,7 @@ import {
 import { formatBalance } from '../../../../services/walletService';
 import { useUser } from '../../../../context/UserContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
+import { useSettings } from '../../../../context/SettingsContext';
 import {
     Star,
     Calendar,
@@ -59,7 +60,8 @@ interface ServiceCardProps {
 
 export default function ServiceCard({ service, onPress, compact = false }: ServiceCardProps) {
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
     const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
 
@@ -179,13 +181,13 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
 const styles = StyleSheet.create({
     card: {
         width: CARD_WIDTH,
-        backgroundColor: '#1a1a2e',
+        backgroundColor: 'rgba(26,26,46,1)',
         borderRadius: 24,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.08)',
         overflow: 'hidden',
         marginBottom: 20,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.2,
         shadowRadius: 12,
@@ -199,7 +201,7 @@ const styles = StyleSheet.create({
     image: {
         width: '100%',
         height: '100%',
-        backgroundColor: '#0a0a14',
+        backgroundColor: 'rgba(10,10,20,1)',
     },
     imagePlaceholder: {
         width: '100%',
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     categoryBadgeText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 9,
         fontWeight: '700',
         textTransform: 'uppercase',
@@ -247,7 +249,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.3)',
     },
     ratingText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 10,
         fontWeight: '800',
     },
@@ -255,7 +257,7 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     title: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     priceValue: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 15,
         fontWeight: '900',
     },
@@ -347,7 +349,7 @@ const styles = StyleSheet.create({
         paddingLeft: 12,
     },
     compactTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '700',
         marginBottom: 2,
@@ -363,7 +365,7 @@ const styles = StyleSheet.create({
         fontSize: 11,
     },
     compactPrice: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 13,
         fontWeight: '700',
     },

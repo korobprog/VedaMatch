@@ -473,6 +473,13 @@ const AppContent = () => {
                   navigationRef.navigate('Registration', { isDarkMode });
                 }
               }}
+              onNavigateToChat={() => {
+                setIsMenuOpen(false);
+                if (navigationRef.isReady()) {
+                  // @ts-ignore
+                  navigationRef.navigate('Chat');
+                }
+              }}
             />
             {isLoggedIn && (
               <PortalDrawer

@@ -107,17 +107,23 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 	};
 
 	const progress = totalDuration > 0 ? Math.min(Math.max(currentPosition / totalDuration, 0), 1) : 0;
+	const accent = isDarkMode ? '#FFB74D' : '#F59E0B';
+	const textColor = isDarkMode ? 'rgba(248,250,252,0.9)' : 'rgba(15,23,42,0.9)';
+	const mutedTextColor = isDarkMode ? 'rgba(248,250,252,0.6)' : 'rgba(15,23,42,0.6)';
+	const maxTrackColor = isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(15, 23, 42, 0.2)';
+	const playBtnBg = isDarkMode ? 'rgba(255, 183, 77, 0.18)' : 'rgba(245, 158, 11, 0.18)';
 
 	return (
 		<View style={styles.container}>
 			<TouchableOpacity
 				onPress={handlePlayPause}
-				style={[styles.playButton, { backgroundColor: 'rgba(255, 183, 77, 0.15)' }]}
+				style={[styles.playButton, { backgroundColor: playBtnBg }]}
+				activeOpacity={0.85}
 			>
 				{isPlaying ? (
-					<Pause size={18} color="#FFB74D" fill="#FFB74D" />
+					<Pause size={20} color={accent} fill={accent} />
 				) : (
-					<Play size={18} color="#FFB74D" fill="#FFB74D" style={{ marginLeft: 3 }} />
+					<Play size={20} color={accent} fill={accent} style={{ marginLeft: 2 }} />
 				)}
 			</TouchableOpacity>
 
@@ -125,17 +131,17 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 				<Slider
 					style={styles.slider}
 					value={progress}
-					onValueChange={handleSliderChange}
+					onSlidingComplete={handleSliderChange}
 					minimumValue={0}
 					maximumValue={1}
-					minimumTrackTintColor="#FFB74D"
-					maximumTrackTintColor="rgba(255, 255, 255, 0.15)"
-					thumbTintColor="#FFB74D"
+					minimumTrackTintColor={accent}
+					maximumTrackTintColor={maxTrackColor}
+					thumbTintColor={accent}
 					disabled={!url}
 				/>
 				<View style={styles.timeRow}>
-					<Text style={[styles.timeText, { color: 'rgba(248, 250, 252, 0.6)' }]}>{formatTime(currentPosition)}</Text>
-					<Text style={[styles.timeText, { color: 'rgba(248, 250, 252, 0.6)' }]}>{formatTime(totalDuration)}</Text>
+					<Text style={[styles.timeText, { color: textColor }]}>{formatTime(currentPosition)}</Text>
+					<Text style={[styles.timeText, { color: mutedTextColor }]}>{formatTime(totalDuration)}</Text>
 				</View>
 			</View>
 		</View>
@@ -146,32 +152,34 @@ const styles = StyleSheet.create({
 	container: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		paddingVertical: 4,
-		width: 240, // Fixed width for chat bubble
+		paddingVertical: 6,
+		width: Math.min(SCREEN_WIDTH * 0.62, 280),
+		maxWidth: '100%',
 	},
 	playButton: {
-		width: 38,
-		height: 38,
-		borderRadius: 19,
+		width: 44,
+		height: 44,
+		borderRadius: 22,
 		justifyContent: 'center',
 		alignItems: 'center',
-		marginRight: 10,
+		marginRight: 12,
 	},
 	content: {
 		flex: 1,
 		justifyContent: 'center',
 	},
 	slider: {
-		height: 20,
-		marginHorizontal: -8, // Reduce internal horizontal padding of slider
+		height: 24,
+		marginHorizontal: -2,
 	},
 	timeRow: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
-		marginTop: -2,
+		marginTop: 0,
 	},
 	timeText: {
-		fontSize: 10,
-		fontWeight: '500',
+		fontSize: 11,
+		fontWeight: '600',
+		fontVariant: ['tabular-nums'],
 	},
 });

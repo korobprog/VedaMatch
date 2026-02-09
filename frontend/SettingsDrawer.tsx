@@ -1,5 +1,5 @@
 // SettingsDrawer - Left-side drawer for settings and chat history
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -10,9 +10,11 @@ import {
     Pressable,
     FlatList,
     Image,
+    ImageBackground,
     Alert,
     Platform,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -36,6 +38,7 @@ import { useChat } from './context/ChatContext';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import { getMediaUrl } from './utils/url';
+import { useRoleTheme } from './hooks/useRoleTheme';
 
 const DRAWER_WIDTH = Dimensions.get('window').width * 0.8;
 
@@ -47,6 +50,7 @@ interface SettingsDrawerProps {
     onSelectModel: (model: { id: string; provider: string }) => void;
     onNavigateToSettings: () => void;
     onNavigateToRegistration: () => void;
+    onNavigateToChat: () => void;
 }
 
 export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
@@ -57,11 +61,19 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     onSelectModel,
     onNavigateToSettings,
     onNavigateToRegistration,
+    onNavigateToChat,
 }) => {
-    const { fetchModels, vTheme } = useSettings();
+    const {
+        fetchModels,
+        vTheme,
+        isDarkMode: isPortalDarkMode,
+        portalBackground,
+        portalBackgroundType,
+    } = useSettings();
     const { user, isLoggedIn, roleDescriptor } = useUser();
     const { history, loadChat, deleteChat, handleNewChat, currentChatId } = useChat();
     const { t } = useTranslation();
+    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isPortalDarkMode);
 
     const drawerProgress = useSharedValue(0);
 
@@ -116,6 +128,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             }
         });
 
+    const backgroundGradient = portalBackgroundType === 'gradient' && portalBackground
+        ? portalBackground.split('|')
+        : null;
+
 
     return (
         <Modal transparent visible={isVisible} onRequestClose={handleClose} animationType="none">
@@ -137,16 +153,38 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     <Animated.View
                         style={[
                             styles.drawer,
-                            { backgroundColor: vTheme.colors.background, width: DRAWER_WIDTH },
+                            { width: DRAWER_WIDTH },
                             drawerAnimatedStyle,
                         ]}
                     >
+                        {portalBackgroundType === 'image' && portalBackground ? (
+                            <ImageBackground
+                                source={{ uri: portalBackground }}
+                                style={StyleSheet.absoluteFill}
+                                resizeMode="cover"
+                            >
+                                <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]} />
+                            </ImageBackground>
+                        ) : backgroundGradient && backgroundGradient.length === 2 ? (
+                            <LinearGradient
+                                colors={backgroundGradient}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={StyleSheet.absoluteFill}
+                            >
+                                <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]} />
+                            </LinearGradient>
+                        ) : (
+                            <View style={[StyleSheet.absoluteFill, { backgroundColor: vTheme.colors.background }]} />
+                        )}
+
                         {/* Header / Tab Replacement */}
-                        <View style={styles.tabBar}>
-                            <View style={[styles.tab, { borderBottomColor: vTheme.colors.primary, borderBottomWidth: 3 }]}>
-                                <Text style={[styles.tabText, { color: vTheme.colors.text }]}>
+                        <View style={[styles.tabBar, { borderBottomColor: roleColors.border }]}>
+                            <View style={styles.tabTitleWrap}>
+                                <Text style={[styles.tabText, { color: roleColors.textPrimary }]}>
                                     {t('chat.history')}
                                 </Text>
+                                <View style={[styles.tabAccentLine, { backgroundColor: roleColors.accent }]} />
                             </View>
                         </View>
 
@@ -155,11 +193,22 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             <View style={styles.historyContainer}>
                                 {/* New Chat Button */}
                                 <TouchableOpacity
-                                    style={[styles.newChatButton, { backgroundColor: vTheme.colors.primary }]}
-                                    onPress={() => { handleNewChat(); handleClose(); }}
+                                    onPress={() => {
+                                        handleNewChat();
+                                        handleClose();
+                                        onNavigateToChat();
+                                    }}
+                                    activeOpacity={0.9}
                                 >
-                                    <Plus size={20} color="#fff" style={{ marginRight: 10 }} strokeWidth={3} />
-                                    <Text style={styles.newChatButtonText}>{t('chat.newChatBtn')}</Text>
+                                    <LinearGradient
+                                        colors={[roleTheme.accent, roleTheme.accentStrong]}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                        style={styles.newChatButton}
+                                    >
+                                        <Plus size={20} color={roleColors.textPrimary} style={{ marginRight: 10 }} strokeWidth={3} />
+                                        <Text style={[styles.newChatButtonText, { color: roleColors.textPrimary }]}>{t('chat.newChatBtn')}</Text>
+                                    </LinearGradient>
                                 </TouchableOpacity>
 
                                 {/* Chat History */}
@@ -167,22 +216,40 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                     data={history}
                                     keyExtractor={(item) => item.id}
                                     renderItem={({ item }) => (
-                                        <View style={[styles.historyItem, { borderBottomColor: vTheme.colors.divider }]}>
+                                        <View
+                                            style={[
+                                                styles.historyItem,
+                                                {
+                                                    backgroundColor: isPortalDarkMode ? 'rgba(15,23,42,0.22)' : 'rgba(248,250,252,0.18)',
+                                                    borderColor: currentChatId === item.id ? roleColors.accentSoft : 'rgba(255,255,255,0.42)',
+                                                },
+                                            ]}
+                                        >
+                                            <BlurView
+                                                style={styles.historyItemBlur}
+                                                blurType={isPortalDarkMode ? 'dark' : 'light'}
+                                                blurAmount={16}
+                                                reducedTransparencyFallbackColor={isPortalDarkMode ? 'rgba(15,23,42,0.35)' : 'rgba(248,250,252,0.35)'}
+                                            />
                                             <TouchableOpacity
                                                 style={styles.historyItemMain}
-                                                onPress={() => { loadChat(item.id); handleClose(); }}
+                                                onPress={() => {
+                                                    loadChat(item.id);
+                                                    handleClose();
+                                                    onNavigateToChat();
+                                                }}
                                             >
-                                                <View style={[styles.historyIcon, { backgroundColor: vTheme.colors.background }]}>
-                                                    <MessageSquare size={20} color={vTheme.colors.primary} />
+                                                <View style={[styles.historyIcon, { backgroundColor: isPortalDarkMode ? 'rgba(15,23,42,0.28)' : 'rgba(248,250,252,0.35)' }]}>
+                                                    <MessageSquare size={20} color={roleColors.accent} />
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text
-                                                        style={[styles.historyItemTitle, { color: vTheme.colors.text, fontWeight: currentChatId === item.id ? 'bold' : 'normal' }]}
+                                                        style={[styles.historyItemTitle, { color: roleColors.textPrimary, fontWeight: currentChatId === item.id ? '700' : '600' }]}
                                                         numberOfLines={1}
                                                     >
                                                         {item.title}
                                                     </Text>
-                                                    <Text style={[styles.historyItemDate, { color: vTheme.colors.textSecondary }]}>
+                                                    <Text style={[styles.historyItemDate, { color: roleColors.textSecondary }]}>
                                                         {new Date(item.timestamp).toLocaleDateString()}
                                                     </Text>
                                                 </View>
@@ -194,15 +261,16 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                                         { text: t('common.delete'), style: 'destructive', onPress: () => deleteChat(item.id) },
                                                     ]);
                                                 }}
-                                                style={styles.deleteBtn}
+                                                style={[styles.deleteBtn, { borderColor: roleColors.danger }]}
                                             >
-                                                <Trash2 size={18} color="#FF4444" />
+                                                <Trash2 size={18} color={roleColors.danger} />
                                             </TouchableOpacity>
                                         </View>
                                     )}
                                     ListEmptyComponent={
                                         <View style={styles.emptyContainer}>
-                                            <Text style={{ color: vTheme.colors.textSecondary, opacity: 0.5 }}>{t('chat.noHistory')}</Text>
+                                            <MessageSquare size={34} color={roleColors.textSecondary} />
+                                            <Text style={{ color: roleColors.textSecondary, opacity: 0.8, marginTop: 10 }}>{t('chat.noHistory')}</Text>
                                         </View>
                                     }
                                 />
@@ -210,26 +278,26 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                         </View>
 
                         {/* Footer */}
-                        <View style={[styles.footer, { borderTopColor: vTheme.colors.divider, backgroundColor: vTheme.colors.backgroundSecondary }]}>
+                        <View style={[styles.footer, { borderTopColor: roleColors.border, backgroundColor: roleColors.surfaceElevated }]}>
                             {isLoggedIn ? (
                                 <View style={styles.profileSection}>
-                                    <View style={[styles.avatarCircle, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider }]}>
+                                    <View style={[styles.avatarCircle, { backgroundColor: roleColors.surface, borderColor: roleColors.border }]}>
                                         {user?.avatar ? (
                                             <Image source={{ uri: getMediaUrl(user.avatar) || '' }} style={styles.avatarImage} />
                                         ) : (
-                                            <User size={22} color={vTheme.colors.textSecondary} />
+                                            <User size={22} color={roleColors.textSecondary} />
                                         )}
                                     </View>
                                     <View style={styles.userInfo}>
-                                        <Text style={[styles.userName, { color: vTheme.colors.text }]} numberOfLines={1}>
+                                        <Text style={[styles.userName, { color: roleColors.textPrimary }]} numberOfLines={1}>
                                             {user?.spiritualName || user?.karmicName}
                                         </Text>
-                                        <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>{t('auth.profile')}</Text>
-                                        <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>
+                                        <Text style={[styles.userStatus, { color: roleColors.textSecondary }]}>{t('auth.profile')}</Text>
+                                        <Text style={[styles.userStatus, { color: roleColors.textSecondary }]}>
                                             Роль: {roleDescriptor?.title || user?.role || 'user'}
                                         </Text>
                                         {user?.godModeEnabled ? (
-                                            <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>
+                                            <Text style={[styles.userStatus, { color: roleColors.textSecondary }]}>
                                                 Режим PRO: включён
                                             </Text>
                                         ) : null}
@@ -237,18 +305,18 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                 </View>
                             ) : (
                                 <TouchableOpacity
-                                    style={[styles.footerButton, { backgroundColor: vTheme.colors.primary }]}
+                                    style={[styles.footerButton, { backgroundColor: roleColors.accent }]}
                                     onPress={() => { handleClose(); onNavigateToRegistration(); }}
                                 >
-                                    <LogIn size={20} color="#fff" style={{ marginRight: 10 }} />
-                                    <Text style={styles.footerButtonText}>{t('auth.login')}</Text>
+                                    <LogIn size={20} color={roleColors.textPrimary} style={{ marginRight: 10 }} />
+                                    <Text style={[styles.footerButtonText, { color: roleColors.textPrimary }]}>{t('auth.login')}</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
-                                style={[styles.settingsIconBtn, { backgroundColor: vTheme.colors.background, borderColor: vTheme.colors.divider, borderWidth: 1 }]}
+                                style={[styles.settingsIconBtn, { backgroundColor: roleColors.surface, borderColor: roleColors.border, borderWidth: 1 }]}
                                 onPress={() => { handleClose(); onNavigateToSettings(); }}
                             >
-                                <Settings size={22} color={vTheme.colors.text} />
+                                <Settings size={22} color={roleColors.textPrimary} />
                             </TouchableOpacity>
                         </View>
                     </Animated.View>
@@ -265,36 +333,61 @@ const styles = StyleSheet.create({
     drawer: {
         flex: 1,
         height: '100%',
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: -10, height: 0 },
         shadowOpacity: 0.2,
         shadowRadius: 30, // Softer edge
         elevation: 24,
     },
     tabBar: {
-        flexDirection: 'row',
+        minHeight: 88,
+        justifyContent: 'flex-end',
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.1)',
         paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingHorizontal: 20,
+        paddingBottom: 12,
     },
-    tab: { flex: 1, paddingVertical: 15, alignItems: 'center' },
-    tabText: { fontSize: 16, fontWeight: 'bold' },
+    tabTitleWrap: { alignItems: 'center' },
+    tabText: { fontSize: 28, fontWeight: '800' },
+    tabAccentLine: { marginTop: 12, width: 120, height: 4, borderRadius: 999 },
     content: { flex: 1 },
-    historyContainer: { flex: 1, padding: 16 },
+    historyContainer: { flex: 1, padding: 18 },
     newChatButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 16,
+        justifyContent: 'center',
+        minHeight: 56,
+        paddingHorizontal: 18,
+        borderRadius: 18,
+        marginBottom: 18,
     },
-    newChatButtonText: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
-    historyItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
+    newChatButtonText: { fontSize: 19, fontWeight: '800' },
+    historyItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 16,
+        marginBottom: 10,
+        paddingHorizontal: 10,
+        minHeight: 72,
+        overflow: 'hidden',
+    },
+    historyItemBlur: {
+        ...StyleSheet.absoluteFillObject,
+    },
     historyItemMain: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-    historyIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-    historyItemTitle: { fontSize: 16, marginBottom: 4 },
-    historyItemDate: { fontSize: 12 },
-    deleteBtn: { padding: 10 },
+    historyIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    historyItemTitle: { fontSize: 17, marginBottom: 2 },
+    historyItemDate: { fontSize: 13 },
+    deleteBtn: {
+        padding: 10,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     emptyContainer: { padding: 40, alignItems: 'center' },
     menuContainer: { flex: 1, padding: 16 },
     menuItem: {
@@ -329,9 +422,9 @@ const styles = StyleSheet.create({
     },
     avatarImage: { width: '100%', height: '100%' },
     userInfo: { marginLeft: 12, flex: 1 },
-    userName: { fontSize: 14, fontWeight: 'bold' },
+    userName: { fontSize: 14, fontWeight: '700' },
     userStatus: { fontSize: 11 },
     footerButton: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, flex: 1, marginRight: 10 },
-    footerButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+    footerButtonText: { fontSize: 16, fontWeight: '600' },
     settingsIconBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 });

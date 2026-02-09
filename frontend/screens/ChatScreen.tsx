@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground, Image } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -19,12 +19,20 @@ import LinearGradient from 'react-native-linear-gradient';
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
 export const ChatScreen: React.FC<Props> = ({ navigation }) => {
-    const { setIsMenuOpen, isDarkMode, vTheme, portalBackground, portalBackgroundType } = usePortalSettings();
+    const { setIsMenuOpen, isDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
     const { handleMenuOption, recipientUser, setShowMenu, showMenu } = useChat();
     const { user: currentUser } = useUser();
     const { t } = useTranslation();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const overlayOpacity = useRef(new Animated.Value(0)).current;
+    const isImageBackground = portalBackgroundType === 'image' && Boolean(portalBackground);
+    const backgroundSource = useMemo(() => {
+        if (!isImageBackground || !portalBackground) return undefined;
+        return {
+            uri: portalBackground,
+            cache: 'force-cache' as const,
+        };
+    }, [isImageBackground, portalBackground]);
 
     useEffect(() => {
         if (showMenu) {
@@ -58,6 +66,11 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
 
         return () => backHandler.remove();
     }, [navigation]);
+
+    useEffect(() => {
+        if (!isImageBackground || !portalBackground || !portalBackground.startsWith('http')) return;
+        Image.prefetch(portalBackground).catch(() => { });
+    }, [isImageBackground, portalBackground]);
 
     const handleBlockUser = () => {
         if (!currentUser?.ID || !recipientUser?.ID) return;
@@ -95,93 +108,101 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
         }
     };
 
-    const BackgroundWrapper = ({ children }: { children: React.ReactNode }) => {
-        if (portalBackgroundType === 'image' && portalBackground) {
-            return (
-                <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover">
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}>{children}</View>
-                </ImageBackground>
-            );
-        }
-        return <View style={[styles.container, { backgroundColor: theme.background }]}>{children}</View>;
-    };
+    const content = (
+        <>
+            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+            {showMenu && (
+                <Animated.View
+                    style={[
+                        styles.overlayWrapper,
+                        { opacity: overlayOpacity }
+                    ]}
+                >
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setShowMenu(false)}
+                    >
+                        <LinearGradient
+                            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.85)']}
+                            style={StyleSheet.absoluteFill}
+                        />
+                    </TouchableOpacity>
+                </Animated.View>
+            )}
+            <ChatHeader
+                title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "VedaMatch"}
+                onSettingsPress={() => setIsMenuOpen(true)}
+                onCallPress={handleCallPress}
+                onBackPress={() => {
+                    if (navigation.canGoBack()) {
+                        navigation.goBack();
+                    } else {
+                        navigation.navigate('Portal');
+                    }
+                }}
+            />
+
+            <View style={styles.messagesWrap}>
+                <MessageList
+                    onDownloadImage={downloadImage}
+                    onShareImage={shareImage}
+                    onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
+                    onNavigateToMap={(mapData) => {
+                        navigation.navigate('MapGeoapify', {
+                            focusMarker: mapData?.markers?.[0] ? {
+                                id: mapData.markers[0].id,
+                                type: mapData.markers[0].type,
+                                latitude: mapData.markers[0].latitude,
+                                longitude: mapData.markers[0].longitude,
+                            } : undefined,
+                        });
+                    }}
+                />
+            </View>
+
+            <View style={{ zIndex: 10 }}>
+                <ChatInput
+                    onMenuOption={(option) => {
+                        if (option === 'contacts.viewProfile') {
+                            if (recipientUser) {
+                                navigation.navigate('ContactProfile', { userId: recipientUser.ID });
+                            }
+                            setShowMenu(false);
+                            return;
+                        }
+                        if (option === 'contacts.block') {
+                            handleBlockUser();
+                            return;
+                        }
+                        handleMenuOption(option,
+                            (tab) => navigation.navigate('Portal', { initialTab: tab as any })
+                        )
+                    }}
+                />
+            </View>
+        </>
+    );
 
     return (
         <ProtectedScreen>
-            <BackgroundWrapper>
-                <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
-                {showMenu && (
-                    <Animated.View
-                        style={[
-                            styles.overlayWrapper,
-                            { opacity: overlayOpacity }
-                        ]}
-                    >
-                        <TouchableOpacity
-                            activeOpacity={1}
-                            style={StyleSheet.absoluteFill}
-                            onPress={() => setShowMenu(false)}
-                        >
-                            <LinearGradient
-                                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.85)']}
-                                style={StyleSheet.absoluteFill}
-                            />
-                        </TouchableOpacity>
-                    </Animated.View>
-                )}
-                <ChatHeader
-                    title={recipientUser ? `${recipientUser.spiritualName || recipientUser.karmicName}` : "VedaMatch"}
-                    onSettingsPress={() => setIsMenuOpen(true)}
-                    onCallPress={handleCallPress}
-                    onBackPress={() => {
-                        if (navigation.canGoBack()) {
-                            navigation.goBack();
-                        } else {
-                            navigation.navigate('Portal');
-                        }
-                    }}
-                />
-
-                <View style={styles.messagesWrap}>
-                    <MessageList
-                        onDownloadImage={downloadImage}
-                        onShareImage={shareImage}
-                        onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
-                        onNavigateToMap={(mapData) => {
-                            navigation.navigate('MapGeoapify', {
-                                focusMarker: mapData?.markers?.[0] ? {
-                                    id: mapData.markers[0].id,
-                                    type: mapData.markers[0].type,
-                                    latitude: mapData.markers[0].latitude,
-                                    longitude: mapData.markers[0].longitude,
-                                } : undefined,
-                            });
-                        }}
-                    />
+            {isImageBackground && backgroundSource ? (
+                <ImageBackground
+                    source={backgroundSource}
+                    style={styles.container}
+                    resizeMode="cover"
+                    fadeDuration={0}
+                >
+                    <View style={styles.imageOverlay}>
+                        {content}
+                    </View>
+                </ImageBackground>
+            ) : (
+                <View style={[styles.container, { backgroundColor: theme.background }]}>
+                    {content}
                 </View>
-
-                <View style={{ zIndex: 10 }}>
-                    <ChatInput
-                        onMenuOption={(option) => {
-                            if (option === 'contacts.viewProfile') {
-                                if (recipientUser) {
-                                    navigation.navigate('ContactProfile', { userId: recipientUser.ID });
-                                }
-                                setShowMenu(false);
-                                return;
-                            }
-                            if (option === 'contacts.block') {
-                                handleBlockUser();
-                                return;
-                            }
-                            handleMenuOption(option,
-                                (tab) => navigation.navigate('Portal', { initialTab: tab as any })
-                            )
-                        }}
-                    />
-                </View>
-            </BackgroundWrapper>
+            )}
         </ProtectedScreen>
     );
 };
@@ -189,6 +210,10 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    imageOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.45)',
     },
     messagesWrap: {
         flex: 1,

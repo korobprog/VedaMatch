@@ -21,7 +21,9 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { yatraService } from '../../../services/yatraService';
 import { SHELTER_TYPE_LABELS, AMENITY_LABELS, ShelterType } from '../../../types/yatra';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type CreateShelterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateShelter'>;
 
@@ -41,7 +43,9 @@ const CreateShelterScreen = () => {
     const shelterId = route.params?.shelterId;
     const isEditing = !!shelterId;
     const { user } = useUser();
-    const { colors } = useRoleTheme(user?.role, false);
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(isEditing);
     const [submitting, setSubmitting] = useState(false);
@@ -311,7 +315,7 @@ const CreateShelterScreen = () => {
                         <Switch
                             value={isSevaAvailable}
                             onValueChange={setIsSevaAvailable}
-                            trackColor={{ false: '#E5E7EB', true: colors.accent }}
+                            trackColor={{ false: colors.border, true: colors.accent }}
                         />
                     </View>
                     {isSevaAvailable && (
@@ -352,7 +356,7 @@ const CreateShelterScreen = () => {
                     disabled={submitting}
                 >
                     {submitting ? (
-                        <ActivityIndicator color="#FFF" />
+                        <ActivityIndicator color={colors.textPrimary} />
                     ) : (
                         <Text style={styles.submitButtonText}>
                             {isEditing ? 'Сохранить Изменения' : 'Опубликовать Жилье'}
@@ -364,10 +368,10 @@ const CreateShelterScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
@@ -379,9 +383,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         paddingTop: Platform.OS === 'ios' ? 50 : 16,
-        backgroundColor: '#FFF',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: 8,
@@ -390,14 +394,14 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         marginLeft: 12,
-        color: '#111',
+        color: colors.textPrimary,
     },
     scrollContent: {
         paddingBottom: 40,
     },
     coverUpload: {
         height: 200,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: colors.surfaceElevated,
         width: '100%',
         justifyContent: 'center',
         alignItems: 'center',
@@ -411,42 +415,42 @@ const styles = StyleSheet.create({
     },
     uploadText: {
         marginTop: 8,
-        color: '#6B7280',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '500',
     },
     section: {
         marginTop: 16,
         padding: 16,
-        backgroundColor: '#FFF',
+        backgroundColor: colors.surface,
         borderRadius: 0,
     },
     sectionTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#111',
+        color: colors.textPrimary,
         marginBottom: 12,
     },
     label: {
         fontSize: 13,
-        color: '#6B7280',
+        color: colors.textSecondary,
         marginBottom: 4,
     },
     input: {
-        backgroundColor: '#F9FAFB',
+        backgroundColor: colors.surfaceElevated,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
         borderRadius: 8,
         padding: 12,
         fontSize: 15,
-        color: '#111',
+        color: colors.textPrimary,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
+        backgroundColor: colors.surfaceElevated,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
         borderRadius: 8,
         paddingHorizontal: 10,
     },
@@ -457,7 +461,7 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         fontSize: 15,
-        color: '#111',
+        color: colors.textPrimary,
     },
     textArea: {
         height: 100,
@@ -484,21 +488,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: colors.surfaceElevated,
         marginRight: 8,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
     },
     typeChipActive: {
-        backgroundColor: '#D1FAE5',
-        borderColor: '#10B981',
+        backgroundColor: colors.accentSoft,
+        borderColor: colors.accent,
     },
     typeText: {
-        color: '#4B5563',
+        color: colors.textSecondary,
         fontWeight: '500',
     },
     typeTextActive: {
-        color: '#047857',
+        color: colors.accent,
         fontWeight: '600',
     },
     amenitiesGrid: {
@@ -510,40 +514,40 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: colors.surfaceElevated,
         margin: 4,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
     },
     amenityChipActive: {
-        backgroundColor: '#DBEAFE',
-        borderColor: '#3B82F6',
+        backgroundColor: colors.accentSoft,
+        borderColor: colors.accent,
     },
     amenityText: {
         fontSize: 13,
-        color: '#4B5563',
+        color: colors.textSecondary,
     },
     amenityTextActive: {
-        color: '#1D4ED8',
+        color: colors.accent,
         fontWeight: '500',
     },
     submitButton: {
-        backgroundColor: '#10B981',
+        backgroundColor: colors.accent,
         margin: 16,
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
         elevation: 2,
-        shadowColor: 'green',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
     },
     disabledButton: {
-        backgroundColor: '#6EE7B7',
+        backgroundColor: 'rgba(110,231,183,1)',
     },
     submitButtonText: {
-        color: '#FFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: 'bold',
     },

@@ -12,7 +12,6 @@ import { Book } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
-import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { educationService } from '../../../services/educationService';
 import { EducationCourse } from '../../../types/education';
 import { useUser } from '../../../context/UserContext';
@@ -125,7 +124,6 @@ export const EducationHomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: ModernVedicTheme.colors.background,
     },
     center: {
         flex: 1,
@@ -134,19 +132,15 @@ const styles = StyleSheet.create({
     },
     header: {
         padding: 20,
-        backgroundColor: ModernVedicTheme.colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: ModernVedicTheme.colors.divider,
     },
     headerTitle: {
         fontSize: 28,
         fontWeight: 'bold',
-        color: ModernVedicTheme.colors.primary,
         fontFamily: 'Playfair Display',
     },
     headerSub: {
         fontSize: 14,
-        color: ModernVedicTheme.colors.textSecondary,
         marginTop: 4,
     },
     section: {
@@ -155,16 +149,18 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: ModernVedicTheme.colors.text,
         marginBottom: 15,
     },
     courseCard: {
         flexDirection: 'row',
-        backgroundColor: ModernVedicTheme.colors.surface,
         borderRadius: 12,
         padding: 12,
         marginBottom: 15,
-        ...ModernVedicTheme.shadows.soft,
+        shadowColor: 'rgba(0,0,0,1)',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
     },
     courseImagePlaceholder: {
         width: 80,
@@ -185,24 +181,20 @@ const styles = StyleSheet.create({
     courseOrg: {
         fontSize: 12,
         fontWeight: '600',
-        color: ModernVedicTheme.colors.primary,
         textTransform: 'uppercase',
         marginBottom: 2,
     },
     courseTitle: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: ModernVedicTheme.colors.text,
         marginBottom: 4,
     },
     courseDesc: {
         fontSize: 13,
-        color: ModernVedicTheme.colors.textSecondary,
         lineHeight: 18,
     },
     emptyText: {
         textAlign: 'center',
-        color: ModernVedicTheme.colors.textSecondary,
         marginTop: 20,
     }
 });

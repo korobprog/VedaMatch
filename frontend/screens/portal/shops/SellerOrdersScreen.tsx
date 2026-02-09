@@ -1,25 +1,28 @@
 import React, { useState, useCallback } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    RefreshControl, ActivityIndicator, useColorScheme, Image, Alert
+    RefreshControl, ActivityIndicator, Image, Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
 import { Order, OrderStatus } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
-const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; emoji: string }> = {
-    new: { label: 'New', color: '#2196F3', emoji: '🆕' },
-    confirmed: { label: 'Confirmed', color: '#9C27B0', emoji: '✅' },
-    paid: { label: 'Paid', color: '#4CAF50', emoji: '💰' },
-    shipped: { label: 'Shipped', color: '#FF9800', emoji: '📦' },
-    delivered: { label: 'Delivered', color: '#4CAF50', emoji: '🎉' },
-    completed: { label: 'Completed', color: '#4CAF50', emoji: '✨' },
-    cancelled: { label: 'Cancelled', color: '#f44336', emoji: '❌' },
-    dispute: { label: 'Dispute', color: '#f44336', emoji: '⚠️' },
+const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; tone: 'accent' | 'success' | 'warning' | 'danger'; emoji: string }> = {
+    new: { label: 'New', tone: 'accent', emoji: '🆕' },
+    confirmed: { label: 'Confirmed', tone: 'accent', emoji: '✅' },
+    paid: { label: 'Paid', tone: 'success', emoji: '💰' },
+    shipped: { label: 'Shipped', tone: 'warning', emoji: '📦' },
+    delivered: { label: 'Delivered', tone: 'success', emoji: '🎉' },
+    completed: { label: 'Completed', tone: 'success', emoji: '✨' },
+    cancelled: { label: 'Cancelled', tone: 'danger', emoji: '❌' },
+    dispute: { label: 'Dispute', tone: 'danger', emoji: '⚠️' },
 };
 
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -36,9 +39,10 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 export const SellerOrdersScreen: React.FC = () => {
     const { t } = useTranslation();
     const navigation = useNavigation<any>();
-
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -157,21 +161,28 @@ export const SellerOrdersScreen: React.FC = () => {
         const statusConfig = ORDER_STATUS_CONFIG[item.status];
         const isUpdating = updatingOrder === item.ID;
         const canUpdate = STATUS_TRANSITIONS[item.status].length > 0;
+        const statusColor = statusConfig.tone === 'success'
+            ? colors.success
+            : statusConfig.tone === 'warning'
+                ? colors.warning
+                : statusConfig.tone === 'danger'
+                    ? colors.danger
+                    : colors.accent;
 
         return (
-            <View style={[styles.orderCard, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}>
+            <View style={styles.orderCard}>
                 <View style={styles.orderHeader}>
                     <View>
-                        <Text style={[styles.orderNumber, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={styles.orderNumber}>
                             #{item.orderNumber}
                         </Text>
                         <Text style={[styles.orderDate, { color: colors.textSecondary }]}>
                             {formatDate(item.CreatedAt)}
                         </Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: colors.accentSoft }]}>
                         <Text style={{ fontSize: 12 }}>{statusConfig.emoji}</Text>
-                        <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                        <Text style={[styles.statusText, { color: statusColor }]}>
                             {statusConfig.label}
                         </Text>
                     </View>
@@ -180,7 +191,7 @@ export const SellerOrdersScreen: React.FC = () => {
                 {/* Buyer info */}
                 {item.buyerInfo && (
                     <View style={styles.buyerRow}>
-                        <View style={[styles.buyerAvatar, { backgroundColor: colors.primary + '20' }]}>
+                        <View style={styles.buyerAvatar}>
                             {item.buyerInfo.avatarUrl ? (
                                 <Image source={{ uri: getMediaUrl(item.buyerInfo.avatarUrl) || '' }} style={styles.avatarImage} />
                             ) : (
@@ -188,7 +199,7 @@ export const SellerOrdersScreen: React.FC = () => {
                             )}
                         </View>
                         <View style={styles.buyerInfo}>
-                            <Text style={[styles.buyerName, { color: isDarkMode ? '#ddd' : colors.text }]}>
+                            <Text style={styles.buyerName}>
                                 {item.buyerName || item.buyerInfo.spiritualName || item.buyerInfo.karmicName}
                             </Text>
                             {item.buyerPhone && (
@@ -203,7 +214,7 @@ export const SellerOrdersScreen: React.FC = () => {
                 {/* Delivery info */}
                 <View style={styles.deliveryRow}>
                     <Text style={{ fontSize: 14 }}>{item.deliveryType === 'delivery' ? '🚚' : '🏪'}</Text>
-                    <Text style={[styles.deliveryText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                    <Text style={styles.deliveryText}>
                         {item.deliveryType === 'delivery' ? item.deliveryAddress : 'Pickup'}
                     </Text>
                 </View>
@@ -213,7 +224,7 @@ export const SellerOrdersScreen: React.FC = () => {
                     <Text style={[styles.itemsCount, { color: colors.textSecondary }]}>
                         {item.itemsCount} item{item.itemsCount > 1 ? 's' : ''}
                     </Text>
-                    <Text style={[styles.orderTotal, { color: colors.primary }]}>
+                    <Text style={[styles.orderTotal, { color: colors.accent }]}>
                         {item.total.toLocaleString()} {item.currency}
                     </Text>
                 </View>
@@ -221,7 +232,7 @@ export const SellerOrdersScreen: React.FC = () => {
                 {/* Actions */}
                 <View style={styles.actionsRow}>
                     <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+                        style={[styles.actionBtn, { backgroundColor: colors.accent }]}
                         onPress={() => handleContactBuyer(item)}
                     >
                         <Text style={styles.actionBtnText}>💬 Contact</Text>
@@ -229,14 +240,14 @@ export const SellerOrdersScreen: React.FC = () => {
 
                     {canUpdate && (
                         <TouchableOpacity
-                            style={[styles.actionBtn, { backgroundColor: isDarkMode ? '#444' : '#f0f0f0' }]}
+                            style={[styles.actionBtn, styles.secondaryActionBtn]}
                             onPress={() => handleUpdateStatus(item)}
                             disabled={isUpdating}
                         >
                             {isUpdating ? (
-                                <ActivityIndicator size="small" color={colors.primary} />
+                                <ActivityIndicator size="small" color={colors.accent} />
                             ) : (
-                                <Text style={[styles.actionBtnText, { color: isDarkMode ? '#fff' : colors.text }]}>
+                                <Text style={[styles.actionBtnText, styles.secondaryActionBtnText]}>
                                     ✏️ Update
                                 </Text>
                             )}
@@ -264,14 +275,14 @@ export const SellerOrdersScreen: React.FC = () => {
                     <TouchableOpacity
                         style={[
                             styles.filterPill,
-                            { backgroundColor: selectedStatus === item.id ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0') }
+                            { backgroundColor: selectedStatus === item.id ? colors.accent : colors.surfaceElevated }
                         ]}
                         onPress={() => handleStatusFilter(item.id as OrderStatus | '')}
                     >
                         <Text style={{ marginRight: 4 }}>{item.emoji}</Text>
                         <Text style={[
                             styles.filterLabel,
-                            { color: selectedStatus === item.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }
+                            { color: selectedStatus === item.id ? colors.textPrimary : colors.textPrimary }
                         ]}>
                             {item.label}
                         </Text>
@@ -285,8 +296,8 @@ export const SellerOrdersScreen: React.FC = () => {
     if (loading) {
         return (
             <ProtectedScreen>
-                <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+                <View style={styles.centerContainer}>
+                    <ActivityIndicator size="large" color={colors.accent} />
                 </View>
             </ProtectedScreen>
         );
@@ -294,7 +305,7 @@ export const SellerOrdersScreen: React.FC = () => {
 
     return (
         <ProtectedScreen>
-            <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+            <View style={styles.screen}>
                 <FlatList
                     data={orders}
                     renderItem={renderOrder}
@@ -303,7 +314,7 @@ export const SellerOrdersScreen: React.FC = () => {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Text style={styles.emptyIcon}>📦</Text>
-                            <Text style={[styles.emptyTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                            <Text style={styles.emptyTitle}>
                                 No Orders Yet
                             </Text>
                             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -313,7 +324,7 @@ export const SellerOrdersScreen: React.FC = () => {
                     }
                     ListFooterComponent={loadingMore ? (
                         <View style={styles.loadingFooter}>
-                            <ActivityIndicator size="small" color={colors.primary} />
+                            <ActivityIndicator size="small" color={colors.accent} />
                         </View>
                     ) : null}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -326,11 +337,16 @@ export const SellerOrdersScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+    },
     centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.background,
     },
     filterSection: {
         marginBottom: 12,
@@ -360,6 +376,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 16,
         elevation: 2,
+        backgroundColor: colors.surface,
     },
     orderHeader: {
         flexDirection: 'row',
@@ -370,6 +387,7 @@ const styles = StyleSheet.create({
     orderNumber: {
         fontSize: 17,
         fontWeight: 'bold',
+        color: colors.textPrimary,
     },
     orderDate: {
         fontSize: 12,
@@ -399,6 +417,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
+        backgroundColor: colors.accentSoft,
     },
     avatarImage: {
         width: '100%',
@@ -410,6 +429,7 @@ const styles = StyleSheet.create({
     buyerName: {
         fontSize: 14,
         fontWeight: '600',
+        color: colors.textPrimary,
     },
     buyerContact: {
         fontSize: 12,
@@ -421,12 +441,13 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         paddingTop: 10,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
+        borderTopColor: colors.border,
     },
     deliveryText: {
         marginLeft: 8,
         fontSize: 13,
         flex: 1,
+        color: colors.textSecondary,
     },
     totalRow: {
         flexDirection: 'row',
@@ -452,9 +473,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     actionBtnText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
+    },
+    secondaryActionBtn: {
+        backgroundColor: colors.surfaceElevated,
+    },
+    secondaryActionBtnText: {
+        color: colors.textPrimary,
     },
     emptyContainer: {
         padding: 40,
@@ -468,6 +495,7 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 8,
+        color: colors.textPrimary,
     },
     emptyText: {
         fontSize: 15,

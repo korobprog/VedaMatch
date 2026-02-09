@@ -49,6 +49,7 @@ import {
 import { formatBalance } from '../../../services/walletService';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -76,7 +77,8 @@ export default function ServiceDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
 
     const serviceId = route.params?.serviceId;
 
@@ -208,7 +210,7 @@ export default function ServiceDetailScreen() {
                             </LinearGradient>
                         )}
                         <LinearGradient
-                            colors={['rgba(10, 10, 20, 0.3)', 'transparent', '#0a0a14']}
+                            colors={['rgba(10, 10, 20, 0.3)', 'transparent', 'rgba(10,10,20,1)']}
                             style={styles.coverOverlay}
                         />
                         <View style={styles.categoryBadgeContainer}>
@@ -294,7 +296,7 @@ export default function ServiceDetailScreen() {
                             >
                                 <View style={styles.logisticsRow}>
                                     <View style={styles.logisticsIcon}>
-                                        {service.channel === 'offline' ? <MapPin size={20} color="#F59E0B" /> : <Video size={20} color="#F59E0B" />}
+                                        {service.channel === 'offline' ? <MapPin size={20} color={colors.accent} /> : <Video size={20} color={colors.accent} />}
                                     </View>
                                     <View style={styles.logisticsContent}>
                                         <Text style={styles.logisticsTitle}>{CHANNEL_LABELS[service.channel] || service.channel}</Text>
@@ -365,7 +367,7 @@ export default function ServiceDetailScreen() {
                 {/* Fixed Premium Footer */}
                 <View style={styles.footerContainer}>
                     <LinearGradient
-                        colors={['rgba(10, 10, 20, 0.95)', '#0a0a14']}
+                        colors={['rgba(10, 10, 20, 0.95)', 'rgba(10,10,20,1)']}
                         style={styles.footer}
                     >
                         <View style={styles.priceColumn}>
@@ -383,14 +385,14 @@ export default function ServiceDetailScreen() {
                                 style={styles.editButton}
                                 onPress={() => navigation.navigate('CreateService', { serviceId: service.id })}
                             >
-                                <Edit size={18} color="#000" />
+                                <Edit size={18} color={colors.textPrimary} />
                                 <Text style={styles.editButtonText}>Правка</Text>
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity style={styles.bookButton} onPress={handleBook}>
                                 <Text style={styles.bookButtonText}>Забронировать</Text>
                                 <View style={styles.bookButtonIcon}>
-                                    <Sparkles size={16} color="#000" />
+                                    <Sparkles size={16} color={colors.textPrimary} />
                                 </View>
                             </TouchableOpacity>
                         )}
@@ -473,7 +475,7 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     categoryBadgeText: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 11,
         fontWeight: '800',
         textTransform: 'uppercase',
@@ -484,7 +486,7 @@ const styles = StyleSheet.create({
         marginTop: -20,
     },
     title: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 32,
         fontFamily: 'Cinzel-Bold',
         lineHeight: 40,
@@ -511,7 +513,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     ownerAvatarText: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 22,
         fontWeight: '900',
     },
@@ -525,12 +527,12 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     ownerName: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 17,
         fontWeight: '700',
     },
     ownerRoleBadge: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 10,
         fontWeight: '800',
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -568,7 +570,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.05)',
     },
     statValue: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '800',
         marginTop: 8,
@@ -592,7 +594,7 @@ const styles = StyleSheet.create({
     headingIndicator: {
         width: 4,
         height: 14,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         borderRadius: 2,
     },
     sectionHeading: {
@@ -631,7 +633,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     logisticsTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 17,
         fontWeight: '700',
     },
@@ -676,13 +678,13 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: -10,
         right: 20,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
     },
     featuredBadgeText: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontSize: 10,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -696,7 +698,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     tariffTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '800',
         marginBottom: 8,
@@ -722,12 +724,12 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     tariffPriceSymbol: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 16,
         fontWeight: '400',
     },
     tariffPriceValue: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 24,
         fontWeight: '900',
     },
@@ -748,7 +750,7 @@ const styles = StyleSheet.create({
         borderRadius: 32,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.5,
         shadowRadius: 20,
@@ -768,17 +770,17 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     priceValueSymbol: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 14,
         fontWeight: '800',
     },
     priceValueText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 24,
         fontWeight: '900',
     },
     bookButton: {
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
@@ -787,7 +789,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     bookButtonText: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontSize: 16,
         fontWeight: '800',
     },
@@ -800,7 +802,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     editButton: {
-        backgroundColor: '#fff',
+        backgroundColor: 'rgba(255,255,255,1)',
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 24,
@@ -809,7 +811,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     editButtonText: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontSize: 16,
         fontWeight: '800',
     },
@@ -829,7 +831,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     errorText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '700',
         marginBottom: 30,
@@ -844,7 +846,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     backButtonText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '600',
     },

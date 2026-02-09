@@ -39,6 +39,27 @@ export interface Message {
 const audioRecorderPlayer = new AudioRecorderPlayer();
 let lastDuration = 0;
 
+function normalizeMediaMimeType(media: MediaFile): string {
+	const explicitRaw = (media.mimeType || '').toLowerCase().trim();
+	const explicit = explicitRaw.includes(';') ? explicitRaw.split(';')[0].trim() : explicitRaw;
+	const name = (media.name || '').toLowerCase();
+
+	if (media.type === 'audio') {
+		if (explicit === 'audio/x-m4a' || explicit === 'audio/m4a') return 'audio/mp4';
+		if (explicit === 'audio/x-wav') return 'audio/wav';
+		if (explicit) return explicit;
+		if (name.endsWith('.m4a')) return 'audio/mp4';
+		if (name.endsWith('.mp3')) return 'audio/mpeg';
+		if (name.endsWith('.wav')) return 'audio/wav';
+		if (name.endsWith('.aac')) return 'audio/aac';
+		return 'audio/mp4';
+	}
+
+	if (media.type === 'image') return explicit || 'image/jpeg';
+	if (media.type === 'document') return explicit || 'application/octet-stream';
+	return explicit || 'application/octet-stream';
+}
+
 async function requestAudioPermission(): Promise<boolean> {
 	if (Platform.OS !== 'android') {
 		return true;
@@ -315,10 +336,12 @@ export const mediaService = {
 			}
 
 			console.log('📤 Preparing upload for URI:', fileUri);
+			const normalizedMimeType = normalizeMediaMimeType(media);
+			console.log('📤 Upload mime type:', normalizedMimeType, 'original:', media.mimeType);
 
 			formData.append('file', {
 				uri: fileUri,
-				type: media.mimeType || 'application/octet-stream',
+				type: normalizedMimeType,
 				name: media.name,
 			} as any);
 

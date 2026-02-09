@@ -12,7 +12,6 @@ import {
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
-import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { educationService } from '../../../services/educationService';
 import { ExamQuestion, UserExamAttempt } from '../../../types/education';
 import { useTranslation } from 'react-i18next';
@@ -186,7 +185,6 @@ export const ExamTrainerScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: ModernVedicTheme.colors.background,
     },
     center: {
         flex: 1,
@@ -206,53 +204,46 @@ const styles = StyleSheet.create({
     },
     progressBar: {
         height: '100%',
-        backgroundColor: ModernVedicTheme.colors.primary,
     },
     questionCounter: {
         fontSize: 14,
-        color: ModernVedicTheme.colors.textSecondary,
         marginBottom: 10,
         fontWeight: '600',
     },
     questionCard: {
-        backgroundColor: ModernVedicTheme.colors.surface,
         borderRadius: 20,
         padding: 20,
         marginBottom: 20,
-        ...ModernVedicTheme.shadows.medium,
+        shadowColor: 'rgba(0,0,0,1)',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 4,
     },
     questionText: {
         fontSize: 18,
         lineHeight: 26,
-        color: ModernVedicTheme.colors.text,
         fontWeight: '500',
     },
     verseRef: {
         marginTop: 10,
         fontSize: 12,
-        color: ModernVedicTheme.colors.primary,
         fontStyle: 'italic',
     },
     optionsContainer: {
         gap: 12,
     },
     optionButton: {
-        backgroundColor: ModernVedicTheme.colors.surface,
         borderRadius: 15,
         padding: 18,
         borderWidth: 1,
-        borderColor: ModernVedicTheme.colors.divider,
     },
     optionSelected: {
-        borderColor: ModernVedicTheme.colors.primary,
-        backgroundColor: ModernVedicTheme.colors.primary + '10',
     },
     optionText: {
         fontSize: 16,
-        color: ModernVedicTheme.colors.text,
     },
     optionTextSelected: {
-        color: ModernVedicTheme.colors.primary,
         fontWeight: 'bold',
     },
     footer: {
@@ -260,10 +251,8 @@ const styles = StyleSheet.create({
         padding: 20,
         gap: 15,
         borderTopWidth: 1,
-        borderTopColor: ModernVedicTheme.colors.divider,
     },
     primaryButton: {
-        backgroundColor: ModernVedicTheme.colors.primary,
         paddingVertical: 15,
         paddingHorizontal: 20,
         borderRadius: 12,
@@ -280,12 +269,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 25,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: ModernVedicTheme.colors.divider,
         alignItems: 'center',
         justifyContent: 'center',
     },
     secondaryButtonText: {
-        color: ModernVedicTheme.colors.textSecondary,
         fontSize: 16,
     },
     resultEmoji: {
@@ -295,19 +282,16 @@ const styles = StyleSheet.create({
     resultTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: ModernVedicTheme.colors.text,
         marginBottom: 10,
     },
     resultScore: {
         fontSize: 20,
-        color: ModernVedicTheme.colors.primary,
         fontWeight: 'bold',
         marginBottom: 10,
     },
     resultSub: {
         fontSize: 16,
         textAlign: 'center',
-        color: ModernVedicTheme.colors.textSecondary,
         marginBottom: 30,
         lineHeight: 24,
     }

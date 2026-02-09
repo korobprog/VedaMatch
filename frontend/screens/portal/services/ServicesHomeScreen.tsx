@@ -45,6 +45,7 @@ import ServiceCard from './components/ServiceCard';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -88,7 +89,8 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
 
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
@@ -287,7 +289,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                             <CategoryIcon
                                 name={cat.iconName}
                                 size={22}
-                                color={selectedCategory === cat.key ? '#fff' : colors.textSecondary}
+                                color={selectedCategory === cat.key ? colors.textPrimary : colors.textSecondary}
                             />
                         </LinearGradient>
                         <Text style={[
@@ -315,7 +317,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                 style={[styles.emptyButton, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
                 onPress={handleCreateService}
             >
-                <Text style={[styles.emptyButtonText, { color: '#FFFFFF' }]}>Создать первую услугу</Text>
+                <Text style={[styles.emptyButtonText, { color: colors.textPrimary }]}>Создать первую услугу</Text>
             </TouchableOpacity>
         </View>
     );
@@ -401,7 +403,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 24,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -430,7 +432,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     walletBalance: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 14,
         fontWeight: '800',
     },
@@ -466,7 +468,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     featuredCardTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '800',
         textAlign: 'right',
@@ -505,13 +507,13 @@ const styles = StyleSheet.create({
     searchBackground: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1a1a2e',
+        backgroundColor: 'rgba(26,26,46,1)',
         borderRadius: 20,
         paddingHorizontal: 20,
         height: 60,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
         shadowRadius: 20,
@@ -519,7 +521,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 12,
@@ -551,7 +553,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     activeCategoryLabel: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
     },
     row: {
         justifyContent: 'space-between',
@@ -582,7 +584,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.05)',
     },
     emptyTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 22,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -597,18 +599,18 @@ const styles = StyleSheet.create({
         marginBottom: 40,
     },
     emptyButton: {
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         paddingHorizontal: 32,
         paddingVertical: 16,
         borderRadius: 20,
-        shadowColor: '#F59E0B',
+        shadowColor: 'rgba(245,158,11,1)',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.4,
         shadowRadius: 15,
         elevation: 8,
     },
     emptyButtonText: {
-        color: '#1a1a2e',
+        color: 'rgba(26,26,46,1)',
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',

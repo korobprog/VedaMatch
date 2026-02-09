@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     FlatList,
-    useColorScheme,
     TouchableOpacity,
     Dimensions,
     Image,
@@ -22,7 +21,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { BlurView } from '@react-native-community/blur';
 import axios from 'axios';
-import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
@@ -34,7 +32,6 @@ import { RootStackParamList } from '../../../types/navigation';
 import LinearGradient from 'react-native-linear-gradient';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
-import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import {
@@ -85,8 +82,8 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const { user } = useUser();
     const { setChatRecipient } = useChat();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const { isDarkMode, theme, vTheme } = useSettings();
-    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
 
     const [candidates, setCandidates] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
@@ -132,10 +129,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             fetchFriends();
             // Sync filters with user profile to ensure they find people like themselves by default
             const u = user as any;
-            setFilterMadh(u.madh || u.sampradaya || '');
-            setFilterYogaStyle(u.yogaStyle || '');
-            setFilterGuna(u.guna || '');
-            setFilterIdentity(u.identity || '');
+            const nextMadh = u.madh || u.sampradaya || '';
+            if (nextMadh) setFilterMadh(nextMadh);
+            if (u.yogaStyle) setFilterYogaStyle(u.yogaStyle);
+            if (u.guna) setFilterGuna(u.guna);
+            if (u.identity) setFilterIdentity(u.identity);
         }
     }, [user]);
 
@@ -143,6 +141,9 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         try {
             const data = await datingService.getFriends();
             const ids = data.map((f: any) => f.ID);
+            if (ids.length === 0 && friendIds.length === 0) {
+                return;
+            }
             setFriendIds(ids);
         } catch (error) {
             console.error('Failed to fetch friends:', error);
@@ -441,7 +442,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                         />
                     ) : (
                         <LinearGradient
-                            colors={['#0f0f1a', '#1a1a2e', '#0f0f1a']}
+                            colors={['rgba(15,15,26,1)', 'rgba(26,26,46,1)', 'rgba(15,15,26,1)']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={styles.cardImagePlaceholder}
@@ -476,7 +477,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <View style={styles.cardTopActions}>
                         {!isPreview && (
                             <TouchableOpacity style={styles.cardActionCircle} onPress={handleShare}>
-                                <Share2 size={18} color="#fff" />
+                                <Share2 size={18} color="rgba(255,255,255,1)" />
                             </TouchableOpacity>
                         )}
                         {!isPreview && (
@@ -486,7 +487,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             >
                                 <Heart
                                     size={20}
-                                    color={isFavorited ? roleColors.accent : '#fff'}
+                                    color={isFavorited ? roleColors.accent : 'rgba(255,255,255,1)'}
                                     fill={isFavorited ? roleColors.accent : 'transparent'}
                                 />
                             </TouchableOpacity>
@@ -579,7 +580,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                             <Text style={styles.cardCompatibilityBtnText}>
                                                 {mode === 'business' ? 'Connect' : 'Astrological Analysis'}
                                             </Text>
-                                            <Sparkles size={16} color="#000" />
+                                            <Sparkles size={16} color="rgba(0,0,0,1)" />
                                         </LinearGradient>
                                     </TouchableOpacity>
                                 </View>
@@ -684,7 +685,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     }}
                                 >
                                     {React.cloneElement(m.icon as React.ReactElement, {
-                                        color: mode === m.key ? '#000' : 'rgba(255,255,255,0.4)',
+                                        color: mode === m.key ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,0.4)',
                                         size: 14
                                     })}
                                     <Text style={[
@@ -838,7 +839,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
                                     <Text style={styles.filterLabel}>{t('registration.city')}</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowCityPicker(true)}>
-                                        <Text style={{ color: filterCity ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                        <Text style={{ color: filterCity ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.3)' }}>
                                             {filterCity || t('dating.selectCity')}
                                         </Text>
                                     </TouchableOpacity>
@@ -865,7 +866,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
                                     <Text style={styles.filterLabel}>Tradition</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowMadhPicker(true)}>
-                                        <Text style={{ color: filterMadh ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                                        <Text style={{ color: filterMadh ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.3)' }}>
                                             {filterMadh || "Any"}
                                         </Text>
                                     </TouchableOpacity>
@@ -907,7 +908,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 <View style={styles.modalHeaderPremium}>
                                     <Text style={styles.headerTitleSmall}>Profile Preview</Text>
                                     <TouchableOpacity onPress={() => setShowPreview(false)}>
-                                        <X size={24} color="#fff" />
+                                        <X size={24} color="rgba(255,255,255,1)" />
                                     </TouchableOpacity>
                                 </View>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
@@ -956,7 +957,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                             style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
                                             onPress={() => { setFilterCity(city); setShowCityPicker(false); }}
                                         >
-                                            <Text style={{ color: '#fff', fontSize: 16 }}>{city}</Text>
+                                            <Text style={{ color: 'rgba(255,255,255,1)', fontSize: 16 }}>{city}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
@@ -1003,7 +1004,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                                 if (showIdentityPicker) { setFilterIdentity(opt); setShowIdentityPicker(false); }
                                             }}
                                         >
-                                            <Text style={{ color: '#fff', fontSize: 16 }}>{opt}</Text>
+                                            <Text style={{ color: 'rgba(255,255,255,1)', fontSize: 16 }}>{opt}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
@@ -1056,7 +1057,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.3)',
     },
     headerTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 24,
         fontFamily: 'Cinzel-Regular',
         letterSpacing: 3,
@@ -1105,8 +1106,8 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     modeGlassChipActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
+        borderColor: 'rgba(245,158,11,1)',
     },
     modeGlassText: {
         color: 'rgba(255,255,255,0.5)',
@@ -1114,7 +1115,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Cinzel-Regular',
     },
     modeGlassTextActive: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontWeight: '700',
     },
     statsBar: {
@@ -1132,7 +1133,7 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     statValue: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '800',
     },
@@ -1165,7 +1166,7 @@ const styles = StyleSheet.create({
     },
     cardImagePlaceholder: {
         flex: 1,
-        backgroundColor: '#0a0a14',
+        backgroundColor: 'rgba(10,10,20,1)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1219,7 +1220,7 @@ const styles = StyleSheet.create({
     cardSpiritualName: {
         fontSize: 36,
         fontFamily: 'Cinzel-Bold',
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         textShadowColor: 'rgba(0,0,0,0.5)',
         textShadowOffset: { width: 0, height: 2 },
         textShadowRadius: 10,
@@ -1257,7 +1258,7 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     cardTagText: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 12,
         fontWeight: '800',
         textTransform: 'uppercase',
@@ -1285,7 +1286,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     cardCompatibilityBtnText: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -1327,14 +1328,14 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 26,
         fontFamily: 'Cinzel-Bold',
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         textAlign: 'center',
         letterSpacing: 1,
     },
     headerTitleSmall: {
         fontSize: 18,
         fontFamily: 'Cinzel-Regular',
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         letterSpacing: 2,
     },
     modalText: {
@@ -1373,7 +1374,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.15)',
     },
     glassButtonText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '700',
     },
@@ -1384,7 +1385,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     premiumButtonText: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -1418,7 +1419,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.05)',
         borderRadius: 16,
         padding: 16,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
@@ -1439,7 +1440,7 @@ const styles = StyleSheet.create({
         fontSize: 13,
     },
     errorText: {
-        color: '#EF4444',
+        color: 'rgba(239,68,68,1)',
         textAlign: 'center',
     },
     // Picker specific styles (keeping compatible names if used)
@@ -1447,7 +1448,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.05)',
         borderRadius: 12,
         padding: 12,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
     },

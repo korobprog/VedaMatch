@@ -30,6 +30,9 @@ import {
     updateServiceSchedule,
     CreateScheduleRequest,
 } from '../../../services/serviceService';
+import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 type RouteParams = {
     params: {
@@ -71,6 +74,9 @@ export default function ServiceScheduleScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const serviceId = route.params?.serviceId;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -274,21 +280,21 @@ export default function ServiceScheduleScreen() {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
                 <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#F59E0B" />
+                    <ActivityIndicator size="large" color={colors.accent} />
                 </View>
             </LinearGradient>
         );
     }
 
     return (
-        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+        <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
                 {/* Fixed Premium Header */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle}>Настройка времени</Text>
@@ -301,9 +307,9 @@ export default function ServiceScheduleScreen() {
                         disabled={saving}
                     >
                         {saving ? (
-                            <ActivityIndicator size="small" color="#000" />
+                            <ActivityIndicator size="small" color={colors.textPrimary} />
                         ) : (
-                            <Save size={20} color="#000" />
+                            <Save size={20} color={colors.textPrimary} />
                         )}
                     </TouchableOpacity>
                 </View>
@@ -355,7 +361,7 @@ export default function ServiceScheduleScreen() {
                                 value={currentDaySchedule.enabled}
                                 onValueChange={() => handleToggleDay(selectedDay)}
                                 trackColor={{ false: 'rgba(255,255,255,0.05)', true: 'rgba(245, 158, 11, 0.4)' }}
-                                thumbColor={currentDaySchedule.enabled ? '#F59E0B' : 'rgba(255,255,255,0.2)'}
+                                thumbColor={currentDaySchedule.enabled ? colors.accent : 'rgba(255,255,255,0.2)'}
                                 ios_backgroundColor="rgba(0,0,0,0.3)"
                             />
                         </View>
@@ -369,7 +375,7 @@ export default function ServiceScheduleScreen() {
                                                 style={styles.timeSelectBox}
                                                 onPress={() => showTimePicker(selectedDay, index, 'startTime', slot.startTime)}
                                             >
-                                                <Clock size={12} color="#F59E0B" />
+                                                <Clock size={12} color={colors.accent} />
                                                 <Text style={styles.timeValueText}>{slot.startTime}</Text>
                                             </TouchableOpacity>
 
@@ -381,7 +387,7 @@ export default function ServiceScheduleScreen() {
                                                 style={styles.timeSelectBox}
                                                 onPress={() => showTimePicker(selectedDay, index, 'endTime', slot.endTime)}
                                             >
-                                                <Clock size={12} color="#F59E0B" />
+                                                <Clock size={12} color={colors.accent} />
                                                 <Text style={styles.timeValueText}>{slot.endTime}</Text>
                                             </TouchableOpacity>
 
@@ -402,7 +408,7 @@ export default function ServiceScheduleScreen() {
                                         style={styles.ghostAddButton}
                                         onPress={() => handleAddSlot(selectedDay)}
                                     >
-                                        <Plus size={18} color="#F59E0B" />
+                                        <Plus size={18} color={colors.accent} />
                                         <Text style={styles.ghostAddText}>Добавить интервал</Text>
                                     </TouchableOpacity>
 
@@ -563,7 +569,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
         textAlign: 'center',
@@ -578,7 +584,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -620,19 +626,19 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     dayTabSelected: {
-        backgroundColor: '#fff',
-        borderColor: '#fff',
+        backgroundColor: 'rgba(255,255,255,1)',
+        borderColor: 'rgba(255,255,255,1)',
     },
     dayTabDisabled: {
         opacity: 0.3,
     },
     dayTabText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 13,
         fontWeight: '800',
     },
     dayTabTextSelected: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontWeight: '900',
     },
     dayTabTextDisabled: {
@@ -644,7 +650,7 @@ const styles = StyleSheet.create({
         width: 4,
         height: 4,
         borderRadius: 2,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
     },
     mainSettingsCard: {
         marginHorizontal: 20,
@@ -664,12 +670,12 @@ const styles = StyleSheet.create({
     cardIndicator: {
         width: 4,
         height: 16,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         borderRadius: 2,
     },
     cardMainTitle: {
         flex: 1,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -698,7 +704,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     timeValueText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '700',
     },
@@ -735,7 +741,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.1)',
     },
     ghostAddText: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 14,
         fontWeight: '800',
     },
@@ -777,7 +783,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     globalTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 24,
@@ -805,16 +811,16 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     glassOptionActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
+        borderColor: 'rgba(245,158,11,1)',
     },
     glassOptionText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 13,
         fontWeight: '700',
     },
     glassOptionTextActive: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontWeight: '900',
     },
     weekPreviewCard: {
@@ -846,7 +852,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     visualDayActive: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
     },
     dotsContainer: {
         alignItems: 'center',
@@ -856,7 +862,7 @@ const styles = StyleSheet.create({
         width: 4,
         height: 4,
         borderRadius: 2,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
     },
     inactiveDot: {
         width: 4,

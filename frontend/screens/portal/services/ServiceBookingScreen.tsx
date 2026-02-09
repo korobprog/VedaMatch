@@ -33,6 +33,7 @@ import { useUser } from '../../../context/UserContext';
 import ServiceCalendar from './components/ServiceCalendar';
 import TariffSelector from './components/TariffSelector';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 type RouteParams = {
     params: {
@@ -56,7 +57,8 @@ export default function ServiceBookingScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const { wallet, refreshWallet, formattedBalance } = useWallet();
 
     const serviceId = route.params?.serviceId;
@@ -259,7 +261,7 @@ export default function ServiceBookingScreen() {
                 {/* Fixed Premium Header */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Запись на сессию</Text>
                     <View style={styles.walletBadge}>
@@ -395,7 +397,7 @@ export default function ServiceBookingScreen() {
                         disabled={!canBook || !hasEnoughBalance || booking}
                     >
                         {booking ? (
-                            <ActivityIndicator color="#000" />
+                            <ActivityIndicator color={colors.textPrimary} />
                         ) : (
                             <Text style={styles.primaryBookButtonText}>
                                 {!canBook
@@ -436,7 +438,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     errorText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '800',
         marginBottom: 24,
@@ -451,7 +453,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     backButtonText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '700',
     },
@@ -475,7 +477,7 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         flex: 1,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
         textAlign: 'center',
@@ -489,7 +491,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     walletBalance: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 13,
         fontWeight: '800',
     },
@@ -511,7 +513,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     serviceMainTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 22,
         fontWeight: '800',
         marginBottom: 10,
@@ -546,7 +548,7 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     channelLabel: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 11,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -563,11 +565,11 @@ const styles = StyleSheet.create({
     headingIndicator: {
         width: 4,
         height: 16,
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         borderRadius: 2,
     },
     sectionLabel: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
     },
@@ -575,7 +577,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 255, 255, 0.02)',
         borderRadius: 20,
         padding: 20,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         minHeight: 120,
         textAlignVertical: 'top',
@@ -590,7 +592,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     reviewTitle: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 12,
         fontWeight: '900',
         letterSpacing: 2,
@@ -611,7 +613,7 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     reviewValue: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '700',
     },
@@ -626,12 +628,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     totalText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '800',
     },
     totalAmount: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 24,
         fontWeight: '900',
     },
@@ -644,7 +646,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(244, 67, 54, 0.2)',
     },
     balanceAlertText: {
-        color: '#F44336',
+        color: 'rgba(244,67,54,1)',
         fontSize: 12,
         fontWeight: '700',
         textAlign: 'center',
@@ -662,12 +664,12 @@ const styles = StyleSheet.create({
         borderTopColor: 'rgba(255, 255, 255, 0.05)',
     },
     primaryBookButton: {
-        backgroundColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,1)',
         height: 64,
         borderRadius: 24,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#F59E0B',
+        shadowColor: 'rgba(245,158,11,1)',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 16,
@@ -677,7 +679,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0,
     },
     primaryBookButtonText: {
-        color: '#000',
+        color: 'rgba(0,0,0,1)',
         fontSize: 16,
         fontWeight: '900',
         letterSpacing: 0.5,

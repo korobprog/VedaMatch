@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     Alert,
     Platform,
     ImageBackground,
+    Image,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
@@ -73,34 +74,47 @@ type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'n
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
-    const { vTheme, isDarkMode, setIsMenuOpen, setIsPortalOpen, portalBackground, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType } = useSettings();
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [showRoleInfo, setShowRoleInfo] = useState(false);
 
-    // Background wrapper as inner function
-    const BackgroundWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-        if (portalBackgroundType === 'image' && portalBackground) {
+    const isImageBackground = portalBackgroundType === 'image' && Boolean(portalBackground);
+    const isGradientBackground = portalBackgroundType === 'gradient' && Boolean(portalBackground);
+    const backgroundImageSource = useMemo(() => {
+        if (!isImageBackground || !portalBackground) return undefined;
+        return { uri: portalBackground, cache: 'force-cache' as const };
+    }, [isImageBackground, portalBackground]);
+    const gradientColors = useMemo(() => {
+        if (!isGradientBackground || !portalBackground) return undefined;
+        return portalBackground.split('|').filter(Boolean);
+    }, [isGradientBackground, portalBackground]);
+
+    useEffect(() => {
+        if (!isImageBackground || !portalBackground || !portalBackground.startsWith('http')) return;
+        Image.prefetch(portalBackground).catch(() => { });
+    }, [isImageBackground, portalBackground]);
+
+    const renderWithBackground = useCallback((children: React.ReactNode) => {
+        if (isImageBackground && backgroundImageSource) {
             return (
                 <ImageBackground
-                    key="bg-image"
-                    source={{ uri: portalBackground }}
+                    source={backgroundImageSource}
                     style={styles.container}
                     resizeMode="cover"
+                    fadeDuration={0}
                 >
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' }}>
+                    <View style={styles.imageOverlay}>
                         {children}
                     </View>
                 </ImageBackground>
             );
         }
 
-        if (portalBackgroundType === 'gradient' && portalBackground) {
-            const colors = portalBackground.split('|');
+        if (isGradientBackground && gradientColors && gradientColors.length > 0) {
             return (
                 <LinearGradient
-                    key="bg-gradient"
-                    colors={colors}
+                    colors={gradientColors}
                     style={styles.container}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
@@ -111,14 +125,11 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         }
 
         return (
-            <View
-                key="bg-color"
-                style={[styles.container, { backgroundColor: portalBackground || vTheme.colors.background }]}
-            >
+            <View style={[styles.container, { backgroundColor: portalBackground || vTheme.colors.background }]}>
                 {children}
             </View>
         );
-    };
+    }, [isImageBackground, backgroundImageSource, isGradientBackground, gradientColors, portalBackground, vTheme.colors.background]);
 
     useEffect(() => {
         if (route.params?.initialTab === 'map') {
@@ -199,8 +210,8 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
     // Show grid view if no active tab
     if (!activeTab) {
-        return (
-            <BackgroundWrapper>
+        return renderWithBackground(
+            <>
                 <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
                 {/* Header */}
@@ -321,13 +332,13 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                         navigation.navigate('EditProfile');
                     }}
                 />
-            </BackgroundWrapper>
+            </>
         );
     }
 
     // Show service content with back button
-    return (
-        <BackgroundWrapper>
+    return renderWithBackground(
+        <>
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             {/* Header with back - Hidden if service manages its own header (like Dating) */}
@@ -431,7 +442,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             <View style={styles.content}>
                 {renderContent()}
             </View>
-        </BackgroundWrapper>
+        </>
     );
 };
 
@@ -445,6 +456,10 @@ export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    imageOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.25)',
     },
     header: {
         flexDirection: 'row',

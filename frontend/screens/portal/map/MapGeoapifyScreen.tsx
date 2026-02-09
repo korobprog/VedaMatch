@@ -288,8 +288,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                     } else {
                         userMarker = L.circleMarker([${location.latitude}, ${location.longitude}], {
                             radius: 8,
-                            fillColor: '#4285F4',
-                            color: '#ffffff',
+                            fillColor: '${colors.accent}',
+                            color: '${colors.textPrimary}',
                             weight: 2,
                             opacity: 1,
                             fillOpacity: 1
@@ -528,8 +528,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         if (${user?.latitude && user?.longitude}) {
             userMarker = L.circleMarker([${user?.latitude || 0}, ${user?.longitude || 0}], {
                 radius: 8,
-                fillColor: '#4285F4',
-                color: '#ffffff',
+                fillColor: '${colors.accent}',
+                color: '${colors.textPrimary}',
                 weight: 2,
                 opacity: 1,
                 fillOpacity: 1
@@ -596,7 +596,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             }
             
             markers.forEach(function(m) {
-                var color = colors[m.type] || '#6B7280';
+                var color = colors[m.type] || '${markerColors.default}';
                 var icon = L.divIcon({
                     className: '',
                     html: '<div class="custom-marker" style="background-color:' + color + '">' + (icons[m.type] || '') + '</div>',
@@ -663,7 +663,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                 }
                 
                 // If cluster is very large, use black/dark
-                if (visibleCount > 50) color = '#1F2937';
+                if (visibleCount > 50) color = '${colors.textPrimary}';
 
                 var icon = L.divIcon({
                     className: '',
@@ -817,8 +817,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                         ]}
                         onPress={() => toggleFilter('showUsers')}
                     >
-                        <Users size={14} color={filters.showUsers ? '#fff' : colors.textPrimary} />
-                        <Text style={[styles.filterChipText, { color: filters.showUsers ? '#fff' : colors.textPrimary }]}>
+                        <Users size={14} color={colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
                             Люди
                         </Text>
                     </TouchableOpacity>
@@ -831,8 +831,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                         ]}
                         onPress={() => toggleFilter('showShops')}
                     >
-                        <Store size={14} color={filters.showShops ? '#fff' : colors.textPrimary} />
-                        <Text style={[styles.filterChipText, { color: filters.showShops ? '#fff' : colors.textPrimary }]}>
+                        <Store size={14} color={colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
                             Магазины
                         </Text>
                     </TouchableOpacity>
@@ -845,8 +845,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                         ]}
                         onPress={() => toggleFilter('showAds')}
                     >
-                        <Tag size={14} color={filters.showAds ? '#fff' : colors.textPrimary} />
-                        <Text style={[styles.filterChipText, { color: filters.showAds ? '#fff' : colors.textPrimary }]}>
+                        <Tag size={14} color={colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
                             Объявления
                         </Text>
                     </TouchableOpacity>
@@ -859,8 +859,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                         ]}
                         onPress={() => toggleFilter('showCafes')}
                     >
-                        <Coffee size={14} color={filters.showCafes ? '#fff' : colors.textPrimary} />
-                        <Text style={[styles.filterChipText, { color: filters.showCafes ? '#fff' : colors.textPrimary }]}>
+                        <Coffee size={14} color={colors.textPrimary} />
+                        <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
                             Кафе
                         </Text>
                     </TouchableOpacity>
@@ -882,10 +882,10 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                 <View style={[styles.infoCard, { backgroundColor: colors.surfaceElevated }]}>
                     <View style={styles.infoHeader}>
                         <View style={[styles.infoIcon, { backgroundColor: getMarkerColor(selectedMarker.type) }]}>
-                            {selectedMarker.type === 'user' && <Users size={20} color="#fff" />}
-                            {selectedMarker.type === 'shop' && <Store size={20} color="#fff" />}
-                            {selectedMarker.type === 'ad' && <Tag size={20} color="#fff" />}
-                            {selectedMarker.type === 'cafe' && <Coffee size={20} color="#fff" />}
+                            {selectedMarker.type === 'user' && <Users size={20} color={colors.textPrimary} />}
+                            {selectedMarker.type === 'shop' && <Store size={20} color={colors.textPrimary} />}
+                            {selectedMarker.type === 'ad' && <Tag size={20} color={colors.textPrimary} />}
+                            {selectedMarker.type === 'cafe' && <Coffee size={20} color={colors.textPrimary} />}
                         </View>
                         <View style={styles.infoContent}>
                             <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>
@@ -915,7 +915,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                             style={[styles.actionButton, { backgroundColor: colors.accent }]}
                             onPress={handleBuildRoute}
                         >
-                            <Route size={16} color="#fff" />
+                            <Route size={16} color={colors.textPrimary} />
                             <Text style={styles.actionButtonText}>Маршрут</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -968,10 +968,10 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                             />
                                         ) : (
                                             <View style={[styles.cardImagePlaceholder, { backgroundColor: getMarkerColor(item.type) }]}>
-                                                {item.type === 'user' && <Users size={24} color="#fff" />}
-                                                {item.type === 'shop' && <Store size={24} color="#fff" />}
-                                                {item.type === 'ad' && <Tag size={24} color="#fff" />}
-                                                {item.type === 'cafe' && <Coffee size={24} color="#fff" />}
+                                                {item.type === 'user' && <Users size={24} color={colors.textPrimary} />}
+                                                {item.type === 'shop' && <Store size={24} color={colors.textPrimary} />}
+                                                {item.type === 'ad' && <Tag size={24} color={colors.textPrimary} />}
+                                                {item.type === 'cafe' && <Coffee size={24} color={colors.textPrimary} />}
                                             </View>
                                         )}
                                     </View>
@@ -999,7 +999,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                             handleBuildRoute();
                                         }}
                                     >
-                                        <Route size={16} color="#fff" />
+                                        <Route size={16} color={colors.textPrimary} />
                                         <Text style={styles.smallActionButtonText}>Маршрут</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderRadius: 16,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
@@ -1074,7 +1074,7 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         borderRadius: 12,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -1100,8 +1100,8 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     filterChipActive: {
-        backgroundColor: '#6B7280',
-        borderColor: '#6B7280',
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
     },
     filterChipText: {
         fontSize: 12,
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.15,
         shadowRadius: 6,
@@ -1132,7 +1132,7 @@ const styles = StyleSheet.create({
         right: 16,
         borderRadius: 16,
         padding: 16,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
@@ -1184,7 +1184,7 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     actionButtonText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '500',
     },
@@ -1212,7 +1212,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 12,
         marginBottom: 12,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -1270,7 +1270,7 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     smallActionButtonText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 12,
         fontWeight: '600',
     },
@@ -1309,7 +1309,7 @@ const styles = StyleSheet.create({
         right: 16,
         maxHeight: 250,
         borderRadius: 12,
-        shadowColor: '#000',
+        shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 10,

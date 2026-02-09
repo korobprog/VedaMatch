@@ -69,12 +69,19 @@ describe('DatingScreen', () => {
   it('renders correctly', async () => {
     render(<DatingScreen />);
     await waitFor(() => {
+      expect(datingService.getFriends).toHaveBeenCalled();
+    });
+    await waitFor(() => {
       expect(datingService.getCandidates).toHaveBeenCalled();
     });
   });
 
   it('switches modes when chips are pressed', async () => {
     const { getByText } = render(<DatingScreen />);
+
+    await waitFor(() => {
+      expect(datingService.getFriends).toHaveBeenCalled();
+    });
     
     // Initial call (default family mode)
     await waitFor(() => {

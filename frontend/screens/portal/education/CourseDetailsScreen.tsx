@@ -11,7 +11,6 @@ import {
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
-import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { educationService } from '../../../services/educationService';
 import { EducationCourse } from '../../../types/education';
 import { useTranslation } from 'react-i18next';
@@ -128,7 +127,6 @@ export const CourseDetailsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: ModernVedicTheme.colors.background,
     },
     center: {
         flex: 1,
@@ -140,14 +138,15 @@ const styles = StyleSheet.create({
     },
     header: {
         padding: 20,
-        backgroundColor: ModernVedicTheme.colors.surface,
         borderBottomLeftRadius: 30,
         borderBottomRightRadius: 30,
-        ...ModernVedicTheme.shadows.medium,
+        shadowColor: 'rgba(0,0,0,1)',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 4,
     },
     orgBadge: {
-        backgroundColor: ModernVedicTheme.colors.primary + '20',
-        color: ModernVedicTheme.colors.primary,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 20,
@@ -159,13 +158,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: ModernVedicTheme.colors.text,
         marginBottom: 15,
         fontFamily: 'Playfair Display',
     },
     description: {
         fontSize: 15,
-        color: ModernVedicTheme.colors.textSecondary,
         lineHeight: 22,
     },
     bookButton: {
@@ -174,15 +171,12 @@ const styles = StyleSheet.create({
         marginTop: 20,
         padding: 12,
         borderRadius: 12,
-        backgroundColor: ModernVedicTheme.colors.primary + '10',
         borderWidth: 1,
-        borderColor: ModernVedicTheme.colors.primary + '30',
         gap: 10,
     },
     bookButtonText: {
         fontSize: 15,
         fontWeight: 'bold',
-        color: ModernVedicTheme.colors.primary,
     },
     moduleSection: {
         padding: 20,
@@ -191,24 +185,20 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: ModernVedicTheme.colors.text,
         marginBottom: 15,
     },
     moduleCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: ModernVedicTheme.colors.surface,
         borderRadius: 15,
         padding: 15,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: ModernVedicTheme.colors.divider,
     },
     moduleNumberContainer: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: ModernVedicTheme.colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -223,16 +213,13 @@ const styles = StyleSheet.create({
     moduleTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: ModernVedicTheme.colors.text,
     },
     moduleDesc: {
         fontSize: 12,
-        color: ModernVedicTheme.colors.textSecondary,
         marginTop: 2,
     },
     arrow: {
         fontSize: 20,
-        color: ModernVedicTheme.colors.primary,
         marginLeft: 10,
     }
 });

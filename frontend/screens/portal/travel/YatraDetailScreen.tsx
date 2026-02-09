@@ -24,6 +24,7 @@ import OrganizerBadge from '../../../components/travel/OrganizerBadge';
 import YatraReviewsSection from '../../../components/travel/YatraReviewsSection';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +41,7 @@ const YatraDetailScreen: React.FC = () => {
     const { user } = useUser(); // Get current user
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
     const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
     const isOrganizer = (yatra && user && user.ID && yatra.organizerId === user.ID) || isAdmin;
 
@@ -420,16 +422,16 @@ const YatraDetailScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000000',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#000000',
+        backgroundColor: colors.background,
     },
     content: {
         flex: 1,
@@ -458,7 +460,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
@@ -470,7 +472,7 @@ const styles = StyleSheet.create({
         right: 20,
     },
     themeBadge: {
-        backgroundColor: '#FF9500',
+        backgroundColor: colors.accent,
         alignSelf: 'flex-start',
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -478,14 +480,14 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     themeText: {
-        color: '#FFFFFF',
+        color: colors.background,
         fontWeight: 'bold',
         fontSize: 12,
     },
     title: {
         fontSize: 32,
         fontWeight: 'bold',
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginBottom: 8,
         lineHeight: 38,
         textShadowColor: 'rgba(0,0,0,0.5)',
@@ -498,23 +500,23 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     locationText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 16,
         fontWeight: '500',
     },
     organizerSection: {
         padding: 20,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         marginHorizontal: 16,
         marginTop: -30,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: colors.border,
     },
     sectionLabel: {
         fontSize: 12,
         textTransform: 'uppercase',
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontWeight: '600',
         marginBottom: 12,
         letterSpacing: 0.5,
@@ -528,39 +530,39 @@ const styles = StyleSheet.create({
         height: 50,
         borderRadius: 25,
         borderWidth: 2,
-        borderColor: '#FF9500',
+        borderColor: colors.accent,
     },
     organizerInfo: {
         flex: 1,
         marginLeft: 12,
     },
     organizerName: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
         marginBottom: 2,
     },
     organizerLocation: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
     },
     messageButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
     statsGrid: {
         flexDirection: 'row',
         padding: 20,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         marginTop: 16,
         marginHorizontal: 16,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: colors.border,
     },
     statItem: {
         flex: 1,
@@ -569,22 +571,22 @@ const styles = StyleSheet.create({
     statBorder: {
         borderLeftWidth: 1,
         borderRightWidth: 1,
-        borderColor: '#2C2C2E',
+        borderColor: colors.border,
     },
     statLabel: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 12,
         marginTop: 8,
         marginBottom: 4,
     },
     statValue: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: 'bold',
         textAlign: 'center',
     },
     statSub: {
-        color: '#636366',
+        color: colors.textSecondary,
         fontSize: 10,
         marginTop: 2,
     },
@@ -595,11 +597,11 @@ const styles = StyleSheet.create({
     sectionHeader: {
         fontSize: 22,
         fontWeight: 'bold',
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginBottom: 16,
     },
     descriptionText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 16,
         lineHeight: 24,
     },
@@ -612,21 +614,21 @@ const styles = StyleSheet.create({
         flex: 1,
         marginLeft: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#2C2C2E',
+        borderBottomColor: colors.border,
         paddingBottom: 16,
     },
     detailTitle: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
         marginBottom: 4,
     },
     detailText: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
     },
     timeline: {
         borderLeftWidth: 2,
-        borderColor: '#2C2C2E',
+        borderColor: colors.border,
         marginLeft: 8,
         paddingLeft: 24,
         paddingVertical: 8,
@@ -646,55 +648,55 @@ const styles = StyleSheet.create({
         width: 14,
         height: 14,
         borderRadius: 7,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         borderWidth: 2,
-        borderColor: '#000000',
+        borderColor: colors.background,
     },
     startDot: {
-        backgroundColor: '#34C759',
+        backgroundColor: colors.success,
     },
     endDot: {
-        backgroundColor: '#FF3B30',
+        backgroundColor: colors.danger,
     },
     timelineLine: {
         width: 2,
         flex: 1,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.border,
         marginVertical: 4,
     },
     timelineContent: {
         marginTop: -4,
     },
     pointName: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
         marginBottom: 4,
     },
     pointDesc: {
-        color: '#8E8E93',
+        color: colors.textSecondary,
         fontSize: 14,
     },
     infoBox: {
-        backgroundColor: 'rgba(255, 149, 0, 0.1)',
+        backgroundColor: colors.accentSoft,
         borderRadius: 16,
         padding: 16,
         flexDirection: 'row',
         borderWidth: 1,
-        borderColor: 'rgba(255, 149, 0, 0.3)',
+        borderColor: colors.border,
     },
     infoContent: {
         flex: 1,
         marginLeft: 12,
     },
     infoTitle: {
-        color: '#FF9500',
+        color: colors.accent,
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 4,
     },
     infoText: {
-        color: '#E5E5EA',
+        color: colors.textSecondary,
         fontSize: 14,
         lineHeight: 20,
     },
@@ -703,19 +705,19 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.surfaceElevated,
         padding: 16,
         paddingBottom: 32,
         flexDirection: 'row',
         borderTopWidth: 1,
-        borderTopColor: '#2C2C2E',
+        borderTopColor: colors.border,
         gap: 12,
     },
     shareButton: {
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -723,7 +725,7 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#FF9500',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -731,23 +733,23 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     actionButtonText: {
-        color: '#000000',
+        color: colors.background,
         fontSize: 18,
         fontWeight: 'bold',
     },
     disabledButton: {
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
     },
     approvedButton: {
-        backgroundColor: '#34C759',
+        backgroundColor: colors.success,
     },
     rejectedButton: {
-        backgroundColor: '#FF3B30',
+        backgroundColor: colors.danger,
     },
     chatButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#34C759',
+        backgroundColor: colors.success,
         borderRadius: 12,
         paddingVertical: 12,
         paddingHorizontal: 16,
@@ -755,18 +757,18 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     chatButtonText: {
-        color: '#FFFFFF',
+        color: colors.background,
         fontSize: 16,
         fontWeight: '600',
     },
     participantChatButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.surface,
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: '#34C759',
+        borderColor: colors.success,
     },
 });
 

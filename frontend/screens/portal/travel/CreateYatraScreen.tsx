@@ -20,7 +20,9 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { yatraService } from '../../../services/yatraService';
 import { YATRA_THEME_LABELS, YatraTheme } from '../../../types/yatra';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type CreateYatraScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateYatra'>;
 
@@ -35,7 +37,9 @@ const CreateYatraScreen = () => {
     const yatraId = route.params?.yatraId;
     const isEditing = !!yatraId;
     const { user } = useUser();
-    const { colors } = useRoleTheme(user?.role, false);
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(isEditing);
     const [submitting, setSubmitting] = useState(false);
@@ -247,7 +251,7 @@ const CreateYatraScreen = () => {
                         <View style={styles.halfInput}>
                             <Text style={styles.label}>Начало (YYYY-MM-DD)</Text>
                             <View style={styles.inputContainer}>
-                                <Calendar size={18} color="#666" style={styles.inputIcon} />
+                                <Calendar size={18} color={colors.textSecondary} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.inputWithIcon}
                                     placeholder="2024-11-01"
@@ -259,7 +263,7 @@ const CreateYatraScreen = () => {
                         <View style={styles.halfInput}>
                             <Text style={styles.label}>Окончание</Text>
                             <View style={styles.inputContainer}>
-                                <Calendar size={18} color="#666" style={styles.inputIcon} />
+                                <Calendar size={18} color={colors.textSecondary} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.inputWithIcon}
                                     placeholder="2024-11-14"
@@ -322,7 +326,7 @@ const CreateYatraScreen = () => {
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Маршрут</Text>
                         <TouchableOpacity onPress={handleAddPoint} style={[styles.addButton, { backgroundColor: colors.accent }]}>
-                            <Plus size={16} color="#FFF" />
+                            <Plus size={16} color={colors.textPrimary} />
                             <Text style={styles.addButtonText}>Добавить</Text>
                         </TouchableOpacity>
                     </View>
@@ -341,7 +345,7 @@ const CreateYatraScreen = () => {
                                 />
                                 {routePoints.length > 1 && (
                                     <TouchableOpacity onPress={() => handleRemovePoint(point.id)}>
-                                        <Trash size={18} color="#EF4444" />
+                                        <Trash size={18} color={colors.danger} />
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -362,7 +366,7 @@ const CreateYatraScreen = () => {
                     disabled={submitting}
                 >
                     {submitting ? (
-                        <ActivityIndicator color="#FFF" />
+                        <ActivityIndicator color={colors.textPrimary} />
                     ) : (
                         <Text style={styles.submitButtonText}>
                             {isEditing ? 'Сохранить Изменения' : 'Создать Тур'}
@@ -374,10 +378,10 @@ const CreateYatraScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
@@ -389,9 +393,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         paddingTop: Platform.OS === 'ios' ? 50 : 16,
-        backgroundColor: '#FFF',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: 8,
@@ -400,14 +404,14 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         marginLeft: 12,
-        color: '#111',
+        color: colors.textPrimary,
     },
     scrollContent: {
         paddingBottom: 40,
     },
     coverUpload: {
         height: 200,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: colors.surfaceElevated,
         width: '100%',
         justifyContent: 'center',
         alignItems: 'center',
@@ -421,7 +425,7 @@ const styles = StyleSheet.create({
     },
     uploadText: {
         marginTop: 8,
-        color: '#6B7280',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '500',
     },
@@ -430,35 +434,35 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingTop: 16,
         paddingBottom: 8,
-        backgroundColor: '#FFF',
+        backgroundColor: colors.surface,
         borderRadius: 0,
     },
     sectionTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#111',
+        color: colors.textPrimary,
         marginBottom: 12,
     },
     label: {
         fontSize: 13,
-        color: '#6B7280',
+        color: colors.textSecondary,
         marginBottom: 4,
     },
     input: {
-        backgroundColor: '#F9FAFB',
+        backgroundColor: colors.surfaceElevated,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
         borderRadius: 8,
         padding: 12,
         fontSize: 15,
-        color: '#111',
+        color: colors.textPrimary,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
+        backgroundColor: colors.surfaceElevated,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
         borderRadius: 8,
         paddingHorizontal: 10,
     },
@@ -469,7 +473,7 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         fontSize: 15,
-        color: '#111',
+        color: colors.textPrimary,
     },
     textArea: {
         height: 100,
@@ -490,21 +494,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: colors.surfaceElevated,
         marginRight: 8,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
     },
     themeChipActive: {
-        backgroundColor: '#FFF7ED',
-        borderColor: '#FF9500',
+        backgroundColor: colors.accentSoft,
+        borderColor: colors.accent,
     },
     themeText: {
-        color: '#4B5563',
+        color: colors.textSecondary,
         fontWeight: '500',
     },
     themeTextActive: {
-        color: '#FF9500',
+        color: colors.accent,
         fontWeight: '600',
     },
     sectionHeader: {
@@ -516,24 +520,24 @@ const styles = StyleSheet.create({
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#10B981',
+        backgroundColor: colors.accent,
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 6,
     },
     addButtonText: {
-        color: '#FFF',
+        color: colors.textPrimary,
         fontSize: 12,
         fontWeight: '600',
         marginLeft: 4,
     },
     pointCard: {
-        backgroundColor: '#F9FAFB',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 8,
         padding: 10,
         marginBottom: 10,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
     },
     pointHeader: {
         flexDirection: 'row',
@@ -544,13 +548,13 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 12,
-        backgroundColor: '#FF9500',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 8,
     },
     pointNumberText: {
-        color: '#FFF',
+        color: colors.textPrimary,
         fontWeight: 'bold',
         fontSize: 12,
     },
@@ -558,34 +562,34 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 15,
         fontWeight: '600',
-        color: '#111',
+        color: colors.textPrimary,
         borderBottomWidth: 1,
-        borderBottomColor: '#D1D5DB',
+        borderBottomColor: colors.border,
         paddingBottom: 4,
         marginRight: 8,
     },
     pointDescInput: {
         fontSize: 14,
-        color: '#4B5563',
+        color: colors.textSecondary,
         padding: 0,
     },
     submitButton: {
-        backgroundColor: '#FF9500',
+        backgroundColor: colors.accent,
         margin: 16,
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
         elevation: 2,
-        shadowColor: 'orange',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
     },
     disabledButton: {
-        backgroundColor: '#FDBA74',
+        backgroundColor: 'rgba(253,186,116,1)',
     },
     submitButtonText: {
-        color: '#FFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: 'bold',
     },

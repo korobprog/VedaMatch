@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-    Image, Switch, Alert, ActivityIndicator, useColorScheme, Modal
+    Image, Switch, Alert, ActivityIndicator, Modal
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
 import { ProductType, ProductCategory, ProductCategoryConfig, VariantFormData, Product } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
 type RouteParams = {
     ProductEdit: { productId?: number };
@@ -24,8 +26,14 @@ export const ProductEditScreen: React.FC = () => {
     const isEditing = !!productId;
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
 
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const accent = colors.accent;
+    const textPrimary = colors.textPrimary;
+    const textSecondary = colors.textSecondary;
+    const surface = colors.surface;
+    const surfaceElevated = colors.surfaceElevated;
 
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(isEditing);
@@ -279,26 +287,26 @@ export const ProductEditScreen: React.FC = () => {
 
     if (initialLoading) {
         return (
-            <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+                <ActivityIndicator size="large" color={accent} />
             </View>
         );
     }
 
     return (
         <ProtectedScreen>
-            <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+            <View style={{ flex: 1, backgroundColor: colors.background }}>
                 <ScrollView contentContainerStyle={styles.container}>
-                    <Text style={[styles.headerTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                    <Text style={[styles.headerTitle, { color: textPrimary }]}>
                         {isEditing ? t('market.product.edit') : t('market.product.add')}
                     </Text>
 
                     {/* Main Image */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                             {t('market.product.mainImage') || 'Main Image'}
                         </Text>
-                        <TouchableOpacity style={[styles.mainImagePicker, { borderColor: colors.primary }]} onPress={handlePickMainImage}>
+                        <TouchableOpacity style={[styles.mainImagePicker, { borderColor: accent }]} onPress={handlePickMainImage}>
                             {mainImage ? (
                                 <Image source={{ uri: mainImage.uri }} style={styles.mainImagePreview} />
                             ) : existingMainImage ? (
@@ -316,21 +324,21 @@ export const ProductEditScreen: React.FC = () => {
 
                     {/* Additional Images */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                             {t('market.product.gallery') || 'Gallery'} ({existingImages.length + additionalImages.length}/5)
                         </Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             <TouchableOpacity
-                                style={[styles.addImageBtn, { borderColor: colors.primary }]}
+                                style={[styles.addImageBtn, { borderColor: accent }]}
                                 onPress={handlePickAdditionalImages}
                             >
-                                <Text style={{ fontSize: 24, color: colors.primary }}>+</Text>
+                                <Text style={{ fontSize: 24, color: accent }}>+</Text>
                             </TouchableOpacity>
                             {existingImages.map((url, i) => (
                                 <View key={`ex-${i}`} style={styles.galleryImageContainer}>
                                     <Image source={{ uri: getMediaUrl(url) || '' }} style={styles.galleryImage} />
                                     <TouchableOpacity style={styles.removeBtn} onPress={() => removeAdditionalImage(i, true)}>
-                                        <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+                                        <Text style={{ color: textPrimary, fontSize: 12 }}>✕</Text>
                                     </TouchableOpacity>
                                 </View>
                             ))}
@@ -338,7 +346,7 @@ export const ProductEditScreen: React.FC = () => {
                                 <View key={`new-${i}`} style={styles.galleryImageContainer}>
                                     <Image source={{ uri: asset.uri }} style={styles.galleryImage} />
                                     <TouchableOpacity style={styles.removeBtn} onPress={() => removeAdditionalImage(i, false)}>
-                                        <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+                                        <Text style={{ color: textPrimary, fontSize: 12 }}>✕</Text>
                                     </TouchableOpacity>
                                 </View>
                             ))}
@@ -347,13 +355,13 @@ export const ProductEditScreen: React.FC = () => {
 
                     {/* Basic Info */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                             {t('market.shop.basicInfo') || 'Basic Information'}
                         </Text>
 
                         <Text style={[styles.label, { color: colors.textSecondary }]}>{t('market.product.name') || 'Name'} *</Text>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                             value={name}
                             onChangeText={setName}
                             placeholder="Product name"
@@ -362,7 +370,7 @@ export const ProductEditScreen: React.FC = () => {
 
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.shortDesc') || 'Short Description'}</Text>
                         <TextInput
-                            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                             value={shortDescription}
                             onChangeText={setShortDescription}
                             placeholder="Brief description (shown in listings)"
@@ -372,7 +380,7 @@ export const ProductEditScreen: React.FC = () => {
 
                         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.fullDesc') || 'Full Description'}</Text>
                         <TextInput
-                            style={[styles.input, styles.textArea, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                            style={[styles.input, styles.textArea, { backgroundColor: surface, color: textPrimary }]}
                             value={fullDescription}
                             onChangeText={setFullDescription}
                             placeholder="Detailed product description"
@@ -384,19 +392,19 @@ export const ProductEditScreen: React.FC = () => {
 
                     {/* Category */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>{t('market.product.category') || 'Category'}</Text>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('market.product.category') || 'Category'}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             {categories.map((cat) => (
                                 <TouchableOpacity
                                     key={cat.id}
                                     style={[
                                         styles.categoryPill,
-                                        { backgroundColor: selectedCategory === cat.id ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0') }
+                                        { backgroundColor: selectedCategory === cat.id ? accent : (surfaceElevated) }
                                     ]}
                                     onPress={() => setSelectedCategory(cat.id)}
                                 >
                                     <Text>{cat.emoji}</Text>
-                                    <Text style={[styles.categoryLabel, { color: selectedCategory === cat.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }]}>
+                                    <Text style={[styles.categoryLabel, { color: textPrimary }]}>
                                         {cat.label[currentLang]}
                                     </Text>
                                 </TouchableOpacity>
@@ -406,23 +414,23 @@ export const ProductEditScreen: React.FC = () => {
 
                     {/* Product Type */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>{t('market.product.type') || 'Product Type'}</Text>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('market.product.type') || 'Product Type'}</Text>
                         <View style={styles.typeSelector}>
                             <TouchableOpacity
-                                style={[styles.typeBtn, { backgroundColor: productType === 'physical' ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0') }]}
+                                style={[styles.typeBtn, { backgroundColor: productType === 'physical' ? accent : (surfaceElevated) }]}
                                 onPress={() => setProductType('physical')}
                             >
                                 <Text style={{ fontSize: 20 }}>📦</Text>
-                                <Text style={[styles.typeLabel, { color: productType === 'physical' ? '#fff' : (isDarkMode ? '#fff' : colors.text) }]}>
+                                <Text style={[styles.typeLabel, { color: textPrimary }]}>
                                     {t('market.product.physical') || 'Physical'}
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.typeBtn, { backgroundColor: productType === 'digital' ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0') }]}
+                                style={[styles.typeBtn, { backgroundColor: productType === 'digital' ? accent : (surfaceElevated) }]}
                                 onPress={() => setProductType('digital')}
                             >
                                 <Text style={{ fontSize: 20 }}>💾</Text>
-                                <Text style={[styles.typeLabel, { color: productType === 'digital' ? '#fff' : (isDarkMode ? '#fff' : colors.text) }]}>
+                                <Text style={[styles.typeLabel, { color: textPrimary }]}>
                                     {t('market.product.digital') || 'Digital'}
                                 </Text>
                             </TouchableOpacity>
@@ -432,7 +440,7 @@ export const ProductEditScreen: React.FC = () => {
                             <>
                                 <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.digitalUrl') || 'Digital Download URL'}</Text>
                                 <TextInput
-                                    style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                    style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                                     value={digitalUrl}
                                     onChangeText={setDigitalUrl}
                                     placeholder="https://..."
@@ -445,13 +453,13 @@ export const ProductEditScreen: React.FC = () => {
 
                     {/* Pricing */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>{t('market.product.pricing') || 'Pricing'}</Text>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('market.product.pricing') || 'Pricing'}</Text>
 
                         <View style={styles.priceRow}>
                             <View style={styles.priceField}>
                                 <Text style={[styles.label, { color: colors.textSecondary }]}>{t('market.product.basePrice') || 'Base Price'} *</Text>
                                 <TextInput
-                                    style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                    style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                                     value={basePrice}
                                     onChangeText={setBasePrice}
                                     placeholder="0"
@@ -462,7 +470,7 @@ export const ProductEditScreen: React.FC = () => {
                             <View style={styles.priceField}>
                                 <Text style={[styles.label, { color: colors.textSecondary }]}>{t('market.product.salePrice') || 'Sale Price'}</Text>
                                 <TextInput
-                                    style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                    style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                                     value={salePrice}
                                     onChangeText={setSalePrice}
                                     placeholder="Optional"
@@ -475,14 +483,14 @@ export const ProductEditScreen: React.FC = () => {
 
                     {/* Stock */}
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>{t('market.product.inventory') || 'Inventory'}</Text>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('market.product.inventory') || 'Inventory'}</Text>
 
                         <View style={styles.row}>
-                            <Text style={{ color: isDarkMode ? '#ddd' : colors.text }}>{t('market.product.trackStock') || 'Track Stock'}</Text>
+                            <Text style={{ color: textPrimary }}>{t('market.product.trackStock') || 'Track Stock'}</Text>
                             <Switch
                                 value={trackStock}
                                 onValueChange={setTrackStock}
-                                trackColor={{ false: '#767577', true: colors.primary }}
+                                trackColor={{ false: colors.border, true: accent }}
                             />
                         </View>
 
@@ -490,7 +498,7 @@ export const ProductEditScreen: React.FC = () => {
                             <>
                                 <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.stockQty') || 'Stock Quantity'}</Text>
                                 <TextInput
-                                    style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                    style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                                     value={stock}
                                     onChangeText={setStock}
                                     placeholder="0"
@@ -504,13 +512,13 @@ export const ProductEditScreen: React.FC = () => {
                     {/* Variants */}
                     <View style={styles.section}>
                         <View style={styles.row}>
-                            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text, marginBottom: 0 }]}>
+                            <Text style={[styles.sectionTitle, { color: textPrimary, marginBottom: 0 }]}>
                                 {t('market.product.variants') || 'Product Variants (SKU)'}
                             </Text>
                             <Switch
                                 value={hasVariants}
                                 onValueChange={setHasVariants}
-                                trackColor={{ false: '#767577', true: colors.primary }}
+                                trackColor={{ false: colors.border, true: accent }}
                             />
                         </View>
 
@@ -521,31 +529,31 @@ export const ProductEditScreen: React.FC = () => {
                                 </Text>
 
                                 {variants.map((v, index) => (
-                                    <View key={index} style={[styles.variantCard, { backgroundColor: isDarkMode ? '#252525' : '#f9f9f9' }]}>
+                                    <View key={index} style={[styles.variantCard, { backgroundColor: surfaceElevated }]}>
                                         <View style={styles.variantInfo}>
-                                            <Text style={[styles.variantName, { color: isDarkMode ? '#fff' : colors.text }]}>
+                                            <Text style={[styles.variantName, { color: textPrimary }]}>
                                                 {v.name || v.sku}
                                             </Text>
-                                            <Text style={[styles.variantMeta, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                                            <Text style={[styles.variantMeta, { color: textSecondary }]}>
                                                 SKU: {v.sku} • {t('market.product.stock')}: {v.stock} {v.price ? `• ₽${v.price}` : ''}
                                             </Text>
                                         </View>
                                         <View style={styles.variantActions}>
                                             <TouchableOpacity onPress={() => openEditVariant(index)}>
-                                                <Text style={{ color: colors.primary }}>{t('common.edit')}</Text>
+                                                <Text style={{ color: accent }}>{t('common.edit')}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => removeVariant(index)}>
-                                                <Text style={{ color: '#f44336', marginLeft: 12 }}>✕</Text>
+                                                <Text style={{ color: colors.danger, marginLeft: 12 }}>✕</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
                                 ))}
 
                                 <TouchableOpacity
-                                    style={[styles.addVariantBtn, { borderColor: colors.primary }]}
+                                    style={[styles.addVariantBtn, { borderColor: accent }]}
                                     onPress={openAddVariant}
                                 >
-                                    <Text style={{ color: colors.primary, fontWeight: '600' }}>+ {t('market.product.addVariant') || 'Add Variant'}</Text>
+                                    <Text style={{ color: accent, fontWeight: '600' }}>+ {t('market.product.addVariant') || 'Add Variant'}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -554,7 +562,7 @@ export const ProductEditScreen: React.FC = () => {
                     {/* Physical Product Details */}
                     {productType === 'physical' && (
                         <View style={styles.section}>
-                            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                                 {t('market.product.shipping') || 'Shipping Details'}
                             </Text>
 
@@ -562,7 +570,7 @@ export const ProductEditScreen: React.FC = () => {
                                 <View style={styles.priceField}>
                                     <Text style={[styles.label, { color: colors.textSecondary }]}>{t('market.product.weight') || 'Weight (kg)'}</Text>
                                     <TextInput
-                                        style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                        style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                                         value={weight}
                                         onChangeText={setWeight}
                                         placeholder="0.5"
@@ -573,7 +581,7 @@ export const ProductEditScreen: React.FC = () => {
                                 <View style={styles.priceField}>
                                     <Text style={[styles.label, { color: colors.textSecondary }]}>{t('market.product.dimensions') || 'Dimensions'}</Text>
                                     <TextInput
-                                        style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? '#fff' : colors.text }]}
+                                        style={[styles.input, { backgroundColor: surface, color: textPrimary }]}
                                         value={dimensions}
                                         onChangeText={setDimensions}
                                         placeholder="10x10x5 cm"
@@ -586,12 +594,12 @@ export const ProductEditScreen: React.FC = () => {
 
                     {/* Submit */}
                     <TouchableOpacity
-                        style={[styles.submitBtn, { backgroundColor: colors.gradientStart }]}
+                        style={[styles.submitBtn, { backgroundColor: accent }]}
                         onPress={handleSubmit}
                         disabled={loading}
                     >
                         {loading ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color={textPrimary} />
                         ) : (
                             <Text style={styles.submitText}>
                                 {isEditing ? t('market.product.saveChanges') : t('market.product.createProduct')}
@@ -603,14 +611,14 @@ export const ProductEditScreen: React.FC = () => {
                 {/* Variant Modal */}
                 <Modal visible={showVariantModal} transparent animationType="slide">
                     <View style={styles.modalOverlay}>
-                        <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}>
-                            <Text style={[styles.modalTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <View style={[styles.modalContent, { backgroundColor: surface }]}>
+                            <Text style={[styles.modalTitle, { color: textPrimary }]}>
                                 {editingVariantIndex !== null ? t('market.product.editVariant') : t('market.product.addVariant')}
                             </Text>
 
                             <Text style={[styles.label, { color: colors.textSecondary }]}>{t('market.product.sku')}</Text>
                             <TextInput
-                                style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
+                                style={[styles.input, { backgroundColor: surfaceElevated, color: textPrimary }]}
                                 value={variantSku}
                                 onChangeText={setVariantSku}
                                 placeholder={t('market.product.skuPlaceholder')}
@@ -619,7 +627,7 @@ export const ProductEditScreen: React.FC = () => {
 
                             <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.variantName')}</Text>
                             <TextInput
-                                style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
+                                style={[styles.input, { backgroundColor: surfaceElevated, color: textPrimary }]}
                                 value={variantName}
                                 onChangeText={setVariantName}
                                 placeholder={t('market.product.variantNamePlaceholder')}
@@ -630,7 +638,7 @@ export const ProductEditScreen: React.FC = () => {
                                 <View style={styles.priceField}>
                                     <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.priceOverride')}</Text>
                                     <TextInput
-                                        style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
+                                        style={[styles.input, { backgroundColor: surfaceElevated, color: textPrimary }]}
                                         value={variantPrice}
                                         onChangeText={setVariantPrice}
                                         placeholder={t('market.product.sameAsBase')}
@@ -641,7 +649,7 @@ export const ProductEditScreen: React.FC = () => {
                                 <View style={styles.priceField}>
                                     <Text style={[styles.label, { color: colors.textSecondary, marginTop: 12 }]}>{t('market.product.stock')}</Text>
                                     <TextInput
-                                        style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5', color: isDarkMode ? '#fff' : colors.text }]}
+                                        style={[styles.input, { backgroundColor: surfaceElevated, color: textPrimary }]}
                                         value={variantStock}
                                         onChangeText={setVariantStock}
                                         placeholder="0"
@@ -655,8 +663,8 @@ export const ProductEditScreen: React.FC = () => {
                                 <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowVariantModal(false)}>
                                     <Text style={{ color: colors.textSecondary }}>{t('common.cancel')}</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={saveVariant}>
-                                    <Text style={{ color: '#fff', fontWeight: '600' }}>{t('common.save')}</Text>
+                                <TouchableOpacity style={[styles.saveBtn, { backgroundColor: accent }]} onPress={saveVariant}>
+                                    <Text style={{ color: textPrimary, fontWeight: '600' }}>{t('common.save')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -755,7 +763,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: -6,
         right: -6,
-        backgroundColor: '#f44336',
+        backgroundColor: 'rgba(239,68,68,1)',
         width: 22,
         height: 22,
         borderRadius: 11,
@@ -842,7 +850,7 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     submitText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: 'bold',
     },

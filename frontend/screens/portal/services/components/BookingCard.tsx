@@ -71,7 +71,7 @@ export default function BookingCard({
                     />
                 ) : (
                     <View style={styles.servicePlaceholder}>
-                        <Sparkles size={20} color="#F59E0B" />
+                        <Sparkles size={20} color="rgba(245,158,11,1)" />
                     </View>
                 )}
                 <View style={styles.serviceDetails}>
@@ -81,7 +81,7 @@ export default function BookingCard({
                     {booking.service?.owner && (
                         <View style={styles.ownerRow}>
                             <View style={styles.ownerAvatarPlaceholder}>
-                                <User size={10} color="#F59E0B" />
+                                <User size={10} color="rgba(245,158,11,1)" />
                             </View>
                             <Text style={styles.ownerName}>{booking.service.owner.karmicName}</Text>
                         </View>
@@ -92,18 +92,18 @@ export default function BookingCard({
             {/* Logistics Info */}
             <View style={styles.logisticsGrid}>
                 <View style={styles.logisticsItem}>
-                    <Calendar size={14} color="#F59E0B" />
+                    <Calendar size={14} color="rgba(245,158,11,1)" />
                     <Text style={styles.logisticsText}>{formatDate(booking.scheduledAt)}</Text>
                 </View>
                 <View style={styles.logisticsItem}>
-                    <Clock size={14} color="#F59E0B" />
+                    <Clock size={14} color="rgba(245,158,11,1)" />
                     <Text style={styles.logisticsText}>{formatTime(booking.scheduledAt)}</Text>
                 </View>
                 <View style={styles.logisticsItem}>
                     {booking.service?.channel === 'offline' ? (
-                        <MapPin size={14} color="#F59E0B" />
+                        <MapPin size={14} color="rgba(245,158,11,1)" />
                     ) : (
-                        <Video size={14} color="#F59E0B" />
+                        <Video size={14} color="rgba(245,158,11,1)" />
                     )}
                     <Text style={styles.logisticsText} numberOfLines={1}>
                         {CHANNEL_LABELS[booking.service?.channel || 'video']}
@@ -116,7 +116,7 @@ export default function BookingCard({
                 <View style={styles.actionsContainer}>
                     {onChat && booking.chatRoomId && (
                         <TouchableOpacity style={styles.chatAction} onPress={onChat}>
-                            <MessageCircle size={18} color="#F59E0B" />
+                            <MessageCircle size={18} color="rgba(245,158,11,1)" />
                             <Text style={styles.chatActionText}>Обсудить в чате</Text>
                         </TouchableOpacity>
                     )}
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     price: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 16,
         fontWeight: '900',
     },
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     serviceTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '800',
         marginBottom: 6,
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     logisticsText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 13,
         fontWeight: '700',
     },
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     chatActionText: {
-        color: '#F59E0B',
+        color: 'rgba(245,158,11,1)',
         fontSize: 14,
         fontWeight: '800',
     },
