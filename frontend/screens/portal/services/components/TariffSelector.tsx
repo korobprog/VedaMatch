@@ -9,9 +9,12 @@ import {
     TouchableOpacity,
     ScrollView,
 } from 'react-native';
-import { Check, Clock, RotateCcw, Star, Sparkles } from 'lucide-react-native';
+import { Check, Clock, Sparkles } from 'lucide-react-native';
 import { ServiceTariff } from '../../../../services/serviceService';
-import { formatBalance } from '../../../../services/walletService';
+import { useUser } from '../../../../context/UserContext';
+import { useSettings } from '../../../../context/SettingsContext';
+import { useRoleTheme } from '../../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../../theme/semanticTokens';
 
 interface TariffSelectorProps {
     tariffs: ServiceTariff[];
@@ -24,6 +27,11 @@ export default function TariffSelector({
     selectedTariffId,
     onSelect,
 }: TariffSelectorProps) {
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
+
     if (!tariffs || tariffs.length === 0) {
         return (
             <View style={styles.emptyContainer}>
@@ -54,14 +62,14 @@ export default function TariffSelector({
                         {/* Popular Badge */}
                         {tariff.isDefault && (
                             <View style={styles.featuredBadge}>
-                                <Sparkles size={10} color="#000" />
+                                <Sparkles size={10} color={colors.textPrimary} />
                                 <Text style={styles.featuredText}>ПОПУЛЯРНО</Text>
                             </View>
                         )}
 
                         {/* Selection status */}
                         <View style={[styles.selectionCircle, isSelected && styles.selectionCircleSelected]}>
-                            {isSelected && <Check size={12} color="#000" />}
+                            {isSelected && <Check size={12} color={colors.textPrimary} />}
                         </View>
 
                         <Text style={[styles.tariffName, isSelected && styles.tariffNameSelected]}>
@@ -74,7 +82,7 @@ export default function TariffSelector({
 
                         <View style={styles.metaRow}>
                             <View style={styles.metaItem}>
-                                <Clock size={12} color={isSelected ? 'rgba(0,0,0,0.5)' : '#F59E0B'} />
+                                <Clock size={12} color={isSelected ? colors.textPrimary : colors.accent} />
                                 <Text style={[styles.metaText, isSelected && styles.metaTextSelected]}>
                                     {tariff.durationMinutes} мин
                                 </Text>
@@ -87,7 +95,7 @@ export default function TariffSelector({
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         paddingVertical: 12,
         paddingHorizontal: 4,
@@ -96,32 +104,32 @@ const styles = StyleSheet.create({
     emptyContainer: {
         padding: 40,
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: colors.surface,
         borderRadius: 24,
     },
     emptyText: {
-        color: 'rgba(255, 255, 255, 0.3)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
     tariffCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: colors.surface,
         borderRadius: 24,
         padding: 24,
         minWidth: 160,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: colors.border,
         position: 'relative',
     },
     tariffCardSelected: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     featuredBadge: {
         position: 'absolute',
         top: -10,
         left: 20,
-        backgroundColor: '#F59E0B',
+        backgroundColor: colors.accent,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 10,
@@ -129,10 +137,10 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         gap: 4,
         borderWidth: 2,
-        borderColor: '#0a0a14',
+        borderColor: colors.background,
     },
     featuredText: {
-        color: '#000',
+        color: colors.textPrimary,
         fontSize: 10,
         fontWeight: '900',
     },
@@ -141,18 +149,18 @@ const styles = StyleSheet.create({
         height: 24,
         borderRadius: 12,
         borderWidth: 2,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: colors.border,
         alignSelf: 'flex-end',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 12,
     },
     selectionCircleSelected: {
-        borderColor: '#000',
-        backgroundColor: '#fff',
+        borderColor: colors.textPrimary,
+        backgroundColor: colors.textPrimary,
     },
     tariffName: {
-        color: 'rgba(255, 255, 255, 0.6)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '800',
         textTransform: 'uppercase',
@@ -160,16 +168,16 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     tariffNameSelected: {
-        color: 'rgba(0, 0, 0, 0.6)',
+        color: colors.textPrimary,
     },
     tariffPrice: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 24,
         fontWeight: '900',
         marginBottom: 16,
     },
     tariffPriceSelected: {
-        color: '#000',
+        color: colors.textPrimary,
     },
     metaRow: {
         flexDirection: 'row',
@@ -181,11 +189,11 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     metaText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 13,
         fontWeight: '700',
     },
     metaTextSelected: {
-        color: '#000',
+        color: colors.textPrimary,
     },
 });

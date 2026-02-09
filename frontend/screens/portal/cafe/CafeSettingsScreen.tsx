@@ -33,14 +33,20 @@ import {
 import { cafeService } from '../../../services/cafeService';
 import { Cafe } from '../../../types/cafe';
 import { RootStackParamList } from '../../../types/navigation';
-
-const { width } = Dimensions.get('window');
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const CafeSettingsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RootStackParamList, 'CafeSettings'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const { cafeId } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [cafe, setCafe] = useState<Partial<Cafe>>({});
     const [loading, setLoading] = useState(true);
@@ -82,8 +88,8 @@ const CafeSettingsScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
             </LinearGradient>
         );
     }
@@ -92,13 +98,13 @@ const CafeSettingsScreen: React.FC = () => {
         <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>{label}</Text>
             <View style={styles.inputBox}>
-                {React.createElement(icon, { size: 18, color: 'rgba(255,255,255,0.3)', style: styles.innerIcon })}
+                {React.createElement(icon, { size: 18, color: colors.textSecondary, style: styles.innerIcon })}
                 <TextInput
                     style={styles.textInput}
                     value={value || ''}
                     onChangeText={(text) => updateField(field, text)}
                     placeholder={label}
-                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    placeholderTextColor={colors.textSecondary}
                     keyboardType={keyboardType}
                 />
             </View>
@@ -109,26 +115,26 @@ const CafeSettingsScreen: React.FC = () => {
         <View style={styles.switchRow}>
             <View style={styles.switchLabelGroup}>
                 <View style={styles.switchIconBox}>
-                    {React.createElement(icon, { size: 16, color: '#F59E0B' })}
+                    {React.createElement(icon, { size: 16, color: colors.accent })}
                 </View>
                 <Text style={styles.switchLabelText}>{label}</Text>
             </View>
             <Switch
                 value={value}
                 onValueChange={(val) => updateField(field, val)}
-                trackColor={{ false: '#1a1a2e', true: '#F59E0B' }}
-                thumbColor={Platform.OS === 'ios' ? '#fff' : (value ? '#fff' : '#444')}
+                trackColor={{ false: colors.surface, true: colors.accent }}
+                thumbColor={Platform.OS === 'ios' ? colors.textPrimary : (value ? colors.textPrimary : colors.textSecondary)}
             />
         </View>
     );
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <SafeAreaView style={styles.header} edges={['top']}>
                 <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.dashboard.settings')}</Text>
                 <TouchableOpacity
@@ -137,9 +143,9 @@ const CafeSettingsScreen: React.FC = () => {
                     disabled={saving}
                 >
                     {saving ? (
-                        <ActivityIndicator size="small" color="#1a1a2e" />
+                        <ActivityIndicator size="small" color={colors.textPrimary} />
                     ) : (
-                        <Save size={20} color="#1a1a2e" strokeWidth={2.5} />
+                        <Save size={20} color={colors.textPrimary} strokeWidth={2.5} />
                     )}
                 </TouchableOpacity>
             </SafeAreaView>
@@ -147,7 +153,7 @@ const CafeSettingsScreen: React.FC = () => {
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.glassSection}>
                     <View style={styles.sectionHeader}>
-                        <SettingsIcon size={18} color="#F59E0B" />
+                        <SettingsIcon size={18} color={colors.accent} />
                         <Text style={styles.sectionTitle}>{t('cafe.settings.general') || 'General Information'}</Text>
                     </View>
                     {renderInput(t('cafe.settings.name') || 'Cafe Name', cafe.name || '', Coffee, 'name')}
@@ -157,7 +163,7 @@ const CafeSettingsScreen: React.FC = () => {
 
                 <View style={styles.glassSection}>
                     <View style={styles.sectionHeader}>
-                        <Globe size={18} color="#F59E0B" />
+                        <Globe size={18} color={colors.accent} />
                         <Text style={styles.sectionTitle}>{t('cafe.settings.social') || 'Social & Web'}</Text>
                     </View>
                     {renderInput(t('cafe.settings.website') || 'Website', cafe.website || '', Globe, 'website', 'url')}
@@ -167,7 +173,7 @@ const CafeSettingsScreen: React.FC = () => {
 
                 <View style={styles.glassSection}>
                     <View style={styles.sectionHeader}>
-                        <Truck size={18} color="#F59E0B" />
+                        <Truck size={18} color={colors.accent} />
                         <Text style={styles.sectionTitle}>{t('cafe.settings.serviceOptions') || 'Service Options'}</Text>
                     </View>
                     {renderSwitch(t('cafe.settings.delivery') || 'Delivery', !!cafe.hasDelivery, Truck, 'hasDelivery')}
@@ -177,7 +183,7 @@ const CafeSettingsScreen: React.FC = () => {
 
                 <View style={styles.glassSection}>
                     <View style={styles.sectionHeader}>
-                        <Clock size={18} color="#F59E0B" />
+                        <Clock size={18} color={colors.accent} />
                         <Text style={styles.sectionTitle}>{t('cafe.settings.workingHours') || 'Working Hours'}</Text>
                     </View>
                     {renderInput(t('cafe.settings.hours') || 'Hours (e.g. 09:00 - 22:00)', cafe.workingHours || '', Clock, 'workingHours')}
@@ -189,7 +195,7 @@ const CafeSettingsScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -210,14 +216,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -225,10 +231,10 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: '#F59E0B',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -244,11 +250,11 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     glassSection: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 20,
     },
     sectionHeader: {
@@ -258,7 +264,7 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     sectionTitle: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '800',
         textTransform: 'uppercase',
@@ -268,7 +274,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     inputLabel: {
-        color: 'rgba(255,255,255,0.3)',
+        color: colors.textSecondary,
         fontSize: 11,
         fontWeight: '700',
         textTransform: 'uppercase',
@@ -278,19 +284,19 @@ const styles = StyleSheet.create({
     inputBox: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 54,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     innerIcon: {
         marginRight: 12,
     },
     textInput: {
         flex: 1,
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '600',
     },
@@ -300,7 +306,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 14,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: colors.border,
     },
     switchLabelGroup: {
         flexDirection: 'row',
@@ -311,12 +317,12 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 10,
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
     switchLabelText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '600',
     },

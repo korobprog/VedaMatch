@@ -1,35 +1,39 @@
 import React, { useState, useCallback } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    RefreshControl, ActivityIndicator, useColorScheme, Image
+    RefreshControl, ActivityIndicator, Image
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
 import { Order, OrderStatus } from '../../../types/market';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
-const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; emoji: string }> = {
-    new: { label: 'New', color: '#2196F3', emoji: '🆕' },
-    confirmed: { label: 'Confirmed', color: '#9C27B0', emoji: '✅' },
-    paid: { label: 'Paid', color: '#4CAF50', emoji: '💰' },
-    shipped: { label: 'Shipped', color: '#FF9800', emoji: '📦' },
-    delivered: { label: 'Delivered', color: '#4CAF50', emoji: '🎉' },
-    completed: { label: 'Completed', color: '#4CAF50', emoji: '✨' },
-    cancelled: { label: 'Cancelled', color: '#f44336', emoji: '❌' },
-    dispute: { label: 'Dispute', color: '#f44336', emoji: '⚠️' },
+const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; tone: 'accent' | 'success' | 'warning' | 'danger' | 'secondary'; emoji: string }> = {
+    new: { label: 'New', tone: 'accent', emoji: '🆕' },
+    confirmed: { label: 'Confirmed', tone: 'accent', emoji: '✅' },
+    paid: { label: 'Paid', tone: 'success', emoji: '💰' },
+    shipped: { label: 'Shipped', tone: 'warning', emoji: '📦' },
+    delivered: { label: 'Delivered', tone: 'success', emoji: '🎉' },
+    completed: { label: 'Completed', tone: 'success', emoji: '✨' },
+    cancelled: { label: 'Cancelled', tone: 'danger', emoji: '❌' },
+    dispute: { label: 'Dispute', tone: 'danger', emoji: '⚠️' },
 };
 
 export const MyOrdersScreen: React.FC = () => {
     const { t } = useTranslation();
     const navigation = useNavigation<any>();
-
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -98,7 +102,7 @@ export const MyOrdersScreen: React.FC = () => {
     };
 
     const renderSkeleton = () => (
-        <View style={[styles.orderCard, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}>
+        <View style={styles.orderCard}>
             <View style={styles.orderHeader}>
                 <View style={{ flex: 1 }}>
                     <Skeleton width="40%" height={18} style={{ marginBottom: 6 }} />
@@ -110,7 +114,7 @@ export const MyOrdersScreen: React.FC = () => {
                 <Skeleton width={28} height={28} borderRadius={14} style={{ marginRight: 8 }} />
                 <Skeleton width="50%" height={14} />
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 12 }}>
+            <View style={styles.skeletonFooter}>
                 <Skeleton width={60} height={14} />
                 <Skeleton width={100} height={18} />
             </View>
@@ -119,24 +123,33 @@ export const MyOrdersScreen: React.FC = () => {
 
     const renderOrder = ({ item }: { item: Order }) => {
         const statusConfig = ORDER_STATUS_CONFIG[item.status];
+        const statusColor = statusConfig.tone === 'success'
+            ? colors.success
+            : statusConfig.tone === 'warning'
+                ? colors.warning
+                : statusConfig.tone === 'danger'
+                    ? colors.danger
+                    : statusConfig.tone === 'secondary'
+                        ? colors.textSecondary
+                        : colors.accent;
 
         return (
             <TouchableOpacity
-                style={[styles.orderCard, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}
+                style={styles.orderCard}
                 onPress={() => handleOrderPress(item)}
             >
                 <View style={styles.orderHeader}>
                     <View>
-                        <Text style={[styles.orderNumber, { color: isDarkMode ? '#fff' : colors.text }]}>
+                        <Text style={[styles.orderNumber, { color: colors.textPrimary }]}>
                             #{item.orderNumber}
                         </Text>
                         <Text style={[styles.orderDate, { color: colors.textSecondary }]}>
                             {formatDate(item.CreatedAt)}
                         </Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: colors.accentSoft }]}>
                         <Text style={{ fontSize: 12 }}>{statusConfig.emoji}</Text>
-                        <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                        <Text style={[styles.statusText, { color: statusColor }]}>
                             {statusConfig.label}
                         </Text>
                     </View>
@@ -145,14 +158,14 @@ export const MyOrdersScreen: React.FC = () => {
                 {/* Shop info */}
                 {item.shopInfo && (
                     <View style={styles.shopRow}>
-                        <View style={[styles.shopLogo, { backgroundColor: colors.primary + '20' }]}>
+                        <View style={[styles.shopLogo, { backgroundColor: colors.accentSoft }]}>
                             {item.shopInfo.logoUrl ? (
                                 <Image source={{ uri: getMediaUrl(item.shopInfo.logoUrl) || '' }} style={styles.shopLogoImage} />
                             ) : (
                                 <Text style={{ fontSize: 14 }}>🏪</Text>
                             )}
                         </View>
-                        <Text style={[styles.shopName, { color: isDarkMode ? '#ddd' : colors.text }]}>
+                        <Text style={[styles.shopName, { color: colors.textPrimary }]}>
                             {item.shopInfo.name}
                         </Text>
                     </View>
@@ -163,13 +176,13 @@ export const MyOrdersScreen: React.FC = () => {
                     <Text style={[styles.itemsCount, { color: colors.textSecondary }]}>
                         {item.itemsCount} item{item.itemsCount > 1 ? 's' : ''}
                     </Text>
-                    <Text style={[styles.orderTotal, { color: colors.primary }]}>
+                    <Text style={[styles.orderTotal, { color: colors.accent }]}>
                         {item.total.toLocaleString()} {item.currency}
                     </Text>
                 </View>
 
                 <View style={styles.actionRow}>
-                    <Text style={{ color: colors.primary, fontSize: 13 }}>View Details →</Text>
+                    <Text style={{ color: colors.accent, fontSize: 13 }}>View Details →</Text>
                 </View>
             </TouchableOpacity>
         );
@@ -193,13 +206,13 @@ export const MyOrdersScreen: React.FC = () => {
                     <TouchableOpacity
                         style={[
                             styles.filterPill,
-                            { backgroundColor: selectedStatus === item.id ? colors.primary : (isDarkMode ? '#333' : '#f0f0f0') }
+                            { backgroundColor: selectedStatus === item.id ? colors.accent : colors.surface }
                         ]}
                         onPress={() => handleStatusFilter(item.id as OrderStatus | '')}
                     >
                         <Text style={[
                             styles.filterLabel,
-                            { color: selectedStatus === item.id ? '#fff' : (isDarkMode ? '#fff' : colors.text) }
+                            { color: selectedStatus === item.id ? colors.textPrimary : colors.textSecondary }
                         ]}>
                             {item.label}
                         </Text>
@@ -212,7 +225,7 @@ export const MyOrdersScreen: React.FC = () => {
 
     return (
         <ProtectedScreen>
-            <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+            <View style={{ flex: 1, backgroundColor: colors.background }}>
                 {loading ? (
                     <FlatList
                         data={[1, 2, 3]}
@@ -239,7 +252,7 @@ export const MyOrdersScreen: React.FC = () => {
                         }
                         ListFooterComponent={loadingMore ? (
                             <View style={styles.loadingFooter}>
-                                <ActivityIndicator size="small" color={colors.primary} />
+                                <ActivityIndicator size="small" color={colors.accent} />
                             </View>
                         ) : null}
                         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -255,7 +268,7 @@ export const MyOrdersScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     centerContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -287,6 +300,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 16,
         elevation: 2,
+        backgroundColor: colors.surface,
     },
     orderHeader: {
         flexDirection: 'row',
@@ -342,7 +356,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
+        borderTopColor: colors.border,
     },
     itemsCount: {
         fontSize: 13,
@@ -378,9 +392,16 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     shopBtnText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '600',
+    },
+    skeletonFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        paddingTop: 12,
     },
     loadingFooter: {
         padding: 16,

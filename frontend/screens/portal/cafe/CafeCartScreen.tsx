@@ -12,7 +12,6 @@ import {
     Modal,
     FlatList,
     Platform,
-    Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -41,13 +40,19 @@ import {
 import { useCart } from '../../../contexts/CafeCartContext';
 import { cafeService } from '../../../services/cafeService';
 import { CafeOrderType } from '../../../types/cafe';
-
-const { width } = Dimensions.get('window');
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const CafeCartScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const { cart, updateQuantity, removeFromCart, clearCart, setOrderType, setTableInfo } = useCart();
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [customerName, setCustomerName] = useState('');
     const [customerNote, setCustomerNote] = useState('');
@@ -85,9 +90,9 @@ const CafeCartScreen: React.FC = () => {
 
     if (!cart || cart.items.length === 0) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.emptyContainer}>
+            <LinearGradient colors={roleTheme.gradient} style={styles.emptyContainer}>
                 <View style={styles.emptyIconContainer}>
-                    <ShoppingCart size={80} color="rgba(245, 158, 11, 0.2)" strokeWidth={1} />
+                    <ShoppingCart size={80} color={colors.accentSoft} strokeWidth={1} />
                 </View>
                 <Text style={styles.emptyTitle}>{t('cafe.cart.empty')}</Text>
                 <Text style={styles.emptyText}>{t('cafe.cart.emptyInfo')}</Text>
@@ -96,7 +101,7 @@ const CafeCartScreen: React.FC = () => {
                     onPress={() => navigation.goBack()}
                 >
                     <LinearGradient
-                        colors={['#F59E0B', '#D97706']}
+                        colors={[colors.accent, colors.warning]}
                         style={styles.backToMenuGradient}
                     >
                         <Text style={styles.backToMenuText}>{t('cafe.cart.backToMenu')}</Text>
@@ -171,11 +176,11 @@ const CafeCartScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <SafeAreaView style={styles.header} edges={['top']}>
                 <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.cart.cart')}</Text>
                 <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
@@ -188,7 +193,7 @@ const CafeCartScreen: React.FC = () => {
                 <View style={styles.sectionGlass}>
                     <View style={styles.cafeHeader}>
                         <View style={styles.cafeIcon}>
-                            <Utensils size={18} color="#F59E0B" />
+                            <Utensils size={18} color={colors.accent} />
                         </View>
                         <Text style={styles.cafeName}>{cart.cafeName}</Text>
                     </View>
@@ -204,9 +209,9 @@ const CafeCartScreen: React.FC = () => {
                                 ]}
                                 onPress={() => handleOrderTypeChange(type)}
                             >
-                                {type === 'dine_in' && <Utensils size={18} color={cart.orderType === type ? '#1a1a2e' : 'rgba(255,255,255,0.4)'} />}
-                                {type === 'takeaway' && <ShoppingBag size={18} color={cart.orderType === type ? '#1a1a2e' : 'rgba(255,255,255,0.4)'} />}
-                                {type === 'delivery' && <Truck size={18} color={cart.orderType === type ? '#1a1a2e' : 'rgba(255,255,255,0.4)'} />}
+                                {type === 'dine_in' && <Utensils size={18} color={cart.orderType === type ? colors.textPrimary : colors.textSecondary} />}
+                                {type === 'takeaway' && <ShoppingBag size={18} color={cart.orderType === type ? colors.textPrimary : colors.textSecondary} />}
+                                {type === 'delivery' && <Truck size={18} color={cart.orderType === type ? colors.textPrimary : colors.textSecondary} />}
                                 <Text style={[
                                     styles.typeBtnText,
                                     cart.orderType === type && styles.typeBtnTextActive,
@@ -223,7 +228,7 @@ const CafeCartScreen: React.FC = () => {
                             onPress={handleOpenTablePicker}
                         >
                             <View style={styles.tablePickerInfo}>
-                                <MapPin size={18} color={cart.tableId ? '#F59E0B' : '#EF4444'} />
+                                <MapPin size={18} color={cart.tableId ? colors.accent : colors.danger} />
                                 <Text style={[styles.tablePickerText, !cart.tableId && styles.tablePickerTextWarning]}>
                                     {cart.tableId
                                         ? t('cafe.detail.tableInfo', { tableNumber: cart.tableNumber })
@@ -231,7 +236,7 @@ const CafeCartScreen: React.FC = () => {
                                     }
                                 </Text>
                             </View>
-                            <ChevronRight size={18} color="rgba(255,255,255,0.3)" />
+                            <ChevronRight size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -240,22 +245,22 @@ const CafeCartScreen: React.FC = () => {
                 {cart.orderType === 'delivery' && (
                     <View style={styles.sectionGlass}>
                         <Text style={styles.sectionLabel}>{t('cafe.cart.deliveryAddress')}</Text>
-                        <View style={styles.inputContainer}>
-                            <MapPinned size={18} color="rgba(255,255,255,0.3)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.textInput}
-                                placeholder={t('cafe.cart.addressPlaceholder')}
-                                placeholderTextColor="rgba(255,255,255,0.2)"
-                                value={deliveryAddress}
-                                onChangeText={setDeliveryAddress}
-                            />
-                        </View>
-                        <View style={styles.inputContainer}>
-                            <Clock size={18} color="rgba(255,255,255,0.3)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.textInput}
-                                placeholder={t('cafe.cart.phonePlaceholder')}
-                                placeholderTextColor="rgba(255,255,255,0.2)"
+                    <View style={styles.inputContainer}>
+                        <MapPinned size={18} color={colors.textSecondary} style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.textInput}
+                            placeholder={t('cafe.cart.addressPlaceholder')}
+                            placeholderTextColor={colors.textSecondary}
+                            value={deliveryAddress}
+                            onChangeText={setDeliveryAddress}
+                        />
+                    </View>
+                    <View style={styles.inputContainer}>
+                        <Clock size={18} color={colors.textSecondary} style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.textInput}
+                            placeholder={t('cafe.cart.phonePlaceholder')}
+                            placeholderTextColor={colors.textSecondary}
                                 value={deliveryPhone}
                                 onChangeText={setDeliveryPhone}
                                 keyboardType="phone-pad"
@@ -273,7 +278,7 @@ const CafeCartScreen: React.FC = () => {
                                 <Image source={{ uri: item.dish.imageUrl }} style={styles.itemImg} />
                             ) : (
                                 <View style={styles.itemImgPlaceholder}>
-                                    <Utensils size={24} color="rgba(255,255,255,0.1)" />
+                                    <Utensils size={24} color={colors.textSecondary} />
                                 </View>
                             )}
 
@@ -281,7 +286,7 @@ const CafeCartScreen: React.FC = () => {
                                 <View style={styles.itemHeader}>
                                     <Text style={styles.itemName} numberOfLines={1}>{item.dish.name}</Text>
                                     <TouchableOpacity style={styles.removeBtn} onPress={() => removeFromCart(item.dish.id)}>
-                                        <Trash2 size={16} color="#EF4444" />
+                                        <Trash2 size={16} color={colors.danger} />
                                     </TouchableOpacity>
                                 </View>
 
@@ -289,12 +294,12 @@ const CafeCartScreen: React.FC = () => {
                                     <View style={styles.customizationBox}>
                                         {item.removedIngredients.length > 0 && (
                                             <Text style={styles.customizationText}>
-                                                <Text style={{ color: '#EF4444' }}>- </Text>{item.removedIngredients.join(', ')}
+                                                <Text style={{ color: colors.danger }}>- </Text>{item.removedIngredients.join(', ')}
                                             </Text>
                                         )}
                                         {item.selectedModifiers.length > 0 && (
                                             <Text style={styles.customizationText}>
-                                                <Text style={{ color: '#10B981' }}>+ </Text>
+                                                <Text style={{ color: colors.success }}>+ </Text>
                                                 {item.selectedModifiers.map(m => m.quantity > 1 ? `${m.modifier.name} x${m.quantity}` : m.modifier.name).join(', ')}
                                             </Text>
                                         )}
@@ -308,14 +313,14 @@ const CafeCartScreen: React.FC = () => {
                                             style={styles.qtyBtn}
                                             onPress={() => updateQuantity(item.dish.id, item.quantity - 1)}
                                         >
-                                            <Minus size={14} color="#fff" />
+                                            <Minus size={14} color={colors.textPrimary} />
                                         </TouchableOpacity>
                                         <Text style={styles.qtyVal}>{item.quantity}</Text>
                                         <TouchableOpacity
                                             style={styles.qtyBtn}
                                             onPress={() => updateQuantity(item.dish.id, item.quantity + 1)}
                                         >
-                                            <Plus size={14} color="#fff" />
+                                            <Plus size={14} color={colors.textPrimary} />
                                         </TouchableOpacity>
                                     </View>
                                     <Text style={styles.itemPrice}>{item.itemTotal} ₽</Text>
@@ -329,21 +334,21 @@ const CafeCartScreen: React.FC = () => {
                 <View style={styles.sectionGlass}>
                     <Text style={styles.sectionLabel}>{t('cafe.cart.additional')}</Text>
                     <View style={styles.inputContainer}>
-                        <User size={18} color="rgba(255,255,255,0.3)" style={styles.inputIcon} />
+                        <User size={18} color={colors.textSecondary} style={styles.inputIcon} />
                         <TextInput
                             style={styles.textInput}
                             placeholder={t('cafe.cart.namePlaceholder')}
-                            placeholderTextColor="rgba(255,255,255,0.2)"
+                            placeholderTextColor={colors.textSecondary}
                             value={customerName}
                             onChangeText={setCustomerName}
                         />
                     </View>
                     <View style={[styles.inputContainer, { alignItems: 'flex-start', paddingTop: 12 }]}>
-                        <MessageSquare size={18} color="rgba(255,255,255,0.3)" style={styles.inputIcon} />
+                        <MessageSquare size={18} color={colors.textSecondary} style={styles.inputIcon} />
                         <TextInput
                             style={[styles.textInput, { height: 80, textAlignVertical: 'top' }]}
                             placeholder={t('cafe.cart.commentPlaceholder')}
-                            placeholderTextColor="rgba(255,255,255,0.2)"
+                            placeholderTextColor={colors.textSecondary}
                             value={customerNote}
                             onChangeText={setCustomerNote}
                             multiline
@@ -360,7 +365,7 @@ const CafeCartScreen: React.FC = () => {
                             style={[styles.paymentBtn, paymentMethod === 'cash' && styles.paymentBtnActive]}
                             onPress={() => setPaymentMethod('cash')}
                         >
-                            <Banknote size={20} color={paymentMethod === 'cash' ? '#1a1a2e' : 'rgba(255,255,255,0.4)'} />
+                            <Banknote size={20} color={paymentMethod === 'cash' ? colors.textPrimary : colors.textSecondary} />
                             <Text style={[styles.paymentBtnText, paymentMethod === 'cash' && styles.paymentBtnTextActive]}>
                                 {t('cafe.cart.cash')}
                             </Text>
@@ -369,7 +374,7 @@ const CafeCartScreen: React.FC = () => {
                             style={[styles.paymentBtn, paymentMethod === 'card' && styles.paymentBtnActive]}
                             onPress={() => setPaymentMethod('card')}
                         >
-                            <CreditCard size={20} color={paymentMethod === 'card' ? '#1a1a2e' : 'rgba(255,255,255,0.4)'} />
+                            <CreditCard size={20} color={paymentMethod === 'card' ? colors.textPrimary : colors.textSecondary} />
                             <Text style={[styles.paymentBtnText, paymentMethod === 'card' && styles.paymentBtnTextActive]}>
                                 {t('cafe.cart.card')}
                             </Text>
@@ -406,17 +411,17 @@ const CafeCartScreen: React.FC = () => {
                     disabled={loading}
                 >
                     <LinearGradient
-                        colors={['#F59E0B', '#D97706']}
+                        colors={[colors.accent, colors.warning]}
                         style={styles.checkoutGradient}
                     >
                         {loading ? (
-                            <ActivityIndicator color="#1a1a2e" />
+                            <ActivityIndicator color={colors.textPrimary} />
                         ) : (
                             <>
                                 <Text style={styles.checkoutText}>{t('cafe.cart.placeOrder')}</Text>
                                 <View style={styles.checkoutPriceBox}>
                                     <Text style={styles.checkoutPrice}>{cart.total} ₽</Text>
-                                    <ChevronRight size={20} color="#1a1a2e" />
+                                    <ChevronRight size={20} color={colors.textPrimary} />
                                 </View>
                             </>
                         )}
@@ -432,7 +437,7 @@ const CafeCartScreen: React.FC = () => {
                 onRequestClose={() => setTableModalVisible(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.modalContent}>
+                    <LinearGradient colors={roleTheme.gradient} style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>{t('cafe.staff.tables.title')}</Text>
                             <View style={styles.modalControls}>
@@ -443,17 +448,17 @@ const CafeCartScreen: React.FC = () => {
                                         navigation.navigate('QRScanner');
                                     }}
                                 >
-                                    <QrCode size={20} color="#F59E0B" />
+                                    <QrCode size={20} color={colors.accent} />
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setTableModalVisible(false)}>
-                                    <X size={24} color="#fff" />
+                                    <X size={24} color={colors.textPrimary} />
                                 </TouchableOpacity>
                             </View>
                         </View>
 
                         {loadingTables ? (
                             <View style={styles.modalLoading}>
-                                <ActivityIndicator size="large" color="#F59E0B" />
+                                <ActivityIndicator size="large" color={colors.accent} />
                             </View>
                         ) : (
                             <FlatList
@@ -470,7 +475,7 @@ const CafeCartScreen: React.FC = () => {
                                         ]}
                                         onPress={() => handleSelectTable(item)}
                                     >
-                                        <Utensils size={20} color={cart.tableId === item.id ? '#1a1a2e' : (item.upcomingReservation ? '#EF4444' : '#F59E0B')} />
+                                        <Utensils size={20} color={cart.tableId === item.id ? colors.textPrimary : (item.upcomingReservation ? colors.danger : colors.accent)} />
                                         <Text style={[styles.tableNum, cart.tableId === item.id && styles.tableNumActive]}>
                                             {item.number}
                                         </Text>
@@ -495,7 +500,7 @@ const CafeCartScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -511,14 +516,14 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -527,7 +532,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
     },
     clearBtnText: {
-        color: '#EF4444',
+        color: colors.danger,
         fontSize: 13,
         fontWeight: '700',
     },
@@ -539,11 +544,11 @@ const styles = StyleSheet.create({
         paddingBottom: 120,
     },
     sectionGlass: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 20,
     },
     cafeHeader: {
@@ -556,17 +561,17 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 10,
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
     cafeName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
     sectionLabel: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '800',
         textTransform: 'uppercase',
@@ -586,21 +591,21 @@ const styles = StyleSheet.create({
         gap: 6,
         paddingVertical: 12,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     typeBtnActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     typeBtnText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '700',
     },
     typeBtnTextActive: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
     },
     tablePicker: {
         flexDirection: 'row',
@@ -608,14 +613,14 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
         marginTop: 8,
     },
     tablePickerWarning: {
-        borderColor: 'rgba(239, 68, 68, 0.3)',
-        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+        borderColor: colors.danger,
+        backgroundColor: colors.accentSoft,
     },
     tablePickerInfo: {
         flexDirection: 'row',
@@ -623,22 +628,22 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     tablePickerText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },
     tablePickerTextWarning: {
-        color: '#EF4444',
+        color: colors.danger,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderRadius: 16,
         paddingHorizontal: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     inputIcon: {
         marginRight: 12,
@@ -646,7 +651,7 @@ const styles = StyleSheet.create({
     textInput: {
         flex: 1,
         height: 52,
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -654,19 +659,19 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     sectionHeadline: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 20,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 16,
         paddingHorizontal: 5,
     },
     cartItemGlass: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 16,
         flexDirection: 'row',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 12,
     },
     itemImg: {
@@ -679,7 +684,7 @@ const styles = StyleSheet.create({
         width: 70,
         height: 70,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
@@ -694,7 +699,7 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     itemName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
         flex: 1,
@@ -707,12 +712,12 @@ const styles = StyleSheet.create({
         gap: 2,
     },
     customizationText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 11,
         fontWeight: '600',
     },
     itemNoteText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 11,
         fontWeight: '600',
         marginTop: 2,
@@ -725,7 +730,7 @@ const styles = StyleSheet.create({
     qtyBox: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 4,
         gap: 12,
@@ -734,19 +739,19 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 8,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: colors.surfaceElevated,
         justifyContent: 'center',
         alignItems: 'center',
     },
     qtyVal: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '800',
         minWidth: 15,
         textAlign: 'center',
     },
     itemPrice: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 16,
         fontWeight: '900',
     },
@@ -762,28 +767,28 @@ const styles = StyleSheet.create({
         gap: 10,
         paddingVertical: 14,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     paymentBtnActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     paymentBtnText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '700',
     },
     paymentBtnTextActive: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
     },
     summaryGlass: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginTop: 10,
     },
     summaryRow: {
@@ -792,18 +797,18 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     summaryLabel: {
-        color: 'rgba(255,255,255,0.5)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
     summaryValue: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '700',
     },
     divider: {
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.border,
         marginVertical: 12,
     },
     totalRow: {
@@ -812,12 +817,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     totalLabel: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
     totalValue: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 22,
         fontWeight: '900',
     },
@@ -828,14 +833,14 @@ const styles = StyleSheet.create({
         right: 0,
         padding: 20,
         paddingBottom: Platform.OS === 'ios' ? 40 : 25,
-        backgroundColor: 'rgba(10, 10, 20, 0.95)',
+        backgroundColor: colors.surfaceElevated,
         borderTopWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     checkoutBtn: {
         borderRadius: 20,
         overflow: 'hidden',
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.4,
         shadowRadius: 20,
@@ -849,7 +854,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 25,
     },
     checkoutText: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -868,7 +873,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     checkoutPrice: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
     },
@@ -885,22 +890,22 @@ const styles = StyleSheet.create({
         width: 160,
         height: 160,
         borderRadius: 80,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 32,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     emptyTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 24,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 12,
         textAlign: 'center',
     },
     emptyText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 16,
         textAlign: 'center',
         lineHeight: 24,
@@ -916,14 +921,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     backToMenuText: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.8)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         padding: 20,
     },
@@ -932,7 +937,7 @@ const styles = StyleSheet.create({
         padding: 24,
         maxHeight: '85%',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     modalHeader: {
         flexDirection: 'row',
@@ -941,7 +946,7 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     modalTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 20,
         fontFamily: 'Cinzel-Bold',
     },
@@ -954,7 +959,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 10,
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -967,51 +972,51 @@ const styles = StyleSheet.create({
     },
     tableCard: {
         flex: 1,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         margin: 4,
         paddingVertical: 20,
         borderRadius: 20,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     tableCardActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     tableCardReserved: {
-        borderColor: 'rgba(239, 68, 68, 0.3)',
-        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+        borderColor: colors.danger,
+        backgroundColor: colors.accentSoft,
     },
     tableNum: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '900',
         marginTop: 8,
     },
     tableNumActive: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
     },
     tableSeats: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '700',
         marginTop: 4,
     },
     tableSeatsActive: {
-        color: 'rgba(26, 26, 46, 0.6)',
+        color: colors.textPrimary,
     },
     resBadge: {
         position: 'absolute',
         top: 8,
         right: 8,
-        backgroundColor: '#EF4444',
+        backgroundColor: colors.danger,
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 6,
     },
     resTime: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 9,
         fontWeight: '900',
     }

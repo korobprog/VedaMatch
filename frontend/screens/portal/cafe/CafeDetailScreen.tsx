@@ -34,7 +34,9 @@ import { cafeService } from '../../../services/cafeService';
 import { Cafe, Dish, MenuResponse } from '../../../types/cafe';
 import { useCart } from '../../../contexts/CafeCartContext';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width, height } = Dimensions.get('window');
 
@@ -52,7 +54,9 @@ const CafeDetailScreen: React.FC = () => {
     const { t } = useTranslation();
     const { cafeId, tableId, tableNumber } = route.params;
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [cafe, setCafe] = useState<Cafe | null>(null);
     const [menu, setMenu] = useState<MenuResponse | null>(null);
@@ -133,7 +137,7 @@ const CafeDetailScreen: React.FC = () => {
     if (!cafe) {
         return (
             <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
-                <Info size={48} color="rgba(255, 255, 255, 0.2)" />
+                <Info size={48} color={colors.textSecondary} />
                 <Text style={styles.errorText}>{t('cafe.dashboard.notFound')}</Text>
             </LinearGradient>
         );
@@ -190,7 +194,7 @@ const CafeDetailScreen: React.FC = () => {
                             </View>
                             <View style={styles.detailItem}>
                                 <View style={styles.detailIcon}>
-                                    <Clock size={16} color="#8B5CF6" />
+                                    <Clock size={16} color={colors.accent} />
                                 </View>
                                 <Text style={styles.detailText}>{cafe.workingHours || t('cafe.detail.workingHours')}</Text>
                             </View>
@@ -253,22 +257,22 @@ const CafeDetailScreen: React.FC = () => {
                                         <Image source={{ uri: dish.imageUrl }} style={styles.dishImage} />
                                     ) : (
                                         <View style={styles.dishPlaceholder}>
-                                            <Utensils size={32} color="rgba(255, 255, 255, 0.1)" />
+                                            <Utensils size={32} color={colors.textSecondary} />
                                         </View>
                                     )}
                                     <LinearGradient
-                                        colors={['transparent', 'rgba(10, 10, 20, 0.8)']}
+                                        colors={['transparent', colors.overlay]}
                                         style={styles.dishOverlay}
                                     />
                                     <View style={styles.dishBadges}>
                                         {dish.isVegetarian && (
                                             <View style={styles.dishBadge}>
-                                                <Leaf size={10} color="#10B981" />
+                                                <Leaf size={10} color={colors.success} />
                                             </View>
                                         )}
                                         {dish.isSpicy && (
                                             <View style={styles.dishBadge}>
-                                                <Flame size={10} color="#EF4444" />
+                                                <Flame size={10} color={colors.danger} />
                                             </View>
                                         )}
                                     </View>
@@ -288,7 +292,7 @@ const CafeDetailScreen: React.FC = () => {
                                             )}
                                         </View>
                                         <View style={styles.addDishBtn}>
-                                            <Plus size={14} color="#F59E0B" />
+                                            <Plus size={14} color={colors.accent} />
                                         </View>
                                     </View>
                                 </View>
@@ -301,10 +305,10 @@ const CafeDetailScreen: React.FC = () => {
                             </TouchableOpacity>
                         ))
                     ) : (
-                        <View style={styles.emptyContainer}>
-                            <UtensilsCrossed size={48} color="rgba(255, 255, 255, 0.1)" />
+                    <View style={styles.emptyContainer}>
+                            <UtensilsCrossed size={48} color={colors.textSecondary} />
                             <Text style={styles.emptyText}>{t('cafe.detail.noDishes')}</Text>
-                        </View>
+                    </View>
                     )}
                 </View>
             </Animated.ScrollView>
@@ -325,7 +329,7 @@ const CafeDetailScreen: React.FC = () => {
                         style={styles.headerIconButton}
                         onPress={() => navigation.goBack()}
                     >
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
 
                     <Animated.Text
@@ -345,7 +349,7 @@ const CafeDetailScreen: React.FC = () => {
                     </Animated.Text>
 
                     <TouchableOpacity style={styles.headerIconButton}>
-                        <Info size={22} color="#fff" />
+                        <Info size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </SafeAreaView>
             </Animated.View>
@@ -359,7 +363,7 @@ const CafeDetailScreen: React.FC = () => {
                         activeOpacity={0.8}
                     >
                         <LinearGradient
-                            colors={['#F59E0B', '#D97706']}
+                            colors={[colors.accent, colors.warning]}
                             style={styles.cartGradient}
                         >
                             <View style={styles.cartInfo}>
@@ -370,7 +374,7 @@ const CafeDetailScreen: React.FC = () => {
                             </View>
                             <View style={styles.cartPriceContainer}>
                                 <Text style={styles.cartTotal}>{cart.total} ₽</Text>
-                                <ChevronRight size={20} color="#1a1a2e" />
+                                <ChevronRight size={20} color={colors.textPrimary} />
                             </View>
                         </LinearGradient>
                     </TouchableOpacity>
@@ -388,7 +392,7 @@ const Plus = ({ size, color }: { size: number, color: string }) => (
     </View>
 );
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -426,14 +430,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: colors.border,
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -443,12 +447,12 @@ const styles = StyleSheet.create({
         zIndex: 11,
     },
     infoGlass: {
-        backgroundColor: 'rgba(25, 25, 45, 0.7)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 32,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        shadowColor: '#000',
+        borderColor: colors.border,
+        shadowColor: colors.overlay,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
         shadowRadius: 20,
@@ -464,7 +468,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     cafeName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 26,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 8,
@@ -475,12 +479,12 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     ratingText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '800',
     },
     reviewsText: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '600',
     },
@@ -488,10 +492,10 @@ const styles = StyleSheet.create({
         width: 64,
         height: 64,
         borderRadius: 24,
-        backgroundColor: '#1a1a2e',
+        backgroundColor: colors.surface,
         padding: 3,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderColor: colors.accentSoft,
     },
     logo: {
         width: '100%',
@@ -499,7 +503,7 @@ const styles = StyleSheet.create({
         borderRadius: 21,
     },
     description: {
-        color: 'rgba(255, 255, 255, 0.6)',
+        color: colors.textSecondary,
         fontSize: 14,
         lineHeight: 22,
         marginBottom: 24,
@@ -516,12 +520,12 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 10,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
     detailText: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '600',
         flex: 1,
@@ -537,21 +541,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: colors.border,
     },
     categoryPillActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     categoryPillText: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '700',
     },
     categoryPillTextActive: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
     },
     tableBanner: {
         paddingHorizontal: 20,
@@ -565,10 +569,10 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         gap: 10,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderColor: colors.accentSoft,
     },
     tableBannerText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 14,
         fontWeight: '800',
     },
@@ -578,10 +582,10 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     dishCard: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: colors.border,
         overflow: 'hidden',
         flexDirection: 'row',
         height: 140,
@@ -598,7 +602,7 @@ const styles = StyleSheet.create({
     dishPlaceholder: {
         width: '100%',
         height: '100%',
-        backgroundColor: '#0a0a14',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -615,7 +619,7 @@ const styles = StyleSheet.create({
         width: 22,
         height: 22,
         borderRadius: 7,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -628,12 +632,12 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     dishName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
     },
     dishDescription: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         lineHeight: 18,
     },
@@ -648,12 +652,12 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     dishPrice: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 18,
         fontWeight: '900',
     },
     dishOldPrice: {
-        color: 'rgba(255, 255, 255, 0.3)',
+        color: colors.textSecondary,
         fontSize: 12,
         textDecorationLine: 'line-through',
     },
@@ -661,24 +665,24 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 10,
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.2)',
+        borderColor: colors.accentSoft,
     },
     dishUnavailable: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(10, 10, 20, 0.8)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
     },
     unavailableLabel: {
-        color: '#EF4444',
+        color: colors.danger,
         fontSize: 12,
         fontWeight: '800',
         textTransform: 'uppercase',
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backgroundColor: colors.surface,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
@@ -690,7 +694,7 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     emptyText: {
-        color: 'rgba(255, 255, 255, 0.2)',
+        color: colors.textSecondary,
         fontSize: 16,
         fontWeight: '700',
     },
@@ -704,7 +708,7 @@ const styles = StyleSheet.create({
     cartBtn: {
         borderRadius: 24,
         overflow: 'hidden',
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.4,
         shadowRadius: 20,
@@ -723,18 +727,18 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     cartBadge: {
-        backgroundColor: '#1a1a2e',
+        backgroundColor: colors.surface,
         paddingHorizontal: 10,
         paddingVertical: 5,
         borderRadius: 10,
     },
     cartCount: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '900',
     },
     cartLabel: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -746,12 +750,12 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     cartTotal: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '900',
     },
     errorText: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 16,
         marginTop: 16,
     }

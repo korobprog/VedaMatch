@@ -1,22 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    RefreshControl, ActivityIndicator, useColorScheme, Image, Linking, Alert, Platform
+    RefreshControl, ActivityIndicator, Image, Linking, Alert, Platform
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
 import { Shop, ShopFilters } from '../../../types/market';
 import { getMediaUrl } from '../../../utils/url';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 import {
     Store,
     MapPin,
     Star,
     Compass,
     Map,
-    Navigation,
-    ShoppingBag
+    Navigation
 } from 'lucide-react-native';
 
 // Note: For full map integration, install react-native-maps:
@@ -26,9 +28,10 @@ import {
 export const ShopsMapScreen: React.FC = () => {
     const { t } = useTranslation();
     const navigation = useNavigation<any>();
-
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -143,18 +146,18 @@ export const ShopsMapScreen: React.FC = () => {
     };
 
     const renderShop = ({ item }: { item: Shop }) => (
-        <View style={[styles.shopCard, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}>
+        <View style={styles.shopCard}>
             <TouchableOpacity style={styles.shopContent} onPress={() => handleShopPress(item)}>
-                <View style={[styles.shopLogo, { backgroundColor: colors.primary + '15' }]}>
+                <View style={styles.shopLogo}>
                     {item.logoUrl ? (
                         <Image source={{ uri: getMediaUrl(item.logoUrl) || '' }} style={styles.logoImage} />
                     ) : (
-                        <Store size={24} color={colors.primary} />
+                        <Store size={24} color={colors.accent} />
                     )}
                 </View>
 
                 <View style={styles.shopInfo}>
-                    <Text style={[styles.shopName, { color: isDarkMode ? '#fff' : colors.text }]} numberOfLines={1}>
+                    <Text style={styles.shopName} numberOfLines={1}>
                         {item.name}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
@@ -167,14 +170,14 @@ export const ShopsMapScreen: React.FC = () => {
                     <View style={styles.shopMeta}>
                         {item.rating > 0 && (
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Star size={12} color="#FFA000" fill="#FFA000" style={{ marginRight: 2 }} />
-                                <Text style={{ color: '#FFA000', fontSize: 13, fontWeight: '600' }}>
+                                <Star size={12} color={colors.warning} fill={colors.warning} style={{ marginRight: 2 }} />
+                                <Text style={{ color: colors.warning, fontSize: 13, fontWeight: '600' }}>
                                     {item.rating.toFixed(1)}
                                 </Text>
                             </View>
                         )}
                         {item.distance && (
-                            <Text style={[styles.distance, { color: colors.primary }]}>
+                            <Text style={[styles.distance, { color: colors.accent }]}>
                                 {item.distance < 1
                                     ? `${Math.round(item.distance * 1000)} m`
                                     : `${item.distance.toFixed(1)} km`
@@ -190,18 +193,18 @@ export const ShopsMapScreen: React.FC = () => {
 
             <View style={styles.mapActions}>
                 <TouchableOpacity
-                    style={[styles.mapBtn, { backgroundColor: colors.primary }]}
+                    style={[styles.mapBtn, { backgroundColor: colors.accent }]}
                     onPress={() => openInMaps(item)}
                 >
-                    <Navigation size={16} color="#fff" />
+                    <Navigation size={16} color={colors.textPrimary} />
                     <Text style={styles.mapBtnText}>{t('market.map.openMap')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.mapBtn, { backgroundColor: '#4CAF50' }]}
+                    style={[styles.mapBtn, { backgroundColor: colors.success }]}
                     onPress={() => openDirections(item)}
                 >
-                    <Compass size={16} color="#fff" />
+                    <Compass size={16} color={colors.textPrimary} />
                     <Text style={styles.mapBtnText}>{t('market.map.openRoute')}</Text>
                 </TouchableOpacity>
             </View>
@@ -210,9 +213,9 @@ export const ShopsMapScreen: React.FC = () => {
 
     const renderHeader = () => (
         <View style={styles.header}>
-            <View style={[styles.mapPlaceholder, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5' }]}>
-                <Map size={48} color={isDarkMode ? '#555' : '#ddd'} style={{ marginBottom: 12 }} />
-                <Text style={[styles.mapPlaceholderText, { color: isDarkMode ? '#fff' : colors.text }]}>
+            <View style={styles.mapPlaceholder}>
+                <Map size={48} color={colors.textSecondary} style={{ marginBottom: 12 }} />
+                <Text style={styles.mapPlaceholderText}>
                     {t('market.map.viewNearby')}
                 </Text>
                 <Text style={[styles.mapPlaceholderHint, { color: colors.textSecondary }]}>
@@ -221,7 +224,7 @@ export const ShopsMapScreen: React.FC = () => {
             </View>
 
             <View style={styles.resultsHeader}>
-                <Text style={[styles.resultsTitle, { color: isDarkMode ? '#fff' : colors.text }]}>
+                <Text style={styles.resultsTitle}>
                     {t('market.map.nearbyShops')} ({shops.length})
                 </Text>
             </View>
@@ -230,14 +233,14 @@ export const ShopsMapScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
             </View>
         );
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+        <View style={styles.screen}>
             <FlatList
                 data={shops}
                 renderItem={renderShop}
@@ -246,7 +249,7 @@ export const ShopsMapScreen: React.FC = () => {
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Store size={48} color={colors.textSecondary} style={{ marginBottom: 12 }} opacity={0.5} />
-                        <Text style={[styles.emptyText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                        <Text style={styles.emptyText}>
                             {t('market.map.noShops')}
                         </Text>
                     </View>
@@ -258,11 +261,16 @@ export const ShopsMapScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+    },
     centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.background,
     },
     header: {
         marginBottom: 8,
@@ -274,6 +282,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.surfaceElevated,
     },
     mapPlaceholderIcon: {
         fontSize: 48,
@@ -282,6 +291,7 @@ const styles = StyleSheet.create({
     mapPlaceholderText: {
         fontSize: 16,
         fontWeight: '600',
+        color: colors.textPrimary,
     },
     mapPlaceholderHint: {
         fontSize: 12,
@@ -294,6 +304,7 @@ const styles = StyleSheet.create({
     resultsTitle: {
         fontSize: 18,
         fontWeight: '700',
+        color: colors.textPrimary,
     },
     listContent: {
         paddingBottom: 20,
@@ -304,6 +315,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         elevation: 2,
         overflow: 'hidden',
+        backgroundColor: colors.surface,
     },
     shopContent: {
         flexDirection: 'row',
@@ -316,6 +328,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
+        backgroundColor: colors.accentSoft,
     },
     logoImage: {
         width: '100%',
@@ -328,6 +341,7 @@ const styles = StyleSheet.create({
     shopName: {
         fontSize: 16,
         fontWeight: 'bold',
+        color: colors.textPrimary,
     },
     shopAddress: {
         fontSize: 13,
@@ -350,7 +364,7 @@ const styles = StyleSheet.create({
     mapActions: {
         flexDirection: 'row',
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
+        borderTopColor: colors.border,
     },
     mapBtn: {
         flex: 1,
@@ -364,7 +378,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     mapBtnText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -379,5 +393,6 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 16,
         textAlign: 'center',
+        color: colors.textSecondary,
     },
 });

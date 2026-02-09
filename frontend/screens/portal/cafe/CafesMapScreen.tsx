@@ -5,9 +5,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     ActivityIndicator,
-    Platform,
     Alert,
-    Dimensions,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,11 +20,11 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSettings } from '../../../context/SettingsContext';
 import { useUser } from '../../../context/UserContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { mapService } from '../../../services/mapService';
 import { geoLocationService } from '../../../services/geoLocationService';
 import { MapMarker, MapCluster } from '../../../types/map';
-
-const { width, height } = Dimensions.get('window');
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 const INITIAL_LAT = 55.7558;
 const INITIAL_LNG = 37.6173;
 
@@ -39,6 +37,8 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { isDarkMode } = useSettings();
     const { user } = useUser();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const webViewRef = useRef<WebView>(null);
     const lastBoundsRef = useRef<any>(null);
@@ -162,7 +162,9 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
     const initialLng = focusMarker ? focusMarker.longitude : (user?.longitude || INITIAL_LNG);
     const initialZoom = focusMarker ? 15 : 4;
 
-    const effectiveTileUrl = tileUrl || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    const effectiveTileUrl = tileUrl || (isDarkMode
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
 
     const mapHtml = `
 <!DOCTYPE html>
@@ -174,41 +176,41 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * { margin: 0; padding: 0; }
-        html, body, #map { width: 100%; height: 100%; background: #0a0a14; }
-        .leaflet-container { background: #0a0a14 !important; }
+        html, body, #map { width: 100%; height: 100%; background: ${colors.background}; }
+        .leaflet-container { background: ${colors.background} !important; }
         .cafe-marker {
             width: 36px;
             height: 36px;
-            background: linear-gradient(135deg, #F59E0B, #D97706);
+            background: linear-gradient(135deg, ${colors.accent}, ${colors.warning});
             border: 2px solid rgba(255,255,255,0.8);
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+            box-shadow: 0 4px 12px ${colors.accentSoft};
             transform: rotate(45deg);
         }
         .cafe-marker svg { 
             width: 20px; 
             height: 20px; 
-            fill: #1a1a2e;
+            fill: ${colors.textPrimary};
             transform: rotate(-45deg);
         }
         .cluster-marker {
-            background: rgba(245, 158, 11, 0.9);
+            background: ${colors.accent};
             border-radius: 50%;
             width: 40px !important;
             height: 40px !important;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #1a1a2e;
+            color: ${colors.textPrimary};
             font-weight: 900;
             font-family: sans-serif;
             border: 2px solid rgba(255,255,255,0.5);
-            box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+            box-shadow: 0 0 20px ${colors.accentSoft};
         }
-        .leaflet-tile-pane { filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7); }
+        .leaflet-tile-pane { filter: ${isDarkMode ? 'brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7)' : 'none'}; }
     </style>
 </head>
 <body>
@@ -287,7 +289,7 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <WebView
                 ref={webViewRef}
@@ -299,17 +301,17 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
 
             <SafeAreaView style={styles.header} edges={['top']}>
                 <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.map.title', 'Карта кафе')}</Text>
             </SafeAreaView>
 
             <TouchableOpacity style={styles.locateBtn} onPress={handleLocateMe}>
                 <LinearGradient
-                    colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
+                    colors={[colors.surfaceElevated, colors.surface]}
                     style={styles.locateGradient}
                 >
-                    <LocateFixed size={24} color="#F59E0B" />
+                    <LocateFixed size={24} color={colors.accent} />
                 </LinearGradient>
             </TouchableOpacity>
 
@@ -322,20 +324,20 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
                     >
                         <View style={styles.cardContent}>
                             <View style={styles.cardIcon}>
-                                <MapPin size={22} color="#F59E0B" />
+                                <MapPin size={22} color={colors.accent} />
                             </View>
                             <View style={styles.cardText}>
                                 <Text style={styles.cardTitle}>{selectedMarker.title}</Text>
                                 <Text style={styles.cardSubtitle} numberOfLines={1}>{selectedMarker.subtitle}</Text>
                             </View>
                             <View style={styles.goBtn}>
-                                <ChevronRight size={20} color="#1a1a2e" />
+                                <ChevronRight size={20} color={colors.textPrimary} />
                             </View>
                         </View>
 
                         <View style={styles.cardFooter}>
                             <TouchableOpacity style={styles.navBtn}>
-                                <Navigation size={14} color="#F59E0B" />
+                                <Navigation size={14} color={colors.accent} />
                                 <Text style={styles.navBtnText}>{t('map.navigate', 'Маршрут')}</Text>
                             </TouchableOpacity>
                         </View>
@@ -345,14 +347,14 @@ export const CafesMapScreen: React.FC<Props> = ({ navigation, route }) => {
 
             {isLoading && (
                 <View style={styles.loader}>
-                    <ActivityIndicator size="large" color="#F59E0B" />
+                    <ActivityIndicator size="large" color={colors.accent} />
                 </View>
             )}
         </View>
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: { flex: 1 },
     map: { flex: 1 },
     header: {
@@ -370,14 +372,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: 'rgba(10, 10, 20, 0.7)',
+        backgroundColor: colors.surfaceElevated,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
         marginLeft: 16,
@@ -394,8 +396,8 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        shadowColor: '#000',
+        borderColor: colors.border,
+        shadowColor: colors.overlay,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -414,12 +416,12 @@ const styles = StyleSheet.create({
         zIndex: 20,
     },
     markerCard: {
-        backgroundColor: 'rgba(25, 25, 45, 0.85)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-        shadowColor: '#000',
+        borderColor: colors.border,
+        shadowColor: colors.overlay,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.5,
         shadowRadius: 20,
@@ -434,7 +436,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
@@ -443,13 +445,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     cardTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 4,
     },
     cardSubtitle: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '600',
     },
@@ -457,34 +459,34 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 12,
-        backgroundColor: '#F59E0B',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
     },
     cardFooter: {
         flexDirection: 'row',
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.05)',
+        borderTopColor: colors.border,
         paddingTop: 16,
     },
     navBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 10,
     },
     navBtnText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 12,
         fontWeight: '800',
         textTransform: 'uppercase',
     },
     loader: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#0a0a14',
+        backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
     }

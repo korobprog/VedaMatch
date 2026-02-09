@@ -30,7 +30,7 @@ export const ExamTrainerScreen: React.FC = () => {
     const { t } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
-    const { colors: roleColors } = useRoleTheme(user?.role, true);
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
 
     const [questions, setQuestions] = useState<ExamQuestion[]>([]);
     const [loading, setLoading] = useState(true);
@@ -114,7 +114,7 @@ export const ExamTrainerScreen: React.FC = () => {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
-            <View style={[styles.progressBarContainer, { backgroundColor: isDarkMode ? '#333' : '#E0E0E0' }]}>
+            <View style={[styles.progressBarContainer, { backgroundColor: isDarkMode ? 'rgb(51,51,51)' : 'rgb(224,224,224)' }]}>
                 <View style={[styles.progressBar, { width: `${((currentIndex + 1) / questions.length) * 100}%`, backgroundColor: roleColors.accent }]} />
             </View>
 
@@ -175,7 +175,7 @@ export const ExamTrainerScreen: React.FC = () => {
                         onPress={handleSubmit}
                         disabled={submitting || !answers[currentQuestion?.ID]}
                     >
-                        {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>{t('education.finish')}</Text>}
+                        {submitting ? <ActivityIndicator color="rgba(255,255,255,1)" /> : <Text style={styles.primaryButtonText}>{t('education.finish')}</Text>}
                     </TouchableOpacity>
                 )}
             </View>
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     },
     progressBarContainer: {
         height: 4,
-        backgroundColor: '#E0E0E0',
+        backgroundColor: 'rgb(224,224,224)',
         width: '100%',
     },
     progressBar: {
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     primaryButtonText: {
-        color: '#FFF',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: 'bold',
     },

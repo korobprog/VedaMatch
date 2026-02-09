@@ -33,6 +33,7 @@ import {
 import { useWallet } from '../../../context/WalletContext';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
@@ -41,11 +42,10 @@ export const MarketHomeScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
     const { user } = useUser();
-    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(roleColors), [roleColors]);
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
-
-    const { isDarkMode, vTheme } = useSettings();
-    const colors = vTheme.colors;
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -156,7 +156,7 @@ export const MarketHomeScreen: React.FC = () => {
         navigation.navigate('ProductDetails', { productId: product.ID });
     };
 
-    const getCategoryIcon = (emoji: string, size = 14, color = '#666') => {
+    const getCategoryIcon = (emoji: string, size = 14, color = roleColors.textSecondary) => {
         switch (emoji) {
             case '📚': return <Book size={size} color={color} />;
             case '👕': return <Shirt size={size} color={color} />;
@@ -239,11 +239,11 @@ export const MarketHomeScreen: React.FC = () => {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: 'rgba(26, 26, 46, 0.5)', borderColor: 'rgba(255,255,255,0.05)' }]}
+                        style={[styles.featuredCard, { backgroundColor: roleColors.surface, borderColor: roleColors.border }]}
                         onPress={() => navigation.navigate('ShopsMap')}
                     >
                         <View style={styles.actionIconOuter}>
-                            <Map size={22} color="#fff" />
+                            <Map size={22} color={roleColors.textPrimary} />
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>{t('market.map.title')}</Text>
@@ -255,7 +255,7 @@ export const MarketHomeScreen: React.FC = () => {
 
             <View style={styles.searchSection}>
                 <View style={styles.searchBackground}>
-                    <SearchIcon size={20} color="rgba(255,255,255,0.4)" />
+                    <SearchIcon size={20} color={roleColors.textSecondary} />
                     <TextInput
                         style={[styles.searchInput, { color: roleColors.textPrimary }]}
                         placeholder={t('market.search')}
@@ -267,7 +267,7 @@ export const MarketHomeScreen: React.FC = () => {
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => { setSearchQuery(''); loadProducts(1, true); }}>
-                            <X size={20} color="rgba(255,255,255,0.4)" />
+                            <X size={20} color={roleColors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -287,7 +287,7 @@ export const MarketHomeScreen: React.FC = () => {
                                 onPress={() => handleCategorySelect(item.id)}
                             >
                                 <View style={styles.pillIcon}>
-                                    {getCategoryIcon(item.emoji, 14, isActive ? '#1a1a2e' : roleColors.accent)}
+                                    {getCategoryIcon(item.emoji, 14, isActive ? roleColors.textPrimary : roleColors.accent)}
                                 </View>
                                 <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
                                     {item.label[currentLang] || item.label.en}
@@ -339,7 +339,7 @@ export const MarketHomeScreen: React.FC = () => {
                     ListEmptyComponent={
                         !loading ? (
                             <EmptyState
-                                icon={<ShoppingBag size={64} color="rgba(255,255,255,0.1)" />}
+                                icon={<ShoppingBag size={64} color={roleColors.textSecondary} />}
                                 title={t('market.noProductsTitle')}
                                 message={t('market.noProductsMsg')}
                                 actionLabel={t('market.clearFilters')}
@@ -372,7 +372,7 @@ export const MarketHomeScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
     gradient: {
         flex: 1,
     },
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 22,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     walletBalance: {
-        color: '#F59E0B',
+        color: 'rgb(245,158,11)',
         fontSize: 13,
         fontWeight: '800',
     },
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     featuredCardTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 13,
         fontWeight: '800',
     },
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '600',
         marginLeft: 12,
@@ -516,8 +516,8 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     sortPillActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: 'rgb(245,158,11)',
+        borderColor: 'rgb(245,158,11)',
     },
     pillIcon: {
         width: 14,
@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     sortPillLabelActive: {
-        color: '#1a1a2e',
+        color: 'rgb(26,26,46)',
     },
     resultsHeader: {
         paddingHorizontal: 20,

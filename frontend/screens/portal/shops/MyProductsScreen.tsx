@@ -1,22 +1,27 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    RefreshControl, ActivityIndicator, useColorScheme, Image, TextInput
+    RefreshControl, ActivityIndicator, Image
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { ModernVedicTheme as vedicTheme } from '../../../theme/ModernVedicTheme';
 import { marketService } from '../../../services/marketService';
 import { Product } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
 import { EmptyState } from '../../../components/market/EmptyState';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 export const MyProductsScreen: React.FC = () => {
     const { t } = useTranslation();
     const navigation = useNavigation<any>();
-    const isDarkMode = useColorScheme() === 'dark';
-    const colors = vedicTheme.colors;
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -78,11 +83,11 @@ export const MyProductsScreen: React.FC = () => {
     };
 
     const renderProduct = ({ item }: { item: Product }) => {
-        const statusColor = item.status === 'active' ? '#4CAF50' : '#FFC107';
+        const statusColor = item.status === 'active' ? colors.success : colors.warning;
 
         return (
             <TouchableOpacity
-                style={[styles.productCard, { backgroundColor: isDarkMode ? '#252525' : '#fff' }]}
+                style={styles.productCard}
                 onPress={() => handleProductPress(item)}
             >
                 <View style={styles.imageContainer}>
@@ -92,7 +97,7 @@ export const MyProductsScreen: React.FC = () => {
                             style={styles.productImage}
                         />
                     ) : (
-                        <View style={[styles.placeholderImage, { backgroundColor: colors.primary + '20' }]}>
+                        <View style={styles.placeholderImage}>
                             <Text style={{ fontSize: 24 }}>📦</Text>
                         </View>
                     )}
@@ -105,31 +110,31 @@ export const MyProductsScreen: React.FC = () => {
 
                 <View style={styles.productInfo}>
                     <Text
-                        style={[styles.productName, { color: isDarkMode ? '#fff' : colors.text }]}
+                        style={[styles.productName, { color: colors.textPrimary }]}
                         numberOfLines={2}
                     >
                         {item.name}
                     </Text>
 
                     <View style={styles.priceRow}>
-                        <Text style={[styles.productPrice, { color: colors.primary }]}>
+                        <Text style={[styles.productPrice, { color: colors.accent }]}>
                             {item.basePrice.toLocaleString()} {item.currency}
                         </Text>
                         {item.salePrice && item.salePrice > 0 && (
-                            <Text style={[styles.salePrice, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                            <Text style={[styles.salePrice, { color: colors.textSecondary }]}>
                                 {item.salePrice.toLocaleString()}
                             </Text>
                         )}
                     </View>
 
                     <View style={styles.statsRow}>
-                        <Text style={[styles.statText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                        <Text style={[styles.statText, { color: colors.textSecondary }]}>
                             {t('market.seller.stock')}: {item.stock}
                         </Text>
-                        <Text style={[styles.statText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                        <Text style={[styles.statText, { color: colors.textSecondary }]}>
                             {t('market.views')} {item.viewsCount || 0}
                         </Text>
-                        <Text style={[styles.statText, { color: isDarkMode ? '#aaa' : colors.textSecondary }]}>
+                        <Text style={[styles.statText, { color: colors.textSecondary }]}>
                             {t('market.sold')}: {item.salesCount || 0}
                         </Text>
                     </View>
@@ -141,8 +146,8 @@ export const MyProductsScreen: React.FC = () => {
     if (loading && !refreshing && page === 1) {
         return (
             <ProtectedScreen>
-                <View style={[styles.centerContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }]}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+                <View style={styles.centerContainer}>
+                    <ActivityIndicator size="large" color={colors.accent} />
                 </View>
             </ProtectedScreen>
         );
@@ -150,13 +155,13 @@ export const MyProductsScreen: React.FC = () => {
 
     return (
         <ProtectedScreen>
-            <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
+            <View style={styles.screen}>
                 <View style={styles.header}>
-                    <Text style={[styles.subtitle, { color: isDarkMode ? '#ddd' : colors.textSecondary }]}>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                         {totalItems} {t('market.shops.productsCount') || 'products'}
                     </Text>
                     <TouchableOpacity
-                        style={[styles.addButton, { backgroundColor: colors.primary }]}
+                        style={[styles.addButton, { backgroundColor: colors.accent }]}
                         onPress={handleAddProduct}
                     >
                         <Text style={styles.addButtonText}>➕ {t('market.product.add')}</Text>
@@ -182,7 +187,7 @@ export const MyProductsScreen: React.FC = () => {
                     }
                     ListFooterComponent={loadingMore ? (
                         <View style={styles.loadingFooter}>
-                            <ActivityIndicator size="small" color={colors.primary} />
+                            <ActivityIndicator size="small" color={colors.accent} />
                         </View>
                     ) : null}
                 />
@@ -191,11 +196,16 @@ export const MyProductsScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+    },
     centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -213,7 +223,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     addButtonText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontWeight: '600',
         fontSize: 14,
     },
@@ -228,6 +238,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         elevation: 2,
         height: 120,
+        backgroundColor: colors.surface,
     },
     imageContainer: {
         width: 120,
@@ -243,6 +254,7 @@ const styles = StyleSheet.create({
         height: '100%',
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.accentSoft,
     },
     statusBadge: {
         position: 'absolute',
@@ -253,7 +265,7 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     statusText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 10,
         fontWeight: 'bold',
     },

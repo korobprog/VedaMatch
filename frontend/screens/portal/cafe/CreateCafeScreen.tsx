@@ -12,7 +12,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     Switch,
-    Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,16 +21,18 @@ import { ArrowLeft, Camera, Utensils, Pencil, Info, MapPin, Phone, Globe, Messag
 import { launchImageLibrary, PhotoQuality } from 'react-native-image-picker';
 import { cafeService } from '../../../services/cafeService';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
-
-const { width } = Dimensions.get('window');
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const CreateCafeScreen = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { t } = useTranslation();
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
     const cafeId = route.params?.cafeId;
     const isEditing = !!cafeId;
 
@@ -193,12 +194,12 @@ const CreateCafeScreen = () => {
                                 <Image source={{ uri: cafeService.getImageUrl(cover) }} style={styles.coverImg} />
                             ) : (
                                 <View style={styles.coverPlaceholder}>
-                                    <Camera size={32} color="rgba(255,255,255,0.2)" />
+                                    <Camera size={32} color={colors.textSecondary} />
                                     <Text style={styles.uploadLabel}>{t('cafe.form.addCover')}</Text>
                                 </View>
                             )}
                             <LinearGradient
-                                colors={['transparent', 'rgba(10, 10, 20, 0.8)']}
+                                colors={['transparent', colors.overlay]}
                                 style={StyleSheet.absoluteFill}
                             />
                         </TouchableOpacity>
@@ -213,11 +214,11 @@ const CreateCafeScreen = () => {
                                     <Image source={{ uri: cafeService.getImageUrl(logo) }} style={styles.logoImg} />
                                 ) : (
                                     <View style={styles.logoPlaceholder}>
-                                        <Utensils size={24} color="rgba(255,255,255,0.2)" />
+                                        <Utensils size={24} color={colors.textSecondary} />
                                     </View>
                                 )}
                                 <View style={styles.pencilBadge}>
-                                    <Pencil size={12} color="#1a1a2e" strokeWidth={3} />
+                                    <Pencil size={12} color={colors.textPrimary} strokeWidth={3} />
                                 </View>
                             </TouchableOpacity>
                         </View>
@@ -234,7 +235,7 @@ const CreateCafeScreen = () => {
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder={t('cafe.form.name')}
-                                    placeholderTextColor="rgba(255,255,255,0.2)"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={name}
                                     onChangeText={setName}
                                 />
@@ -243,7 +244,7 @@ const CreateCafeScreen = () => {
                                 <TextInput
                                     style={[styles.textInput, { height: 100, textAlignVertical: 'top' }]}
                                     placeholder={t('cafe.form.description')}
-                                    placeholderTextColor="rgba(255,255,255,0.2)"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={description}
                                     onChangeText={setDescription}
                                     multiline
@@ -262,7 +263,7 @@ const CreateCafeScreen = () => {
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder={t('cafe.form.city')}
-                                    placeholderTextColor="rgba(255,255,255,0.2)"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={city}
                                     onChangeText={setCity}
                                 />
@@ -271,7 +272,7 @@ const CreateCafeScreen = () => {
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder={t('cafe.form.address')}
-                                    placeholderTextColor="rgba(255,255,255,0.2)"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={address}
                                     onChangeText={setAddress}
                                 />
@@ -285,22 +286,22 @@ const CreateCafeScreen = () => {
                                 <Text style={styles.groupTitle}>{t('cafe.form.contactSocial')}</Text>
                             </View>
                             <View style={styles.inputBox}>
-                                <Phone size={16} color="rgba(255,255,255,0.2)" style={styles.innerIcon} />
+                                <Phone size={16} color={colors.textSecondary} style={styles.innerIcon} />
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder={t('cafe.form.phone')}
-                                    placeholderTextColor="rgba(255,255,255,0.2)"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={phone}
                                     onChangeText={setPhone}
                                     keyboardType="phone-pad"
                                 />
                             </View>
                             <View style={styles.inputBox}>
-                                <Globe size={16} color="rgba(255,255,255,0.2)" style={styles.innerIcon} />
+                                <Globe size={16} color={colors.textSecondary} style={styles.innerIcon} />
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder={t('cafe.form.website')}
-                                    placeholderTextColor="rgba(255,255,255,0.2)"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={website}
                                     onChangeText={setWebsite}
                                     autoCapitalize="none"
@@ -308,22 +309,22 @@ const CreateCafeScreen = () => {
                             </View>
                             <View style={styles.socialRow}>
                                 <View style={[styles.inputBox, { flex: 1, marginBottom: 0 }]}>
-                                    <MessageCircle size={16} color="rgba(255,255,255,0.2)" style={styles.innerIcon} />
+                                    <MessageCircle size={16} color={colors.textSecondary} style={styles.innerIcon} />
                                     <TextInput
                                         style={styles.textInput}
                                         placeholder="Telegram"
-                                        placeholderTextColor="rgba(255,255,255,0.2)"
+                                        placeholderTextColor={colors.textSecondary}
                                         value={telegram}
                                         onChangeText={setTelegram}
                                         autoCapitalize="none"
                                     />
                                 </View>
                                 <View style={[styles.inputBox, { flex: 1, marginBottom: 0 }]}>
-                                    <Instagram size={16} color="rgba(255,255,255,0.2)" style={styles.innerIcon} />
+                                    <Instagram size={16} color={colors.textSecondary} style={styles.innerIcon} />
                                     <TextInput
                                         style={styles.textInput}
                                         placeholder="Instagram"
-                                        placeholderTextColor="rgba(255,255,255,0.2)"
+                                        placeholderTextColor={colors.textSecondary}
                                         value={instagram}
                                         onChangeText={setInstagram}
                                         autoCapitalize="none"
@@ -340,38 +341,38 @@ const CreateCafeScreen = () => {
                             </View>
                             <View style={styles.switchRow}>
                                 <View style={styles.switchInfo}>
-                                    <UtensilsCrossed size={16} color="rgba(255,255,255,0.4)" />
+                                    <UtensilsCrossed size={16} color={colors.textSecondary} />
                                     <Text style={styles.switchLabel}>{t('cafe.form.dineIn')}</Text>
                                 </View>
                                 <Switch
                                     value={hasDineIn}
                                     onValueChange={setHasDineIn}
-                                    trackColor={{ false: '#1a1a2e', true: colors.accent }}
-                                    thumbColor={Platform.OS === 'ios' ? '#fff' : (hasDineIn ? '#fff' : '#444')}
+                                    trackColor={{ false: colors.surface, true: colors.accent }}
+                                    thumbColor={Platform.OS === 'ios' ? colors.textPrimary : (hasDineIn ? colors.textPrimary : colors.textSecondary)}
                                 />
                             </View>
                             <View style={styles.switchRow}>
                                 <View style={styles.switchInfo}>
-                                    <ShoppingBag size={16} color="rgba(255,255,255,0.4)" />
+                                    <ShoppingBag size={16} color={colors.textSecondary} />
                                     <Text style={styles.switchLabel}>{t('cafe.form.takeaway')}</Text>
                                 </View>
                                 <Switch
                                     value={hasTakeaway}
                                     onValueChange={setHasTakeaway}
-                                    trackColor={{ false: '#1a1a2e', true: colors.accent }}
-                                    thumbColor={Platform.OS === 'ios' ? '#fff' : (hasTakeaway ? '#fff' : '#444')}
+                                    trackColor={{ false: colors.surface, true: colors.accent }}
+                                    thumbColor={Platform.OS === 'ios' ? colors.textPrimary : (hasTakeaway ? colors.textPrimary : colors.textSecondary)}
                                 />
                             </View>
                             <View style={styles.switchRow}>
                                 <View style={styles.switchInfo}>
-                                    <Truck size={16} color="rgba(255,255,255,0.4)" />
+                                    <Truck size={16} color={colors.textSecondary} />
                                     <Text style={styles.switchLabel}>{t('cafe.form.delivery')}</Text>
                                 </View>
                                 <Switch
                                     value={hasDelivery}
                                     onValueChange={setHasDelivery}
-                                    trackColor={{ false: '#1a1a2e', true: colors.accent }}
-                                    thumbColor={Platform.OS === 'ios' ? '#fff' : (hasDelivery ? '#fff' : '#444')}
+                                    trackColor={{ false: colors.surface, true: colors.accent }}
+                                    thumbColor={Platform.OS === 'ios' ? colors.textPrimary : (hasDelivery ? colors.textPrimary : colors.textSecondary)}
                                 />
                             </View>
                         </View>
@@ -386,7 +387,7 @@ const CreateCafeScreen = () => {
                                 style={styles.submitGradient}
                             >
                                 {submitting ? (
-                                    <ActivityIndicator color="#1a1a2e" />
+                                    <ActivityIndicator color={colors.textPrimary} />
                                 ) : (
                                     <Text style={styles.submitBtnText}>
                                         {isEditing ? t('cafe.form.saveChanges') : t('cafe.form.createBtn')}
@@ -401,7 +402,7 @@ const CreateCafeScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -422,14 +423,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -445,7 +446,7 @@ const styles = StyleSheet.create({
     coverUpload: {
         width: '100%',
         height: '100%',
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
     },
     coverImg: {
         width: '100%',
@@ -458,7 +459,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     uploadLabel: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -472,10 +473,10 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 32,
-        backgroundColor: '#1a1a2e',
+        backgroundColor: colors.surface,
         borderWidth: 4,
-        borderColor: '#0a0a14',
-        shadowColor: '#000',
+        borderColor: colors.background,
+        shadowColor: colors.overlay,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.4,
         shadowRadius: 12,
@@ -492,7 +493,7 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         borderRadius: 28,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -503,21 +504,21 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 10,
-        backgroundColor: '#F59E0B',
+        backgroundColor: colors.accent,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 3,
-        borderColor: '#0a0a14',
+        borderColor: colors.background,
     },
     formContainer: {
         paddingHorizontal: 20,
     },
     glassGroup: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 20,
     },
     groupHeader: {
@@ -527,19 +528,19 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     groupTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
     },
     inputBox: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderRadius: 16,
         paddingHorizontal: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     innerIcon: {
         marginRight: 12,
@@ -547,7 +548,7 @@ const styles = StyleSheet.create({
     textInput: {
         flex: 1,
         height: 52,
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -561,7 +562,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: colors.border,
     },
     switchInfo: {
         flexDirection: 'row',
@@ -569,7 +570,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     switchLabel: {
-        color: 'rgba(255,255,255,0.6)',
+        color: colors.textSecondary,
         fontSize: 15,
         fontWeight: '600',
     },
@@ -577,7 +578,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         overflow: 'hidden',
         marginTop: 10,
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.4,
         shadowRadius: 20,
@@ -589,7 +590,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     submitBtnText: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',

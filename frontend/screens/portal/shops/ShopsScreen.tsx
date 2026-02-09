@@ -10,7 +10,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { marketService } from '../../../services/marketService';
 import { useSettings } from '../../../context/SettingsContext';
 import { Shop, ShopCategoryConfig, ShopFilters } from '../../../types/market';
-import { getMediaUrl } from '../../../utils/url';
 import { ShopCard } from '../../../components/market/ShopCard';
 import {
     Store,
@@ -34,11 +33,9 @@ export const ShopsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
     const { user } = useUser();
-    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
-
-    const { isDarkMode, vTheme } = useSettings();
-    const colors = vTheme.colors;
 
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -195,7 +192,7 @@ export const ShopsScreen: React.FC = () => {
                         onPress={() => navigation.navigate('ShopsMap')}
                     >
                         <View style={styles.actionIconOuter}>
-                            <MapIcon size={22} color="#fff" />
+                            <MapIcon size={22} color="rgba(255,255,255,1)" />
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>{t('market.map.title')}</Text>
@@ -238,7 +235,7 @@ export const ShopsScreen: React.FC = () => {
                                 style={[styles.sortPill, isActive && styles.sortPillActive]}
                                 onPress={() => handleCategorySelect(item.id)}
                             >
-                                <Tag size={12} color={isActive ? '#1a1a2e' : roleColors.accent} style={{ marginRight: 6 }} />
+                                <Tag size={12} color={isActive ? 'rgb(26,26,46)' : roleColors.accent} style={{ marginRight: 6 }} />
                                 <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
                                     {item.label[currentLang] || item.label.en}
                                 </Text>
@@ -350,7 +347,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 22,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -379,7 +376,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     walletBalance: {
-        color: '#F59E0B',
+        color: 'rgb(245,158,11)',
         fontSize: 13,
         fontWeight: '800',
     },
@@ -413,7 +410,7 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     featuredCardTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 13,
         fontWeight: '800',
     },
@@ -439,7 +436,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '600',
         marginLeft: 12,
@@ -463,8 +460,8 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     sortPillActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: 'rgb(245,158,11)',
+        borderColor: 'rgb(245,158,11)',
     },
     sortPillLabel: {
         color: 'rgba(255, 255, 255, 0.5)',
@@ -472,7 +469,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     sortPillLabelActive: {
-        color: '#1a1a2e',
+        color: 'rgb(26,26,46)',
     },
     resultsHeader: {
         paddingHorizontal: 20,

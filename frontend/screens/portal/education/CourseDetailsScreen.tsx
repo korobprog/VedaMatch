@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     moduleNumber: {
-        color: '#FFF',
+        color: 'rgba(255,255,255,1)',
         fontWeight: 'bold',
     },
     moduleInfo: {

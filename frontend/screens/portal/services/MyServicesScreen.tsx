@@ -46,13 +46,15 @@ import {
     CATEGORY_ICON_NAMES,
 } from '../../../services/serviceService';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const STATUS_CONFIG: Record<ServiceStatus, { label: string; color: string }> = {
-    draft: { label: 'Черновик', color: '#9E9E9E' },
-    active: { label: 'Активен', color: '#4CAF50' },
-    paused: { label: 'Приостановлен', color: '#FFA500' },
-    archived: { label: 'Архив', color: '#616161' },
+    draft: { label: 'Черновик', color: 'rgb(158,158,158)' },
+    active: { label: 'Активен', color: 'rgb(76,175,80)' },
+    paused: { label: 'Приостановлен', color: 'rgb(255,165,0)' },
+    archived: { label: 'Архив', color: 'rgb(97,97,97)' },
 };
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
@@ -72,7 +74,9 @@ const CategoryIcon = ({ name, color, size }: { name: string, color: string, size
 export default function MyServicesScreen() {
     const navigation = useNavigation<any>();
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
@@ -172,7 +176,7 @@ export default function MyServicesScreen() {
                 Создайте свою первую услугу и начните принимать записи от клиентов
             </Text>
             <TouchableOpacity style={styles.createButton} onPress={handleCreateService}>
-                <Plus size={20} color="#000" />
+                <Plus size={20} color={colors.textPrimary} />
                 <Text style={styles.createButtonText}>Добавить первую услугу</Text>
             </TouchableOpacity>
         </View>
@@ -199,7 +203,7 @@ export default function MyServicesScreen() {
                     )}
                     <View style={[styles.statusBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
                         <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
-                        <Text style={[styles.statusText, { color: '#fff' }]}>
+                        <Text style={[styles.statusText, { color: colors.textPrimary }]}>
                             {statusConfig.label.toUpperCase()}
                         </Text>
                     </View>
@@ -249,7 +253,7 @@ export default function MyServicesScreen() {
                         style={styles.actionButton}
                         onPress={() => handleViewService(service)}
                     >
-                        <Eye size={18} color="#fff" />
+                        <Eye size={18} color={colors.textPrimary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -257,9 +261,9 @@ export default function MyServicesScreen() {
                         onPress={() => handleToggleStatus(service)}
                     >
                         {isActive ? (
-                            <EyeOff size={18} color="#FFA500" />
+                            <EyeOff size={18} color={colors.warning} />
                         ) : (
-                            <Eye size={18} color="#4CAF50" />
+                            <Eye size={18} color={colors.success} />
                         )}
                     </TouchableOpacity>
 
@@ -267,7 +271,7 @@ export default function MyServicesScreen() {
                         style={styles.actionButton}
                         onPress={() => handleDeleteService(service)}
                     >
-                        <Trash2 size={18} color="#F44336" />
+                        <Trash2 size={18} color={colors.danger} />
                     </TouchableOpacity>
                 </View>
 
@@ -335,10 +339,10 @@ export default function MyServicesScreen() {
                         activeOpacity={0.9}
                     >
                         <LinearGradient
-                            colors={['#F59E0B', '#D97706']}
+                            colors={[colors.accent, roleTheme.accentStrong]}
                             style={styles.fabGradient}
                         >
-                            <Plus size={28} color="#000" />
+                            <Plus size={28} color={colors.textPrimary} />
                         </LinearGradient>
                     </TouchableOpacity>
                 )}
@@ -347,7 +351,7 @@ export default function MyServicesScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     gradient: {
         flex: 1,
     },
@@ -360,30 +364,30 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 18,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+        borderBottomColor: colors.border,
     },
     headerCircleButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: colors.border,
     },
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
         textAlign: 'center',
     },
     headerSubtitle: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 10,
         fontWeight: '600',
         marginTop: 2,
@@ -392,11 +396,11 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.1)',
+        borderColor: colors.accentSoft,
     },
     loaderContainer: {
         flex: 1,
@@ -417,21 +421,21 @@ const styles = StyleSheet.create({
         width: 120,
         height: 120,
         borderRadius: 60,
-        backgroundColor: 'rgba(255, 255, 255, 0.01)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 32,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.03)',
+        borderColor: colors.border,
     },
     emptyTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 22,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 16,
     },
     emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 15,
         textAlign: 'center',
         lineHeight: 24,
@@ -442,27 +446,27 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        backgroundColor: '#F59E0B',
+        backgroundColor: colors.accent,
         paddingHorizontal: 30,
         paddingVertical: 18,
         borderRadius: 24,
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.3,
         shadowRadius: 10,
     },
     createButtonText: {
-        color: '#000',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '800',
     },
     serviceCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 32,
         marginBottom: 24,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: colors.border,
     },
     cardHeader: {
         height: 200,
@@ -504,7 +508,7 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     serviceTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 20,
         fontWeight: '800',
         marginBottom: 8,
@@ -517,7 +521,7 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     serviceCategory: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 13,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -525,7 +529,7 @@ const styles = StyleSheet.create({
     statsRow: {
         flexDirection: 'row',
         gap: 24,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: colors.surface,
         padding: 16,
         borderRadius: 20,
     },
@@ -534,13 +538,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     statValue: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         marginTop: 4,
     },
     statLabel: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 10,
         fontWeight: '700',
         textTransform: 'uppercase',
@@ -556,28 +560,28 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 52,
         borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: colors.border,
     },
     actionButtonActive: {
-        backgroundColor: 'rgba(245, 158, 11, 0.05)',
-        borderColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
+        borderColor: colors.accentSoft,
     },
     scheduleLink: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 12,
-        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        backgroundColor: colors.accentSoft,
         paddingVertical: 20,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        borderTopColor: colors.border,
     },
     scheduleLinkText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 14,
         fontWeight: '800',
     },
@@ -588,7 +592,7 @@ const styles = StyleSheet.create({
         width: 68,
         height: 68,
         borderRadius: 34,
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.4,
         shadowRadius: 16,

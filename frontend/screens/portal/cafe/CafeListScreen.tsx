@@ -39,7 +39,9 @@ import { Cafe, CafeFilters } from '../../../types/cafe';
 import { useWallet } from '../../../context/WalletContext';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
@@ -52,7 +54,9 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const { t } = useTranslation();
     const { formattedBalance } = useWallet();
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [cafes, setCafes] = useState<Cafe[]>([]);
     const [loading, setLoading] = useState(true);
@@ -190,7 +194,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
                     <View style={styles.cardDetailsRow}>
                         <View style={styles.detailItem}>
-                            <MapPin size={12} color="rgba(255, 255, 255, 0.5)" />
+                            <MapPin size={12} color={colors.textSecondary} />
                             <Text style={styles.detailText} numberOfLines={1}>{item.address}</Text>
                         </View>
                     </View>
@@ -199,12 +203,12 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         <View style={styles.badgesRow}>
                             {item.hasDineIn && (
                                 <View style={styles.miniBadge}>
-                                    <Utensils size={10} color="rgba(255, 255, 255, 0.6)" />
+                                    <Utensils size={10} color={colors.textSecondary} />
                                 </View>
                             )}
                             {item.hasTakeaway && (
                                 <View style={styles.miniBadge}>
-                                    <ShoppingBag size={10} color="rgba(255, 255, 255, 0.6)" />
+                                    <ShoppingBag size={10} color={colors.textSecondary} />
                                 </View>
                             )}
                         </View>
@@ -273,11 +277,11 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: '#1a1a2e', borderColor: 'rgba(255,255,255,0.05)' }]}
+                        style={[styles.featuredCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                         onPress={() => navigation.navigate('CafesMap')}
                     >
                         <View style={styles.actionIconOuter}>
-                            <MapIcon size={24} color="#fff" />
+                            <MapIcon size={24} color={colors.textPrimary} />
                         </View>
                         <View>
                             <Text style={styles.featuredCardTitle}>{t('cafe.list.map')}</Text>
@@ -289,11 +293,11 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
             <View style={styles.searchSection}>
                 <View style={styles.searchBackground}>
-                    <Search size={20} color="rgba(255,255,255,0.4)" />
+                    <Search size={20} color={colors.textSecondary} />
                     <TextInput
                         style={styles.searchInput}
                         placeholder={t('cafe.list.searchPlaceholder')}
-                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        placeholderTextColor={colors.textSecondary}
                         value={search}
                         onChangeText={setSearch}
                         onSubmitEditing={handleSearch}
@@ -313,7 +317,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                     data={[
                         { type: 'rating', label: t('cafe.list.rating'), icon: Star, color: colors.accent },
                         { type: 'popular', label: t('cafe.list.popular'), icon: Flame, color: roleTheme.accentStrong },
-                        { type: 'newest', label: t('cafe.list.newest'), icon: Sparkles, color: '#5AC8FA' },
+                        { type: 'newest', label: t('cafe.list.newest'), icon: Sparkles, color: colors.warning },
                     ]}
                     contentContainerStyle={styles.sortList}
                     renderItem={({ item }) => {
@@ -326,7 +330,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                                     loadCafes(true);
                                 }}
                             >
-                                <item.icon size={14} color={isActive ? '#1a1a2e' : item.color} fill={isActive ? '#1a1a2e' : 'none'} />
+                                <item.icon size={14} color={isActive ? colors.textPrimary : item.color} fill={isActive ? colors.textPrimary : 'none'} />
                                 <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
                                     {item.label}
                                 </Text>
@@ -379,7 +383,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         }
                         ListEmptyComponent={
                             <View style={styles.emptyContainer}>
-                                <Coffee size={64} color="rgba(255, 255, 255, 0.1)" />
+                                <Coffee size={64} color={colors.textSecondary} />
                                 <Text style={styles.emptyTitle}>{t('cafe.list.empty')}</Text>
                                 <Text style={styles.emptySubtitle}>{t('cafe.list.emptySubtext')}</Text>
                             </View>
@@ -391,7 +395,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     gradient: {
         flex: 1,
     },
@@ -416,25 +420,25 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: colors.border,
     },
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 24,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
         letterSpacing: 1,
     },
     headerSubtitle: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 10,
         fontWeight: '600',
         textTransform: 'uppercase',
@@ -452,11 +456,11 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         gap: 6,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderColor: colors.accentSoft,
         borderRadius: 20,
     },
     walletBalance: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 14,
         fontWeight: '800',
     },
@@ -484,18 +488,18 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 8,
     },
     featuredCardTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '800',
     },
     featuredCardSub: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 10,
         fontWeight: '600',
         marginTop: 2,
@@ -507,16 +511,16 @@ const styles = StyleSheet.create({
     searchBackground: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: colors.surface,
         borderRadius: 20,
         paddingHorizontal: 20,
         height: 56,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
     },
     searchInput: {
         flex: 1,
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '600',
         marginLeft: 12,
@@ -531,25 +535,25 @@ const styles = StyleSheet.create({
     sortPill: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: colors.surface,
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: colors.border,
         gap: 8,
     },
     sortPillActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     sortPillLabel: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '700',
     },
     sortPillLabelActive: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
     },
     listContent: {
         paddingBottom: 40,
@@ -560,10 +564,10 @@ const styles = StyleSheet.create({
     },
     cafeCard: {
         width: (width - 52) / 2,
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: colors.border,
         marginBottom: 16,
         overflow: 'hidden',
     },
@@ -597,27 +601,27 @@ const styles = StyleSheet.create({
         gap: 3,
     },
     ratingText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 9,
         fontWeight: '800',
     },
     reviewsText: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: colors.textSecondary,
         fontSize: 8,
     },
     deliveryBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+        backgroundColor: colors.accentSoft,
         paddingHorizontal: 6,
         paddingVertical: 3,
         borderRadius: 10,
         gap: 3,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderColor: colors.accent,
     },
     deliveryBadgeText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 8,
         fontWeight: '700',
     },
@@ -628,10 +632,10 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#1a1a2e',
+        backgroundColor: colors.surface,
         padding: 2,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderColor: colors.border,
     },
     cardLogo: {
         width: '100%',
@@ -643,7 +647,7 @@ const styles = StyleSheet.create({
         paddingTop: 16,
     },
     cardName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -661,7 +665,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     detailText: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 10,
         fontWeight: '500',
     },
@@ -671,7 +675,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 4,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.05)',
+        borderTopColor: colors.border,
         paddingTop: 8,
     },
     badgesRow: {
@@ -682,7 +686,7 @@ const styles = StyleSheet.create({
         width: 20,
         height: 20,
         borderRadius: 6,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -692,7 +696,7 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     timeText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 10,
         fontWeight: '800',
     },
@@ -706,13 +710,13 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     emptyTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
     },
     emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 13,
         textAlign: 'center',
         paddingHorizontal: 40,

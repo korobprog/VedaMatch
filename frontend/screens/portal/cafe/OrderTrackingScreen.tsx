@@ -9,7 +9,6 @@ import {
     ActivityIndicator,
     Alert,
     Animated,
-    Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +26,6 @@ import {
     XCircle,
     RotateCcw,
     ChevronRight,
-    Map
 } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import {
@@ -35,8 +33,10 @@ import {
     CafeOrderStatus,
     getOrderStatusColor,
 } from '../../../types/cafe';
-
-const { width } = Dimensions.get('window');
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type RouteParams = {
     OrderTracking: {
@@ -50,7 +50,11 @@ const OrderTrackingScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'OrderTracking'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const { orderId } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [order, setOrder] = useState<CafeOrder | null>(null);
     const [loading, setLoading] = useState(true);
@@ -155,8 +159,8 @@ const OrderTrackingScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
                 <Text style={styles.loadingText}>{t('cafe.tracking.loading')}</Text>
             </LinearGradient>
         );
@@ -164,8 +168,8 @@ const OrderTrackingScreen: React.FC = () => {
 
     if (!order) {
         return (
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={styles.centerContainer}>
-                <XCircle size={48} color="rgba(255,255,255,0.1)" />
+            <LinearGradient colors={roleTheme.gradient} style={styles.centerContainer}>
+                <XCircle size={48} color={colors.textSecondary} />
                 <Text style={styles.errorText}>{t('cafe.tracking.notFound')}</Text>
             </LinearGradient>
         );
@@ -184,15 +188,15 @@ const OrderTrackingScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <SafeAreaView style={styles.header} edges={['top']}>
                 <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-                    <ArrowLeft size={22} color="#fff" />
+                    <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.tracking.orderNum', { number: order.orderNumber })}</Text>
                 <TouchableOpacity style={styles.headerBtn} onPress={() => loadOrder(true)}>
-                    <RefreshCw size={20} color="#fff" />
+                    <RefreshCw size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
             </SafeAreaView>
 
@@ -206,7 +210,7 @@ const OrderTrackingScreen: React.FC = () => {
                         </Text>
                         {order.estimatedReadyAt && !isCompleted && !isCancelled && (
                             <View style={styles.timeTag}>
-                                <Clock size={12} color="rgba(255,255,255,0.4)" />
+                                <Clock size={12} color={colors.textSecondary} />
                                 <Text style={styles.estimatedTime}>
                                     {new Date(order.estimatedReadyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </Text>
@@ -228,7 +232,7 @@ const OrderTrackingScreen: React.FC = () => {
                                             index === currentStepIndex && styles.stepCircleCurrent,
                                         ]}>
                                             {index < currentStepIndex && (
-                                                <Check size={10} color="#1a1a2e" strokeWidth={3} />
+                                                <Check size={10} color={colors.textPrimary} strokeWidth={3} />
                                             )}
                                         </View>
                                         <Text style={[
@@ -249,25 +253,25 @@ const OrderTrackingScreen: React.FC = () => {
                     <Text style={styles.sectionHeadline}>{t('cafe.tracking.info')}</Text>
                     <View style={styles.infoList}>
                         <View style={styles.infoItem}>
-                            <Utensils size={18} color="#F59E0B" />
+                            <Utensils size={18} color={colors.accent} />
                             <Text style={styles.infoText}>{order.cafeInfo?.name}</Text>
                         </View>
                         <View style={styles.infoItem}>
-                            <Tag size={18} color="rgba(255,255,255,0.3)" />
+                            <Tag size={18} color={colors.textSecondary} />
                             <Text style={styles.infoTextSub}>
                                 {t(`cafe.form.${order.orderType === 'dine_in' ? 'dineIn' : order.orderType}`)}
                             </Text>
                         </View>
                         {order.tableInfo && (
                             <View style={styles.infoItem}>
-                                <MapPin size={18} color="rgba(255,255,255,0.3)" />
+                                <MapPin size={18} color={colors.textSecondary} />
                                 <Text style={styles.infoTextSub}>
                                     {t('cafe.detail.tableInfo', { tableNumber: order.tableInfo.number })}
                                 </Text>
                             </View>
                         )}
                         <View style={styles.infoItem}>
-                            <Clock size={18} color="rgba(255,255,255,0.3)" />
+                            <Clock size={18} color={colors.textSecondary} />
                             <Text style={styles.infoTextSub}>
                                 {new Date(order.createdAt).toLocaleString()}
                             </Text>
@@ -284,7 +288,7 @@ const OrderTrackingScreen: React.FC = () => {
                                 <Image source={{ uri: item.imageUrl }} style={styles.itemImg} />
                             ) : (
                                 <View style={styles.itemImgPlaceholder}>
-                                    <Utensils size={18} color="rgba(255,255,255,0.1)" />
+                                    <Utensils size={18} color={colors.textSecondary} />
                                 </View>
                             )}
                             <View style={styles.itemMain}>
@@ -305,9 +309,9 @@ const OrderTrackingScreen: React.FC = () => {
                 <View style={styles.actionBox}>
                     {order.tableId && !isCompleted && !isCancelled && (
                         <TouchableOpacity style={styles.actionBtnGlass} onPress={handleCallWaiter}>
-                            <Hand size={20} color="#F59E0B" />
+                            <Hand size={20} color={colors.accent} />
                             <Text style={styles.actionBtnText}>{t('cafe.tracking.callWaiter')}</Text>
-                            <ChevronRight size={18} color="rgba(255,255,255,0.2)" />
+                            <ChevronRight size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
 
@@ -316,7 +320,7 @@ const OrderTrackingScreen: React.FC = () => {
                             style={[styles.actionBtnGlass, styles.cancelBtn]}
                             onPress={handleCancelOrder}
                         >
-                            <XCircle size={20} color="#EF4444" />
+                            <XCircle size={20} color={colors.danger} />
                             <Text style={styles.cancelBtnText}>
                                 {t('cafe.tracking.cancelOrder')}
                             </Text>
@@ -326,10 +330,10 @@ const OrderTrackingScreen: React.FC = () => {
                     {(isCompleted || isCancelled) && (
                         <TouchableOpacity style={styles.repeatBtn} onPress={handleRepeatOrder}>
                             <LinearGradient
-                                colors={['#F59E0B', '#D97706']}
+                                colors={[colors.accent, colors.warning]}
                                 style={styles.repeatGradient}
                             >
-                                <RotateCcw size={20} color="#1a1a2e" />
+                                <RotateCcw size={20} color={colors.textPrimary} />
                                 <Text style={styles.repeatBtnText}>{t('cafe.tracking.repeatOrder')}</Text>
                             </LinearGradient>
                         </TouchableOpacity>
@@ -342,7 +346,7 @@ const OrderTrackingScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -352,12 +356,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loadingText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         marginTop: 16,
         fontWeight: '600',
     },
     errorText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 16,
         marginTop: 16,
     },
@@ -373,14 +377,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -391,11 +395,11 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     statusGlass: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 20,
     },
     statusRow: {
@@ -408,7 +412,7 @@ const styles = StyleSheet.create({
         height: 12,
         borderRadius: 6,
         marginRight: 12,
-        shadowColor: '#000',
+        shadowColor: colors.overlay,
         shadowRadius: 4,
         shadowOpacity: 0.3,
     },
@@ -421,13 +425,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
     },
     estimatedTime: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '700',
     },
@@ -436,7 +440,7 @@ const styles = StyleSheet.create({
     },
     progressBar: {
         height: 6,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         borderRadius: 3,
         marginBottom: 16,
     },
@@ -456,7 +460,7 @@ const styles = StyleSheet.create({
         width: 22,
         height: 22,
         borderRadius: 11,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 8,
@@ -464,31 +468,31 @@ const styles = StyleSheet.create({
         borderColor: 'transparent',
     },
     stepCircleCurrent: {
-        borderColor: 'rgba(255,255,255,0.2)',
-        shadowColor: '#fff',
+        borderColor: colors.border,
+        shadowColor: colors.textPrimary,
         shadowRadius: 10,
         shadowOpacity: 0.2,
     },
     stepLabel: {
         fontSize: 9,
-        color: 'rgba(255,255,255,0.3)',
+        color: colors.textSecondary,
         textAlign: 'center',
         fontWeight: '700',
         textTransform: 'uppercase',
     },
     stepLabelActive: {
-        color: 'rgba(255,255,255,0.8)',
+        color: colors.textPrimary,
     },
     glassSection: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 20,
     },
     sectionHeadline: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '800',
         textTransform: 'uppercase',
@@ -504,12 +508,12 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     infoText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
     },
     infoTextSub: {
-        color: 'rgba(255,255,255,0.5)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -518,7 +522,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: colors.border,
     },
     itemImg: {
         width: 44,
@@ -530,7 +534,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -539,18 +543,18 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     itemName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '600',
     },
     itemQty: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 12,
         fontWeight: '600',
         marginTop: 2,
     },
     itemPrice: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 15,
         fontWeight: '800',
     },
@@ -561,15 +565,15 @@ const styles = StyleSheet.create({
         marginTop: 20,
         paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.1)',
+        borderTopColor: colors.border,
     },
     totalLabel: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
     totalValue: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 22,
         fontWeight: '900',
     },
@@ -580,14 +584,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 16,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         padding: 18,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     actionBtnText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 15,
         fontWeight: '800',
         flex: 1,
@@ -595,10 +599,10 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
     cancelBtn: {
-        borderColor: 'rgba(239, 68, 68, 0.2)',
+        borderColor: colors.danger,
     },
     cancelBtnText: {
-        color: '#EF4444',
+        color: colors.danger,
         fontSize: 15,
         fontWeight: '800',
         flex: 1,
@@ -618,7 +622,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     repeatBtnText: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',

@@ -34,6 +34,7 @@ import { useCart } from '../../../contexts/CafeCartContext';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
@@ -53,6 +54,7 @@ const DishDetailScreen: React.FC = () => {
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [dish, setDish] = useState<Dish | null>(null);
     const [loading, setLoading] = useState(true);
@@ -166,11 +168,11 @@ const DishDetailScreen: React.FC = () => {
                         <Image source={{ uri: dish.imageUrl }} style={styles.heroImg} />
                     ) : (
                         <View style={styles.heroImgPlaceholder}>
-                            <Utensils size={64} color="rgba(255,255,255,0.1)" />
+                            <Utensils size={64} color={colors.textSecondary} />
                         </View>
                     )}
                     <LinearGradient
-                        colors={['rgba(10, 10, 20, 0.6)', 'transparent', 'rgba(10, 10, 20, 0.95)']}
+                        colors={[colors.overlay, 'transparent', colors.overlay]}
                         style={StyleSheet.absoluteFill}
                     />
                     <SafeAreaView style={styles.headerControls} edges={['top']}>
@@ -371,7 +373,7 @@ const DishDetailScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -381,7 +383,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     errorText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 16,
         marginTop: 16,
     },
@@ -402,7 +404,7 @@ const styles = StyleSheet.create({
     heroImgPlaceholder: {
         width: '100%',
         height: '100%',
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -420,11 +422,11 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     contentOverlay: {
         marginTop: -40,
@@ -434,7 +436,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     dishName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 32,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 12,
@@ -451,21 +453,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     badgeSpicy: {
-        backgroundColor: 'rgba(239, 68, 68, 0.05)',
-        borderColor: 'rgba(239, 68, 68, 0.2)',
+        backgroundColor: colors.accentSoft,
+        borderColor: colors.danger,
     },
     badgeText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 12,
         fontWeight: '700',
     },
     description: {
-        color: 'rgba(255,255,255,0.5)',
+        color: colors.textSecondary,
         fontSize: 15,
         lineHeight: 24,
         marginBottom: 20,
@@ -482,25 +484,25 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     metaPillText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '600',
     },
     sectionGlass: {
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 24,
     },
     sectionTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 20,
@@ -516,21 +518,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     chipRemoved: {
-        backgroundColor: 'rgba(239, 68, 68, 0.05)',
-        borderColor: 'rgba(239, 68, 68, 0.2)',
+        backgroundColor: colors.accentSoft,
+        borderColor: colors.danger,
     },
     chipText: {
-        color: 'rgba(255,255,255,0.6)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
     chipTextRemoved: {
-        color: '#EF4444',
+        color: colors.danger,
         textDecorationLine: 'line-through',
     },
     modifierRow: {
@@ -539,10 +541,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 14,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: colors.border,
     },
     modifierRowSelected: {
-        borderBottomColor: 'rgba(245, 158, 11, 0.2)',
+        borderBottomColor: colors.accentSoft,
     },
     modifierLead: {
         flexDirection: 'row',
@@ -555,16 +557,16 @@ const styles = StyleSheet.create({
         height: 24,
         borderRadius: 8,
         borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.2)',
+        borderColor: colors.border,
         justifyContent: 'center',
         alignItems: 'center',
     },
     checkboxSelected: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     modifierName: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '600',
     },
@@ -576,7 +578,7 @@ const styles = StyleSheet.create({
     miniQty: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         borderRadius: 10,
         padding: 4,
         gap: 10,
@@ -585,19 +587,19 @@ const styles = StyleSheet.create({
         width: 26,
         height: 26,
         borderRadius: 6,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: colors.surfaceElevated,
         justifyContent: 'center',
         alignItems: 'center',
     },
     miniQtyVal: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 13,
         fontWeight: '800',
         minWidth: 15,
         textAlign: 'center',
     },
     modifierPrice: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 14,
         fontWeight: '800',
     },
@@ -605,19 +607,19 @@ const styles = StyleSheet.create({
         opacity: 0.3,
     },
     textDisabled: {
-        color: 'rgba(255,255,255,0.2)',
+        color: colors.textSecondary,
     },
     textArea: {
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: colors.surface,
         borderRadius: 16,
         padding: 16,
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
         height: 100,
         textAlignVertical: 'top',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
     },
     actionBar: {
         position: 'absolute',
@@ -628,15 +630,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 24,
         paddingBottom: Platform.OS === 'ios' ? 44 : 24,
-        backgroundColor: 'rgba(10, 10, 20, 0.95)',
+        backgroundColor: colors.surfaceElevated,
         borderTopWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: colors.border,
         gap: 20,
     },
     qtyAction: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         borderRadius: 18,
         padding: 6,
         gap: 16,
@@ -645,12 +647,12 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: colors.surfaceElevated,
         justifyContent: 'center',
         alignItems: 'center',
     },
     actionQty: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 20,
         fontWeight: '900',
         minWidth: 30,
@@ -660,7 +662,7 @@ const styles = StyleSheet.create({
         flex: 1,
         borderRadius: 20,
         overflow: 'hidden',
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.4,
         shadowRadius: 20,
@@ -674,7 +676,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     addBtnText: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -690,7 +692,7 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     finalPrice: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
     },

@@ -18,8 +18,12 @@ import { CameraOff, X, Zap, ZapOff, Search, QrCode } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { QRCodeScanResult } from '../../../types/cafe';
 import { useCart } from '../../../contexts/CafeCartContext';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useCameraDevice, useCodeScanner, Camera } from 'react-native-vision-camera';
 import { runOnJS } from 'react-native-reanimated';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width, height } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.75;
@@ -31,6 +35,9 @@ interface QRScannerScreenProps {
 const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const [scanned, setScanned] = useState(false);
     const [loading, setLoading] = useState(false);
     const [flashOn, setFlashOn] = useState(false);
@@ -39,6 +46,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
 
     const device = useCameraDevice('back');
     const { setTableInfo, cart: currentCart } = useCart();
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     useEffect(() => {
         const checkPermissions = async () => {
@@ -139,16 +147,16 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
     if (!hasPermission) {
         return (
             <View style={styles.container}>
-                <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+                <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
                 <View style={styles.permissionBox}>
                     <View style={styles.iconCircle}>
-                        <CameraOff size={40} color="#EF4444" />
+                        <CameraOff size={40} color={colors.danger} />
                     </View>
                     <Text style={styles.statusText}>{t('cafe.qr.noAccess')}</Text>
                     <Text style={styles.statusSubtext}>{t('cafe.qr.noAccessDesc')}</Text>
 
                     <TouchableOpacity style={styles.primaryBtn} onPress={() => Linking.openSettings()}>
-                        <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.btnGradient}>
+                        <LinearGradient colors={[colors.accent, colors.warning]} style={styles.btnGradient}>
                             <Text style={styles.btnText}>{t('cafe.qr.openSettings')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
@@ -178,11 +186,11 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
             <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-                        <X size={22} color="#fff" />
+                        <X size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>{t('cafe.qr.title')}</Text>
                     <TouchableOpacity style={styles.headerBtn} onPress={() => setFlashOn(!flashOn)}>
-                        {flashOn ? <Zap size={22} color="#F59E0B" /> : <ZapOff size={22} color="#fff" />}
+                        {flashOn ? <Zap size={22} color={colors.accent} /> : <ZapOff size={22} color={colors.textPrimary} />}
                     </TouchableOpacity>
                 </View>
 
@@ -196,7 +204,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
 
                         {loading && (
                             <View style={styles.loaderGlass}>
-                                <ActivityIndicator size="large" color="#F59E0B" />
+                                <ActivityIndicator size="large" color={colors.accent} />
                                 <Text style={styles.loaderText}>{t('cafe.qr.processing')}</Text>
                             </View>
                         )}
@@ -209,7 +217,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
 
                 <View style={styles.footer}>
                     <View style={styles.infoGlass}>
-                        <QrCode size={20} color="#F59E0B" />
+                        <QrCode size={20} color={colors.accent} />
                         <View style={{ flex: 1 }}>
                             <Text style={styles.infoHeadline}>{t('cafe.qr.instruction')}</Text>
                             <Text style={styles.infoBody}>{t('cafe.qr.instructionDesc')}</Text>
@@ -218,10 +226,10 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
 
                     <TouchableOpacity style={styles.manualBtn} onPress={handleManualEntry}>
                         <LinearGradient
-                            colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
+                            colors={[colors.surfaceElevated, colors.surface]}
                             style={styles.manualBtnGradient}
                         >
-                            <Search size={18} color="#fff" />
+                            <Search size={18} color={colors.textPrimary} />
                             <Text style={styles.manualBtnText}>{t('cafe.qr.findCafe')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
@@ -231,10 +239,10 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ onScanSuccess }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: colors.background,
     },
     cameraContainer: {
         ...StyleSheet.absoluteFillObject,
@@ -254,14 +262,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 14,
-        backgroundColor: 'rgba(0,0,0,0.4)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -283,7 +291,7 @@ const styles = StyleSheet.create({
         height: 40,
         borderTopWidth: 4,
         borderLeftWidth: 4,
-        borderColor: '#F59E0B',
+        borderColor: colors.accent,
         borderTopLeftRadius: 20,
     },
     frameCornerTopRight: {
@@ -294,7 +302,7 @@ const styles = StyleSheet.create({
         height: 40,
         borderTopWidth: 4,
         borderRightWidth: 4,
-        borderColor: '#F59E0B',
+        borderColor: colors.accent,
         borderTopRightRadius: 20,
     },
     frameCornerBottomLeft: {
@@ -305,7 +313,7 @@ const styles = StyleSheet.create({
         height: 40,
         borderBottomWidth: 4,
         borderLeftWidth: 4,
-        borderColor: '#F59E0B',
+        borderColor: colors.accent,
         borderBottomLeftRadius: 20,
     },
     frameCornerBottomRight: {
@@ -316,7 +324,7 @@ const styles = StyleSheet.create({
         height: 40,
         borderBottomWidth: 4,
         borderRightWidth: 4,
-        borderColor: '#F59E0B',
+        borderColor: colors.accent,
         borderBottomRightRadius: 20,
     },
     scanAnimLine: {
@@ -325,20 +333,20 @@ const styles = StyleSheet.create({
         left: '10%',
         right: '10%',
         height: 2,
-        backgroundColor: '#F59E0B',
-        shadowColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        shadowColor: colors.accent,
         shadowRadius: 10,
         shadowOpacity: 0.8,
     },
     loaderGlass: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(10, 10, 20, 0.8)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 20,
     },
     loaderText: {
-        color: '#fff',
+        color: colors.textPrimary,
         marginTop: 16,
         fontSize: 14,
         fontWeight: '600',
@@ -351,20 +359,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 16,
-        backgroundColor: 'rgba(10, 10, 20, 0.7)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 20,
         padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     infoHeadline: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '700',
         marginBottom: 4,
     },
     infoBody: {
-        color: 'rgba(255,255,255,0.5)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '500',
     },
@@ -380,7 +388,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     manualBtnText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 15,
         fontWeight: '700',
     },
@@ -393,20 +401,20 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 24,
     },
     statusText: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 22,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 12,
         textAlign: 'center',
     },
     statusSubtext: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 15,
         textAlign: 'center',
         lineHeight: 22,
@@ -423,7 +431,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     btnText: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -432,7 +440,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
     },
     secondaryBtnText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '700',
         textTransform: 'uppercase',

@@ -15,15 +15,18 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Filter } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle } from 'lucide-react-native';
 import {
     ServiceBooking,
-    BookingStatus,
     getMyBookings,
     cancelBooking,
     BookingFilters,
 } from '../../../services/bookingService';
 import BookingCard from './components/BookingCard';
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type FilterTab = 'all' | 'upcoming' | 'past' | 'cancelled';
 
@@ -36,6 +39,10 @@ const FILTER_TABS: { key: FilterTab; label: string; icon: any }[] = [
 
 export default function MyBookingsScreen() {
     const navigation = useNavigation<any>();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [bookings, setBookings] = useState<ServiceBooking[]>([]);
     const [loading, setLoading] = useState(true);
@@ -164,12 +171,12 @@ export default function MyBookingsScreen() {
     );
 
     return (
-        <LinearGradient colors={['#0a0a14', '#12122b', '#0a0a14']} style={styles.gradient}>
+        <LinearGradient colors={roleTheme.gradient} style={styles.gradient}>
             <SafeAreaView style={styles.container} edges={['top']}>
                 {/* Fixed Premium Header */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
-                        <ArrowLeft size={22} color="#fff" />
+                        <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle}>Мои записи</Text>
@@ -197,7 +204,7 @@ export default function MyBookingsScreen() {
                                     onPress={() => setActiveFilter(tab.key)}
                                 >
                                     <View style={styles.filterIconCircle}>
-                                        <tab.icon size={14} color={isActive ? '#000' : '#F59E0B'} />
+                                        <tab.icon size={14} color={isActive ? colors.textPrimary : colors.accent} />
                                     </View>
                                     <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
                                         {tab.label}
@@ -211,7 +218,7 @@ export default function MyBookingsScreen() {
                 {/* Content Area */}
                 {loading ? (
                     <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color="#F59E0B" />
+                        <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
                     <ScrollView
@@ -222,7 +229,7 @@ export default function MyBookingsScreen() {
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
-                                tintColor="#F59E0B"
+                                tintColor={colors.accent}
                             />
                         }
                     >
@@ -247,7 +254,7 @@ export default function MyBookingsScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     gradient: {
         flex: 1,
     },
@@ -260,43 +267,43 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 18,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+        borderBottomColor: colors.border,
     },
     headerCircleButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: colors.border,
     },
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
     headerSubtitle: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 10,
         fontWeight: '600',
         marginTop: 2,
     },
     countBadge: {
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.2)',
+        borderColor: colors.accentSoft,
     },
     countText: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 13,
         fontWeight: '800',
     },
@@ -311,34 +318,34 @@ const styles = StyleSheet.create({
     filterTab: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: colors.surface,
         paddingLeft: 8,
         paddingRight: 16,
         paddingVertical: 8,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: colors.border,
     },
     filterTabActive: {
-        backgroundColor: '#F59E0B',
-        borderColor: '#F59E0B',
+        backgroundColor: colors.accent,
+        borderColor: colors.accent,
     },
     filterIconCircle: {
         width: 28,
         height: 28,
         borderRadius: 10,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: colors.surfaceElevated,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 10,
     },
     filterText: {
-        color: 'rgba(255, 255, 255, 0.5)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '700',
     },
     filterTextActive: {
-        color: '#000',
+        color: colors.textPrimary,
     },
     loaderContainer: {
         flex: 1,
@@ -361,14 +368,14 @@ const styles = StyleSheet.create({
         opacity: 0.5,
     },
     emptyTitle: {
-        color: '#fff',
+        color: colors.textPrimary,
         fontSize: 22,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 16,
         textAlign: 'center',
     },
     emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.4)',
+        color: colors.textSecondary,
         fontSize: 15,
         textAlign: 'center',
         lineHeight: 24,
@@ -376,17 +383,17 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     browseButton: {
-        backgroundColor: '#F59E0B',
+        backgroundColor: colors.accent,
         paddingHorizontal: 28,
         paddingVertical: 16,
         borderRadius: 20,
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
     },
     browseButtonText: {
-        color: '#000',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '800',
     },

@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.1)',
     },
     headerTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontFamily: 'Cinzel-Bold',
     },
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     cafeName: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 22,
         fontFamily: 'Cinzel-Bold',
         marginBottom: 4,
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     statValue: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 18,
         fontWeight: '900',
     },
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
     },
     lightningTitle: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontFamily: 'Cinzel-Bold',
     },
@@ -546,12 +546,12 @@ const styles = StyleSheet.create({
         borderColor: 'transparent',
     },
     actionBadgeText: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 9,
         fontWeight: '900',
     },
     actionLabel: {
-        color: '#fff',
+        color: 'rgba(255,255,255,1)',
         fontSize: 10,
         fontWeight: '700',
         marginTop: 8,

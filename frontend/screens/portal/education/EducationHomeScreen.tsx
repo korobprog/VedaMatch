@@ -3,9 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
-    FlatList,
     TouchableOpacity,
-    Image,
     ActivityIndicator,
     RefreshControl,
     ScrollView
@@ -30,7 +28,7 @@ export const EducationHomeScreen: React.FC = () => {
     const { user } = useUser();
     const { t } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
-    const { colors: roleColors } = useRoleTheme(user?.role, true);
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [courses, setCourses] = useState<EducationCourse[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -62,7 +60,7 @@ export const EducationHomeScreen: React.FC = () => {
             style={[styles.courseCard, { backgroundColor: vTheme.colors.surface }]}
             onPress={() => navigation.navigate('CourseDetails', { courseId: item.ID })}
         >
-            <View style={[styles.courseImagePlaceholder, { backgroundColor: isDarkMode ? '#2C2C2E' : '#F5F5F5' }]}>
+            <View style={[styles.courseImagePlaceholder, { backgroundColor: isDarkMode ? 'rgb(44,44,46)' : 'rgb(245,245,245)' }]}>
                 <Book size={40} color={roleColors.accent} />
             </View>
             <View style={styles.courseInfo}>
@@ -172,7 +170,7 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 8,
-        backgroundColor: '#F5F5F5',
+        backgroundColor: 'rgb(245,245,245)',
         justifyContent: 'center',
         alignItems: 'center',
     },

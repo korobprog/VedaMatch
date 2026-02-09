@@ -6,15 +6,16 @@ import {
     TouchableOpacity,
     Animated,
     Easing,
-    Dimensions,
     Platform,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import { Check, Clock, Bell, Eye, Utensils } from 'lucide-react-native';
-
-const { width } = Dimensions.get('window');
+import { useUser } from '../../../context/UserContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 type RouteParams = {
     CafeOrderSuccess: {
@@ -27,7 +28,11 @@ const OrderSuccessScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'CafeOrderSuccess'>>();
     const { t } = useTranslation();
+    const { user } = useUser();
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
     const { orderId, orderNumber } = route.params;
+    const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [scaleAnim] = useState(new Animated.Value(0));
     const [fadeAnim] = useState(new Animated.Value(0));
@@ -67,15 +72,15 @@ const OrderSuccessScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0a0a14', '#12122b']} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={roleTheme.gradient} style={StyleSheet.absoluteFill} />
 
             <View style={styles.centerBox}>
                 <Animated.View style={[styles.checkContainer, { transform: [{ scale: scaleAnim }] }]}>
                     <LinearGradient
-                        colors={['#10B981', '#059669']}
+                        colors={[colors.success, colors.accent]}
                         style={styles.checkCircle}
                     >
-                        <Check size={56} color="#1a1a2e" strokeWidth={4} />
+                        <Check size={56} color={colors.textPrimary} strokeWidth={4} />
                     </LinearGradient>
                     <View style={styles.glow} />
                 </Animated.View>
@@ -90,7 +95,7 @@ const OrderSuccessScreen: React.FC = () => {
                     <View style={styles.glassInfo}>
                         <View style={styles.infoRow}>
                             <View style={styles.iconBox}>
-                                <Clock size={20} color="#F59E0B" />
+                                <Clock size={20} color={colors.accent} />
                             </View>
                             <View style={styles.textStack}>
                                 <Text style={styles.infoTitle}>{t('cafe.success.wait')}</Text>
@@ -102,7 +107,7 @@ const OrderSuccessScreen: React.FC = () => {
 
                         <View style={styles.infoRow}>
                             <View style={styles.iconBox}>
-                                <Bell size={20} color="#F59E0B" />
+                                <Bell size={20} color={colors.accent} />
                             </View>
                             <View style={styles.textStack}>
                                 <Text style={styles.infoTitle}>{t('cafe.success.notif')}</Text>
@@ -113,7 +118,7 @@ const OrderSuccessScreen: React.FC = () => {
 
                     <View style={styles.tipsGlass}>
                         <View style={styles.tipsHeader}>
-                            <Utensils size={14} color="#F59E0B" />
+                            <Utensils size={14} color={colors.accent} />
                             <Text style={styles.tipsTitle}>{t('cafe.success.useful')}</Text>
                         </View>
                         <Text style={styles.tipsText}>
@@ -130,10 +135,10 @@ const OrderSuccessScreen: React.FC = () => {
                     activeOpacity={0.8}
                 >
                     <LinearGradient
-                        colors={['#F59E0B', '#D97706']}
+                        colors={[colors.accent, colors.warning]}
                         style={styles.btnGradient}
                     >
-                        <Eye size={20} color="#1a1a2e" />
+                        <Eye size={20} color={colors.textPrimary} />
                         <Text style={styles.primaryBtnText}>{t('cafe.success.track')}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
@@ -149,7 +154,7 @@ const OrderSuccessScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     container: {
         flex: 1,
         padding: 24,
@@ -178,7 +183,7 @@ const styles = StyleSheet.create({
         width: 150,
         height: 150,
         borderRadius: 75,
-        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        backgroundColor: colors.accentSoft,
         zIndex: 1,
     },
     content: {
@@ -188,7 +193,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 32,
         fontFamily: 'Cinzel-Bold',
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         marginBottom: 12,
         textAlign: 'center',
     },
@@ -196,32 +201,32 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.surface,
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 12,
         marginBottom: 40,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
     orderLabel: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '700',
         textTransform: 'uppercase',
     },
     orderNumber: {
         fontSize: 16,
-        color: '#F59E0B',
+        color: colors.accent,
         fontWeight: '900',
     },
     glassInfo: {
         width: '100%',
-        backgroundColor: 'rgba(25, 25, 45, 0.5)',
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
         padding: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border,
         marginBottom: 20,
     },
     infoRow: {
@@ -233,7 +238,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 12,
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: colors.accentSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -241,28 +246,28 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     infoTitle: {
-        color: '#FFFFFF',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '700',
         marginBottom: 2,
     },
     infoDesc: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 13,
         fontWeight: '600',
     },
     divider: {
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: colors.border,
         marginVertical: 20,
     },
     tipsGlass: {
         width: '100%',
-        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        backgroundColor: colors.accentSoft,
         borderRadius: 20,
         padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.15)',
+        borderColor: colors.border,
     },
     tipsHeader: {
         flexDirection: 'row',
@@ -271,14 +276,14 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     tipsTitle: {
-        color: '#F59E0B',
+        color: colors.accent,
         fontSize: 13,
         fontWeight: '800',
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
     tipsText: {
-        color: 'rgba(255,255,255,0.5)',
+        color: colors.textSecondary,
         fontSize: 13,
         lineHeight: 20,
         fontWeight: '500',
@@ -291,7 +296,7 @@ const styles = StyleSheet.create({
     primaryBtn: {
         borderRadius: 20,
         overflow: 'hidden',
-        shadowColor: '#F59E0B',
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.4,
         shadowRadius: 20,
@@ -305,7 +310,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     primaryBtnText: {
-        color: '#1a1a2e',
+        color: colors.textPrimary,
         fontSize: 16,
         fontWeight: '900',
         textTransform: 'uppercase',
@@ -316,7 +321,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     secondaryBtnText: {
-        color: 'rgba(255,255,255,0.4)',
+        color: colors.textSecondary,
         fontSize: 14,
         fontWeight: '700',
         textTransform: 'uppercase',
