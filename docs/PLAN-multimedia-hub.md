@@ -212,3 +212,4 @@ python .agent/scripts/checklist.py .
 | 2026-02-01 | **Фаза 2 завершена**: MediaModal реализует загрузку файлов и CRUD для radio/tv/tracks |
 | 2026-02-01 | **Фаза 4 завершена**: react-native-track-player v4.1.2, MiniPlayer интегрирован в App.tsx |
 | 2026-02-01 | **Избранное**: FavoritesScreen.tsx, кнопка Heart на AudioScreen, API интеграция |
+| 2026-02-09 | **Video Circles API**: добавлена отдельная dev-спека `docs/video-circles-api.md` (god mode, interactions, boosts, lifecycle, tariffs) |

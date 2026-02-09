@@ -6,7 +6,9 @@ import (
 	"net/http/httptest"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -297,5 +299,277 @@ func TestUpdateTariff_OK(t *testing.T) {
 	}
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("status = %d, want %d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestVideoCircles_SmokeFlow(t *testing.T) {
+	premiumPrice := 30
+	var circle models.VideoCircleResponse
+	liked := false
+
+	svc := &mockVideoCircleService{
+		createCircleFn: func(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error) {
+			circle = models.VideoCircleResponse{
+				ID:           101,
+				AuthorID:     userID,
+				MediaURL:     req.MediaURL,
+				Status:       models.VideoCircleStatusActive,
+				DurationSec:  60,
+				ExpiresAt:    time.Now().Add(30 * time.Minute),
+				RemainingSec: 1800,
+			}
+			return &circle, nil
+		},
+		addInteractionFn: func(circleID, userID uint, req models.VideoCircleInteractionRequest) (*models.VideoCircleInteractionResponse, error) {
+			if req.Type == models.VideoCircleInteractionLike {
+				if liked {
+					if circle.LikeCount > 0 {
+						circle.LikeCount--
+					}
+					liked = false
+				} else {
+					circle.LikeCount++
+					liked = true
+				}
+			}
+			if req.Type == models.VideoCircleInteractionComment {
+				circle.CommentCount++
+			}
+			if req.Type == models.VideoCircleInteractionChat {
+				circle.ChatCount++
+			}
+			return &models.VideoCircleInteractionResponse{
+				CircleID:     circle.ID,
+				LikeCount:    circle.LikeCount,
+				CommentCount: circle.CommentCount,
+				ChatCount:    circle.ChatCount,
+				LikedByUser:  liked,
+			}, nil
+		},
+		applyBoostFn: func(circleID, userID uint, role string, req models.VideoBoostRequest) (*models.VideoBoostResponse, error) {
+			circle.ExpiresAt = circle.ExpiresAt.Add(60 * time.Minute)
+			circle.RemainingSec += 3600
+			if req.BoostType == models.VideoBoostTypePremium {
+				circle.PremiumBoostActive = true
+			}
+			return &models.VideoBoostResponse{
+				CircleID:           circle.ID,
+				BoostType:          string(req.BoostType),
+				ChargedLkm:         premiumPrice,
+				ExpiresAt:          circle.ExpiresAt,
+				RemainingSec:       circle.RemainingSec,
+				PremiumBoostActive: circle.PremiumBoostActive,
+			}, nil
+		},
+		listTariffsFn: func() ([]models.VideoTariff, error) {
+			return []models.VideoTariff{
+				{
+					Model:           models.VideoTariff{}.Model,
+					Code:            models.VideoTariffCodePremiumBoost,
+					PriceLkm:        premiumPrice,
+					DurationMinutes: 60,
+					IsActive:        true,
+				},
+			}, nil
+		},
+		updateTariffFn: func(id uint, req models.VideoTariffUpsertRequest, updatedBy uint) (*models.VideoTariff, error) {
+			if req.PriceLkm > 0 {
+				premiumPrice = req.PriceLkm
+			}
+			return &models.VideoTariff{
+				Model:           models.VideoTariff{}.Model,
+				Code:            models.VideoTariffCodePremiumBoost,
+				PriceLkm:        premiumPrice,
+				DurationMinutes: 60,
+				IsActive:        true,
+			}, nil
+		},
+	}
+
+	handler := NewVideoCircleHandlerWithService(svc)
+	app := fiber.New()
+
+	protected := func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		c.Locals("userRole", models.RoleUser)
+		return c.Next()
+	}
+	admin := func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		c.Locals("userRole", models.RoleAdmin)
+		return c.Next()
+	}
+
+	app.Post("/video-circles", protected, handler.CreateVideoCircle)
+	app.Post("/video-circles/:id/interactions", protected, handler.AddInteraction)
+	app.Post("/video-circles/:id/boost", protected, handler.BoostCircle)
+	app.Get("/video-tariffs", handler.GetTariffs)
+	app.Put("/admin/video-tariffs/:id", admin, handler.UpdateTariff)
+
+	reqCreate := httptest.NewRequest("POST", "/video-circles", strings.NewReader(`{"mediaUrl":"https://cdn.test/circle.mp4","city":"Moscow","matha":"gaudiya","category":"kirtan"}`))
+	reqCreate.Header.Set("Content-Type", "application/json")
+	resCreate, err := app.Test(reqCreate)
+	if err != nil {
+		t.Fatalf("create request failed: %v", err)
+	}
+	if resCreate.StatusCode != fiber.StatusCreated {
+		t.Fatalf("create status = %d, want %d", resCreate.StatusCode, fiber.StatusCreated)
+	}
+
+	reqLike := httptest.NewRequest("POST", "/video-circles/101/interactions", strings.NewReader(`{"type":"like","action":"toggle"}`))
+	reqLike.Header.Set("Content-Type", "application/json")
+	resLike, err := app.Test(reqLike)
+	if err != nil {
+		t.Fatalf("like request failed: %v", err)
+	}
+	if resLike.StatusCode != fiber.StatusOK {
+		t.Fatalf("like status = %d, want %d", resLike.StatusCode, fiber.StatusOK)
+	}
+
+	reqBoost1 := httptest.NewRequest("POST", "/video-circles/101/boost", strings.NewReader(`{"boostType":"premium"}`))
+	reqBoost1.Header.Set("Content-Type", "application/json")
+	resBoost1, err := app.Test(reqBoost1)
+	if err != nil {
+		t.Fatalf("boost1 request failed: %v", err)
+	}
+	if resBoost1.StatusCode != fiber.StatusOK {
+		t.Fatalf("boost1 status = %d, want %d", resBoost1.StatusCode, fiber.StatusOK)
+	}
+
+	var boostBody1 map[string]any
+	if err := json.NewDecoder(resBoost1.Body).Decode(&boostBody1); err != nil {
+		t.Fatalf("decode boost1 body: %v", err)
+	}
+	if int(boostBody1["chargedLkm"].(float64)) != 30 {
+		t.Fatalf("chargedLkm boost1 = %v, want 30", boostBody1["chargedLkm"])
+	}
+
+	reqUpdateTariff := httptest.NewRequest("PUT", "/admin/video-tariffs/1", strings.NewReader(`{"priceLkm":55}`))
+	reqUpdateTariff.Header.Set("Content-Type", "application/json")
+	resUpdateTariff, err := app.Test(reqUpdateTariff)
+	if err != nil {
+		t.Fatalf("update tariff request failed: %v", err)
+	}
+	if resUpdateTariff.StatusCode != fiber.StatusOK {
+		t.Fatalf("update tariff status = %d, want %d", resUpdateTariff.StatusCode, fiber.StatusOK)
+	}
+
+	reqBoost2 := httptest.NewRequest("POST", "/video-circles/101/boost", strings.NewReader(`{"boostType":"premium"}`))
+	reqBoost2.Header.Set("Content-Type", "application/json")
+	resBoost2, err := app.Test(reqBoost2)
+	if err != nil {
+		t.Fatalf("boost2 request failed: %v", err)
+	}
+	if resBoost2.StatusCode != fiber.StatusOK {
+		t.Fatalf("boost2 status = %d, want %d", resBoost2.StatusCode, fiber.StatusOK)
+	}
+
+	var boostBody2 map[string]any
+	if err := json.NewDecoder(resBoost2.Body).Decode(&boostBody2); err != nil {
+		t.Fatalf("decode boost2 body: %v", err)
+	}
+	if int(boostBody2["chargedLkm"].(float64)) != 55 {
+		t.Fatalf("chargedLkm boost2 = %v, want 55", boostBody2["chargedLkm"])
+	}
+
+	resTariffs, err := app.Test(httptest.NewRequest("GET", "/video-tariffs", nil))
+	if err != nil {
+		t.Fatalf("get tariffs request failed: %v", err)
+	}
+	if resTariffs.StatusCode != fiber.StatusOK {
+		t.Fatalf("tariffs status = %d, want %d", resTariffs.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestVideoCircles_ExpiredFlowReturnsConflict(t *testing.T) {
+	svc := &mockVideoCircleService{
+		addInteractionFn: func(circleID, userID uint, req models.VideoCircleInteractionRequest) (*models.VideoCircleInteractionResponse, error) {
+			return nil, services.ErrCircleExpired
+		},
+		applyBoostFn: func(circleID, userID uint, role string, req models.VideoBoostRequest) (*models.VideoBoostResponse, error) {
+			return nil, services.ErrCircleExpired
+		},
+	}
+
+	handler := NewVideoCircleHandlerWithService(svc)
+	app := fiber.New()
+
+	protected := func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		c.Locals("userRole", models.RoleUser)
+		return c.Next()
+	}
+
+	app.Post("/video-circles/:id/interactions", protected, handler.AddInteraction)
+	app.Post("/video-circles/:id/boost", protected, handler.BoostCircle)
+
+	reqInteraction := httptest.NewRequest("POST", "/video-circles/999/interactions", strings.NewReader(`{"type":"like","action":"toggle"}`))
+	reqInteraction.Header.Set("Content-Type", "application/json")
+	resInteraction, err := app.Test(reqInteraction)
+	if err != nil {
+		t.Fatalf("interaction request failed: %v", err)
+	}
+	if resInteraction.StatusCode != fiber.StatusConflict {
+		t.Fatalf("interaction status = %d, want %d", resInteraction.StatusCode, fiber.StatusConflict)
+	}
+	var interactionBody map[string]any
+	if err := json.NewDecoder(resInteraction.Body).Decode(&interactionBody); err != nil {
+		t.Fatalf("decode interaction body: %v", err)
+	}
+	if interactionBody["code"] != "CIRCLE_EXPIRED" {
+		t.Fatalf("interaction code = %v, want CIRCLE_EXPIRED", interactionBody["code"])
+	}
+
+	reqBoost := httptest.NewRequest("POST", "/video-circles/999/boost", strings.NewReader(`{"boostType":"premium"}`))
+	reqBoost.Header.Set("Content-Type", "application/json")
+	resBoost, err := app.Test(reqBoost)
+	if err != nil {
+		t.Fatalf("boost request failed: %v", err)
+	}
+	if resBoost.StatusCode != fiber.StatusConflict {
+		t.Fatalf("boost status = %d, want %d", resBoost.StatusCode, fiber.StatusConflict)
+	}
+	var boostBody map[string]any
+	if err := json.NewDecoder(resBoost.Body).Decode(&boostBody); err != nil {
+		t.Fatalf("decode boost body: %v", err)
+	}
+	if boostBody["code"] != "CIRCLE_EXPIRED" {
+		t.Fatalf("boost code = %v, want CIRCLE_EXPIRED", boostBody["code"])
+	}
+}
+
+func TestVideoCircles_BoostInsufficientLKMReturnsPaymentRequired(t *testing.T) {
+	svc := &mockVideoCircleService{
+		applyBoostFn: func(circleID, userID uint, role string, req models.VideoBoostRequest) (*models.VideoBoostResponse, error) {
+			return nil, services.ErrInsufficientLKM
+		},
+	}
+
+	handler := NewVideoCircleHandlerWithService(svc)
+	app := fiber.New()
+
+	protected := func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		c.Locals("userRole", models.RoleUser)
+		return c.Next()
+	}
+
+	app.Post("/video-circles/:id/boost", protected, handler.BoostCircle)
+
+	reqBoost := httptest.NewRequest("POST", "/video-circles/777/boost", strings.NewReader(`{"boostType":"premium"}`))
+	reqBoost.Header.Set("Content-Type", "application/json")
+	resBoost, err := app.Test(reqBoost)
+	if err != nil {
+		t.Fatalf("boost request failed: %v", err)
+	}
+	if resBoost.StatusCode != fiber.StatusPaymentRequired {
+		t.Fatalf("boost status = %d, want %d", resBoost.StatusCode, fiber.StatusPaymentRequired)
+	}
+	var boostBody map[string]any
+	if err := json.NewDecoder(resBoost.Body).Decode(&boostBody); err != nil {
+		t.Fatalf("decode boost body: %v", err)
+	}
+	if boostBody["code"] != "INSUFFICIENT_LKM" {
+		t.Fatalf("boost code = %v, want INSUFFICIENT_LKM", boostBody["code"])
 	}
 }

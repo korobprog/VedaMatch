@@ -25,3 +25,9 @@ func TestApplyPortalRoleAndGodMode_RejectsAdminRoleOnPublicFlow(t *testing.T) {
 	require.Equal(t, models.RoleUser, user.Role)
 	require.True(t, user.GodModeEnabled)
 }
+
+func TestIsAdminRoleRequested(t *testing.T) {
+	require.True(t, isAdminRoleRequested(models.RoleAdmin))
+	require.True(t, isAdminRoleRequested("  SUPERADMIN "))
+	require.False(t, isAdminRoleRequested(models.RoleUser))
+}

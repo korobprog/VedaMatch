@@ -61,6 +61,17 @@ go build -o server cmd/api/main.go
 
 - `POST /api/register` - Регистрация профиля пользователя
 - `POST /api/login` - Вход по email
+- `GET /api/video-circles` - Лента video-circles (protected)
+- `POST /api/video-circles/upload` - Upload + create circle (protected)
+- `POST /api/video-circles/:id/interactions` - Реакции/счетчики (protected)
+- `POST /api/video-circles/:id/boost` - Применить boost с billing (protected)
+- `GET /api/video-tariffs` - Актуальные тарифы boost (public)
+- `POST /api/admin/video-tariffs` - Создать тариф (admin)
+- `PUT /api/admin/video-tariffs/:id` - Обновить тариф (admin)
+
+Подробная спецификация:
+
+- `/Users/mamu/Documents/vedicai/docs/video-circles-api.md`
 
 ## Структура проекта
 

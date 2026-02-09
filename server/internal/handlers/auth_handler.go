@@ -40,6 +40,10 @@ func normalizePortalRole(role string) string {
 	return models.RoleUser
 }
 
+func isAdminRoleRequested(role string) bool {
+	return models.IsAdminRole(strings.TrimSpace(strings.ToLower(role)))
+}
+
 func applyPortalRoleAndGodMode(user *models.User, role string, godModeEnabled bool) {
 	user.Role = normalizePortalRole(role)
 	user.GodModeEnabled = godModeEnabled
@@ -58,6 +62,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	user := registerData.User
 	user.Email = strings.TrimSpace(strings.ToLower(user.Email))
+	if isAdminRoleRequested(registerData.Role) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin role cannot be assigned via public registration",
+		})
+	}
 	applyPortalRoleAndGodMode(&user, registerData.Role, registerData.GodModeEnabled)
 
 	if user.Email == "" || user.Password == "" {
