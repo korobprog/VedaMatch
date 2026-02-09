@@ -1,6 +1,5 @@
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
-import { getGodModeQueryParams } from './godModeService';
 
 export type VideoCircleStatus = 'active' | 'expired' | 'deleted';
 export type VideoInteractionType = 'like' | 'comment' | 'chat';
@@ -34,6 +33,40 @@ export interface VideoCircleListResponse {
   totalPages: number;
 }
 
+export interface CreateVideoCirclePayload {
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  city?: string;
+  matha?: string;
+  category?: string;
+  durationSec?: number;
+  expiresAt?: string;
+}
+
+export interface UploadVideoCirclePayload {
+  video: {
+    uri: string;
+    name: string;
+    type: string;
+  };
+  thumbnail?: {
+    uri: string;
+    name: string;
+    type: string;
+  };
+  city?: string;
+  matha?: string;
+  category?: string;
+  durationSec?: number;
+}
+
+export interface UpdateVideoCirclePayload {
+  city?: string;
+  matha?: string;
+  category?: string;
+  thumbnailUrl?: string;
+}
+
 export interface VideoTariff {
   id: number;
   code: 'lkm_boost' | 'city_boost' | 'premium_boost';
@@ -41,6 +74,13 @@ export interface VideoTariff {
   durationMinutes: number;
   isActive: boolean;
   updatedAt: string;
+}
+
+export interface UpsertVideoTariffPayload {
+  code: 'lkm_boost' | 'city_boost' | 'premium_boost';
+  priceLkm: number;
+  durationMinutes: number;
+  isActive?: boolean;
 }
 
 export interface VideoCircleFilters {
@@ -68,16 +108,35 @@ class VideoCirclesService {
     if (filters.limit) params.append('limit', String(filters.limit));
     if (filters.sort) params.append('sort', filters.sort);
 
-    const godModeParams = await getGodModeQueryParams();
-    if (!filters.matha && godModeParams.math) {
-      params.append('matha', godModeParams.math);
-    }
-
     const query = params.toString();
     const response = await fetch(`${this.baseUrl}/video-circles${query ? `?${query}` : ''}`, { headers });
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || 'Failed to fetch video circles');
+    }
+    return response.json();
+  }
+
+  async createVideoCircle(payload: CreateVideoCirclePayload): Promise<VideoCircle> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/video-circles`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to create video circle');
+    }
+    return response.json();
+  }
+
+  async getMyVideoCircles(page = 1, limit = 30): Promise<VideoCircleListResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/video-circles/my?page=${page}&limit=${limit}`, { headers });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to fetch my video circles');
     }
     return response.json();
   }
@@ -107,6 +166,34 @@ class VideoCirclesService {
     return data.tariffs || [];
   }
 
+  async createVideoTariff(payload: UpsertVideoTariffPayload): Promise<VideoTariff> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/admin/video-tariffs`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to create tariff');
+    }
+    return response.json();
+  }
+
+  async updateVideoTariff(id: number, payload: Partial<UpsertVideoTariffPayload>): Promise<VideoTariff> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/admin/video-tariffs/${id}`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to update tariff');
+    }
+    return response.json();
+  }
+
   async boostCircle(circleId: number, boostType: VideoBoostType): Promise<any> {
     const headers = await getAuthHeaders();
     const response = await fetch(`${this.baseUrl}/video-circles/${circleId}/boost`, {
@@ -120,6 +207,86 @@ class VideoCirclesService {
       throw new Error(body || 'Failed to boost circle');
     }
 
+    return response.json();
+  }
+
+  async uploadAndCreateCircle(payload: UploadVideoCirclePayload): Promise<VideoCircle> {
+    const headers = await getAuthHeaders(false);
+    const formData = new FormData();
+
+    formData.append('video', {
+      uri: payload.video.uri,
+      name: payload.video.name,
+      type: payload.video.type,
+    } as any);
+
+    if (payload.thumbnail) {
+      formData.append('thumbnail', {
+        uri: payload.thumbnail.uri,
+        name: payload.thumbnail.name,
+        type: payload.thumbnail.type,
+      } as any);
+    }
+
+    if (payload.city) formData.append('city', payload.city);
+    if (payload.matha) formData.append('matha', payload.matha);
+    if (payload.category) formData.append('category', payload.category);
+    if (payload.durationSec) formData.append('durationSec', String(payload.durationSec));
+
+    const response = await fetch(`${this.baseUrl}/video-circles/upload`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        Accept: 'application/json',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to upload and create video circle');
+    }
+
+    return response.json();
+  }
+
+  async deleteCircle(circleId: number): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to delete video circle');
+    }
+  }
+
+  async updateCircle(circleId: number, payload: UpdateVideoCirclePayload): Promise<VideoCircle> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to update video circle');
+    }
+    return response.json();
+  }
+
+  async republishCircle(circleId: number, durationMinutes = 60): Promise<VideoCircle> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}/republish`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ durationMinutes }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to republish video circle');
+    }
     return response.json();
   }
 }

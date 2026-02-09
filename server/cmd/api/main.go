@@ -632,9 +632,16 @@ func main() {
 	protected.Delete("/multimedia/tracks/:id/favorite", multimediaHandler.RemoveFromFavorites)
 
 	// Video Circles
+	protected.Post("/video-circles", videoCircleHandler.CreateVideoCircle)
+	protected.Post("/video-circles/upload", videoCircleHandler.UploadAndCreateVideoCircle)
 	protected.Get("/video-circles", videoCircleHandler.GetVideoCircles)
+	protected.Get("/video-circles/my", videoCircleHandler.GetMyVideoCircles)
+	protected.Patch("/video-circles/:id", videoCircleHandler.UpdateVideoCircle)
 	protected.Post("/video-circles/:id/interactions", videoCircleHandler.AddInteraction)
+	protected.Post("/interactions", videoCircleHandler.AddInteractionLegacy)
 	protected.Post("/video-circles/:id/boost", videoCircleHandler.BoostCircle)
+	protected.Post("/video-circles/:id/republish", videoCircleHandler.RepublishVideoCircle)
+	protected.Delete("/video-circles/:id", videoCircleHandler.DeleteVideoCircle)
 
 	// Ads Routes
 	protected.Post("/ads/upload-photo", adsHandler.UploadAdPhoto)

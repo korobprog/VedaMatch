@@ -126,6 +126,11 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		return nil, err
 	}
 
+	// Keep active/expired states consistent for feed reads.
+	_ = s.db.Model(&models.VideoCircle{}).
+		Where("status = ? AND expires_at <= ?", models.VideoCircleStatusActive, time.Now()).
+		Update("status", models.VideoCircleStatusExpired).Error
+
 	if params.Page < 1 {
 		params.Page = 1
 	}
@@ -161,8 +166,9 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 	} else {
 		if user.Madh != "" {
 			query = query.Where("matha = ?", user.Madh)
-		} else if params.Matha != "" {
-			query = query.Where("matha = ?", params.Matha)
+		} else {
+			// Profile without matha cannot access multi-matha feed by query override.
+			query = query.Where("1 = 0")
 		}
 	}
 
@@ -225,6 +231,295 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		Page:       params.Page,
 		Limit:      params.Limit,
 		TotalPages: totalPages,
+	}, nil
+}
+
+func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error) {
+	if strings.TrimSpace(req.MediaURL) == "" {
+		return nil, errors.New("mediaUrl is required")
+	}
+
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+
+	duration := req.DurationSec
+	if duration <= 0 {
+		duration = 60
+	}
+	if duration > 60 {
+		duration = 60
+	}
+
+	expiresAt := time.Now().Add(60 * time.Minute)
+	if req.ExpiresAt != nil {
+		expiresAt = *req.ExpiresAt
+	}
+
+	matha := strings.TrimSpace(req.Matha)
+	if !(user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)) {
+		matha = strings.TrimSpace(user.Madh)
+	}
+	if matha == "" {
+		return nil, errors.New("matha is required")
+	}
+
+	circle := models.VideoCircle{
+		AuthorID:           userID,
+		MediaURL:           strings.TrimSpace(req.MediaURL),
+		ThumbnailURL:       strings.TrimSpace(req.ThumbnailURL),
+		City:               strings.TrimSpace(req.City),
+		Matha:              matha,
+		Category:           strings.TrimSpace(req.Category),
+		Status:             models.VideoCircleStatusActive,
+		DurationSec:        duration,
+		ExpiresAt:          expiresAt,
+		PremiumBoostActive: false,
+	}
+
+	if err := s.db.Create(&circle).Error; err != nil {
+		return nil, err
+	}
+
+	remaining := int(circle.ExpiresAt.Sub(time.Now()).Seconds())
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	return &models.VideoCircleResponse{
+		ID:                 circle.ID,
+		AuthorID:           circle.AuthorID,
+		MediaURL:           circle.MediaURL,
+		ThumbnailURL:       circle.ThumbnailURL,
+		City:               circle.City,
+		Matha:              circle.Matha,
+		Category:           circle.Category,
+		Status:             circle.Status,
+		DurationSec:        circle.DurationSec,
+		ExpiresAt:          circle.ExpiresAt,
+		RemainingSec:       remaining,
+		PremiumBoostActive: circle.PremiumBoostActive,
+		LikeCount:          circle.LikeCount,
+		CommentCount:       circle.CommentCount,
+		ChatCount:          circle.ChatCount,
+		CreatedAt:          circle.CreatedAt,
+	}, nil
+}
+
+func (s *VideoCircleService) ListMyCircles(userID uint, page, limit int) (*models.VideoCircleListResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	var total int64
+	query := s.db.Model(&models.VideoCircle{}).Where("author_id = ?", userID).Order("created_at DESC")
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var circles []models.VideoCircle
+	offset := (page - 1) * limit
+	if err := query.Offset(offset).Limit(limit).Find(&circles).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	items := make([]models.VideoCircleResponse, 0, len(circles))
+	for _, c := range circles {
+		remaining := int(c.ExpiresAt.Sub(now).Seconds())
+		if remaining < 0 {
+			remaining = 0
+		}
+		items = append(items, models.VideoCircleResponse{
+			ID:                 c.ID,
+			AuthorID:           c.AuthorID,
+			MediaURL:           c.MediaURL,
+			ThumbnailURL:       c.ThumbnailURL,
+			City:               c.City,
+			Matha:              c.Matha,
+			Category:           c.Category,
+			Status:             c.Status,
+			DurationSec:        c.DurationSec,
+			ExpiresAt:          c.ExpiresAt,
+			RemainingSec:       remaining,
+			PremiumBoostActive: c.PremiumBoostActive,
+			LikeCount:          c.LikeCount,
+			CommentCount:       c.CommentCount,
+			ChatCount:          c.ChatCount,
+			CreatedAt:          c.CreatedAt,
+		})
+	}
+
+	totalPages := int(total) / limit
+	if int(total)%limit > 0 {
+		totalPages++
+	}
+
+	return &models.VideoCircleListResponse{
+		Circles:    items,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (s *VideoCircleService) DeleteCircle(circleID, userID uint, role string) error {
+	var circle models.VideoCircle
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return err
+	}
+
+	isOwner := circle.AuthorID == userID
+	isAdmin := strings.EqualFold(role, models.RoleAdmin) || strings.EqualFold(role, models.RoleSuperadmin)
+	if !isOwner && !isAdmin {
+		return errors.New("forbidden")
+	}
+
+	if err := s.db.Model(&circle).Update("status", models.VideoCircleStatusDeleted).Error; err != nil {
+		return err
+	}
+
+	go s.CleanupExpiredS3(circleID)
+	return nil
+}
+
+func (s *VideoCircleService) UpdateCircle(circleID, userID uint, role string, req models.VideoCircleUpdateRequest) (*models.VideoCircleResponse, error) {
+	var circle models.VideoCircle
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return nil, err
+	}
+
+	isOwner := circle.AuthorID == userID
+	isAdmin := strings.EqualFold(role, models.RoleAdmin) || strings.EqualFold(role, models.RoleSuperadmin)
+	if !isOwner && !isAdmin {
+		return nil, errors.New("forbidden")
+	}
+
+	var actor models.User
+	if err := s.db.First(&actor, userID).Error; err != nil {
+		return nil, err
+	}
+
+	updates := map[string]interface{}{}
+	if req.City != nil {
+		updates["city"] = strings.TrimSpace(*req.City)
+	}
+	if req.Category != nil {
+		updates["category"] = strings.TrimSpace(*req.Category)
+	}
+	if req.ThumbnailURL != nil {
+		updates["thumbnail_url"] = strings.TrimSpace(*req.ThumbnailURL)
+	}
+	if req.Matha != nil {
+		matha := strings.TrimSpace(*req.Matha)
+		if !(actor.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)) {
+			matha = strings.TrimSpace(actor.Madh)
+		}
+		if matha == "" {
+			return nil, errors.New("matha is required")
+		}
+		updates["matha"] = matha
+	}
+
+	if len(updates) > 0 {
+		if err := s.db.Model(&circle).Updates(updates).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return nil, err
+	}
+	log.Printf("circle_update circle_id=%d actor_id=%d role=%s", circleID, userID, role)
+
+	now := time.Now()
+	remaining := int(circle.ExpiresAt.Sub(now).Seconds())
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	return &models.VideoCircleResponse{
+		ID:                 circle.ID,
+		AuthorID:           circle.AuthorID,
+		MediaURL:           circle.MediaURL,
+		ThumbnailURL:       circle.ThumbnailURL,
+		City:               circle.City,
+		Matha:              circle.Matha,
+		Category:           circle.Category,
+		Status:             circle.Status,
+		DurationSec:        circle.DurationSec,
+		ExpiresAt:          circle.ExpiresAt,
+		RemainingSec:       remaining,
+		PremiumBoostActive: circle.PremiumBoostActive,
+		LikeCount:          circle.LikeCount,
+		CommentCount:       circle.CommentCount,
+		ChatCount:          circle.ChatCount,
+		CreatedAt:          circle.CreatedAt,
+	}, nil
+}
+
+func (s *VideoCircleService) RepublishCircle(circleID, userID uint, role string, req models.VideoCircleRepublishRequest) (*models.VideoCircleResponse, error) {
+	var circle models.VideoCircle
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return nil, err
+	}
+
+	if circle.Status == models.VideoCircleStatusDeleted {
+		return nil, errors.New("deleted circle cannot be republished")
+	}
+
+	isOwner := circle.AuthorID == userID
+	isAdmin := strings.EqualFold(role, models.RoleAdmin) || strings.EqualFold(role, models.RoleSuperadmin)
+	if !isOwner && !isAdmin {
+		return nil, errors.New("forbidden")
+	}
+
+	durationMinutes := req.DurationMinutes
+	if durationMinutes <= 0 {
+		durationMinutes = 60
+	}
+
+	start := time.Now()
+	if circle.ExpiresAt.After(start) {
+		start = circle.ExpiresAt
+	}
+	newExpires := start.Add(time.Duration(durationMinutes) * time.Minute)
+	if err := s.db.Model(&circle).Updates(map[string]interface{}{
+		"status":     models.VideoCircleStatusActive,
+		"expires_at": newExpires,
+	}).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.First(&circle, circleID).Error; err != nil {
+		return nil, err
+	}
+
+	remaining := int(newExpires.Sub(time.Now()).Seconds())
+	if remaining < 0 {
+		remaining = 0
+	}
+	log.Printf("circle_republish circle_id=%d actor_id=%d role=%s duration_min=%d", circleID, userID, role, durationMinutes)
+	return &models.VideoCircleResponse{
+		ID:                 circle.ID,
+		AuthorID:           circle.AuthorID,
+		MediaURL:           circle.MediaURL,
+		ThumbnailURL:       circle.ThumbnailURL,
+		City:               circle.City,
+		Matha:              circle.Matha,
+		Category:           circle.Category,
+		Status:             circle.Status,
+		DurationSec:        circle.DurationSec,
+		ExpiresAt:          circle.ExpiresAt,
+		RemainingSec:       remaining,
+		PremiumBoostActive: circle.PremiumBoostActive,
+		LikeCount:          circle.LikeCount,
+		CommentCount:       circle.CommentCount,
+		ChatCount:          circle.ChatCount,
+		CreatedAt:          circle.CreatedAt,
 	}, nil
 }
 

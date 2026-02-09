@@ -44,12 +44,12 @@ type VideoCircle struct {
 	Author             *User             `json:"author,omitempty" gorm:"foreignKey:AuthorID"`
 	MediaURL           string            `json:"mediaUrl" gorm:"type:varchar(800);not null"`
 	ThumbnailURL       string            `json:"thumbnailUrl" gorm:"type:varchar(800)"`
-	City               string            `json:"city" gorm:"type:varchar(120);index"`
-	Matha              string            `json:"matha" gorm:"type:varchar(120);index"`
-	Category           string            `json:"category" gorm:"type:varchar(120);index"`
-	Status             VideoCircleStatus `json:"status" gorm:"type:varchar(20);index;default:'active'"`
+	City               string            `json:"city" gorm:"type:varchar(120);index:idx_video_circles_city_status,priority:1"`
+	Matha              string            `json:"matha" gorm:"type:varchar(120);index:idx_video_circles_matha_status,priority:1"`
+	Category           string            `json:"category" gorm:"type:varchar(120);index:idx_video_circles_category_status,priority:1"`
+	Status             VideoCircleStatus `json:"status" gorm:"type:varchar(20);default:'active';index:idx_video_circles_status_expires,priority:1;index:idx_video_circles_matha_status,priority:2;index:idx_video_circles_city_status,priority:2;index:idx_video_circles_category_status,priority:2"`
 	DurationSec        int               `json:"durationSec" gorm:"default:60"`
-	ExpiresAt          time.Time         `json:"expiresAt" gorm:"index"`
+	ExpiresAt          time.Time         `json:"expiresAt" gorm:"index:idx_video_circles_status_expires,priority:2"`
 	PremiumBoostActive bool              `json:"premiumBoostActive" gorm:"default:false"`
 	LikeCount          int               `json:"likeCount" gorm:"default:0"`
 	CommentCount       int               `json:"commentCount" gorm:"default:0"`
@@ -136,6 +136,22 @@ type VideoCircleInteractionRequest struct {
 	Action string                     `json:"action"`
 }
 
+type VideoCircleInteractionLegacyRequest struct {
+	CircleID uint                       `json:"circleId"`
+	Type     VideoCircleInteractionType `json:"type"`
+	Action   string                     `json:"action"`
+}
+
+type VideoCircleCreateRequest struct {
+	MediaURL     string     `json:"mediaUrl"`
+	ThumbnailURL string     `json:"thumbnailUrl"`
+	City         string     `json:"city"`
+	Matha        string     `json:"matha"`
+	Category     string     `json:"category"`
+	DurationSec  int        `json:"durationSec"`
+	ExpiresAt    *time.Time `json:"expiresAt"`
+}
+
 type VideoCircleInteractionResponse struct {
 	CircleID     uint `json:"circleId"`
 	LikeCount    int  `json:"likeCount"`
@@ -146,6 +162,17 @@ type VideoCircleInteractionResponse struct {
 
 type VideoBoostRequest struct {
 	BoostType VideoBoostType `json:"boostType"`
+}
+
+type VideoCircleUpdateRequest struct {
+	City         *string `json:"city"`
+	Matha        *string `json:"matha"`
+	Category     *string `json:"category"`
+	ThumbnailURL *string `json:"thumbnailUrl"`
+}
+
+type VideoCircleRepublishRequest struct {
+	DurationMinutes int `json:"durationMinutes"`
 }
 
 type VideoBoostResponse struct {
