@@ -8,23 +8,28 @@ interface PickerContainerProps {
     maxHeight?: number;
 }
 
+import { BlurView } from '@react-native-community/blur';
+
 export const PickerContainer: React.FC<PickerContainerProps> = ({
     theme,
     children,
     style,
-    maxHeight = 200,
+    maxHeight = 250,
 }) => {
     return (
         <View style={[
             styles.pickerContainer,
-            {
-                backgroundColor: theme.inputBackground,
-                borderColor: theme.borderColor
-            },
             style
         ]}>
+            <BlurView
+                style={StyleSheet.absoluteFill}
+                blurType="dark"
+                blurAmount={10}
+            />
             <ScrollView style={{ maxHeight }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                {children}
+                <View style={{ paddingVertical: 4 }}>
+                    {children}
+                </View>
             </ScrollView>
         </View>
     );
@@ -32,10 +37,16 @@ export const PickerContainer: React.FC<PickerContainerProps> = ({
 
 const styles = StyleSheet.create({
     pickerContainer: {
-        borderWidth: 1,
-        borderRadius: 8,
-        marginTop: 5,
+        borderWidth: 1.5,
+        borderRadius: 14,
+        marginTop: 8,
         overflow: 'hidden',
         zIndex: 1000,
+        backgroundColor: 'rgba(15,23,42,0.8)',
+        borderColor: 'rgba(255,255,255,0.15)',
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10,
     },
 });

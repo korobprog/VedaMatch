@@ -7,6 +7,7 @@ import {
     ExamQuestion, 
     UserExamAttempt 
 } from '../types/education';
+import { getGodModeQueryParams } from './godModeService';
 
 class EducationService {
     private async getHeaders() {
@@ -28,7 +29,8 @@ class EducationService {
     // Public Course List
     async getCourses(organization?: string): Promise<EducationCourse[]> {
         try {
-            const params = organization ? { organization } : {};
+            const godModeParams = await getGodModeQueryParams();
+            const params = { ...(organization ? { organization } : {}), ...godModeParams };
             const response = await axios.get(`${API_PATH}/education/courses`, { params });
             return response.data;
         } catch (error) {

@@ -10,6 +10,7 @@ import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { Book, Download, CheckCircle } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
+import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
 
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -225,6 +226,7 @@ export const LibraryHomeScreen = () => {
 
     return (
         <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+            <GodModeStatusBanner />
             <FlatList<ScriptureBook>
                 data={books}
                 renderItem={renderBookItem}

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
 import { ScriptureBook, ScriptureVerse, ChapterInfo } from '../types/library';
+import { getGodModeQueryParams } from './godModeService';
 
 class LibraryService {
     // Public endpoints, usually no auth header required, but we can send if needed
@@ -8,7 +9,8 @@ class LibraryService {
 
     async getBooks(): Promise<ScriptureBook[]> {
         try {
-            const response = await axios.get(`${API_PATH}/library/books`);
+            const godModeParams = await getGodModeQueryParams();
+            const response = await axios.get(`${API_PATH}/library/books`, { params: godModeParams });
             return response.data;
         } catch (error) {
             console.error('Error fetching books:', error);
@@ -41,6 +43,7 @@ class LibraryService {
             const params: any = { bookCode, chapter };
             if (canto !== undefined) params.canto = canto;
             if (language) params.language = language;
+            Object.assign(params, await getGodModeQueryParams());
 
             const response = await axios.get(`${API_PATH}/library/verses`, { params });
             return response.data;
@@ -52,8 +55,9 @@ class LibraryService {
 
     async search(query: string): Promise<ScriptureVerse[]> {
         try {
+            const godModeParams = await getGodModeQueryParams();
             const response = await axios.get(`${API_PATH}/library/search`, {
-                params: { q: query }
+                params: { q: query, ...godModeParams }
             });
             return response.data;
         } catch (error) {

@@ -14,6 +14,7 @@ import { getMediaUrl } from '../../../utils/url';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
 import { ProductCard } from '../../../components/market/ProductCard';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import {
     ShoppingBag,
     Store,
@@ -324,7 +325,12 @@ export const MarketHomeScreen: React.FC = () => {
                     renderItem={loading ? renderSkeleton : renderProduct}
                     keyExtractor={(item, index) => loading ? `skel-${index}` : item.ID.toString()}
                     numColumns={2}
-                    ListHeaderComponent={renderHeader}
+                    ListHeaderComponent={
+                        <>
+                            <GodModeStatusBanner />
+                            {renderHeader()}
+                        </>
+                    }
                     ListFooterComponent={renderFooter}
                     ListEmptyComponent={
                         !loading ? (
@@ -553,4 +559,3 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 });
-

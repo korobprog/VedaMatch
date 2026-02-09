@@ -19,6 +19,7 @@ import {
 } from 'lucide-react-native';
 import { yatraService } from '../../../services/yatraService';
 import { Yatra, Shelter, YatraFilters, ShelterFilters, YATRA_THEME_LABELS, SHELTER_TYPE_LABELS } from '../../../types/yatra';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 
 type TabType = 'yatras' | 'shelters';
 
@@ -345,7 +346,12 @@ const TravelHomeScreen: React.FC = () => {
                     data={yatras}
                     renderItem={renderYatraCard}
                     keyExtractor={item => (item?.id ?? Math.random()).toString()}
-                    ListHeaderComponent={renderHeader}
+                    ListHeaderComponent={
+                        <>
+                            <GodModeStatusBanner />
+                            {renderHeader()}
+                        </>
+                    }
                     contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl {...refreshControlProps} />}
                     ListEmptyComponent={emptyComponent}
@@ -355,7 +361,12 @@ const TravelHomeScreen: React.FC = () => {
                     data={shelters}
                     renderItem={renderShelterCard}
                     keyExtractor={item => (item?.id ?? Math.random()).toString()}
-                    ListHeaderComponent={renderHeader}
+                    ListHeaderComponent={
+                        <>
+                            <GodModeStatusBanner />
+                            {renderHeader()}
+                        </>
+                    }
                     contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl {...refreshControlProps} />}
                     ListEmptyComponent={emptyComponent}

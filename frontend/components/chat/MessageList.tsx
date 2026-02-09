@@ -5,7 +5,6 @@ import {
     ActivityIndicator,
     Text,
     Image,
-    ImageBackground,
     Keyboard,
     StyleSheet,
     useColorScheme,
@@ -16,6 +15,7 @@ import {
     Platform,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
 import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
@@ -192,9 +192,9 @@ export const MessageList: React.FC<MessageListProps> = ({
         if (rawItem.type === 'header') {
             return (
                 <View style={styles.dateHeader}>
-                    <View style={[styles.dateLine, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
-                    <Text style={[styles.dateText, { color: theme.subText }]}>{rawItem.title}</Text>
-                    <View style={[styles.dateLine, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
+                    <View style={[styles.dateLine, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
+                    <Text style={[styles.dateText, { color: 'rgba(248,250,252,0.7)' }]}>{rawItem.title}</Text>
+                    <View style={[styles.dateLine, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
                 </View>
             );
         }
@@ -208,33 +208,36 @@ export const MessageList: React.FC<MessageListProps> = ({
             styles.bubble,
             isUser ? styles.userBubble : styles.botBubble,
             {
-                backgroundColor: isUser
-                    ? (isDarkMode ? 'rgba(214, 125, 62, 0.25)' : 'rgba(214, 125, 62, 0.15)')
-                    : 'transparent',
+                backgroundColor: 'transparent',
                 borderColor: isUser
-                    ? 'rgba(214, 125, 62, 0.3)'
-                    : (isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.4)'),
-                borderWidth: 1,
+                    ? 'rgba(255, 183, 77, 0.4)' // Gold tint for user
+                    : 'rgba(255, 255, 255, 0.18)',
+                borderWidth: 1.2,
                 overflow: 'hidden' as const,
             }
         ];
 
-        const botShadowStyle = !isUser ? {
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.15,
-            shadowRadius: 5,
-            elevation: 3,
-            maxWidth: '85%' as any,
-        } : null;
+        const bubbleShadowStyle = isUser ? styles.userGlassShadow : styles.botGlassShadow;
+        const glassTint = isUser
+            ? 'rgba(255, 183, 77, 0.08)' // Subtle gold for user
+            : 'rgba(255, 255, 255, 0.06)';
 
         const Content = () => {
             if (item.uploading) {
                 return (
-                    <View style={bubbleStyle}>
-                        <View style={styles.uploadingContainer}>
-                            <ActivityIndicator size="small" color={theme.primary} />
-                            <Text style={[styles.uploadingText, { color: theme.text }]}>{t('chat.uploading')}</Text>
+                    <View style={bubbleShadowStyle}>
+                        <View style={bubbleStyle}>
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType={isDarkMode ? 'dark' : 'light'}
+                                blurAmount={20}
+                                reducedTransparencyFallbackColor="transparent"
+                            />
+                            <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
+                            <View style={styles.uploadingContainer}>
+                                <ActivityIndicator size="small" color={theme.primary} />
+                                <Text style={[styles.uploadingText, { color: theme.text }]}>{t('chat.uploading')}</Text>
+                            </View>
                         </View>
                     </View>
                 );
@@ -315,24 +318,16 @@ export const MessageList: React.FC<MessageListProps> = ({
                 </>
             );
 
-            if (isUser) {
-                return (
-                    <View style={bubbleStyle}>
-                        {innerContent}
-                    </View>
-                );
-            }
-
             return (
-                <View style={botShadowStyle}>
+                <View style={bubbleShadowStyle}>
                     <View style={bubbleStyle}>
                         <BlurView
                             style={StyleSheet.absoluteFill}
-                            blurType={isDarkMode ? "dark" : "light"}
-                            blurAmount={15}
-                            reducedTransparencyFallbackColor={isDarkMode ? "rgba(15, 15, 25, 0.9)" : "rgba(255, 255, 255, 0.9)"}
+                            blurType={isDarkMode ? 'dark' : 'light'}
+                            blurAmount={20}
+                            reducedTransparencyFallbackColor="transparent"
                         />
-                        <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkMode ? 'rgba(15, 15, 25, 0.4)' : 'rgba(255, 255, 255, 0.4)' }]} />
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
                         {innerContent}
                     </View>
                 </View>
@@ -361,37 +356,31 @@ export const MessageList: React.FC<MessageListProps> = ({
 
     return (
         <View style={styles.chatContainer}>
-            <ImageBackground
-                source={require('../../assets/krishna_bg.png')}
-                style={StyleSheet.absoluteFill}
-                resizeMode="cover"
-            >
-                <View style={[styles.overlay, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.65)' }]}>
-                    <FlatList
-                        ref={flatListRef}
-                        data={messagesWithHeaders}
-                        renderItem={renderMessage}
-                        keyExtractor={(item: any) => item.id}
-                        contentContainerStyle={styles.listContent}
-                        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                        onScrollBeginDrag={() => Keyboard.dismiss()}
-                    />
-                    {isLoading && (
-                        <View style={styles.statusBox}>
-                            <ActivityIndicator size="small" color={theme.primary} />
-                            <Text style={[styles.statusText, { color: theme.subText }]}>Отправка...</Text>
-                        </View>
-                    )}
-                    {isTyping && recipientUser && (
-                        <View style={styles.statusBox}>
-                            <ActivityIndicator size="small" color={theme.primary} />
-                            <Text style={[styles.statusText, { color: theme.subText }]}>
-                                {recipientUser.spiritualName || recipientUser.karmicName} {t('chat.isTyping')}
-                            </Text>
-                        </View>
-                    )}
-                </View>
-            </ImageBackground>
+            <View style={styles.overlay}>
+                <FlatList
+                    ref={flatListRef}
+                    data={messagesWithHeaders}
+                    renderItem={renderMessage}
+                    keyExtractor={(item: any) => item.id}
+                    contentContainerStyle={styles.listContent}
+                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                    onScrollBeginDrag={() => Keyboard.dismiss()}
+                />
+                {isLoading && (
+                    <View style={styles.statusBox}>
+                        <ActivityIndicator size="small" color={theme.primary} />
+                        <Text style={[styles.statusText, { color: theme.subText }]}>Отправка...</Text>
+                    </View>
+                )}
+                {isTyping && recipientUser && (
+                    <View style={styles.statusBox}>
+                        <ActivityIndicator size="small" color={theme.primary} />
+                        <Text style={[styles.statusText, { color: theme.subText }]}>
+                            {recipientUser.spiritualName || recipientUser.karmicName} {t('chat.isTyping')}
+                        </Text>
+                    </View>
+                )}
+            </View>
         </View>
     );
 };
@@ -399,7 +388,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 const styles = StyleSheet.create({
     chatContainer: { flex: 1 },
     overlay: { flex: 1 },
-    listContent: { paddingVertical: 20, paddingHorizontal: 16, paddingBottom: 40 },
+    listContent: { paddingTop: 6, paddingHorizontal: 16, paddingBottom: 40 },
     messageRow: { marginBottom: 12, flexDirection: 'row', width: '100%', alignItems: 'flex-end' },
     userRow: { justifyContent: 'flex-end' },
     botRow: { justifyContent: 'flex-start' },
@@ -411,18 +400,28 @@ const styles = StyleSheet.create({
     },
     userBubble: {
         borderBottomRightRadius: 4,
+    },
+    userGlassShadow: {
+        maxWidth: '85%',
         ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-            android: { elevation: 2 }
-        })
+            ios: { shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6 },
+            android: { elevation: 2 },
+        }),
     },
     botBubble: { borderBottomLeftRadius: 4 },
-    timeText: { fontSize: 10, fontWeight: '500' },
+    botGlassShadow: {
+        maxWidth: '85%',
+        ...Platform.select({
+            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.16, shadowRadius: 6 },
+            android: { elevation: 3 },
+        }),
+    },
+    timeText: { fontSize: 10, fontWeight: '500', color: 'rgba(248,250,252,0.6)' },
     timeOverlay: { position: 'absolute', bottom: 6, right: 12 },
     avatar: { width: 34, height: 34, borderRadius: 10, marginRight: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.2)' },
     avatarImage: { width: '100%', height: '100%' },
     messageText: { fontSize: 16, lineHeight: 22 },
-    dateHeader: { flexDirection: 'row', alignItems: 'center', marginVertical: 20, paddingHorizontal: 20 },
+    dateHeader: { flexDirection: 'row', alignItems: 'center', marginVertical: 8, paddingHorizontal: 20 },
     dateLine: { flex: 1, height: 1, borderRadius: 0.5 },
     dateText: { marginHorizontal: 12, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
     statusBox: { flexDirection: 'row', alignItems: 'center', padding: 12 },

@@ -42,6 +42,7 @@ import {
 } from '../../../services/serviceService';
 import { useWallet } from '../../../context/WalletContext';
 import ServiceCard from './components/ServiceCard';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -331,6 +332,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         >
             <SafeAreaView style={styles.container} edges={['top']}>
                 {renderHeader()}
+                <GodModeStatusBanner />
 
                 {loading && services.length === 0 ? (
                     <View style={styles.loaderContainer}>

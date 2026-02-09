@@ -1,21 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-    View,
-    StatusBar,
-    StyleSheet,
-    useColorScheme,
-    Alert,
-    Platform,
-    BackHandler,
-    Animated,
-    TouchableOpacity,
-} from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { useSettings } from '../context/SettingsContext';
-import { ChatProvider, useChat } from '../context/ChatContext';
+import { useSettings as usePortalSettings } from '../context/SettingsContext';
+import { useChat } from '../context/ChatContext';
 import { useUser } from '../context/UserContext';
-import { useTranslation } from 'react-i18next';
 import { COLORS } from '../components/chat/ChatConstants';
 import { ChatHeader } from '../components/chat/ChatHeader';
 import { MessageList } from '../components/chat/MessageList';
@@ -28,12 +19,11 @@ import LinearGradient from 'react-native-linear-gradient';
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
 export const ChatScreen: React.FC<Props> = ({ navigation }) => {
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
-    const { setIsMenuOpen } = useSettings();
+    const { setIsMenuOpen, isDarkMode, vTheme, portalBackground, portalBackgroundType } = usePortalSettings();
     const { handleMenuOption, recipientUser, setShowMenu, showMenu } = useChat();
-    const { user: currentUser, isLoggedIn } = useUser();
+    const { user: currentUser } = useUser();
     const { t } = useTranslation();
+    const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const overlayOpacity = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -105,9 +95,22 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
         }
     };
 
+    const BackgroundWrapper = ({ children }: { children: React.ReactNode }) => {
+        if (portalBackgroundType === 'image' && portalBackground) {
+            return (
+                <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover">
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}>{children}</View>
+                </ImageBackground>
+            );
+        }
+        return <View style={[styles.container, { backgroundColor: theme.background }]}>{children}</View>;
+    };
+
     return (
         <ProtectedScreen>
-            <View style={[styles.container, { backgroundColor: theme.background }]}>
+            <BackgroundWrapper>
+                <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
                 {showMenu && (
                     <Animated.View
                         style={[
@@ -115,18 +118,16 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                             { opacity: overlayOpacity }
                         ]}
                     >
-                        <LinearGradient
-                            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.7)']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 0, y: 1 }}
+                        <TouchableOpacity
+                            activeOpacity={1}
                             style={StyleSheet.absoluteFill}
+                            onPress={() => setShowMenu(false)}
                         >
-                            <TouchableOpacity
-                                activeOpacity={1}
+                            <LinearGradient
+                                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.85)']}
                                 style={StyleSheet.absoluteFill}
-                                onPress={() => setShowMenu(false)}
                             />
-                        </LinearGradient>
+                        </TouchableOpacity>
                     </Animated.View>
                 )}
                 <ChatHeader
@@ -142,22 +143,23 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                     }}
                 />
 
-                <MessageList
-                    onDownloadImage={downloadImage}
-                    onShareImage={shareImage}
-                    onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
-                    onNavigateToMap={(mapData) => {
-                        // Navigate to map screen with mapData params
-                        navigation.navigate('MapGeoapify', {
-                            focusMarker: mapData?.markers?.[0] ? {
-                                id: mapData.markers[0].id,
-                                type: mapData.markers[0].type,
-                                latitude: mapData.markers[0].latitude,
-                                longitude: mapData.markers[0].longitude,
-                            } : undefined,
-                        });
-                    }}
-                />
+                <View style={styles.messagesWrap}>
+                    <MessageList
+                        onDownloadImage={downloadImage}
+                        onShareImage={shareImage}
+                        onNavigateToTab={(tab) => navigation.navigate('Portal', { initialTab: tab as any })}
+                        onNavigateToMap={(mapData) => {
+                            navigation.navigate('MapGeoapify', {
+                                focusMarker: mapData?.markers?.[0] ? {
+                                    id: mapData.markers[0].id,
+                                    type: mapData.markers[0].type,
+                                    latitude: mapData.markers[0].latitude,
+                                    longitude: mapData.markers[0].longitude,
+                                } : undefined,
+                            });
+                        }}
+                    />
+                </View>
 
                 <View style={{ zIndex: 10 }}>
                     <ChatInput
@@ -179,7 +181,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                         }}
                     />
                 </View>
-            </View>
+            </BackgroundWrapper>
         </ProtectedScreen>
     );
 };
@@ -187,6 +189,10 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    messagesWrap: {
+        flex: 1,
+        marginTop: 4,
     },
     overlayWrapper: {
         ...StyleSheet.absoluteFillObject,

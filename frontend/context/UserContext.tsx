@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { contactService } from '../services/contactService';
+import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 
 interface UserProfile {
     karmicName: string;
@@ -20,15 +21,22 @@ interface UserProfile {
     latitude?: number;
     longitude?: number;
     role?: string;
+    godModeEnabled?: boolean;
 }
 
 interface UserContextType {
     user: UserProfile | null;
     isLoggedIn: boolean;
     isLoading: boolean;
+    roleDescriptor: PortalBlueprint | null;
+    godModeFilters: MathFilter[];
+    activeMathId: string | null;
     login: (profile: UserProfile, token?: string) => Promise<void>;
     logout: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
+    setRoleDescriptor: (descriptor: PortalBlueprint | null) => void;
+    setGodModeFilters: (filters: MathFilter[]) => void;
+    setActiveMath: (mathId: string | null) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -36,6 +44,9 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [roleDescriptor, setRoleDescriptor] = useState<PortalBlueprint | null>(null);
+    const [godModeFilters, setGodModeFilters] = useState<MathFilter[]>([]);
+    const [activeMathId, setActiveMathId] = useState<string | null>(null);
 
 
     useEffect(() => {
@@ -74,21 +85,34 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         };
     }, [user?.ID]);
 
+    useEffect(() => {
+        if (activeMathId) {
+            AsyncStorage.setItem('active_math_id', activeMathId).catch(() => undefined);
+        } else {
+            AsyncStorage.removeItem('active_math_id').catch(() => undefined);
+        }
+    }, [activeMathId]);
+
     const loadUser = async () => {
         try {
             const savedUser = await AsyncStorage.getItem('user');
             const savedToken = await AsyncStorage.getItem('token');
+            const savedActiveMath = await AsyncStorage.getItem('active_math_id');
 
             if (savedUser && savedUser !== 'undefined' && savedUser !== 'null' &&
                 savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
                 try {
-                    setUser(JSON.parse(savedUser));
+                    const parsedUser = JSON.parse(savedUser);
+                    setUser(parsedUser);
                 } catch (parseError) {
                     console.warn('[UserContext] Failed to parse saved user, clearing storage');
                     await logout();
                 }
             } else {
                 setUser(null);
+            }
+            if (savedActiveMath && savedActiveMath !== 'undefined' && savedActiveMath !== 'null') {
+                setActiveMathId(savedActiveMath);
             }
         } catch (e) {
             console.warn('[UserContext] Failed to load user from storage');
@@ -107,6 +131,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = async () => {
         setUser(null);
+        setRoleDescriptor(null);
+        setGodModeFilters([]);
+        setActiveMathId(null);
         await AsyncStorage.removeItem('user');
         await AsyncStorage.removeItem('token');
         console.log('[UserContext] Session cleared (Logged out)');
@@ -125,9 +152,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             user,
             isLoggedIn: !!user,
             isLoading,
+            roleDescriptor,
+            godModeFilters,
+            activeMathId,
             login,
             logout,
-            setTourCompleted
+            setTourCompleted,
+            setRoleDescriptor,
+            setGodModeFilters,
+            setActiveMath: setActiveMathId
         }}>
             {children}
         </UserContext.Provider>

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { API_PATH } from '../config/api.config';
 import { Ad, AdFilters, AdFormData, CategoryConfig } from '../types/ads';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getGodModeQueryParams } from './godModeService';
 
 class AdsService {
     private async getHeaders() {
@@ -23,8 +24,9 @@ class AdsService {
     async getAds(filters?: AdFilters): Promise<{ ads: Ad[], total: number, page: number, totalPages: number }> {
         try {
             const headers = await this.getHeaders();
+            const godModeParams = await getGodModeQueryParams();
             const response = await axios.get(`${API_PATH}/ads`, {
-                params: filters,
+                params: { ...(filters || {}), ...godModeParams },
                 headers
             });
             return response.data;

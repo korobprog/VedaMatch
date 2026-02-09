@@ -10,6 +10,7 @@ import { DonateModal } from '../../components/seva/DonateModal';
 
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
+import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
 
 const SevaHubScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -201,6 +202,7 @@ const SevaHubScreen: React.FC = () => {
                     <Text style={styles.headerSubtitle}>Donate with trust & transparency</Text>
                 </View>
             </SafeAreaView>
+            <GodModeStatusBanner />
 
             <FlatList
                 data={projects}

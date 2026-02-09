@@ -22,6 +22,7 @@ import {
 } from 'lucide-react-native';
 import { multimediaService, RadioStation, TVChannel, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
 
 interface MultimediaHubScreenProps { }
 
@@ -84,6 +85,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
             style={[styles.container, { backgroundColor: vTheme.colors.background }]}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={vTheme.colors.primary} />}
         >
+            <GodModeStatusBanner />
             {/* Header */}
             <View style={[styles.header, { backgroundColor: vTheme.colors.primary }]}>
                 <Text style={[styles.headerTitle, { color: vTheme.colors.textLight }]}>Sattva Media</Text>

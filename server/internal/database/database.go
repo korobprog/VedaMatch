@@ -149,7 +149,7 @@ func InitializeSuperAdmin() {
 	if result.Error == nil {
 		log.Printf("[AUTH] User %s found. Updating role to superadmin and syncing password.", email)
 		DB.Model(&admin).Updates(map[string]interface{}{
-			"role":                "superadmin",
+			"role":                models.RoleSuperadmin,
 			"password":            string(hashedPassword),
 			"is_profile_complete": true,
 		})
@@ -160,7 +160,7 @@ func InitializeSuperAdmin() {
 	admin = models.User{
 		Email:             email,
 		Password:          string(hashedPassword),
-		Role:              "superadmin",
+		Role:              models.RoleSuperadmin,
 		KarmicName:        "Super",
 		SpiritualName:     "Admin",
 		IsProfileComplete: true,

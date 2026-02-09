@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getGodModeQueryParams } from './godModeService';
 
 class DatingService {
     private async getHeaders() {
@@ -21,8 +22,9 @@ class DatingService {
 
     async getStats(city?: string) {
         const headers = await this.getHeaders();
+        const godModeParams = await getGodModeQueryParams();
         const response = await axios.get(`${API_PATH}/dating/stats`, {
-            params: { city },
+            params: { city, ...godModeParams },
             headers
         });
         return response.data;
@@ -36,8 +38,9 @@ class DatingService {
 
     async getCandidates(params: any) {
         const headers = await this.getHeaders();
+        const godModeParams = await getGodModeQueryParams();
         const response = await axios.get(`${API_PATH}/dating/candidates`, {
-            params,
+            params: { ...(params || {}), ...godModeParams },
             headers
         });
         return response.data;
@@ -173,4 +176,3 @@ class DatingService {
 }
 
 export const datingService = new DatingService();
-

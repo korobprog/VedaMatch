@@ -980,7 +980,62 @@ export default {
         yogaPractice: 'Йога и Практика',
         avatar: 'Аватар',
         changeAvatar: 'Изменить аватар',
-        datingProfile: 'Профиль знакомств',
+        datingProfile: 'Профиль Sambandha',
         photoTip: 'Загружайте свои лучшие фотографии в галерею, чтобы другие пользователи могли просматривать их в слайд-шоу.'
+    },
+    portal: {
+        roles: {
+            user: 'Искатель',
+            in_goodness: 'В благости',
+            yogi: 'Йог',
+            devotee: 'Преданный',
+            искатель: 'Искатель',
+            'в благости': 'В благости',
+            йог: 'Йог',
+            преданный: 'Преданный'
+        },
+        change_role: 'Изменить роль',
+        priority_services_hint: 'Этим сервисам вы получите приоритет в портале:',
+        filters: {
+            community: 'Сообщество',
+            daily_digest: 'Дайджест дня',
+            beginner_path: 'Путь новичка',
+            daily_reading: 'Ежедневное чтение',
+            foundations: 'Основы',
+            sattvic_menu: 'Саттвичное меню',
+            prasadam_only: 'Только прасад',
+            habit_programs: 'Программы привычек',
+            sadhana: 'Садхана',
+            wellness: 'Веллнесс',
+            mentoring: 'Менторство',
+            asana: 'Асаны',
+            breathwork: 'Дыхание',
+            retreats: 'Ретриты',
+            pilgrimage_routes: 'Паломничество',
+            retreat_housing: 'Жильё для ретритов',
+            kirtan: 'Киртан',
+            lectures: 'Лекции',
+            projects: 'Проекты',
+            donation_flow: 'Пожертвования',
+            verified_orgs: 'Проверенные орг.',
+            math_projects: 'Матх-проекты',
+            holy_places: 'Святые места',
+            group_tours: 'Групповые туры',
+            temple_updates: 'Новости храмов',
+            festival_reports: 'Отчёты с фестивалей'
+        }
+    },
+    services: {
+        titles: {
+            news: 'Новости',
+            library: 'Библиотека',
+            education: 'Обучение',
+            cafe: 'Кафе',
+            services: 'Услуги',
+            travel: 'Yatra',
+            multimedia: 'Медиа',
+            seva: 'Сева',
+            charity: 'Благотворительность'
+        }
     }
 }

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { getGodModeQueryParams } from './godModeService';
 
 export interface NewsItem {
     id: number;
@@ -46,8 +47,9 @@ class NewsService {
     async getNews(filters?: NewsFilters): Promise<NewsListResponse> {
         try {
             const headers = await getAuthHeaders();
+            const godModeParams = await getGodModeQueryParams();
             const response = await axios.get(`${API_PATH}/news`, {
-                params: filters,
+                params: { ...(filters || {}), ...godModeParams },
                 headers
             });
             return response.data;
@@ -63,8 +65,9 @@ class NewsService {
     async getLatestNews(limit: number = 3, lang: string = 'ru'): Promise<NewsItem[]> {
         try {
             const headers = await getAuthHeaders();
+            const godModeParams = await getGodModeQueryParams();
             const response = await axios.get(`${API_PATH}/news/latest`, {
-                params: { limit, lang },
+                params: { limit, lang, ...godModeParams },
                 headers
             });
             return response.data.news || [];

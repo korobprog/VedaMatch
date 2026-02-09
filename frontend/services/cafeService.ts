@@ -8,6 +8,7 @@ import {
     CafeOrderFilters, ActiveOrdersResponse, OrderStatsResponse,
     MenuResponse, QRCodeScanResult, WaiterCallReason
 } from '../types/cafe';
+import { getGodModeQueryParams } from './godModeService';
 
 class CafeService {
     getImageUrl(path: string | null): string {
@@ -36,7 +37,8 @@ class CafeService {
 
     async getCafes(filters?: CafeFilters): Promise<{ cafes: Cafe[], total: number, page: number, totalPages: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/cafes`, { params: filters });
+            const godModeParams = await getGodModeQueryParams();
+            const response = await axios.get(`${API_PATH}/cafes`, { params: { ...(filters || {}), ...godModeParams } });
             const data = response.data;
 
             // Normalize cafe data to handle potential field name variations from backend

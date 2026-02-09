@@ -11,6 +11,25 @@ jest.mock('react-i18next', () => ({
 jest.mock('../../../../context/UserContext', () => ({
   useUser: () => ({
     user: { ID: 1, city: 'Test City', spiritualName: 'TestUser' },
+    godModeFilters: [],
+    activeMathId: null,
+    setActiveMath: jest.fn(),
+  }),
+}));
+jest.mock('../../../../context/SettingsContext', () => ({
+  useSettings: () => ({
+    isDarkMode: false,
+    theme: { background: '#fff', primary: '#000' },
+    vTheme: {
+      colors: {
+        background: '#fff',
+        text: '#111',
+        textSecondary: '#666',
+        primary: '#111',
+        surface: '#fff',
+        divider: '#eee',
+      },
+    },
   }),
 }));
 

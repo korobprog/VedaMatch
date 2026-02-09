@@ -1,5 +1,6 @@
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { getGodModeQueryParams } from './godModeService';
 
 export interface MediaTrack {
     ID: number;
@@ -94,6 +95,8 @@ class MultimediaService {
         if (filter.featured) params.append('featured', 'true');
         if (filter.page) params.append('page', String(filter.page));
         if (filter.limit) params.append('limit', String(filter.limit));
+        const godModeParams = await getGodModeQueryParams();
+        if (godModeParams.math) params.append('math', godModeParams.math);
 
         const response = await fetch(`${this.baseUrl}/multimedia/tracks?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch tracks');
@@ -109,6 +112,8 @@ class MultimediaService {
     async getRadioStations(madh?: string): Promise<RadioStation[]> {
         const params = new URLSearchParams();
         if (madh) params.append('madh', madh);
+        const godModeParams = await getGodModeQueryParams();
+        if (godModeParams.math) params.append('math', godModeParams.math);
         params.append('_t', String(Date.now())); // Cache busting
 
         const response = await fetch(`${this.baseUrl}/multimedia/radio?${params.toString()}`);
@@ -123,8 +128,11 @@ class MultimediaService {
     }
 
     async getTVChannels(madh?: string): Promise<TVChannel[]> {
-        const params = madh ? `?madh=${madh}` : '';
-        const response = await fetch(`${this.baseUrl}/multimedia/tv${params}`);
+        const params = new URLSearchParams();
+        if (madh) params.append('madh', madh);
+        const godModeParams = await getGodModeQueryParams();
+        if (godModeParams.math) params.append('math', godModeParams.math);
+        const response = await fetch(`${this.baseUrl}/multimedia/tv${params.toString() ? `?${params.toString()}` : ''}`);
         if (!response.ok) throw new Error('Failed to fetch TV channels');
         return response.json();
     }

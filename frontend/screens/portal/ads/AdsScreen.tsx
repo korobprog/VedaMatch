@@ -14,6 +14,7 @@ import { AdCard } from '../../../components/ads/AdCard';
 import { CategoryPills } from '../../../components/ads/CategoryPills';
 import { AdTabSwitcher } from '../../../components/ads/AdTabSwitcher';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import {
     Search,
     X,
@@ -141,6 +142,7 @@ export const AdsScreen: React.FC = () => {
 
                 {/* Tab Switcher */}
                 <AdTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+                <GodModeStatusBanner />
 
                 {/* Categories */}
                 <CategoryPills selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />

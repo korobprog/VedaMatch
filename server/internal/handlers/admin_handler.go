@@ -93,8 +93,8 @@ func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
-	if body.Role != "admin" && body.Role != "superadmin" {
-		body.Role = "admin"
+	if !models.IsAdminRole(body.Role) {
+		body.Role = models.RoleAdmin
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
@@ -127,7 +127,7 @@ func (h *AdminHandler) UpdateUserRole(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 
-	if body.Role != "user" && body.Role != "admin" && body.Role != "superadmin" {
+	if !models.IsValidUserRole(body.Role) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid role"})
 	}
 
@@ -145,7 +145,7 @@ func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
 
 	database.DB.Model(&models.User{}).Count(&totalUsers)
 	database.DB.Model(&models.User{}).Where("is_blocked = ?", true).Count(&blockedUsers)
-	database.DB.Model(&models.User{}).Where("role IN ?", []string{"admin", "superadmin"}).Count(&admins)
+	database.DB.Model(&models.User{}).Where("role IN ?", []string{models.RoleAdmin, models.RoleSuperadmin}).Count(&admins)
 
 	return c.JSON(fiber.Map{
 		"totalUsers":   totalUsers,

@@ -36,6 +36,11 @@ import {
     Utensils,
     Map,
     Gift,
+    HelpCircle,
+    Compass,
+    Leaf,
+    Infinity,
+    Heart,
 } from 'lucide-react-native';
 
 import { ContactsScreen } from './contacts/ContactsScreen';
@@ -56,6 +61,8 @@ import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { PortalLayoutProvider, usePortalLayout } from '../../context/PortalLayoutContext';
 import { PortalGrid } from '../../components/portal';
 import { BalancePill } from '../../components/wallet/BalancePill';
+import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
+import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 
 
 const { width } = Dimensions.get('window');
@@ -65,10 +72,11 @@ type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'n
 // Inner component that uses portal layout context
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
     const { t } = useTranslation();
-    const { user } = useUser();
+    const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
     const { vTheme, isDarkMode, setIsMenuOpen, setIsPortalOpen, portalBackground, portalBackgroundType } = useSettings();
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [showRoleInfo, setShowRoleInfo] = useState(false);
 
     // Background wrapper as inner function
     const BackgroundWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -217,6 +225,27 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     </View>
 
                     <View style={styles.headerRight}>
+                        {roleDescriptor && (
+                            <TouchableOpacity
+                                onPress={() => setShowRoleInfo(true)}
+                                style={[styles.roleStatusButton, { marginRight: 4 }]}
+                            >
+                                <View style={[
+                                    styles.roleStatusDot,
+                                    { backgroundColor: roleDescriptor.highlightColor }
+                                ]} />
+                                {(() => {
+                                    const role = roleDescriptor.role;
+                                    const size = 12;
+                                    const color = "#ffffff";
+
+                                    if (role === 'in_goodness') return <Leaf size={size} color={color} />;
+                                    if (role === 'yogi') return <Infinity size={size} color={color} />;
+                                    if (role === 'devotee') return <Heart size={size} color={color} />;
+                                    return <Compass size={size} color={color} />;
+                                })()}
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity
                             onPress={() => {
                                 setIsMenuOpen(true);
@@ -239,7 +268,21 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
                 {/* Grid View */}
                 <View style={[styles.gridContent, { backgroundColor: 'transparent' }]}>
-                    <PortalGrid onServicePress={handleServicePress} />
+
+                    {user?.godModeEnabled && (
+                        <GodModeFiltersPanel
+                            filters={godModeFilters}
+                            activeMathId={activeMathId || undefined}
+                            onSelectMath={(mathId) => setActiveMath(mathId)}
+                        />
+                    )}
+
+                    <PortalGrid
+                        onServicePress={handleServicePress}
+                        roleHighlights={roleDescriptor?.heroServices || []}
+                        godModeEnabled={!!user?.godModeEnabled}
+                        activeMathLabel={godModeFilters.find((f) => f.mathId === activeMathId)?.mathName}
+                    />
                 </View>
 
                 {/* Hint text */}
@@ -248,6 +291,17 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                         Удерживайте для редактирования
                     </Text>
                 </View>
+
+                <RoleInfoModal
+                    visible={showRoleInfo}
+                    title={roleDescriptor?.title || 'Роль'}
+                    servicesHint={roleDescriptor?.servicesHint || []}
+                    onClose={() => setShowRoleInfo(false)}
+                    onEditRole={() => {
+                        setShowRoleInfo(false);
+                        navigation.navigate('EditProfile');
+                    }}
+                />
             </BackgroundWrapper>
         );
     }
@@ -417,6 +471,56 @@ const styles = StyleSheet.create({
     },
     gridContent: {
         flex: 1,
+    },
+    roleDescriptorCard: {
+        marginHorizontal: 12,
+        marginBottom: 10,
+        marginTop: 6,
+        borderWidth: 1,
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        padding: 10,
+    },
+    roleDescriptorHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 2,
+    },
+    roleDescriptorTitle: {
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    roleDescriptorDescription: {
+        fontSize: 12,
+        color: '#374151',
+    },
+    logoWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    roleStatusButton: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 4,
+    },
+    roleStatusDot: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: 12,
+        opacity: 0.9,
+    },
+    roleStatusIcon: {
+        // center it
     },
     hintContainer: {
         position: 'absolute',

@@ -947,7 +947,58 @@ export default {
         yogaPractice: 'Yoga & Practice',
         avatar: 'Avatar',
         changeAvatar: 'Change Avatar',
-        datingProfile: 'Dating Profile',
+        datingProfile: 'Sambandha Profile',
         photoTip: 'Upload your best photos to the gallery so other users can view them in a slideshow.'
+    },
+    portal: {
+        roles: {
+            user: 'Seeker',
+            in_goodness: 'In Goodness',
+            yogi: 'Yogi',
+            devotee: 'Devotee',
+        },
+        change_role: 'Change Role',
+        priority_services_hint: 'You will receive priority in these services within the portal:',
+        filters: {
+            community: 'Community',
+            daily_digest: 'Daily Digest',
+            beginner_path: 'Beginner Path',
+            daily_reading: 'Daily Reading',
+            foundations: 'Foundations',
+            sattvic_menu: 'Sattvic Menu',
+            prasadam_only: 'Prasadam Only',
+            habit_programs: 'Habit Programs',
+            sadhana: 'Sadhana',
+            wellness: 'Wellness',
+            mentoring: 'Mentoring',
+            asana: 'Asana',
+            breathwork: 'Breathwork',
+            retreats: 'Retreats',
+            pilgrimage_routes: 'Pilgrimage Routes',
+            retreat_housing: 'Retreat Housing',
+            kirtan: 'Kirtan',
+            lectures: 'Lectures',
+            projects: 'Projects',
+            donation_flow: 'Donation Flow',
+            verified_orgs: 'Verified Orgs',
+            math_projects: 'Math Projects',
+            holy_places: 'Holy Places',
+            group_tours: 'Group Tours',
+            temple_updates: 'Temple Updates',
+            festival_reports: 'Festival Reports'
+        }
+    },
+    services: {
+        titles: {
+            news: 'News',
+            library: 'Library',
+            education: 'Education',
+            cafe: 'Cafe',
+            services: 'Services',
+            travel: 'Yatra',
+            multimedia: 'Media',
+            seva: 'Seva',
+            charity: 'Charity'
+        }
     }
 }

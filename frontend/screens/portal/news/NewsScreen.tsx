@@ -39,6 +39,7 @@ import {
     Bookmark
 } from 'lucide-react-native';
 import { useSettings } from '../../../context/SettingsContext';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -465,6 +466,7 @@ export const NewsScreen = () => {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
+            <GodModeStatusBanner />
             {renderCategoryPills()}
             <FlatList
                 data={news}

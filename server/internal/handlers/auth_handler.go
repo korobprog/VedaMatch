@@ -33,6 +33,18 @@ func NewAuthHandler(walletService *services.WalletService, referralService *serv
 	}
 }
 
+func normalizePortalRole(role string) string {
+	if models.IsPortalRole(role) {
+		return strings.TrimSpace(strings.ToLower(role))
+	}
+	return models.RoleUser
+}
+
+func applyPortalRoleAndGodMode(user *models.User, role string, godModeEnabled bool) {
+	user.Role = normalizePortalRole(role)
+	user.GodModeEnabled = godModeEnabled
+}
+
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var registerData struct {
 		models.User
@@ -46,6 +58,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	user := registerData.User
 	user.Email = strings.TrimSpace(strings.ToLower(user.Email))
+	applyPortalRoleAndGodMode(&user, registerData.Role, registerData.GodModeEnabled)
 
 	if user.Email == "" || user.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -264,6 +277,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.MaritalStatus = updateData.MaritalStatus
 	user.BirthTime = updateData.BirthTime
 	user.IsProfileComplete = true
+	applyPortalRoleAndGodMode(&user, updateData.Role, updateData.GodModeEnabled)
 
 	// Handle coordinates
 	if updateData.Latitude != nil && updateData.Longitude != nil {

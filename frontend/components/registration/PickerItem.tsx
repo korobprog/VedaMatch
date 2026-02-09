@@ -10,17 +10,25 @@ interface PickerItemProps {
 export const PickerItem: React.FC<PickerItemProps> = ({ theme, label, onPress }) => {
     return (
         <TouchableOpacity
-            style={[styles.pickerItem, { borderBottomColor: '#333' }]} // Default or theme based
+            style={styles.pickerItem}
             onPress={onPress}
+            activeOpacity={0.6}
         >
-            <Text style={{ color: theme.inputText }}>{label}</Text>
+            <Text style={styles.text}>{label}</Text>
         </TouchableOpacity>
     );
 };
 
 const styles = StyleSheet.create({
     pickerItem: {
-        padding: 12,
-        borderBottomWidth: 0.5,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.08)',
+    },
+    text: {
+        color: '#F8FAFC',
+        fontSize: 15,
+        fontWeight: '500',
     },
 });

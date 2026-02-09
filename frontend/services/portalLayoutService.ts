@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, createDefaultLayout, DEFAULT_SERVICES } from '../types/portal';
 import { API_PATH } from '../config/api.config';
-
+import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
+import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 
 
 const STORAGE_KEY = 'portal_layout';
@@ -54,16 +55,98 @@ const getAuthHeaders = async () => {
     if (!token || token === 'undefined' || token === 'null') {
         token = await AsyncStorage.getItem('userToken');
     }
-    return {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
     };
+    if (token && token !== 'undefined' && token !== 'null') {
+        headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+};
+
+const getDefaultQuickAccess = (): PortalItem[] => {
+    const quickAccessIds = ['contacts', 'calls', 'groups'];
+    return quickAccessIds.map((id, index) => ({
+        id: `qa-${id}`,
+        serviceId: id,
+        type: 'service',
+        position: index,
+    }));
+};
+
+export const fetchPortalBlueprint = async (role?: string): Promise<PortalBlueprint> => {
+    const normalizedRole = (role || 'user').toLowerCase();
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers.Authorization) {
+            return FALLBACK_PORTAL_BLUEPRINTS[normalizedRole] || FALLBACK_PORTAL_BLUEPRINTS.user;
+        }
+        const response = await axios.get(`${API_PATH}/system/portal-blueprint/${normalizedRole}`, { headers });
+        if (response.data?.blueprint) {
+            return response.data.blueprint as PortalBlueprint;
+        }
+    } catch (error) {
+        console.warn('Failed to fetch role blueprint, fallback to local map:', error);
+    }
+    return FALLBACK_PORTAL_BLUEPRINTS[normalizedRole] || FALLBACK_PORTAL_BLUEPRINTS.user;
+};
+
+export const fetchGodModeMathFilters = async (): Promise<MathFilter[]> => {
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers.Authorization) {
+            return [];
+        }
+        const response = await axios.get(`${API_PATH}/system/god-mode-math-filters`, { headers });
+        if (response.data?.mathFilters) {
+            return response.data.mathFilters as MathFilter[];
+        }
+    } catch (error) {
+        console.warn('Failed to fetch god-mode math filters:', error);
+    }
+    return [];
+};
+
+export const applyRoleBlueprint = (layout: PortalLayout, blueprint?: PortalBlueprint): PortalLayout => {
+    if (!blueprint) return layout;
+
+    const serviceIndex = new Map<string, number>();
+    blueprint.heroServices.forEach((id, index) => serviceIndex.set(id, index));
+
+    const newLayout: PortalLayout = {
+        ...layout,
+        pages: layout.pages.map((page) => ({
+            ...page,
+            items: [...page.items].sort((a, b) => {
+                if (a.type !== 'service' || b.type !== 'service') return 0;
+                const ai = serviceIndex.has(a.serviceId) ? serviceIndex.get(a.serviceId)! : 999;
+                const bi = serviceIndex.has(b.serviceId) ? serviceIndex.get(b.serviceId)! : 999;
+                if (ai !== bi) return ai - bi;
+                return a.position - b.position;
+            }).map((item, position) => ({ ...item, position })),
+        })),
+    };
+
+    const quickAccess = blueprint.quickAccess
+        .slice(0, 3)
+        .map((serviceId, position) => ({
+            id: `qa-${serviceId}`,
+            serviceId,
+            type: 'service' as const,
+            position,
+        }));
+
+    newLayout.quickAccess = quickAccess.length > 0 ? quickAccess : getDefaultQuickAccess();
+    return newLayout;
 };
 
 // Sync to server
 const syncToServer = async (layout: PortalLayout): Promise<void> => {
     try {
         const headers = await getAuthHeaders();
+        if (!headers.Authorization) {
+            return;
+        }
         await axios.put(`${API_PATH}/user/portal-layout`, { layout }, { headers });
         layout.syncedWithServer = true;
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
@@ -78,6 +161,9 @@ const syncToServer = async (layout: PortalLayout): Promise<void> => {
 export const fetchServerLayout = async (): Promise<PortalLayout | null> => {
     try {
         const headers = await getAuthHeaders();
+        if (!headers.Authorization) {
+            return null;
+        }
         const response = await axios.get(`${API_PATH}/user/portal-layout`, { headers });
         if (response.data?.layout) {
             return response.data.layout as PortalLayout;
@@ -163,7 +249,7 @@ const ensureQuickAccess = (layout: PortalLayout): PortalLayout => {
 };
 
 // Merge local and server layouts (server wins if newer)
-export const initializeLayout = async (): Promise<PortalLayout> => {
+export const initializeLayout = async (role?: string, blueprint?: PortalBlueprint): Promise<PortalLayout> => {
     let localLayout = await loadLocalLayout();
 
     try {
@@ -174,6 +260,7 @@ export const initializeLayout = async (): Promise<PortalLayout> => {
             if (serverLayout.lastModified > localLayout.lastModified) {
                 let updatedServer = ensureQuickAccess(serverLayout);
                 updatedServer = ensureDefaultServices(updatedServer);
+                updatedServer = applyRoleBlueprint(updatedServer, blueprint);
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedServer));
                 return updatedServer;
             }
@@ -188,6 +275,10 @@ export const initializeLayout = async (): Promise<PortalLayout> => {
 
     let updatedLocal = ensureQuickAccess(localLayout);
     updatedLocal = ensureDefaultServices(updatedLocal);
+    if (!blueprint && role) {
+        blueprint = await fetchPortalBlueprint(role);
+    }
+    updatedLocal = applyRoleBlueprint(updatedLocal, blueprint);
     if (updatedLocal.lastModified !== localLayout.lastModified) {
         await saveLocalLayout(updatedLocal);
     }

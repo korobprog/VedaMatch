@@ -12,8 +12,11 @@ import {
     Platform,
     Switch,
     StatusBar,
-    TextInput
+    TextInput,
+    ImageBackground,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
 import DatePicker from 'react-native-date-picker';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,6 +34,9 @@ import { RootStackParamList } from '../types/navigation';
 import { API_PATH } from '../config/api.config';
 import { contactService } from '../services/contactService';
 import DeviceInfo from 'react-native-device-info';
+import { RoleSelectionSection } from '../components/roles/RoleSelectionSection';
+import { PortalRole } from '../types/portalBlueprint';
+import { useSettings as usePortalSettings } from '../context/SettingsContext';
 
 // Custom Components & Hooks
 import { useLocation } from '../hooks/useLocation';
@@ -49,8 +55,10 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { login } = useUser();
-    const { isDarkMode, phase = 'initial', inviteCode: paramInviteCode } = route.params;
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const params = route.params ?? { isDarkMode: false, phase: 'initial' as const };
+    const { isDarkMode, phase = 'initial', inviteCode: paramInviteCode } = params;
+    const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
+    const theme = isPortalDarkMode ? COLORS.dark : COLORS.light;
 
     const [avatar, setAvatar] = useState<any>(null);
     const [email, setEmail] = useState('');
@@ -72,6 +80,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [agreement, setAgreement] = useState(false);
     const [loading, setLoading] = useState(false);
     const [detectingLocation, setDetectingLocation] = useState(false);
+    const [role, setRole] = useState<PortalRole>('user');
+    const [godModeEnabled, setGodModeEnabled] = useState(false);
 
     // Location Hook
     const {
@@ -175,6 +185,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     email,
                     password,
                     invite_code: inviteCode,
+                    role,
+                    godModeEnabled,
                     deviceId
                 });
                 const user = response.data.user;
@@ -205,6 +217,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     yogaStyle,
                     guna,
                     diet,
+                    role,
+                    godModeEnabled,
                 };
 
                 console.log('Sending profile data:', JSON.stringify(profileData, null, 2));
@@ -267,21 +281,42 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         );
     };
 
+    const BackgroundWrapper = ({ children }: { children: React.ReactNode }) => {
+        if (portalBackgroundType === 'image' && portalBackground) {
+            return (
+                <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover">
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}>{children}</View>
+                </ImageBackground>
+            );
+        }
+        return <View style={[styles.container, { backgroundColor: theme.background }]}>{children}</View>;
+    };
+
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <View style={[styles.header, { backgroundColor: theme.header, borderBottomColor: theme.borderColor }]}>
+        <BackgroundWrapper>
+            <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+
+            <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
+                {portalBackgroundType === 'image' && (
+                    <BlurView
+                        style={StyleSheet.absoluteFill}
+                        blurType="dark"
+                        blurAmount={15}
+                        reducedTransparencyFallbackColor="rgba(0,0,0,0.8)"
+                    />
+                )}
                 <TouchableOpacity
                     onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}
                     style={styles.backButton}
                 >
-                    <Text style={[styles.backText, { color: theme.text }]}>← {t('registration.back')}</Text>
+                    <Text style={[styles.backText, { color: '#F8FAFC' }]}>← {t('registration.back')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>
+                <Text style={[styles.headerTitle, { color: '#F8FAFC' }]}>
                     {phase === 'initial' ? 'Sign Up' : t('registration.title')}
                 </Text>
                 {phase === 'profile' ? (
                     <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                        <Text style={[styles.skipText, { color: theme.accent }]}>Skip</Text>
+                        <Text style={[styles.skipText, { color: '#FFB74D' }]}>Skip</Text>
                     </TouchableOpacity>
                 ) : (
                     <View style={{ width: 60 }} />
@@ -293,7 +328,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     <View style={styles.logoWrapper}>
                         <Image
                             source={require('../assets/logo_tilak.png')}
-                            style={styles.logoImage}
+                            style={[styles.logoImage, { tintColor: '#FFB74D' }]}
                             resizeMode="contain"
                         />
                     </View>
@@ -337,6 +372,26 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     </>
                 ) : (
                     <>
+                        <RoleSelectionSection
+                            selectedRole={role}
+                            onSelectRole={setRole}
+                        />
+
+                        <View style={styles.switchRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.label, { marginTop: 0 }]}>Режим Бога</Text>
+                                <Text style={styles.helperText}>
+                                    Позволяет видеть контент/фильтры всех матхов
+                                </Text>
+                            </View>
+                            <Switch
+                                value={godModeEnabled}
+                                onValueChange={setGodModeEnabled}
+                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(0, 137, 123, 0.6)' }}
+                                thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
+                            />
+                        </View>
+
                         {/* Avatar */}
                         <AvatarUploader
                             avatar={avatar}
@@ -418,17 +473,14 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
                         {/* Auto-detect Location Button */}
                         <TouchableOpacity
-                            style={[
-                                styles.autoDetectButton,
-                                { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }
-                            ]}
+                            style={styles.autoDetectButton}
                             onPress={handleAutoDetect}
                             disabled={detectingLocation}
                         >
                             {detectingLocation ? (
-                                <ActivityIndicator size="small" color={theme.button} />
+                                <ActivityIndicator size="small" color="#FFB74D" />
                             ) : (
-                                <Text style={[styles.autoDetectText, { color: theme.button }]}>
+                                <Text style={styles.autoDetectText}>
                                     {t('registration.detectLocation')}
                                 </Text>
                             )}
@@ -606,36 +658,41 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     <Switch
                         value={agreement}
                         onValueChange={setAgreement}
-                        trackColor={{ false: '#767577', true: theme.accent }}
-                        thumbColor={agreement ? theme.button : '#f4f3f4'}
+                        trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FFB74D' }}
+                        thumbColor={agreement ? '#fff' : '#f4f3f4'}
                     />
-                    <Text style={[styles.checkboxLabel, { color: theme.text }]}>
+                    <Text style={[styles.checkboxLabel, { color: '#F8FAFC' }]}>
                         {t('registration.agreement')}
                     </Text>
                 </View>
 
                 {/* Submit */}
                 <TouchableOpacity
-                    style={[styles.submitButton, { backgroundColor: theme.button, opacity: loading ? 0.7 : 1 }]}
                     onPress={handleSubmit}
                     disabled={loading}
+                    activeOpacity={0.8}
                 >
-                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>{phase === 'initial' ? 'Next' : (phase === 'profile' ? 'Update Profile' : t('registration.submit'))}</Text>}
+                    <LinearGradient
+                        colors={['#FFB74D', '#F57C00']}
+                        style={[styles.submitButton, { opacity: loading ? 0.7 : 1 }]}
+                    >
+                        {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>{phase === 'initial' ? 'Next' : (phase === 'profile' ? 'Update Profile' : t('registration.submit'))}</Text>}
+                    </LinearGradient>
                 </TouchableOpacity>
 
                 {phase === 'initial' && (
                     <TouchableOpacity
-                        style={{ marginTop: 20, alignItems: 'center' }}
+                        style={{ marginTop: 24, alignItems: 'center' }}
                         onPress={() => navigation.navigate('Login')}
                     >
-                        <Text style={{ color: theme.subText }}>
-                            Already have an account? <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Login</Text>
+                        <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
+                            Already have an account? <Text style={{ color: '#FFB74D', fontWeight: 'bold' }}>Login</Text>
                         </Text>
                     </TouchableOpacity>
                 )}
 
             </ScrollView>
-        </View >
+        </BackgroundWrapper >
     );
 };
 
@@ -644,99 +701,137 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        height: Platform.OS === 'android' ? 60 + (StatusBar.currentHeight || 0) : 80,
+        height: Platform.OS === 'android' ? 64 + (StatusBar.currentHeight || 0) : 94,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 20,
+        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 44,
+        zIndex: 10,
     },
     backButton: {
-        padding: 10,
+        padding: 8,
     },
     backText: {
         fontSize: 16,
+        fontWeight: '500',
     },
     headerTitle: {
         flex: 1,
         textAlign: 'center',
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 17,
+        fontWeight: '800',
+        letterSpacing: -0.2,
     },
     skipButton: {
-        padding: 10,
+        padding: 8,
     },
     skipText: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 15,
+        fontWeight: '700',
     },
     content: {
         padding: 20,
-        paddingBottom: 50,
+        paddingBottom: 60,
     },
     logoHeaderContainer: {
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
+        marginTop: 10,
     },
     logoWrapper: {
-        width: 80,
-        height: 80,
+        width: 84,
+        height: 84,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 42,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
     },
     logoImage: {
-        width: 60,
-        height: 60,
+        width: 50,
+        height: 50,
     },
     label: {
         fontSize: 14,
-        marginBottom: 6,
-        marginTop: 12,
-        fontWeight: '600',
+        marginBottom: 8,
+        marginTop: 16,
+        fontWeight: '700',
+        color: '#F8FAFC',
+    },
+    helperText: {
+        fontSize: 12,
+        color: 'rgba(248,250,252,0.6)',
+    },
+    switchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        padding: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     input: {
-        borderWidth: 1,
-        borderRadius: 8,
+        borderWidth: 1.5,
+        borderRadius: 12,
         padding: 12,
         fontSize: 16,
-        height: 50,
+        height: 54,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderColor: 'rgba(255,255,255,0.15)',
+        color: '#F8FAFC',
     },
     checkboxContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 20,
-        marginBottom: 20,
+        marginTop: 24,
+        marginBottom: 24,
+        paddingHorizontal: 4,
     },
     checkboxLabel: {
         flex: 1,
-        marginLeft: 10,
+        marginLeft: 12,
+        fontSize: 13,
+        lineHeight: 18,
     },
     submitButton: {
-        height: 50,
-        borderRadius: 8,
+        height: 56,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 10,
+        shadowColor: '#F57C00',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
     },
     submitButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 17,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        letterSpacing: 0.5,
     },
     autoDetectButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12,
+        paddingVertical: 14,
         paddingHorizontal: 20,
-        borderRadius: 8,
-        borderWidth: 1,
-        marginTop: 10,
-        marginBottom: 5,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        marginTop: 12,
+        marginBottom: 8,
         gap: 8,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255,255,255,0.2)',
     },
     autoDetectText: {
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '700',
+        color: '#FFB74D',
     },
 });
 

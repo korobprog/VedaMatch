@@ -46,9 +46,18 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface PortalGridProps {
     onServicePress: (serviceId: string) => void;
     onCloseDrawer?: () => void; // Optional callback to close drawer when navigating
+    roleHighlights?: string[];
+    godModeEnabled?: boolean;
+    activeMathLabel?: string;
 }
 
-export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseDrawer }) => {
+export const PortalGrid: React.FC<PortalGridProps> = ({
+    onServicePress,
+    onCloseDrawer,
+    roleHighlights = [],
+    godModeEnabled = false,
+    activeMathLabel,
+}) => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const {
@@ -101,6 +110,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
     const items = page?.items || [];
     const widgets = page?.widgets || [];
     const quickAccess = layout.quickAccess || [];
+    const highlightedServices = new Set(roleHighlights);
 
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
@@ -294,6 +304,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                         onPress={() => { }}
                         onLongPress={() => { }}
                         size={layout.iconSize}
+                        roleHighlight={highlightedServices.has(service.id)}
+                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel}` : undefined}
                     />
                 </View>
             );
@@ -317,7 +329,19 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                 </DraggablePortalItem>
             </Animated.View>
         );
-    }, [isReady, isEditMode, layout.iconSize, handleDragStart, handleFolderPress, handleServicePress, handleDragEnd, setEditMode]);
+    }, [
+        isReady,
+        isEditMode,
+        layout.iconSize,
+        handleDragStart,
+        handleFolderPress,
+        handleServicePress,
+        handleDragEnd,
+        setEditMode,
+        highlightedServices,
+        godModeEnabled,
+        activeMathLabel,
+    ]);
 
     // Render dock item
     const renderDockItem = useCallback((item: PortalItem, index: number) => {
@@ -345,11 +369,13 @@ export const PortalGrid: React.FC<PortalGridProps> = ({ onServicePress, onCloseD
                         onLongPress={() => { }}
                         size={layout.iconSize}
                         showLabel={false}
+                        roleHighlight={highlightedServices.has(service.id)}
+                        mathBadge={godModeEnabled && activeMathLabel ? `Math: ${activeMathLabel}` : undefined}
                     />
                 </View>
             </DraggablePortalItem>
         );
-    }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode]);
+    }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode, highlightedServices, godModeEnabled, activeMathLabel]);
 
     // Render widget
     const renderWidget = useCallback((widget: { id: string; type: 'clock' | 'calendar'; size: string }) => {

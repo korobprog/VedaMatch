@@ -59,7 +59,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     onNavigateToRegistration,
 }) => {
     const { fetchModels, vTheme } = useSettings();
-    const { user, isLoggedIn } = useUser();
+    const { user, isLoggedIn, roleDescriptor } = useUser();
     const { history, loadChat, deleteChat, handleNewChat, currentChatId } = useChat();
     const { t } = useTranslation();
 
@@ -225,6 +225,14 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                             {user?.spiritualName || user?.karmicName}
                                         </Text>
                                         <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>{t('auth.profile')}</Text>
+                                        <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>
+                                            Роль: {roleDescriptor?.title || user?.role || 'user'}
+                                        </Text>
+                                        {user?.godModeEnabled ? (
+                                            <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>
+                                                Режим бога: включён
+                                            </Text>
+                                        ) : null}
                                     </View>
                                 </View>
                             ) : (

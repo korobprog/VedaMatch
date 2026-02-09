@@ -1,5 +1,6 @@
 import { CharityDonation, CharityEvidence, CharityOrganization, CharityProject, DonateRequest, DonateResponse } from '../types/charity';
 import { API_PATH } from '../config/api.config';
+import { getGodModeQueryParams } from './godModeService';
 
 class CharityService {
     private async get(endpoint: string, token?: string) {
@@ -10,7 +11,11 @@ class CharityService {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const response = await fetch(`${API_PATH}${endpoint}`, {
+        const godModeParams = await getGodModeQueryParams();
+        const separator = endpoint.includes('?') ? '&' : '?';
+        const url = godModeParams.math ? `${API_PATH}${endpoint}${separator}math=${encodeURIComponent(godModeParams.math)}` : `${API_PATH}${endpoint}`;
+
+        const response = await fetch(url, {
             method: "GET",
             headers
         });

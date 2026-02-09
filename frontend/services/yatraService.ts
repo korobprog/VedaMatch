@@ -9,6 +9,7 @@ import {
     YatraReview, YatraReviewCreateData
 } from '../types/yatra';
 import { yatraCacheService } from './yatraCacheService';
+import { getGodModeQueryParams } from './godModeService';
 
 class YatraService {
     getImageUrl(path: string | null | undefined): string {
@@ -47,7 +48,8 @@ class YatraService {
 
     async getYatras(filters?: YatraFilters): Promise<YatraListResponse> {
         try {
-            const response = await axios.get(`${API_PATH}/yatra`, { params: filters });
+            const godModeParams = await getGodModeQueryParams();
+            const response = await axios.get(`${API_PATH}/yatra`, { params: { ...(filters || {}), ...godModeParams } });
             const data = response.data;
             const result = {
                 yatras: (data.yatras || []).map(this.normalizeYatra),
@@ -268,6 +270,8 @@ class YatraService {
             if (filters?.radiusKm) params.radius_km = filters.radiusKm;
             if (filters?.minRating) params.min_rating = filters.minRating;
             if (filters?.sevaOnly) params.seva_only = 'true';
+            const godModeParams = await getGodModeQueryParams();
+            Object.assign(params, godModeParams);
 
             const response = await axios.get(`${API_PATH}/shelter`, { params });
             const data = response.data;

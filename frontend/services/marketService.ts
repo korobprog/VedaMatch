@@ -15,6 +15,7 @@ import {
     OrderCreateData,
     OrderStatus,
 } from '../types/market';
+import { getGodModeQueryParams } from './godModeService';
 
 class MarketService {
     private async getHeaders() {
@@ -86,7 +87,8 @@ class MarketService {
 
     async getShops(filters?: ShopFilters): Promise<{ shops: Shop[], total: number, page: number, totalPages: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/shops`, { params: filters });
+            const godModeParams = await getGodModeQueryParams();
+            const response = await axios.get(`${API_PATH}/shops`, { params: { ...(filters || {}), ...godModeParams } });
             return response.data;
         } catch (error) {
             console.error('Error fetching shops:', error);
@@ -189,7 +191,8 @@ class MarketService {
 
     async getProducts(filters?: ProductFilters): Promise<{ products: Product[], total: number, page: number, totalPages: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/products`, { params: filters });
+            const godModeParams = await getGodModeQueryParams();
+            const response = await axios.get(`${API_PATH}/products`, { params: { ...(filters || {}), ...godModeParams } });
             return response.data;
         } catch (error) {
             console.error('Error fetching products:', error);
@@ -210,7 +213,8 @@ class MarketService {
 
     async getShopProducts(shopId: number, page = 1, limit = 20): Promise<{ products: Product[], total: number, page: number, totalPages: number }> {
         try {
-            const response = await axios.get(`${API_PATH}/shops/${shopId}/products`, { params: { page, limit } });
+            const godModeParams = await getGodModeQueryParams();
+            const response = await axios.get(`${API_PATH}/shops/${shopId}/products`, { params: { page, limit, ...godModeParams } });
             return response.data;
         } catch (error) {
             console.error(`Error fetching products for shop ${shopId}:`, error);

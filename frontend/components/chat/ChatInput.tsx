@@ -7,7 +7,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     StyleSheet,
-    useColorScheme,
     Alert,
     ActivityIndicator,
     Vibration,
@@ -15,10 +14,12 @@ import {
     Animated,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { COLORS, MENU_OPTIONS, FRIEND_MENU_OPTIONS } from './ChatConstants';
+import { BlurView } from '@react-native-community/blur';
+import { MENU_OPTIONS, FRIEND_MENU_OPTIONS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useUser } from '../../context/UserContext';
+import { useSettings } from '../../context/SettingsContext';
 import { Image } from 'react-native';
 import { getMediaUrl } from '../../utils/url';
 import { mediaService, MediaFile } from '../../services/mediaService';
@@ -48,8 +49,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     } = useChat();
     const { sendTypingIndicator } = useWebSocket();
     const { user: currentUser } = useUser();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { vTheme } = useSettings();
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const {
@@ -217,18 +217,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-            style={[styles.inputWrapper, { backgroundColor: theme.header, borderTopColor: theme.borderColor }]}
+            style={[styles.inputWrapper, { backgroundColor: 'transparent' }]}
         >
             {/* Menu Pop-up */}
             {showMenu && (
-                <View style={[styles.menuPopup, { backgroundColor: theme.menuBackground, borderColor: theme.borderColor }]}>
+                <View style={[styles.menuPopup, { backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(255,183,77,0.3)' }]}>
+                    <BlurView
+                        style={StyleSheet.absoluteFill}
+                        blurType="dark"
+                        blurAmount={20}
+                    />
                     <View
                         style={[
                             styles.menuHeader,
-                            { borderBottomWidth: 1, borderBottomColor: theme.borderColor }
+                            { borderBottomWidth: 1, borderBottomColor: 'rgba(255,183,77,0.2)' }
                         ]}
                     >
-                        <Text style={{ color: theme.text, fontSize: 16, fontWeight: '700' }} numberOfLines={1}>
+                        <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }} numberOfLines={1}>
                             {recipientUser ? (recipientUser.spiritualName || recipientUser.karmicName) : t('chat.newChat')}
                         </Text>
                     </View>
@@ -241,14 +246,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             option === 'contacts.clearHistory';
 
                         const isDestructive = option.includes('block') || option.includes('report') || option.includes('clearHistory');
-                        const itemColor = isDestructive ? theme.error : theme.text;
+                        const itemColor = isDestructive ? '#F87171' : '#F8FAFC';
 
                         return (
                             <TouchableOpacity
                                 key={option}
                                 style={[
                                     styles.menuItem,
-                                    index < array.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: theme.borderColor },
+                                    index < array.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.16)' },
                                     !isImplemented && { opacity: 0.5 }
                                 ]}
                                 onPress={() => {
@@ -282,7 +287,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </View>
             )}
 
-            <View style={[styles.inputContainer, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}>
+            <View style={[
+                styles.inputContainer,
+                {
+                    backgroundColor: 'rgba(15,23,42,0.65)',
+                    borderColor: 'rgba(255,255,255,0.2)'
+                }
+            ]}>
+                <BlurView
+                    style={StyleSheet.absoluteFill}
+                    blurType="dark"
+                    blurAmount={15}
+                />
                 {isRecording ? (
                     // Spacer to maintain height, but content hidden
                     <View style={{ height: 48, flex: 1 }} />
@@ -296,21 +312,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 avatarUrl ? (
                                     <Image source={{ uri: avatarUrl }} style={styles.miniAvatar} />
                                 ) : (
-                                    <View style={[styles.miniAvatar, { backgroundColor: theme.button, justifyContent: 'center', alignItems: 'center' }]}>
-                                        <Text style={{ color: theme.buttonText, fontSize: 12, fontWeight: 'bold' }}>
+                                    <View style={[styles.miniAvatar, { backgroundColor: vTheme.colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
                                             {(recipientUser.spiritualName || recipientUser.karmicName || '?')[0]}
                                         </Text>
                                     </View>
                                 )
                             ) : (
-                                <Text style={[styles.plusText, { color: theme.subText }]}>•••</Text>
+                                <Text style={[styles.plusText, { color: 'rgba(248,250,252,0.8)' }]}>•••</Text>
                             )}
                         </TouchableOpacity>
 
                         <TextInput
-                            style={[styles.input, { color: theme.inputText }]}
+                            style={[styles.input, { color: '#F8FAFC' }]}
                             placeholder={t('chat.placeholder')}
-                            placeholderTextColor={theme.subText}
+                            placeholderTextColor="rgba(248,250,252,0.66)"
                             value={inputText}
                             onChangeText={handleTextChange}
                             onSubmitEditing={handleSendMessage}
@@ -329,11 +345,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         disabled={false} // Unblocked isUploading
                     >
                         {isUploading ? (
-                            <ActivityIndicator size="small" color={theme.iconColor} />
+                            <ActivityIndicator size="small" color="#FFB74D" />
                         ) : isLoading ? (
-                            <View style={{ width: 14, height: 14, backgroundColor: theme.iconColor, borderRadius: 2 }} />
+                            <View style={{ width: 14, height: 14, backgroundColor: '#FFB74D', borderRadius: 2 }} />
                         ) : (
-                            <Send size={24} color={theme.primary} />
+                            <Send size={24} color="#FFB74D" />
                         )}
                     </TouchableOpacity>
                 ) : (
@@ -345,7 +361,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             activeOpacity={1}
                             style={styles.sendButton}
                         >
-                            <Mic size={24} color={isRecording ? theme.error : theme.text} />
+                            <Mic size={24} color={isRecording ? '#F87171' : '#F8FAFC'} />
                         </TouchableOpacity>
                     </View>
                 )}
@@ -363,17 +379,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 const styles = StyleSheet.create({
     inputWrapper: {
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderTopWidth: 0.5,
+        paddingVertical: 10,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 24,
+        borderRadius: 26,
         paddingHorizontal: 12,
         paddingVertical: 6,
         minHeight: 48,
         borderWidth: 1,
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 3,
     },
     plusButton: {
         padding: 8,
@@ -410,7 +430,7 @@ const styles = StyleSheet.create({
     menuHeader: {
         paddingVertical: 16,
         paddingHorizontal: 16,
-        backgroundColor: 'rgba(0,0,0,0.03)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
     },
     input: {
         flex: 1,

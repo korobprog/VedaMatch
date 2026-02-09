@@ -47,6 +47,8 @@ interface PortalIconProps {
     badge?: number;
     onLayout?: (event: any) => void;
     showLabel?: boolean;
+    roleHighlight?: boolean;
+    mathBadge?: string;
 }
 
 const ICON_SIZES = {
@@ -85,6 +87,8 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     badge,
     onLayout,
     showLabel = true,
+    roleHighlight = false,
+    mathBadge,
 }) => {
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const rotation = useSharedValue(0);
@@ -158,7 +162,11 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                                     ? `${service.color}25`
                                     : `${service.color}15`,
                             borderColor: portalBackgroundType === 'image' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
-                            borderWidth: portalBackgroundType === 'image' ? 1.5 : 1,
+                            borderWidth: roleHighlight ? 2 : portalBackgroundType === 'image' ? 1.5 : 1,
+                            shadowColor: roleHighlight ? service.color : 'transparent',
+                            shadowOpacity: roleHighlight ? 0.35 : 0,
+                            shadowRadius: roleHighlight ? 8 : 0,
+                            shadowOffset: { width: 0, height: 2 },
                         },
                     ]}
                 >
@@ -176,21 +184,29 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                     )}
                 </View>
                 {showLabel && (
-                    <Text
-                        style={[
-                            styles.label,
-                            {
-                                fontSize: sizeConfig.fontSize,
-                                color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
-                                textShadowColor: 'rgba(0,0,0,0.75)',
-                                textShadowOffset: { width: 0, height: 1 },
-                                textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
-                            },
-                        ]}
-                        numberOfLines={1}
-                    >
-                        {service.label}
-                    </Text>
+                    <>
+                        <Text
+                            style={[
+                                styles.label,
+                                {
+                                    fontSize: sizeConfig.fontSize,
+                                    color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
+                                    textShadowColor: 'rgba(0,0,0,0.75)',
+                                    textShadowOffset: { width: 0, height: 1 },
+                                    textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
+                                    fontWeight: roleHighlight ? '700' : '500',
+                                },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {service.label}
+                        </Text>
+                        {mathBadge ? (
+                            <View style={styles.mathBadge}>
+                                <Text style={styles.mathBadgeText} numberOfLines={1}>{mathBadge}</Text>
+                            </View>
+                        ) : null}
+                    </>
                 )}
 
                 {/* Delete button in edit mode */}
@@ -246,6 +262,19 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 10,
         fontWeight: 'bold',
+    },
+    mathBadge: {
+        marginTop: 3,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 999,
+        backgroundColor: 'rgba(0,0,0,0.58)',
+        maxWidth: 90,
+    },
+    mathBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        textAlign: 'center',
     },
     deleteButton: {
         position: 'absolute',

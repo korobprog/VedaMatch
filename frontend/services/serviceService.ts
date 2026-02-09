@@ -3,6 +3,7 @@
  */
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { getGodModeQueryParams } from './godModeService';
 
 // ==================== TYPES ====================
 
@@ -246,6 +247,8 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
     if (filters.radiusKm !== undefined) params.append('radiusKm', filters.radiusKm.toString());
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
+    const godModeParams = await getGodModeQueryParams();
+    if (godModeParams.math) params.append('math', godModeParams.math);
 
     const queryString = params.toString();
     const url = `${API_PATH}/services${queryString ? '?' + queryString : ''}`;

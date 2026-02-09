@@ -50,6 +50,7 @@ type User struct {
 	AvatarURL          string   `json:"avatarUrl"`
 	LastSeen           string   `json:"lastSeen"` // Using string for ISO format or time.Time
 	Role               string   `json:"role" gorm:"default:'user'"`
+	GodModeEnabled     bool     `json:"godModeEnabled" gorm:"default:false"`
 	IsBlocked          bool     `json:"isBlocked" gorm:"default:false"`
 	IsFlagged          bool     `json:"isFlagged" gorm:"default:false"`
 	FlagReason         string   `json:"flagReason"`

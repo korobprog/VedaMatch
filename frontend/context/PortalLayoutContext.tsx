@@ -13,6 +13,8 @@ import {
     loadLocalLayout,
     saveLocalLayout,
     initializeLayout,
+    fetchPortalBlueprint,
+    fetchGodModeMathFilters,
     addItemToFolder,
     removeItemFromFolder,
     reorderItems,
@@ -20,6 +22,7 @@ import {
     createFolder,
     moveItemToQuickAccess,
 } from '../services/portalLayoutService';
+import { useUser } from './UserContext';
 
 interface PortalLayoutContextType {
     layout: PortalLayout;
@@ -63,6 +66,7 @@ interface PortalLayoutContextType {
 const PortalLayoutContext = createContext<PortalLayoutContextType | undefined>(undefined);
 
 export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const { user, setRoleDescriptor, setGodModeFilters, setActiveMath } = useUser();
     const [layout, setLayout] = useState<PortalLayout>(createDefaultLayout());
     const [isEditMode, setIsEditMode] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -70,9 +74,31 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     // Initialize layout on mount
     useEffect(() => {
+        if (!user?.ID) {
+            setRoleDescriptor(null);
+            setGodModeFilters([]);
+            setActiveMath(null);
+            setLayout(createDefaultLayout());
+            setIsLoading(false);
+            return;
+        }
+
         const init = async () => {
             try {
-                const savedLayout = await initializeLayout();
+                const role = user?.role || 'user';
+                const blueprint = await fetchPortalBlueprint(role);
+                setRoleDescriptor(blueprint);
+
+                if (user?.godModeEnabled) {
+                    const filters = await fetchGodModeMathFilters();
+                    setGodModeFilters(filters);
+                    setActiveMath(filters[0]?.mathId || null);
+                } else {
+                    setGodModeFilters([]);
+                    setActiveMath(null);
+                }
+
+                const savedLayout = await initializeLayout(role, blueprint);
                 setLayout(savedLayout);
             } catch (error) {
                 console.warn('Failed to initialize portal layout:', error);
@@ -81,7 +107,7 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             }
         };
         init();
-    }, []);
+    }, [setActiveMath, setGodModeFilters, setRoleDescriptor, user?.ID, user?.godModeEnabled, user?.role]);
 
     // Save layout whenever it changes
     const updateLayout = useCallback((newLayout: PortalLayout) => {

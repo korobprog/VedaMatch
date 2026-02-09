@@ -22,9 +22,11 @@ import Animated, {
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { X } from 'lucide-react-native';
 import { useSettings } from '../context/SettingsContext';
+import { useUser } from '../context/UserContext';
 import { PortalLayoutProvider } from '../context/PortalLayoutContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { PortalGrid } from './portal';
+import { RoleInfoModal } from './roles/RoleInfoModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.9;
@@ -41,7 +43,9 @@ export const PortalDrawer: React.FC<PortalDrawerProps> = ({
     onServicePress,
 }) => {
     const { vTheme } = useSettings();
+    const { roleDescriptor } = useUser();
     const [showContent, setShowContent] = useState(false);
+    const [showRoleInfo, setShowRoleInfo] = useState(false);
 
     // Animation values
     const drawerProgress = useSharedValue(0);
@@ -175,7 +179,7 @@ export const PortalDrawer: React.FC<PortalDrawerProps> = ({
                     >
                         {/* Header - always visible */}
                         <View style={[styles.header, { borderBottomColor: vTheme.colors.divider }]}>
-                            <Text style={[styles.title, { color: vTheme.colors.text }]}>
+                            <Text style={[styles.title, { color: vTheme.colors.text }]} onPress={() => setShowRoleInfo(true)}>
                                 Портал сервисов
                             </Text>
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -201,6 +205,12 @@ export const PortalDrawer: React.FC<PortalDrawerProps> = ({
                         </View>
                     </Animated.View>
                 </GestureDetector>
+                <RoleInfoModal
+                    visible={showRoleInfo}
+                    title={roleDescriptor?.title || 'Роль'}
+                    servicesHint={roleDescriptor?.servicesHint || []}
+                    onClose={() => setShowRoleInfo(false)}
+                />
             </GestureHandlerRootView>
         </Modal>
     );

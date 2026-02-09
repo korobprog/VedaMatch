@@ -3,6 +3,7 @@ package middleware
 import (
 	"log"
 	"os"
+	"rag-agent-server/internal/models"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -80,7 +81,7 @@ func Protected() fiber.Handler {
 		if role, ok := claims["role"].(string); ok {
 			c.Locals("userRole", role)
 		} else {
-			c.Locals("userRole", "user") // Default role
+			c.Locals("userRole", models.RoleUser) // Default role
 		}
 
 		return c.Next()
@@ -109,10 +110,10 @@ func GetUserID(c *fiber.Ctx) uint {
 func GetUserRole(c *fiber.Ctx) string {
 	role := c.Locals("userRole")
 	if role == nil {
-		return "user"
+		return models.RoleUser
 	}
 	if r, ok := role.(string); ok {
 		return r
 	}
-	return "user"
+	return models.RoleUser
 }

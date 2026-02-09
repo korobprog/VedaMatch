@@ -20,6 +20,7 @@ import { EducationCourse } from '../../../types/education';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'EducationHome'>;
 
@@ -88,6 +89,7 @@ export const EducationHomeScreen: React.FC = () => {
             style={[styles.container, { backgroundColor: vTheme.colors.background }]}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={vTheme.colors.primary} />}
         >
+            <GodModeStatusBanner />
             <View style={[styles.header, { backgroundColor: vTheme.colors.surface, borderBottomColor: vTheme.colors.divider }]}>
                 <Text style={[styles.headerTitle, { color: vTheme.colors.primary }]}>{t('education.title')}</Text>
                 <Text style={[styles.headerSub, { color: vTheme.colors.textSecondary }]}>{t('education.subtitle')}</Text>

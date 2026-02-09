@@ -35,6 +35,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import {
     BarChart2,
     Filter,
@@ -610,6 +611,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             <BarChart2 size={20} color={showStats ? '#F59E0B' : 'rgba(255,255,255,0.7)'} />
                         </TouchableOpacity>
                     </View>
+                    <GodModeStatusBanner />
 
                     <View style={styles.topActionScrollContainer}>
                         <ScrollView

@@ -194,6 +194,7 @@ func main() {
 	serviceHandler := handlers.NewServiceHandler()
 	bookingHandler := handlers.NewBookingHandler(bookingService, calendarService)
 	charityHandler := handlers.NewCharityHandler(charityService)
+	systemHandler := handlers.NewSystemHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -549,6 +550,8 @@ func main() {
 	// User Portal Layout Routes
 	protected.Get("/user/portal-layout", userHandler.GetPortalLayout)
 	protected.Put("/user/portal-layout", userHandler.SavePortalLayout)
+	protected.Get("/system/portal-blueprint/:role", systemHandler.GetPortalBlueprint)
+	protected.Get("/system/god-mode-math-filters", systemHandler.GetGodModeMathFilters)
 
 	// User Profile Route (public profile by ID)
 	protected.Get("/users/:id", userHandler.GetUserById)

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"log"
+	"rag-agent-server/internal/models"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -15,7 +16,7 @@ func AdminProtected() fiber.Handler {
 
 		log.Printf("[AdminMiddleware] Request: %s %s, Role: %s", method, path, role)
 
-		if role != "admin" && role != "superadmin" {
+		if !models.IsAdminRole(role) {
 			log.Printf("[AdminMiddleware] Forbidden access attempt by role: %s", role)
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Admin access required",

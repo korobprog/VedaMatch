@@ -37,6 +37,7 @@ import {
 import { cafeService } from '../../../services/cafeService';
 import { Cafe, CafeFilters } from '../../../types/cafe';
 import { useWallet } from '../../../context/WalletContext';
+import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -349,7 +350,12 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         data={cafes}
                         renderItem={renderCafeCard}
                         keyExtractor={item => item.id.toString()}
-                        ListHeaderComponent={renderHeader}
+                        ListHeaderComponent={
+                            <>
+                                <GodModeStatusBanner />
+                                {renderHeader()}
+                            </>
+                        }
                         contentContainerStyle={styles.listContent}
                         numColumns={2}
                         columnWrapperStyle={styles.columnWrapper}
@@ -710,4 +716,3 @@ const styles = StyleSheet.create({
 });
 
 export default CafeListScreen;
-
