@@ -213,33 +213,43 @@ export const MyOrdersScreen: React.FC = () => {
     return (
         <ProtectedScreen>
             <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
-                <FlatList
-                    data={loading ? [1, 2, 3] : orders}
-                    renderItem={loading ? renderSkeleton : renderOrder}
-                    keyExtractor={(item, index) => loading ? `skel-${index}` : item.ID.toString()}
-                    ListHeaderComponent={renderHeader}
-                    ListEmptyComponent={
-                        <EmptyState
-                            icon="📦"
-                            title="No Orders Yet"
-                            message="Your orders will appear here. Start exploring the marketplace to find something special!"
-                            actionLabel="Start Shopping"
-                            onAction={() => navigation.navigate('MarketHome')}
-                        />
-                    }
-                    ListFooterComponent={loadingMore ? (
-                        <View style={styles.loadingFooter}>
-                            <ActivityIndicator size="small" color={colors.primary} />
-                        </View>
-                    ) : null}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-                    onEndReached={onLoadMore}
-                    onEndReachedThreshold={0.5}
-                    contentContainerStyle={styles.listContent}
-                    // Optimization
-                    initialNumToRender={10}
-                    removeClippedSubviews={true}
-                />
+                {loading ? (
+                    <FlatList
+                        data={[1, 2, 3]}
+                        renderItem={renderSkeleton}
+                        keyExtractor={(_, index) => `skel-${index}`}
+                        ListHeaderComponent={renderHeader}
+                        contentContainerStyle={styles.listContent}
+                        removeClippedSubviews={true}
+                    />
+                ) : (
+                    <FlatList
+                        data={orders}
+                        renderItem={renderOrder}
+                        keyExtractor={(item) => item.ID.toString()}
+                        ListHeaderComponent={renderHeader}
+                        ListEmptyComponent={
+                            <EmptyState
+                                icon="📦"
+                                title="No Orders Yet"
+                                message="Your orders will appear here. Start exploring the marketplace to find something special!"
+                                actionLabel="Start Shopping"
+                                onAction={() => navigation.navigate('MarketHome')}
+                            />
+                        }
+                        ListFooterComponent={loadingMore ? (
+                            <View style={styles.loadingFooter}>
+                                <ActivityIndicator size="small" color={colors.primary} />
+                            </View>
+                        ) : null}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                        onEndReached={onLoadMore}
+                        onEndReachedThreshold={0.5}
+                        contentContainerStyle={styles.listContent}
+                        initialNumToRender={10}
+                        removeClippedSubviews={true}
+                    />
+                )}
             </View>
         </ProtectedScreen>
     );

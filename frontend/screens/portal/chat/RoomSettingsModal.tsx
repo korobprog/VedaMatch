@@ -664,6 +664,11 @@ const styles = StyleSheet.create({
         borderBottomWidth: 0.5,
         borderBottomColor: '#ccc',
     },
+    switchRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
     settingLabel: {
         fontSize: 16,
         fontWeight: '600',

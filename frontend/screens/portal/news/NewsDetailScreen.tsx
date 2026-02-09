@@ -32,7 +32,7 @@ export const NewsDetailScreen = () => {
     const navigation = useNavigation();
     const route = useRoute<NewsDetailRouteProp>();
     const { user } = useUser();
-    const { colors: roleColors } = useRoleTheme(user?.role, true);
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const lang = i18n.language === 'en' ? 'en' : 'ru';
 
     const { newsId } = route.params;
@@ -143,7 +143,7 @@ export const NewsDetailScreen = () => {
                     />
                 ) : (
                     <LinearGradient
-                        colors={isDarkMode ? ['#1e293b', '#334155'] : ['#e0e7ff', '#c7d2fe']}
+                        colors={[roleColors.accentSoft, roleColors.surfaceElevated]}
                         style={styles.heroImage}
                     >
                         <Text style={styles.placeholderEmoji}>📰</Text>
@@ -155,8 +155,8 @@ export const NewsDetailScreen = () => {
                     {/* Meta info */}
                     <View style={styles.metaContainer}>
                         {news.isImportant && (
-                            <View style={styles.importantBadge}>
-                                <Text style={styles.importantBadgeText}>
+                            <View style={[styles.importantBadge, { backgroundColor: roleColors.accent }]}>
+                                <Text style={[styles.importantBadgeText, { color: roleColors.background }]}>
                                     ⚡ {lang === 'en' ? 'Important' : 'Важное'}
                                 </Text>
                             </View>
@@ -189,10 +189,10 @@ export const NewsDetailScreen = () => {
                     <View style={[styles.divider, { backgroundColor: theme.borderColor }]} />
 
                     {/* Original Source Button (for Video/Audio) */}
-                    {news.originalUrl && (
+                    {typeof news.originalUrl === 'string' && news.originalUrl.length > 0 && (
                         <TouchableOpacity
                             style={[styles.sourceButton, { borderColor: roleColors.accent }]}
-                            onPress={() => Linking.openURL(news.originalUrl)}
+                            onPress={() => Linking.openURL(news.originalUrl as string)}
                         >
                             <Text style={[styles.sourceButtonText, { color: roleColors.accent }]}>
                                 {lang === 'en' ? '📺 View Original (Video/Audio)' : '📺 Перейти к источнику (Видео/Аудио)'}
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     importantBadge: {
-        backgroundColor: '#f59e0b',
+        backgroundColor: 'white',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     importantBadgeText: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#fff',
+        color: 'white',
     },
     date: {
         fontSize: 13,

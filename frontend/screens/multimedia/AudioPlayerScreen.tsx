@@ -33,6 +33,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import { audioPlayerService } from '../../services/audioPlayerService';
 import { MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +42,8 @@ export const AudioPlayerScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { roleTheme, colors } = useRoleTheme(user?.role, isDarkMode);
     const playbackState = usePlaybackState();
     const progress = useProgress();
     const { track } = route.params as { track: MediaTrack };
@@ -78,9 +82,9 @@ export const AudioPlayerScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" transparent />
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
             <LinearGradient
-                colors={isDarkMode ? ['#1e1e2d', '#2d1e2d'] : [vTheme.colors.primary, '#f0f4f8']}
+                colors={isDarkMode ? roleTheme.gradient : [roleTheme.accentStrong, colors.background]}
                 style={StyleSheet.absoluteFill}
             />
 
@@ -89,13 +93,13 @@ export const AudioPlayerScreen: React.FC = () => {
                 <View style={styles.header}>
                     <TouchableOpacity
                         onPress={() => navigation.goBack()}
-                        style={styles.iconButton}
+                        style={[styles.iconButton, { backgroundColor: colors.accentSoft }]}
                     >
-                        <ChevronDown size={28} color="#fff" />
+                        <ChevronDown size={28} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Сейчас играет</Text>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <MoreHorizontal size={24} color="#fff" />
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.accentSoft }]}>
+                        <MoreHorizontal size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
@@ -108,8 +112,8 @@ export const AudioPlayerScreen: React.FC = () => {
                                 style={styles.artwork}
                             />
                         ) : (
-                            <View style={[styles.artworkPlaceholder, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-                                <Music size={100} color="#fff" />
+                            <View style={[styles.artworkPlaceholder, { backgroundColor: colors.accentSoft }]}>
+                                <Music size={100} color={colors.textPrimary} />
                             </View>
                         )}
                     </View>
@@ -119,11 +123,11 @@ export const AudioPlayerScreen: React.FC = () => {
                 <View style={styles.infoContainer}>
                     <View style={styles.titleRow}>
                         <View style={{ flex: 1 }}>
-                            <Text style={[styles.title, { color: '#fff' }]} numberOfLines={1}>{track.title}</Text>
-                            <Text style={[styles.artist, { color: 'rgba(255,255,255,0.7)' }]}>{track.artist || 'Неизвестный исполнитель'}</Text>
+                            <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{track.title}</Text>
+                            <Text style={[styles.artist, { color: colors.textSecondary }]}>{track.artist || 'Неизвестный исполнитель'}</Text>
                         </View>
                         <TouchableOpacity style={styles.favButton}>
-                            <Heart size={28} color="#fff" />
+                            <Heart size={28} color={colors.textPrimary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -135,57 +139,57 @@ export const AudioPlayerScreen: React.FC = () => {
                         value={progress.position}
                         minimumValue={0}
                         maximumValue={progress.duration}
-                        thumbTintColor="#fff"
-                        minimumTrackTintColor="#fff"
-                        maximumTrackTintColor="rgba(255,255,255,0.3)"
+                        thumbTintColor={colors.accent}
+                        minimumTrackTintColor={colors.accent}
+                        maximumTrackTintColor={colors.border}
                         onSlidingComplete={handleSeek}
                     />
                     <View style={styles.timeRow}>
-                        <Text style={styles.timeText}>{formatTime(progress.position)}</Text>
-                        <Text style={styles.timeText}>{formatTime(progress.duration)}</Text>
+                        <Text style={[styles.timeText, { color: colors.textSecondary }]}>{formatTime(progress.position)}</Text>
+                        <Text style={[styles.timeText, { color: colors.textSecondary }]}>{formatTime(progress.duration)}</Text>
                     </View>
                 </View>
 
                 {/* Controls */}
                 <View style={styles.controlsContainer}>
                     <TouchableOpacity>
-                        <Shuffle size={24} color="rgba(255,255,255,0.6)" />
+                        <Shuffle size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={() => TrackPlayer.skipToPrevious()}>
-                        <SkipBack size={36} color="#fff" fill="#fff" />
+                        <SkipBack size={36} color={colors.textPrimary} fill={colors.textPrimary} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
+                    <TouchableOpacity style={[styles.playButton, { backgroundColor: colors.surfaceElevated }]} onPress={togglePlayback}>
                         {isPlaying ? (
-                            <Pause size={36} color={vTheme.colors.primary} fill={vTheme.colors.primary} />
+                            <Pause size={36} color={colors.accent} fill={colors.accent} />
                         ) : (
-                            <Play size={36} color={vTheme.colors.primary} fill={vTheme.colors.primary} style={{ marginLeft: 4 }} />
+                            <Play size={36} color={colors.accent} fill={colors.accent} style={{ marginLeft: 4 }} />
                         )}
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={() => TrackPlayer.skipToNext()}>
-                        <SkipForward size={36} color="#fff" fill="#fff" />
+                        <SkipForward size={36} color={colors.textPrimary} fill={colors.textPrimary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity>
-                        <Repeat size={24} color="rgba(255,255,255,0.6)" />
+                        <Repeat size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
                 {/* Volume bar to fix overlapping issues */}
                 <View style={styles.footer}>
-                    <View style={[styles.volumeContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                        <Volume2 size={18} color={isDarkMode ? '#fff' : vTheme.colors.text} style={{ opacity: 0.6 }} />
+                    <View style={[styles.volumeContainer, { backgroundColor: colors.accentSoft }]}>
+                        <Volume2 size={18} color={colors.textPrimary} style={{ opacity: 0.8 }} />
                         <Slider
                             style={styles.volumeSlider}
                             minimumValue={0}
                             maximumValue={1}
                             value={volume}
                             onValueChange={handleVolumeChange}
-                            minimumTrackTintColor={vTheme.colors.primary}
-                            maximumTrackTintColor={isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}
-                            thumbTintColor={vTheme.colors.primary}
+                            minimumTrackTintColor={colors.accent}
+                            maximumTrackTintColor={colors.border}
+                            thumbTintColor={colors.accent}
                         />
                     </View>
                 </View>
@@ -220,12 +224,11 @@ const styles = StyleSheet.create({
         borderRadius: 22,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
     },
     headerTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#fff',
+        color: 'white',
         textTransform: 'uppercase',
         letterSpacing: 1.2,
     },
@@ -238,7 +241,7 @@ const styles = StyleSheet.create({
     artworkWrapper: {
         borderRadius: 30,
         overflow: 'hidden',
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
     },
     artwork: {
         width: width * 0.8,
@@ -286,7 +289,6 @@ const styles = StyleSheet.create({
     },
     timeText: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.6)',
         fontWeight: '600',
     },
     controlsContainer: {
@@ -299,7 +301,6 @@ const styles = StyleSheet.create({
     playButton: {
         width: 84,
         height: 84,
-        backgroundColor: '#fff',
         borderRadius: 42,
         alignItems: 'center',
         justifyContent: 'center',
@@ -316,7 +317,6 @@ const styles = StyleSheet.create({
     volumeContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
         paddingHorizontal: 15,
         borderRadius: 20,
     },
@@ -326,7 +326,5 @@ const styles = StyleSheet.create({
         marginLeft: 10,
     },
 });
-
-export default AudioPlayerScreen;
 
 export default AudioPlayerScreen;

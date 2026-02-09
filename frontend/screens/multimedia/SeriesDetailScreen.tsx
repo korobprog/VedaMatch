@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     Image,
     Dimensions,
-    FlatList,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
@@ -15,6 +14,8 @@ import {
     Clock, Eye, Layers, Calendar, Share2, Heart
 } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { multimediaService } from '../../services/multimediaService';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -55,7 +56,9 @@ interface Series {
 export const SeriesDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { vTheme } = useSettings();
+    const { isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const [series, setSeries] = useState<Series>(route.params?.series);
     const [selectedSeason, setSelectedSeason] = useState<number>(1);
     const [expandedDescription, setExpandedDescription] = useState(false);
@@ -108,33 +111,33 @@ export const SeriesDetailScreen: React.FC = () => {
 
     const renderEpisode = ({ item, index }: { item: Episode; index: number }) => (
         <TouchableOpacity
-            style={[styles.episodeCard, { backgroundColor: vTheme.colors.surface }]}
+            style={[styles.episodeCard, { backgroundColor: colors.surfaceElevated }]}
             onPress={() => handlePlayEpisode(item)}
             activeOpacity={0.8}
         >
             <View style={styles.episodeLeft}>
-                <View style={[styles.episodeNumber, { backgroundColor: `${vTheme.colors.primary}15` }]}>
-                    <Text style={[styles.episodeNumberText, { color: vTheme.colors.primary }]}>
+                <View style={[styles.episodeNumber, { backgroundColor: colors.accentSoft }]}>
+                    <Text style={[styles.episodeNumberText, { color: colors.accent }]}>
                         {item.number}
                     </Text>
                 </View>
                 <View style={styles.episodeInfo}>
-                    <Text style={[styles.episodeTitle, { color: vTheme.colors.text }]} numberOfLines={1}>
+                    <Text style={[styles.episodeTitle, { color: colors.textPrimary }]} numberOfLines={1}>
                         {cleanTitle(item.title, item.number)}
                     </Text>
                     <View style={styles.episodeMeta}>
                         {item.duration > 0 && (
                             <View style={styles.metaItem}>
-                                <Clock size={12} color={vTheme.colors.textSecondary} />
-                                <Text style={[styles.metaText, { color: vTheme.colors.textSecondary }]}>
+                                <Clock size={12} color={colors.textSecondary} />
+                                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
                                     {formatDuration(item.duration)}
                                 </Text>
                             </View>
                         )}
                         {item.viewCount > 0 && (
                             <View style={styles.metaItem}>
-                                <Eye size={12} color={vTheme.colors.textSecondary} />
-                                <Text style={[styles.metaText, { color: vTheme.colors.textSecondary }]}>
+                                <Eye size={12} color={colors.textSecondary} />
+                                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
                                     {item.viewCount}
                                 </Text>
                             </View>
@@ -142,50 +145,50 @@ export const SeriesDetailScreen: React.FC = () => {
                     </View>
                 </View>
             </View>
-            <View style={[styles.playButton, { backgroundColor: vTheme.colors.primary }]}>
-                <Play size={16} color="#fff" fill="#fff" />
+            <View style={[styles.playButton, { backgroundColor: colors.accent }]}>
+                <Play size={16} color="white" fill="white" />
             </View>
         </TouchableOpacity>
     );
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             {/* Hero Section */}
             <View style={styles.hero}>
                 {series.coverImageURL ? (
                     <Image source={{ uri: series.coverImageURL }} style={styles.heroImage} />
                 ) : (
-                    <View style={[styles.heroPlaceholder, { backgroundColor: vTheme.colors.primary }]} />
+                    <View style={[styles.heroPlaceholder, { backgroundColor: colors.accent }]} />
                 )}
 
                 {/* Gradient overlay */}
                 <LinearGradient
-                    colors={['transparent', vTheme.colors.background]}
+                    colors={['transparent', colors.background]}
                     style={styles.heroGradient}
                 />
 
                 {/* Back button */}
                 <TouchableOpacity
-                    style={[styles.backButton, { backgroundColor: 'rgba(0,0,0,0.3)' }]}
+                    style={[styles.backButton, { backgroundColor: colors.overlay }]}
                     onPress={() => navigation.goBack()}
                 >
-                    <ArrowLeft size={24} color="#fff" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
 
                 {/* Actions */}
                 <View style={styles.heroActions}>
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: 'rgba(0,0,0,0.3)' }]}
+                        style={[styles.actionButton, { backgroundColor: colors.overlay }]}
                         onPress={() => setIsFavorite(!isFavorite)}
                     >
                         <Heart
                             size={20}
-                            color={isFavorite ? '#ff6b6b' : '#fff'}
-                            fill={isFavorite ? '#ff6b6b' : 'transparent'}
+                            color={isFavorite ? colors.danger : colors.textPrimary}
+                            fill={isFavorite ? colors.danger : 'transparent'}
                         />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, { backgroundColor: 'rgba(0,0,0,0.3)' }]}>
-                        <Share2 size={20} color="#fff" />
+                    <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.overlay }]}>
+                        <Share2 size={20} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -196,26 +199,26 @@ export const SeriesDetailScreen: React.FC = () => {
             >
                 {/* Title & Meta */}
                 <View style={styles.titleSection}>
-                    <Text style={[styles.title, { color: vTheme.colors.text }]}>{series.title}</Text>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>{series.title}</Text>
 
                     <View style={styles.metaRow}>
                         {series.year && (
                             <View style={styles.metaItem}>
-                                <Calendar size={14} color={vTheme.colors.textSecondary} />
-                                <Text style={[styles.metaText, { color: vTheme.colors.textSecondary }]}>{series.year}</Text>
+                                <Calendar size={14} color={colors.textSecondary} />
+                                <Text style={[styles.metaText, { color: colors.textSecondary }]}>{series.year}</Text>
                             </View>
                         )}
                         {series.seasons && (
                             <View style={styles.metaItem}>
-                                <Layers size={14} color={vTheme.colors.textSecondary} />
-                                <Text style={[styles.metaText, { color: vTheme.colors.textSecondary }]}>
+                                <Layers size={14} color={colors.textSecondary} />
+                                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
                                     {series.seasons.length} сезонов
                                 </Text>
                             </View>
                         )}
                         {series.genre && (
-                            <View style={[styles.genreBadge, { backgroundColor: `${vTheme.colors.accent}20` }]}>
-                                <Text style={[styles.genreText, { color: vTheme.colors.accent }]}>{series.genre}</Text>
+                            <View style={[styles.genreBadge, { backgroundColor: colors.accentSoft }]}>
+                                <Text style={[styles.genreText, { color: colors.accent }]}>{series.genre}</Text>
                             </View>
                         )}
                     </View>
@@ -229,20 +232,20 @@ export const SeriesDetailScreen: React.FC = () => {
                         activeOpacity={0.8}
                     >
                         <Text
-                            style={[styles.description, { color: vTheme.colors.textSecondary }]}
+                            style={[styles.description, { color: colors.textSecondary }]}
                             numberOfLines={expandedDescription ? undefined : 3}
                         >
                             {series.description}
                         </Text>
                         {series.description.length > 150 && (
                             <View style={styles.expandRow}>
-                                <Text style={[styles.expandText, { color: vTheme.colors.primary }]}>
+                                <Text style={[styles.expandText, { color: colors.accent }]}>
                                     {expandedDescription ? 'Свернуть' : 'Развернуть'}
                                 </Text>
                                 {expandedDescription ? (
-                                    <ChevronUp size={16} color={vTheme.colors.primary} />
+                                    <ChevronUp size={16} color={colors.accent} />
                                 ) : (
-                                    <ChevronDown size={16} color={vTheme.colors.primary} />
+                                    <ChevronDown size={16} color={colors.accent} />
                                 )}
                             </View>
                         )}
@@ -263,19 +266,19 @@ export const SeriesDetailScreen: React.FC = () => {
                                 style={[
                                     styles.seasonTab,
                                     selectedSeason === season.number && {
-                                        backgroundColor: vTheme.colors.primary,
+                                        backgroundColor: colors.accent,
                                     },
                                     selectedSeason !== season.number && {
-                                        backgroundColor: vTheme.colors.surface,
+                                        backgroundColor: colors.surface,
                                         borderWidth: 1,
-                                        borderColor: vTheme.colors.divider,
+                                        borderColor: colors.border,
                                     }
                                 ]}
                                 onPress={() => setSelectedSeason(season.number)}
                             >
                                 <Text style={[
                                     styles.seasonTabText,
-                                    { color: selectedSeason === season.number ? '#fff' : vTheme.colors.text }
+                                    { color: selectedSeason === season.number ? 'white' : colors.textPrimary }
                                 ]}>
                                     Сезон {season.number}
                                 </Text>
@@ -286,10 +289,10 @@ export const SeriesDetailScreen: React.FC = () => {
 
                 {/* Episodes Header */}
                 <View style={styles.episodesHeader}>
-                    <Text style={[styles.episodesTitle, { color: vTheme.colors.text }]}>
+                    <Text style={[styles.episodesTitle, { color: colors.textPrimary }]}>
                         Серии
                     </Text>
-                    <Text style={[styles.episodesCount, { color: vTheme.colors.textSecondary }]}>
+                    <Text style={[styles.episodesCount, { color: colors.textSecondary }]}>
                         {episodes.length} эпизодов
                     </Text>
                 </View>
@@ -304,7 +307,7 @@ export const SeriesDetailScreen: React.FC = () => {
 
                     {episodes.length === 0 && (
                         <View style={styles.emptyEpisodes}>
-                            <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                                 Серии ещё не добавлены
                             </Text>
                         </View>

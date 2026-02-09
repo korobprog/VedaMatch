@@ -42,6 +42,7 @@ import {
 } from '../../../services/bookingService';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { useSettings } from '../../../context/SettingsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -56,7 +57,8 @@ const FILTER_TABS: { key: FilterTab; label: string }[] = [
 export default function IncomingBookingsScreen() {
     const navigation = useNavigation<any>();
     const { user } = useUser();
-    const { colors, roleTheme } = useRoleTheme(user?.role, true);
+    const { isDarkMode } = useSettings();
+    const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
 
     const [bookings, setBookings] = useState<ServiceBooking[]>([]);
     const [loading, setLoading] = useState(true);
@@ -229,67 +231,67 @@ export default function IncomingBookingsScreen() {
                         </Text>
                     </View>
                     {soon && (
-                        <View style={styles.soonBadge}>
+                        <View style={[styles.soonBadge, { backgroundColor: colors.accentSoft }]}>
                             <Sparkles size={10} color={colors.accent} />
-                            <Text style={styles.soonText}>Срочно</Text>
+                            <Text style={[styles.soonText, { color: colors.accent }]}>Срочно</Text>
                         </View>
                     )}
                     <TouchableOpacity style={styles.moreButton} onPress={() => handleOpenChat(booking)}>
-                        <MessageCircle size={18} color="rgba(255,255,255,0.4)" />
+                        <MessageCircle size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.cardBody}>
-                    <Text style={styles.serviceName} numberOfLines={1}>
+                    <Text style={[styles.serviceName, { color: colors.textPrimary }]} numberOfLines={1}>
                         {booking.service?.title || 'Услуга'}
                     </Text>
 
-                    <View style={styles.clientRow}>
+                    <View style={[styles.clientRow, { backgroundColor: colors.surface }]}>
                         <View style={styles.avatarContainer}>
                             {booking.client?.avatar ? (
                                 <Image source={{ uri: booking.client.avatar }} style={styles.clientAvatar} />
                             ) : (
-                                <View style={styles.clientAvatarPlaceholder}>
-                                    <User size={16} color="rgba(245, 158, 11, 0.4)" />
+                                <View style={[styles.clientAvatarPlaceholder, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+                                    <User size={16} color={colors.accent} />
                                 </View>
                             )}
-                            <View style={[styles.onlineStatus, { backgroundColor: '#4CAF50' }]} />
+                            <View style={[styles.onlineStatus, { backgroundColor: colors.success, borderColor: colors.background }]} />
                         </View>
                         <View style={styles.clientInfo}>
-                            <Text style={styles.clientName}>
+                            <Text style={[styles.clientName, { color: colors.textPrimary }]}>
                                 {booking.client?.karmicName || 'Клиент'}
                             </Text>
-                            <Text style={styles.clientMeta}>
+                            <Text style={[styles.clientMeta, { color: colors.textSecondary }]}>
                                 {booking.client?.spiritualName || 'Духовное имя не указано'}
                             </Text>
                         </View>
                     </View>
                 </View>
 
-                <View style={styles.infoRow}>
+                <View style={[styles.infoRow, { backgroundColor: colors.surface }]}>
                     <View style={styles.infoItem}>
                         <Calendar size={14} color={colors.accent} />
-                        <Text style={styles.infoText}>{formatDate(booking.scheduledAt)}</Text>
+                        <Text style={[styles.infoText, { color: colors.textPrimary }]}>{formatDate(booking.scheduledAt)}</Text>
                     </View>
                     <View style={styles.infoItem}>
                         <Clock size={14} color={colors.accent} />
-                        <Text style={styles.infoText}>{formatTime(booking.scheduledAt)}</Text>
+                        <Text style={[styles.infoText, { color: colors.textPrimary }]}>{formatTime(booking.scheduledAt)}</Text>
                     </View>
                     <View style={styles.priceContainer}>
-                        <Text style={styles.price}>{booking.pricePaid} ₵</Text>
+                        <Text style={[styles.price, { color: colors.accent }]}>{booking.pricePaid} ₵</Text>
                     </View>
                 </View>
 
                 <View style={styles.tariffRow}>
-                    <Text style={styles.tariffText}>
+                    <Text style={[styles.tariffText, { color: colors.textSecondary }]}>
                         {booking.tariff?.name || 'Тариф'} • {formatDuration(booking.durationMinutes)}
                     </Text>
                 </View>
 
                 {booking.clientNote && (
-                    <View style={styles.noteSection}>
-                        <Text style={styles.noteLabel}>Заметка клиента:</Text>
-                        <Text style={styles.noteText}>{booking.clientNote}</Text>
+                    <View style={[styles.noteSection, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+                        <Text style={[styles.noteLabel, { color: colors.accent }]}>Заметка клиента:</Text>
+                        <Text style={[styles.noteText, { color: colors.textSecondary }]}>{booking.clientNote}</Text>
                     </View>
                 )}
 
@@ -301,52 +303,52 @@ export default function IncomingBookingsScreen() {
                     {booking.status === 'pending' && (
                         <>
                             <TouchableOpacity
-                                style={[styles.confirmButton, isProcessing && { opacity: 0.5 }]}
+                                style={[styles.confirmButton, { backgroundColor: colors.accent }, isProcessing && { opacity: 0.5 }]}
                                 onPress={() => handleConfirm(booking)}
                                 disabled={isProcessing}
                             >
                                 {isProcessing ? (
-                                    <ActivityIndicator size="small" color="#000" />
+                                    <ActivityIndicator size="small" color={colors.background} />
                                 ) : (
                                     <>
-                                        <CheckCircle size={18} color="#000" />
-                                        <Text style={styles.confirmButtonText}>Принять</Text>
+                                        <CheckCircle size={18} color={colors.background} />
+                                        <Text style={[styles.confirmButtonText, { color: colors.background }]}>Принять</Text>
                                     </>
                                 )}
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={styles.rejectButton}
+                                style={[styles.rejectButton, { borderColor: colors.danger, backgroundColor: colors.accentSoft }]}
                                 onPress={() => handleReject(booking)}
                                 disabled={isProcessing}
                             >
-                                <XCircle size={18} color="#F44336" />
+                                <XCircle size={18} color={colors.danger} />
                             </TouchableOpacity>
                         </>
                     )}
 
                     {booking.status === 'confirmed' && !past && (
-                        <TouchableOpacity style={styles.startButton} onPress={() => handleOpenChat(booking)}>
-                            <Video size={18} color="#000" />
-                            <Text style={styles.startButtonText}>Начать сессию</Text>
+                        <TouchableOpacity style={[styles.startButton, { backgroundColor: colors.surfaceElevated }]} onPress={() => handleOpenChat(booking)}>
+                            <Video size={18} color={colors.background} />
+                            <Text style={[styles.startButtonText, { color: colors.background }]}>Начать сессию</Text>
                         </TouchableOpacity>
                     )}
 
                     {booking.status === 'confirmed' && past && (
                         <>
                             <TouchableOpacity
-                                style={[styles.confirmButton, isProcessing && { opacity: 0.5 }]}
+                                style={[styles.confirmButton, { backgroundColor: colors.accent }, isProcessing && { opacity: 0.5 }]}
                                 onPress={() => handleComplete(booking)}
                                 disabled={isProcessing}
                             >
-                                <CheckCircle size={18} color="#000" />
-                                <Text style={styles.confirmButtonText}>Завершить</Text>
+                                <CheckCircle size={18} color={colors.background} />
+                                <Text style={[styles.confirmButtonText, { color: colors.background }]}>Завершить</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={styles.rejectButton}
+                                style={[styles.rejectButton, { borderColor: colors.danger, backgroundColor: colors.accentSoft }]}
                                 onPress={() => handleNoShow(booking)}
                                 disabled={isProcessing}
                             >
-                                <XCircle size={18} color="#F44336" />
+                                <XCircle size={18} color={colors.danger} />
                             </TouchableOpacity>
                         </>
                     )}
@@ -358,12 +360,12 @@ export default function IncomingBookingsScreen() {
     const renderEmptyState = () => (
         <View style={styles.emptyContainer}>
             <View style={styles.emptyIconCircle}>
-                <LayoutGrid size={48} color="rgba(255, 255, 255, 0.05)" />
+                <LayoutGrid size={48} color={colors.textSecondary} />
             </View>
-            <Text style={styles.emptyTitle}>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
                 {activeFilter === 'pending' ? 'Ожидание пусто' : activeFilter === 'confirmed' ? 'Нет планов' : 'Тишина'}
             </Text>
-            <Text style={styles.emptySubtitle}>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
                 Здесь появятся новые запросы от ваших последователей.
             </Text>
         </View>
@@ -378,23 +380,23 @@ export default function IncomingBookingsScreen() {
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle}>Входящие записи</Text>
-                        <Text style={styles.headerSubtitle}>Управление вашим расписанием</Text>
+                        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Управление вашим расписанием</Text>
                     </View>
-                    <View style={styles.countBadge}>
-                        <Text style={styles.countText}>{bookings.length}</Text>
+                    <View style={[styles.countBadge, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+                        <Text style={[styles.countText, { color: colors.accent }]}>{bookings.length}</Text>
                     </View>
                 </View>
 
                 <View style={styles.filterContainer}>
                     {FILTER_TABS.map((tab) => {
                         const isActive = activeFilter === tab.key;
-                        const iconColor = isActive ? '#0a0a14' : 'rgba(255, 255, 255, 0.4)';
+                        const iconColor = isActive ? colors.background : colors.textSecondary;
 
                         return (
                             <TouchableOpacity
                                 key={tab.key}
                                 activeOpacity={0.8}
-                                style={[styles.filterTab, isActive && styles.filterTabActive]}
+                                style={[styles.filterTab, isActive && { ...styles.filterTabActive, backgroundColor: colors.accent, borderColor: colors.accent }]}
                                 onPress={() => setActiveFilter(tab.key)}
                             >
                                 {tab.key === 'pending' && <Clock size={20} color={iconColor} strokeWidth={2.5} />}
@@ -459,7 +461,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(245, 158, 11, 0.2)',
     },
-    countText: { color: '#F59E0B', fontSize: 13, fontWeight: '800' },
+    countText: { color: 'white', fontSize: 13, fontWeight: '800' },
     filterContainer: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 12 },
     filterTab: {
         flex: 1,
@@ -470,7 +472,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.05)',
     },
-    filterTabActive: { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
+    filterTabActive: { backgroundColor: 'white', borderColor: 'white' },
     filterText: { color: 'rgba(255, 255, 255, 0.4)', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     filterTextActive: { color: '#000' },
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -499,7 +501,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 4,
     },
-    soonText: { color: '#F59E0B', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
+    soonText: { color: 'white', fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
     moreButton: {
         marginLeft: 'auto',
         width: 40,
@@ -524,7 +526,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(245, 158, 11, 0.1)',
     },
-    onlineStatus: { position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#0a0a14' },
+    onlineStatus: { position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: 'transparent' },
     clientInfo: { flex: 1 },
     clientName: { color: '#fff', fontSize: 16, fontWeight: '700' },
     clientMeta: { color: 'rgba(255, 255, 255, 0.4)', fontSize: 12, marginTop: 2 },
@@ -540,7 +542,7 @@ const styles = StyleSheet.create({
     infoItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     infoText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     priceContainer: { marginLeft: 'auto' },
-    price: { color: '#F59E0B', fontSize: 18, fontWeight: '900' },
+    price: { color: 'white', fontSize: 18, fontWeight: '900' },
     tariffRow: { marginBottom: 20, paddingHorizontal: 4 },
     tariffText: { color: 'rgba(255, 255, 255, 0.3)', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
     noteSection: {
@@ -551,7 +553,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(245, 158, 11, 0.1)',
     },
-    noteLabel: { color: '#F59E0B', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 6 },
+    noteLabel: { color: 'white', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 6 },
     noteText: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 14, lineHeight: 22 },
     actionsGrid: { flexDirection: 'row', gap: 12 },
     chatButton: {
@@ -564,7 +566,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.05)',
     },
-    confirmButton: { flex: 1, flexDirection: 'row', height: 52, borderRadius: 16, backgroundColor: '#F59E0B', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    confirmButton: { flex: 1, flexDirection: 'row', height: 52, borderRadius: 16, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', gap: 10 },
     confirmButtonText: { color: '#000', fontSize: 15, fontWeight: '800' },
     rejectButton: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(244, 67, 54, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(244, 67, 54, 0.2)' },
     startButton: { flex: 1, flexDirection: 'row', height: 52, borderRadius: 16, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', gap: 10 },

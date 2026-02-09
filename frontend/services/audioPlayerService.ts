@@ -18,9 +18,7 @@ class AudioPlayerService {
         if (this.isInitialized) return;
 
         try {
-            await TrackPlayer.setupPlayer({
-                autoHandleDeviceAppearance: true,
-            });
+            await TrackPlayer.setupPlayer();
 
             await TrackPlayer.updateOptions({
                 android: {

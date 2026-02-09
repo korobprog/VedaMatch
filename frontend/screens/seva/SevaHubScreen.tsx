@@ -109,7 +109,7 @@ const SevaHubScreen: React.FC = () => {
             ? Math.min(item.raisedAmount / item.goalAmount, 1)
             : 0;
 
-        const isPaused = item.nextReportDue && new Date(item.nextReportDue) < new Date();
+        const isPaused = Boolean(item.nextReportDue && new Date(item.nextReportDue) < new Date());
 
         return (
             <View style={[styles.card, isPaused && { opacity: 0.8 }]}>

@@ -65,7 +65,7 @@ describe('PortalMainScreen', () => {
       />
     );
 
-    expect(getByText('Режим Бога: фильтры матхов')).toBeTruthy();
+    expect(getByText('Режим PRO: фильтры матхов')).toBeTruthy();
     expect(getByText('Преданный')).toBeTruthy();
   });
 });

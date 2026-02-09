@@ -153,7 +153,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         }
 
         const isSeeker = (user?.role || 'user') === 'user';
-        const seekerAllowedWithoutProfile = ['chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education'];
+        const seekerAllowedWithoutProfile = ['contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education'];
         const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
 
         if (!user?.isProfileComplete && !canUseWithoutCompleteProfile) {

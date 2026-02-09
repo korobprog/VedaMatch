@@ -16,15 +16,18 @@ import {
     Loader2,
     ArrowLeft,
     Heart,
-    Trash2,
     HeartOff,
 } from 'lucide-react-native';
 import { multimediaService, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const FavoritesScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [tracks, setTracks] = useState<MediaTrack[]>([]);
@@ -80,15 +83,15 @@ export const FavoritesScreen: React.FC = () => {
 
     const renderTrack = ({ item }: { item: MediaTrack }) => (
         <TouchableOpacity
-            style={[styles.trackCard, { borderBottomColor: vTheme.colors.divider }]}
+            style={[styles.trackCard, { borderBottomColor: roleColors.border }]}
             onPress={() => navigation.navigate('AudioPlayer', { track: item })}
         >
             <View style={styles.thumbContainer}>
                 {item.thumbnailUrl ? (
                     <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
                 ) : (
-                    <View style={[styles.thumbPlaceholder, { backgroundColor: `${vTheme.colors.primary}20` }]}>
-                        <Music size={24} color={vTheme.colors.primary} />
+                    <View style={[styles.thumbPlaceholder, { backgroundColor: roleColors.accentSoft }]}>
+                        <Music size={24} color={roleColors.accent} />
                     </View>
                 )}
                 <View style={styles.playOverlay}>
@@ -97,13 +100,13 @@ export const FavoritesScreen: React.FC = () => {
             </View>
 
             <View style={styles.trackInfo}>
-                <Text style={[styles.title, { color: vTheme.colors.text }]} numberOfLines={1}>
+                <Text style={[styles.title, { color: roleColors.textPrimary }]} numberOfLines={1}>
                     {item.title}
                 </Text>
-                <Text style={[styles.artist, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>
+                <Text style={[styles.artist, { color: roleColors.textSecondary }]} numberOfLines={1}>
                     {item.artist || 'Неизвестный исполнитель'}
                 </Text>
-                <Text style={[styles.duration, { color: vTheme.colors.textSecondary }]}>
+                <Text style={[styles.duration, { color: roleColors.textSecondary }]}>
                     {multimediaService.formatDuration(item.duration)}
                 </Text>
             </View>
@@ -114,25 +117,25 @@ export const FavoritesScreen: React.FC = () => {
                 disabled={removingId === item.ID}
             >
                 {removingId === item.ID ? (
-                    <Loader2 size={20} color="#EF4444" />
+                    <Loader2 size={20} color={roleColors.danger} />
                 ) : (
-                    <Heart size={20} color="#EF4444" fill="#EF4444" />
+                    <Heart size={20} color={roleColors.danger} fill={roleColors.danger} />
                 )}
             </TouchableOpacity>
         </TouchableOpacity>
     );
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: roleColors.background }]}>
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+            <View style={[styles.header, { backgroundColor: roleColors.background }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={vTheme.colors.text} />
+                    <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Избранное</Text>
+                    <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Избранное</Text>
                     {total > 0 && (
-                        <Text style={[styles.headerSubtitle, { color: vTheme.colors.textSecondary }]}>
+                        <Text style={[styles.headerSubtitle, { color: roleColors.textSecondary }]}>
                             {total} {total === 1 ? 'трек' : total < 5 ? 'трека' : 'треков'}
                         </Text>
                     )}
@@ -142,27 +145,27 @@ export const FavoritesScreen: React.FC = () => {
 
             {loading ? (
                 <View style={styles.center}>
-                    <Loader2 size={32} color={vTheme.colors.primary} />
-                    <Text style={[styles.loadingText, { color: vTheme.colors.textSecondary }]}>
+                    <Loader2 size={32} color={roleColors.accent} />
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>
                         Загрузка избранного...
                     </Text>
                 </View>
             ) : tracks.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                    <View style={[styles.emptyIconContainer, { backgroundColor: `${vTheme.colors.primary}15` }]}>
-                        <HeartOff size={48} color={vTheme.colors.primary} />
+                    <View style={[styles.emptyIconContainer, { backgroundColor: roleColors.accentSoft }]}>
+                        <HeartOff size={48} color={roleColors.accent} />
                     </View>
-                    <Text style={[styles.emptyTitle, { color: vTheme.colors.text }]}>
+                    <Text style={[styles.emptyTitle, { color: roleColors.textPrimary }]}>
                         Нет избранных треков
                     </Text>
-                    <Text style={[styles.emptyDescription, { color: vTheme.colors.textSecondary }]}>
+                    <Text style={[styles.emptyDescription, { color: roleColors.textSecondary }]}>
                         Нажмите на сердечко рядом с треком, чтобы добавить его сюда
                     </Text>
                     <TouchableOpacity
-                        style={[styles.exploreButton, { backgroundColor: vTheme.colors.primary }]}
+                        style={[styles.exploreButton, { backgroundColor: roleColors.accent }]}
                         onPress={() => navigation.navigate('Audio')}
                     >
-                        <Music size={18} color="#fff" />
+                        <Music size={18} color="white" />
                         <Text style={styles.exploreButtonText}>Перейти к аудио</Text>
                     </TouchableOpacity>
                 </View>
@@ -176,7 +179,7 @@ export const FavoritesScreen: React.FC = () => {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={() => { setRefreshing(true); loadData(); }}
-                            tintColor={vTheme.colors.primary}
+                            tintColor={roleColors.accent}
                         />
                     }
                 />

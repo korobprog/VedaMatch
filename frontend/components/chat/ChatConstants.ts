@@ -40,6 +40,8 @@ export const COLORS = {
         button: '#8D6E63',     // Match registration
         buttonText: '#FFFFFF',
         card: '#FFFFFF',
+        glass: 'rgba(255, 255, 255, 0.7)',
+        glassBorder: 'rgba(203, 213, 225, 0.9)',
     },
 };
 

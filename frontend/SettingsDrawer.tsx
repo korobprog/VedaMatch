@@ -230,7 +230,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                                         </Text>
                                         {user?.godModeEnabled ? (
                                             <Text style={[styles.userStatus, { color: vTheme.colors.textSecondary }]}>
-                                                Режим бога: включён
+                                                Режим PRO: включён
                                             </Text>
                                         ) : null}
                                     </View>

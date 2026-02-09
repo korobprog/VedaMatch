@@ -13,7 +13,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { educationService } from '../../../services/educationService';
-import { EducationCourse, EducationModule } from '../../../types/education';
+import { EducationCourse } from '../../../types/education';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../../context/SettingsContext';
 import { BookOpen, ChevronRight } from 'lucide-react-native';
@@ -30,7 +30,7 @@ export const CourseDetailsScreen: React.FC = () => {
     const { t } = useTranslation();
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
-    const { colors: roleColors } = useRoleTheme(user?.role, true);
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
 
     const [course, setCourse] = useState<EducationCourse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -65,11 +65,19 @@ export const CourseDetailsScreen: React.FC = () => {
         );
     }
 
+    const scriptureBook = (course as EducationCourse & {
+        scripture_book?: {
+            code?: string;
+            name_ru?: string;
+            name_en?: string;
+        };
+    }).scripture_book;
+
     const handleOpenBook = () => {
-        if (course.scripture_book) {
+        if (scriptureBook?.code) {
             navigation.navigate('Reader', {
-                bookCode: course.scripture_book.code,
-                title: course.scripture_book.name_ru || course.scripture_book.name_en
+                bookCode: scriptureBook.code,
+                title: scriptureBook.name_ru || scriptureBook.name_en || course.title,
             });
         }
     };
@@ -82,7 +90,7 @@ export const CourseDetailsScreen: React.FC = () => {
                     <Text style={[styles.title, { color: vTheme.colors.text }]}>{course.title}</Text>
                     <Text style={[styles.description, { color: vTheme.colors.textSecondary }]}>{course.description}</Text>
 
-                    {course.scripture_book && (
+                    {scriptureBook && (
                         <TouchableOpacity
                             style={[styles.bookButton, { backgroundColor: vTheme.colors.primary + '10', borderColor: vTheme.colors.primary + '30' }]}
                             onPress={handleOpenBook}

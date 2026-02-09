@@ -4,21 +4,24 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    Dimensions,
     SafeAreaView,
     ActivityIndicator,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Maximize, RotateCcw, Play, Pause } from 'lucide-react-native';
+import { ArrowLeft, Play, Pause } from 'lucide-react-native';
 import Video from 'react-native-video';
 import { WebView } from 'react-native-webview';
 import { MediaTrack } from '../../services/multimediaService';
-
-const { width, height } = Dimensions.get('window');
+import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const VideoPlayerScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation();
+    const { isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { video } = route.params as { video: MediaTrack };
     const [paused, setPaused] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -92,12 +95,12 @@ export const VideoPlayerScreen: React.FC = () => {
                     <View style={styles.controlsOverlay}>
                         <TouchableOpacity
                             onPress={() => setPaused(!paused)}
-                            style={styles.playButton}
+                            style={[styles.playButton, { backgroundColor: colors.overlay }]}
                         >
                             {paused ? (
-                                <Play size={40} color="#fff" fill="rgba(255,255,255,0.7)" />
+                                <Play size={40} color={colors.textPrimary} fill={colors.textPrimary} />
                             ) : (
-                                <Pause size={40} color="#fff" fill="rgba(255,255,255,0.7)" />
+                                <Pause size={40} color={colors.textPrimary} fill={colors.textPrimary} />
                             )}
                         </TouchableOpacity>
                     </View>
@@ -107,41 +110,41 @@ export const VideoPlayerScreen: React.FC = () => {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             {/* Header */}
             <SafeAreaView style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#fff" />
+                    <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerInfo}>
-                    <Text style={styles.title} numberOfLines={1}>{video.title}</Text>
-                    <Text style={styles.artist}>{video.artist || 'Неизвестный автор'}</Text>
+                    <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{video.title}</Text>
+                    <Text style={[styles.artist, { color: colors.textSecondary }]}>{video.artist || 'Неизвестный автор'}</Text>
                 </View>
             </SafeAreaView>
 
             {/* Player Container */}
-            <View style={styles.playerContainer}>
+            <View style={[styles.playerContainer, { backgroundColor: colors.overlay }]}>
                 {error ? (
                     <View style={styles.errorContainer}>
-                        <Text style={styles.errorText}>{error}</Text>
-                        <Text style={styles.errorUrlText} numberOfLines={2}>{video.url}</Text>
+                        <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+                        <Text style={[styles.errorUrlText, { color: colors.textSecondary }]} numberOfLines={2}>{video.url}</Text>
                     </View>
                 ) : (
                     renderPlayer()
                 )}
                 {loading && !error && (
-                    <View style={styles.loader}>
-                        <ActivityIndicator size="large" color="#6366F1" />
+                    <View style={[styles.loader, { backgroundColor: colors.overlay }]}>
+                        <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 )}
             </View>
 
             {/* Info & Description */}
-            <View style={styles.details}>
-                <Text style={styles.description}>{video.description || 'Нет описания'}</Text>
+            <View style={[styles.details, { backgroundColor: colors.surfaceElevated }]}>
+                <Text style={[styles.description, { color: colors.textPrimary }]}>{video.description || 'Нет описания'}</Text>
                 <View style={styles.statsRow}>
-                    <Text style={styles.statsText}>👁️ {video.viewCount} просмотров</Text>
-                    <Text style={styles.statsText}>❤️ {video.likeCount} отметок</Text>
+                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>👁️ {video.viewCount} просмотров</Text>
+                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>❤️ {video.likeCount} отметок</Text>
                 </View>
             </View>
         </View>
@@ -151,7 +154,6 @@ export const VideoPlayerScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
     },
     header: {
         flexDirection: 'row',
@@ -168,18 +170,15 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
     title: {
-        color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
     },
     artist: {
-        color: 'rgba(255,255,255,0.7)',
         fontSize: 12,
     },
     playerContainer: {
         width: '100%',
         height: 250,
-        backgroundColor: '#111',
         marginTop: 20,
     },
     video: {
@@ -193,24 +192,21 @@ const styles = StyleSheet.create({
     webview: {
         width: '100%',
         height: '100%',
-        backgroundColor: '#000',
     },
     loader: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.5)',
         zIndex: 2,
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        backgroundColor: 'rgba(2,6,23,0.35)',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1,
     },
     playButton: {
-        backgroundColor: 'rgba(0,0,0,0.5)',
         width: 80,
         height: 80,
         borderRadius: 40,
@@ -221,7 +217,6 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     description: {
-        color: '#E5E7EB',
         fontSize: 14,
         lineHeight: 20,
     },
@@ -231,7 +226,6 @@ const styles = StyleSheet.create({
         gap: 20,
     },
     statsText: {
-        color: '#9CA3AF',
         fontSize: 12,
     },
     errorContainer: {
@@ -241,13 +235,11 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     errorText: {
-        color: '#EF4444',
         fontSize: 14,
         textAlign: 'center',
         marginBottom: 8,
     },
     errorUrlText: {
-        color: '#6B7280',
         fontSize: 10,
         textAlign: 'center',
     },

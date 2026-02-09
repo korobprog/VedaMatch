@@ -19,7 +19,7 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Режим Бога: фильтры матхов</Text>
+      <Text style={styles.title}>Режим PRO: фильтры матхов</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mathRow}>
         {filters.map((item) => {
           const selected = item.mathId === active.mathId;

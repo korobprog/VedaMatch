@@ -10,13 +10,11 @@ import {
     TextInput,
     ScrollView,
     Alert,
-    Animated,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
     Music,
     Search,
-    Filter,
     PlayCircle,
     Loader2,
     ArrowLeft,
@@ -24,10 +22,14 @@ import {
 } from 'lucide-react-native';
 import { multimediaService, MediaTrack, MediaCategory } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const AudioScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [tracks, setTracks] = useState<MediaTrack[]>([]);
@@ -120,26 +122,26 @@ export const AudioScreen: React.FC = () => {
 
         return (
             <TouchableOpacity
-                style={[styles.trackCard, { borderBottomColor: vTheme.colors.divider }]}
+                style={[styles.trackCard, { borderBottomColor: roleColors.border }]}
                 onPress={() => navigation.navigate('AudioPlayer', { track: item })}
             >
                 <View style={styles.thumbContainer}>
                     {item.thumbnailUrl ? (
                         <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
                     ) : (
-                        <View style={[styles.thumbPlaceholder, { backgroundColor: `${vTheme.colors.primary}20` }]}>
-                            <Music size={24} color={vTheme.colors.primary} />
+                        <View style={[styles.thumbPlaceholder, { backgroundColor: roleColors.accentSoft }]}>
+                            <Music size={24} color={roleColors.accent} />
                         </View>
                     )}
                     <View style={styles.playOverlay}>
-                        <PlayCircle size={24} color="#fff" />
+                        <PlayCircle size={24} color="white" />
                     </View>
                 </View>
 
                 <View style={styles.trackInfo}>
-                    <Text style={[styles.title, { color: vTheme.colors.text }]} numberOfLines={1}>{item.title}</Text>
-                    <Text style={[styles.artist, { color: vTheme.colors.textSecondary }]} numberOfLines={1}>{item.artist || 'Неизвестный исполнитель'}</Text>
-                    <Text style={[styles.duration, { color: vTheme.colors.textSecondary }]}>{multimediaService.formatDuration(item.duration)}</Text>
+                    <Text style={[styles.title, { color: roleColors.textPrimary }]} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[styles.artist, { color: roleColors.textSecondary }]} numberOfLines={1}>{item.artist || 'Неизвестный исполнитель'}</Text>
+                    <Text style={[styles.duration, { color: roleColors.textSecondary }]}>{multimediaService.formatDuration(item.duration)}</Text>
                 </View>
 
                 <TouchableOpacity
@@ -148,12 +150,12 @@ export const AudioScreen: React.FC = () => {
                     disabled={isToggling}
                 >
                     {isToggling ? (
-                        <Loader2 size={20} color={vTheme.colors.primary} />
+                        <Loader2 size={20} color={roleColors.accent} />
                     ) : (
                         <Heart
                             size={20}
-                            color={isFavorite ? '#EF4444' : vTheme.colors.textSecondary}
-                            fill={isFavorite ? '#EF4444' : 'transparent'}
+                            color={isFavorite ? roleColors.danger : roleColors.textSecondary}
+                            fill={isFavorite ? roleColors.danger : 'transparent'}
                         />
                     )}
                 </TouchableOpacity>
@@ -162,24 +164,24 @@ export const AudioScreen: React.FC = () => {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+        <View style={[styles.container, { backgroundColor: roleColors.background }]}>
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: vTheme.colors.background }]}>
+            <View style={[styles.header, { backgroundColor: roleColors.background }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={vTheme.colors.text} />
+                    <ArrowLeft size={24} color={roleColors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: vTheme.colors.text }]}>Аудио Библиотека</Text>
+                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Аудио Библиотека</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             {/* Search Bar */}
             <View style={styles.searchSection}>
-                <View style={[styles.searchContainer, { backgroundColor: vTheme.colors.surface, ...vTheme.shadows.soft }]}>
-                    <Search size={20} color={vTheme.colors.textSecondary} style={styles.searchIcon} />
+                <View style={[styles.searchContainer, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border, ...vTheme.shadows.soft }]}>
+                    <Search size={20} color={roleColors.textSecondary} style={styles.searchIcon} />
                     <TextInput
-                        style={[styles.searchInput, { color: vTheme.colors.text }]}
+                        style={[styles.searchInput, { color: roleColors.textPrimary }]}
                         placeholder="Поиск бхаджанов, лекций..."
-                        placeholderTextColor={vTheme.colors.textSecondary}
+                        placeholderTextColor={roleColors.textSecondary}
                         value={search}
                         onChangeText={setSearch}
                         onSubmitEditing={handleSearch}
@@ -194,22 +196,26 @@ export const AudioScreen: React.FC = () => {
                     <TouchableOpacity
                         style={[
                             styles.categoryChip,
-                            !selectedMadh ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                            !selectedMadh
+                                ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                         ]}
                         onPress={() => setSelectedMadh(undefined)}
                     >
-                        <Text style={[styles.categoryText, !selectedMadh ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>Все Традиции</Text>
+                        <Text style={[styles.categoryText, !selectedMadh ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>Все Традиции</Text>
                     </TouchableOpacity>
                     {MADH_OPTIONS.map((m) => (
                         <TouchableOpacity
                             key={m.id}
                             style={[
                                 styles.categoryChip,
-                                selectedMadh === m.id ? { backgroundColor: `${vTheme.colors.accent}33`, borderColor: vTheme.colors.accent } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                                selectedMadh === m.id
+                                    ? { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                    : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                             ]}
                             onPress={() => setSelectedMadh(m.id)}
                         >
-                            <Text style={[styles.categoryText, selectedMadh === m.id ? { color: vTheme.colors.accent } : { color: vTheme.colors.textSecondary }]}>
+                            <Text style={[styles.categoryText, selectedMadh === m.id ? { color: roleColors.accent } : { color: roleColors.textSecondary }]}>
                                 {m.label}
                             </Text>
                         </TouchableOpacity>
@@ -223,22 +229,26 @@ export const AudioScreen: React.FC = () => {
                     <TouchableOpacity
                         style={[
                             styles.categoryChip,
-                            !selectedCategory ? { backgroundColor: vTheme.colors.primary, borderColor: vTheme.colors.primary } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                            !selectedCategory
+                                ? { backgroundColor: roleColors.accent, borderColor: roleColors.accent }
+                                : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                         ]}
                         onPress={() => setSelectedCategory(undefined)}
                     >
-                        <Text style={[styles.categoryText, !selectedCategory ? { color: '#fff' } : { color: vTheme.colors.textSecondary }]}>Все Категории</Text>
+                        <Text style={[styles.categoryText, !selectedCategory ? { color: 'white' } : { color: roleColors.textSecondary }]}>Все Категории</Text>
                     </TouchableOpacity>
                     {categories.map((cat) => (
                         <TouchableOpacity
                             key={cat.ID}
                             style={[
                                 styles.categoryChip,
-                                selectedCategory === cat.ID ? { backgroundColor: vTheme.colors.primary, borderColor: vTheme.colors.primary } : { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }
+                                selectedCategory === cat.ID
+                                    ? { backgroundColor: roleColors.accent, borderColor: roleColors.accent }
+                                    : { backgroundColor: roleColors.surface, borderColor: roleColors.border }
                             ]}
                             onPress={() => setSelectedCategory(cat.ID)}
                         >
-                            <Text style={[styles.categoryText, selectedCategory === cat.ID ? { color: '#fff' } : { color: vTheme.colors.textSecondary }]}>
+                            <Text style={[styles.categoryText, selectedCategory === cat.ID ? { color: 'white' } : { color: roleColors.textSecondary }]}>
                                 {cat.name}
                             </Text>
                         </TouchableOpacity>
@@ -248,8 +258,8 @@ export const AudioScreen: React.FC = () => {
 
             {loading ? (
                 <View style={styles.center}>
-                    <Loader2 size={32} color={vTheme.colors.primary} />
-                    <Text style={[styles.loadingText, { color: vTheme.colors.textSecondary }]}>Загрузка аудио...</Text>
+                    <Loader2 size={32} color={roleColors.accent} />
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка аудио...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -258,12 +268,12 @@ export const AudioScreen: React.FC = () => {
                     keyExtractor={(item) => item.ID.toString()}
                     contentContainerStyle={styles.list}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={vTheme.colors.primary} />
+                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={roleColors.accent} />
                     }
                     ListEmptyComponent={
                         <View style={styles.center}>
-                            <Music size={48} color={vTheme.colors.textSecondary} style={{ opacity: 0.3 }} />
-                            <Text style={[styles.emptyText, { color: vTheme.colors.textSecondary }]}>Ничего не найдено</Text>
+                            <Music size={48} color={roleColors.textSecondary} style={{ opacity: 0.3 }} />
+                            <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>Ничего не найдено</Text>
                         </View>
                     }
                 />
@@ -275,7 +285,6 @@ export const AudioScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
     },
     header: {
         flexDirection: 'row',
@@ -284,7 +293,6 @@ const styles = StyleSheet.create({
         paddingTop: 50,
         paddingBottom: 15,
         paddingHorizontal: 16,
-        backgroundColor: '#fff',
     },
     backButton: {
         width: 40,
@@ -295,7 +303,6 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#111827',
     },
     searchSection: {
         paddingHorizontal: 16,
@@ -304,9 +311,9 @@ const styles = StyleSheet.create({
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F3F4F6',
         borderRadius: 12,
         paddingHorizontal: 12,
+        borderWidth: 1,
     },
     searchIcon: {
         marginRight: 8,
@@ -315,7 +322,6 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 45,
         fontSize: 14,
-        color: '#111827',
     },
     categoriesSection: {
         paddingBottom: 12,
@@ -328,21 +334,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: '#F3F4F6',
         borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    categoryChipActive: {
-        backgroundColor: '#6366F1',
-        borderColor: '#6366F1',
     },
     categoryText: {
         fontSize: 13,
-        color: '#4B5563',
         fontWeight: '500',
-    },
-    categoryTextActive: {
-        color: '#fff',
     },
     list: {
         paddingHorizontal: 16,
@@ -352,7 +348,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
         alignItems: 'center',
     },
     thumbContainer: {
@@ -369,7 +364,6 @@ const styles = StyleSheet.create({
     thumbPlaceholder: {
         width: '100%',
         height: '100%',
-        backgroundColor: '#EEF2FF',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -386,17 +380,14 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#111827',
         marginBottom: 2,
     },
     artist: {
         fontSize: 13,
-        color: '#6B7280',
         marginBottom: 2,
     },
     duration: {
         fontSize: 11,
-        color: '#9CA3AF',
     },
     favButton: {
         padding: 8,
@@ -410,12 +401,10 @@ const styles = StyleSheet.create({
     loadingText: {
         marginTop: 12,
         fontSize: 14,
-        color: '#6B7280',
     },
     emptyText: {
         marginTop: 12,
         fontSize: 16,
-        color: '#9CA3AF',
         textAlign: 'center',
     },
 });
