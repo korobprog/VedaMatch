@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    ActivityIndicator,
     ScrollView,
     SafeAreaView
 } from 'react-native';
@@ -35,33 +34,46 @@ export const CourseDetailsScreen: React.FC = () => {
 
     const [course, setCourse] = useState<EducationCourse | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const loadDetails = async () => {
+        try {
+            setError(null);
+            setLoading(true);
+            const data = await educationService.getCourseDetails(courseId);
+            setCourse(data);
+        } catch (error) {
+            console.error('Error loading course details:', error);
+            setError(t('education.loadError'));
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const loadDetails = async () => {
-            try {
-                const data = await educationService.getCourseDetails(courseId);
-                setCourse(data);
-            } catch (error) {
-                console.error('Error loading course details:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
         loadDetails();
     }, [courseId]);
 
     if (loading) {
         return (
-            <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <ActivityIndicator size="large" color={roleColors.accent} />
+            <View style={[styles.container, { backgroundColor: vTheme.colors.background, padding: 20 }]}>
+                <View style={[styles.header, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+                    <View style={[styles.skeletonLine, { width: 120, backgroundColor: roleColors.border }]} />
+                    <View style={[styles.skeletonLine, { width: '80%', marginTop: 10, height: 26, backgroundColor: roleColors.border }]} />
+                    <View style={[styles.skeletonLine, { width: '100%', marginTop: 12, height: 14, backgroundColor: roleColors.border }]} />
+                    <View style={[styles.skeletonLine, { width: '92%', marginTop: 8, height: 14, backgroundColor: roleColors.border }]} />
+                </View>
             </View>
         );
     }
 
-    if (!course) {
+    if (error || !course) {
         return (
             <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <Text style={{ color: vTheme.colors.text }}>{t('education.courseNotFound')}</Text>
+                <Text style={{ color: vTheme.colors.text, marginBottom: 12 }}>{error || t('education.courseNotFound')}</Text>
+                <TouchableOpacity style={[styles.bookButton, { backgroundColor: roleColors.accentSoft, borderColor: roleColors.border }]} onPress={loadDetails}>
+                    <Text style={[styles.bookButtonText, { color: roleColors.accent }]}>{t('common.retry') || 'Повторить'}</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -228,5 +240,10 @@ const styles = StyleSheet.create({
     arrow: {
         fontSize: 20,
         marginLeft: 10,
-    }
+    },
+    skeletonLine: {
+        height: 12,
+        borderRadius: 8,
+        opacity: 0.6,
+    },
 });

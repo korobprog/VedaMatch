@@ -87,31 +87,52 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
     const isImageBackground = effectiveBgType === 'image' && Boolean(effectiveBg);
     const isGradientBackground = effectiveBgType === 'gradient' && Boolean(effectiveBg);
 
-    // Cross-fade animation for slideshow
+    // Cross-fade animation for slideshow (double-buffer approach)
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const [displayedBg, setDisplayedBg] = useState(effectiveBg);
     const [nextBg, setNextBg] = useState<string | null>(null);
+    const isTransitioning = useRef(false);
 
     useEffect(() => {
-        if (!isSlideshowEnabled || effectiveBg === displayedBg) return;
+        if (!isSlideshowEnabled || effectiveBg === displayedBg || isTransitioning.current) return;
 
-        setNextBg(effectiveBg);
-        fadeAnim.setValue(0);
-        Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-        }).start(() => {
-            setDisplayedBg(effectiveBg);
-            setNextBg(null);
-        });
+        // Preload image before starting transition
+        const startTransition = () => {
+            isTransitioning.current = true;
+            setNextBg(effectiveBg);
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 1000,
+                useNativeDriver: true,
+            }).start(() => {
+                // First update displayed bg (bottom layer now shows new image)
+                setDisplayedBg(effectiveBg);
+                // Wait one frame before removing top layer to avoid flash
+                requestAnimationFrame(() => {
+                    setNextBg(null);
+                    fadeAnim.setValue(1);
+                    isTransitioning.current = false;
+                });
+            });
+        };
+
+        if (effectiveBg && effectiveBg.startsWith('http')) {
+            Image.prefetch(effectiveBg)
+                .then(() => startTransition())
+                .catch(() => startTransition());
+        } else {
+            startTransition();
+        }
     }, [effectiveBg, isSlideshowEnabled]);
 
-    // When slideshow disabled, update immediately
+    // When slideshow disabled, update immediately without animation
     useEffect(() => {
         if (!isSlideshowEnabled) {
+            isTransitioning.current = false;
             setDisplayedBg(effectiveBg);
             setNextBg(null);
+            fadeAnim.setValue(1);
         }
     }, [isSlideshowEnabled, effectiveBg]);
 
@@ -127,11 +148,6 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         if (!isGradientBackground || !effectiveBg) return undefined;
         return effectiveBg.split('|').filter(Boolean);
     }, [isGradientBackground, effectiveBg]);
-
-    useEffect(() => {
-        if (!isImageBackground || !effectiveBg || !effectiveBg.startsWith('http')) return;
-        Image.prefetch(effectiveBg).catch(() => { });
-    }, [isImageBackground, effectiveBg]);
 
     const renderWithBackground = useCallback((children: React.ReactNode) => {
         if (isImageBackground && backgroundImageSource) {

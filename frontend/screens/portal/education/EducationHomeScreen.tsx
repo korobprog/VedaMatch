@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    ActivityIndicator,
     RefreshControl,
     ScrollView,
 } from 'react-native';
@@ -33,14 +32,17 @@ export const EducationHomeScreen: React.FC = () => {
     const [courses, setCourses] = useState<EducationCourse[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const loadCourses = async () => {
         try {
-            setLoading(true);
+            setError(null);
+            if (!refreshing) setLoading(true);
             const data = await educationService.getCourses();
             setCourses(data);
         } catch (error) {
             console.error('Error loading courses:', error);
+            setError(t('education.loadError'));
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -98,8 +100,26 @@ export const EducationHomeScreen: React.FC = () => {
 
     if (loading && !refreshing) {
         return (
-            <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <ActivityIndicator size="large" color={roleColors.accent} />
+            <View style={[styles.container, { backgroundColor: roleColors.background }]}>
+                <View style={[styles.hero, { backgroundColor: roleColors.surfaceElevated, borderBottomColor: roleColors.border }]}>
+                    <View style={[styles.heroBadge, { backgroundColor: roleColors.accentSoft }]}>
+                        <Sparkles size={14} color={roleColors.accent} />
+                        <Text style={[styles.heroBadgeText, { color: roleColors.accent }]}>Education Hub</Text>
+                    </View>
+                    <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>{t('education.title')}</Text>
+                    <Text style={[styles.headerSub, { color: roleColors.textSecondary }]}>{t('education.subtitle')}</Text>
+                </View>
+                <View style={styles.section}>
+                    {[1, 2, 3].map((idx) => (
+                        <View
+                            key={idx}
+                            style={[
+                                styles.skeletonCard,
+                                { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border },
+                            ]}
+                        />
+                    ))}
+                </View>
             </View>
         );
     }
@@ -132,7 +152,21 @@ export const EducationHomeScreen: React.FC = () => {
 
             <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: roleColors.textPrimary }]}>{t('education.allCourses')}</Text>
-                {otherCourses.length > 0 ? (
+                {error ? (
+                    <View style={[styles.emptyState, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+                        <Text style={[styles.emptyTitle, { color: roleColors.textPrimary }]}>{error}</Text>
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            style={[styles.emptyCta, { backgroundColor: roleColors.accent }]}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                loadCourses();
+                            }}
+                        >
+                            <Text style={styles.emptyCtaText}>{t('common.retry') || 'Повторить'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : otherCourses.length > 0 ? (
                     otherCourses.map(course => (
                         <View key={course.ID}>
                             {renderCourseItem({ item: course })}
@@ -296,5 +330,12 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 14,
         fontWeight: '700',
+    },
+    skeletonCard: {
+        height: 108,
+        borderRadius: 18,
+        borderWidth: 1,
+        marginBottom: 14,
+        opacity: 0.65,
     },
 });

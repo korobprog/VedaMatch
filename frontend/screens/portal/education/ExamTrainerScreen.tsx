@@ -40,15 +40,17 @@ export const ExamTrainerScreen: React.FC = () => {
     const [answers, setAnswers] = useState<Record<number, number>>({});
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<UserExamAttempt | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadExams = async () => {
             try {
+                setError(null);
                 const data = await educationService.getModuleExams(moduleId);
                 setQuestions(data);
             } catch (error) {
                 console.error('Error loading exams:', error);
-                Alert.alert(t('common.error'), t('education.loadError'));
+                setError(t('education.loadError'));
             } finally {
                 setLoading(false);
             }
@@ -81,8 +83,33 @@ export const ExamTrainerScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <View style={[styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <ActivityIndicator size="large" color={roleColors.accent} />
+            <View style={[styles.container, { backgroundColor: vTheme.colors.background, padding: 20 }]}>
+                <View style={[styles.skeletonBlock, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]} />
+                <View style={[styles.skeletonBlock, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border, height: 72 }]} />
+                <View style={[styles.skeletonBlock, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border, height: 72 }]} />
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={[styles.center, styles.padding, { backgroundColor: vTheme.colors.background }]}>
+                <Text style={[styles.resultTitle, { color: vTheme.colors.text }]}>{error}</Text>
+                <TouchableOpacity
+                    activeOpacity={0.88}
+                    style={[styles.primaryButton, { backgroundColor: roleColors.accent, marginTop: 12 }]}
+                    onPress={() => {
+                        triggerTapFeedback();
+                        setLoading(true);
+                        setError(null);
+                        educationService.getModuleExams(moduleId)
+                            .then(setQuestions)
+                            .catch(() => setError(t('education.loadError')))
+                            .finally(() => setLoading(false));
+                    }}
+                >
+                    <Text style={styles.primaryButtonText}>{t('common.retry') || 'Повторить'}</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -375,5 +402,12 @@ const styles = StyleSheet.create({
     resultBadgeText: {
         fontSize: 13,
         fontWeight: '700',
+    },
+    skeletonBlock: {
+        height: 96,
+        borderRadius: 16,
+        borderWidth: 1,
+        opacity: 0.65,
+        marginBottom: 12,
     },
 });
