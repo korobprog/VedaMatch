@@ -19,7 +19,7 @@ import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
-import { KrishnaAssistant } from './components/KrishnaAssistant';
+// KrishnaAssistant removed - now in Portal header
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
@@ -448,7 +448,6 @@ const AppContent = () => {
             {isLoggedIn && (
               <>
                 <MiniPlayer />
-                <KrishnaAssistant />
               </>
             )}
             <SettingsDrawer

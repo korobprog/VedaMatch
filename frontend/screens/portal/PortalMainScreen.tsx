@@ -59,12 +59,18 @@ import { TravelHomeScreen } from './travel';
 import { ServicesHomeScreen } from './services';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useChat } from '../../context/ChatContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
 import { PortalLayoutProvider, usePortalLayout } from '../../context/PortalLayoutContext';
 import { PortalGrid } from '../../components/portal';
 import { BalancePill } from '../../components/wallet/BalancePill';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
+
+// Assistant avatar images
+import peacockAssistant from '../../assets/peacockAssistant.png';
+import krishnaAssistant from '../../assets/krishnaAssistant.png';
+import nanoBanano from '../../assets/nano_banano.png';
 
 
 const { width } = Dimensions.get('window');
@@ -75,7 +81,34 @@ type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'n
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
-    const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType, activeWallpaper, isSlideshowEnabled } = useSettings();
+    const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType, activeWallpaper, isSlideshowEnabled, assistantType } = useSettings();
+    const { handleNewChat } = useChat();
+
+    // Animations for assistant button
+    const shimmerAnim = useRef(new Animated.Value(-60)).current;
+    const rippleAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        // Shimmer loop
+        Animated.loop(
+            Animated.timing(shimmerAnim, {
+                toValue: 60,
+                duration: 2500,
+                useNativeDriver: true,
+            })
+        ).start();
+
+        // Ripple/Wave loop
+        Animated.loop(
+            Animated.timing(rippleAnim, {
+                toValue: 1,
+                duration: 2000,
+                useNativeDriver: true,
+            })
+        ).start();
+    }, []);
+
+    const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [showRoleInfo, setShowRoleInfo] = useState(false);
@@ -285,52 +318,168 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                             <TouchableOpacity
                                 onPress={() => navigation.navigate('InviteFriends')}
-                                style={styles.iconButton}
+                                style={[
+                                    styles.headerCircularButton,
+                                    {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                                        borderColor: 'rgba(255, 255, 255, 0.4)',
+                                    },
+                                ]}
                             >
-                                <Gift size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="light"
+                                    blurAmount={12}
+                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                />
+                                <Gift size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={effectiveBgType === 'image'} />
-                        </View>
-                    </View>
-
-                    <View style={styles.logoContainer}>
-                        <View style={styles.logoRow}>
                             <TouchableOpacity
                                 onPress={() => navigation.navigate('VideoCirclesScreen')}
                                 activeOpacity={0.9}
                                 style={[
-                                    styles.circlesHeaderButton,
+                                    styles.headerCircularButton,
                                     {
-                                        backgroundColor: (effectiveBgType === 'image' || isDarkMode)
-                                            ? 'rgba(255,255,255,0.14)'
-                                            : vTheme.colors.backgroundSecondary,
-                                        borderColor: (effectiveBgType === 'image' || isDarkMode)
-                                            ? 'rgba(255,255,255,0.35)'
-                                            : vTheme.colors.divider,
+                                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                                        borderColor: 'rgba(255, 255, 255, 0.4)',
                                     },
                                 ]}
                             >
-                                <Film
-                                    size={16}
-                                    color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="light"
+                                    blurAmount={12}
+                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
+                                <Film size={16} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
+                            <BalancePill size="small" lightMode={effectiveBgType === 'image' || effectiveBgType === 'gradient'} />
                         </View>
                     </View>
 
+                    <View style={styles.logoContainer}>
+                        {/* Assistant Button with Internal Shimmer */}
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => {
+                                handleNewChat();
+                                navigation.navigate('Chat');
+                            }}
+                            style={styles.assistantHeaderButton}
+                        >
+                            <LinearGradient
+                                colors={[
+                                    'rgba(255,255,255,0.4)',
+                                    'rgba(255,230,150,0.3)',
+                                    'rgba(255,255,255,0.4)',
+                                ]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={StyleSheet.absoluteFill}
+                            />
+
+                            <Animated.View style={[
+                                styles.assistantShimmer,
+                                {
+                                    width: 100,
+                                    transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
+                                }
+                            ]}>
+                                <LinearGradient
+                                    colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={StyleSheet.absoluteFill}
+                                />
+                            </Animated.View>
+
+                            <Image
+                                source={assistantImage}
+                                style={styles.assistantHeaderIcon}
+                                resizeMode="contain"
+                            />
+                        </TouchableOpacity>
+                    </View>
+
                     <View style={styles.headerRight}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setIsMenuOpen(true);
+                            }}
+                            style={[
+                                styles.headerCircularButton,
+                                {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                                },
+                            ]}
+                        >
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                            <MessageSquare size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('AppSettings')}
+                            style={[
+                                styles.headerCircularButton,
+                                {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                                },
+                            ]}
+                        >
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                            <Settings size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.headerCircularButton,
+                                {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                                },
+                            ]}
+                        >
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType="light"
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            />
+                            <Bell size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.textSecondary} />
+                        </TouchableOpacity>
                         {roleDescriptor && (
                             <TouchableOpacity
                                 onPress={() => setShowRoleInfo(true)}
-                                style={[styles.roleStatusButton, { marginRight: 4 }]}
+                                style={[
+                                    styles.headerCircularButton,
+                                    {
+                                        borderColor: '#ffffff',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                    }
+                                ]}
                             >
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="light"
+                                    blurAmount={8}
+                                />
                                 <View style={[
                                     styles.roleStatusDot,
                                     { backgroundColor: roleDescriptor.highlightColor }
                                 ]} />
                                 {(() => {
                                     const role = roleDescriptor.role;
-                                    const size = 12;
+                                    const size = 14;
                                     const color = "#ffffff";
 
                                     if (role === 'in_goodness') return <Leaf size={size} color={color} />;
@@ -340,23 +489,6 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                 })()}
                             </TouchableOpacity>
                         )}
-                        <TouchableOpacity
-                            onPress={() => {
-                                setIsMenuOpen(true);
-                            }}
-                            style={styles.iconButton}
-                        >
-                            <MessageSquare size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('AppSettings')}
-                            style={styles.iconButton}
-                        >
-                            <Settings size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Bell size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -530,7 +662,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         paddingTop: Platform.OS === 'ios' ? 15 : 20,
         paddingBottom: 8,
         zIndex: 10,
@@ -540,29 +672,66 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     logoContainer: {
-        flex: 2,
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
         alignItems: 'center',
         justifyContent: 'center',
+        zIndex: 0, // Ensure it's interactive but centered
     },
     logoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 12,
+        paddingTop: Platform.OS === 'ios' ? 7 : 12, // Precisely match side icons vertical center
     },
-    circlesHeaderButton: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        borderWidth: 1,
+    headerCircularButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        borderWidth: 1.5,
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    assistantHeaderButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.6)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 6,
+    },
+    assistantHeaderIcon: {
+        width: 24,
+        height: 24,
+    },
+    assistantShimmer: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        width: 60,
     },
     headerRight: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        gap: 8,
+        gap: 6,
     },
     avatarButton: {
         width: 40,
@@ -603,32 +772,10 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#374151',
     },
-    logoWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    roleStatusButton: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#ffffff',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
-        elevation: 4,
-    },
     roleStatusDot: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: 12,
+        borderRadius: 16,
         opacity: 0.9,
-    },
-    roleStatusIcon: {
-        // center it
     },
     hintContainer: {
         position: 'absolute',

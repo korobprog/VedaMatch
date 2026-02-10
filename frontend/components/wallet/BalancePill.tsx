@@ -27,9 +27,9 @@ export const BalancePill: React.FC<BalancePillProps> = ({
     };
 
     const isSmall = size === 'small';
-    const textColor = lightMode ? '#FFFFFF' : '#F59E0B';
-    const bgColor = lightMode ? 'rgba(255,255,255,0.18)' : 'rgba(245,158,11,0.15)';
-    const borderColor = lightMode ? 'rgba(255,255,255,0.3)' : 'rgba(245,158,11,0.3)';
+    const textColor = lightMode ? '#FFFFFF' : '#FFB02E'; // Brighter gold for better visibility
+    const bgColor = lightMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,176,46,0.12)';
+    const borderColor = lightMode ? 'rgba(255,255,255,0.45)' : 'rgba(255,176,46,0.25)';
 
     return (
         <TouchableOpacity

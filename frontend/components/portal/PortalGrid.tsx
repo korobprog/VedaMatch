@@ -45,6 +45,9 @@ import { DraggablePortalItem } from './DraggablePortalItem';
 import { SkeletonIcon } from './SkeletonIcon';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const GRID_COLUMNS = 4;
+const GRID_PADDING = 4;
+const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2) / GRID_COLUMNS;
 
 interface PortalGridProps {
     onServicePress: (serviceId: string) => void;
@@ -303,7 +306,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
             return (
                 <Animated.View
                     key={`skeleton - ${item.id} `}
-                    style={{ pointerEvents: 'none' }}
+                    style={{ pointerEvents: 'none', width: CELL_WIDTH, alignItems: 'center' }}
                     exiting={FadeOut.duration(300)}
                 >
                     <SkeletonIcon />
@@ -355,7 +358,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         }
 
         return (
-            <Animated.View key={item.id} entering={FadeIn.duration(500)}>
+            <Animated.View key={item.id} entering={FadeIn.duration(500)} style={{ width: CELL_WIDTH, alignItems: 'center' }}>
                 <DraggablePortalItem
                     id={item.id}
                     isEditMode={isEditMode}
@@ -700,7 +703,7 @@ const styles = StyleSheet.create({
     },
     gridContainer: {
         flex: 1,
-        paddingHorizontal: 8,
+        paddingHorizontal: GRID_PADDING,
         paddingTop: 0,
     },
     scrollView: {

@@ -176,6 +176,8 @@ export const KrishnaAssistant: React.FC = () => {
     const isAuthScreen = !currentRoute || currentRoute === 'Login' || currentRoute === 'Registration';
 
     if (currentRoute === 'Chat' && currentStep === -1) return null;
+    // Hide floating button on Portal - assistant call is now in the header
+    if (currentRoute === 'Portal' && currentStep === -1) return null;
 
     if (!isVisible && !isRollingOut) {
         return (
@@ -315,7 +317,7 @@ const styles = StyleSheet.create({
     },
     callButton: {
         position: 'absolute',
-        top: '50%',
+        top: '75%',
         marginTop: -35,
         right: 0,
         zIndex: 9999,

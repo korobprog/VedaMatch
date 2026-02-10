@@ -255,7 +255,7 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
 const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
-        margin: 8,
+        marginVertical: 8,
     },
     pressable: {
         alignItems: 'center',

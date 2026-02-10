@@ -270,7 +270,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
 const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
-        margin: 8,
+        marginVertical: 8,
     },
     pressable: {
         alignItems: 'center',
