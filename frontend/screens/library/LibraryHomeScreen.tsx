@@ -1,21 +1,25 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { BlurView } from '@react-native-community/blur';
 import { libraryService } from '../../services/libraryService';
 import { offlineBookService, formatBytes, SavedBookInfo } from '../../services/offlineBookService';
 import { ScriptureBook } from '../../types/library';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
-import { Book, Download, CheckCircle } from 'lucide-react-native';
+import { BookOpenText, Download, CheckCircle, Sparkles } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
 import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 export const LibraryHomeScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const { vTheme, isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { isDarkMode, portalBackgroundType } = useSettings();
     const { t } = useTranslation();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [books, setBooks] = useState<ScriptureBook[]>([]);
     const [loading, setLoading] = useState(true);
     const [savedBooks, setSavedBooks] = useState<string[]>([]);
@@ -23,6 +27,7 @@ export const LibraryHomeScreen = () => {
     const [savingBook, setSavingBook] = useState<string | null>(null);
     const [saveProgress, setSaveProgress] = useState<number>(0);
     const [saveStatus, setSaveStatus] = useState<string>('');
+    const isPhotoBg = portalBackgroundType === 'image';
 
     useEffect(() => {
         loadBooks();
@@ -145,31 +150,52 @@ export const LibraryHomeScreen = () => {
         const isSaved = savedBooks.includes(item.code);
         const isSaving = savingBook === item.code;
         const bookSize = bookSizes[item.code];
+        const titleColor = isPhotoBg ? '#FFFFFF' : roleColors.textPrimary;
+        const subColor = isPhotoBg ? 'rgba(255,255,255,0.82)' : roleColors.textSecondary;
+        const cardBackground = isPhotoBg
+            ? 'rgba(255,255,255,0.14)'
+            : (isDarkMode ? roleColors.surfaceElevated : roleColors.surface);
+        const cardBorder = isPhotoBg
+            ? 'rgba(255,255,255,0.3)'
+            : roleColors.border;
+        const iconColor = isPhotoBg ? '#FFFFFF' : roleColors.accent;
+        const iconBg = isPhotoBg ? 'rgba(255,255,255,0.2)' : roleColors.accentSoft;
+        const actionBg = isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.accentSoft;
+        const actionBorder = isPhotoBg ? 'rgba(255,255,255,0.32)' : roleColors.border;
 
         return (
             <TouchableOpacity
-                style={[styles.card, { backgroundColor: vTheme.colors.surface }]}
+                style={[styles.card, { backgroundColor: cardBackground, borderColor: cardBorder }]}
                 onPress={() => handleBookPress(item)}
                 onLongPress={() => handleLongPress(item)}
                 delayLongPress={500}
+                activeOpacity={0.88}
             >
+                {(isPhotoBg || isDarkMode) && (
+                    <BlurView
+                        style={[StyleSheet.absoluteFill, { borderRadius: 22 }]}
+                        blurType={isDarkMode ? 'dark' : 'light'}
+                        blurAmount={14}
+                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.65)' : roleColors.surfaceElevated}
+                    />
+                )}
 
                 {/* Book icon */}
-                <View style={[styles.iconContainer, { backgroundColor: vTheme.colors.primary + '10' }]}>
-                    <Book size={32} color={vTheme.colors.primary} />
+                <View style={[styles.iconContainer, { backgroundColor: iconBg, borderColor: cardBorder }]}>
+                    <BookOpenText size={28} color={iconColor} />
                 </View>
 
                 {/* Book info */}
                 <View style={styles.textContainer}>
                     <Text
-                        style={[styles.cardTitle, { color: vTheme.colors.text }]}
+                        style={[styles.cardTitle, { color: titleColor }]}
                         numberOfLines={1}
                         ellipsizeMode="tail"
                     >
                         {item.name_ru || item.name_en}
                     </Text>
                     <Text
-                        style={[styles.cardDescription, { color: vTheme.colors.textSecondary }]}
+                        style={[styles.cardDescription, { color: subColor }]}
                         numberOfLines={2}
                         ellipsizeMode="tail"
                     >
@@ -178,7 +204,7 @@ export const LibraryHomeScreen = () => {
 
                     {/* Size info */}
                     {bookSize && (
-                        <Text style={[styles.sizeText, { color: vTheme.colors.textSecondary }]}>
+                        <Text style={[styles.sizeText, { color: subColor }]}>
                             {formatBytes(bookSize)}
                         </Text>
                     )}
@@ -195,20 +221,26 @@ export const LibraryHomeScreen = () => {
                 {/* Action buttons (Right side) */}
                 <View style={styles.actions}>
                     {isSaving ? (
-                        <ActivityIndicator size="small" color={vTheme.colors.primary} />
+                        <ActivityIndicator size="small" color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
                     ) : isSaved ? (
                         <TouchableOpacity
                             onPress={() => handleRemoveBook(item)}
-                            style={[styles.actionButton, { backgroundColor: '#4CAF5015' }]}
+                            style={[
+                                styles.actionButton,
+                                {
+                                    backgroundColor: isPhotoBg ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.14)',
+                                    borderColor: isPhotoBg ? 'rgba(16,185,129,0.46)' : 'rgba(16,185,129,0.24)',
+                                },
+                            ]}
                         >
-                            <CheckCircle size={22} color="#4CAF50" />
+                            <CheckCircle size={22} color={isPhotoBg ? '#A7F3D0' : '#10B981'} />
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity
                             onPress={() => handleSaveBook(item)}
-                            style={[styles.actionButton, { backgroundColor: vTheme.colors.primary + '15' }]}
+                            style={[styles.actionButton, { backgroundColor: actionBg, borderColor: actionBorder }]}
                         >
-                            <Download size={22} color={vTheme.colors.primary} />
+                            <Download size={22} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -218,53 +250,87 @@ export const LibraryHomeScreen = () => {
 
     if (loading) {
         return (
-            <View style={[styles.container, styles.center, { backgroundColor: vTheme.colors.background }]}>
-                <ActivityIndicator size="large" color={vTheme.colors.primary} />
+            <View style={[styles.container, styles.center, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
+                <ActivityIndicator size="large" color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
             </View>
         );
     }
 
-    return (
-        <View style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
+    const content = (
+        <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
             <GodModeStatusBanner />
+            <View style={styles.headerWrap}>
+                <View style={[styles.headerChip, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : roleColors.border }]}>
+                    <Sparkles size={14} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
+                    <Text style={[styles.headerChipText, { color: isPhotoBg ? '#FFFFFF' : roleColors.textSecondary }]}>
+                        {t('library.scripture', 'Священные писания')}
+                    </Text>
+                </View>
+            </View>
             <FlatList<ScriptureBook>
                 data={books}
                 renderItem={renderBookItem}
                 keyExtractor={(item: ScriptureBook) => item.code}
                 contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={false}
             />
         </View>
     );
+
+    return content;
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: ModernVedicTheme.colors.background,
     },
     center: {
         justifyContent: 'center',
         alignItems: 'center',
     },
+    headerWrap: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+    },
+    headerChip: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        gap: 6,
+    },
+    headerChipText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
     list: {
         padding: 16,
+        paddingTop: 12,
+        paddingBottom: 22,
     },
     card: {
         flexDirection: 'row',
-        backgroundColor: 'white',
-        borderRadius: 16,
+        borderRadius: 22,
+        borderWidth: 1,
         padding: 16,
-        marginBottom: 16,
-        shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 5,
+        marginBottom: 14,
         alignItems: 'center',
         position: 'relative',
+        overflow: 'hidden',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOpacity: 0.14,
+                shadowRadius: 9,
+                shadowOffset: { width: 0, height: 5 },
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
     },
     savedBadge: {
         position: 'absolute',
@@ -278,39 +344,37 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     iconContainer: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: '#F0F0F0',
+        width: 56,
+        height: 56,
+        borderRadius: 18,
+        borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: 14,
     },
     textContainer: {
         flex: 1,
         paddingRight: 8,
     },
     cardTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: ModernVedicTheme.colors.text,
+        fontSize: 18,
+        fontWeight: '800',
         marginBottom: 4,
     },
     cardDescription: {
-        fontSize: 13,
-        color: ModernVedicTheme.colors.textSecondary,
-        lineHeight: 18,
+        fontSize: 14,
+        lineHeight: 21,
     },
     sizeText: {
-        fontSize: 11,
-        marginTop: 4,
-        opacity: 0.7,
+        fontSize: 12,
+        marginTop: 6,
+        fontWeight: '500',
     },
     progressContainer: {
         marginTop: 6,
         height: 20,
-        backgroundColor: '#F0F0F0',
-        borderRadius: 4,
+        backgroundColor: 'rgba(255,255,255,0.26)',
+        borderRadius: 8,
         overflow: 'hidden',
         position: 'relative',
     },
@@ -319,15 +383,16 @@ const styles = StyleSheet.create({
         left: 0,
         top: 0,
         bottom: 0,
-        backgroundColor: '#4CAF50',
-        borderRadius: 4,
+        backgroundColor: '#10B981',
+        borderRadius: 8,
     },
     progressText: {
         fontSize: 10,
-        color: '#333',
+        color: '#FFFFFF',
         textAlign: 'center',
         lineHeight: 20,
         paddingHorizontal: 4,
+        fontWeight: '600',
     },
     actions: {
         marginLeft: 8,
@@ -335,8 +400,9 @@ const styles = StyleSheet.create({
     actionButton: {
         width: 44,
         height: 44,
-        borderRadius: 22,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
     },
 });

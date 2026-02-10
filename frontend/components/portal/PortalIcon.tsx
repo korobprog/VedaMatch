@@ -198,17 +198,43 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                 </View>
                 {showLabel && (
                     <>
-                        <View style={portalBackgroundType === 'image' ? styles.labelPill : undefined}>
+                        <View style={
+                            portalBackgroundType === 'image'
+                                ? styles.labelPill
+                                : portalBackgroundType === 'gradient'
+                                    ? [styles.labelPillGradient, {
+                                        backgroundColor: isDarkMode
+                                            ? 'rgba(0,0,0,0.35)'
+                                            : 'rgba(255,255,255,0.65)',
+                                    }]
+                                    : undefined
+                        }>
                             <Text
                                 style={[
                                     styles.label,
                                     {
                                         fontSize: sizeConfig.fontSize,
-                                        color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
-                                        textShadowColor: 'rgba(0,0,0,0.75)',
-                                        textShadowOffset: { width: 0, height: 1 },
-                                        textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
-                                        fontWeight: roleHighlight ? '700' : '500',
+                                        fontWeight: roleHighlight ? '700' : '600',
+                                        ...(portalBackgroundType === 'image'
+                                            ? {
+                                                color: '#ffffff',
+                                                textShadowColor: 'rgba(0,0,0,0.75)',
+                                                textShadowOffset: { width: 0, height: 1 },
+                                                textShadowRadius: 4,
+                                            }
+                                            : portalBackgroundType === 'gradient'
+                                                ? {
+                                                    color: isDarkMode ? '#ffffff' : vTheme.colors.text,
+                                                    textShadowColor: isDarkMode
+                                                        ? 'rgba(0,0,0,0.6)'
+                                                        : 'rgba(255,255,255,0.8)',
+                                                    textShadowOffset: { width: 0, height: 0.5 },
+                                                    textShadowRadius: 2,
+                                                }
+                                                : {
+                                                    color: vTheme.colors.text,
+                                                    // Clean text, no shadow on solid backgrounds
+                                                }),
                                     },
                                 ]}
                                 numberOfLines={1}
@@ -270,6 +296,12 @@ const styles = StyleSheet.create({
     },
     labelPill: {
         backgroundColor: 'rgba(0,0,0,0.45)',
+        borderRadius: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        marginTop: 1,
+    },
+    labelPillGradient: {
         borderRadius: 8,
         paddingHorizontal: 6,
         paddingVertical: 2,
