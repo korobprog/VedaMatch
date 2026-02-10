@@ -305,434 +305,430 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         );
     };
 
-    const BackgroundWrapper = ({ children }: { children: React.ReactNode }) => {
-        if (portalBackgroundType === 'image' && portalBackground) {
-            return (
-                <ImageBackground source={{ uri: portalBackground }} style={styles.container} resizeMode="cover">
-                    <View style={{ flex: 1, backgroundColor: roleColors.overlay }}>{children}</View>
-                </ImageBackground>
-            );
-        }
-        return <View style={[styles.container, { backgroundColor: theme.background }]}>{children}</View>;
-    };
+
 
     return (
-        <BackgroundWrapper>
-            <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+            {portalBackgroundType === 'image' && portalBackground && (
+                <ImageBackground source={{ uri: portalBackground }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            )}
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
+                <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-            <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
-                {portalBackgroundType === 'image' && (
-                    <BlurView
-                        style={StyleSheet.absoluteFill}
-                        blurType="dark"
-                        blurAmount={15}
-                        reducedTransparencyFallbackColor="rgba(0,0,0,0.8)"
-                    />
-                )}
-                <TouchableOpacity
-                    onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}
-                    style={styles.backButton}
-                >
-                    <Text style={[styles.backText, { color: roleColors.textPrimary }]}>← {t('registration.back')}</Text>
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>
-                    {phase === 'initial' ? 'Sign Up' : t('registration.title')}
-                </Text>
-                {phase === 'profile' ? (
-                    <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                        <Text style={[styles.skipText, { color: roleColors.accent }]}>Skip</Text>
-                    </TouchableOpacity>
-                ) : (
-                    <View style={{ width: 60 }} />
-                )}
-            </View>
-
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                <View style={styles.logoHeaderContainer}>
-                    <View style={styles.logoWrapper}>
-                        <Image
-                            source={require('../assets/logo_tilak.png')}
-                            style={[styles.logoImage, { tintColor: roleColors.accent }]}
-                            resizeMode="contain"
+                <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
+                    {portalBackgroundType === 'image' && (
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType="dark"
+                            blurAmount={15}
+                            reducedTransparencyFallbackColor="rgba(0,0,0,0.8)"
                         />
-                    </View>
+                    )}
+                    <TouchableOpacity
+                        onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}
+                        style={styles.backButton}
+                    >
+                        <Text style={[styles.backText, { color: roleColors.textPrimary }]}>← {t('registration.back')}</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>
+                        {phase === 'initial' ? 'Sign Up' : t('registration.title')}
+                    </Text>
+                    {phase === 'profile' ? (
+                        <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+                            <Text style={[styles.skipText, { color: roleColors.accent }]}>Skip</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 60 }} />
+                    )}
                 </View>
 
-                {phase === 'initial' ? (
-                    <>
-                        <FormInput
-                            label="Email"
-                            theme={theme}
-                            value={email}
-                            onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            placeholder="email@example.com"
-                        />
-                        <FormInput
-                            label="Password"
-                            theme={theme}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry={true}
-                            placeholder="••••••••"
-                        />
-                        <FormInput
-                            label="Confirm Password"
-                            theme={theme}
-                            value={confirmPassword}
-                            onChangeText={setConfirmPassword}
-                            secureTextEntry={true}
-                            placeholder="••••••••"
-                        />
-                        <FormInput
-                            label={t('registration.inviteCode') + " (Optional)"}
-                            theme={theme}
-                            value={inviteCode}
-                            onChangeText={setInviteCode}
-                            placeholder="Enter code if you have one"
-                            autoCapitalize="characters"
-                        />
-                    </>
-                ) : (
-                    <>
-                        <RoleSelectionSection
-                            selectedRole={role}
-                            onSelectRole={setRole}
-                        />
-
-                        <View style={styles.switchRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.label, { marginTop: 0 }]}>Режим Бога</Text>
-                                <Text style={styles.helperText}>
-                                    Позволяет видеть контент/фильтры всех матхов
-                                </Text>
-                            </View>
-                            <Switch
-                                value={godModeEnabled}
-                                onValueChange={setGodModeEnabled}
-                                trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
-                                thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
+                <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+                    <View style={styles.logoHeaderContainer}>
+                        <View style={styles.logoWrapper}>
+                            <Image
+                                source={require('../assets/logo_tilak.png')}
+                                style={[styles.logoImage, { tintColor: roleColors.accent }]}
+                                resizeMode="contain"
                             />
                         </View>
+                    </View>
 
-                        {/* Avatar */}
-                        <AvatarUploader
-                            avatar={avatar}
-                            onAvatarChange={setAvatar}
-                            theme={theme}
-                        />
-
-                        {/* Gender */}
-                        <RadioGroup
-                            label={t('registration.gender')}
-                            options={GENDER_OPTIONS}
-                            value={gender}
-                            onChange={setGender}
-                            theme={theme}
-                            layout="row"
-                        />
-
-                        {/* Name Fields */}
-                        <FormInput
-                            label={isSeekerRole ? t('registration.name') : t('registration.karmicName')}
-                            theme={theme}
-                            value={karmicName}
-                            onChangeText={setKarmicName}
-                            placeholder="e.g., Ivan Ivanov"
-                        />
-
-                        {!isLiteProfileRole && (
+                    {phase === 'initial' ? (
+                        <>
                             <FormInput
-                                label={t('registration.spiritualName')}
+                                label="Email"
                                 theme={theme}
-                                value={spiritualName}
-                                onChangeText={setSpiritualName}
-                                placeholder="e.g., Das Anu Das"
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                placeholder="email@example.com"
                             />
-                        )}
+                            <FormInput
+                                label="Password"
+                                theme={theme}
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={true}
+                                placeholder="••••••••"
+                            />
+                            <FormInput
+                                label="Confirm Password"
+                                theme={theme}
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                                secureTextEntry={true}
+                                placeholder="••••••••"
+                            />
+                            <FormInput
+                                label={t('registration.inviteCode') + " (Optional)"}
+                                theme={theme}
+                                value={inviteCode}
+                                onChangeText={setInviteCode}
+                                placeholder="Enter code if you have one"
+                                autoCapitalize="characters"
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <RoleSelectionSection
+                                selectedRole={role}
+                                onSelectRole={setRole}
+                            />
 
-
-                        {/* Date of Birth */}
-                        <FormSelect
-                            label={t('registration.dob')}
-                            value={dob.toLocaleString()}
-                            placeholder=""
-                            theme={theme}
-                            onPress={() => setOpenDatePicker(true)}
-                        />
-                        <DatePicker
-                            modal
-                            open={openDatePicker}
-                            date={dob}
-                            mode="date"
-                            onConfirm={(date) => {
-                                setOpenDatePicker(false);
-                                setDob(date);
-                            }}
-                            onCancel={() => {
-                                setOpenDatePicker(false);
-                            }}
-                        />
-
-                        {/* Country */}
-                        <FormSelect
-                            label={t('registration.country')}
-                            value={country}
-                            placeholder={t('registration.selectCountry')}
-                            theme={theme}
-                            onPress={() => {
-                                if (loadingCountries) {
-                                    Alert.alert('Loading', 'Please wait, countries are being loaded...');
-                                    return;
-                                }
-                                if (countriesData.length === 0) {
-                                    Alert.alert('Error', 'No countries available. Please check your internet connection.');
-                                    fetchCountries(); // Retry
-                                    return;
-                                }
-                                setShowCountryPicker(!showCountryPicker);
-                            }}
-                            loading={loadingCountries}
-                            loadingText={t('registration.loadingCountries')}
-                        />
-
-                        {/* Auto-detect Location Button */}
-                        <TouchableOpacity
-                            style={styles.autoDetectButton}
-                            onPress={handleAutoDetect}
-                            disabled={detectingLocation}
-                        >
-                            {detectingLocation ? (
-                                <ActivityIndicator size="small" color="#FFB74D" />
-                            ) : (
-                                <Text style={styles.autoDetectText}>
-                                    {t('registration.detectLocation')}
-                                </Text>
-                            )}
-                        </TouchableOpacity>
-
-                        {showCountryPicker && countriesData.length > 0 && (
-                            <PickerContainer theme={theme}>
-                                {countriesData.map((c: any) => (
-                                    <PickerItem
-                                        key={c.name.common}
-                                        label={c.name.common}
-                                        theme={theme}
-                                        onPress={() => handleCountrySelect(c)}
-                                    />
-                                ))}
-                            </PickerContainer>
-                        )}
-                        {showCountryPicker && countriesData.length === 0 && !loadingCountries && (
-                            <PickerContainer theme={theme}>
-                                <Text style={{ color: theme.subText, padding: 12 }}>No countries available. Tap to retry.</Text>
-                            </PickerContainer>
-                        )}
-
-                        {/* City */}
-                        <Text style={[styles.label, { color: theme.text }]}>{t('registration.city')}</Text>
-                        {!cityInputMode ? (
-                            <>
-                                <View style={{ flexDirection: 'row', gap: 10 }}>
-                                    <TouchableOpacity
-                                        style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
-                                        onPress={() => {
-                                            if (country) {
-                                                setShowCityPicker(!showCityPicker);
-                                            } else {
-                                                Alert.alert('Select Country First', 'Please select a country before choosing a city.');
-                                            }
-                                        }}
-                                        disabled={!country}
-                                    >
-                                        <Text style={{ color: city ? theme.inputText : theme.subText }}>{city || (country ? t('registration.selectCity') : t('registration.selectCountry'))}</Text>
-                                    </TouchableOpacity>
-                                    {country && (
-                                        <TouchableOpacity
-                                            style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
-                                            onPress={() => setCityInputMode(true)}
-                                        >
-                                            <Text style={{ color: roleColors.accent, fontSize: 18 }}>✎</Text>
-                                        </TouchableOpacity>
-                                    )}
+                            <View style={styles.switchRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.label, { marginTop: 0 }]}>{t('settings.proMode')}</Text>
+                                    <Text style={styles.helperText}>
+                                        {t('settings.proModeDesc')}
+                                    </Text>
                                 </View>
-                                {showCityPicker && citiesData.length > 0 && (
-                                    <PickerContainer theme={theme}>
-                                        <PickerItem
-                                            label="Clear"
-                                            theme={theme}
-                                            onPress={() => { setCity(''); setShowCityPicker(false); }}
-                                        />
-                                        {citiesData.map((cityName: string) => (
-                                            <PickerItem
-                                                key={cityName}
-                                                label={cityName}
-                                                theme={theme}
-                                                onPress={() => { setCity(cityName); setShowCityPicker(false); }}
-                                            />
-                                        ))}
-                                    </PickerContainer>
-                                )}
-                                {showCityPicker && citiesData.length === 0 && country && (
-                                    <PickerContainer theme={theme}>
-                                        <Text style={{ color: theme.subText, padding: 12 }}>Loading cities...</Text>
-                                    </PickerContainer>
-                                )}
-                            </>
-                        ) : (
-                            <View style={{ flexDirection: 'row', gap: 10 }}>
-                                <TextInput
-                                    style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
-                                    value={city}
-                                    onChangeText={setCity}
-                                    placeholder="Enter City Name"
-                                    placeholderTextColor={theme.subText}
-                                    autoFocus
+                                <Switch
+                                    value={godModeEnabled}
+                                    onValueChange={setGodModeEnabled}
+                                    trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
+                                    thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
                                 />
-                                <TouchableOpacity
-                                    style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
-                                    onPress={() => setCityInputMode(false)}
-                                >
-                                    <Text style={{ color: theme.accent, fontSize: 18 }}>✓</Text>
-                                </TouchableOpacity>
                             </View>
-                        )}
 
-                        {!isLiteProfileRole && (
-                            <>
-                                {/* Madh */}
-                                <FormSelect
-                                    label={t('registration.madh')}
-                                    value={madh}
-                                    placeholder="Select Tradition"
-                                    theme={theme}
-                                    onPress={() => setShowMadhPicker(!showMadhPicker)}
-                                />
-                                {showMadhPicker && (
-                                    <PickerContainer theme={theme}>
-                                        <PickerItem label="None" theme={theme} onPress={() => { setMadh(''); setShowMadhPicker(false); }} />
-                                        {DATING_TRADITIONS.map((m) => (
-                                            <PickerItem key={m} label={m} theme={theme} onPress={() => { setMadh(m); setShowMadhPicker(false); }} />
-                                        ))}
-                                    </PickerContainer>
-                                )}
-                            </>
-                        )}
+                            {/* Avatar */}
+                            <AvatarUploader
+                                avatar={avatar}
+                                onAvatarChange={setAvatar}
+                                theme={theme}
+                            />
 
-                        {!isLiteProfileRole && (
+                            {/* Gender */}
+                            <RadioGroup
+                                label={t('registration.gender')}
+                                options={GENDER_OPTIONS}
+                                value={gender}
+                                onChange={setGender}
+                                theme={theme}
+                                layout="row"
+                            />
+
+                            {/* Name Fields */}
                             <FormInput
-                                label={t('registration.mentor')}
+                                label={isSeekerRole ? t('registration.name') : t('registration.karmicName')}
                                 theme={theme}
-                                value={mentor}
-                                onChangeText={setMentor}
-                                placeholder="Current Shiksha/Diksha Guru"
+                                value={karmicName}
+                                onChangeText={setKarmicName}
+                                placeholder="e.g., Ivan Ivanov"
                             />
-                        )}
 
-                        {!isLiteProfileRole && (
-                            <RadioGroup
-                                label={t('registration.identity')}
-                                options={IDENTITY_OPTIONS}
-                                value={identity}
-                                onChange={setIdentity}
-                                theme={theme}
-                                layout="row"
-                            />
-                        )}
-
-                        {!isLiteProfileRole && (
-                            <>
-                                {/* Yoga Style */}
-                                <FormSelect
-                                    label="Yoga Style"
-                                    value={yogaStyle}
-                                    placeholder="Select Yoga Style"
+                            {!isLiteProfileRole && (
+                                <FormInput
+                                    label={t('registration.spiritualName')}
                                     theme={theme}
-                                    onPress={() => setShowYogaPicker(!showYogaPicker)}
+                                    value={spiritualName}
+                                    onChangeText={setSpiritualName}
+                                    placeholder="e.g., Das Anu Das"
                                 />
-                                {showYogaPicker && (
-                                    <PickerContainer theme={theme}>
-                                        {YOGA_STYLES.map((y) => (
-                                            <PickerItem key={y} label={y} theme={theme} onPress={() => { setYogaStyle(y); setShowYogaPicker(false); }} />
-                                        ))}
-                                    </PickerContainer>
-                                )}
-                            </>
-                        )}
+                            )}
 
-                        {!isLiteProfileRole && (
-                            <>
-                                <FormSelect
-                                    label="Mode of Nature (Guna)"
-                                    value={guna}
-                                    placeholder="Select Guna"
-                                    theme={theme}
-                                    onPress={() => setShowGunaPicker(!showGunaPicker)}
-                                />
-                                {showGunaPicker && (
-                                    <PickerContainer theme={theme}>
-                                        {GUNAS.map((g) => (
-                                            <PickerItem key={g} label={g} theme={theme} onPress={() => { setGuna(g); setShowGunaPicker(false); }} />
-                                        ))}
-                                    </PickerContainer>
-                                )}
-                            </>
-                        )}
 
-                        {!isSeekerRole && (
-                            <RadioGroup
-                                label={t('registration.diet')}
-                                options={DIET_OPTIONS}
-                                value={diet}
-                                onChange={setDiet}
+                            {/* Date of Birth */}
+                            <FormSelect
+                                label={t('registration.dob')}
+                                value={dob.toLocaleString()}
+                                placeholder=""
                                 theme={theme}
-                                layout="row"
+                                onPress={() => setOpenDatePicker(true)}
                             />
-                        )}
-                    </>
-                )}
+                            <DatePicker
+                                modal
+                                open={openDatePicker}
+                                date={dob}
+                                mode="date"
+                                onConfirm={(date) => {
+                                    setOpenDatePicker(false);
+                                    setDob(date);
+                                }}
+                                onCancel={() => {
+                                    setOpenDatePicker(false);
+                                }}
+                            />
 
-                {/* Terms */}
-                <View style={styles.checkboxContainer}>
-                    <Switch
-                        value={agreement}
-                        onValueChange={setAgreement}
-                        trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FFB74D' }}
-                        thumbColor={agreement ? '#fff' : '#f4f3f4'}
-                    />
-                    <Text style={[styles.checkboxLabel, { color: '#F8FAFC' }]}>
-                        {t('registration.agreement')}
-                    </Text>
-                </View>
+                            {/* Country */}
+                            <FormSelect
+                                label={t('registration.country')}
+                                value={country}
+                                placeholder={t('registration.selectCountry')}
+                                theme={theme}
+                                onPress={() => {
+                                    if (loadingCountries) {
+                                        Alert.alert('Loading', 'Please wait, countries are being loaded...');
+                                        return;
+                                    }
+                                    if (countriesData.length === 0) {
+                                        Alert.alert('Error', 'No countries available. Please check your internet connection.');
+                                        fetchCountries(); // Retry
+                                        return;
+                                    }
+                                    setShowCountryPicker(!showCountryPicker);
+                                }}
+                                loading={loadingCountries}
+                                loadingText={t('registration.loadingCountries')}
+                            />
 
-                {/* Submit */}
-                <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                >
-                    <LinearGradient
-                        colors={[roleTheme.accent, roleTheme.accentStrong]}
-                        style={[styles.submitButton, { opacity: loading ? 0.7 : 1 }]}
-                    >
-                        {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>{phase === 'initial' ? 'Next' : (phase === 'profile' ? 'Update Profile' : t('registration.submit'))}</Text>}
-                    </LinearGradient>
-                </TouchableOpacity>
+                            {/* Auto-detect Location Button */}
+                            <TouchableOpacity
+                                style={styles.autoDetectButton}
+                                onPress={handleAutoDetect}
+                                disabled={detectingLocation}
+                            >
+                                {detectingLocation ? (
+                                    <ActivityIndicator size="small" color="#FFB74D" />
+                                ) : (
+                                    <Text style={styles.autoDetectText}>
+                                        {t('registration.detectLocation')}
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
 
-                {phase === 'initial' && (
-                    <TouchableOpacity
-                        style={{ marginTop: 24, alignItems: 'center' }}
-                        onPress={() => navigation.navigate('Login')}
-                    >
-                        <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
-                            Already have an account? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Login</Text>
+                            {showCountryPicker && countriesData.length > 0 && (
+                                <PickerContainer theme={theme}>
+                                    {countriesData.map((c: any) => (
+                                        <PickerItem
+                                            key={c.name.common}
+                                            label={c.name.common}
+                                            theme={theme}
+                                            onPress={() => handleCountrySelect(c)}
+                                        />
+                                    ))}
+                                </PickerContainer>
+                            )}
+                            {showCountryPicker && countriesData.length === 0 && !loadingCountries && (
+                                <PickerContainer theme={theme}>
+                                    <Text style={{ color: theme.subText, padding: 12 }}>No countries available. Tap to retry.</Text>
+                                </PickerContainer>
+                            )}
+
+                            {/* City */}
+                            <Text style={[styles.label, { color: theme.text }]}>{t('registration.city')}</Text>
+                            {!cityInputMode ? (
+                                <>
+                                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                                        <TouchableOpacity
+                                            style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
+                                            onPress={() => {
+                                                if (country) {
+                                                    setShowCityPicker(!showCityPicker);
+                                                } else {
+                                                    Alert.alert('Select Country First', 'Please select a country before choosing a city.');
+                                                }
+                                            }}
+                                            disabled={!country}
+                                        >
+                                            <Text style={{ color: city ? theme.inputText : theme.subText }}>{city || (country ? t('registration.selectCity') : t('registration.selectCountry'))}</Text>
+                                        </TouchableOpacity>
+                                        {country && (
+                                            <TouchableOpacity
+                                                style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
+                                                onPress={() => setCityInputMode(true)}
+                                            >
+                                                <Text style={{ color: roleColors.accent, fontSize: 18 }}>✎</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                    {showCityPicker && citiesData.length > 0 && (
+                                        <PickerContainer theme={theme}>
+                                            <PickerItem
+                                                label="Clear"
+                                                theme={theme}
+                                                onPress={() => { setCity(''); setShowCityPicker(false); }}
+                                            />
+                                            {citiesData.map((cityName: string) => (
+                                                <PickerItem
+                                                    key={cityName}
+                                                    label={cityName}
+                                                    theme={theme}
+                                                    onPress={() => { setCity(cityName); setShowCityPicker(false); }}
+                                                />
+                                            ))}
+                                        </PickerContainer>
+                                    )}
+                                    {showCityPicker && citiesData.length === 0 && country && (
+                                        <PickerContainer theme={theme}>
+                                            <Text style={{ color: theme.subText, padding: 12 }}>Loading cities...</Text>
+                                        </PickerContainer>
+                                    )}
+                                </>
+                            ) : (
+                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <TextInput
+                                        style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, color: theme.inputText, borderColor: theme.borderColor }]}
+                                        value={city}
+                                        onChangeText={setCity}
+                                        placeholder="Enter City Name"
+                                        placeholderTextColor={theme.subText}
+                                        autoFocus
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
+                                        onPress={() => setCityInputMode(false)}
+                                    >
+                                        <Text style={{ color: theme.accent, fontSize: 18 }}>✓</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {!isLiteProfileRole && (
+                                <>
+                                    {/* Madh */}
+                                    <FormSelect
+                                        label={t('registration.madh')}
+                                        value={madh}
+                                        placeholder="Select Tradition"
+                                        theme={theme}
+                                        onPress={() => setShowMadhPicker(!showMadhPicker)}
+                                    />
+                                    {showMadhPicker && (
+                                        <PickerContainer theme={theme}>
+                                            <PickerItem label="None" theme={theme} onPress={() => { setMadh(''); setShowMadhPicker(false); }} />
+                                            {DATING_TRADITIONS.map((m) => (
+                                                <PickerItem key={m} label={m} theme={theme} onPress={() => { setMadh(m); setShowMadhPicker(false); }} />
+                                            ))}
+                                        </PickerContainer>
+                                    )}
+                                </>
+                            )}
+
+                            {!isLiteProfileRole && (
+                                <FormInput
+                                    label={t('registration.mentor')}
+                                    theme={theme}
+                                    value={mentor}
+                                    onChangeText={setMentor}
+                                    placeholder="Current Shiksha/Diksha Guru"
+                                />
+                            )}
+
+                            {!isLiteProfileRole && (
+                                <RadioGroup
+                                    label={t('registration.identity')}
+                                    options={IDENTITY_OPTIONS}
+                                    value={identity}
+                                    onChange={setIdentity}
+                                    theme={theme}
+                                    layout="row"
+                                />
+                            )}
+
+                            {!isLiteProfileRole && (
+                                <>
+                                    {/* Yoga Style */}
+                                    <FormSelect
+                                        label="Yoga Style"
+                                        value={yogaStyle}
+                                        placeholder="Select Yoga Style"
+                                        theme={theme}
+                                        onPress={() => setShowYogaPicker(!showYogaPicker)}
+                                    />
+                                    {showYogaPicker && (
+                                        <PickerContainer theme={theme}>
+                                            {YOGA_STYLES.map((y) => (
+                                                <PickerItem key={y} label={y} theme={theme} onPress={() => { setYogaStyle(y); setShowYogaPicker(false); }} />
+                                            ))}
+                                        </PickerContainer>
+                                    )}
+                                </>
+                            )}
+
+                            {!isLiteProfileRole && (
+                                <>
+                                    <FormSelect
+                                        label="Mode of Nature (Guna)"
+                                        value={guna}
+                                        placeholder="Select Guna"
+                                        theme={theme}
+                                        onPress={() => setShowGunaPicker(!showGunaPicker)}
+                                    />
+                                    {showGunaPicker && (
+                                        <PickerContainer theme={theme}>
+                                            {GUNAS.map((g) => (
+                                                <PickerItem key={g} label={g} theme={theme} onPress={() => { setGuna(g); setShowGunaPicker(false); }} />
+                                            ))}
+                                        </PickerContainer>
+                                    )}
+                                </>
+                            )}
+
+                            {!isSeekerRole && (
+                                <RadioGroup
+                                    label={t('registration.diet')}
+                                    options={DIET_OPTIONS}
+                                    value={diet}
+                                    onChange={setDiet}
+                                    theme={theme}
+                                    layout="row"
+                                />
+                            )}
+                        </>
+                    )}
+
+                    {/* Terms */}
+                    <View style={styles.checkboxContainer}>
+                        <Switch
+                            value={agreement}
+                            onValueChange={setAgreement}
+                            trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FFB74D' }}
+                            thumbColor={agreement ? '#fff' : '#f4f3f4'}
+                        />
+                        <Text style={[styles.checkboxLabel, { color: '#F8FAFC' }]}>
+                            {t('registration.agreement')}
                         </Text>
-                    </TouchableOpacity>
-                )}
+                    </View>
 
-            </ScrollView>
-        </BackgroundWrapper >
+                    {/* Submit */}
+                    <TouchableOpacity
+                        onPress={handleSubmit}
+                        disabled={loading}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={[roleTheme.accent, roleTheme.accentStrong]}
+                            style={[styles.submitButton, { opacity: loading ? 0.7 : 1 }]}
+                        >
+                            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>{phase === 'initial' ? 'Next' : (phase === 'profile' ? 'Update Profile' : t('registration.submit'))}</Text>}
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    {phase === 'initial' && (
+                        <TouchableOpacity
+                            style={{ marginTop: 24, alignItems: 'center' }}
+                            onPress={() => navigation.navigate('Login')}
+                        >
+                            <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
+                                Already have an account? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Login</Text>
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                </ScrollView>
+            </View>
+        </View>
     );
 };
 

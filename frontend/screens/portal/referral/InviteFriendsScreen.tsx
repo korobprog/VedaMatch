@@ -603,6 +603,9 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '900',
         letterSpacing: 4,
+        textShadowColor: '#8B0000',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 3,
     },
     cardMain: {
         alignItems: 'center',

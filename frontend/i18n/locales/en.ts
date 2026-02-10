@@ -809,7 +809,9 @@ export default {
         clearLocationCache: 'Clear Location Cache',
         locationCacheDescription: 'Clear countries and cities cache to update data',
         locationCacheCleared: 'Cache Cleared',
-        locationCacheClearedMsg: 'Countries and cities data will be reloaded on next request'
+        locationCacheClearedMsg: 'Location cache cleared. Countries and cities will be reloaded on next request.',
+        proMode: 'PRO Mode',
+        proModeDesc: 'Allows you to see content/filters of all maths'
     },
     auth: {
         login: 'Login',

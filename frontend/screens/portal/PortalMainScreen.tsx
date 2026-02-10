@@ -366,46 +366,52 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
                     <View style={styles.logoContainer}>
                         {/* Assistant Button with Internal Shimmer */}
-                        <TouchableOpacity
-                            activeOpacity={0.8}
-                            onPress={() => {
-                                handleNewChat();
-                                navigation.navigate('Chat');
-                            }}
-                            style={styles.assistantHeaderButton}
-                        >
-                            <LinearGradient
-                                colors={[
-                                    'rgba(255,255,255,0.4)',
-                                    'rgba(255,230,150,0.3)',
-                                    'rgba(255,255,255,0.4)',
-                                ]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={StyleSheet.absoluteFill}
-                            />
-
-                            <Animated.View style={[
-                                styles.assistantShimmer,
-                                {
-                                    width: 100,
-                                    transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
-                                }
-                            ]}>
+                        <View style={styles.logoRow}>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                    handleNewChat();
+                                    navigation.navigate('Chat');
+                                }}
+                                style={styles.assistantHeaderButton}
+                            >
                                 <LinearGradient
-                                    colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
+                                    colors={[
+                                        'rgba(255,255,255,0.4)',
+                                        'rgba(255,230,150,0.3)',
+                                        'rgba(255,255,255,0.4)',
+                                    ]}
                                     start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
                                     style={StyleSheet.absoluteFill}
                                 />
-                            </Animated.View>
 
-                            <Image
-                                source={assistantImage}
-                                style={styles.assistantHeaderIcon}
-                                resizeMode="contain"
-                            />
-                        </TouchableOpacity>
+                                <Animated.View style={[
+                                    styles.assistantShimmer,
+                                    {
+                                        width: 100,
+                                        transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
+                                    }
+                                ]}>
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={StyleSheet.absoluteFill}
+                                    />
+                                </Animated.View>
+
+                                <Image
+                                    source={assistantImage}
+                                    style={styles.assistantHeaderIcon}
+                                    resizeMode="contain"
+                                />
+                            </TouchableOpacity>
+
+                            <Text style={styles.headerBrandText}>
+                                VEDAMATCH
+                            </Text>
+                        </View>
                     </View>
 
                     <View style={styles.headerRight}>
@@ -794,5 +800,14 @@ const styles = StyleSheet.create({
     hintText: {
         fontSize: 12,
         opacity: 0.6,
+    },
+    headerBrandText: {
+        fontSize: 15,
+        fontWeight: '900',
+        color: '#FFFFFF',
+        letterSpacing: 2,
+        textShadowColor: '#8B0000',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 3,
     },
 });

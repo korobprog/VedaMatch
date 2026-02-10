@@ -828,7 +828,9 @@ export default {
         clearLocationCache: 'Очистить кеш локаций',
         locationCacheDescription: 'Очистить кеш стран и городов для обновления данных',
         locationCacheCleared: 'Кеш очищен',
-        locationCacheClearedMsg: 'Данные о странах и городах будут загружены заново при следующем запросе'
+        locationCacheClearedMsg: 'Данные о странах и городах будут загружены заново при следующем запросе',
+        proMode: 'Режим PRO',
+        proModeDesc: 'Позволяет видеть контент/фильтры всех матхов'
     },
     auth: {
         login: 'Войти',

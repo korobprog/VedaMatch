@@ -438,6 +438,9 @@ const styles = StyleSheet.create({
         color: ModernVedicTheme.colors.primary,
         fontFamily: Platform.OS === 'ios' ? 'Playfair Display' : 'serif',
         letterSpacing: 1.5,
+        textShadowColor: '#8B0000',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 3,
     },
     subtitle: {
         fontSize: 14,
