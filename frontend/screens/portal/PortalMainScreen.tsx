@@ -239,6 +239,13 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         }
     }, [route.params?.initialTab]);
 
+    useEffect(() => {
+        if (route.params?.resetToGridAt) {
+            setActiveTab(null);
+            navigation.setParams({ initialTab: undefined, resetToGridAt: undefined });
+        }
+    }, [route.params?.resetToGridAt, navigation]);
+
     const handleServicePress = useCallback((serviceId: string) => {
         if (serviceId === 'settings') {
             navigation.navigate('AppSettings');
@@ -332,7 +339,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                     blurAmount={12}
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
-                                <Gift size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary} />
+                                <Gift size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => navigation.navigate('VideoCirclesScreen')}
@@ -351,9 +358,9 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                     blurAmount={12}
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
-                                <Film size={16} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary} />
+                                <Film size={16} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={effectiveBgType === 'image' || effectiveBgType === 'gradient'} />
+                            <BalancePill size="small" lightMode={effectiveBgType === 'image'} />
                         </View>
                     </View>
 
@@ -420,7 +427,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                 blurAmount={12}
                                 reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                             />
-                            <MessageSquare size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <MessageSquare size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
@@ -438,7 +445,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                 blurAmount={12}
                                 reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                             />
-                            <Settings size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Settings size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[
@@ -455,7 +462,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                 blurAmount={12}
                                 reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                             />
-                            <Bell size={18} color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Bell size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         {roleDescriptor && (
                             <TouchableOpacity
@@ -568,14 +575,14 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                         height: '100%',
                                         borderRadius: 20,
                                         overflow: 'hidden',
-                                        backgroundColor: (effectiveBgType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
-                                        borderColor: (effectiveBgType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.4)' : 'transparent',
-                                        borderWidth: (effectiveBgType === 'image' || isDarkMode) ? 1.5 : 0,
+                                        backgroundColor: effectiveBgType === 'image' ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                                        borderColor: effectiveBgType === 'image' ? 'rgba(255,255,255,0.4)' : 'transparent',
+                                        borderWidth: effectiveBgType === 'image' ? 1.5 : 0,
                                         justifyContent: 'center',
                                         alignItems: 'center',
                                     }}
                                 >
-                                    {(effectiveBgType === 'image' || isDarkMode) && (
+                                    {effectiveBgType === 'image' && (
                                         <BlurView
                                             style={StyleSheet.absoluteFill}
                                             blurType={isDarkMode ? "dark" : "light"}
@@ -593,7 +600,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                     }}>
                                         <List
                                             size={22}
-                                            color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
+                                            color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary}
                                             strokeWidth={2.5}
                                         />
                                     </View>

@@ -9,7 +9,10 @@ export type RootStackParamList = {
     Registration: { isDarkMode: boolean, phase?: 'initial' | 'profile', inviteCode?: string };
     Login: { inviteCode?: string } | undefined;
     Plans: undefined;
-    Portal: { initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map' } | undefined;
+    Portal: {
+        initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map';
+        resetToGridAt?: number;
+    } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
     ContactProfile: { userId: number };
     AppSettings: undefined;

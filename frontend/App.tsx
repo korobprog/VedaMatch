@@ -23,7 +23,6 @@ import { EditProfileScreen } from './screens/settings/EditProfileScreen';
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
-import { PortalDrawer } from './components/PortalDrawer';
 import { PortalLayoutProvider } from './context/PortalLayoutContext';
 import { MiniPlayer } from './components/MiniPlayer';
 import { audioPlayerService } from './services/audioPlayerService';
@@ -164,7 +163,7 @@ const ThemedStatusBar = () => {
 
 const AppContent = () => {
   const { t } = useTranslation();
-  const { theme, isMenuOpen, setIsMenuOpen, isDarkMode, currentModel, selectModel, isPortalOpen, setIsPortalOpen, isSettingsLoaded } = useSettings();
+  const { theme, isMenuOpen, setIsMenuOpen, isDarkMode, currentModel, selectModel, isSettingsLoaded } = useSettings();
   const { isLoggedIn, isLoading, user } = useUser();
   const [showPreview, setShowPreview] = useState(true);
   const [minLoadTime, setMinLoadTime] = useState(false); // Force min loading time to hide flashes
@@ -480,19 +479,6 @@ const AppContent = () => {
                 }
               }}
             />
-            {isLoggedIn && (
-              <PortalDrawer
-                isVisible={isPortalOpen}
-                onClose={() => setIsPortalOpen(false)}
-                onServicePress={(serviceId) => {
-                  setIsPortalOpen(false);
-                  if (navigationRef.isReady()) {
-                    // @ts-ignore
-                    navigationRef.navigate('Portal', { initialTab: serviceId });
-                  }
-                }}
-              />
-            )}
           </NavigationContainer>
         </PortalLayoutProvider>
       </GlobalGestureHandler>

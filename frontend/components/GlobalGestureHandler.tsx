@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Dimensions, View } from 'react-native';
+import { Dimensions } from 'react-native';
 import {
     Gesture,
     GestureDetector,
@@ -7,6 +7,7 @@ import {
 } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useSettings } from '../context/SettingsContext';
+import { useUser } from '../context/UserContext';
 import { navigationRef } from '../navigation/navigationRef';
 
 interface GlobalGestureHandlerProps {
@@ -20,7 +21,8 @@ const EDGE_THRESHOLD = 50; // Distance from edge to start the gesture
 export const GlobalGestureHandler: React.FC<GlobalGestureHandlerProps> = ({
     children,
 }) => {
-    const { setIsMenuOpen, isMenuOpen, isPortalOpen, setIsPortalOpen } = useSettings();
+    const { setIsMenuOpen, isMenuOpen } = useSettings();
+    const { isLoggedIn } = useUser();
 
     const panGesture = Gesture.Pan()
         .activeOffsetX([-10, 10]) // Small movement to activate in both directions
@@ -30,12 +32,10 @@ export const GlobalGestureHandler: React.FC<GlobalGestureHandlerProps> = ({
             const isFromLeftEdge = startX < EDGE_THRESHOLD;
             const isFromRightEdge = startX > width - EDGE_THRESHOLD;
 
-            // Left-to-right swipe from left edge → открыть ПОРТАЛ (слева)
-            if (!isPortalOpen && isFromLeftEdge && event.translationX > SWIPE_THRESHOLD) {
-                // ПРОВЕРКА: Если мы уже на экране Portal, не открываем еще один выдвижной портал
-                const currentRouteName = navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : '';
-                if (currentRouteName !== 'Portal') {
-                    setIsPortalOpen(true);
+            // Left-to-right swipe from left edge → go to Portal home screen
+            if (isLoggedIn && isFromLeftEdge && event.translationX > SWIPE_THRESHOLD) {
+                if (navigationRef.isReady()) {
+                    navigationRef.navigate('Portal', { resetToGridAt: Date.now() });
                 }
             }
 

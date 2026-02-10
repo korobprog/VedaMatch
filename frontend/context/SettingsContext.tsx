@@ -41,8 +41,6 @@ interface SettingsContextType {
     toggleAutoMagic: () => void;
     isMenuOpen: boolean;
     setIsMenuOpen: (isOpen: boolean) => void;
-    isPortalOpen: boolean;
-    setIsPortalOpen: (isOpen: boolean) => void;
     portalBackground: string;
     portalBackgroundType: 'color' | 'gradient' | 'image';
     setPortalBackground: (bg: string, type: 'color' | 'gradient' | 'image') => Promise<void>;
@@ -73,7 +71,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [isAutoMagicEnabled, setIsAutoMagicEnabled] = useState<boolean>(true);
     const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-    const [isPortalOpen, setIsPortalOpen] = useState<boolean>(false);
     // Default background
     const defaultBgImage = Image.resolveAssetSource(require('../assets/vedamatch_bg.png')).uri;
     const [portalBackground, setPortalBackgroundState] = useState<string>(defaultBgImage);
@@ -379,8 +376,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             toggleAutoMagic,
             isMenuOpen,
             setIsMenuOpen,
-            isPortalOpen,
-            setIsPortalOpen,
             portalBackground,
             portalBackgroundType,
             setPortalBackground,

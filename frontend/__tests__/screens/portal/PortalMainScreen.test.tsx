@@ -29,7 +29,6 @@ jest.mock('../../../context/SettingsContext', () => ({
     vTheme: { colors: { textSecondary: '#111', background: '#fff', primary: '#111' } },
     isDarkMode: false,
     setIsMenuOpen: jest.fn(),
-    setIsPortalOpen: jest.fn(),
     portalBackground: '',
     portalBackgroundType: 'color',
   }),
