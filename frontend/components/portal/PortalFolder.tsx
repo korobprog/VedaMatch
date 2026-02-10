@@ -184,21 +184,23 @@ export const PortalFolderComponent: React.FC<PortalFolderProps> = ({
                         ))}
                     </View>
                 </View>
-                <Text
-                    style={[
-                        styles.label,
-                        {
-                            fontSize: sizeConfig.fontSize,
-                            color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
-                            textShadowColor: 'rgba(0,0,0,0.75)',
-                            textShadowOffset: { width: 0, height: 1 },
-                            textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
-                        },
-                    ]}
-                    numberOfLines={1}
-                >
-                    {folder.name}
-                </Text>
+                <View style={portalBackgroundType === 'image' ? styles.labelPill : undefined}>
+                    <Text
+                        style={[
+                            styles.label,
+                            {
+                                fontSize: sizeConfig.fontSize,
+                                color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
+                                textShadowColor: 'rgba(0,0,0,0.75)',
+                                textShadowOffset: { width: 0, height: 1 },
+                                textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
+                            },
+                        ]}
+                        numberOfLines={1}
+                    >
+                        {folder.name}
+                    </Text>
+                </View>
 
                 {/* Delete button in edit mode */}
                 {isEditMode && (
@@ -268,6 +270,13 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         textAlign: 'center',
         maxWidth: 70,
+    },
+    labelPill: {
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        borderRadius: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        marginTop: 1,
     },
     deleteButton: {
         position: 'absolute',

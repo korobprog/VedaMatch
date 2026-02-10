@@ -198,22 +198,24 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                 </View>
                 {showLabel && (
                     <>
-                        <Text
-                            style={[
-                                styles.label,
-                                {
-                                    fontSize: sizeConfig.fontSize,
-                                    color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
-                                    textShadowColor: 'rgba(0,0,0,0.75)',
-                                    textShadowOffset: { width: 0, height: 1 },
-                                    textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
-                                    fontWeight: roleHighlight ? '700' : '500',
-                                },
-                            ]}
-                            numberOfLines={1}
-                        >
-                            {service.label}
-                        </Text>
+                        <View style={portalBackgroundType === 'image' ? styles.labelPill : undefined}>
+                            <Text
+                                style={[
+                                    styles.label,
+                                    {
+                                        fontSize: sizeConfig.fontSize,
+                                        color: portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.text,
+                                        textShadowColor: 'rgba(0,0,0,0.75)',
+                                        textShadowOffset: { width: 0, height: 1 },
+                                        textShadowRadius: portalBackgroundType === 'image' ? 4 : 0,
+                                        fontWeight: roleHighlight ? '700' : '500',
+                                    },
+                                ]}
+                                numberOfLines={1}
+                            >
+                                {service.label}
+                            </Text>
+                        </View>
                         {mathBadge ? (
                             <View style={styles.mathBadge}>
                                 <Text style={styles.mathBadgeText} numberOfLines={1}>{mathBadge}</Text>
@@ -265,6 +267,13 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         textAlign: 'center',
         maxWidth: 70,
+    },
+    labelPill: {
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        borderRadius: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        marginTop: 1,
     },
     badge: {
         position: 'absolute',
