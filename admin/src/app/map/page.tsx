@@ -5,7 +5,6 @@ import useSWR from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search,
-    Filter,
     MapPin,
     Users,
     Store,
@@ -14,7 +13,6 @@ import {
     AlertCircle,
     Eye,
     EyeOff,
-    Trash2,
     RefreshCw,
     Globe,
     TrendingUp,
@@ -60,12 +58,25 @@ interface MapCluster {
     total: number;
 }
 
+interface MapConfig {
+    style?: string;
+    maxZoom?: number;
+    markers: Record<string, { color: string; icon: string }>;
+    cluster: {
+        colors: {
+            small: string;
+            medium: string;
+            large: string;
+        };
+    };
+}
+
 export default function MapPage() {
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [isEditingConfig, setIsEditingConfig] = useState(false);
-    const [editedConfig, setEditedConfig] = useState<any>(null);
+    const [editedConfig, setEditedConfig] = useState<MapConfig | null>(null);
 
     // Fetch all markers (admin view)
     const { data: markersData, error: markersError, mutate: mutateMarkers } = useSWR(
@@ -80,7 +91,7 @@ export default function MapPage() {
     );
 
     // Fetch map config
-    const { data: configData } = useSWR('/map/config', fetcher);
+    const { data: configData, mutate: mutateConfig } = useSWR('/map/config', fetcher);
 
     const markers: MapMarker[] = markersData?.markers || [];
     const clusters: MapCluster[] = summaryData?.clusters || [];
@@ -102,12 +113,12 @@ export default function MapPage() {
     };
 
     const handleSaveConfig = async () => {
+        if (!editedConfig) return;
         setActionLoading('save-config');
         try {
             await api.post('/admin/map/config', editedConfig);
             setIsEditingConfig(false);
-            // Refresh config data
-            window.location.reload(); // Quick way to refresh SWR or manually mutate if possible
+            await mutateConfig();
         } catch (e) {
             console.error('Failed to save config', e);
         } finally {
@@ -470,9 +481,19 @@ export default function MapPage() {
                                                 type="text"
                                                 value={editedConfig.markers[type].color}
                                                 onChange={(e) => {
-                                                    const newConfig = { ...editedConfig };
-                                                    newConfig.markers[type].color = e.target.value;
-                                                    setEditedConfig(newConfig);
+                                                    setEditedConfig(prev => {
+                                                        if (!prev) return prev;
+                                                        return {
+                                                            ...prev,
+                                                            markers: {
+                                                                ...prev.markers,
+                                                                [type]: {
+                                                                    ...prev.markers[type],
+                                                                    color: e.target.value,
+                                                                },
+                                                            },
+                                                        };
+                                                    });
                                                 }}
                                                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm font-mono transition-all focus:ring-2 focus:ring-[var(--primary)]"
                                             />
@@ -483,9 +504,19 @@ export default function MapPage() {
                                                 type="text"
                                                 value={editedConfig.markers[type].icon}
                                                 onChange={(e) => {
-                                                    const newConfig = { ...editedConfig };
-                                                    newConfig.markers[type].icon = e.target.value;
-                                                    setEditedConfig(newConfig);
+                                                    setEditedConfig(prev => {
+                                                        if (!prev) return prev;
+                                                        return {
+                                                            ...prev,
+                                                            markers: {
+                                                                ...prev.markers,
+                                                                [type]: {
+                                                                    ...prev.markers[type],
+                                                                    icon: e.target.value,
+                                                                },
+                                                            },
+                                                        };
+                                                    });
                                                 }}
                                                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm transition-all focus:ring-2 focus:ring-[var(--primary)]"
                                             />
@@ -512,9 +543,19 @@ export default function MapPage() {
                                             type="text"
                                             value={editedConfig.cluster.colors.small}
                                             onChange={(e) => {
-                                                const newConfig = { ...editedConfig };
-                                                newConfig.cluster.colors.small = e.target.value;
-                                                setEditedConfig(newConfig);
+                                                setEditedConfig(prev => {
+                                                    if (!prev) return prev;
+                                                    return {
+                                                        ...prev,
+                                                        cluster: {
+                                                            ...prev.cluster,
+                                                            colors: {
+                                                                ...prev.cluster.colors,
+                                                                small: e.target.value,
+                                                            },
+                                                        },
+                                                    };
+                                                });
                                             }}
                                             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm font-mono"
                                         />
@@ -525,9 +566,19 @@ export default function MapPage() {
                                             type="text"
                                             value={editedConfig.cluster.colors.medium}
                                             onChange={(e) => {
-                                                const newConfig = { ...editedConfig };
-                                                newConfig.cluster.colors.medium = e.target.value;
-                                                setEditedConfig(newConfig);
+                                                setEditedConfig(prev => {
+                                                    if (!prev) return prev;
+                                                    return {
+                                                        ...prev,
+                                                        cluster: {
+                                                            ...prev.cluster,
+                                                            colors: {
+                                                                ...prev.cluster.colors,
+                                                                medium: e.target.value,
+                                                            },
+                                                        },
+                                                    };
+                                                });
                                             }}
                                             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm font-mono"
                                         />
@@ -538,9 +589,19 @@ export default function MapPage() {
                                             type="text"
                                             value={editedConfig.cluster.colors.large}
                                             onChange={(e) => {
-                                                const newConfig = { ...editedConfig };
-                                                newConfig.cluster.colors.large = e.target.value;
-                                                setEditedConfig(newConfig);
+                                                setEditedConfig(prev => {
+                                                    if (!prev) return prev;
+                                                    return {
+                                                        ...prev,
+                                                        cluster: {
+                                                            ...prev.cluster,
+                                                            colors: {
+                                                                ...prev.cluster.colors,
+                                                                large: e.target.value,
+                                                            },
+                                                        },
+                                                    };
+                                                });
                                             }}
                                             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm font-mono"
                                         />

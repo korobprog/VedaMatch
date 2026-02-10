@@ -127,9 +127,11 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 	}
 
 	// Keep active/expired states consistent for feed reads.
-	_ = s.db.Model(&models.VideoCircle{}).
+	if err := s.db.Model(&models.VideoCircle{}).
 		Where("status = ? AND expires_at <= ?", models.VideoCircleStatusActive, time.Now()).
-		Update("status", models.VideoCircleStatusExpired).Error
+		Update("status", models.VideoCircleStatusExpired).Error; err != nil {
+		log.Printf("circle_list expire_sync_error=%v", err)
+	}
 
 	if params.Page < 1 {
 		params.Page = 1
@@ -306,6 +308,9 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 	expiresAt := time.Now().Add(60 * time.Minute)
 	if req.ExpiresAt != nil {
 		expiresAt = *req.ExpiresAt
+	}
+	if !expiresAt.After(time.Now()) {
+		return nil, errors.New("expiresAt must be in the future")
 	}
 
 	matha := strings.TrimSpace(req.Matha)
@@ -677,6 +682,10 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	if circle.Status != models.VideoCircleStatusActive || !circle.ExpiresAt.After(now) {
 		return nil, ErrCircleExpired
 	}
+	isAdmin := strings.EqualFold(role, models.RoleAdmin) || strings.EqualFold(role, models.RoleSuperadmin)
+	if circle.AuthorID != userID && !isAdmin {
+		return nil, errors.New("forbidden")
+	}
 
 	code := mapBoostTypeToTariffCode(req.BoostType)
 	if code == "" {
@@ -825,16 +834,6 @@ func (s *VideoCircleService) CleanupExpiredS3(circleID uint) {
 		if err := s.s3.DeleteFile(context.Background(), key); err != nil {
 			log.Printf("circle_s3_cleanup circle_id=%d key=%s error=%v", circleID, key, err)
 			continue
-		}
-
-		if idx := strings.LastIndex(key, "/"); idx > 0 {
-			prefix := key[:idx+1]
-			files, err := s.s3.ListFiles(context.Background(), prefix)
-			if err == nil {
-				for _, file := range files {
-					_ = s.s3.DeleteFile(context.Background(), file.Key)
-				}
-			}
 		}
 	}
 

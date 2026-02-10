@@ -4,9 +4,7 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    Dimensions,
     StatusBar,
-    ScrollView,
     Alert,
     Platform,
     ImageBackground,
@@ -17,27 +15,11 @@ import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import {
-    Users,
-    MessageCircle,
-    Phone,
-    Sparkles,
-    ShoppingBag,
-    Megaphone,
-    Book,
-    GraduationCap,
-    Newspaper,
-    User,
     Bell,
-    Menu,
-    LayoutGrid,
     List,
     Settings,
     MessageSquare,
-    Coffee,
-    Utensils,
-    Map,
     Gift,
-    HelpCircle,
     Compass,
     Leaf,
     Infinity,
@@ -61,7 +43,6 @@ import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useChat } from '../../context/ChatContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
-import { PortalLayoutProvider, usePortalLayout } from '../../context/PortalLayoutContext';
 import { PortalGrid } from '../../components/portal';
 import { BalancePill } from '../../components/wallet/BalancePill';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
@@ -73,20 +54,17 @@ import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
 
 
-const { width } = Dimensions.get('window');
-
 type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services';
 
 // Inner component that uses portal layout context
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
-    const { t } = useTranslation();
+    useTranslation();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
     const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType, activeWallpaper, isSlideshowEnabled, assistantType } = useSettings();
     const { handleNewChat } = useChat();
 
     // Animations for assistant button
     const shimmerAnim = useRef(new Animated.Value(-60)).current;
-    const rippleAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         // Shimmer loop
@@ -97,20 +75,10 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 useNativeDriver: true,
             })
         ).start();
-
-        // Ripple/Wave loop
-        Animated.loop(
-            Animated.timing(rippleAnim, {
-                toValue: 1,
-                duration: 2000,
-                useNativeDriver: true,
-            })
-        ).start();
-    }, []);
+    }, [shimmerAnim]);
 
     const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [showRoleInfo, setShowRoleInfo] = useState(false);
 
     // Determine effective background values
@@ -157,7 +125,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         } else {
             startTransition();
         }
-    }, [effectiveBg, isSlideshowEnabled]);
+    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim]);
 
     // When slideshow disabled, update immediately without animation
     useEffect(() => {
@@ -167,7 +135,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             setNextBg(null);
             fadeAnim.setValue(1);
         }
-    }, [isSlideshowEnabled, effectiveBg]);
+    }, [isSlideshowEnabled, effectiveBg, fadeAnim]);
 
     const backgroundImageSource = useMemo(() => {
         if (!isImageBackground || !displayedBg) return undefined;
@@ -237,7 +205,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         } else if (route.params?.initialTab) {
             setActiveTab(route.params.initialTab);
         }
-    }, [route.params?.initialTab]);
+    }, [route.params?.initialTab, navigation]);
 
     useEffect(() => {
         if (route.params?.resetToGridAt) {
@@ -291,7 +259,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             return;
         }
         setActiveTab(serviceId as ServiceTab);
-    }, [user, navigation]);
+    }, [user, navigation, setIsMenuOpen]);
 
     const renderContent = () => {
         const backToGrid = () => setActiveTab(null);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, use, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft,
@@ -8,7 +8,6 @@ import {
     Settings,
     Bookmark,
     Share2,
-    Star,
     Loader2,
     ArrowLeft,
     ArrowRight,
@@ -19,7 +18,6 @@ import {
     Sun,
     Moon,
     Coffee,
-    Navigation // Added for more semantic icon if needed, or stick to Menu
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -60,7 +58,6 @@ export default function ReaderPage() {
     const isManualControl = useRef(false);
     const [readerTheme, setReaderTheme] = useState<'paper' | 'sepia' | 'dark'>('paper');
     const [language, setLanguage] = useState<'ru' | 'en'>('ru');
-    const mainScrollRef = useRef<HTMLDivElement>(null);
     const observer = useRef<IntersectionObserver | null>(null);
 
     const toggleHeaderManual = (show: boolean) => {
@@ -196,11 +193,14 @@ export default function ReaderPage() {
 
                 const chapterParam = searchParams.get('chapter');
                 if (chapterParam) {
-                    const chapterNum = parseInt(chapterParam);
-                    setCurrentChapter(chapterNum);
-                    const cantoParam = searchParams.get('canto');
-                    if (cantoParam) {
-                        setCurrentCanto(parseInt(cantoParam));
+                    const chapterNum = Number(chapterParam);
+                    if (Number.isInteger(chapterNum) && chapterNum > 0) {
+                        setCurrentChapter(chapterNum);
+                    }
+                    const cantoParamRaw = searchParams.get('canto');
+                    if (cantoParamRaw) {
+                        const cantoParam = Number(cantoParamRaw);
+                        setCurrentCanto(Number.isInteger(cantoParam) && cantoParam > 0 ? cantoParam : 0);
                     } else {
                         // Find canto for this chapter if missing in URL
                         const found = chapterList.find(c => c.chapter === chapterNum);
@@ -258,7 +258,7 @@ export default function ReaderPage() {
             const verseToScroll = searchParams.get('verse');
             if (verseToScroll && data) {
                 setTimeout(() => {
-                    const index = data.findIndex(v => v.verse === verseToScroll);
+                    const index = data.findIndex(v => String(v.verse) === verseToScroll);
                     if (index !== -1) scrollToVerse(index, data);
                 }, 100); // Reduced delay
             } else {

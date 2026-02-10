@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
-    useColorScheme,
     Image,
     Linking,
     Alert,
@@ -62,7 +61,33 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [readerFontBold, setReaderFontBold] = useState(false);
     const triggerTapFeedback = usePressFeedback();
 
-    const fetchRoomDetails = async () => {
+    const fetchVerse = useCallback(async (bookCode: string, chapter: number, verseNum: number, lang: string = 'ru') => {
+        try {
+            const response = await fetch(`${API_PATH}/library/verses?bookCode=${bookCode}&chapter=${chapter}&language=${lang}`);
+            if (response.ok) {
+                const verses = await response.json();
+                setVersesInChapter(verses);
+                const verse = verses.find((v: any) => parseInt(v.verse, 10) === verseNum);
+                setCurrentVerse(verse || verses[0]);
+            }
+        } catch (err) {
+            console.error('Error fetching verse', err);
+        }
+    }, []);
+
+    const fetchChapters = useCallback(async (bookCode: string) => {
+        try {
+            const response = await fetch(`${API_PATH}/library/books/${bookCode}/chapters`);
+            if (response.ok) {
+                const data = await response.json();
+                setChapters(data);
+            }
+        } catch (err) {
+            console.error('Error fetching chapters', err);
+        }
+    }, []);
+
+    const fetchRoomDetails = useCallback(async () => {
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
@@ -80,47 +105,21 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         } catch (error) {
             console.error('Error fetching room details:', error);
         }
-    };
+    }, [fetchChapters, fetchVerse, roomId]);
 
-    const fetchVerse = async (bookCode: string, chapter: number, verseNum: number, lang: string = 'ru') => {
-        try {
-            const response = await fetch(`${API_PATH}/library/verses?bookCode=${bookCode}&chapter=${chapter}&language=${lang}`);
-            if (response.ok) {
-                const verses = await response.json();
-                setVersesInChapter(verses);
-                const verse = verses.find((v: any) => parseInt(v.verse) === verseNum);
-                setCurrentVerse(verse || verses[0]);
-            }
-        } catch (err) {
-            console.error('Error fetching verse', err);
-        }
-    }
-
-    const fetchFontSettings = async () => {
+    const fetchFontSettings = useCallback(async () => {
         try {
             const size = await AsyncStorage.getItem('reader_font_size');
             const bold = await AsyncStorage.getItem('reader_font_bold');
             const expanded = await AsyncStorage.getItem('chat_reader_expanded');
 
-            if (size) setReaderFontSize(parseInt(size));
+            if (size) setReaderFontSize(parseInt(size, 10));
             if (bold) setReaderFontBold(bold === 'true');
             if (expanded !== null) setIsExpanded(expanded === 'true');
         } catch (e) {
             console.error('Failed to load font settings', e);
         }
-    };
-
-    const fetchChapters = async (bookCode: string) => {
-        try {
-            const response = await fetch(`${API_PATH}/library/books/${bookCode}/chapters`);
-            if (response.ok) {
-                const data = await response.json();
-                setChapters(data);
-            }
-        } catch (err) {
-            console.error('Error fetching chapters', err);
-        }
-    }
+    }, []);
 
     const handleJumpToVerse = async (chapter: number, verse: number) => {
         if (!roomDetails) return;
@@ -149,7 +148,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         }
     };
 
-    const fetchMessages = async () => {
+    const fetchMessages = useCallback(async () => {
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`, {
@@ -175,13 +174,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [i18n.language, roomId, t, user?.ID, user?.karmicName, user?.spiritualName]);
 
     useEffect(() => {
         fetchMessages();
         fetchRoomDetails();
         fetchFontSettings();
+    }, [fetchFontSettings, fetchMessages, fetchRoomDetails]);
 
+    useEffect(() => {
         const removeListener = addListener((msg: any) => {
             // Check if message belongs to this room
             if (msg.roomId === roomId) {
@@ -204,6 +205,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             }
         });
 
+        return () => removeListener();
+    }, [addListener, i18n.language, roomId, t, user?.ID, user?.karmicName, user?.spiritualName]);
+
+    useEffect(() => {
         navigation.setOptions({
             headerTitle: () => (
                 <View style={{ maxWidth: '70%', alignItems: 'center' }}>
@@ -245,9 +250,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             headerTitleAlign: 'center',
             headerShadowVisible: false,
         });
-
-        return () => removeListener();
-    }, [navigation, roomName, roomId, user?.ID, vTheme]);
+    }, [navigation, roomName, vTheme]);
 
     // Update header buttons based on room type (separate effect to react to roomDetails changes)
     useEffect(() => {
@@ -300,10 +303,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const handleNextVerse = async () => {
         if (!roomDetails || !versesInChapter) return;
 
-        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse) === roomDetails.currentVerse);
+        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse, 10) === roomDetails.currentVerse);
         if (currentVerseIdx !== -1 && currentVerseIdx < versesInChapter.length - 1) {
             // Move to next verse in same chapter
-            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx + 1].verse));
+            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx + 1].verse, 10));
         } else {
             // Check if next chapter exists
             const currentChapterIdx = chapters.findIndex(ch => ch.chapter === roomDetails.currentChapter);
@@ -317,10 +320,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const handlePrevVerse = async () => {
         if (!roomDetails || !versesInChapter) return;
 
-        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse) === roomDetails.currentVerse);
+        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse, 10) === roomDetails.currentVerse);
         if (currentVerseIdx > 0) {
             // Move to previous verse in same chapter
-            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx - 1].verse));
+            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx - 1].verse, 10));
         } else {
             // Check if previous chapter exists
             const currentChapterIdx = chapters.findIndex(ch => ch.chapter === roomDetails.currentChapter);
@@ -553,10 +556,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                         {versesInChapter.map((v) => (
                                             <TouchableOpacity
                                                 key={v.id}
-                                                style={[styles.verseNavItem, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemActive]}
-                                                onPress={() => handleJumpToVerse(roomDetails.currentChapter, parseInt(v.verse))}
+                                                style={[styles.verseNavItem, roomDetails.currentVerse === parseInt(v.verse, 10) && styles.verseNavItemActive]}
+                                                onPress={() => handleJumpToVerse(roomDetails.currentChapter, parseInt(v.verse, 10))}
                                             >
-                                                <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse) && styles.verseNavItemTextActive]}>
+                                                <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse, 10) && styles.verseNavItemTextActive]}>
                                                     {v.verse}
                                                 </Text>
                                             </TouchableOpacity>

@@ -8,7 +8,6 @@ import {
     Image,
     ActivityIndicator,
     RefreshControl,
-    Dimensions
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { newsService, NewsItem } from '../../../services/newsService';
@@ -20,11 +19,8 @@ import {
     Calendar,
     GraduationCap,
     Heart,
-    Users,
-    Wind,
     Globe,
     Building2,
-    Sparkles,
     Star,
     Bell,
     BellOff,
@@ -32,17 +28,13 @@ import {
     Zap,
     Inbox,
     AlertCircle,
-    Compass,
     Rss,
-    Bookmark
 } from 'lucide-react-native';
 import { useSettings } from '../../../context/SettingsContext';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
-
-const { width } = Dimensions.get('window');
 
 // Category pills for filtering
 const CATEGORIES = [
@@ -62,7 +54,7 @@ const MADH_FILTERS = [
 ];
 
 export const NewsScreen = () => {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const { isDarkMode } = useSettings();
     const navigation = useNavigation();
     const { user } = useUser();
@@ -115,7 +107,7 @@ export const NewsScreen = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [lang, selectedCategory, personalized]);
+    }, [lang, selectedCategory, selectedMadh, personalized]);
 
     const loadUserPreferences = async () => {
         try {
@@ -125,15 +117,15 @@ export const NewsScreen = () => {
             ]);
             setSubscriptions(subs);
             setFavorites(favs);
-        } catch (error) {
-            console.error('[NEWS] Error loading prefs:', error);
+        } catch (err) {
+            console.error('[NEWS] Error loading prefs:', err);
         }
     };
 
     useEffect(() => {
         loadNews(1, true);
         loadUserPreferences();
-    }, [loadNews, selectedCategory, selectedMadh]);
+    }, [loadNews]);
 
     const handleRefresh = useCallback(() => {
         setRefreshing(true);

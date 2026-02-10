@@ -20,6 +20,45 @@ func NewWalletService() *WalletService {
 	return &WalletService{}
 }
 
+func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.Wallet, error) {
+	var wallet models.Wallet
+	err := tx.Where("user_id = ?", userID).First(&wallet).Error
+	if err == nil {
+		return &wallet, nil
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	wallet = models.Wallet{
+		UserID:         &userID,
+		Type:           models.WalletTypePersonal,
+		Balance:        0,
+		PendingBalance: 50,
+		FrozenBalance:  0,
+		TotalEarned:    0,
+		TotalSpent:     0,
+	}
+
+	if err := tx.Create(&wallet).Error; err != nil {
+		return nil, err
+	}
+
+	welcomeTx := models.WalletTransaction{
+		WalletID:     wallet.ID,
+		Type:         models.TransactionTypeBonus,
+		Amount:       50,
+		Description:  "Welcome Bonus (Pending activation)",
+		BalanceAfter: 0,
+	}
+	if err := tx.Create(&welcomeTx).Error; err != nil {
+		return nil, err
+	}
+
+	return &wallet, nil
+}
+
 // GetOrCreateWallet gets user's wallet or creates one with initial balance
 func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 	var wallet models.Wallet
@@ -57,7 +96,9 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 		Description:  "Welcome Bonus (Pending activation)",
 		BalanceAfter: 0, // Active balance is still 0
 	}
-	database.DB.Create(&welcomeTx)
+	if err := database.DB.Create(&welcomeTx).Error; err != nil {
+		return nil, err
+	}
 
 	log.Printf("[Wallet] Created wallet for user %d with 0 Active + 50 Pending LKM", userID)
 	return &wallet, nil
@@ -109,20 +150,8 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 		}
 
 		// Lock receiver's wallet (or create if doesn't exist)
-		var toWallet models.Wallet
-		err := tx.Where("user_id = ?", toUserID).First(&toWallet).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			toWallet = models.Wallet{
-				UserID:      &toUserID,
-				Type:        models.WalletTypePersonal,
-				Balance:     1000,
-				TotalEarned: 0,
-				TotalSpent:  0,
-			}
-			if err := tx.Create(&toWallet).Error; err != nil {
-				return err
-			}
-		} else if err != nil {
+		toWallet, err := s.getOrCreateWalletTx(tx, toUserID)
+		if err != nil {
 			return err
 		}
 
@@ -137,10 +166,10 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 
 		// Credit to receiver
 		newToBalance := toWallet.Balance + amount
-		if err := tx.Model(&toWallet).Update("balance", newToBalance).Error; err != nil {
+		if err := tx.Model(toWallet).Update("balance", newToBalance).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&toWallet).Update("total_earned", toWallet.TotalEarned+amount).Error; err != nil {
+		if err := tx.Model(toWallet).Update("total_earned", toWallet.TotalEarned+amount).Error; err != nil {
 			return err
 		}
 
@@ -184,7 +213,7 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		wallet, err := s.GetOrCreateWallet(userID)
+		wallet, err := s.getOrCreateWalletTx(tx, userID)
 		if err != nil {
 			return err
 		}
@@ -231,7 +260,7 @@ func (s *WalletService) Refund(userID uint, amount int, description string, book
 	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		wallet, err := s.GetOrCreateWallet(userID)
+		wallet, err := s.getOrCreateWalletTx(tx, userID)
 		if err != nil {
 			return err
 		}
@@ -433,7 +462,7 @@ func (s *WalletService) AdminCharge(adminID, userID uint, amount int, reason str
 	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		wallet, err := s.GetOrCreateWallet(userID)
+		wallet, err := s.getOrCreateWalletTx(tx, userID)
 		if err != nil {
 			return err
 		}

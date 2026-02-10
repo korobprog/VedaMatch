@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, useColorScheme, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
-import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
@@ -16,7 +15,7 @@ import { ProtectedScreen } from '../../../components/ProtectedScreen';
 
 import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext';
-import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, UserMinus, Check } from 'lucide-react-native';
+import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
 
 export const ContactsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -50,13 +49,7 @@ export const ContactsScreen: React.FC = () => {
     }, []);
 
 
-    useEffect(() => {
-        fetchContacts();
-    }, []);
-
-
-
-    const fetchContacts = async () => {
+    const fetchContacts = useCallback(async () => {
         try {
             setLoading(true);
             const contacts = await contactService.getContacts();
@@ -85,7 +78,7 @@ export const ContactsScreen: React.FC = () => {
                     setAvailableCities(citiesFromContacts);
                     console.log('No cities from API, using contacts:', citiesFromContacts.length);
                 }
-            } catch (apiError) {
+            } catch {
                 setAvailableCities(citiesFromContacts);
                 console.log('API error, using cities from contacts:', citiesFromContacts.length);
             }
@@ -101,7 +94,11 @@ export const ContactsScreen: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentUser?.ID]);
+
+    useEffect(() => {
+        fetchContacts();
+    }, [fetchContacts]);
 
     const handleUnblock = async (contactId: number) => {
         if (!currentUser?.ID) return;
@@ -177,15 +174,6 @@ export const ContactsScreen: React.FC = () => {
         }
         return 0;
     });
-
-    const getLocalTime = (timezone?: string) => {
-        if (!timezone) return '';
-        try {
-            return new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
-        } catch (e) {
-            return '';
-        }
-    };
 
     const renderItem = ({ item }: { item: UserContact }) => {
         const avatarUrl = getMediaUrl(item.avatarUrl);

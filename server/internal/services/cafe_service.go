@@ -80,18 +80,26 @@ func (s *CafeService) CreateCafe(ownerID uint, req models.CafeCreateRequest) (*m
 		Status:       models.CafeStatusActive,
 	}
 
-	if err := s.db.Create(cafe).Error; err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(cafe).Error; err != nil {
+			return err
+		}
+
+		// Keep owner permissions consistent with created cafe.
+		staff := &models.CafeStaff{
+			CafeID:   cafe.ID,
+			UserID:   ownerID,
+			Role:     models.CafeStaffRoleAdmin,
+			IsActive: true,
+		}
+		if err := tx.Create(staff).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-
-	// Add owner as admin staff
-	staff := &models.CafeStaff{
-		CafeID:   cafe.ID,
-		UserID:   ownerID,
-		Role:     models.CafeStaffRoleAdmin,
-		IsActive: true,
-	}
-	s.db.Create(staff)
 
 	return cafe, nil
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
     Image, Switch, Alert, ActivityIndicator, Modal
@@ -72,11 +72,7 @@ export const ProductEditScreen: React.FC = () => {
     const [variantStock, setVariantStock] = useState('');
     const [variantAttributes, setVariantAttributes] = useState<Record<string, string>>({});
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             // Load categories
             const cats = await marketService.getProductCategories();
@@ -92,7 +88,11 @@ export const ProductEditScreen: React.FC = () => {
         } finally {
             setInitialLoading(false);
         }
-    };
+    }, [isEditing, productId]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const populateForm = (product: Product) => {
         setName(product.name);
@@ -188,7 +188,7 @@ export const ProductEditScreen: React.FC = () => {
             sku: variantSku.trim(),
             name: variantName.trim(),
             price: variantPrice ? parseFloat(variantPrice) : undefined,
-            stock: parseInt(variantStock) || 0,
+            stock: parseInt(variantStock, 10) || 0,
             attributes: variantAttributes,
         };
 
@@ -213,15 +213,6 @@ export const ProductEditScreen: React.FC = () => {
                 },
             ]
         );
-    };
-
-    const addAttribute = () => {
-        const key = `attr_${Object.keys(variantAttributes).length + 1}`;
-        setVariantAttributes(prev => ({ ...prev, [key]: '' }));
-    };
-
-    const updateAttribute = (key: string, value: string) => {
-        setVariantAttributes(prev => ({ ...prev, [key]: value }));
     };
 
     const handleSubmit = async () => {
@@ -256,7 +247,7 @@ export const ProductEditScreen: React.FC = () => {
                 productType,
                 basePrice: parseFloat(basePrice),
                 salePrice: salePrice ? parseFloat(salePrice) : undefined,
-                stock: parseInt(stock) || 0,
+                stock: parseInt(stock, 10) || 0,
                 trackStock,
                 digitalUrl: productType === 'digital' ? digitalUrl : undefined,
                 weight: weight ? parseFloat(weight) : undefined,

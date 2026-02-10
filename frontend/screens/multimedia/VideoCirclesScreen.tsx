@@ -122,6 +122,19 @@ export const VideoCirclesScreen: React.FC = () => {
     { value: 'nature', label: t('videoCircles.categories.nature') },
     { value: 'other', label: t('videoCircles.categories.other') },
   ], [t]);
+  const myBtnTariffTextStyle = useMemo(() => ({ color: roleColors.accent }), [roleColors.accent]);
+  const emptyIconBackgroundStyle = useMemo(
+    () => ({ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }),
+    [isDarkMode]
+  );
+  const placeholderThumbStyle = useMemo(
+    () => ({ backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }),
+    [isDarkMode]
+  );
+  const metaPillStyle = useMemo(
+    () => ({ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }),
+    [isDarkMode]
+  );
 
   const loadCircles = useCallback(async () => {
     try {
@@ -143,7 +156,7 @@ export const VideoCirclesScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, roleScope]);
+  }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, roleScope, t]);
 
   const loadTariffs = useCallback(async () => {
     try {
@@ -177,15 +190,20 @@ export const VideoCirclesScreen: React.FC = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCircles((prev) =>
-        prev
-          .map((item) => ({ ...item, remainingSec: Math.max(item.remainingSec - 1, 0) }))
-          .filter((item) => item.remainingSec > 0)
-      );
+      setCircles((prev) => {
+        const updated = prev.map((item) => ({
+          ...item,
+          remainingSec: Math.max(item.remainingSec - 1, 0),
+        }));
+        if (filterStatus === 'active') {
+          return updated.filter((item) => item.remainingSec > 0);
+        }
+        return updated;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [filterStatus]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -204,7 +222,7 @@ export const VideoCirclesScreen: React.FC = () => {
     }).start();
   }, [fabAnim]);
 
-  const openVideoPicker = async (source: 'camera' | 'gallery') => {
+  const openVideoPicker = useCallback(async (source: 'camera' | 'gallery') => {
     console.log('[VideoCircles] openVideoPicker called with source:', source);
     try {
       const result = source === 'camera'
@@ -258,7 +276,7 @@ export const VideoCirclesScreen: React.FC = () => {
         : t('chat.imagePickError');
       Alert.alert(t('common.error'), message);
     }
-  };
+  }, [t]);
 
   const openPublishSourceSheet = useCallback(() => {
     Alert.alert(t('videoCircles.publishTitle'), t('chat.chooseAction'), [
@@ -266,7 +284,7 @@ export const VideoCirclesScreen: React.FC = () => {
       { text: t('chat.customImage'), onPress: () => openVideoPicker('gallery') },
       { text: t('common.cancel'), style: 'cancel' },
     ]);
-  }, [t]);
+  }, [openVideoPicker, t]);
 
   useEffect(() => {
     if (routeParams?.openPublish && !openPublishHandled.current) {
@@ -290,7 +308,7 @@ export const VideoCirclesScreen: React.FC = () => {
       if (!city && user?.city) setCity(user.city);
       if (!matha && user?.madh) setMatha(user.madh);
     }
-  }, [publishOpen, selectedVideo, user?.city, user?.madh]);
+  }, [city, matha, publishOpen, selectedVideo, user?.city, user?.madh]);
 
   const publishCircle = async () => {
     if (!selectedVideo?.uri) {
@@ -322,7 +340,15 @@ export const VideoCirclesScreen: React.FC = () => {
     }
   };
 
-  const applyInteractionResponse = (circleId: number, response?: any) => {
+  const applyInteractionResponse = (
+    circleId: number,
+    response?: {
+      likeCount?: number;
+      commentCount?: number;
+      chatCount?: number;
+      likedByUser?: boolean;
+    }
+  ) => {
     if (!response) return;
     setCircles((list) =>
       list.map((item) =>
@@ -336,8 +362,9 @@ export const VideoCirclesScreen: React.FC = () => {
           : item
       )
     );
-    if (typeof response.likedByUser === 'boolean') {
-      setLikedMap((prevMap) => ({ ...prevMap, [circleId]: response.likedByUser }));
+    const likedByUser = response.likedByUser;
+    if (typeof likedByUser === 'boolean') {
+      setLikedMap((prevMap) => ({ ...prevMap, [circleId]: likedByUser }));
     }
   };
 
@@ -388,7 +415,7 @@ export const VideoCirclesScreen: React.FC = () => {
   const submitComment = async () => {
     if (!commentTarget) return;
     if (!commentText.trim()) {
-      Alert.alert(t('common.error'), t('common.loading')); // Simple fallback
+      Alert.alert(t('common.error'), t('videoCircles.commentPlaceholder') || 'Введите комментарий');
       return;
     }
 
@@ -400,15 +427,17 @@ export const VideoCirclesScreen: React.FC = () => {
   };
 
   const handleChatPress = async (circle: VideoCircle) => {
+    if (user?.ID && circle.authorId === user.ID) {
+      Alert.alert(t('common.error'), 'Это ваш кружок');
+      return;
+    }
+
     try {
       await handleInteraction(circle, 'chat');
-    } finally {
-      if (user?.ID && circle.authorId === user.ID) {
-        Alert.alert(t('common.error'), 'Это ваш кружок');
-        return;
-      }
-      navigation.navigate('Chat', { userId: circle.authorId });
+    } catch {
+      // Ignore interaction logging failure to keep chat entry available.
     }
+    navigation.navigate('Chat', { userId: circle.authorId });
   };
 
   const handleBoost = async (circleId: number) => {
@@ -416,8 +445,8 @@ export const VideoCirclesScreen: React.FC = () => {
       await videoCirclesService.boostCircle(circleId, 'premium');
       await loadCircles();
       Alert.alert(t('common.success'), t('videoCircles.successBoost'));
-    } catch (error: any) {
-      const message = typeof error?.message === 'string' && error.message.includes('INSUFFICIENT_LKM')
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message.includes('INSUFFICIENT_LKM')
         ? t('videoCircles.insufficientLkm')
         : t('videoCircles.errorBoost');
       Alert.alert(t('common.error'), message);
@@ -428,6 +457,39 @@ export const VideoCirclesScreen: React.FC = () => {
     const item = tariffs.find((tariff) => tariff.code === 'premium_boost' && tariff.isActive);
     return item?.priceLkm ?? null;
   }, [tariffs]);
+  const roleTextSecondaryStyle = useMemo(() => ({ color: roleColors.textSecondary }), [roleColors.textSecondary]);
+  const roleTextPrimaryStyle = useMemo(() => ({ color: roleColors.textPrimary }), [roleColors.textPrimary]);
+  const roleAccentBackgroundStyle = useMemo(() => ({ backgroundColor: roleColors.accent }), [roleColors.accent]);
+  const myBtnAccentSoftStyle = useMemo(() => ({ backgroundColor: roleColors.accentSoft }), [roleColors.accentSoft]);
+  const inputSurfaceStyle = useMemo(
+    () => ({ color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }),
+    [roleColors.border, roleColors.surface, roleColors.textPrimary]
+  );
+  const modalCardStyle = useMemo(
+    () => ({ backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }),
+    [roleColors.border, roleColors.surfaceElevated]
+  );
+
+  const getRoleDotStyle = useCallback(
+    (selected: boolean, dotColor: string) => ({ backgroundColor: dotColor, opacity: selected ? 1 : 0.4 }),
+    []
+  );
+
+  const getRoleScopeTextStyle = useCallback(
+    (selected: boolean, dotColor: string) => [
+      styles.roleScopeText,
+      selected ? (isDarkMode ? styles.roleScopeTextSelectedDark : { color: dotColor, fontWeight: '700' as const }) : roleTextSecondaryStyle,
+    ],
+    [isDarkMode, roleTextSecondaryStyle]
+  );
+
+  const getStatusTextStyle = useCallback(
+    (status: 'active' | 'expired' | 'deleted') => [
+      styles.statusText,
+      filterStatus === status ? styles.statusTextActive : roleTextPrimaryStyle,
+    ],
+    [filterStatus, roleTextPrimaryStyle]
+  );
 
   const toggleRoleScope = (value: PortalRoleType) => {
     setRoleScope((current) => {
@@ -460,14 +522,14 @@ export const VideoCirclesScreen: React.FC = () => {
           <View style={styles.headerActions}>
             {isTariffAdmin && (
               <TouchableOpacity onPress={() => navigation.navigate('VideoTariffsAdminScreen')} style={styles.myBtn}>
-                <Text style={{ color: roleColors.accent, fontWeight: '700', fontSize: 11 }}>{t('videoCircles.tariffs')}</Text>
+                <Text style={[styles.myBtnTariffText, myBtnTariffTextStyle]}>{t('videoCircles.tariffs')}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
               onPress={() => navigation.navigate('MyVideoCirclesScreen')}
-              style={[styles.myBtn, { backgroundColor: roleColors.accentSoft }]}
+              style={[styles.myBtn, myBtnAccentSoftStyle]}
             >
-              <Text style={{ color: roleColors.accent, fontWeight: '700', fontSize: 12 }}>{t('videoCircles.myCircles')}</Text>
+              <Text style={[styles.myBtnText, myBtnTariffTextStyle]}>{t('videoCircles.myCircles')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setFiltersOpen(true)} style={styles.iconBtn}>
               <SlidersHorizontal size={18} color={roleColors.textSecondary} />
@@ -497,7 +559,7 @@ export const VideoCirclesScreen: React.FC = () => {
                 onPress={() => setFeedScope(scope)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.scopePillText, { color: active ? '#fff' : roleColors.textPrimary }]}>
+                <Text style={active ? styles.scopePillTextActive : [styles.scopePillText, roleTextPrimaryStyle]}>
                   {scope === 'all' ? t('videoCircles.feed') || 'Лента' : t('videoCircles.friendsCircles') || 'Кружки друзей'}
                 </Text>
               </TouchableOpacity>
@@ -524,13 +586,8 @@ export const VideoCirclesScreen: React.FC = () => {
                 onPress={() => toggleRoleScope(option.value)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.roleDot, { backgroundColor: dotColor, opacity: selected ? 1 : 0.4 }]} />
-                <Text style={{
-                  color: selected ? (isDarkMode ? '#fff' : dotColor) : roleColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: selected ? '700' : '500',
-                  letterSpacing: 0.2,
-                }}>
+                <View style={[styles.roleDot, getRoleDotStyle(selected, dotColor)]} />
+                <Text style={getRoleScopeTextStyle(selected, dotColor)}>
                   {option.label}
                 </Text>
               </TouchableOpacity>
@@ -539,7 +596,21 @@ export const VideoCirclesScreen: React.FC = () => {
         </View>
       </View>
     ),
-    [feedScope, isDarkMode, isTariffAdmin, navigation, roleColors, roleScope, t]
+    [
+      ROLE_FILTER_OPTIONS,
+      feedScope,
+      getRoleDotStyle,
+      getRoleScopeTextStyle,
+      isDarkMode,
+      isTariffAdmin,
+      myBtnAccentSoftStyle,
+      myBtnTariffTextStyle,
+      navigation,
+      roleColors,
+      roleScope,
+      roleTextPrimaryStyle,
+      t,
+    ]
   );
 
   if (loading) {
@@ -563,7 +634,7 @@ export const VideoCirclesScreen: React.FC = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={roleColors.accent} />}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <View style={[styles.emptyIconWrap, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+            <View style={[styles.emptyIconWrap, emptyIconBackgroundStyle]}>
               <Video size={32} color={roleColors.textSecondary} />
             </View>
             <Text style={[styles.emptyTitle, { color: roleColors.textPrimary }]}>{t('videoCircles.noCircles')}</Text>
@@ -590,7 +661,7 @@ export const VideoCirclesScreen: React.FC = () => {
               {item.thumbnailUrl ? (
                 <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
               ) : (
-                <View style={[styles.thumb, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
+                <View style={[styles.thumb, placeholderThumbStyle]}>
                   <Play size={40} color={isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)'} />
                 </View>
               )}
@@ -618,18 +689,18 @@ export const VideoCirclesScreen: React.FC = () => {
               {(!!item.city || !!item.matha || !!item.category) && (
                 <View style={styles.metaRow}>
                   {!!item.city && (
-                    <View style={[styles.metaPill, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={[styles.metaPill, metaPillStyle]}>
                       <MapPin size={11} color={roleColors.textSecondary} />
                       <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.city}</Text>
                     </View>
                   )}
                   {!!item.matha && (
-                    <View style={[styles.metaPill, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={[styles.metaPill, metaPillStyle]}>
                       <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.matha}</Text>
                     </View>
                   )}
                   {!!item.category && (
-                    <View style={[styles.metaPill, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={[styles.metaPill, metaPillStyle]}>
                       <Tag size={11} color={roleColors.textSecondary} />
                       <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
                         {t(`videoCircles.categories.${item.category}`)}
@@ -646,7 +717,7 @@ export const VideoCirclesScreen: React.FC = () => {
                     color={likedMap[item.id] ? '#EF4444' : roleColors.textSecondary}
                     fill={likedMap[item.id] ? '#EF4444' : 'transparent'}
                   />
-                  <Text style={[styles.actionCount, { color: likedMap[item.id] ? '#EF4444' : roleColors.textSecondary }]}>
+                  <Text style={likedMap[item.id] ? styles.actionCountLiked : [styles.actionCount, roleTextSecondaryStyle]}>
                     {item.likeCount}
                   </Text>
                 </TouchableOpacity>
@@ -714,7 +785,7 @@ export const VideoCirclesScreen: React.FC = () => {
 
       <Modal visible={publishOpen} animationType="slide" transparent onRequestClose={resetPublishForm}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+          <View style={[styles.modalCard, modalCardStyle]}>
             <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>{t('videoCircles.publishTitle')}</Text>
             <Text style={[styles.modalHint, { color: roleColors.textSecondary }]}>
               {selectedVideo?.fileName || t('chat.uploading')}
@@ -725,7 +796,7 @@ export const VideoCirclesScreen: React.FC = () => {
               onChangeText={setCity}
               placeholder={t('videoCircles.cityPlaceholder')}
               placeholderTextColor={roleColors.textSecondary}
-              style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
+              style={[styles.input, inputSurfaceStyle]}
             />
             <Text style={[styles.categoryLabel, { color: roleColors.textSecondary }]}>{t('videoCircles.mathaLabel')}</Text>
             <View style={styles.categoryChipsWrap}>
@@ -746,7 +817,7 @@ export const VideoCirclesScreen: React.FC = () => {
                         },
                       ]}
                     >
-                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                      <Text style={styles.categoryChipTextActiveSmall}>
                         {user.madh}
                       </Text>
                     </View>
@@ -769,7 +840,7 @@ export const VideoCirclesScreen: React.FC = () => {
                       onPress={() => setMatha(selected ? '' : tradition)}
                       activeOpacity={0.7}
                     >
-                      <Text style={{ color: selected ? '#fff' : roleColors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+                      <Text style={selected ? styles.categoryChipTextActiveSmall : [styles.categoryChipTextSmall, roleTextPrimaryStyle]}>
                         {tradition}
                       </Text>
                     </TouchableOpacity>
@@ -795,7 +866,7 @@ export const VideoCirclesScreen: React.FC = () => {
                     onPress={() => setCategory(selected ? '' : cat.value)}
                     activeOpacity={0.7}
                   >
-                    <Text style={{ color: selected ? '#fff' : roleColors.textPrimary, fontSize: 13, fontWeight: '600' }}>
+                    <Text style={selected ? styles.categoryChipTextActive : [styles.categoryChipText, roleTextPrimaryStyle]}>
                       {cat.label}
                     </Text>
                   </TouchableOpacity>
@@ -805,13 +876,13 @@ export const VideoCirclesScreen: React.FC = () => {
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.secondaryBtn, { borderColor: roleColors.border }]} onPress={resetPublishForm} disabled={publishing}>
-                <Text style={{ color: roleColors.textSecondary }}>{t('common.cancel')}</Text>
+                <Text style={roleTextSecondaryStyle}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: roleColors.accent }]} onPress={publishCircle} disabled={publishing}>
+              <TouchableOpacity style={[styles.primaryBtn, roleAccentBackgroundStyle]} onPress={publishCircle} disabled={publishing}>
                 {publishing ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('videoCircles.publishBtn')}</Text>
+                  <Text style={styles.primaryBtnText}>{t('videoCircles.publishBtn')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -821,7 +892,7 @@ export const VideoCirclesScreen: React.FC = () => {
 
       <Modal visible={commentModalOpen} animationType="slide" transparent onRequestClose={() => setCommentModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+          <View style={[styles.modalCard, modalCardStyle]}>
             <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>{t('contacts.sendMessage')}</Text>
             <TextInput
               value={commentText}
@@ -832,7 +903,7 @@ export const VideoCirclesScreen: React.FC = () => {
               style={[
                 styles.input,
                 styles.commentInput,
-                { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface },
+                inputSurfaceStyle,
               ]}
             />
             <View style={styles.modalActions}>
@@ -840,10 +911,10 @@ export const VideoCirclesScreen: React.FC = () => {
                 style={[styles.secondaryBtn, { borderColor: roleColors.border }]}
                 onPress={() => setCommentModalOpen(false)}
               >
-                <Text style={{ color: roleColors.textSecondary }}>{t('common.cancel')}</Text>
+                <Text style={roleTextSecondaryStyle}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: roleColors.accent }]} onPress={submitComment}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('common.save')}</Text>
+              <TouchableOpacity style={[styles.primaryBtn, roleAccentBackgroundStyle]} onPress={submitComment}>
+                <Text style={styles.primaryBtnText}>{t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -852,7 +923,7 @@ export const VideoCirclesScreen: React.FC = () => {
 
       <Modal visible={filtersOpen} animationType="slide" transparent onRequestClose={() => setFiltersOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+          <View style={[styles.modalCard, modalCardStyle]}>
             <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>{t('videoCircles.filtersTitle')}</Text>
 
             <View style={styles.statusRow}>
@@ -868,7 +939,7 @@ export const VideoCirclesScreen: React.FC = () => {
                   ]}
                   onPress={() => setFilterStatus(status)}
                 >
-                  <Text style={{ color: filterStatus === status ? '#fff' : roleColors.textPrimary, fontWeight: '600' }}>{status}</Text>
+                  <Text style={getStatusTextStyle(status)}>{status}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -878,21 +949,21 @@ export const VideoCirclesScreen: React.FC = () => {
               onChangeText={setFilterCity}
               placeholder={t('registration.city')}
               placeholderTextColor={roleColors.textSecondary}
-              style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
+              style={[styles.input, inputSurfaceStyle]}
             />
             <TextInput
               value={filterMatha}
               onChangeText={setFilterMatha}
               placeholder={t('dating.madh')}
               placeholderTextColor={roleColors.textSecondary}
-              style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
+              style={[styles.input, inputSurfaceStyle]}
             />
             <TextInput
               value={filterCategory}
               onChangeText={setFilterCategory}
               placeholder={t('ads.create.category')}
               placeholderTextColor={roleColors.textSecondary}
-              style={[styles.input, { color: roleColors.textPrimary, borderColor: roleColors.border, backgroundColor: roleColors.surface }]}
+              style={[styles.input, inputSurfaceStyle]}
             />
 
             <View style={styles.modalActions}>
@@ -905,17 +976,17 @@ export const VideoCirclesScreen: React.FC = () => {
                   setFilterCategory('');
                 }}
               >
-                <Text style={{ color: roleColors.textSecondary }}>{t('videoCircles.reset')}</Text>
+                <Text style={roleTextSecondaryStyle}>{t('videoCircles.reset')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: roleColors.accent }]}
+                style={[styles.primaryBtn, roleAccentBackgroundStyle]}
                 onPress={async () => {
                   setFiltersOpen(false);
                   setRefreshing(true);
                   await loadCircles();
                 }}
               >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('videoCircles.apply')}</Text>
+                <Text style={styles.primaryBtnText}>{t('videoCircles.apply')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -979,6 +1050,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  myBtnTariffText: {
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  myBtnText: {
+    fontWeight: '700',
+    fontSize: 12,
+  },
 
   // Scope & Role Chips
   scopeRow: {
@@ -995,6 +1074,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   scopePillText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  scopePillTextActive: {
+    color: '#fff',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -1016,6 +1100,14 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+  },
+  roleScopeText: {
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
+  roleScopeTextSelectedDark: {
+    color: '#fff',
+    fontWeight: '700',
   },
 
   // Video Card Styles
@@ -1122,6 +1214,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  actionCountLiked: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   boostBtn: {
     marginLeft: 'auto',
     flexDirection: 'row',
@@ -1212,6 +1309,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+    opacity: 0.7,
+  },
+  statusTextActive: {
+    fontWeight: '800',
+    opacity: 1,
+  },
   input: {
     height: 52,
     borderRadius: 16,
@@ -1240,6 +1346,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
+  categoryChipTextSmall: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  categoryChipTextActiveSmall: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  categoryChipTextActive: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   modalActions: {
     flexDirection: 'row',
     gap: 12,
@@ -1259,6 +1383,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontWeight: '700',
   },
 });
 

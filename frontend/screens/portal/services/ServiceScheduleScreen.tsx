@@ -1,7 +1,7 @@
 /**
  * ServiceScheduleScreen - Экран настройки расписания сервиса
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -19,13 +19,11 @@ import {
     ArrowLeft,
     Save,
     Clock,
-    Calendar,
     Plus,
     Trash2,
     Copy,
 } from 'lucide-react-native';
 import {
-    ServiceSchedule,
     getServiceSchedule,
     updateServiceSchedule,
     CreateScheduleRequest,
@@ -63,6 +61,15 @@ const DAYS: { key: DayOfWeek; label: string; shortLabel: string }[] = [
 ];
 
 const DEFAULT_SLOT: TimeSlot = { startTime: '09:00', endTime: '18:00' };
+const INITIAL_SCHEDULE: Record<DayOfWeek, DaySchedule> = {
+    monday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
+    tuesday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
+    wednesday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
+    thursday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
+    friday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
+    saturday: { enabled: false, slots: [] },
+    sunday: { enabled: false, slots: [] },
+};
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const hours = Math.floor(i / 2);
@@ -82,32 +89,17 @@ export default function ServiceScheduleScreen() {
     const [saving, setSaving] = useState(false);
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
 
-    const [schedule, setSchedule] = useState<Record<DayOfWeek, DaySchedule>>({
-        monday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
-        tuesday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
-        wednesday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
-        thursday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
-        friday: { enabled: true, slots: [{ ...DEFAULT_SLOT }] },
-        saturday: { enabled: false, slots: [] },
-        sunday: { enabled: false, slots: [] },
-    });
+    const [schedule, setSchedule] = useState<Record<DayOfWeek, DaySchedule>>(INITIAL_SCHEDULE);
 
     const [slotDuration, setSlotDuration] = useState(60); // minutes
     const [breakBetween, setBreakBetween] = useState(0); // minutes
     const [maxBookingsPerDay, setMaxBookingsPerDay] = useState(0); // 0 = unlimited
 
-    // Load existing schedule
-    useEffect(() => {
-        if (serviceId) {
-            loadSchedule();
-        }
-    }, [serviceId]);
-
-    const loadSchedule = async () => {
+    const loadSchedule = React.useCallback(async () => {
         try {
             const data = await getServiceSchedule(serviceId);
             if (data && data.weeklySlots) {
-                const parsed: Record<DayOfWeek, DaySchedule> = { ...schedule };
+                const parsed: Record<DayOfWeek, DaySchedule> = { ...INITIAL_SCHEDULE };
 
                 DAYS.forEach(({ key }) => {
                     const dayData = data.weeklySlots[key];
@@ -129,7 +121,14 @@ export default function ServiceScheduleScreen() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [serviceId]);
+
+    // Load existing schedule
+    useEffect(() => {
+        if (serviceId) {
+            loadSchedule();
+        }
+    }, [serviceId, loadSchedule]);
 
     const handleToggleDay = (day: DayOfWeek) => {
         setSchedule(prev => ({
@@ -256,11 +255,11 @@ export default function ServiceScheduleScreen() {
         return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
     };
 
-    function showTimePicker(day: DayOfWeek, slotIndex: number, field: 'startTime' | 'endTime', currentValue: string) {
+    function showTimePicker(day: DayOfWeek, slotIndex: number, field: 'startTime' | 'endTime', _currentValue: string) {
         const options = TIME_OPTIONS.filter(t => {
-            const h = parseInt(t.split(':')[0]);
+            const h = parseInt(t.split(':')[0], 10);
             if (field === 'startTime') return h >= 6 && h < 23;
-            return h > parseInt(schedule[day].slots[slotIndex].startTime.split(':')[0]);
+            return h > parseInt(schedule[day].slots[slotIndex].startTime.split(':')[0], 10);
         });
 
         Alert.alert(

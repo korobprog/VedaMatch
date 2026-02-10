@@ -57,7 +57,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { login } = useUser();
     const params = route.params ?? { isDarkMode: false, phase: 'initial' as const };
-    const { isDarkMode, phase = 'initial', inviteCode: paramInviteCode } = params;
+    const { phase = 'initial', inviteCode: paramInviteCode } = params;
     const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
     const theme = isPortalDarkMode ? COLORS.dark : COLORS.light;
 
@@ -91,7 +91,6 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         loadingCountries,
         fetchCountries,
         fetchCities,
-        setCitiesData,
         autoDetectLocation
     } = useLocation();
 

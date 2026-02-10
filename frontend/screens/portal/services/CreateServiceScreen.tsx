@@ -1,7 +1,7 @@
 /**
  * CreateServiceScreen - Экран создания/редактирования сервиса
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -14,7 +14,6 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +22,6 @@ import {
     ArrowLeft,
     Camera,
     Save,
-    Eye,
     ChevronDown,
     Plus,
     Trash2,
@@ -42,7 +40,6 @@ import {
 import {
     Service,
     ServiceCategory,
-    ServiceScheduleType,
     ServiceChannel,
     ServiceAccessType,
     CreateServiceRequest,
@@ -61,8 +58,6 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
-
-const { width } = Dimensions.get('window');
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {
@@ -129,13 +124,7 @@ export default function CreateServiceScreen() {
     const [showAccessPicker, setShowAccessPicker] = useState(false);
 
     // Load existing service for editing
-    useEffect(() => {
-        if (serviceId) {
-            loadService();
-        }
-    }, [serviceId]);
-
-    const loadService = async () => {
+    const loadService = useCallback(async () => {
         if (!serviceId) return;
         setLoading(true);
         try {
@@ -165,7 +154,13 @@ export default function CreateServiceScreen() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [navigation, serviceId]);
+
+    useEffect(() => {
+        if (serviceId) {
+            loadService();
+        }
+    }, [loadService, serviceId]);
 
     const handlePickImage = async () => {
         try {
@@ -213,7 +208,9 @@ export default function CreateServiceScreen() {
     const handleTariffChange = (index: number, field: keyof TariffForm, value: string | boolean) => {
         const newTariffs = [...tariffs];
         if (field === 'isDefault' && value === true) {
-            newTariffs.forEach(t => t.isDefault = false);
+            newTariffs.forEach((t) => {
+                t.isDefault = false;
+            });
         }
         (newTariffs[index] as any)[field] = value;
         setTariffs(newTariffs);
@@ -274,9 +271,9 @@ export default function CreateServiceScreen() {
                 for (const tariff of tariffs) {
                     const tariffData: CreateTariffRequest = {
                         name: tariff.name,
-                        price: parseInt(tariff.price) || 0,
-                        durationMinutes: parseInt(tariff.durationMinutes) || 60,
-                        sessionsCount: parseInt(tariff.sessionsCount) || 1,
+                        price: parseInt(tariff.price, 10) || 0,
+                        durationMinutes: parseInt(tariff.durationMinutes, 10) || 60,
+                        sessionsCount: parseInt(tariff.sessionsCount, 10) || 1,
                         isDefault: tariff.isDefault,
                     };
                     await addTariff(savedService.id, tariffData);

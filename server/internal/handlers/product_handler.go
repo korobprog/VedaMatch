@@ -3,12 +3,14 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -17,6 +19,15 @@ import (
 type ProductHandler struct {
 	productService *services.ProductService
 	shopService    *services.ShopService
+}
+
+func parsePositiveIntQuery(c *fiber.Ctx, key string, defaultValue int) int {
+	raw := c.Query(key, strconv.Itoa(defaultValue))
+	val, err := strconv.Atoi(raw)
+	if err != nil || val <= 0 {
+		return defaultValue
+	}
+	return val
 }
 
 func (h *ProductHandler) UploadProductPhoto(c *fiber.Ctx) error {
@@ -31,6 +42,18 @@ func (h *ProductHandler) UploadProductPhoto(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "No photo provided",
+		})
+	}
+
+	if file.Size <= 0 || file.Size > 20*1024*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid file size (max 20MB)",
+		})
+	}
+	contentType := strings.ToLower(file.Header.Get("Content-Type"))
+	if !strings.HasPrefix(contentType, "image/") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Only image files are allowed",
 		})
 	}
 
@@ -50,6 +73,7 @@ func (h *ProductHandler) UploadProductPhoto(c *fiber.Ctx) error {
 					"url": imageURL,
 				})
 			}
+			log.Printf("[ProductHandler] S3 upload failed, falling back to local storage: %v", err)
 		}
 	}
 
@@ -105,10 +129,8 @@ func (h *ProductHandler) GetProducts(c *fiber.Ctx) error {
 	}
 
 	// Parse pagination
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
-	filters.Page = page
-	filters.Limit = limit
+	filters.Page = parsePositiveIntQuery(c, "page", 1)
+	filters.Limit = parsePositiveIntQuery(c, "limit", 20)
 
 	// Parse price filters
 	if minPrice := c.Query("minPrice"); minPrice != "" {
@@ -226,8 +248,8 @@ func (h *ProductHandler) GetShopProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := parsePositiveIntQuery(c, "page", 1)
+	limit := parsePositiveIntQuery(c, "limit", 20)
 
 	result, err := h.productService.GetProductsByShop(uint(id), page, limit)
 	if err != nil {
@@ -417,8 +439,8 @@ func (h *ProductHandler) GetMyProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := parsePositiveIntQuery(c, "page", 1)
+	limit := parsePositiveIntQuery(c, "limit", 20)
 
 	result, err := h.productService.GetProductsByShop(shop.ID, page, limit)
 	if err != nil {
@@ -564,8 +586,8 @@ func (h *ProductHandler) GetProductReviews(c *fiber.Ctx) error {
 		})
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	page := parsePositiveIntQuery(c, "page", 1)
+	limit := parsePositiveIntQuery(c, "limit", 10)
 
 	reviews, total, err := h.productService.GetReviews(uint(productID), page, limit)
 	if err != nil {

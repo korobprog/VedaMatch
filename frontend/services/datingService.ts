@@ -36,7 +36,20 @@ class DatingService {
         return response.data;
     }
 
-    async getCandidates(params: any) {
+    async getCandidates(params: {
+        userId: number;
+        mode?: 'family' | 'business' | 'friendship' | 'seva';
+        isNew?: boolean;
+        city?: string;
+        minAge?: string;
+        maxAge?: string;
+        madh?: string;
+        yogaStyle?: string;
+        guna?: string;
+        identity?: string;
+        skills?: string;
+        industry?: string;
+    }) {
         const headers = await this.getHeaders();
         const godModeParams = await getGodModeQueryParams();
         const response = await axios.get(`${API_PATH}/dating/candidates`, {
@@ -71,6 +84,29 @@ class DatingService {
         const headers = await this.getHeaders();
         const response = await axios.delete(`${API_PATH}/dating/favorites/${id}`, { headers });
         return response.data;
+    }
+
+    async removeFavoriteByCandidate(userId: number, candidateId: number) {
+        const favorites = await this.getFavorites(userId);
+        if (!Array.isArray(favorites)) {
+            return null;
+        }
+
+        const target = favorites.find((favorite: any) => {
+            const rawCandidateId = favorite?.candidateId ?? favorite?.candidate_id ?? favorite?.CandidateID;
+            return Number(rawCandidateId) === candidateId;
+        });
+
+        if (!target) {
+            return null;
+        }
+
+        const favoriteId = Number(target?.id ?? target?.ID);
+        if (!favoriteId) {
+            return null;
+        }
+
+        return this.removeFavorite(favoriteId);
     }
 
     async getProfile(id: number) {

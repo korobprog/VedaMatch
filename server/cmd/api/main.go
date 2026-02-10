@@ -336,7 +336,6 @@ func main() {
 	admin.Get("/settings", adminHandler.GetSystemSettings)
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
 	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)
-	admin.Get("/wallet/global-stats", adminFinancialHandler.GetFinancialStats)
 
 	// RAG Management
 	admin.Get("/rag/corpora", adminHandler.ListGeminiCorpora)
@@ -413,8 +412,6 @@ func main() {
 	admin.Get("/polza/recommendations", polzaHandler.GetModelRecommendations)
 
 	// Admin Map Management Routes
-	admin.Get("/map/markers", mapHandler.AdminGetAllMarkers)
-	admin.Get("/map/config", mapHandler.GetMarkerConfig)
 	admin.Post("/geocode-users", adminHandler.GeocodeAllUsers)
 
 	// Admin Wallet Management (God Mode)

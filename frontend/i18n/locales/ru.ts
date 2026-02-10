@@ -554,6 +554,7 @@ export default {
                 seats: 'Кол-во мест',
                 seatsCount_one: '{{count}} место',
                 seatsCount_few: '{{count}} места',
+                seatsCount_other: '{{count}} мест',
                 seatsCount_many: '{{count}} мест',
                 seatsCount: '{{count}} мест',
                 deleteConfirmTitle: 'Удалить стол?',
@@ -736,6 +737,7 @@ export default {
         enableReading: 'Чтение Писаний',
         enableReadingDesc: 'Фокусировать комнату на изучении Писаний',
         locationPlaceholder: 'Местоположение (Город, Ятра)',
+        upload: 'Загрузить',
         selectScripture: 'Выберите Писание:',
     },
     file: {

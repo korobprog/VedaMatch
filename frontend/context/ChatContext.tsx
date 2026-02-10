@@ -18,6 +18,8 @@ export interface ChatHistory {
     timestamp: number;
 }
 
+type ChatNavTab = NonNullable<Message['navTab']>;
+
 interface ChatContextType {
     messages: Message[];
     inputText: string;
@@ -28,7 +30,7 @@ interface ChatContextType {
     handleSendMessage: (textOverride?: string) => Promise<boolean>;
     handleStopRequest: () => void;
     handleNewChat: () => void;
-    handleMenuOption: (option: string, onNavigateToPortal: (tab: any) => void) => void;
+    handleMenuOption: (option: string, onNavigateToPortal: (tab: ChatNavTab) => void) => void;
     history: ChatHistory[];
     currentChatId: string | null;
     loadChat: (id: string) => void;
@@ -68,7 +70,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const [recordingDuration, setRecordingDuration] = useState(0);
     const { user: currentUser } = useUser();
     const { addListener } = useWebSocket();
-    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const recordingStartedAtRef = useRef<number | null>(null);
 
     const isFirstRun = useRef(true);
@@ -97,37 +99,41 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         if (messages.length === 0 && !currentChatId) return;
 
         const saveMessages = async () => {
-            let updatedHistory = [...history];
-            let chatId = currentChatId;
+            let updatedHistory: ChatHistory[] = [];
+            setHistory(prevHistory => {
+                updatedHistory = [...prevHistory];
+                let chatId = currentChatId;
 
-            if (!chatId && messages.length > 0) {
-                // Create new session
-                chatId = Date.now().toString();
-                setCurrentChatId(chatId);
-                const firstUserMsg = messages.find(m => m.sender === 'user')?.text || t('chat.history');
-                const newChat: ChatHistory = {
-                    id: chatId,
-                    title: firstUserMsg.slice(0, 30) + (firstUserMsg.length > 30 ? '...' : ''),
-                    messages: messages,
-                    timestamp: Date.now()
-                };
-                updatedHistory = [newChat, ...updatedHistory];
-            } else if (chatId) {
-                // Update existing
-                const index = updatedHistory.findIndex(h => h.id === chatId);
-                if (index !== -1) {
-                    updatedHistory[index] = {
-                        ...updatedHistory[index],
+                if (!chatId && messages.length > 0) {
+                    // Create new session
+                    chatId = Date.now().toString();
+                    setCurrentChatId(chatId);
+                    const firstUserMsg = messages.find(m => m.sender === 'user')?.text || t('chat.history');
+                    const newChat: ChatHistory = {
+                        id: chatId,
+                        title: firstUserMsg.slice(0, 30) + (firstUserMsg.length > 30 ? '...' : ''),
                         messages: messages,
                         timestamp: Date.now()
                     };
-                    // Move to top
-                    const item = updatedHistory.splice(index, 1)[0];
-                    updatedHistory.unshift(item);
+                    updatedHistory = [newChat, ...updatedHistory];
+                    return updatedHistory;
                 }
-            }
 
-            setHistory(updatedHistory);
+                if (chatId) {
+                    const index = updatedHistory.findIndex(h => h.id === chatId);
+                    if (index !== -1) {
+                        updatedHistory[index] = {
+                            ...updatedHistory[index],
+                            messages: messages,
+                            timestamp: Date.now()
+                        };
+                        const item = updatedHistory.splice(index, 1)[0];
+                        updatedHistory.unshift(item);
+                    }
+                }
+
+                return updatedHistory;
+            });
             try {
                 await AsyncStorage.setItem('chat_history', JSON.stringify(updatedHistory));
             } catch (e) {
@@ -208,8 +214,6 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             const isTargetedToMe = msg.recipientId === currentUser?.ID;
             const isFromCurrentRecipient = msg.senderId === recipientId;
             const isMyOwnMessage = msg.senderId === currentUser?.ID; // For sync across devices
-            const isAiMessage = msg.senderId === 0 && !msg.roomId && !recipientId; // AI message for non-P2P chat
-
             let shouldAdd = false;
             let senderType: 'user' | 'bot' | 'other' = 'other';
 
@@ -381,7 +385,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const handleMenuOption = (option: string, onNavigateToPortal: (tab: any) => void) => {
+    const handleMenuOption = (option: string, onNavigateToPortal: (tab: ChatNavTab) => void) => {
         setShowMenu(false);
 
         if (option === 'contacts.viewProfile') {
@@ -395,7 +399,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
 
         // Extract tab name from key 'chat.searchTabs.xxx'
-        const tab = option.split('.').pop() as any;
+        const tabCandidate = option.split('.').pop();
+        const allowedTabs: ChatNavTab[] = ['contacts', 'chat', 'dating', 'shops', 'ads', 'news', 'knowledge_base'];
+        if (!tabCandidate || !allowedTabs.includes(tabCandidate as ChatNavTab)) {
+            return;
+        }
+        const tab = tabCandidate as ChatNavTab;
 
         const systemMsg: Message = {
             id: `sys_${Date.now()}`,

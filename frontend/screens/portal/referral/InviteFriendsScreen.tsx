@@ -92,9 +92,9 @@ export default function InviteFriendsScreen({ navigation }: any) {
             setInviteData(inviteRes);
             setStats(statsRes);
             setReferrals(listRes.referrals || []);
-        } catch (error: any) {
-            console.error('[Referral] Failed to load data:', error);
-            setError(error.message || 'Ошибка загрузки данных');
+        } catch (err: any) {
+            console.error('[Referral] Failed to load data:', err);
+            setError(err.message || 'Ошибка загрузки данных');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -125,8 +125,8 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 message: inviteData.shareText,
                 url: inviteData.webLink,
             });
-        } catch (error) {
-            console.log('[Referral] Share error:', error);
+        } catch (err) {
+            console.log('[Referral] Share error:', err);
         }
     };
 
@@ -144,9 +144,9 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 url: uri,
                 type: 'image/png',
             });
-        } catch (error: any) {
-            if (error?.message !== 'User did not share') {
-                console.error('[Referral] Image share error:', error);
+        } catch (err: any) {
+            if (err?.message !== 'User did not share') {
+                console.error('[Referral] Image share error:', err);
             }
         } finally {
             setSharingImage(false);

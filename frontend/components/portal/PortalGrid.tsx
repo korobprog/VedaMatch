@@ -1,35 +1,24 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     Dimensions,
     Alert,
-    FlatList,
     TouchableOpacity,
     TextInput,
     Pressable,
     Platform,
-    UIManager,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useNavigation } from '@react-navigation/native';
-import {
-    GestureDetector,
-    Gesture,
-    GestureHandlerRootView,
-} from 'react-native-gesture-handler';
 import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-    withTiming,
     runOnJS,
     FadeIn,
     FadeOut,
 } from 'react-native-reanimated';
 import LinearGradient from 'react-native-linear-gradient';
-import { Plus, FolderPlus, LayoutGrid, Settings } from 'lucide-react-native';
+import { Plus, FolderPlus, LayoutGrid } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { DEFAULT_SERVICES, PortalItem, PortalFolder as PortalFolderType, FOLDER_COLORS } from '../../types/portal';
@@ -77,7 +66,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         changeFolderColor,
         deleteFolder,
         removeItemFromFolder,
-        addWidget,
         removeWidget,
         addNewPage,
         moveItemToFolder,
@@ -117,10 +105,10 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     }, []);
 
     const page = layout.pages[currentPage];
-    const items = page?.items || [];
-    const widgets = page?.widgets || [];
-    const quickAccess = layout.quickAccess || [];
-    const highlightedServices = new Set(roleHighlights);
+    const items = useMemo(() => page?.items ?? [], [page]);
+    const widgets = useMemo(() => page?.widgets ?? [], [page]);
+    const quickAccess = useMemo(() => layout.quickAccess ?? [], [layout.quickAccess]);
+    const highlightedServices = useMemo(() => new Set(roleHighlights), [roleHighlights]);
 
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
@@ -387,10 +375,12 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         highlightedServices,
         godModeEnabled,
         activeMathLabel,
+        deleteFolder,
+        deleteGridItem,
     ]);
 
     // Render dock item
-    const renderDockItem = useCallback((item: PortalItem, index: number) => {
+    const renderDockItem = useCallback((item: PortalItem) => {
         const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
         if (!service) return null;
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type AdsHandler struct {
@@ -25,17 +27,37 @@ func NewAdsHandler() *AdsHandler {
 	}
 }
 
-// GetAds returns a paginated list of ads with filters
-func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+func parsePagination(c *fiber.Ctx, maxLimit int) (page int, limit int, offset int) {
+	page, _ = strconv.Atoi(c.Query("page", "1"))
+	limit, _ = strconv.Atoi(c.Query("limit", "20"))
 	if page < 1 {
 		page = 1
 	}
-	if limit < 1 || limit > 50 {
+	if limit < 1 || limit > maxLimit {
 		limit = 20
 	}
-	offset := (page - 1) * limit
+	offset = (page - 1) * limit
+	return
+}
+
+func buildAdAuthor(user *models.User) *models.AdAuthor {
+	if user == nil {
+		return nil
+	}
+	return &models.AdAuthor{
+		ID:            user.ID,
+		SpiritualName: user.SpiritualName,
+		KarmicName:    user.KarmicName,
+		AvatarURL:     user.AvatarURL,
+		City:          user.City,
+		MemberSince:   user.CreatedAt.Format("2006-01-02"),
+		IsVerified:    user.IsProfileComplete,
+	}
+}
+
+// GetAds returns a paginated list of ads with filters
+func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
+	page, limit, offset := parsePagination(c, 50)
 
 	query := database.DB.Model(&models.Ad{}).Preload("Photos").Preload("User")
 
@@ -93,7 +115,11 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not count ads",
+		})
+	}
 
 	// Sorting
 	sort := c.Query("sort", "newest")
@@ -117,13 +143,17 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 
 	// Check favorites for current user
 	userIDStr := c.Query("userId")
-	var userFavorites []uint
+	userFavorites := make(map[uint]struct{})
 	if userIDStr != "" {
 		if userID, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
 			var favorites []models.AdFavorite
-			database.DB.Where("user_id = ?", userID).Find(&favorites)
+			if err := database.DB.Where("user_id = ?", userID).Find(&favorites).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not fetch user favorites",
+				})
+			}
 			for _, f := range favorites {
-				userFavorites = append(userFavorites, f.AdID)
+				userFavorites[f.AdID] = struct{}{}
 			}
 		}
 	}
@@ -131,29 +161,12 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	// Build response
 	responses := make([]models.AdResponse, len(ads))
 	for i, ad := range ads {
-		isFavorite := false
-		for _, favID := range userFavorites {
-			if favID == ad.ID {
-				isFavorite = true
-				break
-			}
-		}
+		_, isFavorite := userFavorites[ad.ID]
 
 		responses[i] = models.AdResponse{
 			Ad:         ad,
 			IsFavorite: isFavorite,
-		}
-
-		// Add author info if user loaded
-		if ad.User != nil {
-			responses[i].Author = &models.AdAuthor{
-				ID:            ad.User.ID,
-				SpiritualName: ad.User.SpiritualName,
-				KarmicName:    ad.User.KarmicName,
-				AvatarURL:     ad.User.AvatarURL,
-				City:          ad.User.City,
-				MemberSince:   ad.User.CreatedAt.Format("2006-01-02"),
-			}
+			Author:     buildAdAuthor(ad.User),
 		}
 	}
 
@@ -179,7 +192,11 @@ func (h *AdsHandler) GetAd(c *fiber.Ctx) error {
 	}
 
 	// Increment view count
-	database.DB.Model(&ad).Update("views_count", ad.ViewsCount+1)
+	if err := database.DB.Model(&ad).UpdateColumn("views_count", gorm.Expr("views_count + 1")).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not update ad views",
+		})
+	}
 
 	// Check if favorited by current user
 	userIDStr := c.Query("userId")
@@ -187,28 +204,26 @@ func (h *AdsHandler) GetAd(c *fiber.Ctx) error {
 	if userIDStr != "" {
 		if userID, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
 			var count int64
-			database.DB.Model(&models.AdFavorite{}).Where("user_id = ? AND ad_id = ?", userID, ad.ID).Count(&count)
+			if err := database.DB.Model(&models.AdFavorite{}).Where("user_id = ? AND ad_id = ?", userID, ad.ID).Count(&count).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not fetch favorite status",
+				})
+			}
 			isFavorite = count > 0
 		}
 	}
 
 	// Build author info
-	var author *models.AdAuthor
-	if ad.User != nil {
+	author := buildAdAuthor(ad.User)
+	if author != nil {
 		// Count user's ads
 		var adsCount int64
-		database.DB.Model(&models.Ad{}).Where("user_id = ? AND status = ?", ad.UserID, "active").Count(&adsCount)
-
-		author = &models.AdAuthor{
-			ID:            ad.User.ID,
-			SpiritualName: ad.User.SpiritualName,
-			KarmicName:    ad.User.KarmicName,
-			AvatarURL:     ad.User.AvatarURL,
-			City:          ad.User.City,
-			MemberSince:   ad.User.CreatedAt.Format("2006-01-02"),
-			AdsCount:      int(adsCount),
-			IsVerified:    ad.User.IsProfileComplete,
+		if err := database.DB.Model(&models.Ad{}).Where("user_id = ? AND status = ?", ad.UserID, "active").Count(&adsCount).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch author stats",
+			})
 		}
+		author.AdsCount = int(adsCount)
 	}
 
 	return c.JSON(models.AdResponse{
@@ -299,7 +314,11 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 			PhotoURL: photoURL,
 			Position: i,
 		}
-		database.DB.Create(&photo)
+		if err := database.DB.Create(&photo).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not save ad photos",
+			})
+		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -369,27 +388,44 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	// Re-geocode if city changed and coordinates not provided
 	cityChanged := req.City != "" && req.City != ad.City
 	if cityChanged || (req.Latitude == nil && ad.Latitude == nil) {
-		if (req.Latitude == nil || req.Longitude == nil) && ad.City != "" && h.mapService != nil {
-			geocoded, err := h.mapService.GeocodeCity(ad.City)
+		targetCity := ad.City
+		if req.City != "" {
+			targetCity = req.City
+		}
+
+		if (req.Latitude == nil || req.Longitude == nil) && targetCity != "" && h.mapService != nil {
+			geocoded, err := h.mapService.GeocodeCity(targetCity)
 			if err == nil {
-				database.DB.Model(&ad).Updates(map[string]interface{}{
+				if err := database.DB.Model(&ad).Updates(map[string]interface{}{
 					"latitude":  geocoded.Latitude,
 					"longitude": geocoded.Longitude,
 					"city":      geocoded.City,
-				})
+				}).Error; err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error": "Could not update ad location",
+					})
+				}
 			}
 		} else if req.Latitude != nil && req.Longitude != nil {
-			database.DB.Model(&ad).Updates(map[string]interface{}{
+			if err := database.DB.Model(&ad).Updates(map[string]interface{}{
 				"latitude":  req.Latitude,
 				"longitude": req.Longitude,
-			})
+			}).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not update ad coordinates",
+				})
+			}
 		}
 	}
 
 	// Update photos if provided
 	if len(req.Photos) > 0 {
 		// Delete existing photos
-		database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{})
+		if err := database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{}).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not replace ad photos",
+			})
+		}
 
 		// Create new photos
 		for i, photoURL := range req.Photos {
@@ -398,7 +434,11 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 				PhotoURL: photoURL,
 				Position: i,
 			}
-			database.DB.Create(&photo)
+			if err := database.DB.Create(&photo).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Could not save ad photos",
+				})
+			}
 		}
 	}
 
@@ -433,10 +473,18 @@ func (h *AdsHandler) DeleteAd(c *fiber.Ctx) error {
 	}
 
 	// Delete photos first
-	database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{})
+	if err := database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not delete ad photos",
+		})
+	}
 
 	// Delete favorites
-	database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdFavorite{})
+	if err := database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdFavorite{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not delete ad favorites",
+		})
+	}
 
 	// Delete the ad
 	if err := database.DB.Delete(&ad).Error; err != nil {
@@ -473,14 +521,36 @@ func (h *AdsHandler) ToggleFavorite(c *fiber.Ctx) error {
 	result := database.DB.Where("user_id = ? AND ad_id = ?", userID, adIDUint).First(&existing)
 
 	if result.Error == nil {
+		tx := database.DB.Begin()
 		// Remove from favorites
-		database.DB.Delete(&existing)
+		if err := tx.Delete(&existing).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not remove from favorites",
+			})
+		}
 
 		// Decrement favorites count
-		database.DB.Model(&models.Ad{}).Where("id = ?", adIDUint).Update("favorites_count", database.DB.Raw("favorites_count - 1"))
+		if err := tx.Model(&models.Ad{}).Where("id = ?", adIDUint).
+			Update("favorites_count", gorm.Expr("GREATEST(favorites_count - 1, 0)")).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not update favorites count",
+			})
+		}
+		if err := tx.Commit().Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not update favorites",
+			})
+		}
 
 		return c.JSON(fiber.Map{
 			"isFavorite": false,
+		})
+	}
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not check favorite status",
 		})
 	}
 
@@ -489,14 +559,27 @@ func (h *AdsHandler) ToggleFavorite(c *fiber.Ctx) error {
 		UserID: userID,
 		AdID:   uint(adIDUint),
 	}
-	if err := database.DB.Create(&favorite).Error; err != nil {
+	tx := database.DB.Begin()
+	if err := tx.Create(&favorite).Error; err != nil {
+		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not add to favorites",
 		})
 	}
 
 	// Increment favorites count
-	database.DB.Model(&models.Ad{}).Where("id = ?", adIDUint).Update("favorites_count", database.DB.Raw("favorites_count + 1"))
+	if err := tx.Model(&models.Ad{}).Where("id = ?", adIDUint).
+		Update("favorites_count", gorm.Expr("favorites_count + 1")).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not update favorites count",
+		})
+	}
+	if err := tx.Commit().Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not update favorites",
+		})
+	}
 
 	return c.JSON(fiber.Map{
 		"isFavorite": true,
@@ -613,8 +696,16 @@ func (h *AdsHandler) GetAdStats(c *fiber.Ctx) error {
 	var totalAds int64
 	var activeAds int64
 
-	database.DB.Model(&models.Ad{}).Count(&totalAds)
-	database.DB.Model(&models.Ad{}).Where("status = ?", "active").Count(&activeAds)
+	if err := database.DB.Model(&models.Ad{}).Count(&totalAds).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load ad stats",
+		})
+	}
+	if err := database.DB.Model(&models.Ad{}).Where("status = ?", "active").Count(&activeAds).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load ad stats",
+		})
+	}
 
 	// Count by category
 	type CategoryCount struct {
@@ -622,11 +713,15 @@ func (h *AdsHandler) GetAdStats(c *fiber.Ctx) error {
 		Count    int64
 	}
 	var categoryCounts []CategoryCount
-	database.DB.Model(&models.Ad{}).
+	if err := database.DB.Model(&models.Ad{}).
 		Select("category, count(*) as count").
 		Where("status = ?", "active").
 		Group("category").
-		Scan(&categoryCounts)
+		Scan(&categoryCounts).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load category stats",
+		})
+	}
 
 	byCategory := make(map[string]int64)
 	for _, cc := range categoryCounts {
@@ -639,11 +734,15 @@ func (h *AdsHandler) GetAdStats(c *fiber.Ctx) error {
 		Count  int64
 	}
 	var typeCounts []TypeCount
-	database.DB.Model(&models.Ad{}).
+	if err := database.DB.Model(&models.Ad{}).
 		Select("ad_type, count(*) as count").
 		Where("status = ?", "active").
 		Group("ad_type").
-		Scan(&typeCounts)
+		Scan(&typeCounts).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load type stats",
+		})
+	}
 
 	byType := make(map[string]int64)
 	for _, tc := range typeCounts {
@@ -818,7 +917,9 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 		} else {
 			// 2. Create new private room
 			currentUser := models.User{}
-			database.DB.First(&currentUser, userID)
+			if err := database.DB.First(&currentUser, userID).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load user profile"})
+			}
 
 			sellerName := ad.User.SpiritualName
 			if sellerName == "" {
@@ -849,7 +950,9 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 				{RoomID: roomID, UserID: userID, Role: "admin"},
 				{RoomID: roomID, UserID: ad.UserID, Role: "member"},
 			}
-			database.DB.Create(&members)
+			if err := database.DB.Create(&members).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not add room members"})
+			}
 		}
 
 		return c.JSON(fiber.Map{
@@ -867,15 +970,7 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 
 // GetAdminAds returns all ads with admin filters (including pending/rejected)
 func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
-	offset := (page - 1) * limit
+	page, limit, offset := parsePagination(c, 100)
 
 	query := database.DB.Model(&models.Ad{}).Preload("Photos").Preload("User")
 
@@ -912,7 +1007,11 @@ func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not count ads",
+		})
+	}
 
 	// Order by created_at DESC
 	query = query.Order("created_at DESC")
@@ -928,16 +1027,8 @@ func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
 	responses := make([]models.AdResponse, len(ads))
 	for i, ad := range ads {
 		responses[i] = models.AdResponse{
-			Ad: ad,
-		}
-		if ad.User != nil {
-			responses[i].Author = &models.AdAuthor{
-				ID:            ad.User.ID,
-				SpiritualName: ad.User.SpiritualName,
-				KarmicName:    ad.User.KarmicName,
-				AvatarURL:     ad.User.AvatarURL,
-				City:          ad.User.City,
-			}
+			Ad:     ad,
+			Author: buildAdAuthor(ad.User),
 		}
 	}
 
@@ -1056,13 +1147,19 @@ func (h *AdsHandler) AdminDeleteAd(c *fiber.Ctx) error {
 	}
 
 	// Delete photos
-	database.DB.Where("ad_id = ?", adID).Delete(&models.AdPhoto{})
+	if err := database.DB.Where("ad_id = ?", adID).Delete(&models.AdPhoto{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad photos"})
+	}
 
 	// Delete favorites
-	database.DB.Where("ad_id = ?", adID).Delete(&models.AdFavorite{})
+	if err := database.DB.Where("ad_id = ?", adID).Delete(&models.AdFavorite{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad favorites"})
+	}
 
 	// Delete reports
-	database.DB.Where("ad_id = ?", adID).Delete(&models.AdReport{})
+	if err := database.DB.Where("ad_id = ?", adID).Delete(&models.AdReport{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad reports"})
+	}
 
 	// Delete ad (hard delete)
 	if err := database.DB.Unscoped().Delete(&ad).Error; err != nil {
@@ -1079,11 +1176,21 @@ func (h *AdsHandler) AdminDeleteAd(c *fiber.Ctx) error {
 func (h *AdsHandler) GetAdminStats(c *fiber.Ctx) error {
 	var totalAds, pendingAds, activeAds, rejectedAds, archivedAds int64
 
-	database.DB.Model(&models.Ad{}).Count(&totalAds)
-	database.DB.Model(&models.Ad{}).Where("status = ?", "pending").Count(&pendingAds)
-	database.DB.Model(&models.Ad{}).Where("status = ?", "active").Count(&activeAds)
-	database.DB.Model(&models.Ad{}).Where("status = ?", "rejected").Count(&rejectedAds)
-	database.DB.Model(&models.Ad{}).Where("status = ?", "archived").Count(&archivedAds)
+	if err := database.DB.Model(&models.Ad{}).Count(&totalAds).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load stats"})
+	}
+	if err := database.DB.Model(&models.Ad{}).Where("status = ?", "pending").Count(&pendingAds).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load stats"})
+	}
+	if err := database.DB.Model(&models.Ad{}).Where("status = ?", "active").Count(&activeAds).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load stats"})
+	}
+	if err := database.DB.Model(&models.Ad{}).Where("status = ?", "rejected").Count(&rejectedAds).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load stats"})
+	}
+	if err := database.DB.Model(&models.Ad{}).Where("status = ?", "archived").Count(&archivedAds).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load stats"})
+	}
 
 	// Categories breakdown
 	type CategoryCount struct {
@@ -1091,10 +1198,12 @@ func (h *AdsHandler) GetAdminStats(c *fiber.Ctx) error {
 		Count    int64
 	}
 	var categoryBreakdown []CategoryCount
-	database.DB.Model(&models.Ad{}).
+	if err := database.DB.Model(&models.Ad{}).
 		Select("category, COUNT(*) as count").
 		Group("category").
-		Scan(&categoryBreakdown)
+		Scan(&categoryBreakdown).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load category stats"})
+	}
 
 	categoriesMap := make(map[string]int64)
 	for _, cb := range categoryBreakdown {

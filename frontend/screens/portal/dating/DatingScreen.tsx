@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -12,7 +12,6 @@ import {
     Modal,
     ScrollView,
     TextInput,
-    Switch,
     Animated,
     Share,
     StatusBar,
@@ -20,7 +19,6 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { BlurView } from '@react-native-community/blur';
-import axios from 'axios';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
@@ -42,8 +40,6 @@ import {
     Image as ImageIcon,
     Heart,
     ChevronLeft,
-    ChevronRight,
-    LayoutGrid,
     Briefcase,
     Users,
     Flower2,
@@ -52,10 +48,9 @@ import {
     Users2,
     Share2,
     User,
-    Wrench,
-    CircleHelp,
     X
 } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -77,6 +72,308 @@ interface Profile {
     lookingForBusiness?: string;
 }
 
+type MatchMode = 'family' | 'business' | 'friendship' | 'seva';
+
+interface CandidateFilterParams {
+    mode: MatchMode;
+    isNew: boolean;
+    city: string;
+    minAge: string;
+    maxAge: string;
+    madh: string;
+    yogaStyle: string;
+    guna: string;
+    identity: string;
+    skills: string;
+    industry: string;
+}
+
+const MODE_OPTIONS: Array<{ key: MatchMode; label: string; icon: LucideIcon }> = [
+    { key: 'family', label: 'Family', icon: Heart },
+    { key: 'business', label: 'Business', icon: Briefcase },
+    { key: 'friendship', label: 'Friends', icon: Users },
+    { key: 'seva', label: 'Seva', icon: Flower2 },
+];
+
+interface DatingCandidateCardProps {
+    item: Profile;
+    isPreview?: boolean;
+    mode: MatchMode;
+    userId?: number;
+    roleColors: { accent: string };
+    roleTheme: { accent: string; accentStrong: string };
+    t: (key: string, options?: any) => string;
+    navigation: NativeStackNavigationProp<RootStackParamList>;
+    onCheckCompatibility: (candidateId: number) => void;
+}
+
+const DatingCandidateCard = ({
+    item,
+    isPreview = false,
+    mode,
+    userId,
+    roleColors,
+    roleTheme,
+    t,
+    navigation,
+    onCheckCompatibility,
+}: DatingCandidateCardProps) => {
+    const allPhotos = item.photos || [];
+    const displayPhotos = allPhotos.length > 0 ? allPhotos : (item.avatarUrl ? [{ url: item.avatarUrl }] : []);
+    const [activeIndex, setActiveIndex] = useState(0);
+    const fadeAnim = React.useRef(new Animated.Value(1)).current;
+    const [isPaused, setIsPaused] = useState(false);
+    const [isFavorited, setIsFavorited] = useState(false);
+    const [favoritingInProgress, setFavoritingInProgress] = useState(false);
+    const animatedCardImageStyle = useMemo(() => [styles.fullCardImage, { opacity: fadeAnim }], [fadeAnim]);
+    const placeholderAnimatedWrapperStyle = useMemo(() => [styles.photoPlaceholderAnimatedWrapper, { opacity: fadeAnim }], [fadeAnim]);
+    const activePaginationBarStyle = useMemo(() => ({ backgroundColor: roleColors.accent }), [roleColors.accent]);
+
+    useEffect(() => {
+        if (!isPreview && userId && item.ID) {
+            datingService.checkIsFavorited(userId, item.ID)
+                .then((res) => setIsFavorited(res.isFavorited))
+                .catch(() => { });
+        }
+    }, [isPreview, userId, item.ID]);
+
+    const handleToggleFavorite = async () => {
+        if (!userId || favoritingInProgress) return;
+
+        setFavoritingInProgress(true);
+        try {
+            if (isFavorited) {
+                await datingService.removeFavoriteByCandidate(userId, item.ID);
+                Alert.alert(t('common.info'), t('dating.removedFromFavorites'));
+                setIsFavorited(false);
+            } else {
+                await datingService.addToFavorites({
+                    userId,
+                    candidateId: item.ID,
+                    compatibilityScore: ''
+                });
+                setIsFavorited(true);
+                Alert.alert(t('common.success'), t('dating.addedToFavorites'));
+            }
+        } catch (error) {
+            console.error('Failed to toggle favorite:', error);
+        } finally {
+            setFavoritingInProgress(false);
+        }
+    };
+
+    const handleShare = async () => {
+        try {
+            const shareUrl = datingService.getShareUrl(item.ID);
+            const message = t('dating.shareMessage', { name: item.spiritualName || 'devotee' });
+            await Share.share({
+                message: `${message}\n${shareUrl}`,
+                title: t('dating.share')
+            });
+        } catch (error) {
+            console.error('Share error:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (displayPhotos.length <= 1 || isPaused) return;
+
+        let rotateTimeout: ReturnType<typeof setTimeout> | null = null;
+        const interval = setInterval(() => {
+            Animated.sequence([
+                Animated.timing(fadeAnim, {
+                    toValue: 0,
+                    duration: 500,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 500,
+                    useNativeDriver: true,
+                })
+            ]).start();
+
+            rotateTimeout = setTimeout(() => {
+                setActiveIndex((prev) => (prev + 1) % displayPhotos.length);
+            }, 500);
+
+        }, 5000);
+
+        return () => {
+            clearInterval(interval);
+            if (rotateTimeout) {
+                clearTimeout(rotateTimeout);
+            }
+        };
+    }, [displayPhotos.length, isPaused, fadeAnim]);
+
+    const handleTap = (event: any) => {
+        const x = event.nativeEvent.locationX;
+        const cardWidth = width - 40;
+
+        setIsPaused(true);
+
+        if (x < cardWidth * 0.3) {
+            if (activeIndex > 0) {
+                setActiveIndex((prev) => Math.max(prev - 1, 0));
+            }
+        } else if (x > cardWidth * 0.7) {
+            if (activeIndex < displayPhotos.length - 1) {
+                setActiveIndex((prev) => Math.min(prev + 1, displayPhotos.length - 1));
+            } else if (!isPreview) {
+                navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
+            }
+        } else if (!isPreview) {
+            navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
+        }
+    };
+
+    const currentPhotoUrl = displayPhotos[activeIndex]?.url;
+
+    return (
+        <Animated.View style={styles.cardContainer}>
+            <TouchableOpacity
+                activeOpacity={1}
+                onPress={handleTap}
+                style={styles.cardImageContainer}
+            >
+                {displayPhotos.length > 0 ? (
+                    <Animated.Image
+                        source={{ uri: datingService.getMediaUrl(currentPhotoUrl) }}
+                        style={animatedCardImageStyle}
+                        resizeMode="cover"
+                    />
+                ) : (
+                    <LinearGradient
+                        colors={['rgba(15,15,26,1)', 'rgba(26,26,46,1)', 'rgba(15,15,26,1)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.cardImagePlaceholder}
+                    >
+                        <Animated.View style={placeholderAnimatedWrapperStyle}>
+                            <View style={styles.photoPlaceholderAvatarShell}>
+                                <User size={80} color="rgba(245, 158, 11, 0.15)" strokeWidth={0.5} />
+                            </View>
+                            <Text style={styles.photoPlaceholderLabel}>
+                                {t('dating.noPhoto')}
+                            </Text>
+                        </Animated.View>
+                    </LinearGradient>
+                )}
+
+                <View style={styles.cardTopActions}>
+                    {!isPreview && (
+                        <TouchableOpacity style={styles.cardActionCircle} onPress={handleShare}>
+                            <Share2 size={18} color="rgba(255,255,255,1)" />
+                        </TouchableOpacity>
+                    )}
+                    {!isPreview && (
+                        <TouchableOpacity
+                            style={styles.cardActionCircleRight}
+                            onPress={handleToggleFavorite}
+                        >
+                            <Heart
+                                size={20}
+                                color={isFavorited ? roleColors.accent : 'rgba(255,255,255,1)'}
+                                fill={isFavorited ? roleColors.accent : 'transparent'}
+                            />
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {displayPhotos.length > 1 && (
+                    <View style={styles.cardPagination}>
+                        {displayPhotos.map((_, i) => (
+                            <View
+                                key={i}
+                                style={[
+                                    styles.cardPaginationBar,
+                                    styles.cardPaginationBarFlex,
+                                    i === activeIndex ? activePaginationBarStyle : styles.cardPaginationBarInactive
+                                ]}
+                            />
+                        ))}
+                    </View>
+                )}
+
+                <LinearGradient
+                    colors={['transparent', 'rgba(10, 10, 20, 0.4)', 'rgba(6, 6, 12, 0.98)']}
+                    style={styles.cardInfoOverlay}
+                >
+                    {Platform.OS === 'ios' && (
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType="dark"
+                            blurAmount={15}
+                            reducedTransparencyFallbackColor="rgba(0,0,0,0.9)"
+                        />
+                    )}
+
+                    <View style={styles.cardTextContainer}>
+                        <View style={styles.cardNameRow}>
+                            <Text style={styles.cardSpiritualName} numberOfLines={1}>
+                                {item.spiritualName || 'Devotee'}
+                            </Text>
+                            {mode === 'family' && item.age ? (
+                                <Text style={styles.cardAge}>, {item.age}</Text>
+                            ) : null}
+                        </View>
+
+                        <View style={styles.cardLocationRow}>
+                            <MapPin size={12} color={roleColors.accent} style={styles.cardLocationIcon} />
+                            <Text style={styles.cardLocationText}>{item.city}</Text>
+                        </View>
+
+                        <View style={styles.cardTagRow}>
+                            {mode === 'business' ? (
+                                <>
+                                    {item.industry && (
+                                        <View style={styles.cardTag}>
+                                            <Briefcase size={10} color={roleColors.accent} />
+                                            <Text style={styles.cardTagText}>{item.industry}</Text>
+                                        </View>
+                                    )}
+                                </>
+                            ) : (
+                                <View style={styles.cardTag}>
+                                    <Sparkles size={10} color={roleColors.accent} />
+                                    <Text style={styles.cardTagText}>{item.madh || 'Vaisnava'}</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <Text style={styles.cardBioText} numberOfLines={3}>
+                            {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || 'Seeking spiritual resonance...')}
+                        </Text>
+
+                        {!isPreview && (
+                            <View style={styles.cardFooterActions}>
+                                <TouchableOpacity
+                                    activeOpacity={0.9}
+                                    style={styles.cardCompatibilityBtn}
+                                    onPress={() => onCheckCompatibility(item.ID)}
+                                >
+                                    <LinearGradient
+                                        colors={[roleTheme.accent, roleTheme.accentStrong]}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={styles.cardCompatibilityGradient}
+                                    >
+                                        <Text style={styles.cardCompatibilityBtnText}>
+                                            {mode === 'business' ? 'Connect' : 'Astrological Analysis'}
+                                        </Text>
+                                        <Sparkles size={16} color="rgba(0,0,0,1)" />
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </LinearGradient>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+};
+
 export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const { t } = useTranslation();
     const { user } = useUser();
@@ -91,7 +388,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
     const [checkingComp, setCheckingComp] = useState(false);
     const [currentCandidateId, setCurrentCandidateId] = useState<number | null>(null);
-    const [mode, setMode] = useState<'family' | 'business' | 'friendship' | 'seva'>('family');
+    const [mode, setMode] = useState<MatchMode>('family');
 
     // Filter State
     const [showFilters, setShowFilters] = useState(false);
@@ -123,6 +420,25 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const [stats, setStats] = useState({ total: 0, city: 0, new: 0 });
     const [showStats, setShowStats] = useState(false);
     const [filterNew, setFilterNew] = useState(false);
+    const modalAccentTextStyle = useMemo(() => ({ color: roleColors.accent }), [roleColors.accent]);
+    const filterCityTextStyle = filterCity ? styles.filterValueTextActive : styles.filterValueTextPlaceholder;
+    const filterMadhTextStyle = filterMadh ? styles.filterValueTextActive : styles.filterValueTextPlaceholder;
+    const filterYogaStyleTextStyle = filterYogaStyle ? styles.filterValueTextActive : styles.filterValueTextPlaceholder;
+    const filterGunaTextStyle = filterGuna ? styles.filterValueTextActive : styles.filterValueTextPlaceholder;
+    const filterIdentityTextStyle = filterIdentity ? styles.filterValueTextActive : styles.filterValueTextPlaceholder;
+    const filtersRef = useRef<CandidateFilterParams>({
+        mode: 'family',
+        isNew: false,
+        city: '',
+        minAge: '',
+        maxAge: '',
+        madh: '',
+        yogaStyle: '',
+        guna: '',
+        identity: '',
+        skills: '',
+        industry: ''
+    });
 
     useEffect(() => {
         if (user?.ID) {
@@ -141,9 +457,6 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         try {
             const data = await datingService.getFriends();
             const ids = data.map((f: any) => f.ID);
-            if (ids.length === 0 && friendIds.length === 0) {
-                return;
-            }
             setFriendIds(ids);
         } catch (error) {
             console.error('Failed to fetch friends:', error);
@@ -151,72 +464,94 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     };
 
     useEffect(() => {
-        fetchCandidates();
-        fetchCities();
-        fetchStats();
-    }, []);
+        filtersRef.current = {
+            mode,
+            isNew: filterNew,
+            city: filterCity,
+            minAge: filterMinAge,
+            maxAge: filterMaxAge,
+            madh: filterMadh,
+            yogaStyle: filterYogaStyle,
+            guna: filterGuna,
+            identity: filterIdentity,
+            skills: filterSkills,
+            industry: filterIndustry
+        };
+    }, [mode, filterNew, filterCity, filterMinAge, filterMaxAge, filterMadh, filterYogaStyle, filterGuna, filterIdentity, filterSkills, filterIndustry]);
 
-    useEffect(() => {
-        fetchCandidates();
-    }, [mode]);
-
-    useEffect(() => {
-        if (user?.city) {
-            fetchStats();
-        }
-    }, [user?.city]);
-
-    const fetchStats = async () => {
+    const fetchStats = useCallback(async (city?: string) => {
         try {
-            const data = await datingService.getStats(user?.city);
+            const data = await datingService.getStats(city);
             setStats(data);
         } catch (error) {
             console.error('Failed to fetch stats:', error);
         }
+    }, []);
+
+    const filteredCities = useMemo(() => {
+        const query = citySearchQuery.toLowerCase();
+        return availableCities.filter((city) => city.toLowerCase().includes(query));
+    }, [availableCities, citySearchQuery]);
+
+    const closeAllPickers = () => {
+        setShowMadhPicker(false);
+        setShowYogaPicker(false);
+        setShowGunaPicker(false);
+        setShowIdentityPicker(false);
     };
 
-    const filteredCities = availableCities.filter(city =>
-        city.toLowerCase().includes(citySearchQuery.toLowerCase())
-    );
+    const resetAllFilters = () => {
+        setFilterNew(false);
+        setFilterCity('');
+        setFilterMinAge('');
+        setFilterMaxAge('');
+        setFilterMadh('');
+        setFilterYogaStyle('');
+        setFilterGuna('');
+        setFilterIdentity('');
+        setFilterSkills('');
+        setFilterIndustry('');
+    };
 
-
-
-    const fetchCities = async () => {
+    const fetchCities = useCallback(async () => {
         try {
             const data = await datingService.getCities();
             setAvailableCities(data);
         } catch (error) {
             console.error('Failed to fetch cities:', error);
         }
-    };
+    }, []);
 
-    const fetchCandidates = async () => {
+    const fetchCandidates = useCallback(async (overrides: Partial<CandidateFilterParams> = {}) => {
         if (!user?.ID) {
             setLoading(false);
             return;
         }
 
+        setLoading(true);
+        const params: CandidateFilterParams = {
+            ...filtersRef.current,
+            ...overrides,
+        };
+
         try {
-            const data = await datingService.getCandidates({
-                userId: user.ID,
-                mode: mode,
-                city: filterCity,
-                minAge: filterMinAge,
-                maxAge: filterMaxAge,
-                madh: filterMadh,
-                yogaStyle: filterYogaStyle,
-                guna: filterGuna,
-                identity: filterIdentity,
-                skills: filterSkills,
-                industry: filterIndustry
-            });
+            const data = await datingService.getCandidates({ userId: user.ID, ...params });
             setCandidates(data);
         } catch (error) {
             console.error('Failed to fetch candidates:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.ID]);
+
+    useEffect(() => {
+        fetchCandidates();
+        fetchCities();
+    }, [fetchCandidates, fetchCities]);
+
+    useEffect(() => {
+        fetchStats(user?.city);
+    }, [fetchStats, user?.city]);
 
     const handleCheckCompatibility = async (candidateId: number) => {
         if (!user?.ID) return;
@@ -227,7 +562,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         try {
             const data = await datingService.checkCompatibility(user.ID, candidateId);
             setCompatibilityText(data.compatibility);
-        } catch (error) {
+        } catch {
             setCompatibilityText('Failed to analyze compatibility. Please try again.');
         } finally {
             setCheckingComp(false);
@@ -243,7 +578,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                 compatibilityScore: compatibilityText
             });
             Alert.alert('Saved', 'Added to favorites!');
-        } catch (error) {
+        } catch {
             Alert.alert('Error', 'Could not save to favorites');
         }
     };
@@ -273,9 +608,9 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         // Else add friend (request)
         try {
             await datingService.addFriend(user.ID, currentCandidateId);
-            setFriendIds([...friendIds, currentCandidateId]);
+            setFriendIds((prev) => (prev.includes(currentCandidateId) ? prev : [...prev, currentCandidateId]));
             Alert.alert('Success', 'Request sent! You can now chat.');
-        } catch (error) {
+        } catch {
             Alert.alert('Error', 'Could not connect.');
         }
     };
@@ -308,295 +643,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         }
     };
 
-    const DatingCard = ({ item, isPreview = false }: { item: Profile, isPreview?: boolean }) => {
-        const allPhotos = item.photos || [];
-        const displayPhotos = allPhotos.length > 0 ? allPhotos : (item.avatarUrl ? [{ url: item.avatarUrl }] : []);
-
-        const [activeIndex, setActiveIndex] = useState(0);
-        const fadeAnim = React.useRef(new Animated.Value(1)).current;
-        const [isPaused, setIsPaused] = useState(false);
-
-        // Favorites and likes state
-        const [isFavorited, setIsFavorited] = useState(false);
-        const [likesCount, setLikesCount] = useState(0);
-        const [favoritingInProgress, setFavoritingInProgress] = useState(false);
-
-        // Load favorites status and likes count
-        useEffect(() => {
-            if (!isPreview && user?.ID && item.ID) {
-                // Check if favorited
-                datingService.checkIsFavorited(user.ID, item.ID)
-                    .then(res => setIsFavorited(res.isFavorited))
-                    .catch(() => { });
-
-                // Get likes count
-                datingService.getLikesCount(item.ID)
-                    .then(res => setLikesCount(res.count))
-                    .catch(() => { });
-            }
-        }, [item.ID, user?.ID, isPreview]);
-
-        // Toggle favorite handler
-        const handleToggleFavorite = async () => {
-            if (!user?.ID || favoritingInProgress) return;
-
-            setFavoritingInProgress(true);
-            try {
-                if (isFavorited) {
-                    Alert.alert(t('common.info'), t('dating.removedFromFavorites'));
-                    setIsFavorited(false);
-                    setLikesCount(prev => Math.max(0, prev - 1));
-                } else {
-                    await datingService.addToFavorites({
-                        userId: user.ID,
-                        candidateId: item.ID,
-                        compatibilityScore: ''
-                    });
-                    setIsFavorited(true);
-                    setLikesCount(prev => prev + 1);
-                    Alert.alert(t('common.success'), t('dating.addedToFavorites'));
-                }
-            } catch (error) {
-                console.error('Failed to toggle favorite:', error);
-            } finally {
-                setFavoritingInProgress(false);
-            }
-        };
-
-        const handleShare = async () => {
-            try {
-                const shareUrl = datingService.getShareUrl(item.ID);
-                const message = t('dating.shareMessage', { name: item.spiritualName || 'devotee' });
-                await Share.share({
-                    message: `${message}\n${shareUrl}`,
-                    title: t('dating.share')
-                });
-            } catch (error) {
-                console.error('Share error:', error);
-            }
-        };
-
-        useEffect(() => {
-            if (displayPhotos.length <= 1 || isPaused) return;
-
-            const interval = setInterval(() => {
-                Animated.sequence([
-                    Animated.timing(fadeAnim, {
-                        toValue: 0,
-                        duration: 500,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(fadeAnim, {
-                        toValue: 1,
-                        duration: 500,
-                        useNativeDriver: true,
-                    })
-                ]).start();
-
-                setTimeout(() => {
-                    setActiveIndex((prev) => (prev + 1) % displayPhotos.length);
-                }, 500);
-
-            }, 5000);
-
-            return () => clearInterval(interval);
-        }, [displayPhotos.length, isPaused]);
-
-        const handleTap = (event: any) => {
-            const x = event.nativeEvent.locationX;
-            const cardWidth = width - 40;
-
-            setIsPaused(true);
-
-            if (x < cardWidth * 0.3) {
-                if (activeIndex > 0) {
-                    setActiveIndex(activeIndex - 1);
-                }
-            } else if (x > cardWidth * 0.7) {
-                if (activeIndex < displayPhotos.length - 1) {
-                    setActiveIndex(activeIndex + 1);
-                } else if (!isPreview) {
-                    navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
-                }
-            } else {
-                if (!isPreview) {
-                    navigation.navigate('MediaLibrary', { userId: item.ID, readOnly: true });
-                }
-            }
-        };
-
-        const currentPhotoUrl = displayPhotos[activeIndex]?.url;
-
-        return (
-            <Animated.View style={styles.cardContainer}>
-                <TouchableOpacity
-                    activeOpacity={1}
-                    onPress={handleTap}
-                    style={styles.cardImageContainer}
-                >
-                    {displayPhotos.length > 0 ? (
-                        <Animated.Image
-                            source={{ uri: datingService.getMediaUrl(currentPhotoUrl) }}
-                            style={[styles.fullCardImage, { opacity: fadeAnim }]}
-                            resizeMode="cover"
-                        />
-                    ) : (
-                        <LinearGradient
-                            colors={['rgba(15,15,26,1)', 'rgba(26,26,46,1)', 'rgba(15,15,26,1)']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.cardImagePlaceholder}
-                        >
-                            <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
-                                <View style={{
-                                    width: 140,
-                                    height: 140,
-                                    borderRadius: 70,
-                                    backgroundColor: 'rgba(255,255,255,0.03)',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderWidth: 1,
-                                    borderColor: 'rgba(255,255,255,0.05)'
-                                }}>
-                                    <User size={80} color="rgba(245, 158, 11, 0.15)" strokeWidth={0.5} />
-                                </View>
-                                <Text style={{
-                                    color: 'rgba(255,255,255,0.2)',
-                                    marginTop: 20,
-                                    fontSize: 12,
-                                    letterSpacing: 2,
-                                    fontFamily: 'Cinzel-Regular'
-                                }}>
-                                    {t('dating.noPhoto')}
-                                </Text>
-                            </Animated.View>
-                        </LinearGradient>
-                    )}
-
-                    {/* Top Overlay Actions - Moved for better reach/visibility */}
-                    <View style={styles.cardTopActions}>
-                        {!isPreview && (
-                            <TouchableOpacity style={styles.cardActionCircle} onPress={handleShare}>
-                                <Share2 size={18} color="rgba(255,255,255,1)" />
-                            </TouchableOpacity>
-                        )}
-                        {!isPreview && (
-                            <TouchableOpacity
-                                style={[styles.cardActionCircle, { marginLeft: 'auto' }]}
-                                onPress={handleToggleFavorite}
-                            >
-                                <Heart
-                                    size={20}
-                                    color={isFavorited ? roleColors.accent : 'rgba(255,255,255,1)'}
-                                    fill={isFavorited ? roleColors.accent : 'transparent'}
-                                />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-
-                    {/* Pagination Indicators - Sleeker design */}
-                    {displayPhotos.length > 1 && (
-                        <View style={styles.cardPagination}>
-                            {displayPhotos.map((_, i) => (
-                                <View
-                                    key={i}
-                                    style={[
-                                        styles.cardPaginationBar,
-                                        {
-                                            backgroundColor: i === activeIndex ? roleColors.accent : 'rgba(255,255,255,0.2)',
-                                            flex: 1,
-                                            height: 2,
-                                        }
-                                    ]}
-                                />
-                            ))}
-                        </View>
-                    )}
-
-                    {/* Info Overlay with stronger Liquid Glass fade */}
-                    <LinearGradient
-                        colors={['transparent', 'rgba(10, 10, 20, 0.4)', 'rgba(6, 6, 12, 0.98)']}
-                        style={styles.cardInfoOverlay}
-                    >
-                        {Platform.OS === 'ios' && (
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType="dark"
-                                blurAmount={15}
-                                reducedTransparencyFallbackColor="rgba(0,0,0,0.9)"
-                            />
-                        )}
-
-                        <View style={styles.cardTextContainer}>
-                            <View style={styles.cardNameRow}>
-                                <Text style={styles.cardSpiritualName} numberOfLines={1}>
-                                    {item.spiritualName || 'Devotee'}
-                                </Text>
-                                {mode === 'family' && item.age ? (
-                                    <Text style={styles.cardAge}>, {item.age}</Text>
-                                ) : null}
-                            </View>
-
-                            <View style={styles.cardLocationRow}>
-                                <MapPin size={12} color={roleColors.accent} style={{ marginRight: 6 }} />
-                                <Text style={styles.cardLocationText}>{item.city}</Text>
-                            </View>
-
-                            <View style={styles.cardTagRow}>
-                                {mode === 'business' ? (
-                                    <>
-                                        {item.industry && (
-                                            <View style={styles.cardTag}>
-                                                <Briefcase size={10} color={roleColors.accent} />
-                                                <Text style={styles.cardTagText}>{item.industry}</Text>
-                                            </View>
-                                        )}
-                                    </>
-                                ) : (
-                                    <View style={styles.cardTag}>
-                                        <Sparkles size={10} color={roleColors.accent} />
-                                        <Text style={styles.cardTagText}>{item.madh || 'Vaisnava'}</Text>
-                                    </View>
-                                )}
-                            </View>
-
-                            <Text style={styles.cardBioText} numberOfLines={3}>
-                                {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || 'Seeking spiritual resonance...')}
-                            </Text>
-
-                            {!isPreview && (
-                                <View style={styles.cardFooterActions}>
-                                    <TouchableOpacity
-                                        activeOpacity={0.9}
-                                        style={styles.cardCompatibilityBtn}
-                                        onPress={() => handleCheckCompatibility(item.ID)}
-                                    >
-                                        <LinearGradient
-                                            colors={[roleTheme.accent, roleTheme.accentStrong]}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={styles.cardCompatibilityGradient}
-                                        >
-                                            <Text style={styles.cardCompatibilityBtnText}>
-                                                {mode === 'business' ? 'Connect' : 'Astrological Analysis'}
-                                            </Text>
-                                            <Sparkles size={16} color="rgba(0,0,0,1)" />
-                                        </LinearGradient>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                        </View>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </Animated.View>
-        );
-    };
-
     return (
         <ProtectedScreen requireCompleteProfile={true}>
             <LinearGradient colors={roleTheme.gradient} style={styles.fullGradient}>
                 <StatusBar barStyle="light-content" />
-                <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+                <View style={styles.containerTransparent}>
                     <View style={styles.premiumHeader}>
                         <TouchableOpacity
                             style={styles.headerIconButton}
@@ -667,12 +718,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     {/* Mode Switcher */}
                     <View style={styles.modeSwitcherContainer}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeScrollContent}>
-                            {[
-                                { key: 'family', label: 'Family', icon: <Heart size={16} /> },
-                                { key: 'business', label: 'Business', icon: <Briefcase size={16} /> },
-                                { key: 'friendship', label: 'Friends', icon: <Users size={16} /> },
-                                { key: 'seva', label: 'Seva', icon: <Flower2 size={16} /> }
-                            ].map((m) => (
+                            {MODE_OPTIONS.map((m) => (
                                 <TouchableOpacity
                                     key={m.key}
                                     style={[
@@ -680,14 +726,14 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         mode === m.key && styles.modeGlassChipActive
                                     ]}
                                     onPress={() => {
-                                        setMode(m.key as any);
-                                        setLoading(true);
+                                        setMode(m.key);
+                                        fetchCandidates({ mode: m.key });
                                     }}
                                 >
-                                    {React.cloneElement(m.icon as React.ReactElement, {
-                                        color: mode === m.key ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,0.4)',
-                                        size: 14
-                                    })}
+                                    <m.icon
+                                        color={mode === m.key ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,0.4)'}
+                                        size={14}
+                                    />
                                     <Text style={[
                                         styles.modeGlassText,
                                         mode === m.key && styles.modeGlassTextActive
@@ -700,12 +746,16 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     {/* Statistics Bar */}
                     {showStats && (
                         <View style={styles.statsBar}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScrollContent}>
                                 <TouchableOpacity
                                     style={styles.statItem}
-                                    onPress={() => { setFilterCity(''); setFilterNew(false); fetchCandidates(); }}
+                                    onPress={() => {
+                                        setFilterCity('');
+                                        setFilterNew(false);
+                                        fetchCandidates({ city: '', isNew: false });
+                                    }}
                                 >
-                                    <Users2 size={20} color={roleColors.accent} style={{ marginRight: 8 }} />
+                                    <Users2 size={20} color={roleColors.accent} style={styles.statIcon} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.total}</Text>
                                         <Text style={styles.statLabel}>Total</Text>
@@ -713,9 +763,15 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.statItem}
-                                    onPress={() => { if (user?.city) { setFilterCity(user.city); setFilterNew(false); fetchCandidates(); } }}
+                                    onPress={() => {
+                                        if (user?.city) {
+                                            setFilterCity(user.city);
+                                            setFilterNew(false);
+                                            fetchCandidates({ city: user.city, isNew: false });
+                                        }
+                                    }}
                                 >
-                                    <MapPin size={20} color={roleColors.accent} style={{ marginRight: 8 }} />
+                                    <MapPin size={20} color={roleColors.accent} style={styles.statIcon} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.city}</Text>
                                         <Text style={styles.statLabel}>In {user?.city}</Text>
@@ -723,9 +779,18 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.statItem}
-                                    onPress={() => { setFilterNew(!filterNew); if (!filterNew) setFilterCity(''); fetchCandidates(); }}
+                                    onPress={() => {
+                                        const nextFilterNew = !filterNew;
+                                        setFilterNew(nextFilterNew);
+                                        if (nextFilterNew) {
+                                            setFilterCity('');
+                                            fetchCandidates({ city: '', isNew: true });
+                                            return;
+                                        }
+                                        fetchCandidates({ isNew: false });
+                                    }}
                                 >
-                                    <Sparkles size={20} color={roleColors.accent} style={{ marginRight: 8 }} />
+                                    <Sparkles size={20} color={roleColors.accent} style={styles.statIcon} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.new}</Text>
                                         <Text style={styles.statLabel}>New (24h)</Text>
@@ -736,19 +801,30 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     )}
 
                     {loading ? (
-                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                        <View style={styles.loadingContainer}>
                             <ActivityIndicator size="large" color={roleColors.accent} />
                         </View>
                     ) : candidates.length === 0 ? (
                         <View style={styles.empty}>
-                            <Sparkles size={40} color="rgba(255,255,255,0.1)" style={{ marginBottom: 15 }} />
-                            <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>{t('dating.noCandidates')}</Text>
+                            <Sparkles size={40} color="rgba(255,255,255,0.1)" style={styles.emptyIcon} />
+                            <Text style={styles.emptyText}>{t('dating.noCandidates')}</Text>
                         </View>
                     ) : (
                         <FlatList<Profile>
                             data={candidates}
                             keyExtractor={(item) => item.ID.toString()}
-                            renderItem={({ item }) => <DatingCard item={item} />}
+                            renderItem={({ item }) => (
+                                <DatingCandidateCard
+                                    item={item}
+                                    mode={mode}
+                                    userId={user?.ID}
+                                    roleColors={roleColors}
+                                    roleTheme={roleTheme}
+                                    t={t}
+                                    navigation={navigation}
+                                    onCheckCompatibility={handleCheckCompatibility}
+                                />
+                            )}
                             contentContainerStyle={styles.list}
                             showsVerticalScrollIndicator={false}
                         />
@@ -761,7 +837,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={styles.modalContent}>
                                 <Text style={styles.modalTitle}>{t('dating.compatibilityAnalysis')}</Text>
 
-                                <View style={{ alignItems: 'center', marginVertical: 20 }}>
+                                <View style={styles.modalAvatarContainer}>
                                     <View style={styles.avatarGlowContainer}>
                                         <Image
                                             source={{ uri: `${API_PATH.replace(/\/api\/?$/, '')}/uploads/kolobok_astrologer.png` }}
@@ -771,11 +847,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     </View>
                                 </View>
 
-                                <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+                                <ScrollView style={styles.modalContentScroll} showsVerticalScrollIndicator={false}>
                                     {checkingComp ? (
-                                        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                                        <View style={styles.modalCheckingContainer}>
                                             <ActivityIndicator color={roleColors.accent} size="large" />
-                                            <Text style={[styles.modalText, { textAlign: 'center', marginTop: 15 }]}>{t('dating.exploringStars')}</Text>
+                                            <Text style={[styles.modalText, styles.modalCheckingText]}>{t('dating.exploringStars')}</Text>
                                         </View>
                                     ) : (
                                         <Text style={styles.modalText}>{compatibilityText}</Text>
@@ -809,7 +885,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showFilters} transparent animationType="slide">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
-                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { maxHeight: '85%' }]}>
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax85]}>
                                 <View style={styles.modalHeader}>
                                     <Text style={styles.modalTitle}>{t('dating.filters')}</Text>
                                 </View>
@@ -839,7 +915,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
                                     <Text style={styles.filterLabel}>{t('registration.city')}</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowCityPicker(true)}>
-                                        <Text style={{ color: filterCity ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.3)' }}>
+                                        <Text style={filterCityTextStyle}>
                                             {filterCity || t('dating.selectCity')}
                                         </Text>
                                     </TouchableOpacity>
@@ -847,7 +923,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <Text style={styles.filterLabel}>{t('registration.dob')}</Text>
                                     <View style={styles.filterRow}>
                                         <TextInput
-                                            style={[styles.filterInput, { flex: 1 }]}
+                                            style={[styles.filterInput, styles.filterInputHalf]}
                                             value={filterMinAge}
                                             onChangeText={setFilterMinAge}
                                             placeholder={t('dating.minAge')}
@@ -855,7 +931,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                             placeholderTextColor="rgba(255,255,255,0.3)"
                                         />
                                         <TextInput
-                                            style={[styles.filterInput, { flex: 1 }]}
+                                            style={[styles.filterInput, styles.filterInputHalf]}
                                             value={filterMaxAge}
                                             onChangeText={setFilterMaxAge}
                                             placeholder={t('dating.maxAge')}
@@ -866,8 +942,29 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
                                     <Text style={styles.filterLabel}>Tradition</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowMadhPicker(true)}>
-                                        <Text style={{ color: filterMadh ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.3)' }}>
+                                        <Text style={filterMadhTextStyle}>
                                             {filterMadh || "Any"}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <Text style={styles.filterLabel}>Yoga Style</Text>
+                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowYogaPicker(true)}>
+                                        <Text style={filterYogaStyleTextStyle}>
+                                            {filterYogaStyle || "Any"}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <Text style={styles.filterLabel}>Guna</Text>
+                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowGunaPicker(true)}>
+                                        <Text style={filterGunaTextStyle}>
+                                            {filterGuna || "Any"}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <Text style={styles.filterLabel}>Identity</Text>
+                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowIdentityPicker(true)}>
+                                        <Text style={filterIdentityTextStyle}>
+                                            {filterIdentity || "Any"}
                                         </Text>
                                     </TouchableOpacity>
                                 </ScrollView>
@@ -876,10 +973,19 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <TouchableOpacity
                                         style={styles.glassButtonSecondary}
                                         onPress={() => {
-                                            setFilterCity(''); setFilterMinAge(''); setFilterMaxAge('');
-                                            setFilterMadh(''); setFilterYogaStyle(''); setFilterGuna('');
-                                            setFilterIdentity(''); setFilterSkills(''); setFilterIndustry('');
-                                            fetchCandidates();
+                                            resetAllFilters();
+                                            fetchCandidates({
+                                                isNew: false,
+                                                city: '',
+                                                minAge: '',
+                                                maxAge: '',
+                                                madh: '',
+                                                yogaStyle: '',
+                                                guna: '',
+                                                identity: '',
+                                                skills: '',
+                                                industry: ''
+                                            });
                                         }}
                                     >
                                         <Text style={styles.glassButtonText}>{t('dating.reset')}</Text>
@@ -904,19 +1010,29 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showPreview} transparent animationType="slide">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
-                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { height: '90%', padding: 0 }]}>
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentPreview]}>
                                 <View style={styles.modalHeaderPremium}>
                                     <Text style={styles.headerTitleSmall}>Profile Preview</Text>
                                     <TouchableOpacity onPress={() => setShowPreview(false)}>
                                         <X size={24} color="rgba(255,255,255,1)" />
                                     </TouchableOpacity>
                                 </View>
-                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.previewScrollContent}>
                                     {previewLoading ? (
                                         <ActivityIndicator size="large" color={roleColors.accent} />
                                     ) : previewProfile ? (
                                         <>
-                                            <DatingCard item={previewProfile} isPreview={true} />
+                                            <DatingCandidateCard
+                                                item={previewProfile}
+                                                isPreview={true}
+                                                mode={mode}
+                                                userId={user?.ID}
+                                                roleColors={roleColors}
+                                                roleTheme={roleTheme}
+                                                t={t}
+                                                navigation={navigation}
+                                                onCheckCompatibility={handleCheckCompatibility}
+                                            />
                                             <Text style={styles.previewHint}>This is how others see your card</Text>
                                         </>
                                     ) : (
@@ -931,33 +1047,33 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showCityPicker} transparent animationType="fade">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
-                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { maxHeight: '80%' }]}>
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax80]}>
                                 <View style={styles.modalHeader}>
                                     <Text style={styles.modalTitle}>{t('dating.selectCity')}</Text>
                                 </View>
 
                                 <TextInput
-                                    style={[styles.filterInput, { marginBottom: 20 }]}
+                                    style={[styles.filterInput, styles.citySearchInput]}
                                     value={citySearchQuery}
                                     onChangeText={setCitySearchQuery}
                                     placeholder={t('dating.searchCity')}
                                     placeholderTextColor="rgba(255,255,255,0.3)"
                                 />
 
-                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pickerScrollContent}>
                                     <TouchableOpacity
-                                        style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                        style={styles.pickerOptionRow}
                                         onPress={() => { setFilterCity(''); setShowCityPicker(false); }}
                                     >
-                                        <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>{t('dating.allCities')}</Text>
+                                        <Text style={[styles.pickerAccentText, modalAccentTextStyle]}>{t('dating.allCities')}</Text>
                                     </TouchableOpacity>
                                     {filteredCities.map((city, index) => (
                                         <TouchableOpacity
                                             key={index}
-                                            style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                            style={styles.pickerOptionRow}
                                             onPress={() => { setFilterCity(city); setShowCityPicker(false); }}
                                         >
-                                            <Text style={{ color: 'rgba(255,255,255,1)', fontSize: 16 }}>{city}</Text>
+                                            <Text style={styles.pickerOptionText}>{city}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
@@ -973,30 +1089,30 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showMadhPicker || showYogaPicker || showGunaPicker || showIdentityPicker} transparent animationType="fade">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
-                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, { maxHeight: '80%' }]}>
+                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax80]}>
                                 <View style={styles.modalHeader}>
                                     <Text style={styles.modalTitle}>
                                         {showMadhPicker ? "Tradition" : showYogaPicker ? "Yoga Style" : showGunaPicker ? "Guna" : "Identity"}
                                     </Text>
                                 </View>
 
-                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pickerScrollContent}>
                                     <TouchableOpacity
-                                        style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                        style={styles.pickerOptionRow}
                                         onPress={() => {
                                             if (showMadhPicker) setFilterMadh('');
                                             if (showYogaPicker) setFilterYogaStyle('');
                                             if (showGunaPicker) setFilterGuna('');
                                             if (showIdentityPicker) setFilterIdentity('');
-                                            setShowMadhPicker(false); setShowYogaPicker(false); setShowGunaPicker(false); setShowIdentityPicker(false);
+                                            closeAllPickers();
                                         }}
                                     >
-                                        <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Show All</Text>
+                                        <Text style={[styles.pickerAccentText, modalAccentTextStyle]}>Show All</Text>
                                     </TouchableOpacity>
                                     {(showMadhPicker ? DATING_TRADITIONS : showYogaPicker ? YOGA_STYLES : showGunaPicker ? GUNAS : IDENTITY_OPTIONS).map((opt, index) => (
                                         <TouchableOpacity
                                             key={index}
-                                            style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                            style={styles.pickerOptionRow}
                                             onPress={() => {
                                                 if (showMadhPicker) { setFilterMadh(opt); setShowMadhPicker(false); }
                                                 if (showYogaPicker) { setFilterYogaStyle(opt); setShowYogaPicker(false); }
@@ -1004,17 +1120,14 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                                 if (showIdentityPicker) { setFilterIdentity(opt); setShowIdentityPicker(false); }
                                             }}
                                         >
-                                            <Text style={{ color: 'rgba(255,255,255,1)', fontSize: 16 }}>{opt}</Text>
+                                            <Text style={styles.pickerOptionText}>{opt}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
 
                                 <TouchableOpacity
                                     style={styles.modalCloseLink}
-                                    onPress={() => {
-                                        setShowMadhPicker(false); setShowYogaPicker(false);
-                                        setShowGunaPicker(false); setShowIdentityPicker(false);
-                                    }}
+                                    onPress={closeAllPickers}
                                 >
                                     <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                 </TouchableOpacity>
@@ -1033,6 +1146,10 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
+    },
+    containerTransparent: {
+        flex: 1,
+        backgroundColor: 'transparent',
     },
     premiumHeader: {
         flexDirection: 'row',
@@ -1121,6 +1238,12 @@ const styles = StyleSheet.create({
     statsBar: {
         paddingBottom: 20,
     },
+    statsScrollContent: {
+        paddingHorizontal: 20,
+    },
+    statIcon: {
+        marginRight: 8,
+    },
     statItem: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1160,6 +1283,27 @@ const styles = StyleSheet.create({
     cardImageContainer: {
         flex: 1,
     },
+    photoPlaceholderAnimatedWrapper: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    photoPlaceholderAvatarShell: {
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    photoPlaceholderLabel: {
+        color: 'rgba(255,255,255,0.2)',
+        marginTop: 20,
+        fontSize: 12,
+        letterSpacing: 2,
+        fontFamily: 'Cinzel-Regular',
+    },
     fullCardImage: {
         width: '100%',
         height: '100%',
@@ -1182,6 +1326,13 @@ const styles = StyleSheet.create({
         height: 3,
         borderRadius: 2,
     },
+    cardPaginationBarFlex: {
+        flex: 1,
+        height: 2,
+    },
+    cardPaginationBarInactive: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+    },
     cardTopActions: {
         position: 'absolute',
         top: 40,
@@ -1198,6 +1349,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.2)',
+    },
+    cardActionCircleRight: {
+        marginLeft: 'auto',
     },
     cardInfoOverlay: {
         position: 'absolute',
@@ -1235,6 +1389,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 6,
+    },
+    cardLocationIcon: {
+        marginRight: 6,
     },
     cardLocationText: {
         fontSize: 15,
@@ -1298,6 +1455,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 60,
     },
+    emptyIcon: {
+        marginBottom: 15,
+    },
+    emptyText: {
+        color: 'rgba(255,255,255,0.5)',
+        textAlign: 'center',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.8)',
@@ -1312,6 +1480,31 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.15)',
         overflow: 'hidden',
+    },
+    modalContentMax85: {
+        maxHeight: '85%',
+    },
+    modalContentMax80: {
+        maxHeight: '80%',
+    },
+    modalContentPreview: {
+        height: '90%',
+        padding: 0,
+    },
+    modalAvatarContainer: {
+        alignItems: 'center',
+        marginVertical: 20,
+    },
+    modalContentScroll: {
+        maxHeight: 300,
+    },
+    modalCheckingContainer: {
+        paddingVertical: 20,
+        alignItems: 'center',
+    },
+    modalCheckingText: {
+        textAlign: 'center',
+        marginTop: 15,
     },
     modalHeader: {
         marginBottom: 24,
@@ -1424,6 +1617,15 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
     },
+    filterInputHalf: {
+        flex: 1,
+    },
+    filterValueTextActive: {
+        color: 'rgba(255,255,255,1)',
+    },
+    filterValueTextPlaceholder: {
+        color: 'rgba(255,255,255,0.3)',
+    },
     filterRow: {
         flexDirection: 'row',
         gap: 15,
@@ -1438,6 +1640,27 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 15,
         fontSize: 13,
+    },
+    previewScrollContent: {
+        padding: 20,
+    },
+    citySearchInput: {
+        marginBottom: 20,
+    },
+    pickerScrollContent: {
+        paddingBottom: 20,
+    },
+    pickerOptionRow: {
+        padding: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.05)',
+    },
+    pickerAccentText: {
+        fontWeight: 'bold',
+    },
+    pickerOptionText: {
+        color: 'rgba(255,255,255,1)',
+        fontSize: 16,
     },
     errorText: {
         color: 'rgba(239,68,68,1)',

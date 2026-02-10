@@ -26,6 +26,14 @@ func NewAdminHandler() *AdminHandler {
 	return &AdminHandler{}
 }
 
+func getSystemSettingOrEnv(key string) string {
+	var setting models.SystemSetting
+	if err := database.DB.Where("key = ?", key).First(&setting).Error; err == nil && setting.Value != "" {
+		return setting.Value
+	}
+	return os.Getenv(key)
+}
+
 func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 	var users []models.User
 	query := database.DB.Model(&models.User{})
@@ -250,9 +258,13 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 
 	for k, v := range updates {
 		var setting models.SystemSetting
-		database.DB.Where("key = ?", k).FirstOrCreate(&setting, models.SystemSetting{Key: k})
+		if err := database.DB.Where("key = ?", k).FirstOrCreate(&setting, models.SystemSetting{Key: k}).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to upsert setting: " + k})
+		}
 		setting.Value = v
-		database.DB.Save(&setting)
+		if err := database.DB.Save(&setting).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save setting: " + k})
+		}
 
 		// Special case: update env for current session if it's API_OPEN_AI
 		if k == "API_OPEN_AI" && v != "" {
@@ -279,16 +291,7 @@ func (h *AdminHandler) ListGeminiCorpora(c *fiber.Ctx) error {
 	}
 
 	// 1. Get API Key
-	var apiKey string
-	// Try DB first
-	var setting models.SystemSetting
-	if err := database.DB.Where("key = ?", keyName).First(&setting).Error; err == nil {
-		apiKey = setting.Value
-	}
-	// Fallback to Env
-	if apiKey == "" {
-		apiKey = os.Getenv(keyName)
-	}
+	apiKey := getSystemSettingOrEnv(keyName)
 
 	if apiKey == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": fmt.Sprintf("API Key '%s' not found", keyName)})
@@ -343,14 +346,7 @@ func (h *AdminHandler) CreateGeminiCorpus(c *fiber.Ctx) error {
 	}
 
 	// 1. Get API Key
-	var apiKey string
-	var setting models.SystemSetting
-	if err := database.DB.Where("key = ?", body.KeyName).First(&setting).Error; err == nil {
-		apiKey = setting.Value
-	}
-	if apiKey == "" {
-		apiKey = os.Getenv(body.KeyName)
-	}
+	apiKey := getSystemSettingOrEnv(body.KeyName)
 	if apiKey == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "API Key not found"})
 	}
@@ -371,8 +367,14 @@ func (h *AdminHandler) CreateGeminiCorpus(c *fiber.Ctx) error {
 		payload["displayName"] = "New Corpus " + time.Now().Format("2006-01-02 15:04")
 	}
 
-	jsonPayload, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to serialize request payload"})
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to build Gemini request"})
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
@@ -391,7 +393,9 @@ func (h *AdminHandler) CreateGeminiCorpus(c *fiber.Ctx) error {
 	}
 
 	var data interface{}
-	json.Unmarshal(respBody, &data)
+	if err := json.Unmarshal(respBody, &data); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to parse Gemini response"})
+	}
 
 	return c.JSON(data)
 }

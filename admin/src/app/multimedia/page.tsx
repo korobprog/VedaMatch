@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
     Search, Plus, Trash2, Edit3, Loader2, Radio, Tv, Music, Film,
-    Upload, CheckCircle, XCircle, Eye, Clock
+    Upload, CheckCircle, XCircle
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -70,7 +70,6 @@ export default function MultimediaPage() {
     const [search, setSearch] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editItem, setEditItem] = useState<any>(null);
-    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     const { data: stats } = useSWR('/admin/multimedia/stats', fetcher);
     const { data: tracks, mutate: mutateTracks } = useSWR('/multimedia/tracks?limit=50', fetcher);
@@ -80,7 +79,6 @@ export default function MultimediaPage() {
 
     const handleDelete = async (type: string, id: number) => {
         if (!confirm('Delete this item?')) return;
-        setActionLoading(`delete-${id}`);
         try {
             // Videos are stored in tracks table
             const endpoint = type === 'videos' ? 'tracks' : type;
@@ -92,7 +90,6 @@ export default function MultimediaPage() {
         } catch (e) {
             console.error(e);
         }
-        setActionLoading(null);
     };
 
     const handleEdit = (item: any) => {
@@ -171,7 +168,6 @@ export default function MultimediaPage() {
                     search={search}
                     onEdit={handleEdit}
                     onDelete={(id: number) => handleDelete('tracks', id)}
-                    actionLoading={actionLoading}
                 />
             )}
             {tab === 'videos' && (
@@ -179,8 +175,7 @@ export default function MultimediaPage() {
                     tracks={tracks?.tracks.filter((t: MediaTrack) => t.mediaType === 'video') || []}
                     search={search}
                     onEdit={handleEdit}
-                    onDelete={(id: number) => handleDelete('tracks', id)}
-                    actionLoading={actionLoading}
+                    onDelete={(id: number) => handleDelete('videos', id)}
                 />
             )}
             {tab === 'radio' && (
@@ -189,7 +184,6 @@ export default function MultimediaPage() {
                     search={search}
                     onEdit={handleEdit}
                     onDelete={(id: number) => handleDelete('radio', id)}
-                    actionLoading={actionLoading}
                 />
             )}
             {tab === 'tv' && (
@@ -198,7 +192,6 @@ export default function MultimediaPage() {
                     search={search}
                     onEdit={handleEdit}
                     onDelete={(id: number) => handleDelete('tv', id)}
-                    actionLoading={actionLoading}
                 />
             )}
             {tab === 'categories' && (
@@ -207,7 +200,6 @@ export default function MultimediaPage() {
                     search={search}
                     onEdit={handleEdit}
                     onDelete={(id: number) => handleDelete('categories', id)}
-                    actionLoading={actionLoading}
                 />
             )}
 
@@ -230,7 +222,7 @@ export default function MultimediaPage() {
     );
 }
 
-function TracksTable({ tracks, search, onEdit, onDelete, actionLoading }: any) {
+function TracksTable({ tracks, search, onEdit, onDelete }: any) {
     const filtered = tracks.filter((t: MediaTrack) =>
         t.title?.toLowerCase().includes(search.toLowerCase()) ||
         t.artist?.toLowerCase().includes(search.toLowerCase())
@@ -652,7 +644,7 @@ function MediaModal({ type, item, onClose, onSave, categories }: { type: TabType
                                         )}
                                         <p className="text-xs text-gray-500 dark:text-slate-500">
                                             {form.mediaType === 'video'
-                                                ? 'Supported: MP4, WebM, MOV (max 500MB)'
+                                                ? 'Supported: MP4, WebM, MOV (max 2GB)'
                                                 : 'Supported: MP3, WAV, OGG (max 100MB)'}
                                         </p>
                                     </div>

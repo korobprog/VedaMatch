@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -39,7 +39,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
     const { user, login } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
-    const theme = {
+    const theme = React.useMemo(() => ({
         background: colors.background,
         header: colors.surface,
         borderColor: colors.border,
@@ -49,7 +49,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         inputBackground: colors.surfaceElevated,
         button: colors.accent,
         buttonText: colors.textPrimary,
-    };
+    }), [colors]);
     const styles = React.useMemo(() => createStyles(theme), [theme]);
 
     const [loading, setLoading] = useState(true);
@@ -90,11 +90,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
     // Debounce timer
     const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
-    useEffect(() => {
-        fetchProfile();
-    }, []);
-
-    const fetchProfile = async () => {
+    const fetchProfile = useCallback(async () => {
         try {
             const data = await datingService.getUsers();
             const me = data.find((u: any) => u.ID === userId);
@@ -121,7 +117,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 if (me.birthTime) {
                     const today = new Date();
                     const [hours, minutes] = me.birthTime.split(':');
-                    today.setHours(parseInt(hours), parseInt(minutes));
+                    today.setHours(parseInt(hours, 10), parseInt(minutes, 10));
                     setTempDate(today);
                 }
                 if (me.dob) {
@@ -138,7 +134,11 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId]);
+
+    useEffect(() => {
+        fetchProfile();
+    }, [fetchProfile]);
 
     const handleSaveProfile = async () => {
         if (saving) return;

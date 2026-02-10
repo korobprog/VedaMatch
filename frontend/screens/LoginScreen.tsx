@@ -11,7 +11,6 @@ import {
     ActivityIndicator,
     Image,
     StatusBar,
-    Keyboard,
     ScrollView,
     Alert,
 } from 'react-native';
@@ -22,6 +21,7 @@ import Animated, {
     withTiming,
     withSequence,
     interpolate,
+    interpolateColor,
     withSpring,
 } from 'react-native-reanimated';
 import LinearGradient from 'react-native-linear-gradient';
@@ -112,25 +112,34 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }));
 
     const emailInputStyle = useAnimatedStyle(() => ({
-        borderColor: interpolate(emailFocusValue.value, [0, 1], [0, 1]) === 1
-            ? ModernVedicTheme.colors.primary
-            : 'rgba(255, 255, 255, 0.4)',
-        backgroundColor: interpolate(emailFocusValue.value, [0, 1], [0, 1]) === 1
-            ? 'rgba(255, 255, 255, 0.95)'
-            : 'rgba(255, 255, 255, 0.6)',
+        borderColor: interpolateColor(
+            emailFocusValue.value,
+            [0, 1],
+            ['rgba(255, 255, 255, 0.4)', ModernVedicTheme.colors.primary]
+        ),
+        backgroundColor: interpolateColor(
+            emailFocusValue.value,
+            [0, 1],
+            ['rgba(255, 255, 255, 0.6)', 'rgba(255, 255, 255, 0.95)']
+        ),
     }));
 
     const passwordInputStyle = useAnimatedStyle(() => ({
-        borderColor: interpolate(passwordFocusValue.value, [0, 1], [0, 1]) === 1
-            ? ModernVedicTheme.colors.primary
-            : 'rgba(255, 255, 255, 0.4)',
-        backgroundColor: interpolate(passwordFocusValue.value, [0, 1], [0, 1]) === 1
-            ? 'rgba(255, 255, 255, 0.95)'
-            : 'rgba(255, 255, 255, 0.6)',
+        borderColor: interpolateColor(
+            passwordFocusValue.value,
+            [0, 1],
+            ['rgba(255, 255, 255, 0.4)', ModernVedicTheme.colors.primary]
+        ),
+        backgroundColor: interpolateColor(
+            passwordFocusValue.value,
+            [0, 1],
+            ['rgba(255, 255, 255, 0.6)', 'rgba(255, 255, 255, 0.95)']
+        ),
     }));
 
     const handleLogin = async () => {
-        if (!email || !password) {
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail || !password) {
             Alert.alert(t('error'), t('fill_all_fields'));
             return;
         }
@@ -139,7 +148,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const deviceId = await DeviceInfo.getUniqueId();
             const response = await axios.post(`${API_PATH}/login`, {
-                email,
+                email: normalizedEmail,
                 password,
                 deviceId
             });

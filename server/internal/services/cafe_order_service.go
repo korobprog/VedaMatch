@@ -29,6 +29,10 @@ func NewCafeOrderService(db *gorm.DB, dishService *DishService) *CafeOrderServic
 
 // CreateOrder creates a new cafe order
 func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCreateRequest) (*models.CafeOrder, error) {
+	if len(req.Items) == 0 {
+		return nil, errors.New("order must contain at least one item")
+	}
+
 	// Validate order type requirements
 	if req.OrderType == models.CafeOrderTypeDineIn && req.TableID == nil {
 		return nil, errors.New("table ID required for dine-in orders")
@@ -43,6 +47,10 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	dishIDs := make([]uint, 0)
 
 	for _, itemReq := range req.Items {
+		if itemReq.Quantity <= 0 {
+			return nil, fmt.Errorf("invalid quantity for dish %d", itemReq.DishID)
+		}
+
 		dish, err := s.dishService.GetDish(itemReq.DishID)
 		if err != nil {
 			return nil, fmt.Errorf("dish %d not found", itemReq.DishID)
@@ -82,7 +90,10 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 		// Handle removed ingredients
 		removedIngredientsJSON := ""
 		if len(itemReq.RemovedIngredients) > 0 {
-			jsonBytes, _ := json.Marshal(itemReq.RemovedIngredients)
+			jsonBytes, err := json.Marshal(itemReq.RemovedIngredients)
+			if err != nil {
+				return nil, errors.New("failed to serialize removed ingredients")
+			}
 			removedIngredientsJSON = string(jsonBytes)
 		}
 
@@ -107,6 +118,12 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	var cafe models.Cafe
 	if err := s.db.First(&cafe, req.CafeID).Error; err != nil {
 		return nil, errors.New("cafe not found")
+	}
+	if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
+		var table models.CafeTable
+		if err := s.db.Where("id = ? AND cafe_id = ? AND is_active = ?", *req.TableID, req.CafeID, true).First(&table).Error; err != nil {
+			return nil, errors.New("table not found for this cafe")
+		}
 	}
 
 	deliveryFee := 0.0
@@ -421,14 +438,19 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 		updates["completed_at"] = now
 	}
 
-	err := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(updates).Error
-	if err != nil {
-		return err
+	updateResult := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(updates)
+	if updateResult.Error != nil {
+		return updateResult.Error
+	}
+	if updateResult.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 
 	// Get order for WebSocket notification
 	var order models.CafeOrder
-	s.db.First(&order, orderID)
+	if err := s.db.First(&order, orderID).Error; err != nil {
+		return err
+	}
 
 	// Send WebSocket notification
 	websocket.NotifyOrderStatusUpdate(order.CafeID, orderID, string(status), order.CustomerID)
@@ -436,16 +458,20 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 	// If completed and was dine-in, free the table
 	if status == models.CafeOrderStatusCompleted {
 		if order.TableID != nil {
-			s.db.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
+			if err := s.db.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
 				"is_occupied":      false,
 				"current_order_id": nil,
 				"occupied_since":   nil,
-			})
+			}).Error; err != nil {
+				return err
+			}
 		}
 
 		// Update cafe orders count
-		s.db.Model(&models.Cafe{}).Where("id = ?", order.CafeID).
-			UpdateColumn("orders_count", gorm.Expr("orders_count + 1"))
+		if err := s.db.Model(&models.Cafe{}).Where("id = ?", order.CafeID).
+			UpdateColumn("orders_count", gorm.Expr("orders_count + 1")).Error; err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -478,11 +504,13 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 
 		// Free table if was dine-in
 		if order.TableID != nil {
-			tx.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
+			if err := tx.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
 				"is_occupied":      false,
 				"current_order_id": nil,
 				"occupied_since":   nil,
-			})
+			}).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -610,6 +638,9 @@ func (s *CafeOrderService) RepeatOrder(customerID, previousOrderID uint) (*model
 	if err != nil {
 		return nil, err
 	}
+	if prevOrder.CustomerID == nil || *prevOrder.CustomerID != customerID {
+		return nil, errors.New("not authorized to repeat this order")
+	}
 
 	// Build new order request from previous order
 	items := make([]models.CafeOrderItemRequest, len(prevOrder.Items))
@@ -624,7 +655,9 @@ func (s *CafeOrderService) RepeatOrder(customerID, previousOrderID uint) (*model
 
 		var removedIngredients []string
 		if item.RemovedIngredients != "" {
-			json.Unmarshal([]byte(item.RemovedIngredients), &removedIngredients)
+			if err := json.Unmarshal([]byte(item.RemovedIngredients), &removedIngredients); err != nil {
+				return nil, errors.New("failed to parse removed ingredients from previous order")
+			}
 		}
 
 		items[i] = models.CafeOrderItemRequest{

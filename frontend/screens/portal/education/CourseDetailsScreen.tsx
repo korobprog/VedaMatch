@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -36,23 +36,23 @@ export const CourseDetailsScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const loadDetails = async () => {
+    const loadDetails = useCallback(async () => {
         try {
             setError(null);
             setLoading(true);
             const data = await educationService.getCourseDetails(courseId);
             setCourse(data);
-        } catch (error) {
-            console.error('Error loading course details:', error);
+        } catch (err) {
+            console.error('Error loading course details:', err);
             setError(t('education.loadError'));
         } finally {
             setLoading(false);
         }
-    };
+    }, [courseId, t]);
 
     useEffect(() => {
         loadDetails();
-    }, [courseId]);
+    }, [loadDetails]);
 
     if (loading) {
         return (

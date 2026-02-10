@@ -11,7 +11,6 @@ import {
     Image,
     RefreshControl,
     ActivityIndicator,
-    Dimensions,
     Share,
     Alert,
 } from 'react-native';
@@ -43,15 +42,11 @@ import {
     CATEGORY_ICON_NAMES,
     FORMAT_LABELS,
     CHANNEL_LABELS,
-    ACCESS_LABELS,
     ServiceFormat,
 } from '../../../services/serviceService';
-import { formatBalance } from '../../../services/walletService';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
-
-const { width } = Dimensions.get('window');
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {

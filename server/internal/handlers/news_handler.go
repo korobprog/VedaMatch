@@ -78,10 +78,20 @@ func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
 		query = query.Where("target_madh LIKE ?", "%"+madhParam+"%")
 	}
 	if tags != "" {
-		// Search for any of the provided tags
+		// Search for any of the provided tags (OR)
 		tagList := strings.Split(tags, ",")
+		conditions := make([]string, 0, len(tagList))
+		args := make([]interface{}, 0, len(tagList))
 		for _, tag := range tagList {
-			query = query.Where("tags LIKE ?", "%"+strings.TrimSpace(tag)+"%")
+			cleanTag := strings.TrimSpace(tag)
+			if cleanTag == "" {
+				continue
+			}
+			conditions = append(conditions, "tags ILIKE ?")
+			args = append(args, "%"+cleanTag+"%")
+		}
+		if len(conditions) > 0 {
+			query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
 		}
 	}
 	if search != "" {

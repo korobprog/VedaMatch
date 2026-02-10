@@ -34,8 +34,9 @@ func NewAuthHandler(walletService *services.WalletService, referralService *serv
 }
 
 func normalizePortalRole(role string) string {
-	if models.IsPortalRole(role) {
-		return strings.TrimSpace(strings.ToLower(role))
+	normalized := strings.TrimSpace(strings.ToLower(role))
+	if models.IsPortalRole(normalized) {
+		return normalized
 	}
 	return models.RoleUser
 }
@@ -47,6 +48,12 @@ func isAdminRoleRequested(role string) bool {
 func applyPortalRoleAndGodMode(user *models.User, role string, godModeEnabled bool) {
 	user.Role = normalizePortalRole(role)
 	user.GodModeEnabled = godModeEnabled
+}
+
+func sanitizeUsers(users []models.User) {
+	for i := range users {
+		users[i].Password = ""
+	}
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
@@ -194,7 +201,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	// Update DeviceID if provided
 	if loginData.DeviceID != "" && loginData.DeviceID != user.DeviceID {
 		user.DeviceID = loginData.DeviceID
-		database.DB.Model(&user).Update("device_id", user.DeviceID)
+		if err := database.DB.Model(&user).Update("device_id", user.DeviceID).Error; err != nil {
+			log.Printf("[AUTH] Failed to update device_id for user %d: %v", user.ID, err)
+		}
 	}
 
 	user.Password = ""
@@ -357,7 +366,9 @@ func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
 	}
 
 	user.LastSeen = time.Now().Format(time.RFC3339)
-	database.DB.Model(&user).Update("last_seen", user.LastSeen)
+	if err := database.DB.Model(&user).Update("last_seen", user.LastSeen).Error; err != nil {
+		log.Printf("[AUTH] Failed to update heartbeat last_seen for user %d: %v", user.ID, err)
+	}
 
 	return c.SendStatus(fiber.StatusOK)
 }
@@ -389,7 +400,9 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 			avatarURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
 				log.Printf("[S3] Avatar uploaded: %s", avatarURL)
-				database.DB.Model(&models.User{}).Where("id = ?", userId).Update("avatar_url", avatarURL)
+				if err := database.DB.Model(&models.User{}).Where("id = ?", userId).Update("avatar_url", avatarURL).Error; err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update avatar URL"})
+				}
 				return c.Status(fiber.StatusOK).JSON(fiber.Map{
 					"avatarUrl": avatarURL,
 				})
@@ -412,7 +425,9 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 	}
 
 	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filename)
-	database.DB.Model(&models.User{}).Where("id = ?", userId).Update("avatar_url", avatarURL)
+	if err := database.DB.Model(&models.User{}).Where("id = ?", userId).Update("avatar_url", avatarURL).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update avatar URL"})
+	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"avatarUrl": avatarURL,
@@ -495,6 +510,7 @@ func (h *AuthHandler) GetFriends(c *fiber.Ctx) error {
 	if err := database.DB.Where("id IN ?", friendIDs).Find(&users).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch friend details"})
 	}
+	sanitizeUsers(users)
 
 	return c.Status(fiber.StatusOK).JSON(users)
 }
@@ -564,6 +580,7 @@ func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {
 		})
 	}
 	log.Printf("[Contacts] Returning %d contacts to client", len(users))
+	sanitizeUsers(users)
 
 	return c.Status(fiber.StatusOK).JSON(users)
 }
@@ -641,6 +658,7 @@ func (h *AuthHandler) GetBlockedUsers(c *fiber.Ctx) error {
 	if err := database.DB.Where("id IN ?", blockedIDs).Find(&users).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch blocked user details"})
 	}
+	sanitizeUsers(users)
 
 	return c.Status(fiber.StatusOK).JSON(users)
 }

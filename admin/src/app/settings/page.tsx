@@ -24,35 +24,75 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 
+interface AdminData {
+    spiritualName?: string;
+    email?: string;
+}
+
+interface GeminiCorpus {
+    name: string;
+    displayName?: string;
+}
+
+interface SettingsState {
+    API_OPEN_AI: string;
+    GEMINI_API_KEY: string;
+    GEMINI_API_KEY_BACKUP_1: string;
+    GEMINI_API_KEY_BACKUP_2: string;
+    GEMINI_API_KEY_BACKUP_3: string;
+    GEMINI_API_KEY_BACKUP_4: string;
+    DEFAULT_ASTRO_MODEL: string;
+    ROUTEWAY_API_KEY: string;
+    ROUTEWAY_API_URL: string;
+    OPENROUTER_API_KEY: string;
+    OPENROUTER_WORKER_URL: string;
+    OPENROUTER_FAST_MODEL: string;
+    OPENROUTER_REASONING_MODEL: string;
+    VK_API_TOKEN: string;
+    VK_API_VERSION: string;
+    TELEGRAM_BOT_TOKEN: string;
+    FCM_SERVER_KEY: string;
+    GEMINI_CORPUS_ID?: string;
+    [key: string]: string | undefined;
+}
+
+const DEFAULT_SETTINGS: SettingsState = {
+    API_OPEN_AI: '',
+    GEMINI_API_KEY: '',
+    GEMINI_API_KEY_BACKUP_1: '',
+    GEMINI_API_KEY_BACKUP_2: '',
+    GEMINI_API_KEY_BACKUP_3: '',
+    GEMINI_API_KEY_BACKUP_4: '',
+    DEFAULT_ASTRO_MODEL: 'gpt-4o',
+    ROUTEWAY_API_KEY: '',
+    ROUTEWAY_API_URL: 'https://api.routeway.ai/v1/chat/completions',
+    OPENROUTER_API_KEY: '',
+    OPENROUTER_WORKER_URL: '',
+    OPENROUTER_FAST_MODEL: 'deepseek/deepseek-chat',
+    OPENROUTER_REASONING_MODEL: 'deepseek/deepseek-r1',
+    VK_API_TOKEN: '',
+    VK_API_VERSION: '5.199',
+    TELEGRAM_BOT_TOKEN: '',
+    FCM_SERVER_KEY: '',
+    GEMINI_CORPUS_ID: '',
+};
+
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('Profile');
-    const [admin, setAdmin] = useState<any>(null);
+    const [admin, setAdmin] = useState<AdminData | null>(null);
     const [success, setSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [settings, setSettings] = useState<any>({
-        API_OPEN_AI: '',
-        GEMINI_API_KEY: '',
-        GEMINI_API_KEY_BACKUP_1: '',
-        GEMINI_API_KEY_BACKUP_2: '',
-        GEMINI_API_KEY_BACKUP_3: '',
-        GEMINI_API_KEY_BACKUP_4: '',
-        DEFAULT_ASTRO_MODEL: 'gpt-4o',
-        ROUTEWAY_API_KEY: '',
-        ROUTEWAY_API_URL: 'https://api.routeway.ai/v1/chat/completions',
-        OPENROUTER_API_KEY: '',
-        OPENROUTER_WORKER_URL: '',
-        OPENROUTER_FAST_MODEL: 'deepseek/deepseek-chat',
-        OPENROUTER_REASONING_MODEL: 'deepseek/deepseek-r1',
-        // News Integration
-        VK_API_TOKEN: '',
-        VK_API_VERSION: '5.199',
-        TELEGRAM_BOT_TOKEN: '',
-        FCM_SERVER_KEY: '',
-    });
+    const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
 
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
-        if (data) setAdmin(JSON.parse(data));
+        if (data) {
+            try {
+                setAdmin(JSON.parse(data) as AdminData);
+            } catch (e) {
+                console.error('Failed to parse admin_data from localStorage', e);
+            }
+        }
 
         fetchSettings();
     }, []);
@@ -60,7 +100,7 @@ export default function SettingsPage() {
     const fetchSettings = async () => {
         try {
             const res = await api.get('/admin/settings');
-            setSettings(res.data);
+            setSettings(prev => ({ ...prev, ...(res.data as Partial<SettingsState>) }));
         } catch (err) {
             console.error('Failed to fetch settings', err);
         }
@@ -68,7 +108,7 @@ export default function SettingsPage() {
 
     // RAG Management State
     const [selectedKey, setSelectedKey] = useState('GEMINI_API_KEY');
-    const [corpora, setCorpora] = useState<any[]>([]);
+    const [corpora, setCorpora] = useState<GeminiCorpus[]>([]);
     const [loadingCorpora, setLoadingCorpora] = useState(false);
     const [newCorpusName, setNewCorpusName] = useState('');
     const [creatingCorpus, setCreatingCorpus] = useState(false);
@@ -618,7 +658,7 @@ export default function SettingsPage() {
                                                     <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                                                         <p className="text-[10px] uppercase font-bold text-[var(--muted-foreground)]">Available Corpora (Click to Select)</p>
                                                         <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                                                            {corpora.map((c: any) => (
+                                                            {corpora.map((c) => (
                                                                 <div
                                                                     key={c.name}
                                                                     onClick={() => setSettings({ ...settings, GEMINI_CORPUS_ID: c.name.replace('corpora/', '') })}
@@ -703,4 +743,3 @@ export default function SettingsPage() {
         </div>
     );
 }
-

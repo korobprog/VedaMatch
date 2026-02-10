@@ -46,7 +46,10 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	// Convert tags to JSON string
 	tagsJSON := ""
 	if len(req.Tags) > 0 {
-		tagsBytes, _ := json.Marshal(req.Tags)
+		tagsBytes, err := json.Marshal(req.Tags)
+		if err != nil {
+			return nil, err
+		}
 		tagsJSON = string(tagsBytes)
 	}
 
@@ -99,7 +102,11 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 
 	// Create variants
 	for _, varReq := range req.Variants {
-		attrJSON, _ := json.Marshal(varReq.Attributes)
+		attrJSON, err := json.Marshal(varReq.Attributes)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 		variant := models.ProductVariant{
 			ProductID:  product.ID,
 			SKU:        varReq.SKU,
@@ -118,15 +125,20 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	}
 
 	// Update shop products count
-	tx.Model(&models.Shop{}).Where("id = ?", shopID).
-		UpdateColumn("products_count", gorm.Expr("products_count + 1"))
+	if err := tx.Model(&models.Shop{}).Where("id = ?", shopID).
+		UpdateColumn("products_count", gorm.Expr("products_count + 1")).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
 	// Load relations
-	database.DB.Preload("Variants").Preload("Images").First(&product, product.ID)
+	if err := database.DB.Preload("Variants").Preload("Images").First(&product, product.ID).Error; err != nil {
+		return nil, err
+	}
 
 	return &product, nil
 }
@@ -157,7 +169,10 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.Category = *req.Category
 	}
 	if len(req.Tags) > 0 {
-		tagsBytes, _ := json.Marshal(req.Tags)
+		tagsBytes, err := json.Marshal(req.Tags)
+		if err != nil {
+			return nil, err
+		}
 		product.Tags = string(tagsBytes)
 	}
 	if req.ProductType != nil {
@@ -216,7 +231,9 @@ func (s *ProductService) GetProductsByShop(shopID uint, page, limit int) (*model
 	query := database.DB.Model(&models.Product{}).Where("shop_id = ?", shopID)
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	if page < 1 {
 		page = 1
@@ -362,10 +379,16 @@ func (s *ProductService) DeleteProduct(productID uint, shopID uint) error {
 	tx := database.DB.Begin()
 
 	// Delete variants
-	tx.Where("product_id = ?", productID).Delete(&models.ProductVariant{})
+	if err := tx.Where("product_id = ?", productID).Delete(&models.ProductVariant{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// Delete images
-	tx.Where("product_id = ?", productID).Delete(&models.ProductImage{})
+	if err := tx.Where("product_id = ?", productID).Delete(&models.ProductImage{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// Delete product
 	if err := tx.Delete(&product).Error; err != nil {
@@ -374,14 +397,20 @@ func (s *ProductService) DeleteProduct(productID uint, shopID uint) error {
 	}
 
 	// Update shop products count
-	tx.Model(&models.Shop{}).Where("id = ?", shopID).
-		UpdateColumn("products_count", gorm.Expr("products_count - 1"))
+	if err := tx.Model(&models.Shop{}).Where("id = ?", shopID).
+		UpdateColumn("products_count", gorm.Expr("CASE WHEN products_count > 0 THEN products_count - 1 ELSE 0 END")).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	return tx.Commit().Error
 }
 
 // UpdateStock updates stock for a product or variant
 func (s *ProductService) UpdateStock(productID uint, variantID *uint, quantity int) error {
+	if quantity < 0 {
+		return errors.New("stock quantity cannot be negative")
+	}
 	if variantID != nil {
 		return database.DB.Model(&models.ProductVariant{}).
 			Where("id = ? AND product_id = ?", *variantID, productID).
@@ -394,9 +423,12 @@ func (s *ProductService) UpdateStock(productID uint, variantID *uint, quantity i
 
 // ReserveStock reserves stock for an order (used during checkout)
 func (s *ProductService) ReserveStock(productID uint, variantID *uint, quantity int) error {
+	if quantity <= 0 {
+		return errors.New("quantity must be greater than zero")
+	}
 	if variantID != nil {
 		var variant models.ProductVariant
-		if err := database.DB.First(&variant, *variantID).Error; err != nil {
+		if err := database.DB.Where("id = ? AND product_id = ?", *variantID, productID).First(&variant).Error; err != nil {
 			return ErrVariantNotFound
 		}
 		if variant.Stock-variant.Reserved < quantity {
@@ -419,6 +451,9 @@ func (s *ProductService) ReserveStock(productID uint, variantID *uint, quantity 
 
 // DeductStock deducts stock after order confirmation
 func (s *ProductService) DeductStock(productID uint, variantID *uint, quantity int) error {
+	if quantity <= 0 {
+		return errors.New("quantity must be greater than zero")
+	}
 	if variantID != nil {
 		return database.DB.Model(&models.ProductVariant{}).
 			Where("id = ? AND product_id = ?", *variantID, productID).
@@ -444,11 +479,24 @@ func (s *ProductService) ToggleFavorite(userID, productID uint) (bool, error) {
 	result := database.DB.Where("user_id = ? AND product_id = ?", userID, productID).First(&existing)
 
 	if result.Error == nil {
+		tx := database.DB.Begin()
 		// Remove from favorites
-		database.DB.Delete(&existing)
-		database.DB.Model(&models.Product{}).Where("id = ?", productID).
-			UpdateColumn("favorites_count", gorm.Expr("favorites_count - 1"))
+		if err := tx.Delete(&existing).Error; err != nil {
+			tx.Rollback()
+			return false, err
+		}
+		if err := tx.Model(&models.Product{}).Where("id = ?", productID).
+			UpdateColumn("favorites_count", gorm.Expr("CASE WHEN favorites_count > 0 THEN favorites_count - 1 ELSE 0 END")).Error; err != nil {
+			tx.Rollback()
+			return false, err
+		}
+		if err := tx.Commit().Error; err != nil {
+			return false, err
+		}
 		return false, nil
+	}
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return false, result.Error
 	}
 
 	// Add to favorites
@@ -456,11 +504,19 @@ func (s *ProductService) ToggleFavorite(userID, productID uint) (bool, error) {
 		UserID:    userID,
 		ProductID: productID,
 	}
-	if err := database.DB.Create(&favorite).Error; err != nil {
+	tx := database.DB.Begin()
+	if err := tx.Create(&favorite).Error; err != nil {
+		tx.Rollback()
 		return false, err
 	}
-	database.DB.Model(&models.Product{}).Where("id = ?", productID).
-		UpdateColumn("favorites_count", gorm.Expr("favorites_count + 1"))
+	if err := tx.Model(&models.Product{}).Where("id = ?", productID).
+		UpdateColumn("favorites_count", gorm.Expr("favorites_count + 1")).Error; err != nil {
+		tx.Rollback()
+		return false, err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -514,10 +570,13 @@ func (s *ProductService) AddReview(userID, productID uint, req models.ReviewCrea
 		AvgRating float64
 		Count     int
 	}
-	tx.Model(&models.ProductReview{}).
+	if err := tx.Model(&models.ProductReview{}).
 		Where("product_id = ? AND is_approved = ?", productID, true).
 		Select("AVG(rating) as avg_rating, COUNT(*) as count").
-		Scan(&stats)
+		Scan(&stats).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	if err := tx.Model(&models.Product{}).Where("id = ?", productID).
 		Updates(map[string]interface{}{

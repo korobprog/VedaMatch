@@ -8,7 +8,6 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
-    Dimensions,
     Linking,
     Modal,
     TextInput,
@@ -19,9 +18,9 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
-    Star, MapPin, Share2, MessageCircle, Phone, Mail,
+    Star, MapPin, Share2, MessageCircle, Phone,
     Wifi, Coffee, Wind, Droplets, Utensils, Warehouse, Car,
-    ChevronLeft, Heart, Shield, CheckCircle, Clock
+    ChevronLeft, Heart, CheckCircle, Clock
 } from 'lucide-react-native';
 import { yatraService } from '../../../services/yatraService';
 import { Shelter, ShelterReview, SHELTER_TYPE_LABELS, AMENITY_LABELS } from '../../../types/yatra';
@@ -97,7 +96,7 @@ const ShelterDetailScreen: React.FC = () => {
             setComment('');
             setRating(5);
             loadShelter(); // Reload to see new review and avg rating
-        } catch (error) {
+        } catch {
             Alert.alert('Ошибка', 'Не удалось отправить отзыв');
         } finally {
             setSubmittingReview(false);

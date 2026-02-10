@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -8,8 +8,6 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Animated,
-    Dimensions,
-    FlatList,
     Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -22,9 +20,7 @@ import {
     Star,
     MapPin,
     Clock,
-    Timer,
     UtensilsCrossed,
-    ShoppingCart,
     Info,
     ChevronRight,
     Flame,
@@ -37,8 +33,6 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
-
-const { width, height } = Dimensions.get('window');
 
 type RouteParams = {
     CafeDetail: {
@@ -66,17 +60,7 @@ const CafeDetailScreen: React.FC = () => {
 
     const { cart, initCart } = useCart();
 
-    useEffect(() => {
-        loadCafeData();
-    }, [cafeId]);
-
-    useEffect(() => {
-        if (cafe) {
-            initCart(cafe.id, cafe.name, tableId, tableNumber);
-        }
-    }, [cafe, tableId, tableNumber, initCart]);
-
-    const loadCafeData = async () => {
+    const loadCafeData = useCallback(async () => {
         try {
             setLoading(true);
             const [cafeData, menuData] = await Promise.all([
@@ -94,7 +78,17 @@ const CafeDetailScreen: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [cafeId]);
+
+    useEffect(() => {
+        loadCafeData();
+    }, [loadCafeData]);
+
+    useEffect(() => {
+        if (cafe) {
+            initCart(cafe.id, cafe.name, tableId, tableNumber);
+        }
+    }, [cafe, tableId, tableNumber, initCart]);
 
     const handleDishPress = (dish: Dish) => {
         navigation.navigate('DishDetail', {

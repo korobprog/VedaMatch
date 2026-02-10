@@ -6,11 +6,36 @@ import {
     DishModifier, DishIngredient, CafeTable, CafeOrder,
     CafeOrderStatus, CafeOrderType, CafeOrderCreateData,
     CafeOrderFilters, ActiveOrdersResponse, OrderStatsResponse,
-    MenuResponse, QRCodeScanResult, WaiterCallReason
+    MenuResponse, QRCodeScanResult, WaiterCallReason, WaiterCall
 } from '../types/cafe';
 import { getGodModeQueryParams } from './godModeService';
 
+interface UploadAsset {
+    uri?: string;
+    type?: string;
+    fileName?: string;
+}
+
 class CafeService {
+    private normalizeCafe(cafe: any, fallbackId = 0): Cafe {
+        return {
+            ...cafe,
+            id: cafe?.id ?? cafe?.ID ?? fallbackId,
+            rating: cafe?.rating ?? 0,
+            reviewsCount: cafe?.reviewsCount ?? 0,
+            ordersCount: cafe?.ordersCount ?? 0,
+            avgPrepTime: cafe?.avgPrepTime ?? 0,
+        } as Cafe;
+    }
+
+    private normalizeTable(table: any): CafeTable {
+        return {
+            ...table,
+            id: table?.id ?? table?.ID ?? 0,
+            number: String(table?.number ?? ''),
+        } as CafeTable;
+    }
+
     getImageUrl(path: string | null): string {
         if (!path) return 'https://via.placeholder.com/400x200';
         if (path.startsWith('http')) return path;
@@ -42,16 +67,7 @@ class CafeService {
             const data = response.data;
 
             // Normalize cafe data to handle potential field name variations from backend
-            const normalizedCafes = (data.cafes || []).map((cafe: any) => ({
-                ...cafe,
-                // Handle both 'ID' (GORM default) and 'id' (expected by frontend)
-                id: cafe.id ?? cafe.ID ?? 0,
-                // Ensure rating and reviewsCount have default values
-                rating: cafe.rating ?? 0,
-                reviewsCount: cafe.reviewsCount ?? 0,
-                ordersCount: cafe.ordersCount ?? 0,
-                avgPrepTime: cafe.avgPrepTime ?? 0,
-            }));
+            const normalizedCafes = (data.cafes || []).map((cafe: any) => this.normalizeCafe(cafe));
 
             return {
                 cafes: normalizedCafes,
@@ -71,15 +87,7 @@ class CafeService {
             const cafe = response.data;
 
             // Normalize cafe data to handle potential field name variations from backend
-            return {
-                ...cafe,
-                // Handle both 'ID' (GORM default) and 'id' (expected by frontend)
-                id: cafe.id ?? cafe.ID ?? id,
-                rating: cafe.rating ?? 0,
-                reviewsCount: cafe.reviewsCount ?? 0,
-                ordersCount: cafe.ordersCount ?? 0,
-                avgPrepTime: cafe.avgPrepTime ?? 0,
-            };
+            return this.normalizeCafe(cafe, id);
         } catch (error) {
             console.error(`Error fetching cafe ${id}:`, error);
             throw error;
@@ -94,7 +102,7 @@ class CafeService {
     async getCafeBySlug(slug: string): Promise<Cafe> {
         try {
             const response = await axios.get(`${API_PATH}/cafes/slug/${slug}`);
-            return response.data;
+            return this.normalizeCafe(response.data);
         } catch (error) {
             console.error(`Error fetching cafe by slug ${slug}:`, error);
             throw error;
@@ -109,15 +117,7 @@ class CafeService {
 
             // Normalize cafe data to handle potential field name variations from backend
             if (data.hasCafe && data.cafe) {
-                const normalizedCafe = {
-                    ...data.cafe,
-                    // Handle both 'ID' (GORM default) and 'id' (expected by frontend)
-                    id: data.cafe.id ?? data.cafe.ID ?? 0,
-                    rating: data.cafe.rating ?? 0,
-                    reviewsCount: data.cafe.reviewsCount ?? 0,
-                    ordersCount: data.cafe.ordersCount ?? 0,
-                    avgPrepTime: data.cafe.avgPrepTime ?? 0,
-                };
+                const normalizedCafe = this.normalizeCafe(data.cafe);
                 return { cafe: normalizedCafe, hasCafe: true };
             }
 
@@ -131,7 +131,7 @@ class CafeService {
         }
     }
 
-    async createCafe(data: any): Promise<Cafe> {
+    async createCafe(data: Record<string, unknown>): Promise<Cafe> {
         try {
             const headers = await this.getHeaders();
             const response = await axios.post(`${API_PATH}/cafes`, data, { headers });
@@ -142,7 +142,7 @@ class CafeService {
         }
     }
 
-    async updateCafe(id: number, data: any): Promise<Cafe> {
+    async updateCafe(id: number, data: Record<string, unknown>): Promise<Cafe> {
         try {
             const headers = await this.getHeaders();
             const response = await axios.put(`${API_PATH}/cafes/${id}`, data, { headers });
@@ -163,8 +163,9 @@ class CafeService {
         }
     }
 
-    async uploadLogo(asset: any): Promise<string> {
+    async uploadLogo(asset: UploadAsset): Promise<string> {
         try {
+            if (!asset.uri) throw new Error('Invalid upload asset: missing uri');
             const currentHeaders = await this.getHeaders();
             const formData = new FormData();
             formData.append('file', {
@@ -186,8 +187,9 @@ class CafeService {
         }
     }
 
-    async uploadCover(asset: any): Promise<string> {
+    async uploadCover(asset: UploadAsset): Promise<string> {
         try {
+            if (!asset.uri) throw new Error('Invalid upload asset: missing uri');
             const currentHeaders = await this.getHeaders();
             const formData = new FormData();
             formData.append('file', {
@@ -301,7 +303,7 @@ class CafeService {
     async getTables(cafeId: number): Promise<CafeTable[]> {
         try {
             const response = await axios.get(`${API_PATH}/cafes/${cafeId}/tables`);
-            return response.data;
+            return (response.data || []).map((table: any) => this.normalizeTable(table));
         } catch (error) {
             console.error(`Error fetching tables for cafe ${cafeId}:`, error);
             throw error;
@@ -340,7 +342,7 @@ class CafeService {
         }
     }
 
-    async updateFloorLayout(cafeId: number, tables: any[]): Promise<void> {
+    async updateFloorLayout(cafeId: number, tables: Partial<CafeTable>[]): Promise<void> {
         try {
             const headers = await this.getHeaders();
             await axios.put(`${API_PATH}/cafes/${cafeId}/floor-layout`, { tables }, { headers });
@@ -483,7 +485,7 @@ class CafeService {
         }
     }
 
-    async getWaiterCalls(cafeId: number): Promise<any[]> {
+    async getWaiterCalls(cafeId: number): Promise<WaiterCall[]> {
         try {
             const headers = await this.getHeaders();
             const response = await axios.get(`${API_PATH}/cafes/${cafeId}/waiter-calls`, { headers });

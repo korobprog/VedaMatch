@@ -8,7 +8,6 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
-    Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
@@ -25,8 +24,6 @@ import YatraReviewsSection from '../../../components/travel/YatraReviewsSection'
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
-
-const { width } = Dimensions.get('window');
 
 const YatraDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -60,7 +57,7 @@ const YatraDetailScreen: React.FC = () => {
                 try {
                     const participation = await yatraService.getMyParticipation(yatraId);
                     setMyParticipation(participation);
-                } catch (e) {
+                } catch {
                     console.log('No participation found');
                 }
             }
@@ -104,7 +101,7 @@ const YatraDetailScreen: React.FC = () => {
             await yatraService.approveParticipant(yatraId, participantId);
             Alert.alert('Успех', 'Участник одобрен');
             loadYatra();
-        } catch (error) {
+        } catch {
             Alert.alert('Ошибка', 'Не удалось одобрить участника');
         }
     };
@@ -114,7 +111,7 @@ const YatraDetailScreen: React.FC = () => {
             await yatraService.rejectParticipant(yatraId, participantId);
             Alert.alert('Успех', 'Заявка отклонена');
             loadYatra();
-        } catch (error) {
+        } catch {
             Alert.alert('Ошибка', 'Не удалось отклонить заявку');
         }
     };
@@ -136,7 +133,6 @@ const YatraDetailScreen: React.FC = () => {
     }
 
     const routePoints = yatraService.parseRoutePoints(yatra.routePoints);
-    const photos = yatraService.parsePhotos(yatra.photos);
     const duration = yatraService.getTripDuration(yatra.startDate, yatra.endDate);
 
     return (

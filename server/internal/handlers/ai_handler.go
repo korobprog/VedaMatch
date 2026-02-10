@@ -22,6 +22,13 @@ func NewAiHandler() *AiHandler {
 	return &AiHandler{}
 }
 
+func maskKey(value string) string {
+	if len(value) <= 8 {
+		return value
+	}
+	return value[:6] + "..." + value[len(value)-2:]
+}
+
 type ExternalModel struct {
 	ID       string `json:"id"`
 	Provider string `json:"provider"`
@@ -83,14 +90,20 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 				IsRagEnabled: false,
 				LastSyncDate: now,
 			}
-			database.DB.Create(&newModel)
+			if err := database.DB.Create(&newModel).Error; err != nil {
+				log.Printf("[Sync] Failed creating model %s: %v", m.ID, err)
+				continue
+			}
 			newCount++
 		} else {
 			// Update existing
 			existing.Provider = m.Provider
 			existing.Category = m.Category
 			existing.LastSyncDate = now
-			database.DB.Save(&existing)
+			if err := database.DB.Save(&existing).Error; err != nil {
+				log.Printf("[Sync] Failed updating model %s: %v", m.ID, err)
+				continue
+			}
 			updatedCount++
 		}
 	}
@@ -104,7 +117,10 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 		if !validModelIDs[m.ModelID] && m.IsEnabled {
 			m.IsEnabled = false
 			m.LastTestStatus = "offline" // Mark as offline/missing
-			database.DB.Save(&m)
+			if err := database.DB.Save(&m).Error; err != nil {
+				log.Printf("[Sync] Failed disabling model %s: %v", m.ModelID, err)
+				continue
+			}
 			disabledCount++
 			log.Printf("[Sync] Disabled outdated model: %s", m.ModelID)
 		}
@@ -293,15 +309,27 @@ func (h *AiHandler) HandleSchedule(c *fiber.Ctx) error {
 	}
 
 	// Persist settings
-	database.DB.Assign(models.SystemSetting{Value: fmt.Sprintf("%d", req.IntervalMinutes)}).FirstOrCreate(&models.SystemSetting{}, models.SystemSetting{Key: "scheduler_interval"})
-	database.DB.Where(models.SystemSetting{Key: "scheduler_interval"}).Updates(models.SystemSetting{Value: fmt.Sprintf("%d", req.IntervalMinutes)})
+	if err := database.DB.Assign(models.SystemSetting{Value: fmt.Sprintf("%d", req.IntervalMinutes)}).
+		FirstOrCreate(&models.SystemSetting{}, models.SystemSetting{Key: "scheduler_interval"}).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to persist scheduler interval"})
+	}
+	if err := database.DB.Where(models.SystemSetting{Key: "scheduler_interval"}).
+		Updates(models.SystemSetting{Value: fmt.Sprintf("%d", req.IntervalMinutes)}).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update scheduler interval"})
+	}
 
 	enabledStr := "false"
 	if req.Enabled {
 		enabledStr = "true"
 	}
-	database.DB.Assign(models.SystemSetting{Value: enabledStr}).FirstOrCreate(&models.SystemSetting{}, models.SystemSetting{Key: "scheduler_enabled"})
-	database.DB.Where(models.SystemSetting{Key: "scheduler_enabled"}).Updates(models.SystemSetting{Value: enabledStr})
+	if err := database.DB.Assign(models.SystemSetting{Value: enabledStr}).
+		FirstOrCreate(&models.SystemSetting{}, models.SystemSetting{Key: "scheduler_enabled"}).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to persist scheduler status"})
+	}
+	if err := database.DB.Where(models.SystemSetting{Key: "scheduler_enabled"}).
+		Updates(models.SystemSetting{Value: enabledStr}).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update scheduler status"})
+	}
 
 	if req.Enabled {
 		task := func() {
@@ -491,7 +519,7 @@ func (h *AiHandler) GetGeminiKeyStatus(c *fiber.Ctx) error {
 	for i, ki := range keys {
 		status := GeminiKeyStatus{
 			Index:          i,
-			KeyPrefix:      ki.key[:10] + "..." + ki.key[len(ki.key)-4:],
+			KeyPrefix:      maskKey(ki.key),
 			KeyName:        ki.name,
 			TestedAt:       time.Now().Format(time.RFC3339),
 			ResetInMinutes: minutesUntilReset,
@@ -525,7 +553,7 @@ func (h *AiHandler) GetGeminiKeyStatus(c *fiber.Ctx) error {
 			results = append(results, status)
 			continue
 		}
-		defer resp.Body.Close()
+		resp.Body.Close()
 
 		status.StatusCode = resp.StatusCode
 

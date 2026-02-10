@@ -58,7 +58,9 @@ func (h *SeriesHandler) GetSeriesDetails(c *fiber.Ctx) error {
 	}
 
 	// Increment view count
-	h.db.Model(&series).Update("view_count", gorm.Expr("view_count + 1"))
+	if err := h.db.Model(&series).Update("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
+		log.Printf("[SeriesHandler] Failed to increment series view_count for %s: %v", id, err)
+	}
 
 	// Presign URLs for private S3 access
 	s3Svc := services.GetS3Service()
@@ -128,7 +130,12 @@ func (h *SeriesHandler) UpdateSeries(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	h.db.Model(&series).Updates(updates)
+	if err := h.db.Model(&series).Updates(updates).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := h.db.First(&series, id).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(series)
 }
@@ -138,9 +145,20 @@ func (h *SeriesHandler) DeleteSeries(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	// Delete cascades: episodes -> seasons -> series
-	h.db.Where("season_id IN (SELECT id FROM seasons WHERE series_id = ?)", id).Delete(&models.Episode{})
-	h.db.Where("series_id = ?", id).Delete(&models.Season{})
-	h.db.Delete(&models.Series{}, id)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("season_id IN (SELECT id FROM seasons WHERE series_id = ?)", id).Delete(&models.Episode{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("series_id = ?", id).Delete(&models.Season{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&models.Series{}, id).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(fiber.Map{"message": "Series deleted"})
 }
@@ -156,13 +174,18 @@ func (h *SeriesHandler) CreateSeason(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	sid, _ := strconv.ParseUint(seriesID, 10, 32)
+	sid, err := strconv.ParseUint(seriesID, 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid series ID"})
+	}
 	season.SeriesID = uint(sid)
 
 	// Auto-assign number if not provided
 	if season.Number == 0 {
 		var maxNum int
-		h.db.Model(&models.Season{}).Where("series_id = ?", sid).Select("COALESCE(MAX(number), 0)").Scan(&maxNum)
+		if err := h.db.Model(&models.Season{}).Where("series_id = ?", sid).Select("COALESCE(MAX(number), 0)").Scan(&maxNum).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
 		season.Number = maxNum + 1
 	}
 
@@ -187,7 +210,12 @@ func (h *SeriesHandler) UpdateSeason(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	h.db.Model(&season).Updates(updates)
+	if err := h.db.Model(&season).Updates(updates).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := h.db.First(&season, id).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(season)
 }
@@ -196,8 +224,17 @@ func (h *SeriesHandler) UpdateSeason(c *fiber.Ctx) error {
 func (h *SeriesHandler) DeleteSeason(c *fiber.Ctx) error {
 	id := c.Params("seasonId")
 
-	h.db.Where("season_id = ?", id).Delete(&models.Episode{})
-	h.db.Delete(&models.Season{}, id)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("season_id = ?", id).Delete(&models.Episode{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&models.Season{}, id).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(fiber.Map{"message": "Season deleted"})
 }
@@ -213,13 +250,18 @@ func (h *SeriesHandler) CreateEpisode(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	sid, _ := strconv.ParseUint(seasonID, 10, 32)
+	sid, err := strconv.ParseUint(seasonID, 10, 32)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid season ID"})
+	}
 	episode.SeasonID = uint(sid)
 
 	// Auto-assign number if not provided
 	if episode.Number == 0 {
 		var maxNum int
-		h.db.Model(&models.Episode{}).Where("season_id = ?", sid).Select("COALESCE(MAX(number), 0)").Scan(&maxNum)
+		if err := h.db.Model(&models.Episode{}).Where("season_id = ?", sid).Select("COALESCE(MAX(number), 0)").Scan(&maxNum).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
 		episode.Number = maxNum + 1
 	}
 
@@ -244,7 +286,12 @@ func (h *SeriesHandler) UpdateEpisode(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	h.db.Model(&episode).Updates(updates)
+	if err := h.db.Model(&episode).Updates(updates).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := h.db.First(&episode, id).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(episode)
 }
@@ -253,7 +300,9 @@ func (h *SeriesHandler) UpdateEpisode(c *fiber.Ctx) error {
 func (h *SeriesHandler) DeleteEpisode(c *fiber.Ctx) error {
 	id := c.Params("episodeId")
 
-	h.db.Delete(&models.Episode{}, id)
+	if err := h.db.Delete(&models.Episode{}, id).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(fiber.Map{"message": "Episode deleted"})
 }
@@ -267,8 +316,15 @@ func (h *SeriesHandler) ReorderEpisodes(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	for i, id := range body.EpisodeIDs {
-		h.db.Model(&models.Episode{}).Where("id = ?", id).Update("sort_order", i)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		for i, id := range body.EpisodeIDs {
+			if err := tx.Model(&models.Episode{}).Where("id = ?", id).Update("sort_order", i).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{"message": "Episodes reordered"})
@@ -371,7 +427,9 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 		// Find or create season
 		var season models.Season
 		if body.SeasonID != 0 {
-			h.db.First(&season, body.SeasonID)
+			if err := h.db.First(&season, body.SeasonID).Error; err != nil {
+				return c.Status(400).JSON(fiber.Map{"error": "Season not found"})
+			}
 		} else {
 			err := h.db.Where("series_id = ? AND number = ?", body.SeriesID, seasonNum).First(&season).Error
 			if err != nil {
@@ -381,7 +439,9 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 					Number:   seasonNum,
 					Title:    "",
 				}
-				h.db.Create(&season)
+				if err := h.db.Create(&season).Error; err != nil {
+					return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+				}
 			}
 		}
 
@@ -398,11 +458,15 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 
 			if episode.Number == 0 {
 				var maxNum int
-				h.db.Model(&models.Episode{}).Where("season_id = ?", season.ID).Select("COALESCE(MAX(number), 0)").Scan(&maxNum)
+				if err := h.db.Model(&models.Episode{}).Where("season_id = ?", season.ID).Select("COALESCE(MAX(number), 0)").Scan(&maxNum).Error; err != nil {
+					return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+				}
 				episode.Number = maxNum + 1
 			}
 
-			h.db.Create(&episode)
+			if err := h.db.Create(&episode).Error; err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			}
 			createdEpisodes = append(createdEpisodes, episode)
 		}
 	}
@@ -420,9 +484,15 @@ func (h *SeriesHandler) GetSeriesStats(c *fiber.Ctx) error {
 	var totalSeasons int64
 	var totalEpisodes int64
 
-	h.db.Model(&models.Series{}).Count(&totalSeries)
-	h.db.Model(&models.Season{}).Count(&totalSeasons)
-	h.db.Model(&models.Episode{}).Count(&totalEpisodes)
+	if err := h.db.Model(&models.Series{}).Count(&totalSeries).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := h.db.Model(&models.Season{}).Count(&totalSeasons).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := h.db.Model(&models.Episode{}).Count(&totalEpisodes).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	return c.JSON(fiber.Map{
 		"totalSeries":   totalSeries,
@@ -567,7 +637,9 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 				SeriesID: body.SeriesID,
 				Number:   seasonNum,
 			}
-			h.db.Create(&season)
+			if err := h.db.Create(&season).Error; err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			}
 		}
 
 		// Sort files by episode number
@@ -579,7 +651,9 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 			episodeNum := f.Episode
 			if episodeNum == 0 {
 				var maxNum int
-				h.db.Model(&models.Episode{}).Where("season_id = ?", season.ID).Select("COALESCE(MAX(number), 0)").Scan(&maxNum)
+				if err := h.db.Model(&models.Episode{}).Where("season_id = ?", season.ID).Select("COALESCE(MAX(number), 0)").Scan(&maxNum).Error; err != nil {
+					return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+				}
 				episodeNum = maxNum + 1
 			}
 
@@ -587,7 +661,9 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 			var existing models.Episode
 			if h.db.Where("season_id = ? AND number = ?", season.ID, episodeNum).First(&existing).Error == nil {
 				log.Printf("[SeriesHandler] Episode S%dE%d already exists, updating URL", seasonNum, episodeNum)
-				h.db.Model(&existing).Updates(models.Episode{VideoURL: f.URL})
+				if err := h.db.Model(&existing).Updates(models.Episode{VideoURL: f.URL}).Error; err != nil {
+					return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+				}
 				createdEpisodes = append(createdEpisodes, existing)
 				continue
 			}
@@ -599,7 +675,9 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 				VideoURL: f.URL,
 				IsActive: true,
 			}
-			h.db.Create(&episode)
+			if err := h.db.Create(&episode).Error; err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			}
 			createdEpisodes = append(createdEpisodes, episode)
 		}
 	}

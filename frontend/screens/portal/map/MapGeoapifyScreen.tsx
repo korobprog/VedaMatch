@@ -7,13 +7,11 @@ import {
     ActivityIndicator,
     Platform,
     Alert,
-    Dimensions,
     Image,
     TextInput,
     Keyboard,
     FlatList,
     ScrollView,
-    ActivityIndicator as RNActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,11 +27,13 @@ import {
     Coffee,
 } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
+import type { WebViewMessageEvent } from 'react-native-webview/lib/WebViewTypes';
 import BottomSheet, { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 
 import { useSettings } from '../../../context/SettingsContext';
 import { useUser } from '../../../context/UserContext';
 import { mapService } from '../../../services/mapService';
+import type { MarkerConfig, TileConfig } from '../../../services/mapService';
 import { geoLocationService } from '../../../services/geoLocationService';
 import { MapMarker, MapCluster, MapFilters, MarkerType } from '../../../types/map';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
@@ -47,6 +47,21 @@ interface Props {
     route?: any;
 }
 
+interface MapBounds {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+}
+
+interface SearchResultItem {
+    properties: {
+        lat: number;
+        lon: number;
+        formatted: string;
+    };
+}
+
 export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { isDarkMode } = useSettings();
@@ -55,7 +70,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const webViewRef = useRef<WebView>(null);
     const bottomSheetRef = useRef<BottomSheet>(null);
-    const lastBoundsRef = useRef<any>(null);
+    const lastBoundsRef = useRef<MapBounds | null>(null);
     const lastZoomRef = useRef<number>(10);
 
     const snapPoints = useMemo(() => ['10%', '50%', '90%'], []);
@@ -74,11 +89,11 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [mapReady, setMapReady] = useState(false);
     const [tileUrl, setTileUrl] = useState<string>('');
-    const [mapConfig, setMapConfig] = useState<any>(null);
+    const [mapConfig, setMapConfig] = useState<(TileConfig & Partial<MarkerConfig>) | null>(null);
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -88,6 +103,14 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         showAds: route?.params?.filters?.showAds ?? true,
         showCafes: route?.params?.filters?.showCafes ?? true,
     });
+
+    useEffect(() => {
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // Handle incoming filter updates from params if screen is already mounted
     useEffect(() => {
@@ -127,31 +150,6 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     }, [clusters, mapReady]);
 
-    // Reload markers when filters change
-    useEffect(() => {
-        if (lastBoundsRef.current && lastZoomRef.current >= 10) {
-            loadMarkers(lastBoundsRef.current, lastZoomRef.current);
-        } else if (lastBoundsRef.current && lastZoomRef.current < 10) {
-            // clear markers if any to be safe
-            setMarkers([]);
-        }
-
-        // Update filters in WebView for local cluster filtering
-        if (mapReady && webViewRef.current) {
-            webViewRef.current.injectJavaScript(`
-                if (window.setFilters) {
-                    window.setFilters({
-                        user: ${filters.showUsers},
-                        shop: ${filters.showShops},
-                        ad: ${filters.showAds},
-                        cafe: ${filters.showCafes}
-                    });
-                }
-                true;
-            `);
-        }
-    }, [filters, mapReady]);
-
     const loadTileConfig = async () => {
         try {
             const config = await mapService.getTileConfig();
@@ -178,9 +176,10 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     };
 
-    const loadMarkers = async (bounds: { north: number; south: number; east: number; west: number }, zoom: number) => {
+    const loadMarkers = useCallback(async (bounds: { north: number; south: number; east: number; west: number }, zoom: number) => {
         if (zoom < 10) {
             // Zoomed out - show clusters only
+            setMarkers([]);
             return;
         }
 
@@ -214,9 +213,34 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         } catch (error) {
             console.error('Failed to load markers:', error);
         }
-    };
+    }, [filters.showAds, filters.showCafes, filters.showShops, filters.showUsers, user?.latitude, user?.longitude]);
 
-    const handleMessage = (event: any) => {
+    // Reload markers when filters change
+    useEffect(() => {
+        if (lastBoundsRef.current && lastZoomRef.current >= 10) {
+            loadMarkers(lastBoundsRef.current, lastZoomRef.current);
+        } else if (lastBoundsRef.current && lastZoomRef.current < 10) {
+            // clear markers if any to be safe
+            setMarkers([]);
+        }
+
+        // Update filters in WebView for local cluster filtering
+        if (mapReady && webViewRef.current) {
+            webViewRef.current.injectJavaScript(`
+                if (window.setFilters) {
+                    window.setFilters({
+                        user: ${filters.showUsers},
+                        shop: ${filters.showShops},
+                        ad: ${filters.showAds},
+                        cafe: ${filters.showCafes}
+                    });
+                }
+                true;
+            `);
+        }
+    }, [filters, mapReady, loadMarkers]);
+
+    const handleMessage = (event: WebViewMessageEvent) => {
         try {
             const data = JSON.parse(event.nativeEvent.data);
             console.log('[MapWebView] Message:', data.type, data.info || '');
@@ -300,7 +324,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             } else {
                 Alert.alert('Location Error', 'Could not detect your current location.');
             }
-        } catch (error: any) {
+        } catch {
             Alert.alert('Permission Denied', 'Please enable location permissions in settings.');
         } finally {
             setIsLoading(false);
@@ -330,8 +354,9 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     };
 
-    const handleBuildRoute = async () => {
-        if (!selectedMarker || !user?.latitude || !user?.longitude) {
+    const handleBuildRoute = async (targetMarker?: MapMarker) => {
+        const marker = targetMarker || selectedMarker;
+        if (!marker || !user?.latitude || !user?.longitude) {
             Alert.alert('Ошибка', 'Не удалось определить маршрут');
             return;
         }
@@ -340,8 +365,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             const result = await mapService.getRoute({
                 startLat: user.latitude,
                 startLng: user.longitude,
-                endLat: selectedMarker.latitude,
-                endLng: selectedMarker.longitude,
+                endLat: marker.latitude,
+                endLng: marker.longitude,
                 mode: 'walk',
             });
 
@@ -359,8 +384,9 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     const getMarkerColor = (type: string): string => {
-        if (mapConfig?.markers?.[type]?.color) {
-            return mapConfig.markers[type].color;
+        const markerKey = type as keyof MarkerConfig['markers'];
+        if (mapConfig?.markers?.[markerKey]?.color) {
+            return mapConfig.markers[markerKey].color;
         }
         switch (type) {
             case 'user': return markerColors.user;
@@ -409,13 +435,14 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         }, 500);
     };
 
-    const handleSelectResult = (item: any) => {
+    const handleSelectResult = (item: SearchResultItem) => {
         const { lat, lon, formatted } = item.properties;
+        const safeFormatted = JSON.stringify(String(formatted ?? ''));
         if (webViewRef.current) {
             // First move view
             webViewRef.current.injectJavaScript(`
                 map.setView([${lat}, ${lon}], 16);
-                showSearchMarker(${lat}, ${lon}, "${formatted.replace(/"/g, '\\"')}");
+                showSearchMarker(${lat}, ${lon}, ${safeFormatted});
                 true;
             `);
         }
@@ -429,7 +456,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     const effectiveTileUrl = tileUrl || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
     // Leaflet HTML content
-    const mapHtml = `
+    const mapHtml = useMemo(() => `
 <!DOCTYPE html>
 <html>
 <!-- v2.3 Update -->
@@ -726,7 +753,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     </script>
 </body>
 </html>
-    `;
+    `, [colors.accent, colors.textPrimary, colors.warning, effectiveTileUrl, markerColors.ad, markerColors.cafe, markerColors.default, markerColors.shop, markerColors.user, user?.latitude, user?.longitude, userLat, userLng]);
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -773,6 +800,9 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                             <X size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
+                    {isSearching && (
+                        <ActivityIndicator size="small" color={colors.textSecondary} style={styles.searchingIndicator} />
+                    )}
                 </View>
             </View>
 
@@ -790,7 +820,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                 <View style={styles.searchItemIcon}>
                                     <Search size={16} color={colors.textSecondary} />
                                 </View>
-                                <View style={{ flex: 1 }}>
+                                <View style={styles.flexOne}>
                                     <Text style={[styles.searchItemText, { color: colors.textPrimary }]}>
                                         {item.properties.formatted}
                                     </Text>
@@ -913,13 +943,13 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                     <View style={styles.infoActions}>
                         <TouchableOpacity
                             style={[styles.actionButton, { backgroundColor: colors.accent }]}
-                            onPress={handleBuildRoute}
+                            onPress={() => handleBuildRoute()}
                         >
                             <Route size={16} color={colors.textPrimary} />
                             <Text style={styles.actionButtonText}>Маршрут</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.actionButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
+                            style={[styles.actionButton, styles.borderedButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
                             onPress={() => {
                                 if (selectedMarker.type === 'user') {
                                     navigation?.navigate('ContactProfile', { userId: selectedMarker.id });
@@ -996,14 +1026,14 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                                         style={[styles.smallActionButton, { backgroundColor: colors.accent }]}
                                         onPress={() => {
                                             setSelectedMarker(item);
-                                            handleBuildRoute();
+                                            handleBuildRoute(item);
                                         }}
                                     >
                                         <Route size={16} color={colors.textPrimary} />
                                         <Text style={styles.smallActionButtonText}>Маршрут</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={[styles.smallActionButton, { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }]}
+                                        style={[styles.smallActionButton, styles.borderedButton, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
                                         onPress={() => handleDetails(item)}
                                     >
                                         <ExternalLink size={16} color={colors.textPrimary} />
@@ -1183,6 +1213,9 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         gap: 6,
     },
+    borderedButton: {
+        borderWidth: 1,
+    },
     actionButtonText: {
         color: 'rgba(255,255,255,1)',
         fontSize: 14,
@@ -1302,6 +1335,9 @@ const styles = StyleSheet.create({
     clearButton: {
         padding: 8,
     },
+    searchingIndicator: {
+        marginRight: 10,
+    },
     searchResultsContainer: {
         position: 'absolute',
         top: Platform.OS === 'ios' ? 120 : 90,
@@ -1326,6 +1362,9 @@ const styles = StyleSheet.create({
     },
     searchItemIcon: {
         marginRight: 12,
+    },
+    flexOne: {
+        flex: 1,
     },
     searchItemText: {
         fontSize: 14,

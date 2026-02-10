@@ -16,14 +16,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
-import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock } from 'lucide-react-native';
+import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Wallet, Users, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { SLIDESHOW_INTERVALS } from '../../config/wallpaperPresets';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
 import { useWallet } from '../../context/WalletContext';
-import { Wallet, Users, ChevronRight } from 'lucide-react-native';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../hooks/usePressFeedback';
 import { AIModelsSection, AIModel } from './components/AIModelsSection';
@@ -164,6 +163,39 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         const matched = SLIDESHOW_INTERVALS.find((item) => item.value === slideshowInterval);
         return matched?.label ?? `${slideshowInterval} сек`;
     }, [slideshowInterval]);
+    const themedStyles = useMemo(
+        () =>
+            StyleSheet.create({
+                heroBody: { flex: 1 },
+                sectionDivider: { borderBottomWidth: 1 },
+                walletIconBg: { backgroundColor: 'rgba(245,158,11,0.15)' },
+                inviteCard: {
+                    backgroundColor: 'rgba(34,197,94,0.1)',
+                    borderColor: 'rgba(34,197,94,0.3)',
+                },
+                rowCenterGap8: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+                optionTextMedium: { fontWeight: '500' },
+                optionTextOnAccent: { color: '#fff', fontWeight: '500' },
+                optionTextOnAccentNoWeight: { color: '#fff' },
+                optionTextRegular: { color: theme.text },
+                optionTextVTheme: { color: vTheme.colors.text },
+                checkOverlayText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+                slideshowInfo: { flex: 1 },
+                intervalHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+                noMarginBottom: { marginBottom: 0 },
+                wallpaperBorderActive: { borderColor: '#FF9933' },
+                wallpaperBorderInactive: { borderColor: vTheme.colors.divider },
+                wallpaperCheckText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+                wallpaperDeleteBg: { backgroundColor: 'rgba(239,68,68,0.9)' },
+                aiRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+                sectionTitleCompact: { marginBottom: 5 },
+                locationClearTop: { marginTop: 10 },
+                sectionNoDividerSpaced: { borderBottomWidth: 0, marginTop: 20, marginBottom: 40 },
+                logoutBtnLayout: { alignItems: 'center', paddingVertical: 15 },
+                logoutText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+            }),
+        [theme.text, vTheme.colors.divider, vTheme.colors.text]
+    );
 
     const [expandedPanels, setExpandedPanels] = useState<Record<SettingsPanelKey, boolean>>({
         quick: true,
@@ -232,14 +264,14 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                     <View style={[styles.heroIcon, { backgroundColor: colors.accentSoft }]}>
                         <Sparkles size={18} color={colors.accent} />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View style={themedStyles.heroBody}>
                         <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Персональные настройки</Text>
                         <Text style={[styles.heroSub, { color: colors.textSecondary }]}>Быстрый доступ к теме, профилю и моделям AI</Text>
                     </View>
                 </View>
 
                 {/* Quick Access */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: vTheme.colors.divider }]}>
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={styles.sectionToggleHeader}
@@ -290,7 +322,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         activeOpacity={0.88}
                     >
                         <View style={styles.walletMain}>
-                            <View style={[styles.walletIconContainer, { backgroundColor: 'rgba(245,158,11,0.15)' }]}>
+                            <View style={[styles.walletIconContainer, themedStyles.walletIconBg]}>
                                 <Wallet size={24} color="#F59E0B" />
                             </View>
                             <View style={styles.walletInfo}>
@@ -314,10 +346,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[
-                            styles.actionButton,
-                            { backgroundColor: 'rgba(34,197,94,0.1)', borderColor: 'rgba(34,197,94,0.3)' }
-                        ]}
+                        style={[styles.actionButton, themedStyles.inviteCard]}
                         activeOpacity={0.88}
                         onPress={() => {
                             triggerTapFeedback();
@@ -325,7 +354,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         }}
                     >
                         <View style={styles.actionContent}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={themedStyles.rowCenterGap8}>
                                 <Users size={20} color="#22C55E" />
                                 <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
                                     Пригласить друзей
@@ -342,7 +371,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 </View>
 
                 {/* Appearance Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: vTheme.colors.divider }]}>
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={styles.sectionToggleHeader}
@@ -377,7 +406,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                     setThemeMode(mode);
                                 }}
                             >
-                                <Text style={{ color: themeMode === mode ? '#fff' : vTheme.colors.text, fontWeight: '500' }}>
+                                <Text style={themeMode === mode ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
                                     {t(`settings.theme.${mode}`)}
                                 </Text>
                             </TouchableOpacity>
@@ -400,7 +429,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 i18n.changeLanguage('ru');
                             }}
                         >
-                            <Text style={{ color: i18n.language === 'ru' ? '#fff' : theme.text }}>Русский</Text>
+                            <Text style={i18n.language === 'ru' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>Русский</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             activeOpacity={0.88}
@@ -416,7 +445,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 i18n.changeLanguage('en');
                             }}
                         >
-                            <Text style={{ color: i18n.language === 'en' ? '#fff' : theme.text }}>English</Text>
+                            <Text style={i18n.language === 'en' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>English</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -469,7 +498,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                     setImageSize(s);
                                 }}
                             >
-                                <Text style={{ color: imageSize === s ? '#fff' : theme.text }}>{s}</Text>
+                                <Text style={imageSize === s ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>{s}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -478,7 +507,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 </View>
 
                 {/* Portal Background Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: vTheme.colors.divider }]}>
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={styles.sectionToggleHeader}
@@ -517,7 +546,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             <View style={styles.previewContainer}>
                                 <RNImage source={{ uri: portalBackground }} style={styles.imagePreview} />
                                 <View style={styles.checkOverlay}>
-                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
+                                    <Text style={themedStyles.checkOverlayText}>✓</Text>
                                 </View>
                             </View>
                         )}
@@ -572,7 +601,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                     <View style={[styles.innerDivider, { backgroundColor: vTheme.colors.divider }]} />
 
                     <View style={styles.slideshowToggle}>
-                        <View style={{ flex: 1 }}>
+                        <View style={themedStyles.slideshowInfo}>
                             <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Автосмена обоев</Text>
                             <Text style={[styles.slideshowSub, { color: vTheme.colors.textSecondary }]}>
                                 {isSlideshowEnabled
@@ -593,9 +622,9 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
 
                     {isSlideshowEnabled && (
                         <View style={styles.intervalSection}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                            <View style={themedStyles.intervalHeader}>
                                 <Clock size={14} color={vTheme.colors.textSecondary} />
-                                <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary, marginBottom: 0 }]}>Интервал смены</Text>
+                                <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: vTheme.colors.textSecondary }]}>Интервал смены</Text>
                             </View>
                             <View style={styles.sizeOptions}>
                                 {SLIDESHOW_INTERVALS.map(item => (
@@ -614,7 +643,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                             setSlideshowInterval(item.value);
                                         }}
                                     >
-                                        <Text style={{ color: slideshowInterval === item.value ? '#fff' : vTheme.colors.text, fontWeight: '500' }}>
+                                        <Text style={slideshowInterval === item.value ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>
                                             {item.label}
                                         </Text>
                                     </TouchableOpacity>
@@ -633,7 +662,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                     activeOpacity={0.88}
                                     style={[
                                         styles.wallpaperSlide,
-                                        { borderColor: portalBackground === uri ? '#FF9933' : vTheme.colors.divider },
+                                        portalBackground === uri ? themedStyles.wallpaperBorderActive : themedStyles.wallpaperBorderInactive,
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
@@ -643,13 +672,13 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                     <RNImage source={{ uri }} style={styles.wallpaperImage} />
                                     {portalBackground === uri && (
                                         <View style={styles.wallpaperActiveOverlay}>
-                                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>✓</Text>
+                                            <Text style={themedStyles.wallpaperCheckText}>✓</Text>
                                         </View>
                                     )}
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={0.7}
-                                    style={[styles.wallpaperDeleteBtn, { backgroundColor: 'rgba(239,68,68,0.9)' }]}
+                                    style={[styles.wallpaperDeleteBtn, themedStyles.wallpaperDeleteBg]}
                                     onPress={() => {
                                         triggerTapFeedback();
                                         handleRemoveSlide(uri);
@@ -684,7 +713,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 </View>
 
                 {/* AI Settings */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: theme.borderColor }]}>
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={styles.sectionToggleHeader}
@@ -700,10 +729,10 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                     </TouchableOpacity>
 
                     {expandedPanels.ai && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={themedStyles.aiRow}>
                         <View style={styles.actionContent}>
-                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 5 }]}>Auto-Magic</Text>
-                            <Text style={[styles.subLabel, { color: theme.subText, marginBottom: 0 }]}>
+                            <Text style={[styles.sectionTitle, themedStyles.sectionTitleCompact, { color: theme.text }]}>Auto-Magic</Text>
+                            <Text style={[styles.subLabel, themedStyles.noMarginBottom, { color: theme.subText }]}>
                                 Автоматически выбирать лучшую модель для ваших запросов
                             </Text>
                         </View>
@@ -718,7 +747,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 </View>
 
                 {/* Location Cache Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: theme.borderColor }]}>
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={styles.sectionToggleHeader}
@@ -740,11 +769,11 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             activeOpacity={0.88}
                             style={[
                                 styles.sizeBtn,
+                                themedStyles.locationClearTop,
                                 {
                                     backgroundColor: colors.accent,
                                     borderColor: colors.accent,
-                                    marginTop: 10
-                                }
+                                },
                             ]}
                             onPress={async () => {
                                 await refreshLocationData();
@@ -755,12 +784,12 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 );
                             }}
                         >
-                            <Text style={{ color: theme.buttonText, fontWeight: '500' }}>{t('settings.clearLocationCache')}</Text>
+                            <Text style={[{ color: theme.buttonText }, themedStyles.optionTextMedium]}>{t('settings.clearLocationCache')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
 
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: theme.borderColor }]}>
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={styles.sectionToggleHeader}
@@ -790,24 +819,23 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 )}
 
                 {/* Logout Section */}
-                <View style={[styles.section, { borderBottomWidth: 0, marginTop: 20, marginBottom: 40 }]}>
+                <View style={[styles.section, themedStyles.sectionNoDividerSpaced]}>
                     <TouchableOpacity
                         activeOpacity={0.88}
                         style={[
                             styles.sizeBtn,
+                            themedStyles.logoutBtnLayout,
                             {
                                 backgroundColor: theme.error || '#FF4444',
                                 borderColor: theme.error || '#FF4444',
-                                alignItems: 'center',
-                                paddingVertical: 15
-                            }
+                            },
                         ]}
                         onPress={() => {
                             triggerTapFeedback();
                             logout();
                         }}
                     >
-                        <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>
+                        <Text style={themedStyles.logoutText}>
                             {t('auth.logout') || 'Logout'}
                         </Text>
                     </TouchableOpacity>

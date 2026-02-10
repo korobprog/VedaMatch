@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -14,7 +14,6 @@ import {
     Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -34,7 +33,6 @@ import {
     ArrowLeft,
     PlusCircle,
     Wallet,
-    Info
 } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { Cafe, CafeFilters } from '../../../types/cafe';
@@ -71,6 +69,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     });
     const [hasMore, setHasMore] = useState(true);
     const [myCafe, setMyCafe] = useState<Cafe | null>(null);
+    const didInitialLoad = useRef(false);
 
     const checkMyCafe = async () => {
         try {
@@ -80,7 +79,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             } else {
                 setMyCafe(null);
             }
-        } catch (error) {
+        } catch {
             setMyCafe(null);
         }
     };
@@ -118,8 +117,10 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     }, [filters, search]);
 
     useEffect(() => {
+        if (didInitialLoad.current) return;
+        didInitialLoad.current = true;
         loadCafes(true);
-    }, []);
+    }, [loadCafes]);
 
     const handleRefresh = () => {
         setRefreshing(true);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, Alert, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
@@ -58,17 +58,12 @@ export const ReaderScreen = () => {
     const bookmarkKey = `bookmarks_${user?.ID || 'guest'}`;
     const lastReadKey = `last_read_${bookCode}_${user?.ID || 'guest'}`;
 
-    useEffect(() => {
-        loadBookmarks();
-        loadLastRead();
-    }, []);
-
-    const loadBookmarks = async () => {
+    const loadBookmarks = useCallback(async () => {
         try {
             const saved = await AsyncStorage.getItem(bookmarkKey);
             if (saved && saved !== 'undefined' && saved !== 'null') setBookmarks(JSON.parse(saved));
         } catch (e) { console.error(e); }
-    };
+    }, [bookmarkKey]);
 
     const toggleBookmark = async (v: ScriptureVerse) => {
         const id = `${bookCode}-${v.chapter}-${v.verse}`;
@@ -88,15 +83,20 @@ export const ReaderScreen = () => {
         }
     };
 
-    const loadLastRead = async () => {
+    const loadLastRead = useCallback(async () => {
         try {
             const saved = await AsyncStorage.getItem(lastReadKey);
             if (saved && verses.length > 0) {
-                const index = parseInt(saved);
+                const index = parseInt(saved, 10);
                 setTimeout(() => handleVersePress(index), 1000); // Small delay to ensure layout is ready
             }
         } catch (e) { console.error(e); }
-    };
+    }, [lastReadKey, verses.length]);
+
+    useEffect(() => {
+        loadBookmarks();
+        loadLastRead();
+    }, [loadBookmarks, loadLastRead]);
 
     const shareVerse = (v: ScriptureVerse) => {
         const textToShare = `${title}\n${t('reader.chapter')} ${v.chapter}, ${t('reader.text')} ${v.verse}\n\n${v.translation}\n\n${v.purport ? v.purport.substring(0, 300) + '...' : ''}`;
@@ -127,44 +127,15 @@ export const ReaderScreen = () => {
             console.log('Updating reader language from app settings:', newLang);
             setLanguage(newLang);
         }
-    }, [i18n.language]);
+    }, [i18n.language, language]);
 
-    useEffect(() => {
-        loadChapters();
-    }, []);
-
-    useEffect(() => {
-        navigation.setOptions({
-            title: title,
-            headerRight: () => (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TouchableOpacity onPress={() => setShowBookmarksList(true)} style={{ padding: 8 }}>
-                        <Bookmark size={22} color={ModernVedicTheme.colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowSettings(true)} style={{ padding: 8 }}>
-                        <Settings size={22} color={ModernVedicTheme.colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={toggleLanguage} style={{ padding: 8 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FF8000' }}>
-                            {language === 'ru' ? 'RU' : 'EN'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            ),
-        });
-    }, [language, bookmarks.length]);
-
-    useEffect(() => {
-        loadVerses(currentChapter, currentCanto);
-    }, [language, currentChapter, currentCanto]);
-
-    const toggleLanguage = () => {
+    const toggleLanguage = useCallback(() => {
         const newLang = language === 'ru' ? 'en' : 'ru';
         console.log('Toggling language from', language, 'to', newLang);
         setLanguage(newLang);
-    };
+    }, [language]);
 
-    const loadChapters = async () => {
+    const loadChapters = useCallback(async () => {
         try {
             const data = await libraryService.getChapters(bookCode);
             setChapters(data);
@@ -177,9 +148,9 @@ export const ReaderScreen = () => {
                 console.log('Loaded chapters from offline storage:', offlineData.length);
             }
         }
-    };
+    }, [bookCode]);
 
-    const loadVerses = async (chapter: number, canto: number = 0) => {
+    const loadVerses = useCallback(async (chapter: number, canto: number = 0) => {
         setLoading(true);
         console.log('Loading verses for', bookCode, 'Chapter', chapter, 'Canto', canto, 'in language', language);
         try {
@@ -209,7 +180,36 @@ export const ReaderScreen = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [bookCode, language]);
+
+    useEffect(() => {
+        loadChapters();
+    }, [loadChapters]);
+
+    useEffect(() => {
+        navigation.setOptions({
+            title: title,
+            headerRight: () => (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => setShowBookmarksList(true)} style={{ padding: 8 }}>
+                        <Bookmark size={22} color={ModernVedicTheme.colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowSettings(true)} style={{ padding: 8 }}>
+                        <Settings size={22} color={ModernVedicTheme.colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={toggleLanguage} style={{ padding: 8 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FF8000' }}>
+                            {language === 'ru' ? 'RU' : 'EN'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            ),
+        });
+    }, [language, navigation, title, toggleLanguage]);
+
+    useEffect(() => {
+        loadVerses(currentChapter, currentCanto);
+    }, [currentCanto, currentChapter, loadVerses]);
 
     const handleVersePress = (index: number) => {
         setActiveVerseIndex(index);
@@ -407,7 +407,7 @@ export const ReaderScreen = () => {
                                             <Text style={styles.bookmarkText}>
                                                 {t('reader.chapter')} {ch}, {t('reader.text')} {v}
                                             </Text>
-                                            <TouchableOpacity onPress={() => toggleBookmark({ chapter: parseInt(ch), verse: v } as any)}>
+                                            <TouchableOpacity onPress={() => toggleBookmark({ chapter: parseInt(ch, 10), verse: v } as any)}>
                                                 <Trash2 size={18} color="#FF5252" />
                                             </TouchableOpacity>
                                         </TouchableOpacity>

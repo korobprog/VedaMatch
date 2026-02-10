@@ -77,7 +77,10 @@ func (h *YatraAdminHandler) CreateTemplate(c *fiber.Ctx) error {
 // UpdateTemplate updates a template
 // PUT /api/admin/yatra/templates/:id
 func (h *YatraAdminHandler) UpdateTemplate(c *fiber.Ctx) error {
-	id, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid template ID"})
+	}
 	var req models.ModerationTemplateUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
@@ -93,7 +96,10 @@ func (h *YatraAdminHandler) UpdateTemplate(c *fiber.Ctx) error {
 // DeleteTemplate deletes a template
 // DELETE /api/admin/yatra/templates/:id
 func (h *YatraAdminHandler) DeleteTemplate(c *fiber.Ctx) error {
-	id, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid template ID"})
+	}
 	if err := h.templateService.DeleteTemplate(uint(id)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -196,7 +202,9 @@ func (h *YatraAdminHandler) ApproveYatra(c *fiber.Ctx) error {
 	var req struct {
 		Notes string `json:"notes"`
 	}
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
 
 	if err := h.yatraAdminService.ApproveYatra(uint(yatraID), adminID, req.Notes); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -293,13 +301,21 @@ func (h *YatraAdminHandler) GetYatraParticipants(c *fiber.Ctx) error {
 // DELETE /api/admin/yatra/:id/participants/:participantId
 func (h *YatraAdminHandler) RemoveParticipant(c *fiber.Ctx) error {
 	adminID := middleware.GetUserID(c)
-	yatraID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
-	participantID, _ := strconv.ParseUint(c.Params("participantId"), 10, 32)
+	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+	}
+	participantID, err := strconv.ParseUint(c.Params("participantId"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid participant ID"})
+	}
 
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
 
 	if err := h.yatraAdminService.RemoveParticipant(uint(yatraID), uint(participantID), adminID, req.Reason); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -493,7 +509,9 @@ func (h *YatraAdminHandler) ResolveReport(c *fiber.Ctx) error {
 	var req struct {
 		Notes string `json:"notes"`
 	}
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
 
 	if err := h.reportService.ResolveReport(uint(reportID), adminID, req.Notes); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -514,7 +532,9 @@ func (h *YatraAdminHandler) DismissReport(c *fiber.Ctx) error {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
 
 	if err := h.reportService.DismissReport(uint(reportID), adminID, req.Reason); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

@@ -328,8 +328,16 @@ func (s *YatraService) RejectParticipant(yatraID uint, participantID uint, organ
 		return errors.New("not authorized")
 	}
 
+	var participant models.YatraParticipant
+	if err := s.db.First(&participant, participantID).Error; err != nil {
+		return err
+	}
+	if participant.YatraID != yatraID {
+		return errors.New("participant does not belong to this yatra")
+	}
+
 	now := time.Now()
-	return s.db.Model(&models.YatraParticipant{}).Where("id = ?", participantID).
+	return s.db.Model(&models.YatraParticipant{}).Where("id = ? AND yatra_id = ?", participantID, yatraID).
 		Updates(map[string]interface{}{
 			"status":      models.YatraParticipantRejected,
 			"reviewed_at": now,
@@ -351,6 +359,9 @@ func (s *YatraService) RemoveParticipant(yatraID uint, participantID uint, organ
 	var participant models.YatraParticipant
 	if err := s.db.First(&participant, participantID).Error; err != nil {
 		return err
+	}
+	if participant.YatraID != yatraID {
+		return errors.New("participant does not belong to this yatra")
 	}
 
 	// Delete from yatra participants
@@ -612,9 +623,11 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 	stats := &models.OrganizerStats{}
 
 	// Count organized yatras (completed)
+	var organizedCompleted int64
 	s.db.Model(&models.Yatra{}).
 		Where("organizer_id = ? AND status = ?", userID, models.YatraStatusCompleted).
-		Count(new(int64)).Scan(&stats.OrganizedCount)
+		Count(&organizedCompleted)
+	stats.OrganizedCount = int(organizedCompleted)
 
 	// If no organized yatras, also count open/full ones
 	if stats.OrganizedCount == 0 {

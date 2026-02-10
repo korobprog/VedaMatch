@@ -7,6 +7,8 @@ import (
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // BookingService handles booking operations
@@ -27,6 +29,13 @@ func NewBookingService(walletService *WalletService, serviceService *ServiceServ
 
 // Create creates a new booking
 func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCreateRequest) (*models.ServiceBooking, error) {
+	if req.ScheduledAt.IsZero() {
+		return nil, errors.New("scheduled_at is required")
+	}
+	if req.ScheduledAt.Before(time.Now()) {
+		return nil, errors.New("cannot create booking in the past")
+	}
+
 	// Get service
 	service, err := s.serviceService.GetByID(serviceID)
 	if err != nil {
@@ -40,7 +49,7 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 
 	// Get tariff
 	var tariff models.ServiceTariff
-	if err := database.DB.First(&tariff, req.TariffID).Error; err != nil {
+	if err := database.DB.Where("id = ? AND is_active = ?", req.TariffID, true).First(&tariff).Error; err != nil {
 		return nil, errors.New("tariff not found")
 	}
 
@@ -68,12 +77,14 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 
 	// Check for conflicts (same service, overlapping time)
 	var conflictCount int64
-	database.DB.Model(&models.ServiceBooking{}).
+	if err := database.DB.Model(&models.ServiceBooking{}).
 		Where("service_id = ? AND status IN (?, ?) AND scheduled_at < ? AND end_at > ?",
 			serviceID,
 			models.BookingStatusPending, models.BookingStatusConfirmed,
 			endAt, req.ScheduledAt).
-		Count(&conflictCount)
+		Count(&conflictCount).Error; err != nil {
+		return nil, err
+	}
 
 	if conflictCount > 0 {
 		return nil, errors.New("time slot is already booked")
@@ -122,7 +133,9 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	}
 
 	// Increment bookings count
-	database.DB.Model(service).Update("bookings_count", service.BookingsCount+1)
+	if err := database.DB.Model(service).UpdateColumn("bookings_count", gorm.Expr("bookings_count + 1")).Error; err != nil {
+		log.Printf("[Booking] Failed to increment bookings_count for service %d: %v", service.ID, err)
+	}
 
 	// Load relations
 	database.DB.Preload("Service.Owner").Preload("Tariff").Preload("Client").First(&booking, booking.ID)
@@ -425,7 +438,9 @@ func (s *BookingService) GetMyBookings(clientID uint, filters models.BookingFilt
 	}
 
 	var total int64
-	query.Model(&models.ServiceBooking{}).Count(&total)
+	if err := query.Model(&models.ServiceBooking{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	page := filters.Page
 	if page < 1 {
@@ -465,7 +480,9 @@ func (s *BookingService) GetMyBookings(clientID uint, filters models.BookingFilt
 func (s *BookingService) GetIncomingBookings(ownerID uint, filters models.BookingFilters) (*models.BookingListResponse, error) {
 	// Get all service IDs owned by this user
 	var serviceIDs []uint
-	database.DB.Model(&models.Service{}).Where("owner_id = ?", ownerID).Pluck("id", &serviceIDs)
+	if err := database.DB.Model(&models.Service{}).Where("owner_id = ?", ownerID).Pluck("id", &serviceIDs).Error; err != nil {
+		return nil, err
+	}
 
 	if len(serviceIDs) == 0 {
 		return &models.BookingListResponse{
@@ -497,7 +514,9 @@ func (s *BookingService) GetIncomingBookings(ownerID uint, filters models.Bookin
 	}
 
 	var total int64
-	query.Model(&models.ServiceBooking{}).Count(&total)
+	if err := query.Model(&models.ServiceBooking{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	page := filters.Page
 	if page < 1 {
@@ -537,7 +556,9 @@ func (s *BookingService) GetIncomingBookings(ownerID uint, filters models.Bookin
 // GetUpcoming returns upcoming bookings categorized by time
 func (s *BookingService) GetUpcoming(ownerID uint) (*models.UpcomingBookingsResponse, error) {
 	var serviceIDs []uint
-	database.DB.Model(&models.Service{}).Where("owner_id = ?", ownerID).Pluck("id", &serviceIDs)
+	if err := database.DB.Model(&models.Service{}).Where("owner_id = ?", ownerID).Pluck("id", &serviceIDs).Error; err != nil {
+		return nil, err
+	}
 
 	response := &models.UpcomingBookingsResponse{
 		Today:    []models.ServiceBooking{},
@@ -557,32 +578,40 @@ func (s *BookingService) GetUpcoming(ownerID uint) (*models.UpcomingBookingsResp
 	endOfWeek := today.Add(7 * 24 * time.Hour)
 
 	// Today's confirmed bookings
-	database.DB.Where("service_id IN ? AND status = ? AND scheduled_at >= ? AND scheduled_at < ?",
+	if err := database.DB.Where("service_id IN ? AND status = ? AND scheduled_at >= ? AND scheduled_at < ?",
 		serviceIDs, models.BookingStatusConfirmed, today, tomorrow).
 		Preload("Client").Preload("Tariff").
 		Order("scheduled_at ASC").
-		Find(&response.Today)
+		Find(&response.Today).Error; err != nil {
+		return nil, err
+	}
 
 	// Tomorrow's confirmed bookings
-	database.DB.Where("service_id IN ? AND status = ? AND scheduled_at >= ? AND scheduled_at < ?",
+	if err := database.DB.Where("service_id IN ? AND status = ? AND scheduled_at >= ? AND scheduled_at < ?",
 		serviceIDs, models.BookingStatusConfirmed, tomorrow, dayAfterTomorrow).
 		Preload("Client").Preload("Tariff").
 		Order("scheduled_at ASC").
-		Find(&response.Tomorrow)
+		Find(&response.Tomorrow).Error; err != nil {
+		return nil, err
+	}
 
 	// This week (after tomorrow)
-	database.DB.Where("service_id IN ? AND status = ? AND scheduled_at >= ? AND scheduled_at < ?",
+	if err := database.DB.Where("service_id IN ? AND status = ? AND scheduled_at >= ? AND scheduled_at < ?",
 		serviceIDs, models.BookingStatusConfirmed, dayAfterTomorrow, endOfWeek).
 		Preload("Client").Preload("Tariff").
 		Order("scheduled_at ASC").
-		Find(&response.ThisWeek)
+		Find(&response.ThisWeek).Error; err != nil {
+		return nil, err
+	}
 
 	// Pending (awaiting confirmation)
-	database.DB.Where("service_id IN ? AND status = ?",
+	if err := database.DB.Where("service_id IN ? AND status = ?",
 		serviceIDs, models.BookingStatusPending).
 		Preload("Client").Preload("Tariff").
 		Order("created_at DESC").
-		Find(&response.Pending)
+		Find(&response.Pending).Error; err != nil {
+		return nil, err
+	}
 
 	return response, nil
 }

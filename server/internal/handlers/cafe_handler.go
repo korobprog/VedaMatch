@@ -100,6 +100,11 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 
 func (h *CafeHandler) CreateCafe(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
 
 	var req models.CafeCreateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -119,6 +124,11 @@ func (h *CafeHandler) CreateCafe(c *fiber.Ctx) error {
 // GET /api/cafes/my
 func (h *CafeHandler) GetMyCafe(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
 
 	cafe, err := h.cafeService.GetMyCafe(userID)
 	if err != nil {

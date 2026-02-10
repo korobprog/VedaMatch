@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Image, ActivityIndicator, Dimensions, Alert
+    Image, Dimensions, Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -9,7 +9,7 @@ import { marketService } from '../../../services/marketService';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
-import { Product, CartItem, ProductVariant } from '../../../types/market';
+import { Product, ProductVariant } from '../../../types/market';
 import { Skeleton } from '../../../components/market/Skeleton';
 import { EmptyState } from '../../../components/market/EmptyState';
 import { getMediaUrl } from '../../../utils/url';
@@ -58,11 +58,24 @@ export const ProductDetailsScreen: React.FC = () => {
     const [reviewsPage, setReviewsPage] = useState(1);
     const [loadingReviews, setLoadingReviews] = useState(false);
 
-    useEffect(() => {
-        loadProduct();
+    const loadReviews = useCallback(async (page: number) => {
+        try {
+            setLoadingReviews(true);
+            const data = await marketService.getProductReviews(productId, page);
+            if (page === 1) {
+                setReviews(data.reviews);
+            } else {
+                setReviews(prev => [...prev, ...data.reviews]);
+            }
+            setReviewsPage(page);
+        } catch (error) {
+            console.error('Error loading reviews:', error);
+        } finally {
+            setLoadingReviews(false);
+        }
     }, [productId]);
 
-    const loadProduct = async () => {
+    const loadProduct = useCallback(async () => {
         try {
             setLoading(true);
             const data = await marketService.getProduct(productId);
@@ -80,24 +93,11 @@ export const ProductDetailsScreen: React.FC = () => {
             setLoading(false);
         }
         loadReviews(1);
-    };
+    }, [loadReviews, productId]);
 
-    const loadReviews = async (page: number) => {
-        try {
-            setLoadingReviews(true);
-            const data = await marketService.getProductReviews(productId, page);
-            if (page === 1) {
-                setReviews(data.reviews);
-            } else {
-                setReviews(prev => [...prev, ...data.reviews]);
-            }
-            setReviewsPage(page);
-        } catch (error) {
-            console.error('Error loading reviews:', error);
-        } finally {
-            setLoadingReviews(false);
-        }
-    };
+    useEffect(() => {
+        loadProduct();
+    }, [loadProduct]);
 
     const loadMoreReviews = () => {
         loadReviews(reviewsPage + 1);

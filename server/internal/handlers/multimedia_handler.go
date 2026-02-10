@@ -6,6 +6,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -54,9 +55,14 @@ func (h *MultimediaHandler) GetCategories(c *fiber.Ctx) error {
 // @Success 200 {object} services.TrackListResponse
 // @Router /api/multimedia/tracks [get]
 func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
+	categoryID := c.QueryInt("categoryId", 0)
+	if categoryID < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid category ID"})
+	}
+
 	filter := services.TrackFilter{
 		MediaType:  c.Query("type"),
-		CategoryID: uint(c.QueryInt("categoryId", 0)),
+		CategoryID: uint(categoryID),
 		Madh:       c.Query("madh"),
 		YogaStyle:  c.Query("yogaStyle"),
 		Language:   c.Query("language"),
@@ -422,10 +428,16 @@ func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
 	// Determine folder path
 	folder := body.Folder
 	if body.SeriesSlug != "" {
+		if strings.Contains(body.SeriesSlug, "..") || strings.Contains(body.SeriesSlug, "/") || strings.Contains(body.SeriesSlug, "\\") {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid series slug"})
+		}
 		// Create folder structure: series/{series-slug}/
 		folder = "series/" + body.SeriesSlug
 	} else if folder == "" {
 		folder = "videos"
+	}
+	if strings.Contains(folder, "..") {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid folder"})
 	}
 
 	if body.ContentType == "" {
@@ -505,6 +517,9 @@ func (h *MultimediaHandler) ReviewSuggestion(c *fiber.Ctx) error {
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	if body.Status != "approved" && body.Status != "rejected" {
+		return c.Status(400).JSON(fiber.Map{"error": "Status must be 'approved' or 'rejected'"})
 	}
 
 	userID := middleware.GetUserID(c)

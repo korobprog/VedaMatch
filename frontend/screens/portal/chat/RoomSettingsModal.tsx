@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     View,
@@ -6,19 +6,17 @@ import {
     StyleSheet,
     Modal,
     TouchableOpacity,
-    useColorScheme,
     Switch,
     ActivityIndicator,
     Alert,
     ScrollView,
     TextInput,
     Image,
-    ImageBackground,
     Animated,
     Easing,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Check, X, Bell, Camera, Image as ImageIcon } from 'lucide-react-native';
+import { Check, X, Bell, Camera } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import { COLORS } from '../../../components/chat/ChatConstants';
@@ -100,7 +98,18 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         { code: 'nod', name: 'Nectar of Devotion' },
     ];
 
-    const fetchSettings = async () => {
+    const loadFontSettings = useCallback(async () => {
+        try {
+            const size = await AsyncStorage.getItem('reader_font_size');
+            const bold = await AsyncStorage.getItem('reader_font_bold');
+            if (size) setFontSize(parseInt(size, 10));
+            if (bold) setIsBold(bold === 'true');
+        } catch (e) {
+            console.error('Failed to load font settings', e);
+        }
+    }, []);
+
+    const fetchSettings = useCallback(async () => {
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
@@ -129,14 +138,14 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         } finally {
             setLoading(false);
         }
-    };
+    }, [roomId, roomName]);
 
     useEffect(() => {
         if (visible) {
             fetchSettings();
             loadFontSettings();
         }
-    }, [visible]);
+    }, [fetchSettings, loadFontSettings, visible]);
 
     useEffect(() => {
         if (!visible) return;
@@ -157,17 +166,6 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             }),
         ]).start();
     }, [visible, modalOpacity, modalScale]);
-
-    const loadFontSettings = async () => {
-        try {
-            const size = await AsyncStorage.getItem('reader_font_size');
-            const bold = await AsyncStorage.getItem('reader_font_bold');
-            if (size) setFontSize(parseInt(size));
-            if (bold) setIsBold(bold === 'true');
-        } catch (e) {
-            console.error('Failed to load font settings', e);
-        }
-    };
 
     const saveFontSettings = async (size: number, bold: boolean) => {
         try {
@@ -201,6 +199,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                 Alert.alert(t('common.error'), errorData.error || 'Failed to update settings');
             }
         } catch (error) {
+            console.error('Failed to update room settings', error);
             Alert.alert(t('common.error'), 'Network error');
         } finally {
             setSaving(false);
@@ -303,6 +302,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                 Alert.alert(t('common.error'), data.error || 'Failed to get summary');
             }
         } catch (error) {
+            console.error('Failed to get chat summary', error);
             Alert.alert(t('common.error'), 'Network error');
         } finally {
             setSummaryLoading(false);

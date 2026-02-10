@@ -45,6 +45,24 @@ import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
+interface CafeTable {
+    id: number;
+    number: string;
+    seats: number;
+    upcomingReservation?: {
+        startTime: string;
+    } | null;
+}
+
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+    if (typeof error === 'object' && error !== null) {
+        const maybeResponse = error as { response?: { data?: { error?: string } } };
+        if (maybeResponse.response?.data?.error) return maybeResponse.response.data.error;
+    }
+    if (error instanceof Error && error.message) return error.message;
+    return fallback;
+};
+
 const CafeCartScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
@@ -61,7 +79,7 @@ const CafeCartScreen: React.FC = () => {
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [loading, setLoading] = useState(false);
     const [tableModalVisible, setTableModalVisible] = useState(false);
-    const [tables, setTables] = useState<any[]>([]);
+    const [tables, setTables] = useState<CafeTable[]>([]);
     const [loadingTables, setLoadingTables] = useState(false);
 
     const fetchTables = async () => {
@@ -83,7 +101,7 @@ const CafeCartScreen: React.FC = () => {
         fetchTables();
     };
 
-    const handleSelectTable = (table: any) => {
+    const handleSelectTable = (table: CafeTable) => {
         setTableInfo(table.id, table.number);
         setTableModalVisible(false);
     };
@@ -165,9 +183,9 @@ const CafeCartScreen: React.FC = () => {
                 orderId: order.id,
                 orderNumber: order.orderNumber,
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error creating order:', error);
-            const errorMessage = error.response?.data?.error || t('cafe.cart.errorSubmit');
+            const errorMessage = getApiErrorMessage(error, t('cafe.cart.errorSubmit'));
             Alert.alert(t('common.error'), errorMessage);
         } finally {
             setLoading(false);
@@ -343,10 +361,10 @@ const CafeCartScreen: React.FC = () => {
                             onChangeText={setCustomerName}
                         />
                     </View>
-                    <View style={[styles.inputContainer, { alignItems: 'flex-start', paddingTop: 12 }]}>
+                    <View style={[styles.inputContainer, styles.inputContainerMultiline]}>
                         <MessageSquare size={18} color={colors.textSecondary} style={styles.inputIcon} />
                         <TextInput
-                            style={[styles.textInput, { height: 80, textAlignVertical: 'top' }]}
+                            style={[styles.textInput, styles.textInputMultiline]}
                             placeholder={t('cafe.cart.commentPlaceholder')}
                             placeholderTextColor={colors.textSecondary}
                             value={customerNote}
@@ -401,7 +419,7 @@ const CafeCartScreen: React.FC = () => {
                     </View>
                 </View>
 
-                <View style={{ height: 100 }} />
+                <View style={styles.footerSpacer} />
             </ScrollView>
 
             <View style={styles.footerContainer}>
@@ -543,6 +561,9 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         padding: 20,
         paddingBottom: 120,
     },
+    footerSpacer: {
+        height: 100,
+    },
     sectionGlass: {
         backgroundColor: colors.surfaceElevated,
         borderRadius: 24,
@@ -645,6 +666,10 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
     },
+    inputContainerMultiline: {
+        alignItems: 'flex-start',
+        paddingTop: 12,
+    },
     inputIcon: {
         marginRight: 12,
     },
@@ -654,6 +679,10 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         color: colors.textPrimary,
         fontSize: 14,
         fontWeight: '600',
+    },
+    textInputMultiline: {
+        height: 80,
+        textAlignVertical: 'top',
     },
     itemsSection: {
         marginBottom: 20,

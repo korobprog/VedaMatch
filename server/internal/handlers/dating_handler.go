@@ -35,6 +35,7 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	guna := c.Query("guna")
 	identity := c.Query("identity")
 	mode := c.Query("mode", "family") // family, business, friendship, seva
+	isNew := c.QueryBool("isNew", false)
 	skills := c.Query("skills")
 	industry := c.Query("industry")
 	minAge := c.QueryInt("minAge", 0)
@@ -107,6 +108,10 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	// MaxAge 30 => Born AFTER (Today - 30 years)  => Dob >= Date(Today - 30)
 
 	now := time.Now()
+	if isNew {
+		twentyFourHoursAgo := now.Add(-24 * time.Hour)
+		query = query.Where("created_at > ?", twentyFourHoursAgo)
+	}
 
 	if minAge > 0 {
 		// Example: 2024 - 20 = 2004. Limit: 2004-12-25.

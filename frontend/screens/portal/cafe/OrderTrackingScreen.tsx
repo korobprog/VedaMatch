@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -58,9 +58,23 @@ const OrderTrackingScreen: React.FC = () => {
 
     const [order, setOrder] = useState<CafeOrder | null>(null);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
 
     const progressAnim = useRef(new Animated.Value(0)).current;
+
+    const loadOrder = useCallback(async (silent = false) => {
+        try {
+            if (!silent) setLoading(true);
+            const orderData = await cafeService.getOrder(orderId);
+            setOrder(orderData);
+        } catch (error) {
+            console.error('Error loading order:', error);
+            if (!silent) {
+                Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [orderId, t]);
 
     useEffect(() => {
         loadOrder();
@@ -68,7 +82,7 @@ const OrderTrackingScreen: React.FC = () => {
             loadOrder(true);
         }, 10000);
         return () => clearInterval(interval);
-    }, [orderId]);
+    }, [loadOrder]);
 
     useEffect(() => {
         if (order) {
@@ -81,23 +95,7 @@ const OrderTrackingScreen: React.FC = () => {
                 useNativeDriver: false,
             }).start();
         }
-    }, [order?.status]);
-
-    const loadOrder = async (silent = false) => {
-        try {
-            if (!silent) setLoading(true);
-            const orderData = await cafeService.getOrder(orderId);
-            setOrder(orderData);
-        } catch (error) {
-            console.error('Error loading order:', error);
-            if (!silent) {
-                Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
+    }, [order, progressAnim]);
 
     const handleCallWaiter = () => {
         Alert.alert(
@@ -136,7 +134,7 @@ const OrderTrackingScreen: React.FC = () => {
                         try {
                             await cafeService.cancelOrder(orderId, t('cafe.tracking.status.cancelled'));
                             loadOrder();
-                        } catch (error) {
+                        } catch {
                             Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
                         }
                     },
@@ -152,7 +150,7 @@ const OrderTrackingScreen: React.FC = () => {
                 orderId: newOrder.id,
                 orderNumber: newOrder.orderNumber,
             });
-        } catch (error) {
+        } catch {
             Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
         }
     };

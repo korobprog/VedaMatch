@@ -60,7 +60,7 @@ const OrderSuccessScreen: React.FC = () => {
             delay: 400,
             useNativeDriver: true,
         }).start();
-    }, []);
+    }, [scaleAnim, fadeAnim]);
 
     const handleTrackOrder = () => {
         navigation.replace('OrderTracking', { orderId });

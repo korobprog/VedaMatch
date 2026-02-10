@@ -9,13 +9,11 @@ import {
     ActivityIndicator,
     Platform,
     StatusBar,
-    SafeAreaView,
     TextInput,
     Switch,
     Modal,
     ImageBackground,
 } from 'react-native';
-import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSettings as usePortalSettings } from '../../context/SettingsContext';
 import DatePicker from 'react-native-date-picker';
@@ -53,7 +51,7 @@ const INTENTION_OPTIONS = [
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation();
     const { user, login } = useUser();
-    const { countriesData, fetchCountries, fetchCities } = useLocation();
+    const { fetchCountries, fetchCities } = useLocation();
     const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
 
     const isDarkMode = isPortalDarkMode;
@@ -93,30 +91,16 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [godModeEnabled, setGodModeEnabled] = useState(false);
 
     // City autocomplete
-    const [citySearchQuery, setCitySearchQuery] = useState('');
     const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
     const [showCitySuggestions, setShowCitySuggestions] = useState(false);
 
-    const [showCountryPicker, setShowCountryPicker] = useState(false);
-    // const [showCityPicker, setShowCityPicker] = useState(false);
     const [showMadhPicker, setShowMadhPicker] = useState(false);
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
-    const [showIdentityPicker, setShowIdentityPicker] = useState(false);
-    const [showDietPicker, setShowDietPicker] = useState(false);
-    const [showGenderPicker, setShowGenderPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
     // const [openTimePicker, setOpenTimePicker] = useState(false);
 
-    const [expandedSections, setExpandedSections] = useState({
-        avatar: true,
-        location: false,
-        personal: false,
-        spiritual: false,
-        yoga: false,
-        dating: false
-    });
-    const { colors: roleColors, roleTheme } = useRoleTheme(role, isPortalDarkMode);
+    const { colors: roleColors } = useRoleTheme(role, isPortalDarkMode);
 
     useEffect(() => {
         loadProfile();
@@ -249,15 +233,8 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         }
     };
 
-    const handleCountrySelect = async (cData: any) => {
-        setCountry(cData.name.common);
-        setShowCountryPicker(false);
-        await fetchCities(cData.name.common);
-    };
-
     // City autocomplete search
     const searchCities = async (query: string) => {
-        setCitySearchQuery(query);
         setCity(query); // Update city as user types
 
         if (query.length < 2) {
@@ -289,7 +266,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleCitySelect = (suggestion: any) => {
         setCity(suggestion.city);
-        setCitySearchQuery(suggestion.city);
         setCountry(suggestion.country || country);
         setLatitude(suggestion.lat);
         setLongitude(suggestion.lon);
@@ -304,25 +280,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             setIntentions([...intentions, key]);
         }
     };
-
-    const toggleSection = (section: keyof typeof expandedSections) => {
-        setExpandedSections(prev => ({
-            ...prev,
-            [section]: !prev[section]
-        }));
-    };
-
-    const SectionHeader = ({ title, sectionKey, isOpen }: { title: string, sectionKey: keyof typeof expandedSections, isOpen: boolean }) => (
-        <TouchableOpacity
-            style={[styles.sectionHeader, { borderBottomColor: theme.borderColor, backgroundColor: isOpen ? theme.inputBackground + '40' : 'transparent' }]}
-            onPress={() => toggleSection(sectionKey)}
-        >
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
-            <Text style={{ color: theme.text }}>{isOpen ? '▼' : '▶'}</Text>
-        </TouchableOpacity>
-    );
-
-
 
     if (loading) {
         return (

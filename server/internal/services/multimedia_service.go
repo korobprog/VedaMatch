@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -29,6 +30,17 @@ type MultimediaService struct {
 	s3Client  *s3.Client
 	bucket    string
 	publicURL string
+}
+
+func sanitizeUploadFolder(folder string) (string, error) {
+	folder = strings.TrimSpace(folder)
+	if folder == "" {
+		return "", fmt.Errorf("folder is required")
+	}
+	if strings.Contains(folder, "..") || strings.HasPrefix(folder, "/") || strings.Contains(folder, "\\") {
+		return "", fmt.Errorf("invalid folder")
+	}
+	return strings.Trim(folder, "/"), nil
 }
 
 func NewMultimediaService() *MultimediaService {
@@ -150,7 +162,9 @@ func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, e
 	}
 
 	// Count total
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	// Pagination
 	if filter.Page < 1 {
@@ -192,7 +206,9 @@ func (s *MultimediaService) GetTrackByID(id uint) (*models.MediaTrack, error) {
 	}
 
 	// Increment view count
-	s.db.Model(&track).Update("view_count", gorm.Expr("view_count + 1"))
+	if err := s.db.Model(&track).Update("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
+		log.Printf("[MultimediaService] Failed to increment view_count for track %d: %v", track.ID, err)
+	}
 
 	return &track, nil
 }
@@ -359,6 +375,11 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 		return "", fmt.Errorf("S3 client not configured")
 	}
 
+	safeFolder, err := sanitizeUploadFolder(folder)
+	if err != nil {
+		return "", err
+	}
+
 	src, err := file.Open()
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %w", err)
@@ -368,7 +389,7 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 	// Generate unique filename
 	ext := filepath.Ext(file.Filename)
 	timestamp := time.Now().UnixNano()
-	key := fmt.Sprintf("%s/%d%s", folder, timestamp, ext)
+	key := fmt.Sprintf("%s/%d%s", safeFolder, timestamp, ext)
 
 	// Determine content type
 	contentType := file.Header.Get("Content-Type")
@@ -413,10 +434,15 @@ func (s *MultimediaService) GetPresignedUploadURL(filename, folder, contentType 
 		return "", "", fmt.Errorf("S3 client not configured")
 	}
 
+	safeFolder, err := sanitizeUploadFolder(folder)
+	if err != nil {
+		return "", "", err
+	}
+
 	// Generate unique key
 	ext := filepath.Ext(filename)
 	timestamp := time.Now().UnixNano()
-	key := fmt.Sprintf("%s/%d%s", folder, timestamp, ext)
+	key := fmt.Sprintf("%s/%d%s", safeFolder, timestamp, ext)
 
 	// Create presign client
 	presignClient := s3.NewPresignClient(s.s3Client)
@@ -520,7 +546,7 @@ func (s *MultimediaService) AddToFavorites(userID, trackID uint) error {
 		UserID:       userID,
 		MediaTrackID: trackID,
 	}
-	return s.db.Create(&favorite).Error
+	return s.db.Where("user_id = ? AND media_track_id = ?", userID, trackID).FirstOrCreate(&favorite).Error
 }
 
 func (s *MultimediaService) RemoveFromFavorites(userID, trackID uint) error {
@@ -537,7 +563,9 @@ func (s *MultimediaService) GetUserFavorites(userID uint, page, limit int) ([]mo
 		Where("user_id = ?", userID)
 
 	query := s.db.Model(&models.MediaTrack{}).Where("id IN (?)", subQuery)
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	if page < 1 {
 		page = 1
@@ -557,13 +585,16 @@ func (s *MultimediaService) UpdatePlaybackHistory(userID, trackID uint, progress
 	var history models.UserMediaHistory
 	err := s.db.Where("user_id = ? AND media_track_id = ?", userID, trackID).First(&history).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		history = models.UserMediaHistory{
 			UserID:       userID,
 			MediaTrackID: trackID,
 			Progress:     progress,
 		}
 		return s.db.Create(&history).Error
+	}
+	if err != nil {
+		return err
 	}
 
 	return s.db.Model(&history).Update("progress", progress).Error
@@ -602,13 +633,27 @@ type MultimediaStats struct {
 func (s *MultimediaService) GetStats() (*MultimediaStats, error) {
 	var stats MultimediaStats
 
-	s.db.Model(&models.MediaTrack{}).Count(&stats.TotalTracks)
-	s.db.Model(&models.MediaTrack{}).Where("media_type = ?", "audio").Count(&stats.TotalAudioTracks)
-	s.db.Model(&models.MediaTrack{}).Where("media_type = ?", "video").Count(&stats.TotalVideoTracks)
-	s.db.Model(&models.RadioStation{}).Count(&stats.TotalRadioStations)
-	s.db.Model(&models.TVChannel{}).Count(&stats.TotalTVChannels)
-	s.db.Model(&models.MediaCategory{}).Count(&stats.TotalCategories)
-	s.db.Model(&models.UserMediaSuggestion{}).Where("status = ?", "pending").Count(&stats.PendingSuggestions)
+	if err := s.db.Model(&models.MediaTrack{}).Count(&stats.TotalTracks).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&models.MediaTrack{}).Where("media_type = ?", "audio").Count(&stats.TotalAudioTracks).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&models.MediaTrack{}).Where("media_type = ?", "video").Count(&stats.TotalVideoTracks).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&models.RadioStation{}).Count(&stats.TotalRadioStations).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&models.TVChannel{}).Count(&stats.TotalTVChannels).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&models.MediaCategory{}).Count(&stats.TotalCategories).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&models.UserMediaSuggestion{}).Where("status = ?", "pending").Count(&stats.PendingSuggestions).Error; err != nil {
+		return nil, err
+	}
 
 	return &stats, nil
 }

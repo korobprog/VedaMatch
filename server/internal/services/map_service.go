@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"rag-agent-server/internal/models"
 	"strings"
@@ -506,23 +507,17 @@ func (s *MapService) GetRoute(req models.GeoapifyRouteRequest) (map[string]any, 
 		mode = "walk"
 	}
 
-	url := fmt.Sprintf(
+	requestURL := fmt.Sprintf(
 		"https://api.geoapify.com/v1/routing?waypoints=%f,%f|%f,%f&mode=%s&apiKey=%s",
 		req.StartLat, req.StartLng,
 		req.EndLat, req.EndLng,
-		mode,
+		url.QueryEscape(mode),
 		s.geoapifyAPIKey,
 	)
 
-	resp, err := s.httpClient.Get(url)
+	body, err := s.fetchGeoapify(requestURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch route: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	var result map[string]any
@@ -540,27 +535,21 @@ func (s *MapService) Autocomplete(req models.GeoapifyAutocompleteRequest) (map[s
 		limit = 5
 	}
 
-	url := fmt.Sprintf(
+	requestURL := fmt.Sprintf(
 		"https://api.geoapify.com/v1/geocode/autocomplete?text=%s&limit=%d&apiKey=%s",
-		req.Text,
+		url.QueryEscape(req.Text),
 		limit,
 		s.geoapifyAPIKey,
 	)
 
 	// Add bias if location provided
 	if req.Lat != nil && req.Lng != nil {
-		url += fmt.Sprintf("&bias=proximity:%f,%f", *req.Lng, *req.Lat)
+		requestURL += fmt.Sprintf("&bias=proximity:%f,%f", *req.Lng, *req.Lat)
 	}
 
-	resp, err := s.httpClient.Get(url)
+	body, err := s.fetchGeoapify(requestURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch autocomplete: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	var result map[string]any
@@ -613,21 +602,15 @@ func (s *MapService) GeocodeCity(cityName string) (*GeocodedCity, error) {
 	}
 
 	// Use Geoapify geocoding API with type=city filter
-	url := fmt.Sprintf(
+	requestURL := fmt.Sprintf(
 		"https://api.geoapify.com/v1/geocode/search?text=%s&type=city&limit=1&apiKey=%s",
-		cityName,
+		url.QueryEscape(cityName),
 		s.geoapifyAPIKey,
 	)
 
-	resp, err := s.httpClient.Get(url)
+	body, err := s.fetchGeoapify(requestURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to geocode city: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read geocode response: %w", err)
 	}
 
 	var result struct {
@@ -682,21 +665,15 @@ func (s *MapService) GeocodeLocation(query string) (*GeocodedLocation, error) {
 	}
 
 	// Use Geoapify geocoding API without type restriction
-	url := fmt.Sprintf(
+	requestURL := fmt.Sprintf(
 		"https://api.geoapify.com/v1/geocode/search?text=%s&limit=1&apiKey=%s",
-		strings.ReplaceAll(query, " ", "%20"),
+		url.QueryEscape(query),
 		s.geoapifyAPIKey,
 	)
 
-	resp, err := s.httpClient.Get(url)
+	body, err := s.fetchGeoapify(requestURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to geocode location: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read geocode response: %w", err)
 	}
 
 	var result struct {
@@ -728,4 +705,27 @@ func (s *MapService) GeocodeLocation(query string) (*GeocodedLocation, error) {
 		Latitude:  feature.Lat,
 		Longitude: feature.Lon,
 	}, nil
+}
+
+func (s *MapService) fetchGeoapify(requestURL string) ([]byte, error) {
+	if strings.TrimSpace(s.geoapifyAPIKey) == "" {
+		return nil, fmt.Errorf("geoapify api key is not configured")
+	}
+
+	resp, err := s.httpClient.Get(requestURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("geoapify responded with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	return body, nil
 }

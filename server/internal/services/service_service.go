@@ -8,6 +8,9 @@ import (
 	"math"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"strconv"
+
+	"gorm.io/gorm"
 )
 
 // ServiceService handles service-related operations
@@ -64,8 +67,10 @@ func (s *ServiceService) GetByID(id uint) (*models.Service, error) {
 		return nil, err
 	}
 
-	// Increment views
-	go database.DB.Model(&service).Update("views_count", service.ViewsCount+1)
+	// Increment views atomically.
+	if err := database.DB.Model(&service).UpdateColumn("views_count", gorm.Expr("views_count + 1")).Error; err != nil {
+		log.Printf("[Service] Failed to increment views for service %d: %v", service.ID, err)
+	}
 
 	return &service, nil
 }
@@ -281,9 +286,11 @@ func (s *ServiceService) AddTariff(serviceID, ownerID uint, req models.TariffCre
 
 	// If this is the default, unset other defaults
 	if tariff.IsDefault {
-		database.DB.Model(&models.ServiceTariff{}).
+		if err := database.DB.Model(&models.ServiceTariff{}).
 			Where("service_id = ?", serviceID).
-			Update("is_default", false)
+			Update("is_default", false).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	if err := database.DB.Create(&tariff).Error; err != nil {
@@ -336,9 +343,11 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 	if req.IsDefault != nil {
 		if *req.IsDefault {
 			// Unset other defaults first
-			database.DB.Model(&models.ServiceTariff{}).
+			if err := database.DB.Model(&models.ServiceTariff{}).
 				Where("service_id = ?", tariff.ServiceID).
-				Update("is_default", false)
+				Update("is_default", false).Error; err != nil {
+				return nil, err
+			}
 		}
 		updates["is_default"] = *req.IsDefault
 	}
@@ -355,7 +364,9 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 		}
 	}
 
-	database.DB.First(&tariff, tariffID)
+	if err := database.DB.First(&tariff, tariffID).Error; err != nil {
+		return nil, err
+	}
 	return &tariff, nil
 }
 
@@ -452,9 +463,11 @@ func (s *ServiceService) Publish(serviceID, ownerID uint) error {
 
 	// Validate service has at least one tariff
 	var tariffCount int64
-	database.DB.Model(&models.ServiceTariff{}).
+	if err := database.DB.Model(&models.ServiceTariff{}).
 		Where("service_id = ? AND is_active = ?", serviceID, true).
-		Count(&tariffCount)
+		Count(&tariffCount).Error; err != nil {
+		return err
+	}
 
 	if tariffCount == 0 {
 		return errors.New("service must have at least one active tariff")
@@ -523,7 +536,9 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 	// 1. Update settings
 	settings := make(map[string]interface{})
 	if service.Settings != "" {
-		json.Unmarshal([]byte(service.Settings), &settings)
+		if err := json.Unmarshal([]byte(service.Settings), &settings); err != nil {
+			return err
+		}
 	}
 
 	// Defaults if not provided
@@ -544,7 +559,10 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 	// For now, let's assume all slots have same duration based on first slot or req
 	// The request doesn't pass slotDuration explicitly in root, but it is used for calculation
 
-	settingsBytes, _ := json.Marshal(settings)
+	settingsBytes, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
 	if err := database.DB.Model(&service).Update("settings", string(settingsBytes)).Error; err != nil {
 		return err
 	}
@@ -569,8 +587,13 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 			continue
 		}
 
-		dayInt := 0
-		fmt.Sscanf(dayStr, "%d", &dayInt)
+		dayInt, err := strconv.Atoi(dayStr)
+		if err != nil {
+			return fmt.Errorf("invalid day_of_week: %s", dayStr)
+		}
+		if dayInt < 0 || dayInt > 6 {
+			return fmt.Errorf("day_of_week out of range: %d", dayInt)
+		}
 
 		for _, slot := range config.Slots {
 			// Calculate duration from start/end
@@ -587,7 +610,9 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 				BufferMinutes: bufferMinutes,
 				IsActive:      true,
 			}
-			database.DB.Create(&schedule)
+			if err := database.DB.Create(&schedule).Error; err != nil {
+				return err
+			}
 		}
 	}
 
