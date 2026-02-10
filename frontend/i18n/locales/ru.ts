@@ -121,6 +121,8 @@ export default {
         shopsFound: 'магазинов найдено',
         noShops: 'Магазины не найдены',
         shops: 'Магазины',
+        view_all_shops: 'Смотреть все',
+        nearby: 'Рядом со мной',
         map: {
             title: 'Карта',
             viewNearby: 'Посмотреть магазины рядом',

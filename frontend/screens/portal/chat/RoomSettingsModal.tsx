@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     View,
@@ -14,6 +14,8 @@ import {
     TextInput,
     Image,
     ImageBackground,
+    Animated,
+    Easing,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Check, X, Bell, Camera, Image as ImageIcon } from 'lucide-react-native';
@@ -23,6 +25,8 @@ import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { getMediaUrl } from '../../../utils/url';
 import { useSettings } from '../../../context/SettingsContext';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { usePressFeedback } from '../../../hooks/usePressFeedback';
 
 interface RoomSettingsModalProps {
     visible: boolean;
@@ -33,8 +37,11 @@ interface RoomSettingsModalProps {
 
 export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, onClose, roomId, roomName }) => {
     const { t } = useTranslation();
-    const { isDarkMode, vTheme } = useSettings();
+    const { isDarkMode, vTheme, portalBackgroundType } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { colors } = useRoleTheme(undefined, isDarkMode);
+    const isPhotoBg = portalBackgroundType === 'image';
+    const triggerTapFeedback = usePressFeedback();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -58,6 +65,8 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [roomImage, setRoomImage] = useState<string | null>(null);
     const [uploadingImage, setUploadingImage] = useState(false);
+    const modalOpacity = useRef(new Animated.Value(0)).current;
+    const modalScale = useRef(new Animated.Value(0.96)).current;
 
     const PRESET_IMAGES = [
         { id: 'krishna', emoji: '🕉️' },
@@ -128,6 +137,26 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             loadFontSettings();
         }
     }, [visible]);
+
+    useEffect(() => {
+        if (!visible) return;
+        modalOpacity.setValue(0);
+        modalScale.setValue(0.96);
+        Animated.parallel([
+            Animated.timing(modalOpacity, {
+                toValue: 1,
+                duration: 220,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+            }),
+            Animated.timing(modalScale, {
+                toValue: 1,
+                duration: 240,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, [visible, modalOpacity, modalScale]);
 
     const loadFontSettings = async () => {
         try {
@@ -288,16 +317,54 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { backgroundColor: vTheme.colors.background }]}>
+                <Animated.View
+                    style={[
+                        styles.modalContent,
+                        {
+                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.86)' : colors.surfaceElevated,
+                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                        },
+                        {
+                            opacity: modalOpacity,
+                            transform: [{ scale: modalScale }],
+                        },
+                    ]}
+                >
                     <View style={styles.header}>
-                        <TouchableOpacity onPress={onClose} style={styles.headerIcon}>
-                            <X size={28} color={vTheme.colors.text} />
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                onClose();
+                            }}
+                            style={[
+                                styles.headerIcon,
+                                {
+                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border,
+                                }
+                            ]}
+                        >
+                            <X size={20} color={isPhotoBg ? '#FFFFFF' : colors.textPrimary} />
                         </TouchableOpacity>
-                        <Text style={[styles.modalTitle, { color: vTheme.colors.text }]}>
+                        <Text style={[styles.modalTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                             {roomName} - {t('common.settings')}
                         </Text>
-                        <TouchableOpacity onPress={handleSaveReading} style={styles.headerIcon}>
-                            <Check size={28} color={theme.accent} />
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                handleSaveReading();
+                            }}
+                            style={[
+                                styles.headerIcon,
+                                {
+                                    backgroundColor: colors.accent,
+                                    borderColor: colors.accent,
+                                }
+                            ]}
+                        >
+                            <Check size={18} color="#FFFFFF" />
                         </TouchableOpacity>
                     </View>
 
@@ -309,11 +376,21 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                             contentContainerStyle={{ paddingBottom: 20 }}
                         >
                             {/* Image Selection Section */}
-                            <Text style={[styles.sectionHeader, { color: vTheme.colors.text, textAlign: 'center', marginBottom: 12 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
+                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary, textAlign: 'center', marginBottom: 12 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
                             <View style={styles.imageSection}>
                                 <TouchableOpacity
-                                    style={[styles.imagePreviewContainer, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }]}
-                                    onPress={handleUploadImage}
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.imagePreviewContainer,
+                                        {
+                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
+                                        }
+                                    ]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        handleUploadImage();
+                                    }}
                                     disabled={uploadingImage}
                                 >
                                     {uploadingImage ? (
@@ -323,7 +400,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                     ) : roomImage && EMOJI_MAP[roomImage] ? (
                                         <Text style={styles.roomImageEmoji}>{EMOJI_MAP[roomImage]}</Text>
                                     ) : (
-                                        <Camera size={40} color={vTheme.colors.textSecondary} />
+                                        <Camera size={40} color={isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary} />
                                     )}
                                     <View style={styles.cameraIconBadge}>
                                         <Camera size={14} color="#fff" />
@@ -335,11 +412,19 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                         {PRESET_IMAGES.map(item => (
                                             <TouchableOpacity
                                                 key={item.id}
+                                                activeOpacity={0.88}
                                                 style={[
-                                                    styles.presetItem,
-                                                    roomImage === item.id && { backgroundColor: theme.accent + '30', borderColor: theme.accent }
-                                                ]}
-                                                onPress={() => handleSelectPreset(item.id)}
+                                                styles.presetItem,
+                                                {
+                                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
+                                                },
+                                                roomImage === item.id && { backgroundColor: colors.accentSoft, borderColor: colors.accent }
+                                            ]}
+                                                onPress={() => {
+                                                    triggerTapFeedback();
+                                                    handleSelectPreset(item.id);
+                                                }}
                                             >
                                                 <Text style={styles.presetEmoji}>{item.emoji}</Text>
                                             </TouchableOpacity>
@@ -349,56 +434,78 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                             </View>
 
                             {/* Basic Info Section */}
-                            <Text style={[styles.sectionHeader, { color: vTheme.colors.text }]}>{t('chat.roomName') || 'Room Name'}</Text>
+                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.roomName') || 'Room Name'}</Text>
                             <TextInput
-                                style={[styles.textInput, { color: vTheme.colors.text, borderColor: vTheme.colors.divider, backgroundColor: vTheme.colors.backgroundSecondary }]}
+                                style={[
+                                    styles.textInput,
+                                    {
+                                        color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface
+                                    }
+                                ]}
                                 value={editName}
                                 onChangeText={setEditName}
                                 placeholder={t('chat.roomName')}
-                                placeholderTextColor={vTheme.colors.textSecondary}
+                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
                             />
 
-                            <Text style={[styles.sectionHeader, { color: vTheme.colors.text }]}>{t('chat.roomDesc') || 'Description'}</Text>
+                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.roomDesc') || 'Description'}</Text>
                             <TextInput
-                                style={[styles.textInput, { color: vTheme.colors.text, borderColor: vTheme.colors.divider, backgroundColor: vTheme.colors.backgroundSecondary, height: 60 }]}
+                                style={[
+                                    styles.textInput,
+                                    {
+                                        color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                        height: 72
+                                    }
+                                ]}
                                 value={editDescription}
                                 onChangeText={setEditDescription}
                                 placeholder={t('chat.roomDesc')}
-                                placeholderTextColor={vTheme.colors.textSecondary}
+                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
                                 multiline
                             />
 
                             <View style={[styles.switchRow, { borderBottomColor: vTheme.colors.divider, borderBottomWidth: 0.5, paddingVertical: 12 }]}>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                                         {t('chat.enableReading') || 'Enable Scripture Reading'}
                                     </Text>
-                                    <Text style={[styles.settingSubLabel, { color: vTheme.colors.textSecondary }]}>
+                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                         {t('chat.enableReadingDesc') || 'Focus room on studying scriptures'}
                                     </Text>
                                 </View>
                                 <Switch
                                     value={enableReading}
                                     onValueChange={setEnableReading}
-                                    trackColor={{ false: vTheme.colors.divider, true: theme.accent }}
+                                    trackColor={{ false: colors.border, true: colors.accent }}
                                 />
                             </View>
 
                             {enableReading && (
                                 <>
-                                    <Text style={[styles.sectionHeader, { color: vTheme.colors.text }]}>Location (City, Yatra)</Text>
+                                    <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>Location (City, Yatra)</Text>
                                     <TextInput
-                                        style={[styles.textInput, { color: vTheme.colors.text, borderColor: vTheme.colors.divider, backgroundColor: vTheme.colors.backgroundSecondary }]}
+                                        style={[
+                                            styles.textInput,
+                                            {
+                                                color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
+                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface
+                                            }
+                                        ]}
                                         value={editLocation}
                                         onChangeText={setEditLocation}
                                         placeholder={t('chat.locationPlaceholder') || "E.g. Moscow, ISKCON"}
-                                        placeholderTextColor={vTheme.colors.textSecondary}
+                                        placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
                                     />
 
                                     <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
 
                                     {/* Shared Reading Section */}
-                                    <Text style={[styles.sectionHeader, { color: vTheme.colors.text }]}>{t('reader.settings') || 'Shared Reading'}</Text>
+                                    <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('reader.settings') || 'Shared Reading'}</Text>
 
                                     <View style={styles.bookList}>
                                         {AVAILABLE_BOOKS.map(renderBookItem)}
@@ -409,11 +516,11 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                             <Text style={{ color: vTheme.colors.text }}>{t('reader.chapter') || 'Chapter'}</Text>
                                             <View style={[styles.numberInput, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
                                                 <TouchableOpacity onPress={() => setChapter(Math.max(1, chapter - 1))}>
-                                                    <Text style={{ fontSize: 20, color: vTheme.colors.text }}>-</Text>
+                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>-</Text>
                                                 </TouchableOpacity>
-                                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: vTheme.colors.text }}>{chapter}</Text>
+                                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>{chapter}</Text>
                                                 <TouchableOpacity onPress={() => setChapter(chapter + 1)}>
-                                                    <Text style={{ fontSize: 20, color: vTheme.colors.text }}>+</Text>
+                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>+</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
@@ -422,11 +529,11 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                             <Text style={{ color: vTheme.colors.text }}>{t('reader.verse') || 'Verse'}</Text>
                                             <View style={[styles.numberInput, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
                                                 <TouchableOpacity onPress={() => setVerse(Math.max(1, verse - 1))}>
-                                                    <Text style={{ fontSize: 20, color: vTheme.colors.text }}>-</Text>
+                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>-</Text>
                                                 </TouchableOpacity>
-                                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: vTheme.colors.text }}>{verse}</Text>
+                                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>{verse}</Text>
                                                 <TouchableOpacity onPress={() => setVerse(verse + 1)}>
-                                                    <Text style={{ fontSize: 20, color: vTheme.colors.text }}>+</Text>
+                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>+</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
@@ -437,7 +544,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                             <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
 
                             {/* Font Settings Section - LOCAL ONLY */}
-                            <Text style={[styles.sectionHeader, { color: vTheme.colors.text }]}>{t('reader.fontSettings') || 'Font Settings'}</Text>
+                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('reader.fontSettings') || 'Font Settings'}</Text>
 
                             <View style={styles.fontSettingsRow}>
                                 <View style={styles.fontControl}>
@@ -448,15 +555,15 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                             setFontSize(newSize);
                                             saveFontSettings(newSize, isBold);
                                         }}>
-                                            <Text style={{ fontSize: 20, color: vTheme.colors.text }}>A-</Text>
+                                            <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>A-</Text>
                                         </TouchableOpacity>
-                                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: vTheme.colors.text }}>{fontSize}</Text>
+                                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>{fontSize}</Text>
                                         <TouchableOpacity onPress={() => {
                                             const newSize = Math.min(30, fontSize + 2);
                                             setFontSize(newSize);
                                             saveFontSettings(newSize, isBold);
                                         }}>
-                                            <Text style={{ fontSize: 20, color: vTheme.colors.text }}>A+</Text>
+                                            <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>A+</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -481,9 +588,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                             <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
 
                             {/* Language & Purport Settings */}
-                            <View style={[styles.settingItem, { borderBottomColor: vTheme.colors.divider }]}>
+                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                                         {t('reader.language') || 'Reading Language'}
                                     </Text>
                                 </View>
@@ -491,14 +598,22 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                     {['ru', 'en'].map(lang => (
                                         <TouchableOpacity
                                             key={lang}
+                                            activeOpacity={0.88}
                                             style={[
                                                 styles.langButton,
-                                                readingLanguage === lang && { backgroundColor: theme.accent }
+                                                {
+                                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
+                                                },
+                                                readingLanguage === lang && { backgroundColor: colors.accent, borderColor: colors.accent }
                                             ]}
-                                            onPress={() => setReadingLanguage(lang)}
+                                            onPress={() => {
+                                                triggerTapFeedback();
+                                                setReadingLanguage(lang);
+                                            }}
                                         >
                                             <Text style={{
-                                                color: readingLanguage === lang ? '#fff' : vTheme.colors.text,
+                                                color: readingLanguage === lang ? '#fff' : (isPhotoBg ? '#FFFFFF' : colors.textPrimary),
                                                 fontWeight: 'bold'
                                             }}>{lang.toUpperCase()}</Text>
                                         </TouchableOpacity>
@@ -506,19 +621,19 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                 </View>
                             </View>
 
-                            <View style={[styles.settingItem, { borderBottomColor: vTheme.colors.divider }]}>
+                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                                         {t('reader.showPurport') || 'Show Purport'}
                                     </Text>
-                                    <Text style={[styles.settingSubLabel, { color: vTheme.colors.textSecondary }]}>
+                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                         {t('reader.showPurportDesc') || 'Display verse commentaries'}
                                     </Text>
                                 </View>
                                 <Switch
                                     value={showPurport}
                                     onValueChange={setShowPurport}
-                                    trackColor={{ false: '#767577', true: theme.accent }}
+                                    trackColor={{ false: colors.border, true: colors.accent }}
                                     thumbColor={showPurport ? '#fff' : '#f4f3f4'}
                                 />
                             </View>
@@ -533,15 +648,22 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                             </Text>
 
                             <TouchableOpacity
-                                style={[styles.scheduleButton, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }]}
+                                activeOpacity={0.88}
+                                style={[
+                                    styles.scheduleButton,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
+                                    }
+                                ]}
                                 onPress={() => setShowDatePicker(true)}
                             >
-                                <Bell size={20} color={theme.primary || theme.accent} />
+                                <Bell size={20} color={colors.accent} />
                                 <View style={{ marginLeft: 12, flex: 1 }}>
-                                    <Text style={[styles.scheduleValue, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.scheduleValue, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                                         {startTime ? startTime.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : (t('chat.setStartTime') || 'Set Start Time')}
                                     </Text>
-                                    <Text style={[styles.scheduleSubLabel, { color: vTheme.colors.textSecondary }]}>
+                                    <Text style={[styles.scheduleSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                         {t('chat.notificationHint') || 'Friends will be notified 15 minutes before'}
                                     </Text>
                                 </View>
@@ -564,58 +686,67 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                             />
 
                             <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
-                            <View style={[styles.settingItem, { borderBottomColor: vTheme.colors.divider }]}>
+                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                                         {t('chat.publicRoom') || 'Public Room'}
                                     </Text>
-                                    <Text style={[styles.settingSubLabel, { color: vTheme.colors.textSecondary }]}>
+                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                         {t('chat.publicRoomDesc') || 'Anyone can find and join'}
                                     </Text>
                                 </View>
                                 <Switch
                                     value={isPublic}
                                     onValueChange={(val) => { setIsPublic(val); handleUpdateSettings({ isPublic: val }); }}
-                                    trackColor={{ false: '#767577', true: theme.accent }}
+                                    trackColor={{ false: colors.border, true: colors.accent }}
                                     thumbColor={isPublic ? '#fff' : '#f4f3f4'}
                                     disabled={saving}
                                 />
                             </View>
 
-                            <View style={[styles.settingItem, { borderBottomColor: vTheme.colors.divider }]}>
+                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                                         {t('chat.aiAssistant') || 'AI Assistant'}
                                     </Text>
-                                    <Text style={[styles.settingSubLabel, { color: vTheme.colors.textSecondary }]}>
+                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
                                         {t('chat.aiAssistantDesc') || 'AI joins the conversation'}
                                     </Text>
                                 </View>
                                 <Switch
                                     value={aiEnabled}
                                     onValueChange={handleToggleAi}
-                                    trackColor={{ false: '#767577', true: theme.accent }}
+                                    trackColor={{ false: colors.border, true: colors.accent }}
                                     thumbColor={aiEnabled ? '#fff' : '#f4f3f4'}
                                     disabled={saving}
                                 />
                             </View>
 
                             <TouchableOpacity
-                                style={[styles.actionButton, { backgroundColor: vTheme.colors.backgroundSecondary }]}
-                                onPress={handleGetSummary}
+                                style={[
+                                    styles.actionButton,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
+                                    }
+                                ]}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    handleGetSummary();
+                                }}
                                 disabled={summaryLoading}
                             >
                                 {summaryLoading ? (
-                                    <ActivityIndicator size="small" color={theme.accent} />
+                                    <ActivityIndicator size="small" color={colors.accent} />
                                 ) : (
-                                    <Text style={[styles.actionButtonText, { color: vTheme.colors.text }]}>
+                                    <Text style={[styles.actionButtonText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
                                         📝 {t('chat.getSummary') || 'Get Chat Summary'}
                                     </Text>
                                 )}
                             </TouchableOpacity>
                         </ScrollView>
                     )}
-                </View>
+                </Animated.View>
             </View>
         </Modal>
     );
@@ -624,7 +755,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(2,6,23,0.6)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
@@ -632,12 +763,13 @@ const styles = StyleSheet.create({
     modalContent: {
         width: '100%',
         maxHeight: '90%',
-        borderRadius: 20,
+        borderRadius: 24,
+        borderWidth: 1,
         padding: 24,
     },
     modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
+        fontSize: 22,
+        fontWeight: '800',
         textAlign: 'center',
         flex: 1,
     },
@@ -648,8 +780,11 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     headerIcon: {
-        padding: 4,
-        width: 40,
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        borderWidth: 1,
+        justifyContent: 'center',
         alignItems: 'center',
     },
     settingsContainer: {
@@ -681,6 +816,7 @@ const styles = StyleSheet.create({
         marginTop: 24,
         padding: 16,
         borderRadius: 12,
+        borderWidth: 1,
         alignItems: 'center',
         flexDirection: 'row',
         justifyContent: 'center',
@@ -767,8 +903,8 @@ const styles = StyleSheet.create({
     },
     // New Styles
     sectionHeader: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 16,
+        fontWeight: '700',
         marginTop: 10,
         marginBottom: 12,
     },
@@ -792,8 +928,8 @@ const styles = StyleSheet.create({
     },
     textInput: {
         borderWidth: 1,
-        borderRadius: 12,
-        padding: 12,
+        borderRadius: 14,
+        padding: 14,
         marginBottom: 16,
         fontSize: 16,
     },
@@ -849,7 +985,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#ccc',
+        borderColor: 'rgba(148,163,184,0.5)',
         alignItems: 'center',
         marginTop: 8,
     },

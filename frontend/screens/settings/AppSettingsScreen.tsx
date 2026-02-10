@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     SafeAreaView,
-    useColorScheme,
-    ActivityIndicator,
     Platform,
     StatusBar,
     ScrollView,
@@ -14,21 +12,68 @@ import {
     Alert,
     Image as RNImage,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
-import { Palette, Image as ImageIcon } from 'lucide-react-native';
+import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
+import { SLIDESHOW_INTERVALS } from '../../config/wallpaperPresets';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
 import { useWallet } from '../../context/WalletContext';
 import { Wallet, Users, ChevronRight } from 'lucide-react-native';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { usePressFeedback } from '../../hooks/usePressFeedback';
+import { AIModelsSection, AIModel } from './components/AIModelsSection';
+
+type AssistantType = 'feather' | 'smiley' | 'feather2';
+type SettingsPanelKey = 'quick' | 'appearance' | 'background' | 'ai' | 'location' | 'models';
+const SETTINGS_PANELS_STORAGE_KEY = 'settings_screen_expanded_panels_v1';
+
+const IMAGE_SIZE_OPTIONS = [200, 240, 280, 320, 360];
+const THEME_MODE_OPTIONS: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
+const PRESET_COLORS = ['#ffffff', '#f5f5f5', '#1a1a1a', '#2c3e50', '#8e44ad', '#e67e22'];
+const PRESET_GRADIENTS = [
+    '#FF9D6C|#FF4D4D',
+    '#4facfe|#00f2fe',
+    '#43e97b|#38f9d7',
+    '#fa709a|#fee140',
+    '#6a11cb|#2575fc',
+];
+const ASSISTANT_OPTIONS: Array<{
+    key: AssistantType;
+    label: string;
+    image: number;
+    activeBorder: string;
+    activeBackground: string;
+}> = [
+    {
+        key: 'feather2',
+        label: 'Перо 2',
+        image: require('../../assets/nano_banano.png'),
+        activeBorder: '#10B981',
+        activeBackground: 'rgba(16,185,129,0.1)',
+    },
+    {
+        key: 'feather',
+        label: 'Перо',
+        image: require('../../assets/peacockAssistant.png'),
+        activeBorder: '#00838F',
+        activeBackground: 'rgba(0,131,143,0.1)',
+    },
+    {
+        key: 'smiley',
+        label: 'Колобок',
+        image: require('../../assets/krishnaAssistant.png'),
+        activeBorder: '#F59E0B',
+        activeBackground: 'rgba(245,158,11,0.1)',
+    },
+];
 
 export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const {
         models,
         loadingModels,
@@ -46,36 +91,29 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         setPortalBackground,
         assistantType,
         setAssistantType,
+        isDarkMode,
+        wallpaperSlides,
+        isSlideshowEnabled,
+        slideshowInterval,
+        setIsSlideshowEnabled,
+        setSlideshowInterval,
+        addWallpaperSlide,
+        removeWallpaperSlide,
     } = useSettings();
+    const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
-    const { logout } = useUser();
+    const { logout, user } = useUser();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const triggerTapFeedback = usePressFeedback();
     const { refreshLocationData } = useLocation();
     const { wallet, loading: walletLoading } = useWallet();
 
-    const [activeFilters, setActiveFilters] = useState({
-        text: false,
-        image: false,
-        audio: false,
-        video: false
-    });
+    const handleGoBack = useCallback(() => {
+        triggerTapFeedback();
+        navigation.goBack();
+    }, [navigation, triggerTapFeedback]);
 
-    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-
-    const toggleFilter = (type: keyof typeof activeFilters) => {
-        setActiveFilters(prev => ({
-            ...prev,
-            [type]: !prev[type]
-        }));
-    };
-
-    const toggleSection = (section: string) => {
-        setExpandedSections(prev => ({
-            ...prev,
-            [section]: !prev[section]
-        }));
-    };
-
-    const handlePickImage = async () => {
+    const handlePickImage = useCallback(async () => {
         const result = await launchImageLibrary({
             mediaType: 'photo',
             quality: 0.8,
@@ -84,61 +122,150 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         if (result.assets && result.assets.length > 0) {
             const uri = result.assets[0].uri;
             if (uri) {
-                setPortalBackground(uri, 'image');
+                await setPortalBackground(uri, 'image');
             }
         }
-    };
+    }, [setPortalBackground]);
 
-    const PRESET_COLORS = ['#ffffff', '#f5f5f5', '#1a1a1a', '#2c3e50', '#8e44ad', '#e67e22'];
-    const PRESET_GRADIENTS = [
-        '#FF9D6C|#FF4D4D', // Sunset
-        '#4facfe|#00f2fe', // Cool Blue
-        '#43e97b|#38f9d7', // Forest
-        '#fa709a|#fee140', // Peach
-        '#6a11cb|#2575fc', // Deep Sea
-    ];
+    const handleAddSlideFromGallery = useCallback(async () => {
+        const result = await launchImageLibrary({
+            mediaType: 'photo',
+            quality: 0.8,
+        });
 
-    const renderModelItem = (item: any) => (
-        <TouchableOpacity
-            key={item.id}
-            style={[
-                styles.modelItem,
-                { borderBottomColor: theme.borderColor },
-                currentModel === item.id && { backgroundColor: theme.button + '20' }
-            ]}
-            onPress={() => selectModel(item.id, item.provider)}
-        >
-            <View>
-                <Text style={[styles.modelName, { color: theme.text }]}>{item.id}</Text>
-                <Text style={[styles.modelProvider, { color: theme.subText }]}>{item.provider}</Text>
-            </View>
-            {currentModel === item.id && <Text style={{ color: theme.accent, fontWeight: 'bold' }}>✓</Text>}
-        </TouchableOpacity>
-    );
+        if (result.assets && result.assets.length > 0) {
+            const uri = result.assets[0].uri;
+            if (uri) {
+                await addWallpaperSlide(uri);
+            }
+        }
+    }, [addWallpaperSlide]);
 
-    const sizes = [200, 240, 280, 320, 360];
+    const handleRemoveSlide = useCallback((uri: string) => {
+        if (wallpaperSlides.length <= 1) {
+            Alert.alert('Нельзя удалить', 'Должен остаться хотя бы один фон');
+            return;
+        }
+        Alert.alert(
+            'Удалить фон?',
+            'Этот фон будет убран из слайд-шоу',
+            [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                    text: 'Удалить',
+                    style: 'destructive',
+                    onPress: () => removeWallpaperSlide(uri),
+                },
+            ]
+        );
+    }, [removeWallpaperSlide, wallpaperSlides.length]);
 
-    const anyFilterActive = Object.values(activeFilters).some(v => v);
+    const slideshowIntervalLabel = useMemo(() => {
+        const matched = SLIDESHOW_INTERVALS.find((item) => item.value === slideshowInterval);
+        return matched?.label ?? `${slideshowInterval} сек`;
+    }, [slideshowInterval]);
+
+    const [expandedPanels, setExpandedPanels] = useState<Record<SettingsPanelKey, boolean>>({
+        quick: true,
+        appearance: false,
+        background: false,
+        ai: false,
+        location: false,
+        models: false,
+    });
+
+    const togglePanel = useCallback((panel: SettingsPanelKey) => {
+        triggerTapFeedback();
+        setExpandedPanels((prev) => ({
+            ...prev,
+            [panel]: !prev[panel],
+        }));
+    }, [triggerTapFeedback]);
+
+    useEffect(() => {
+        const loadExpandedPanels = async () => {
+            try {
+                const saved = await AsyncStorage.getItem(SETTINGS_PANELS_STORAGE_KEY);
+                if (!saved) {
+                    return;
+                }
+
+                const parsed = JSON.parse(saved) as Partial<Record<SettingsPanelKey, boolean>>;
+                if (!parsed || typeof parsed !== 'object') {
+                    return;
+                }
+
+                setExpandedPanels((prev) => ({
+                    ...prev,
+                    ...parsed,
+                }));
+            } catch (error) {
+                console.warn('Failed to load settings accordion state:', error);
+            }
+        };
+
+        loadExpandedPanels();
+    }, []);
+
+    useEffect(() => {
+        AsyncStorage.setItem(SETTINGS_PANELS_STORAGE_KEY, JSON.stringify(expandedPanels))
+            .catch((error) => {
+                console.warn('Failed to save settings accordion state:', error);
+            });
+    }, [expandedPanels]);
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: vTheme.colors.background }]}>
             <View style={[styles.header, { backgroundColor: vTheme.colors.background, borderBottomColor: vTheme.colors.divider }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity
+                    activeOpacity={0.88}
+                    onPress={handleGoBack}
+                    style={styles.backButton}
+                >
                     <Text style={[styles.backText, { color: vTheme.colors.text }]}>← {t('settings.appSettings')}</Text>
                 </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Profile Section */}
+                <View style={[styles.heroCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                    <View style={[styles.heroIcon, { backgroundColor: colors.accentSoft }]}>
+                        <Sparkles size={18} color={colors.accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Персональные настройки</Text>
+                        <Text style={[styles.heroSub, { color: colors.textSecondary }]}>Быстрый доступ к теме, профилю и моделям AI</Text>
+                    </View>
+                </View>
+
+                {/* Quick Access */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
-                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('settings.profile') || 'Profile'}</Text>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={styles.sectionToggleHeader}
+                        onPress={() => togglePanel('quick')}
+                    >
+                        <View style={styles.sectionToggleTextWrap}>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Быстрый доступ</Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>Профиль, баланс и приглашения</Text>
+                        </View>
+                        <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
+                            {expandedPanels.quick ? '▾' : '▸'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {expandedPanels.quick && (
+                        <>
                     <TouchableOpacity
                         style={[
                             styles.actionButton,
                             { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }
                         ]}
-                        onPress={() => navigation.navigate('EditProfile' as any)}
+                        activeOpacity={0.9}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            navigation.navigate('EditProfile' as any);
+                        }}
                     >
                         <View style={styles.actionContent}>
                             <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
@@ -150,20 +277,17 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         </View>
                         <Text style={{ color: vTheme.colors.textSecondary }}>→</Text>
                     </TouchableOpacity>
-                </View>
 
-                {/* Wallet Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
-                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Мой счёт</Text>
-
-                    {/* Balance Card */}
                     <TouchableOpacity
                         style={[
                             styles.walletCard,
-                            { backgroundColor: vTheme.colors.backgroundSecondary }
+                            { backgroundColor: colors.surfaceElevated, borderColor: colors.border }
                         ]}
-                        onPress={() => navigation.navigate('Wallet' as any)}
-                        activeOpacity={0.7}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            navigation.navigate('Wallet' as any);
+                        }}
+                        activeOpacity={0.88}
                     >
                         <View style={styles.walletMain}>
                             <View style={[styles.walletIconContainer, { backgroundColor: 'rgba(245,158,11,0.15)' }]}>
@@ -189,13 +313,16 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         <ChevronRight size={20} color={vTheme.colors.textSecondary} />
                     </TouchableOpacity>
 
-                    {/* Invite Friends Button */}
                     <TouchableOpacity
                         style={[
                             styles.actionButton,
                             { backgroundColor: 'rgba(34,197,94,0.1)', borderColor: 'rgba(34,197,94,0.3)' }
                         ]}
-                        onPress={() => navigation.navigate('InviteFriends' as any)}
+                        activeOpacity={0.88}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            navigation.navigate('InviteFriends' as any);
+                        }}
                     >
                         <View style={styles.actionContent}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -210,46 +337,45 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         </View>
                         <ChevronRight size={20} color="#22C55E" />
                     </TouchableOpacity>
+                        </>
+                    )}
                 </View>
 
-                {/* Image Settings Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.imageSettings')}</Text>
-                    <Text style={[styles.subLabel, { color: theme.subText }]}>{t('settings.imageSize')} ({imageSize}px)</Text>
-                    <View style={styles.sizeOptions}>
-                        {sizes.map(s => (
-                            <TouchableOpacity
-                                key={s}
-                                style={[
-                                    styles.sizeBtn,
-                                    {
-                                        backgroundColor: imageSize === s ? theme.button : theme.inputBackground,
-                                        borderColor: theme.borderColor
-                                    }
-                                ]}
-                                onPress={() => setImageSize(s)}
-                            >
-                                <Text style={{ color: imageSize === s ? theme.buttonText : theme.text }}>{s}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Theme Settings Section */}
+                {/* Appearance Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
-                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>{t('settings.theme.title')}</Text>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={styles.sectionToggleHeader}
+                        onPress={() => togglePanel('appearance')}
+                    >
+                        <View style={styles.sectionToggleTextWrap}>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Внешний вид</Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>Тема, язык, ассистент и размер изображений</Text>
+                        </View>
+                        <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
+                            {expandedPanels.appearance ? '▾' : '▸'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {expandedPanels.appearance && (
+                        <>
+                    <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Тема приложения</Text>
                     <View style={styles.sizeOptions}>
-                        {(['light', 'dark', 'system'] as const).map(mode => (
+                        {THEME_MODE_OPTIONS.map((mode) => (
                             <TouchableOpacity
                                 key={mode}
+                                activeOpacity={0.88}
                                 style={[
                                     styles.sizeBtn,
                                     {
-                                        backgroundColor: themeMode === mode ? vTheme.colors.primary : vTheme.colors.backgroundSecondary,
-                                        borderColor: vTheme.colors.divider
+                                        backgroundColor: themeMode === mode ? colors.accent : vTheme.colors.backgroundSecondary,
+                                        borderColor: themeMode === mode ? colors.accent : vTheme.colors.divider
                                     }
                                 ]}
-                                onPress={() => setThemeMode(mode)}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    setThemeMode(mode);
+                                }}
                             >
                                 <Text style={{ color: themeMode === mode ? '#fff' : vTheme.colors.text, fontWeight: '500' }}>
                                     {t(`settings.theme.${mode}`)}
@@ -257,95 +383,177 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             </TouchableOpacity>
                         ))}
                     </View>
-                </View>
 
+                    <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>{t('settings.language')}</Text>
+                    <View style={styles.sizeOptions}>
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            style={[
+                                styles.sizeBtn,
+                                {
+                                    backgroundColor: i18n.language === 'ru' ? colors.accent : theme.inputBackground,
+                                    borderColor: i18n.language === 'ru' ? colors.accent : theme.borderColor
+                                }
+                            ]}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                i18n.changeLanguage('ru');
+                            }}
+                        >
+                            <Text style={{ color: i18n.language === 'ru' ? '#fff' : theme.text }}>Русский</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            style={[
+                                styles.sizeBtn,
+                                {
+                                    backgroundColor: i18n.language === 'en' ? colors.accent : theme.inputBackground,
+                                    borderColor: i18n.language === 'en' ? colors.accent : theme.borderColor
+                                }
+                            ]}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                i18n.changeLanguage('en');
+                            }}
+                        >
+                            <Text style={{ color: i18n.language === 'en' ? '#fff' : theme.text }}>English</Text>
+                        </TouchableOpacity>
+                    </View>
 
-
-                {/* Assistant Selection Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Ассистент</Text>
+                    <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>Ассистент</Text>
                     <View style={styles.assistantSelection}>
-                        <TouchableOpacity
-                            style={[
-                                styles.assistantBtn,
-                                assistantType === 'feather2' && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.1)' }
-                            ]}
-                            onPress={() => setAssistantType('feather2')}
-                        >
-                            <RNImage source={require('../../assets/nano_banano.png')} style={styles.assistantPreview} />
-                            <Text style={[styles.assistantName, { color: theme.text }]}>Перо 2</Text>
-                            {assistantType === 'feather2' && <View style={styles.checkBadge}><Text style={styles.checkText}>✓</Text></View>}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.assistantBtn,
-                                assistantType === 'feather' && { borderColor: '#00838F', backgroundColor: 'rgba(0,131,143,0.1)' }
-                            ]}
-                            onPress={() => setAssistantType('feather')}
-                        >
-                            <RNImage source={require('../../assets/peacockAssistant.png')} style={styles.assistantPreview} />
-                            <Text style={[styles.assistantName, { color: theme.text }]}>Перо</Text>
-                            {assistantType === 'feather' && <View style={styles.checkBadge}><Text style={styles.checkText}>✓</Text></View>}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.assistantBtn,
-                                assistantType === 'smiley' && { borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.1)' }
-                            ]}
-                            onPress={() => setAssistantType('smiley')}
-                        >
-                            <RNImage source={require('../../assets/krishnaAssistant.png')} style={styles.assistantPreview} />
-                            <Text style={[styles.assistantName, { color: theme.text }]}>Колобок</Text>
-                            {assistantType === 'smiley' && <View style={styles.checkBadge}><Text style={styles.checkText}>✓</Text></View>}
-                        </TouchableOpacity>
+                        {ASSISTANT_OPTIONS.map((assistant) => (
+                            <TouchableOpacity
+                                key={assistant.key}
+                                activeOpacity={0.88}
+                                style={[
+                                    styles.assistantBtn,
+                                    assistantType === assistant.key && {
+                                        borderColor: assistant.activeBorder,
+                                        backgroundColor: assistant.activeBackground,
+                                    },
+                                ]}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    setAssistantType(assistant.key);
+                                }}
+                            >
+                                <RNImage source={assistant.image} style={styles.assistantPreview} />
+                                <Text style={[styles.assistantName, { color: theme.text }]}>{assistant.label}</Text>
+                                {assistantType === assistant.key && (
+                                    <View style={styles.checkBadge}>
+                                        <Text style={styles.checkText}>✓</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        ))}
                     </View>
+
+                    <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: theme.text }]}>
+                        {t('settings.imageSize')} ({imageSize}px)
+                    </Text>
+                    <View style={styles.sizeOptions}>
+                        {IMAGE_SIZE_OPTIONS.map((s) => (
+                            <TouchableOpacity
+                                key={s}
+                                activeOpacity={0.88}
+                                style={[
+                                    styles.sizeBtn,
+                                    {
+                                        backgroundColor: imageSize === s ? colors.accent : theme.inputBackground,
+                                        borderColor: imageSize === s ? colors.accent : theme.borderColor
+                                    }
+                                ]}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    setImageSize(s);
+                                }}
+                            >
+                                <Text style={{ color: imageSize === s ? '#fff' : theme.text }}>{s}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                        </>
+                    )}
                 </View>
 
-                {/* Auto-Magic Section */}
-                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View>
-                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 5 }]}>Auto-Magic</Text>
-                            <Text style={[styles.subLabel, { color: theme.subText, marginBottom: 0, maxWidth: '90%' }]}>
-                                Автоматически выбирать лучшую модель для ваших запросов
-                            </Text>
-                        </View>
-                        <Switch
-                            value={isAutoMagicEnabled}
-                            onValueChange={toggleAutoMagic}
-                            trackColor={{ false: theme.inputBackground, true: theme.button }}
-                            thumbColor={isAutoMagicEnabled ? '#fff' : '#f4f3f4'}
-                        />
-                    </View>
-                </View>
-
-                {/* Portal Appearance Section */}
+                {/* Portal Background Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: vTheme.colors.divider }]}>
-                    <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Вид портала</Text>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={styles.sectionToggleHeader}
+                        onPress={() => togglePanel('background')}
+                    >
+                        <View style={styles.sectionToggleTextWrap}>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Фон портала</Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>Выберите стиль фона и настройте автосмену</Text>
+                        </View>
+                        <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
+                            {expandedPanels.background ? '▾' : '▸'}
+                        </Text>
+                    </TouchableOpacity>
 
-                    <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary }]}>Цвета</Text>
+                    {expandedPanels.background && (
+                        <>
+                    <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Свой фон</Text>
+                    <View style={styles.imageRow}>
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            style={[
+                                styles.imagePickerBtn,
+                                { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }
+                            ]}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                handlePickImage();
+                                setIsSlideshowEnabled(false);
+                            }}
+                        >
+                            <ImageIcon size={24} color={vTheme.colors.primary} />
+                            <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>Выбрать из галереи</Text>
+                        </TouchableOpacity>
+
+                        {portalBackgroundType === 'image' && !isSlideshowEnabled && (
+                            <View style={styles.previewContainer}>
+                                <RNImage source={{ uri: portalBackground }} style={styles.imagePreview} />
+                                <View style={styles.checkOverlay}>
+                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Цвета</Text>
                     <View style={styles.presetsGrid}>
-                        {PRESET_COLORS.map(color => (
+                        {PRESET_COLORS.map((color) => (
                             <TouchableOpacity
                                 key={color}
+                                activeOpacity={0.88}
                                 style={[
                                     styles.presetItem,
                                     { backgroundColor: color, borderColor: vTheme.colors.divider },
                                     portalBackground === color && styles.selectedPreset
                                 ]}
-                                onPress={() => setPortalBackground(color, 'color')}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    setPortalBackground(color, 'color');
+                                    setIsSlideshowEnabled(false);
+                                }}
                             />
                         ))}
                     </View>
 
-                    <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary, marginTop: 15 }]}>Градиенты</Text>
+                    <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>Градиенты</Text>
                     <View style={styles.presetsGrid}>
-                        {PRESET_GRADIENTS.map(grad => (
+                        {PRESET_GRADIENTS.map((grad) => (
                             <TouchableOpacity
                                 key={grad}
-                                onPress={() => setPortalBackground(grad, 'gradient')}
+                                activeOpacity={0.88}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    setPortalBackground(grad, 'gradient');
+                                    setIsSlideshowEnabled(false);
+                                }}
                                 style={[
                                     styles.presetItem,
                                     portalBackground === grad && styles.selectedPreset
@@ -361,186 +569,230 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         ))}
                     </View>
 
-                    <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary, marginTop: 15 }]}>Свой фон</Text>
-                    <View style={styles.imageRow}>
-                        <TouchableOpacity
-                            style={[
-                                styles.imagePickerBtn,
-                                { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }
-                            ]}
-                            onPress={handlePickImage}
-                        >
-                            <ImageIcon size={24} color={vTheme.colors.primary} />
-                            <Text style={[styles.imagePickerText, { color: vTheme.colors.text }]}>Выбрать из галереи</Text>
-                        </TouchableOpacity>
+                    <View style={[styles.innerDivider, { backgroundColor: vTheme.colors.divider }]} />
 
-                        {portalBackgroundType === 'image' && (
-                            <View style={styles.previewContainer}>
-                                <RNImage source={{ uri: portalBackground }} style={styles.imagePreview} />
-                                <View style={styles.checkOverlay}>
-                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
-                                </View>
-                            </View>
-                        )}
+                    <View style={styles.slideshowToggle}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.subSectionTitle, { color: vTheme.colors.text }]}>Автосмена обоев</Text>
+                            <Text style={[styles.slideshowSub, { color: vTheme.colors.textSecondary }]}>
+                                {isSlideshowEnabled
+                                    ? `Меняются каждые ${slideshowIntervalLabel}`
+                                    : 'Выключена'}
+                            </Text>
+                        </View>
+                        <Switch
+                            value={isSlideshowEnabled}
+                            onValueChange={(val) => {
+                                triggerTapFeedback();
+                                setIsSlideshowEnabled(val);
+                            }}
+                            trackColor={{ false: vTheme.colors.backgroundSecondary, true: colors.accent }}
+                            thumbColor={isSlideshowEnabled ? '#fff' : '#f4f3f4'}
+                        />
                     </View>
+
+                    {isSlideshowEnabled && (
+                        <View style={styles.intervalSection}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                <Clock size={14} color={vTheme.colors.textSecondary} />
+                                <Text style={[styles.subLabel, { color: vTheme.colors.textSecondary, marginBottom: 0 }]}>Интервал смены</Text>
+                            </View>
+                            <View style={styles.sizeOptions}>
+                                {SLIDESHOW_INTERVALS.map(item => (
+                                    <TouchableOpacity
+                                        key={item.value}
+                                        activeOpacity={0.88}
+                                        style={[
+                                            styles.sizeBtn,
+                                            {
+                                                backgroundColor: slideshowInterval === item.value ? colors.accent : vTheme.colors.backgroundSecondary,
+                                                borderColor: slideshowInterval === item.value ? colors.accent : vTheme.colors.divider
+                                            }
+                                        ]}
+                                        onPress={() => {
+                                            triggerTapFeedback();
+                                            setSlideshowInterval(item.value);
+                                        }}
+                                    >
+                                        <Text style={{ color: slideshowInterval === item.value ? '#fff' : vTheme.colors.text, fontWeight: '500' }}>
+                                            {item.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
+                    <Text style={[styles.subSectionTitle, styles.subSectionSpacing, { color: vTheme.colors.text }]}>
+                        Обои в ротации ({wallpaperSlides.length})
+                    </Text>
+                    <View style={styles.wallpapersGrid}>
+                        {wallpaperSlides.map((uri, idx) => (
+                            <View key={`slide-${idx}`} style={styles.wallpaperSlideContainer}>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.wallpaperSlide,
+                                        { borderColor: portalBackground === uri ? '#FF9933' : vTheme.colors.divider },
+                                    ]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        setPortalBackground(uri, 'image');
+                                    }}
+                                >
+                                    <RNImage source={{ uri }} style={styles.wallpaperImage} />
+                                    {portalBackground === uri && (
+                                        <View style={styles.wallpaperActiveOverlay}>
+                                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>✓</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={0.7}
+                                    style={[styles.wallpaperDeleteBtn, { backgroundColor: 'rgba(239,68,68,0.9)' }]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        handleRemoveSlide(uri);
+                                    }}
+                                >
+                                    <Trash2 size={12} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            style={[
+                                styles.wallpaperSlide,
+                                styles.wallpaperAddBtn,
+                                {
+                                    borderColor: vTheme.colors.divider,
+                                    backgroundColor: vTheme.colors.backgroundSecondary,
+                                }
+                            ]}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                handleAddSlideFromGallery();
+                            }}
+                        >
+                            <Plus size={24} color={colors.accent} />
+                            <Text style={[styles.addSlideText, { color: vTheme.colors.textSecondary }]}>Добавить</Text>
+                        </TouchableOpacity>
+                    </View>
+                        </>
+                    )}
                 </View>
 
-                {/* Language Settings Section */}
+                {/* AI Settings */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.language')}</Text>
-                    <View style={styles.sizeOptions}>
-                        <TouchableOpacity
-                            style={[
-                                styles.sizeBtn,
-                                {
-                                    backgroundColor: i18n.language === 'ru' ? theme.button : theme.inputBackground,
-                                    borderColor: theme.borderColor
-                                }
-                            ]}
-                            onPress={() => i18n.changeLanguage('ru')}
-                        >
-                            <Text style={{ color: i18n.language === 'ru' ? theme.buttonText : theme.text }}>Русский</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[
-                                styles.sizeBtn,
-                                {
-                                    backgroundColor: i18n.language === 'en' ? theme.button : theme.inputBackground,
-                                    borderColor: theme.borderColor
-                                }
-                            ]}
-                            onPress={() => i18n.changeLanguage('en')}
-                        >
-                            <Text style={{ color: i18n.language === 'en' ? theme.buttonText : theme.text }}>English</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={styles.sectionToggleHeader}
+                        onPress={() => togglePanel('ai')}
+                    >
+                        <View style={styles.sectionToggleTextWrap}>
+                            <Text style={[styles.sectionTitle, { color: theme.text }]}>AI настройки</Text>
+                            <Text style={[styles.sectionHint, { color: theme.subText }]}>Поведение и автоподбор моделей</Text>
+                        </View>
+                        <Text style={[styles.sectionToggleIcon, { color: theme.subText }]}>
+                            {expandedPanels.ai ? '▾' : '▸'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {expandedPanels.ai && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={styles.actionContent}>
+                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 5 }]}>Auto-Magic</Text>
+                            <Text style={[styles.subLabel, { color: theme.subText, marginBottom: 0 }]}>
+                                Автоматически выбирать лучшую модель для ваших запросов
+                            </Text>
+                        </View>
+                        <Switch
+                            value={isAutoMagicEnabled}
+                            onValueChange={toggleAutoMagic}
+                            trackColor={{ false: theme.inputBackground, true: theme.button }}
+                            thumbColor={isAutoMagicEnabled ? '#fff' : '#f4f3f4'}
+                        />
+                        </View>
+                    )}
                 </View>
 
                 {/* Location Cache Section */}
                 <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.location')}</Text>
-                    <Text style={[styles.subLabel, { color: theme.subText }]}>
-                        {t('settings.locationCacheDescription')}
-                    </Text>
                     <TouchableOpacity
-                        style={[
-                            styles.sizeBtn,
-                            {
-                                backgroundColor: theme.button,
-                                borderColor: theme.button,
-                                marginTop: 10
-                            }
-                        ]}
-                        onPress={async () => {
-                            await refreshLocationData();
-                            Alert.alert(
-                                t('settings.locationCacheCleared'),
-                                t('settings.locationCacheClearedMsg'),
-                                [{ text: t('common.ok') }]
-                            );
-                        }}
+                        activeOpacity={0.88}
+                        style={styles.sectionToggleHeader}
+                        onPress={() => togglePanel('location')}
                     >
-                        <Text style={{ color: theme.buttonText, fontWeight: '500' }}>{t('settings.clearLocationCache')}</Text>
+                        <View style={styles.sectionToggleTextWrap}>
+                            <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.location')}</Text>
+                            <Text style={[styles.sectionHint, { color: theme.subText }]}>
+                                {t('settings.locationCacheDescription')}
+                            </Text>
+                        </View>
+                        <Text style={[styles.sectionToggleIcon, { color: theme.subText }]}>
+                            {expandedPanels.location ? '▾' : '▸'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {expandedPanels.location && (
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            style={[
+                                styles.sizeBtn,
+                                {
+                                    backgroundColor: colors.accent,
+                                    borderColor: colors.accent,
+                                    marginTop: 10
+                                }
+                            ]}
+                            onPress={async () => {
+                                await refreshLocationData();
+                                Alert.alert(
+                                    t('settings.locationCacheCleared'),
+                                    t('settings.locationCacheClearedMsg'),
+                                    [{ text: t('common.ok') }]
+                                );
+                            }}
+                        >
+                            <Text style={{ color: theme.buttonText, fontWeight: '500' }}>{t('settings.clearLocationCache')}</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: theme.borderColor }]}>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={styles.sectionToggleHeader}
+                        onPress={() => togglePanel('models')}
+                    >
+                        <View style={styles.sectionToggleTextWrap}>
+                            <Text style={[styles.sectionTitle, { color: theme.text }]}>Модели AI</Text>
+                            <Text style={[styles.sectionHint, { color: theme.subText }]}>Выбор модели по категориям задач</Text>
+                        </View>
+                        <Text style={[styles.sectionToggleIcon, { color: theme.subText }]}>
+                            {expandedPanels.models ? '▾' : '▸'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* AI Models Section */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.aiModels')}</Text>
-
-
-                    {/* Filters */}
-                    <View style={styles.filtersContainer}>
-                        {Object.keys(activeFilters).map((key) => {
-                            const filterKey = key as keyof typeof activeFilters;
-                            const isActive = activeFilters[filterKey];
-                            return (
-                                <TouchableOpacity
-                                    key={key}
-                                    style={[
-                                        styles.filterBtn,
-                                        {
-                                            backgroundColor: isActive ? theme.button : theme.inputBackground,
-                                            borderColor: theme.borderColor
-                                        }
-                                    ]}
-                                    onPress={() => toggleFilter(filterKey)}
-                                >
-                                    <Text style={{ color: isActive ? theme.buttonText : theme.text, fontSize: 12 }}>
-                                        {t(`settings.${key}` as any)}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-
-                    {loadingModels ? (
-                        <ActivityIndicator color={theme.accent} style={{ marginTop: 20 }} />
-                    ) : !anyFilterActive ? (
-                        <View style={styles.summaryContainer}>
-                            <Text style={[styles.summaryText, { color: theme.text }]}>
-                                {t('settings.availableModels')}: {models.length}
-                            </Text>
-                            <Text style={[styles.hintText, { color: theme.subText }]}>
-                                {t('settings.selectCategoryHint')}
-                            </Text>
-                        </View>
-                    ) : (
-                        ['text', 'image', 'audio', 'video', 'other'].map(category => {
-                            if (category !== 'other' && !activeFilters[category as keyof typeof activeFilters]) return null;
-                            if (category === 'other') return null;
-
-                            const categoryModels = models.filter((m: any) => {
-                                if (m.capabilities) {
-                                    if (category === 'text') return m.capabilities.text;
-                                    if (category === 'image') return m.capabilities.image;
-                                    if (category === 'audio') return m.capabilities.audio;
-                                    if (category === 'video') return m.capabilities.video;
-                                }
-                                if (category === 'text') return !m.category || m.category === 'text' || m.id.includes('gpt') || m.id.includes('llama') || m.id.includes('claude');
-                                if (category === 'image') return m.category === 'image' || m.id.includes('dall') || m.id.includes('midjourney') || m.id.includes('stable');
-                                if (category === 'audio') return m.category === 'audio' || m.id.includes('whisper') || m.id.includes('tts');
-                                if (category === 'video') return m.category === 'video';
-                                return m.category === category;
-                            });
-
-                            if (categoryModels.length === 0) return null;
-
-                            const isExpanded = !!expandedSections[category];
-                            return (
-                                <View key={category} style={styles.categoryContainer}>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.categoryHeader,
-                                            {
-                                                borderBottomColor: theme.borderColor,
-                                                backgroundColor: isExpanded ? theme.inputBackground + '40' : 'transparent'
-                                            }
-                                        ]}
-                                        onPress={() => toggleSection(category)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text style={[styles.categoryTitle, { color: theme.text }]}>
-                                            {t(`settings.${category}` as any)} ({categoryModels.length})
-                                        </Text>
-                                        <Text style={{ color: theme.text, fontSize: 14 }}>
-                                            {isExpanded ? '▼' : '▶'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    {isExpanded && (
-                                        <View style={styles.modelList}>
-                                            {categoryModels.map(renderModelItem)}
-                                        </View>
-                                    )}
-                                </View>
-                            );
-                        })
-                    )}
-                </View>
+                {expandedPanels.models && (
+                    <AIModelsSection
+                        models={models as AIModel[]}
+                        loadingModels={loadingModels}
+                        currentModel={currentModel}
+                        onSelectModel={selectModel}
+                        theme={theme}
+                        colors={colors}
+                        t={t}
+                        onTap={triggerTapFeedback}
+                    />
+                )}
 
                 {/* Logout Section */}
                 <View style={[styles.section, { borderBottomWidth: 0, marginTop: 20, marginBottom: 40 }]}>
                     <TouchableOpacity
+                        activeOpacity={0.88}
                         style={[
                             styles.sizeBtn,
                             {
@@ -550,7 +802,10 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 paddingVertical: 15
                             }
                         ]}
-                        onPress={logout}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            logout();
+                        }}
                     >
                         <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>
                             {t('auth.logout') || 'Logout'}
@@ -575,6 +830,33 @@ const styles = StyleSheet.create({
     backButton: { padding: 8 },
     backText: { fontSize: 18, fontWeight: 'bold' },
     content: { flex: 1 },
+    heroCard: {
+        marginHorizontal: 16,
+        marginTop: 14,
+        marginBottom: 8,
+        borderRadius: 16,
+        borderWidth: 1,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    heroIcon: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    heroTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+    },
+    heroSub: {
+        fontSize: 12,
+        marginTop: 2,
+    },
     section: {
         padding: 20,
         borderBottomWidth: 1,
@@ -584,6 +866,37 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 15,
+    },
+    sectionHint: {
+        fontSize: 13,
+        marginTop: -8,
+        marginBottom: 12,
+    },
+    sectionToggleHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    sectionToggleTextWrap: {
+        flex: 1,
+        paddingRight: 10,
+    },
+    sectionToggleIcon: {
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    subSectionTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 10,
+    },
+    subSectionSpacing: {
+        marginTop: 16,
+    },
+    innerDivider: {
+        height: 1,
+        marginTop: 18,
+        marginBottom: 14,
     },
     subLabel: {
         fontSize: 14,
@@ -595,74 +908,13 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
     },
     sizeBtn: {
-        paddingVertical: 8,
+        minHeight: 44,
+        paddingVertical: 10,
         paddingHorizontal: 15,
         borderRadius: 20,
         borderWidth: 1,
-    },
-    filtersContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        marginBottom: 15,
-    },
-    filterBtn: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 15,
-        borderWidth: 1,
-    },
-    categoryContainer: {
-        marginBottom: 10,
-    },
-    categoryHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 15,
-        paddingHorizontal: 12,
-        borderRadius: 8,
-        borderBottomWidth: 0.5,
-    },
-    categoryTitle: {
-        fontSize: 17,
-        fontWeight: 'bold',
-    },
-    modelList: {
-        paddingLeft: 10,
-    },
-    modelItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 10,
-        borderBottomWidth: 0.5,
-    },
-    modelName: {
-        fontSize: 15,
-        fontWeight: '500',
-    },
-    modelProvider: {
-        fontSize: 12,
-    },
-    summaryContainer: {
-        paddingVertical: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.02)',
-        borderRadius: 12,
-        marginTop: 10,
-    },
-    summaryText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 8,
-    },
-    hintText: {
-        fontSize: 14,
-        textAlign: 'center',
-        paddingHorizontal: 20,
     },
     actionButton: {
         flexDirection: 'row',
@@ -755,6 +1007,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 16,
         marginBottom: 12,
+        borderWidth: 1,
     },
     walletMain: {
         flexDirection: 'row',
@@ -839,5 +1092,80 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: 'bold',
         color: '#000',
+    },
+    // Wallpaper slideshow styles
+    slideshowToggle: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    slideshowLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 3,
+    },
+    slideshowSub: {
+        fontSize: 13,
+    },
+    intervalSection: {
+        marginTop: 10,
+        marginBottom: 5,
+    },
+    wallpapersGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 8,
+    },
+    wallpaperSlideContainer: {
+        position: 'relative',
+    },
+    wallpaperSlide: {
+        width: 80,
+        height: 120,
+        borderRadius: 12,
+        borderWidth: 2,
+        overflow: 'hidden',
+    },
+    wallpaperImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    wallpaperActiveOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(255,153,51,0.35)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    wallpaperDeleteBtn: {
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+        elevation: 3,
+    },
+    wallpaperAddBtn: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderStyle: 'dashed',
+        gap: 6,
+    },
+    addSlideText: {
+        fontSize: 11,
+        fontWeight: '500',
     },
 });

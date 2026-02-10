@@ -18,6 +18,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { BookOpen, ChevronRight } from 'lucide-react-native';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { usePressFeedback } from '../../../hooks/usePressFeedback';
 
 type CourseDetailsRouteProp = RouteProp<RootStackParamList, 'CourseDetails'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'CourseDetails'>;
@@ -30,6 +31,7 @@ export const CourseDetailsScreen: React.FC = () => {
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
+    const triggerTapFeedback = usePressFeedback();
 
     const [course, setCourse] = useState<EducationCourse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -91,8 +93,12 @@ export const CourseDetailsScreen: React.FC = () => {
 
                     {scriptureBook && (
                         <TouchableOpacity
-                            style={[styles.bookButton, { backgroundColor: vTheme.colors.primary + '10', borderColor: vTheme.colors.primary + '30' }]}
-                            onPress={handleOpenBook}
+                            activeOpacity={0.88}
+                            style={[styles.bookButton, { backgroundColor: roleColors.accentSoft, borderColor: roleColors.border }]}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                handleOpenBook();
+                            }}
                         >
                             <BookOpen size={20} color={roleColors.accent} />
                             <Text style={[styles.bookButtonText, { color: roleColors.accent }]}>Читать оригинал</Text>
@@ -105,8 +111,12 @@ export const CourseDetailsScreen: React.FC = () => {
                     {course.modules?.map((module, index) => (
                         <TouchableOpacity
                             key={module.ID}
-                            style={[styles.moduleCard, { backgroundColor: vTheme.colors.surface, borderColor: vTheme.colors.divider }]}
-                            onPress={() => navigation.navigate('ExamTrainer', { moduleId: module.ID, title: module.title })}
+                            activeOpacity={0.88}
+                            style={[styles.moduleCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}
+                            onPress={() => {
+                                triggerTapFeedback();
+                                navigation.navigate('ExamTrainer', { moduleId: module.ID, title: module.title });
+                            }}
                         >
                             <View style={[styles.moduleNumberContainer, { backgroundColor: roleColors.accent }]}>
                                 <Text style={styles.moduleNumber}>{index + 1}</Text>
@@ -140,11 +150,7 @@ const styles = StyleSheet.create({
         padding: 20,
         borderBottomLeftRadius: 30,
         borderBottomRightRadius: 30,
-        shadowColor: 'rgba(0,0,0,1)',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
-        elevation: 4,
+        borderWidth: 1,
     },
     orgBadge: {
         paddingHorizontal: 10,
@@ -156,8 +162,8 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     title: {
-        fontSize: 24,
-        fontWeight: 'bold',
+        fontSize: 28,
+        fontWeight: '800',
         marginBottom: 15,
         fontFamily: 'Playfair Display',
     },
@@ -169,8 +175,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 20,
+        minHeight: 44,
         padding: 12,
-        borderRadius: 12,
+        borderRadius: 14,
         borderWidth: 1,
         gap: 10,
     },
@@ -183,14 +190,14 @@ const styles = StyleSheet.create({
         marginTop: 10,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 20,
+        fontWeight: '800',
         marginBottom: 15,
     },
     moduleCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 15,
+        borderRadius: 16,
         padding: 15,
         marginBottom: 12,
         borderWidth: 1,

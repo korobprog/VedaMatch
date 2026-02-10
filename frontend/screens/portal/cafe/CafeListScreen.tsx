@@ -10,6 +10,8 @@ import {
     ActivityIndicator,
     RefreshControl,
     Dimensions,
+    ImageBackground,
+    Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -227,31 +229,35 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
     const renderHeader = () => (
         <View style={styles.header}>
-            <View style={styles.headerTop}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => onBack ? onBack() : navigation.goBack()}
-                >
-                    <ArrowLeft size={22} color={colors.textPrimary} />
-                </TouchableOpacity>
-
-                <View style={styles.headerTitleContainer}>
-                    <Text style={styles.headerTitle} numberOfLines={1}>
-                        {t('cafe.list.title')}
-                    </Text>
-                    <Text style={styles.headerSubtitle}>{t('cafe.list.subtitle')}</Text>
-                </View>
-
-                <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
-                    <LinearGradient
-                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
-                        style={[styles.walletInner, { borderColor: colors.accentSoft }]}
+            <ImageBackground
+                source={require('../../../assets/cafe_banner_bg.png')}
+                style={styles.bannerHeader}
+                imageStyle={styles.bannerImage}
+            >
+                <View style={styles.bannerOverlay} />
+                <View style={styles.headerTop}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => onBack ? onBack() : navigation.goBack()}
                     >
-                        <Wallet size={14} color={colors.accent} />
-                        <Text style={[styles.walletBalance, { color: colors.accent }]}>{formattedBalance}</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                        <ArrowLeft size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={[styles.headerTitle, { color: '#FFFFFF' }]} numberOfLines={1}>
+                            {t('cafe.list.title')}
+                        </Text>
+                        <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>{t('cafe.list.subtitle')}</Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
+                        <View style={styles.walletInnerGlass}>
+                            <Wallet size={14} color="#FFFFFF" />
+                            <Text style={styles.walletBalanceGlass}>{formattedBalance}</Text>
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            </ImageBackground>
 
             <View style={styles.featuredActions}>
                 <View style={styles.actionRow}>
@@ -348,7 +354,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             colors={roleTheme.gradient}
             style={styles.gradient}
         >
-            <SafeAreaView style={styles.container} edges={['top']}>
+            <View style={styles.container}>
                 {loading && cafes.length === 0 ? (
                     <View style={styles.centerContainer}>
                         <ActivityIndicator size="large" color={colors.accent} />
@@ -390,7 +396,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         }
                     />
                 )}
-            </SafeAreaView>
+            </View>
         </LinearGradient>
     );
 };
@@ -408,42 +414,77 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         alignItems: 'center',
     },
     header: {
-        paddingTop: 10,
+        marginBottom: 24,
+    },
+    bannerHeader: {
+        width: '100%',
+        height: 240,
+        justifyContent: 'center',
+        paddingTop: Platform.OS === 'ios' ? 44 : 20,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        overflow: 'hidden',
+    },
+    bannerImage: {
+        resizeMode: 'cover',
+    },
+    bannerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
-        marginBottom: 24,
     },
     backButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: colors.surface,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        color: colors.textPrimary,
-        fontSize: 24,
-        fontWeight: '800',
+        fontSize: 28,
+        fontWeight: '900',
         fontFamily: 'Cinzel-Bold',
-        letterSpacing: 1,
+        letterSpacing: 1.5,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 10,
     },
     headerSubtitle: {
-        color: colors.textSecondary,
-        fontSize: 10,
-        fontWeight: '600',
+        fontSize: 12,
+        fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 2,
-        marginTop: 2,
+        letterSpacing: 3,
+        marginTop: 4,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 5,
+    },
+    walletInnerGlass: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        gap: 6,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderRadius: 20,
+    },
+    walletBalanceGlass: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '800',
     },
     walletButton: {
         borderRadius: 20,

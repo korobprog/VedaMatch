@@ -1,10 +1,11 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { modelsConfig } from '../config/models.config';
 import { useUser } from './UserContext';
-import { Alert, useColorScheme, Image } from 'react-native';
+import { Alert, useColorScheme, Image, AppState } from 'react-native';
 import { COLORS } from '../components/chat/ChatConstants';
 import { VedicLightTheme, VedicDarkTheme } from '../theme/ModernVedicTheme';
+import { getPresetUris, DEFAULT_SLIDESHOW_INTERVAL } from '../config/wallpaperPresets';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -46,6 +47,16 @@ interface SettingsContextType {
     portalBackgroundType: 'color' | 'gradient' | 'image';
     setPortalBackground: (bg: string, type: 'color' | 'gradient' | 'image') => Promise<void>;
     isSettingsLoaded: boolean;
+    // Wallpaper slideshow
+    wallpaperSlides: string[];
+    isSlideshowEnabled: boolean;
+    slideshowInterval: number;
+    currentSlideIndex: number;
+    setIsSlideshowEnabled: (enabled: boolean) => Promise<void>;
+    setSlideshowInterval: (seconds: number) => Promise<void>;
+    addWallpaperSlide: (uri: string) => Promise<void>;
+    removeWallpaperSlide: (uri: string) => Promise<void>;
+    activeWallpaper: string;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -68,6 +79,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [portalBackground, setPortalBackgroundState] = useState<string>(defaultBgImage);
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
+
+    // Wallpaper slideshow state
+    const [wallpaperSlides, setWallpaperSlides] = useState<string[]>(getPresetUris());
+    const [isSlideshowEnabled, setIsSlideshowEnabledState] = useState<boolean>(true);
+    const [slideshowInterval, setSlideshowIntervalState] = useState<number>(DEFAULT_SLIDESHOW_INTERVAL);
+    const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
+    const slideshowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const colorScheme = useColorScheme();
 
@@ -169,14 +187,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 if (savedBg && savedBg !== 'undefined' && savedBg !== 'null') {
                     setPortalBackgroundState(savedBg);
                 } else {
-                    // Fallback to default if nothing saved
                     setPortalBackgroundState(defaultBgImage);
                 }
 
                 if (savedBgType === 'color' || savedBgType === 'gradient' || savedBgType === 'image') {
                     setPortalBackgroundType(savedBgType as any);
                 } else if (!savedBgType) {
-                    // Default to image if nothing saved
                     setPortalBackgroundType('image');
                 }
 
@@ -184,8 +200,35 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 if (savedAssistant === 'feather' || savedAssistant === 'smiley' || savedAssistant === 'feather2') {
                     setAssistantTypeState(savedAssistant as any);
                 } else if (savedAssistant === 'nanobanano') {
-                    // Migration fallback
                     setAssistantTypeState('feather2');
+                }
+
+                // Wallpaper slideshow settings
+                const savedSlides = await AsyncStorage.getItem('wallpaper_slides');
+                if (savedSlides) {
+                    try {
+                        const parsed = JSON.parse(savedSlides);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setWallpaperSlides(parsed);
+                        }
+                    } catch { /* keep defaults */ }
+                }
+
+                const savedSlideshowEnabled = await AsyncStorage.getItem('slideshow_enabled');
+                if (savedSlideshowEnabled !== null) {
+                    try {
+                        setIsSlideshowEnabledState(JSON.parse(savedSlideshowEnabled));
+                    } catch { /* keep default */ }
+                }
+
+                const savedInterval = await AsyncStorage.getItem('slideshow_interval');
+                if (savedInterval !== null) {
+                    try {
+                        const val = JSON.parse(savedInterval);
+                        if (typeof val === 'number' && val > 0) {
+                            setSlideshowIntervalState(val);
+                        }
+                    } catch { /* keep default */ }
                 }
             } catch (e) {
                 console.error('Failed to load menu settings', e);
@@ -231,6 +274,89 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    // Wallpaper slideshow functions
+    const setIsSlideshowEnabled = useCallback(async (enabled: boolean) => {
+        setIsSlideshowEnabledState(enabled);
+        if (enabled && wallpaperSlides.length > 0) {
+            setPortalBackgroundState(wallpaperSlides[0]);
+            setPortalBackgroundType('image');
+            setCurrentSlideIndex(0);
+        }
+        try {
+            await AsyncStorage.setItem('slideshow_enabled', JSON.stringify(enabled));
+        } catch (e) {
+            console.error('Failed to save slideshow setting', e);
+        }
+    }, [wallpaperSlides]);
+
+    const setSlideshowInterval = useCallback(async (seconds: number) => {
+        setSlideshowIntervalState(seconds);
+        try {
+            await AsyncStorage.setItem('slideshow_interval', JSON.stringify(seconds));
+        } catch (e) {
+            console.error('Failed to save slideshow interval', e);
+        }
+    }, []);
+
+    const addWallpaperSlide = useCallback(async (uri: string) => {
+        setWallpaperSlides(prev => {
+            if (prev.includes(uri)) return prev;
+            const updated = [...prev, uri];
+            AsyncStorage.setItem('wallpaper_slides', JSON.stringify(updated)).catch(console.error);
+            return updated;
+        });
+    }, []);
+
+    const removeWallpaperSlide = useCallback(async (uri: string) => {
+        setWallpaperSlides(prev => {
+            const updated = prev.filter(s => s !== uri);
+            AsyncStorage.setItem('wallpaper_slides', JSON.stringify(updated)).catch(console.error);
+            return updated;
+        });
+    }, []);
+
+    // Slideshow timer effect
+    useEffect(() => {
+        if (slideshowTimerRef.current) {
+            clearInterval(slideshowTimerRef.current);
+            slideshowTimerRef.current = null;
+        }
+
+        if (!isSlideshowEnabled || wallpaperSlides.length < 2) return;
+
+        slideshowTimerRef.current = setInterval(() => {
+            setCurrentSlideIndex(prev => {
+                const nextIdx = (prev + 1) % wallpaperSlides.length;
+                setPortalBackgroundState(wallpaperSlides[nextIdx]);
+                setPortalBackgroundType('image');
+                return nextIdx;
+            });
+        }, slideshowInterval * 1000);
+
+        return () => {
+            if (slideshowTimerRef.current) {
+                clearInterval(slideshowTimerRef.current);
+            }
+        };
+    }, [isSlideshowEnabled, wallpaperSlides, slideshowInterval]);
+
+    // Pause slideshow when app is in background
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (state) => {
+            if (state !== 'active' && slideshowTimerRef.current) {
+                clearInterval(slideshowTimerRef.current);
+                slideshowTimerRef.current = null;
+            }
+            // Timer restarts via the dependency effect above on next render
+        });
+        return () => sub.remove();
+    }, []);
+
+    // Derived: the currently displayed wallpaper (slideshow or manual)
+    const activeWallpaper = isSlideshowEnabled && wallpaperSlides.length > 0
+        ? wallpaperSlides[currentSlideIndex % wallpaperSlides.length]
+        : portalBackground;
+
     return (
         <SettingsContext.Provider value={{
             models,
@@ -261,6 +387,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             assistantType,
             setAssistantType,
             isSettingsLoaded,
+            wallpaperSlides,
+            isSlideshowEnabled,
+            slideshowInterval,
+            currentSlideIndex,
+            setIsSlideshowEnabled,
+            setSlideshowInterval,
+            addWallpaperSlide,
+            removeWallpaperSlide,
+            activeWallpaper,
         }}>
             {children}
         </SettingsContext.Provider>

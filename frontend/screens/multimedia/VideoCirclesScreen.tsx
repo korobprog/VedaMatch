@@ -2,9 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
   FlatList,
   Image,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -14,8 +19,22 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Heart, MessageSquare, Plus, Send, SlidersHorizontal, Sparkles } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Clock,
+  Heart,
+  MapPin,
+  MessageSquare,
+  Play,
+  Plus,
+  Send,
+  SlidersHorizontal,
+  Sparkles,
+  Tag,
+  Video,
+} from 'lucide-react-native';
 import { Asset, launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import LinearGradient from 'react-native-linear-gradient';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { useUser } from '../../context/UserContext';
@@ -25,6 +44,15 @@ import { DATING_TRADITIONS } from '../../constants/DatingConstants';
 
 type PortalRoleType = 'user' | 'in_goodness' | 'yogi' | 'devotee';
 type VideoCirclesRouteParams = RootStackParamList['VideoCirclesScreen'];
+
+const ROLE_DOT_COLORS: Record<PortalRoleType, string> = {
+  user: '#3B82F6',
+  in_goodness: '#22C55E',
+  yogi: '#F59E0B',
+  devotee: '#EF4444',
+};
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 
 
@@ -73,6 +101,9 @@ export const VideoCirclesScreen: React.FC = () => {
   const [roleScope, setRoleScope] = useState<PortalRoleType[]>([]);
   const [feedScope, setFeedScope] = useState<'all' | 'friends'>(routeParams?.scope === 'friends' ? 'friends' : 'all');
   const isTariffAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+
+  const fabAnim = useRef(new Animated.Value(1)).current;
+  const lastScrollY = useRef(0);
 
   const ROLE_FILTER_OPTIONS = useMemo(() => [
     { value: 'user' as PortalRoleType, label: t('portal.roles.user') },
@@ -160,6 +191,18 @@ export const VideoCirclesScreen: React.FC = () => {
     setRefreshing(true);
     loadCircles();
   };
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+    const goingDown = currentY > lastScrollY.current && currentY > 60;
+    lastScrollY.current = currentY;
+
+    Animated.timing(fabAnim, {
+      toValue: goingDown ? 0 : 1,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [fabAnim]);
 
   const openVideoPicker = async (source: 'camera' | 'gallery') => {
     console.log('[VideoCircles] openVideoPicker called with source:', source);
@@ -410,68 +453,84 @@ export const VideoCirclesScreen: React.FC = () => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <ArrowLeft size={22} color={roleColors.textPrimary} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: roleColors.textPrimary }]}>{t('videoCircles.title')}</Text>
+          <View style={styles.titleRow}>
+            <Video size={20} color={roleColors.accent} />
+            <Text style={[styles.title, { color: roleColors.textPrimary }]}>{t('videoCircles.title')}</Text>
+          </View>
           <View style={styles.headerActions}>
             {isTariffAdmin && (
               <TouchableOpacity onPress={() => navigation.navigate('VideoTariffsAdminScreen')} style={styles.myBtn}>
-                <Text style={{ color: roleColors.textPrimary, fontWeight: '700', fontSize: 11 }}>{t('videoCircles.tariffs')}</Text>
+                <Text style={{ color: roleColors.accent, fontWeight: '700', fontSize: 11 }}>{t('videoCircles.tariffs')}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => navigation.navigate('MyVideoCirclesScreen')} style={styles.myBtn}>
-              <Text style={{ color: roleColors.textPrimary, fontWeight: '700', fontSize: 12 }}>{t('videoCircles.myCircles')}</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('MyVideoCirclesScreen')}
+              style={[styles.myBtn, { backgroundColor: roleColors.accentSoft }]}
+            >
+              <Text style={{ color: roleColors.accent, fontWeight: '700', fontSize: 12 }}>{t('videoCircles.myCircles')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={openPublishSourceSheet} style={styles.backButton}>
-              <Plus size={22} color={roleColors.textPrimary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setFiltersOpen(true)} style={styles.backButton}>
-              <SlidersHorizontal size={20} color={roleColors.textPrimary} />
+            <TouchableOpacity onPress={() => setFiltersOpen(true)} style={styles.iconBtn}>
+              <SlidersHorizontal size={18} color={roleColors.textSecondary} />
             </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.filterStateRow}>
-          <Text style={[styles.filterStateText, { color: roleColors.textSecondary }]}>
-            {`status=${filterStatus}`}
-          </Text>
-          <Text style={[styles.filterStateText, { color: roleColors.textSecondary }]}>
-            {`scope=${feedScope}`}
-          </Text>
-          {!!filterCity && <Text style={[styles.filterStateText, { color: roleColors.textSecondary }]}>{`city=${filterCity}`}</Text>}
-          {!!filterMatha && <Text style={[styles.filterStateText, { color: roleColors.textSecondary }]}>{`matha=${filterMatha}`}</Text>}
-          {!!filterCategory && <Text style={[styles.filterStateText, { color: roleColors.textSecondary }]}>{`category=${filterCategory}`}</Text>}
-        </View>
+
         <View style={styles.scopeRow}>
-          <TouchableOpacity
-            style={[
-              styles.scopePill,
-              { borderColor: roleColors.border, backgroundColor: feedScope === 'all' ? roleColors.accent : roleColors.surface },
-            ]}
-            onPress={() => setFeedScope('all')}
-          >
-            <Text style={{ color: feedScope === 'all' ? '#fff' : roleColors.textPrimary, fontWeight: '600' }}>Лента</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.scopePill,
-              { borderColor: roleColors.border, backgroundColor: feedScope === 'friends' ? roleColors.accent : roleColors.surface },
-            ]}
-            onPress={() => setFeedScope('friends')}
-          >
-            <Text style={{ color: feedScope === 'friends' ? '#fff' : roleColors.textPrimary, fontWeight: '600' }}>Кружки друзей</Text>
-          </TouchableOpacity>
+          {(['all', 'friends'] as const).map((scope) => {
+            const active = feedScope === scope;
+            return (
+              <TouchableOpacity
+                key={scope}
+                style={[
+                  styles.scopePill,
+                  {
+                    backgroundColor: active ? roleColors.accent : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
+                    borderColor: active ? roleColors.accent : roleColors.border,
+                    ...(active && Platform.OS === 'ios' ? {
+                      shadowColor: roleColors.accent,
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                    } : {}),
+                  },
+                ]}
+                onPress={() => setFeedScope(scope)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.scopePillText, { color: active ? '#fff' : roleColors.textPrimary }]}>
+                  {scope === 'all' ? t('videoCircles.feed') || 'Лента' : t('videoCircles.friendsCircles') || 'Кружки друзей'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
+
         <View style={styles.roleScopeRow}>
           {ROLE_FILTER_OPTIONS.map((option) => {
             const selected = roleScope.includes(option.value);
+            const dotColor = ROLE_DOT_COLORS[option.value];
             return (
               <TouchableOpacity
                 key={option.value}
                 style={[
                   styles.roleScopeChip,
-                  { borderColor: roleColors.border, backgroundColor: selected ? roleColors.accent : roleColors.surface },
+                  {
+                    borderColor: selected ? dotColor : roleColors.border,
+                    backgroundColor: selected
+                      ? (isDarkMode ? `${dotColor}22` : `${dotColor}18`)
+                      : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)'),
+                  },
                 ]}
                 onPress={() => toggleRoleScope(option.value)}
+                activeOpacity={0.7}
               >
-                <Text style={{ color: selected ? '#fff' : roleColors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+                <View style={[styles.roleDot, { backgroundColor: dotColor, opacity: selected ? 1 : 0.4 }]} />
+                <Text style={{
+                  color: selected ? (isDarkMode ? '#fff' : dotColor) : roleColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: selected ? '700' : '500',
+                  letterSpacing: 0.2,
+                }}>
                   {option.label}
                 </Text>
               </TouchableOpacity>
@@ -480,7 +539,7 @@ export const VideoCirclesScreen: React.FC = () => {
         </View>
       </View>
     ),
-    [feedScope, filterCategory, filterCity, filterMatha, filterStatus, isTariffAdmin, navigation, roleColors.accent, roleColors.border, roleColors.surface, roleColors.textPrimary, roleColors.textSecondary, roleScope]
+    [feedScope, isDarkMode, isTariffAdmin, navigation, roleColors, roleScope, t]
   );
 
   if (loading) {
@@ -498,62 +557,160 @@ export const VideoCirclesScreen: React.FC = () => {
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={listHeader}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={roleColors.accent} />}
         ListEmptyComponent={
-          <View style={styles.center}>
-            <Text style={{ color: roleColors.textSecondary }}>{t('videoCircles.noCircles')}</Text>
+          <View style={styles.emptyWrap}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+              <Video size={32} color={roleColors.textSecondary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: roleColors.textPrimary }]}>{t('videoCircles.noCircles')}</Text>
+            <Text style={[styles.emptyHint, { color: roleColors.textSecondary }]}>
+              {t('videoCircles.noCirclesHint') || 'Запишите первый видео-кружок!'}
+            </Text>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+          <View style={[
+            styles.card,
+            {
+              backgroundColor: roleColors.surfaceElevated,
+              borderColor: roleColors.border,
+              ...(Platform.OS === 'ios' ? {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: isDarkMode ? 0.4 : 0.12,
+                shadowRadius: 12,
+              } : { elevation: 6 }),
+            },
+          ]}>
             <View style={styles.mediaWrap}>
               {item.thumbnailUrl ? (
                 <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
               ) : (
-                <View style={[styles.thumb, { backgroundColor: roleColors.surface }]} />
+                <View style={[styles.thumb, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
+                  <Play size={40} color={isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)'} />
+                </View>
               )}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                style={styles.mediaGradient}
+              />
               <View style={styles.topBadges}>
-                <Text style={styles.badge}>60s</Text>
-                <Text style={styles.badge}>{renderTime(item.remainingSec)}</Text>
+                <View style={styles.badgeWrap}>
+                  <Clock size={10} color="#fff" />
+                  <Text style={styles.badge}>60s</Text>
+                </View>
+                <View style={[styles.badgeWrap, styles.timerBadge]}>
+                  <Text style={styles.badge}>{renderTime(item.remainingSec)}</Text>
+                </View>
+              </View>
+              <View style={styles.playOverlay}>
+                <View style={styles.playBtn}>
+                  <Play size={22} color="#fff" fill="#fff" />
+                </View>
               </View>
             </View>
 
-            <View style={styles.metaRow}>
-              {!!item.city && <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.city}</Text>}
-              {!!item.matha && <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.matha}</Text>}
-              {!!item.category && (
-                <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
-                  {t(`videoCircles.categories.${item.category}`)}
-                </Text>
+            <View style={styles.cardBody}>
+              {(!!item.city || !!item.matha || !!item.category) && (
+                <View style={styles.metaRow}>
+                  {!!item.city && (
+                    <View style={[styles.metaPill, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                      <MapPin size={11} color={roleColors.textSecondary} />
+                      <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.city}</Text>
+                    </View>
+                  )}
+                  {!!item.matha && (
+                    <View style={[styles.metaPill, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                      <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.matha}</Text>
+                    </View>
+                  )}
+                  {!!item.category && (
+                    <View style={[styles.metaPill, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                      <Tag size={11} color={roleColors.textSecondary} />
+                      <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
+                        {t(`videoCircles.categories.${item.category}`)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               )}
-            </View>
 
-            <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleInteraction(item, 'like')}>
-                <Heart size={18} color={likedMap[item.id] ? '#ef4444' : roleColors.textPrimary} fill={likedMap[item.id] ? '#ef4444' : 'transparent'} />
-                <Text style={{ color: roleColors.textPrimary }}>{item.likeCount}</Text>
-              </TouchableOpacity>
+              <View style={styles.actionsRow}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => handleInteraction(item, 'like')} activeOpacity={0.7}>
+                  <Heart
+                    size={20}
+                    color={likedMap[item.id] ? '#EF4444' : roleColors.textSecondary}
+                    fill={likedMap[item.id] ? '#EF4444' : 'transparent'}
+                  />
+                  <Text style={[styles.actionCount, { color: likedMap[item.id] ? '#EF4444' : roleColors.textSecondary }]}>
+                    {item.likeCount}
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionBtn} onPress={() => openCommentModal(item)}>
-                <MessageSquare size={18} color={roleColors.textPrimary} />
-                <Text style={{ color: roleColors.textPrimary }}>{item.commentCount}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => openCommentModal(item)} activeOpacity={0.7}>
+                  <MessageSquare size={20} color={roleColors.textSecondary} />
+                  <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.commentCount}</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleChatPress(item)}>
-                <Send size={18} color={roleColors.textPrimary} />
-                <Text style={{ color: roleColors.textPrimary }}>{item.chatCount}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => handleChatPress(item)} activeOpacity={0.7}>
+                  <Send size={19} color={roleColors.textSecondary} />
+                  <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.chatCount}</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.boostBtn, { backgroundColor: roleColors.accent }]} onPress={() => handleBoost(item.id)}>
-                <Sparkles size={15} color="#fff" />
-                <Text style={styles.boostText}>
-                  {premiumPrice !== null ? `Premium ${premiumPrice} LKM` : t('videoCircles.premiumBoost')}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.boostBtn, { backgroundColor: roleColors.accent }]}
+                  onPress={() => handleBoost(item.id)}
+                  activeOpacity={0.8}
+                >
+                  <Sparkles size={14} color="#fff" />
+                  <Text style={styles.boostText}>
+                    {premiumPrice !== null ? `${premiumPrice} LKM` : t('videoCircles.premiumBoost')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
       />
+
+      <Animated.View
+        style={[
+          styles.fab,
+          {
+            opacity: fabAnim,
+            transform: [{
+              translateY: fabAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [100, 0],
+              }),
+            }],
+          },
+        ]}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity
+          onPress={openPublishSourceSheet}
+          activeOpacity={0.85}
+          style={[
+            styles.fabButton,
+            {
+              backgroundColor: roleColors.accent,
+              ...(Platform.OS === 'ios' ? {
+                shadowColor: roleColors.accent,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.4,
+                shadowRadius: 12,
+              } : { elevation: 8 }),
+            },
+          ]}
+        >
+          <Plus size={24} color="#fff" strokeWidth={2.5} />
+        </TouchableOpacity>
+      </Animated.View>
 
       <Modal visible={publishOpen} animationType="slide" transparent onRequestClose={resetPublishForm}>
         <View style={styles.modalOverlay}>
@@ -770,138 +927,307 @@ export const VideoCirclesScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { paddingBottom: 24 },
+  listContent: { paddingBottom: 100 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerWrap: { paddingTop: 52, paddingHorizontal: 16, paddingBottom: 10 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  headerActions: { flexDirection: 'row', alignItems: 'center' },
-  filterStateRow: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  scopeRow: { marginTop: 8, flexDirection: 'row', gap: 8 },
-  scopePill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+
+  // Header Styles
+  headerWrap: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
-  roleScopeRow: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  roleScopeChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  filterStateText: { fontSize: 11 },
-  myBtn: {
-    minWidth: 44,
-    height: 30,
-    borderRadius: 999,
-    paddingHorizontal: 8,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: { fontSize: 20, fontWeight: '700' },
+  myBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Scope & Role Chips
+  scopeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  scopePill: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  scopePillText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  roleScopeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  roleScopeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+  },
+  roleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  // Video Card Styles
   card: {
     marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
+    marginBottom: 20,
+    borderRadius: 24,
     borderWidth: 1,
     overflow: 'hidden',
   },
-  mediaWrap: { height: 210, position: 'relative', backgroundColor: '#111827' },
-  thumb: { width: '100%', height: '100%', resizeMode: 'cover' },
+  mediaWrap: {
+    height: SCREEN_WIDTH * 0.65,
+    position: 'relative',
+    backgroundColor: '#000',
+  },
+  thumb: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mediaGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '50%',
+  },
   topBadges: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: 14,
+    right: 14,
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
+  },
+  badgeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    gap: 4,
+  },
+  timerBadge: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
   },
   badge: {
-    backgroundColor: 'rgba(0,0,0,0.65)',
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: '800',
   },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
-  metaText: { fontSize: 12 },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+
+  cardBody: {
+    padding: 16,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 14,
+  },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 5,
+  },
+  metaText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
   actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    gap: 16,
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 40,
+  },
+  actionCount: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
   boostBtn: {
     marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
   },
-  boostText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  boostText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  // FAB Styles
+  fab: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 40 : 30,
+    left: 20,
+  },
+  fabButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Empty State
+  emptyWrap: {
+    paddingTop: 80,
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyHint: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    opacity: 0.8,
+  },
+
+  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
-    padding: 16,
+    padding: 20,
   },
   modalCard: {
+    borderRadius: 28,
+    padding: 24,
+    gap: 16,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700' },
-  statusRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-  statusPill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 4,
   },
-  modalHint: { fontSize: 12, marginBottom: 4 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  modalHint: {
+    fontSize: 14,
+    marginBottom: 8,
   },
-  commentInput: {
-    minHeight: 88,
-    textAlignVertical: 'top',
-  },
-  modalActions: {
-    marginTop: 6,
+  statusRow: {
     flexDirection: 'row',
     gap: 10,
   },
-  secondaryBtn: {
+  statusPill: {
     flex: 1,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
   },
-  primaryBtn: {
-    flex: 1,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+  input: {
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+  commentInput: {
+    height: 120,
+    textAlignVertical: 'top',
+    paddingTop: 16,
   },
   categoryLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 4,
-    marginBottom: 2,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 8,
   },
   categoryChipsWrap: {
     flexDirection: 'row',
@@ -909,10 +1235,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  secondaryBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  primaryBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

@@ -11,6 +11,7 @@ import {
     Platform,
     ImageBackground,
     Image,
+    Animated,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
@@ -74,40 +75,88 @@ type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'n
 const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
     const { t } = useTranslation();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
-    const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType, activeWallpaper, isSlideshowEnabled } = useSettings();
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [showRoleInfo, setShowRoleInfo] = useState(false);
 
-    const isImageBackground = portalBackgroundType === 'image' && Boolean(portalBackground);
-    const isGradientBackground = portalBackgroundType === 'gradient' && Boolean(portalBackground);
-    const backgroundImageSource = useMemo(() => {
-        if (!isImageBackground || !portalBackground) return undefined;
-        return { uri: portalBackground, cache: 'force-cache' as const };
-    }, [isImageBackground, portalBackground]);
-    const gradientColors = useMemo(() => {
-        if (!isGradientBackground || !portalBackground) return undefined;
-        return portalBackground.split('|').filter(Boolean);
-    }, [isGradientBackground, portalBackground]);
+    // Determine effective background values
+    const effectiveBg = isSlideshowEnabled ? activeWallpaper : portalBackground;
+    const effectiveBgType = isSlideshowEnabled ? 'image' : portalBackgroundType;
+
+    const isImageBackground = effectiveBgType === 'image' && Boolean(effectiveBg);
+    const isGradientBackground = effectiveBgType === 'gradient' && Boolean(effectiveBg);
+
+    // Cross-fade animation for slideshow
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const [displayedBg, setDisplayedBg] = useState(effectiveBg);
+    const [nextBg, setNextBg] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!isImageBackground || !portalBackground || !portalBackground.startsWith('http')) return;
-        Image.prefetch(portalBackground).catch(() => { });
-    }, [isImageBackground, portalBackground]);
+        if (!isSlideshowEnabled || effectiveBg === displayedBg) return;
+
+        setNextBg(effectiveBg);
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+        }).start(() => {
+            setDisplayedBg(effectiveBg);
+            setNextBg(null);
+        });
+    }, [effectiveBg, isSlideshowEnabled]);
+
+    // When slideshow disabled, update immediately
+    useEffect(() => {
+        if (!isSlideshowEnabled) {
+            setDisplayedBg(effectiveBg);
+            setNextBg(null);
+        }
+    }, [isSlideshowEnabled, effectiveBg]);
+
+    const backgroundImageSource = useMemo(() => {
+        if (!isImageBackground || !displayedBg) return undefined;
+        return { uri: displayedBg, cache: 'force-cache' as const };
+    }, [isImageBackground, displayedBg]);
+    const nextBgSource = useMemo(() => {
+        if (!nextBg) return undefined;
+        return { uri: nextBg, cache: 'force-cache' as const };
+    }, [nextBg]);
+    const gradientColors = useMemo(() => {
+        if (!isGradientBackground || !effectiveBg) return undefined;
+        return effectiveBg.split('|').filter(Boolean);
+    }, [isGradientBackground, effectiveBg]);
+
+    useEffect(() => {
+        if (!isImageBackground || !effectiveBg || !effectiveBg.startsWith('http')) return;
+        Image.prefetch(effectiveBg).catch(() => { });
+    }, [isImageBackground, effectiveBg]);
 
     const renderWithBackground = useCallback((children: React.ReactNode) => {
         if (isImageBackground && backgroundImageSource) {
             return (
-                <ImageBackground
-                    source={backgroundImageSource}
-                    style={styles.container}
-                    resizeMode="cover"
-                    fadeDuration={0}
-                >
+                <View style={styles.container}>
+                    <ImageBackground
+                        source={backgroundImageSource}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                        fadeDuration={0}
+                    />
+                    {nextBgSource && (
+                        <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
+                            <ImageBackground
+                                source={nextBgSource}
+                                style={StyleSheet.absoluteFill}
+                                resizeMode="cover"
+                                fadeDuration={0}
+                            />
+                        </Animated.View>
+                    )}
                     <View style={styles.imageOverlay}>
                         {children}
                     </View>
-                </ImageBackground>
+                </View>
             );
         }
 
@@ -125,11 +174,11 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         }
 
         return (
-            <View style={[styles.container, { backgroundColor: portalBackground || vTheme.colors.background }]}>
+            <View style={[styles.container, { backgroundColor: effectiveBg || vTheme.colors.background }]}>
                 {children}
             </View>
         );
-    }, [isImageBackground, backgroundImageSource, isGradientBackground, gradientColors, portalBackground, vTheme.colors.background]);
+    }, [isImageBackground, backgroundImageSource, nextBgSource, fadeAnim, isGradientBackground, gradientColors, effectiveBg, vTheme.colors.background]);
 
     useEffect(() => {
         if (route.params?.initialTab === 'map') {
@@ -196,12 +245,12 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             case 'calls': return <CallHistoryScreen />;
             case 'dating': return <DatingScreen onBack={backToGrid} />;
             case 'cafe': return <CafeListScreen onBack={backToGrid} />;
-            case 'shops': return <MarketHomeScreen />;
+            case 'shops': return <MarketHomeScreen onBack={backToGrid} />;
             case 'ads': return <AdsScreen />;
             case 'library': return <LibraryHomeScreen />;
             case 'education': return <EducationHomeScreen />;
             case 'news': return <NewsScreen />;
-            case 'multimedia': return <MultimediaHubScreen />;
+            case 'multimedia': return <MultimediaHubScreen onBack={backToGrid} />;
             case 'travel': return <TravelHomeScreen />;
             case 'services': return <ServicesHomeScreen onBack={backToGrid} />;
             default: return null;
@@ -222,9 +271,9 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                 onPress={() => navigation.navigate('InviteFriends')}
                                 style={styles.iconButton}
                             >
-                                <Gift size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                <Gift size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
+                            <BalancePill size="small" lightMode={effectiveBgType === 'image'} />
                         </View>
                     </View>
 
@@ -236,10 +285,10 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                 style={[
                                     styles.circlesHeaderButton,
                                     {
-                                        backgroundColor: (portalBackgroundType === 'image' || isDarkMode)
+                                        backgroundColor: (effectiveBgType === 'image' || isDarkMode)
                                             ? 'rgba(255,255,255,0.14)'
                                             : vTheme.colors.backgroundSecondary,
-                                        borderColor: (portalBackgroundType === 'image' || isDarkMode)
+                                        borderColor: (effectiveBgType === 'image' || isDarkMode)
                                             ? 'rgba(255,255,255,0.35)'
                                             : vTheme.colors.divider,
                                     },
@@ -247,7 +296,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                             >
                                 <Film
                                     size={16}
-                                    color={(portalBackgroundType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
+                                    color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
                                 />
                             </TouchableOpacity>
                         </View>
@@ -281,16 +330,16 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                             }}
                             style={styles.iconButton}
                         >
-                            <MessageSquare size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <MessageSquare size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
                             style={styles.iconButton}
                         >
-                            <Settings size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Settings size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.iconButton}>
-                            <Bell size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Bell size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -316,7 +365,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
                 {/* Hint text */}
                 <View style={styles.hintContainer}>
-                    <Text style={[styles.hintText, { color: portalBackgroundType === 'color' && portalBackground === '#ffffff' ? vTheme.colors.textSecondary : '#ffffff' }]}>
+                    <Text style={[styles.hintText, { color: effectiveBgType === 'color' && effectiveBg === '#ffffff' ? vTheme.colors.textSecondary : '#ffffff' }]}>
                         Удерживайте для редактирования
                     </Text>
                 </View>
@@ -342,7 +391,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             {/* Header with back - Hidden if service manages its own header (like Dating) */}
-            {(activeTab !== 'dating' && activeTab !== 'cafe' && activeTab !== 'services') && (
+            {(activeTab !== 'dating' && activeTab !== 'cafe' && activeTab !== 'services' && activeTab !== 'shops' && activeTab !== 'multimedia') && (
                 <View style={[styles.header, { backgroundColor: 'transparent' }]}>
                     <View style={styles.headerLeft}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -371,14 +420,14 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                         height: '100%',
                                         borderRadius: 20,
                                         overflow: 'hidden',
-                                        backgroundColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
-                                        borderColor: (portalBackgroundType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.4)' : 'transparent',
-                                        borderWidth: (portalBackgroundType === 'image' || isDarkMode) ? 1.5 : 0,
+                                        backgroundColor: (effectiveBgType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.15)' : vTheme.colors.backgroundSecondary,
+                                        borderColor: (effectiveBgType === 'image' || isDarkMode) ? 'rgba(255,255,255,0.4)' : 'transparent',
+                                        borderWidth: (effectiveBgType === 'image' || isDarkMode) ? 1.5 : 0,
                                         justifyContent: 'center',
                                         alignItems: 'center',
                                     }}
                                 >
-                                    {(portalBackgroundType === 'image' || isDarkMode) && (
+                                    {(effectiveBgType === 'image' || isDarkMode) && (
                                         <BlurView
                                             style={StyleSheet.absoluteFill}
                                             blurType={isDarkMode ? "dark" : "light"}
@@ -390,13 +439,13 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                         backgroundColor: 'transparent',
                                         shadowColor: "#000",
                                         shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: (portalBackgroundType === 'image') ? 0.5 : 0,
+                                        shadowOpacity: (effectiveBgType === 'image') ? 0.5 : 0,
                                         shadowRadius: 2,
-                                        elevation: (portalBackgroundType === 'image') ? 5 : 0,
+                                        elevation: (effectiveBgType === 'image') ? 5 : 0,
                                     }}>
                                         <List
                                             size={22}
-                                            color={(portalBackgroundType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
+                                            color={(effectiveBgType === 'image' || isDarkMode) ? '#ffffff' : vTheme.colors.primary}
                                             strokeWidth={2.5}
                                         />
                                     </View>
@@ -406,9 +455,9 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                                 onPress={() => navigation.navigate('InviteFriends')}
                                 style={styles.iconButton}
                             >
-                                <Gift size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                <Gift size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={portalBackgroundType === 'image'} />
+                            <BalancePill size="small" lightMode={effectiveBgType === 'image'} />
                         </View>
                     </View>
 
@@ -423,16 +472,16 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                             }}
                             style={styles.iconButton}
                         >
-                            <MessageSquare size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <MessageSquare size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
                             style={styles.iconButton}
                         >
-                            <Settings size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Settings size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.iconButton}>
-                            <Bell size={22} color={portalBackgroundType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            <Bell size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>

@@ -29,6 +29,8 @@ import { RoomSettingsModal } from './RoomSettingsModal';
 import { AudioPlayer } from '../../../components/chat/AudioPlayer';
 import { mediaService } from '../../../services/mediaService';
 import { useSettings } from '../../../context/SettingsContext';
+import { usePressFeedback } from '../../../hooks/usePressFeedback';
+import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { Video, ArrowLeft, ArrowRight, Settings, UserPlus, Send, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react-native';
 import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 
@@ -37,10 +39,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const { roomId, roomName, isYatraChat } = route.params;
     const { t, i18n } = useTranslation();
-    const { isDarkMode, vTheme } = useSettings();
+    const { isDarkMode, vTheme, portalBackgroundType } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user } = useUser();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { addListener } = useWebSocket();
+    const isPhotoBg = portalBackgroundType === 'image';
 
     const [messages, setMessages] = useState<any[]>([]);
     const [inputText, setInputText] = useState('');
@@ -56,6 +60,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [readerFontSize, setReaderFontSize] = useState(16);
     const [readerFontBold, setReaderFontBold] = useState(false);
+    const triggerTapFeedback = usePressFeedback();
 
     const fetchRoomDetails = async () => {
         try {
@@ -385,9 +390,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             <View style={[
                 styles.messageBubble,
                 item.isMe ? styles.myMessage : styles.otherMessage,
-                { backgroundColor: item.isMe ? theme.userBubble : theme.botBubble }
+                {
+                    backgroundColor: item.isMe
+                        ? (isPhotoBg ? 'rgba(255,255,255,0.2)' : colors.accentSoft)
+                        : (isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surfaceElevated),
+                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : colors.border,
+                }
             ]}>
-                {!item.isMe && <Text style={[styles.senderName, { color: theme.accent }]}>{item.sender}</Text>}
+                {!item.isMe && <Text style={[styles.senderName, { color: isPhotoBg ? '#FFFFFF' : colors.accent }]}>{item.sender}</Text>}
 
                 {isAudio ? (
                     <AudioPlayer
@@ -411,21 +421,21 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     >
                         <Text style={{ fontSize: 20, marginRight: 8 }}>📄</Text>
                         <View>
-                            <Text style={[styles.messageText, { color: theme.text }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
+                        <Text style={[styles.messageText, { color: theme.text }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
                             <Text style={{ color: theme.subText, fontSize: 10 }}>{mediaService.formatFileSize(item.fileSize)}</Text>
                         </View>
                     </TouchableOpacity>
                 ) : (
-                    <Text style={[styles.messageText, { color: theme.text }]}>{item.content}</Text>
+                    <Text style={[styles.messageText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{item.content}</Text>
                 )}
 
-                <Text style={[styles.timeText, { color: theme.subText }]}>{item.time}</Text>
+                <Text style={[styles.timeText, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : colors.textSecondary }]}>{item.time}</Text>
             </View>
         );
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : colors.background }]}>
             <KeyboardAvoidingView
                 style={styles.container}
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -460,6 +470,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             </Text>
                             {!isCallActive && (
                                 <TouchableOpacity
+                                    activeOpacity={0.88}
                                     style={[
                                         styles.joinCallBtn,
                                         {
@@ -473,14 +484,19 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                             gap: 8
                                         }
                                     ]}
-                                    onPress={() => setIsCallActive(true)}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        setIsCallActive(true);
+                                    }}
                                 >
                                     <Video size={18} color={vTheme.colors.textLight} />
                                     <Text style={{ color: vTheme.colors.textLight, fontWeight: '700', fontSize: 14 }}>{t('chat.joinCall')}</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
+                                activeOpacity={0.88}
                                 onPress={async () => {
+                                    triggerTapFeedback();
                                     const newState = !isExpanded;
                                     setIsExpanded(newState);
                                     await AsyncStorage.setItem('chat_reader_expanded', newState.toString());
@@ -665,6 +681,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                         </View>
                         {!isCallActive && (
                             <TouchableOpacity
+                                activeOpacity={0.88}
                                 style={[
                                     styles.joinCallBtn,
                                     {
@@ -678,7 +695,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                         ...vTheme.shadows.soft
                                     }
                                 ]}
-                                onPress={() => setIsCallActive(true)}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    setIsCallActive(true);
+                                }}
                             >
                                 <Video size={18} color="#fff" />
                                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('chat.joinCall')}</Text>
@@ -698,8 +718,19 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 renderItem={renderMessage}
                                 contentContainerStyle={styles.list}
                                 ListEmptyComponent={
-                                    <View style={styles.center}>
-                                        <Text style={{ color: theme.subText }}>{t('chat.noHistory')}</Text>
+                                    <View style={[
+                                        styles.emptyState,
+                                        {
+                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surfaceElevated,
+                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border,
+                                        }
+                                    ]}>
+                                        <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
+                                            {t('chat.noHistory')}
+                                        </Text>
+                                        <Text style={[styles.emptySub, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
+                                            Начните диалог в этой комнате
+                                        </Text>
                                     </View>
                                 }
                             />
@@ -707,15 +738,44 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     </View>
                 )}
 
-                <View style={[styles.inputContainer, { backgroundColor: theme.header, borderTopColor: theme.borderColor }]}>
+                <View
+                    style={[
+                        styles.inputContainer,
+                        {
+                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.5)' : colors.surfaceElevated,
+                            borderTopColor: isPhotoBg ? 'rgba(255,255,255,0.25)' : colors.border,
+                        }
+                    ]}
+                >
                     <TextInput
-                        style={[styles.input, { color: theme.text, backgroundColor: theme.background }]}
+                        style={[
+                            styles.input,
+                            {
+                                color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
+                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface,
+                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.25)' : colors.border,
+                            }
+                        ]}
                         value={inputText}
                         onChangeText={setInputText}
                         placeholder={t('chat.placeholder')}
-                        placeholderTextColor={theme.subText}
+                        placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
                     />
-                    <TouchableOpacity onPress={handleSendMessage} style={[styles.sendButton, { backgroundColor: theme.accent }]}>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        onPress={() => {
+                            if (!inputText.trim()) return;
+                            triggerTapFeedback();
+                            handleSendMessage();
+                        }}
+                        style={[
+                            styles.sendButton,
+                            {
+                                backgroundColor: colors.accent,
+                                opacity: inputText.trim() ? 1 : 0.7,
+                            }
+                        ]}
+                    >
                         <Send size={20} color="#fff" />
                     </TouchableOpacity>
                 </View>
@@ -754,6 +814,7 @@ const styles = StyleSheet.create({
         padding: 12,
         borderRadius: 16,
         marginBottom: 8,
+        borderWidth: 1,
     },
     myMessage: {
         alignSelf: 'flex-end',
@@ -792,21 +853,40 @@ const styles = StyleSheet.create({
         padding: 12,
         alignItems: 'center',
         borderTopWidth: 1,
+        gap: 10,
     },
     input: {
         flex: 1,
-        borderRadius: 20,
+        minHeight: 44,
+        borderRadius: 14,
+        borderWidth: 1,
         paddingHorizontal: 16,
-        paddingVertical: 8,
-        marginRight: 8,
+        paddingVertical: Platform.OS === 'ios' ? 11 : 9,
         fontSize: 16,
     },
     sendButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyState: {
+        marginTop: 80,
+        marginHorizontal: 16,
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingVertical: 20,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    emptySub: {
+        marginTop: 6,
+        fontSize: 14,
     },
     readingPanel: {
         padding: 16,

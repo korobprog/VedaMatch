@@ -36,6 +36,9 @@ import {
     Compass,
     Briefcase,
     Heart,
+    Contact,
+    PlayCircle,
+    Clapperboard,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -81,6 +84,9 @@ const IconComponents: Record<string, any> = {
     Compass,
     Briefcase,
     Heart,
+    Contact,
+    PlayCircle,
+    Clapperboard,
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({

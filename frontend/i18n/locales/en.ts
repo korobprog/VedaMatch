@@ -121,6 +121,8 @@ export default {
         shopsFound: 'shops found',
         noShops: 'No shops found',
         shops: 'Shops',
+        view_all_shops: 'View All Shops',
+        nearby: 'Nearby',
         map: {
             title: 'Map',
             viewNearby: 'View shops on map',

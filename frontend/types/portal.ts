@@ -49,7 +49,7 @@ export interface ServiceDefinition {
 
 // Default services available in portal
 export const DEFAULT_SERVICES: ServiceDefinition[] = [
-    { id: 'contacts', label: 'Контакты', icon: 'Users', color: '#3B82F6' },
+    { id: 'contacts', label: 'Контакты', icon: 'Contact', color: '#3B82F6' },
     { id: 'chat', label: 'Чат', icon: 'MessageCircle', color: '#6B5B53' },
     { id: 'calls', label: 'Звонки', icon: 'Phone', color: '#10B981' },
     { id: 'groups', label: 'Группы', icon: 'Users', color: '#F59E0B' },
@@ -61,7 +61,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'library', label: 'Библиотека', icon: 'Book', color: '#43A047' },
     { id: 'education', label: 'Обучение', icon: 'GraduationCap', color: '#8B5CF6' },
     { id: 'multimedia', label: 'Медия', icon: 'Music', color: '#6366F1' },
-    { id: 'video_circles', label: 'Кружки', icon: 'Film', color: '#EA580C' },
+    { id: 'video_circles', label: 'Кружки', icon: 'PlayCircle', color: '#EA580C' },
     { id: 'news', label: 'Новости', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-    RefreshControl, ActivityIndicator, Image, Dimensions
+    RefreshControl, ActivityIndicator, Image, Dimensions, ImageBackground, Platform
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,14 +37,18 @@ import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
 const { width } = Dimensions.get('window');
 
-export const MarketHomeScreen: React.FC = () => {
+interface MarketHomeScreenProps {
+    onBack?: () => void;
+}
+
+export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
     const { formattedBalance } = useWallet();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
-    const styles = React.useMemo(() => createStyles(roleColors), [roleColors]);
+    const styles = React.useMemo(() => createStyles(roleColors, roleTheme, isDarkMode), [roleColors, roleTheme, isDarkMode]);
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
 
     const [loading, setLoading] = useState(true);
@@ -170,10 +174,6 @@ export const MarketHomeScreen: React.FC = () => {
         navigation.navigate('Shops');
     };
 
-    const handleSellerDashboard = () => {
-        navigation.navigate('SellerDashboard');
-    };
-
     const renderProduct = ({ item }: { item: Product }) => (
         <ProductCard item={item} onPress={handleProductPress} />
     );
@@ -193,68 +193,72 @@ export const MarketHomeScreen: React.FC = () => {
 
     const renderHeader = () => (
         <View style={styles.header}>
-            <View style={styles.headerTop}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                >
-                    <ArrowLeft size={22} color={roleColors.textPrimary} />
-                </TouchableOpacity>
-
-                <View style={styles.headerTitleContainer}>
-                    <Text style={styles.headerTitle} numberOfLines={1}>
-                        {t('market.title')}
-                    </Text>
-                    <Text style={styles.headerSubtitle}>{t('market.subtitle')}</Text>
-                </View>
-
-                <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
-                    <LinearGradient
-                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
-                        style={[styles.walletInner, { borderColor: roleColors.accentSoft }]}
+            <ImageBackground
+                source={require('../../../assets/market_banner_bg.png')}
+                style={styles.bannerHeader}
+                imageStyle={styles.bannerImage}
+            >
+                <View style={styles.bannerOverlay} />
+                <View style={styles.headerTop}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => onBack ? onBack() : navigation.goBack()}
                     >
-                        <Wallet size={14} color={roleColors.accent} />
-                        <Text style={[styles.walletBalance, { color: roleColors.accent }]}>{formattedBalance}</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                        <ArrowLeft size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={[styles.headerTitle, { color: '#FFFFFF' }]} numberOfLines={1}>
+                            {t('market.title')}
+                        </Text>
+                        <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>{t('market.subtitle')}</Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
+                        <View style={styles.walletInnerGlass}>
+                            <Wallet size={14} color="#FFFFFF" />
+                            <Text style={styles.walletBalanceGlass}>{formattedBalance}</Text>
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            </ImageBackground>
 
             <View style={styles.featuredActions}>
                 <View style={styles.actionRow}>
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: roleColors.surface, borderColor: roleColors.accentSoft }]}
+                        style={[styles.featuredCard, { borderColor: 'rgba(255, 255, 255, 0.2)' }]}
                         onPress={handleShopsPress}
                     >
                         <LinearGradient
-                            colors={[roleTheme.accentSoft, 'transparent']}
+                            colors={['rgba(255, 255, 255, 0.15)', 'transparent']}
                             style={styles.cardGradient}
                         />
-                        <View style={styles.actionIconOuter}>
-                            <Store size={22} color={roleColors.accent} />
+                        <View style={[styles.actionIconOuter, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+                            <Store size={22} color="#FFFFFF" />
                         </View>
                         <View>
-                            <Text style={styles.featuredCardTitle}>{t('market.shops')}</Text>
-                            <Text style={styles.featuredCardSub}>{t('market.view_all_shops') || 'Все магазины'}</Text>
+                            <Text style={[styles.featuredCardTitle, { color: '#FFFFFF' }]}>{t('market.shops')}</Text>
+                            <Text style={[styles.featuredCardSub, { color: 'rgba(255, 255, 255, 0.7)' }]}>{t('market.view_all_shops')}</Text>
                         </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.featuredCard, { backgroundColor: roleColors.surface, borderColor: roleColors.border }]}
+                        style={[styles.featuredCard, { borderColor: 'rgba(255, 255, 255, 0.2)' }]}
                         onPress={() => navigation.navigate('ShopsMap')}
                     >
-                        <View style={styles.actionIconOuter}>
-                            <Map size={22} color={roleColors.textPrimary} />
+                        <View style={[styles.actionIconOuter, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+                            <Map size={22} color="#FFFFFF" />
                         </View>
                         <View>
-                            <Text style={styles.featuredCardTitle}>{t('market.map.title')}</Text>
-                            <Text style={styles.featuredCardSub}>{t('market.nearby') || 'Рядом со мной'}</Text>
+                            <Text style={[styles.featuredCardTitle, { color: '#FFFFFF' }]}>{t('market.map.title')}</Text>
+                            <Text style={[styles.featuredCardSub, { color: 'rgba(255, 255, 255, 0.7)' }]}>{t('market.nearby')}</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
             </View>
 
             <View style={styles.searchSection}>
-                <View style={styles.searchBackground}>
+                <View style={[styles.searchBackground, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)' }]}>
                     <SearchIcon size={20} color={roleColors.textSecondary} />
                     <TextInput
                         style={[styles.searchInput, { color: roleColors.textPrimary }]}
@@ -283,13 +287,13 @@ export const MarketHomeScreen: React.FC = () => {
                         const isActive = selectedCategory === item.id;
                         return (
                             <TouchableOpacity
-                                style={[styles.sortPill, isActive && styles.sortPillActive]}
+                                style={[styles.sortPill, isActive && styles.sortPillActive, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : roleColors.surface }]}
                                 onPress={() => handleCategorySelect(item.id)}
                             >
                                 <View style={styles.pillIcon}>
                                     {getCategoryIcon(item.emoji, 14, isActive ? roleColors.textPrimary : roleColors.accent)}
                                 </View>
-                                <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive]}>
+                                <Text style={[styles.sortPillLabel, isActive && styles.sortPillLabelActive, { color: isActive ? roleColors.textPrimary : roleColors.textSecondary }]}>
                                     {item.label[currentLang] || item.label.en}
                                 </Text>
                             </TouchableOpacity>
@@ -301,7 +305,7 @@ export const MarketHomeScreen: React.FC = () => {
 
             {!loading && total > 0 && (
                 <View style={styles.resultsHeader}>
-                    <Text style={styles.resultsCount}>
+                    <Text style={[styles.resultsCount, { color: roleColors.textSecondary }]}>
                         {total} {t('market.productsFound')}
                     </Text>
                 </View>
@@ -323,11 +327,11 @@ export const MarketHomeScreen: React.FC = () => {
             colors={roleTheme.gradient}
             style={styles.gradient}
         >
-            <SafeAreaView style={styles.container} edges={['top']}>
+            <View style={styles.container}>
                 <FlatList
                     data={loading ? ([1, 2, 3, 4, 5, 6] as any) : products}
                     renderItem={loading ? renderSkeleton : renderProduct}
-                    keyExtractor={(item, index) => loading ? `skel-${index}` : item.ID.toString()}
+                    keyExtractor={(item, index) => loading ? `skel-${index}` : item?.ID?.toString() || index.toString()}
                     numColumns={2}
                     ListHeaderComponent={
                         <>
@@ -367,12 +371,12 @@ export const MarketHomeScreen: React.FC = () => {
                     windowSize={5}
                     removeClippedSubviews={true}
                 />
-            </SafeAreaView>
+            </View>
         </LinearGradient>
     );
 };
 
-const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
+const createStyles = (roleColors: SemanticColorTokens, roleTheme: any, isDarkMode: boolean) => StyleSheet.create({
     gradient: {
         flex: 1,
     },
@@ -380,65 +384,86 @@ const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingTop: 10,
+        marginBottom: 24,
+    },
+    bannerHeader: {
+        width: '100%',
+        height: 240,
+        justifyContent: 'center',
+        paddingTop: Platform.OS === 'ios' ? 44 : 20,
+        borderBottomLeftRadius: 36,
+        borderBottomRightRadius: 36,
+        overflow: 'hidden',
+    },
+    bannerImage: {
+        resizeMode: 'cover',
+    },
+    bannerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
-        marginBottom: 24,
     },
     backButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        color: 'rgba(255,255,255,1)',
-        fontSize: 22,
-        fontWeight: '800',
+        fontSize: 30,
+        fontWeight: '900',
         fontFamily: 'Cinzel-Bold',
-        letterSpacing: 1,
+        letterSpacing: 2,
+        textShadowColor: 'rgba(0, 0, 0, 0.6)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 12,
     },
     headerSubtitle: {
-        color: 'rgba(255,255,255,0.4)',
-        fontSize: 9,
-        fontWeight: '600',
+        fontSize: 12,
+        fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 2,
-        marginTop: 2,
+        letterSpacing: 4,
+        marginTop: 4,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+    walletInnerGlass: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        gap: 6,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderRadius: 20,
+    },
+    walletBalanceGlass: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '800',
     },
     walletButton: {
         borderRadius: 20,
         overflow: 'hidden',
     },
-    walletInner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        gap: 6,
-        borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
-        borderRadius: 20,
-    },
-    walletBalance: {
-        color: 'rgb(245,158,11)',
-        fontSize: 13,
-        fontWeight: '800',
-    },
     featuredActions: {
         paddingHorizontal: 20,
         marginBottom: 24,
+        marginTop: 20,
     },
     actionRow: {
         flexDirection: 'row',
@@ -446,33 +471,36 @@ const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
     },
     featuredCard: {
         flex: 1,
-        height: 90,
+        height: 100,
         borderRadius: 24,
         borderWidth: 1,
         padding: 16,
         justifyContent: 'center',
         overflow: 'hidden',
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
     },
     cardGradient: {
         ...StyleSheet.absoluteFillObject,
     },
     actionIconOuter: {
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 8,
     },
     featuredCardTitle: {
-        color: 'rgba(255,255,255,1)',
-        fontSize: 13,
+        fontSize: 15,
         fontWeight: '800',
+        fontFamily: 'Cinzel-Bold',
+        textShadowColor: 'rgba(0,0,0,0.3)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 3,
     },
     featuredCardSub: {
-        color: 'rgba(255,255,255,0.4)',
-        fontSize: 9,
+        fontSize: 10,
         fontWeight: '600',
         marginTop: 2,
     },
@@ -483,7 +511,6 @@ const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
     searchBackground: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         borderRadius: 20,
         paddingHorizontal: 20,
         height: 54,
@@ -492,7 +519,6 @@ const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: 'rgba(255,255,255,1)',
         fontSize: 15,
         fontWeight: '600',
         marginLeft: 12,
@@ -507,7 +533,6 @@ const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
     sortPill: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 20,
@@ -526,7 +551,6 @@ const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
         alignItems: 'center',
     },
     sortPillLabel: {
-        color: 'rgba(255, 255, 255, 0.5)',
         fontSize: 12,
         fontWeight: '700',
     },
@@ -539,7 +563,6 @@ const createStyles = (_colors: SemanticColorTokens) => StyleSheet.create({
     },
     resultsCount: {
         fontSize: 11,
-        color: 'rgba(255,255,255,0.4)',
         fontWeight: '600',
         textTransform: 'uppercase',
         letterSpacing: 1,

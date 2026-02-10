@@ -7,7 +7,10 @@ import {
     TouchableOpacity,
     Image,
     RefreshControl,
+    ImageBackground,
+    Platform,
 } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
     Radio,
@@ -17,7 +20,8 @@ import {
     ChevronRight,
     PlayCircle,
     Loader2,
-    Heart
+    Heart,
+    Clapperboard,
 } from 'lucide-react-native';
 import { multimediaService, RadioStation, TVChannel, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
@@ -25,9 +29,11 @@ import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeSta
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 
-interface MultimediaHubScreenProps { }
+interface MultimediaHubScreenProps {
+    onBack?: () => void;
+}
 
-export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
+export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
@@ -69,8 +75,8 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
         { id: 'radio', title: 'Радио', icon: Radio, color: roleColors.accent, screen: 'RadioScreen' },
         { id: 'audio', title: 'Аудио', icon: Music, color: roleColors.accent, screen: 'AudioScreen' },
         { id: 'video', title: 'Видео', icon: Film, color: roleColors.warning, screen: 'VideoScreen' },
-        { id: 'circles', title: 'Кружки', icon: Film, color: roleColors.warning, screen: 'VideoCirclesScreen' },
-        { id: 'series', title: 'Сериалы', icon: TvIcon, color: roleColors.accent, screen: 'SeriesScreen' },
+        { id: 'circles', title: 'Кружки', icon: PlayCircle, color: roleColors.warning, screen: 'VideoCirclesScreen' },
+        { id: 'series', title: 'Сериалы', icon: Clapperboard, color: roleColors.accent, screen: 'SeriesScreen' },
         { id: 'tv', title: 'ТВ', icon: TvIcon, color: roleColors.success, screen: 'TVScreen' },
         { id: 'favorites', title: 'Избранное', icon: Heart, color: roleColors.danger, screen: 'FavoritesScreen' },
     ];
@@ -90,11 +96,25 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = () => {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={roleColors.accent} />}
         >
             <GodModeStatusBanner />
-            {/* Header */}
-            <View style={[styles.header, { backgroundColor: roleColors.accent }]}>
-                <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Sattva Media</Text>
-                <Text style={[styles.headerSubtitle, { color: roleColors.textSecondary }]}>Духовный мультимедиа-хаб</Text>
-            </View>
+            <ImageBackground
+                source={require('../../assets/sattva_media_bg.png')}
+                style={styles.header}
+                imageStyle={styles.headerImage}
+            >
+                <View style={[styles.headerOverlay, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.2)' }]} />
+                <View style={styles.headerTop}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => onBack ? onBack() : navigation.goBack()}
+                    >
+                        <ArrowLeft size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <View style={styles.headerTitleScroll}>
+                        <Text style={[styles.headerTitleScrollText, { color: '#FFFFFF' }]}>Sattva Media</Text>
+                        <Text style={[styles.headerSubtitleScrollText, { color: 'rgba(255,255,255,0.9)' }]}>Духовный мультимедиа-хаб</Text>
+                    </View>
+                </View>
+            </ImageBackground>
 
             {/* Menu Grid */}
             <View style={styles.menuGrid}>
@@ -269,18 +289,52 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     header: {
-        padding: 24,
-        paddingTop: 48,
-        borderBottomLeftRadius: 28,
-        borderBottomRightRadius: 28,
+        height: 240,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        overflow: 'hidden',
+        justifyContent: 'center',
+        paddingTop: Platform.OS === 'ios' ? 44 : 20,
     },
-    headerTitle: {
-        fontSize: 32,
-        fontWeight: 'bold',
+    headerImage: {
+        resizeMode: 'cover',
     },
-    headerSubtitle: {
-        fontSize: 14,
-        marginTop: 4,
+    headerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    headerTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+    },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    headerTitleScroll: {
+        flex: 1,
+        marginLeft: 16,
+    },
+    headerTitleScrollText: {
+        fontSize: 28,
+        fontWeight: '900',
+        letterSpacing: -0.5,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 10,
+    },
+    headerSubtitleScrollText: {
+        fontSize: 13,
+        fontWeight: '600',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 5,
     },
     menuGrid: {
         flexDirection: 'row',
