@@ -70,6 +70,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const [hasMore, setHasMore] = useState(true);
     const [myCafe, setMyCafe] = useState<Cafe | null>(null);
     const didInitialLoad = useRef(false);
+    const latestCafesRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const checkMyCafe = async () => {
         try {
@@ -88,18 +90,28 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         checkMyCafe();
     }, []);
 
-    const loadCafes = useCallback(async (reset = false) => {
+    const loadCafes = useCallback(async (reset = false, overrides: Partial<CafeFilters> = {}) => {
+        const requestId = ++latestCafesRequestRef.current;
+        const nextFilters: CafeFilters = {
+            ...filters,
+            ...overrides,
+            page: reset ? 1 : (overrides.page ?? filters.page ?? 1),
+        };
         try {
             if (reset) {
-                setLoading(true);
-                setFilters(prev => ({ ...prev, page: 1 }));
+                if (isMountedRef.current) {
+                    setLoading(true);
+                    setFilters(prev => ({ ...prev, ...overrides, page: 1 }));
+                }
             }
 
             const response = await cafeService.getCafes({
-                ...filters,
+                ...nextFilters,
                 search: search || undefined,
-                page: reset ? 1 : (filters.page || 1),
             });
+            if (requestId !== latestCafesRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             if (reset) {
                 setCafes(response.cafes);
@@ -111,8 +123,10 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         } catch (error) {
             console.error('Error loading cafes:', error);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (requestId === latestCafesRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, [filters, search]);
 
@@ -122,6 +136,13 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         loadCafes(true);
     }, [loadCafes]);
 
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestCafesRequestRef.current += 1;
+        };
+    }, []);
+
     const handleRefresh = () => {
         setRefreshing(true);
         loadCafes(true);
@@ -129,13 +150,14 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
     const handleLoadMore = () => {
         if (!loading && hasMore) {
-            setFilters(prev => ({ ...prev, page: (prev.page || 1) + 1 }));
-            loadCafes();
+            const nextPage = (filters.page || 1) + 1;
+            setFilters(prev => ({ ...prev, page: nextPage }));
+            loadCafes(false, { page: nextPage });
         }
     };
 
     const handleSearch = () => {
-        loadCafes(true);
+        loadCafes(true, { page: 1 });
     };
 
     const handleCafePress = (cafe: Cafe) => {
@@ -310,7 +332,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         onSubmitEditing={handleSearch}
                     />
                     {search.length > 0 && (
-                        <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true); }}>
+                        <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true, { page: 1 }); }}>
                             <XCircle size={20} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
@@ -333,8 +355,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                             <TouchableOpacity
                                 style={[styles.sortPill, isActive && styles.sortPillActive]}
                                 onPress={() => {
-                                    setFilters(prev => ({ ...prev, sort: item.type as any }));
-                                    loadCafes(true);
+                                    setFilters(prev => ({ ...prev, sort: item.type as any, page: 1 }));
+                                    loadCafes(true, { sort: item.type as any, page: 1 });
                                 }}
                             >
                                 <item.icon size={14} color={isActive ? colors.textPrimary : item.color} fill={isActive ? colors.textPrimary : 'none'} />

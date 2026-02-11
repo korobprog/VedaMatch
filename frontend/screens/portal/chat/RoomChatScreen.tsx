@@ -63,6 +63,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [inviteVisible, setInviteVisible] = useState(false);
     const [settingsVisible, setSettingsVisible] = useState(false);
     const [isCallActive, setIsCallActive] = useState(false);
+    const [sending, setSending] = useState(false);
 
     const [roomDetails, setRoomDetails] = useState<any>(null);
     const [currentVerse, setCurrentVerse] = useState<any>(null);
@@ -72,6 +73,11 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [readerFontSize, setReaderFontSize] = useState(16);
     const [readerFontBold, setReaderFontBold] = useState(false);
     const latestMessagesRequestRef = useRef(0);
+    const latestRoomRequestRef = useRef(0);
+    const latestChaptersRequestRef = useRef(0);
+    const latestVerseRequestRef = useRef(0);
+    const latestFontSettingsRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
     const triggerTapFeedback = usePressFeedback();
 
     const toPositiveInt = (value: unknown): number | null => {
@@ -81,27 +87,35 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     const fetchVerse = useCallback(async (bookCode: string, chapter: number, verseNum: number, lang: string = 'ru') => {
+        const requestId = ++latestVerseRequestRef.current;
         try {
             const response = await fetch(`${API_PATH}/library/verses?bookCode=${bookCode}&chapter=${chapter}&language=${lang}`);
             if (response.ok) {
                 const verses = await response.json();
-                setVersesInChapter(verses);
-                const verse = verses.find((v: { verse?: string | number }) => Number.parseInt(String(v.verse ?? ''), 10) === verseNum);
-                setCurrentVerse(verse || verses[0]);
+                if (requestId === latestVerseRequestRef.current && isMountedRef.current) {
+                    setVersesInChapter(verses);
+                    const verse = verses.find((v: { verse?: string | number }) => Number.parseInt(String(v.verse ?? ''), 10) === verseNum);
+                    setCurrentVerse(verse || verses[0]);
+                }
             }
         } catch (err) {
             console.error('Error fetching verse', err);
-            setVersesInChapter([]);
-            setCurrentVerse(null);
+            if (requestId === latestVerseRequestRef.current && isMountedRef.current) {
+                setVersesInChapter([]);
+                setCurrentVerse(null);
+            }
         }
     }, []);
 
     const fetchChapters = useCallback(async (bookCode: string) => {
+        const requestId = ++latestChaptersRequestRef.current;
         try {
             const response = await fetch(`${API_PATH}/library/books/${bookCode}/chapters`);
             if (response.ok) {
                 const data = await response.json();
-                setChapters(data);
+                if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
+                    setChapters(data);
+                }
             }
         } catch (err) {
             console.error('Error fetching chapters', err);
@@ -109,6 +123,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     }, []);
 
     const fetchRoomDetails = useCallback(async () => {
+        const requestId = ++latestRoomRequestRef.current;
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
@@ -116,6 +131,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             });
             if (response.ok) {
                 const currentRoom = await response.json();
+                if (requestId !== latestRoomRequestRef.current || !isMountedRef.current) {
+                    return;
+                }
                 setRoomDetails(currentRoom);
                 // Fetch chapters if changed
                 if (currentRoom.bookCode) {
@@ -129,11 +147,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     }, [fetchChapters, fetchVerse, roomId]);
 
     const fetchFontSettings = useCallback(async () => {
+        const requestId = ++latestFontSettingsRequestRef.current;
         try {
             const size = await AsyncStorage.getItem('reader_font_size');
             const bold = await AsyncStorage.getItem('reader_font_bold');
             const expanded = await AsyncStorage.getItem('chat_reader_expanded');
 
+            if (requestId !== latestFontSettingsRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             if (size) setReaderFontSize(parseInt(size, 10));
             if (bold) setReaderFontBold(bold === 'true');
             if (expanded !== null) setIsExpanded(expanded === 'true');
@@ -213,7 +235,12 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     useEffect(() => {
         return () => {
+            isMountedRef.current = false;
             latestMessagesRequestRef.current += 1;
+            latestRoomRequestRef.current += 1;
+            latestChaptersRequestRef.current += 1;
+            latestVerseRequestRef.current += 1;
+            latestFontSettingsRequestRef.current += 1;
         };
     }, []);
 
@@ -387,7 +414,8 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     const handleSendMessage = async () => {
-        if (!inputText.trim() || !user?.ID) return;
+        if (!inputText.trim() || !user?.ID || sending) return;
+        setSending(true);
 
         const newMessage = {
             senderId: user?.ID,
@@ -428,10 +456,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     ]
                 );
                 // Restore the input text so user doesn't lose their message
-                setInputText(newMessage.content);
+                setInputText((prev) => (prev.trim() ? prev : newMessage.content));
             } else {
                 // Restore input on any non-success response to avoid message loss.
-                setInputText(newMessage.content);
+                setInputText((prev) => (prev.trim() ? prev : newMessage.content));
                 Alert.alert(
                     t('common.error'),
                     t('chat.sendError') || 'Не удалось отправить сообщение'
@@ -439,11 +467,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             }
         } catch (error) {
             console.error('Error sending message:', error);
-            setInputText(newMessage.content);
+            setInputText((prev) => (prev.trim() ? prev : newMessage.content));
             Alert.alert(
                 t('common.error'),
                 t('chat.sendError') || 'Не удалось отправить сообщение'
             );
+        } finally {
+            if (isMountedRef.current) {
+                setSending(false);
+            }
         }
     };
 
@@ -847,8 +879,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     />
                     <TouchableOpacity
                         activeOpacity={0.88}
+                        disabled={!inputText.trim() || sending}
                         onPress={() => {
-                            if (!inputText.trim()) return;
+                            if (!inputText.trim() || sending) return;
                             triggerTapFeedback();
                             handleSendMessage();
                         }}
@@ -856,7 +889,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             styles.sendButton,
                             {
                                 backgroundColor: colors.accent,
-                                opacity: inputText.trim() ? 1 : 0.7,
+                                opacity: inputText.trim() && !sending ? 1 : 0.7,
                             }
                         ]}
                     >

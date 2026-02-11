@@ -47,3 +47,78 @@ func TestIsValidAvailableMinutes(t *testing.T) {
 		}
 	}
 }
+
+func TestParseIntWithDefault(t *testing.T) {
+	if got := parseIntWithDefault("42", 7); got != 42 {
+		t.Fatalf("expected 42, got %d", got)
+	}
+	if got := parseIntWithDefault("bad", 7); got != 7 {
+		t.Fatalf("expected fallback 7, got %d", got)
+	}
+	if got := parseIntWithDefault("", 9); got != 9 {
+		t.Fatalf("expected fallback 9, got %d", got)
+	}
+}
+
+func TestParseUintSet(t *testing.T) {
+	set := parseUintSet("1,2,abc,0, 5")
+	if len(set) != 3 {
+		t.Fatalf("expected 3 valid ids, got %d", len(set))
+	}
+	if _, ok := set[1]; !ok {
+		t.Fatalf("expected id 1")
+	}
+	if _, ok := set[2]; !ok {
+		t.Fatalf("expected id 2")
+	}
+	if _, ok := set[5]; !ok {
+		t.Fatalf("expected id 5")
+	}
+}
+
+func TestUnlockSequenceByRole(t *testing.T) {
+	userSeq := unlockSequenceByRole("user")
+	if len(userSeq) == 0 {
+		t.Fatalf("expected non-empty user sequence")
+	}
+	if userSeq[0] != "multimedia" {
+		t.Fatalf("expected user sequence to start with multimedia, got %s", userSeq[0])
+	}
+
+	devoteeSeq := unlockSequenceByRole("devotee")
+	if len(devoteeSeq) == 0 || devoteeSeq[0] != "seva" {
+		t.Fatalf("expected devotee sequence to start with seva")
+	}
+}
+
+func TestApplyPhase3ExperimentVariantA(t *testing.T) {
+	svc := &PathTrackerService{}
+	candidates := []stepCandidate{
+		{Format: "communication", Difficulty: "medium"},
+		{Format: "practice", Difficulty: "low"},
+		{Format: "text", Difficulty: "low"},
+	}
+	profile := trajectoryProfile{Segment: "steady_builder"}
+
+	got := svc.ApplyPhase3Experiment(candidates, "user", profile, "medium", 5, "variant_a")
+	if len(got) != 3 {
+		t.Fatalf("expected 3 candidates, got %d", len(got))
+	}
+	if got[0].Format != "practice" && got[0].Format != "text" {
+		t.Fatalf("expected prioritized practice/text first, got %s", got[0].Format)
+	}
+}
+
+func TestApplyPhase3ExperimentControlNoChange(t *testing.T) {
+	svc := &PathTrackerService{}
+	candidates := []stepCandidate{
+		{Format: "communication", Difficulty: "medium"},
+		{Format: "practice", Difficulty: "low"},
+	}
+	profile := trajectoryProfile{Segment: "steady_builder"}
+
+	got := svc.ApplyPhase3Experiment(candidates, "user", profile, "medium", 5, "control")
+	if got[0].Format != "communication" {
+		t.Fatalf("expected original order in control, got %s first", got[0].Format)
+	}
+}

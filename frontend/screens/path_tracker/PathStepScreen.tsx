@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -72,9 +73,10 @@ export const PathStepScreen: React.FC = () => {
     }
   };
 
-  const openSuggestedService = () => {
+  const openSuggestedService = async () => {
     const id = step?.suggestedServiceId;
     if (!id) return;
+    await pathTrackerService.markUnlockOpened(id);
     if (id === 'multimedia') {
       navigation.navigate('MultimediaHub');
       return;
@@ -119,10 +121,22 @@ export const PathStepScreen: React.FC = () => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>{step.title}</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        {t('pathTracker.formatAndDuration', { format: step.format, minutes: step.durationMin })}
-      </Text>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => navigation.goBack()}
+        >
+          <ArrowLeft size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{step.title}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t('pathTracker.formatAndDuration', { format: step.format, minutes: step.durationMin })}
+          </Text>
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         {step.instructions.map((line, idx) => (
@@ -172,9 +186,28 @@ export const PathStepScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 28 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 0 : 10,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 22, fontWeight: '800' },
-  subtitle: { fontSize: 13 },
+  subtitle: { fontSize: 13, marginTop: 4 },
   sectionTitle: { fontSize: 15, fontWeight: '700' },
   card: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 8 },
   line: { fontSize: 14, lineHeight: 20 },

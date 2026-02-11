@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -45,7 +45,11 @@ export const ReaderScreen = () => {
     const verseSelectorRef = useRef<ScrollView>(null);
     const versePositions = useRef<{ [key: number]: number }>({});
     const lastReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const saveLastReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingBookmarkVerseRef = useRef<string | null>(null);
+    const latestChaptersRequestRef = useRef(0);
+    const latestVersesRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     // Reader Settings State
     const [showSettings, setShowSettings] = useState(false);
@@ -121,8 +125,14 @@ export const ReaderScreen = () => {
     }, [lastReadKey, verses.length]);
 
     useEffect(() => () => {
+        isMountedRef.current = false;
+        latestChaptersRequestRef.current += 1;
+        latestVersesRequestRef.current += 1;
         if (lastReadTimerRef.current) {
             clearTimeout(lastReadTimerRef.current);
+        }
+        if (saveLastReadTimerRef.current) {
+            clearTimeout(saveLastReadTimerRef.current);
         }
     }, []);
 
@@ -167,33 +177,44 @@ export const ReaderScreen = () => {
     }, [language]);
 
     const loadChapters = useCallback(async () => {
+        const requestId = ++latestChaptersRequestRef.current;
         try {
             const data = await libraryService.getChapters(bookCode);
-            setChapters(Array.isArray(data) ? data : []);
+            if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
+                setChapters(Array.isArray(data) ? data : []);
+            }
         } catch (error) {
             console.error('Failed to load chapters from network, trying offline', error);
             // Fallback to offline data
             const offlineData = await offlineBookService.getOfflineChapters(bookCode);
-            if (offlineData.length > 0) {
+            if (requestId === latestChaptersRequestRef.current && isMountedRef.current && offlineData.length > 0) {
                 setChapters(offlineData);
             }
         }
     }, [bookCode]);
 
     const loadVerses = useCallback(async (chapter: number, canto: number = 0) => {
-        setLoading(true);
+        const requestId = ++latestVersesRequestRef.current;
+        if (isMountedRef.current) {
+            setLoading(true);
+        }
         try {
             const data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language);
-            setVerses(Array.isArray(data) ? data : []);
-            setCurrentChapter(chapter);
-            setCurrentCanto(canto);
-            setActiveVerseIndex(0);
-            versePositions.current = {};
-            mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+            if (requestId === latestVersesRequestRef.current && isMountedRef.current) {
+                setVerses(Array.isArray(data) ? data : []);
+                setCurrentChapter(chapter);
+                setCurrentCanto(canto);
+                setActiveVerseIndex(0);
+                versePositions.current = {};
+                mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+            }
         } catch (error) {
             console.error('Failed to load verses from network, trying offline', error);
             // Fallback to offline data
             const offlineData = await offlineBookService.getOfflineVerses(bookCode, chapter, canto, language);
+            if (requestId !== latestVersesRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             if (offlineData.length > 0) {
                 setVerses(offlineData);
                 setCurrentChapter(chapter);
@@ -206,7 +227,9 @@ export const ReaderScreen = () => {
                 setVerses([]);
             }
         } finally {
-            setLoading(false);
+            if (requestId === latestVersesRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [bookCode, language]);
 
@@ -297,7 +320,12 @@ export const ReaderScreen = () => {
         }
         if (currentIndex !== activeVerseIndex) {
             setActiveVerseIndex(currentIndex);
-            saveLastRead(currentIndex);
+            if (saveLastReadTimerRef.current) {
+                clearTimeout(saveLastReadTimerRef.current);
+            }
+            saveLastReadTimerRef.current = setTimeout(() => {
+                saveLastRead(currentIndex);
+            }, 350);
         }
     };
 
@@ -478,12 +506,13 @@ export const ReaderScreen = () => {
                                             <Text style={styles.bookmarkText}>
                                                 {t('reader.chapter')} {ch}, {t('reader.text')} {v}
                                             </Text>
-                                            <TouchableOpacity onPress={() => {
+                                            <TouchableOpacity onPress={(event: GestureResponderEvent) => {
+                                                event.stopPropagation();
                                                 const targetChapter = parseInt(ch, 10);
                                                 if (Number.isNaN(targetChapter)) {
                                                     return;
                                                 }
-                                                toggleBookmark({ chapter: targetChapter, verse: v });
+                                                void toggleBookmark({ chapter: targetChapter, verse: v });
                                             }}>
                                                 <Trash2 size={18} color="#FF5252" />
                                             </TouchableOpacity>

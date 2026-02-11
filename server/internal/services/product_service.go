@@ -32,6 +32,24 @@ var (
 	ErrShopRequired        = errors.New("shop is required to create products")
 )
 
+func isValidProductType(productType models.ProductType) bool {
+	switch productType {
+	case models.ProductTypePhysical, models.ProductTypeDigital:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidProductStatus(status models.ProductStatus) bool {
+	switch status {
+	case models.ProductStatusDraft, models.ProductStatusActive, models.ProductStatusInactive, models.ProductStatusSoldOut:
+		return true
+	default:
+		return false
+	}
+}
+
 // CreateProduct creates a new product
 func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequest) (*models.Product, error) {
 	// Verify shop exists
@@ -46,10 +64,18 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	req.ExternalURL = strings.TrimSpace(req.ExternalURL)
 	req.DigitalURL = strings.TrimSpace(req.DigitalURL)
 	req.Currency = strings.TrimSpace(req.Currency)
+	req.Category = models.ProductCategory(strings.TrimSpace(string(req.Category)))
+	req.ProductType = models.ProductType(strings.TrimSpace(string(req.ProductType)))
 	req.MainImageURL = strings.TrimSpace(req.MainImageURL)
 	req.Dimensions = strings.TrimSpace(req.Dimensions)
 	if req.Name == "" {
 		return nil, errors.New("name is required")
+	}
+	if !isValidProductType(req.ProductType) {
+		return nil, errors.New("invalid product type")
+	}
+	if req.Category == "" {
+		return nil, errors.New("category is required")
 	}
 
 	// Generate slug
@@ -199,7 +225,11 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.Tags = string(tagsBytes)
 	}
 	if req.ProductType != nil {
-		product.ProductType = *req.ProductType
+		nextType := models.ProductType(strings.TrimSpace(string(*req.ProductType)))
+		if !isValidProductType(nextType) {
+			return nil, errors.New("invalid product type")
+		}
+		product.ProductType = nextType
 	}
 	if req.ExternalURL != nil {
 		product.ExternalURL = strings.TrimSpace(*req.ExternalURL)
@@ -214,7 +244,11 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.Stock = *req.Stock
 	}
 	if req.Status != nil {
-		product.Status = *req.Status
+		nextStatus := models.ProductStatus(strings.TrimSpace(string(*req.Status)))
+		if !isValidProductStatus(nextStatus) {
+			return nil, errors.New("invalid product status")
+		}
+		product.Status = nextStatus
 	}
 	if req.MainImageURL != nil {
 		product.MainImageURL = strings.TrimSpace(*req.MainImageURL)
@@ -298,6 +332,12 @@ func (s *ProductService) GetProductsByShop(shopID uint, page, limit int) (*model
 
 // GetProducts retrieves products with filters (public discovery)
 func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.ProductListResponse, error) {
+	filters.Category = models.ProductCategory(strings.TrimSpace(string(filters.Category)))
+	filters.ProductType = models.ProductType(strings.TrimSpace(string(filters.ProductType)))
+	filters.City = strings.TrimSpace(filters.City)
+	filters.Search = strings.TrimSpace(filters.Search)
+	filters.Sort = strings.TrimSpace(filters.Sort)
+
 	query := database.DB.Model(&models.Product{}).
 		Joins("JOIN shops ON shops.id = products.shop_id").
 		Where("products.status = ?", models.ProductStatusActive).

@@ -1,14 +1,17 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { pathTrackerService, PathTrackerWeeklySummary } from '../../services/pathTrackerService';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
+import { ArrowLeft } from 'lucide-react-native';
+import { Platform, TouchableOpacity } from 'react-native';
 
 export const PathWeeklySummaryScreen: React.FC = () => {
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
   const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -51,10 +54,22 @@ export const PathWeeklySummaryScreen: React.FC = () => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>{t('pathTracker.weeklyTitle')}</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        {t('pathTracker.weeklyRange', { from: data.fromDate, to: data.toDate })}
-      </Text>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => navigation.goBack()}
+        >
+          <ArrowLeft size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t('pathTracker.weeklyTitle')}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t('pathTracker.weeklyRange', { from: data.fromDate, to: data.toDate })}
+          </Text>
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.metric, { color: colors.textPrimary }]}>
@@ -90,9 +105,28 @@ export const PathWeeklySummaryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 28 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 0 : 10,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 24, fontWeight: '800' },
-  subtitle: { fontSize: 14 },
+  subtitle: { fontSize: 13, marginTop: 4 },
   card: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 8 },
   metric: { fontSize: 17, fontWeight: '700' },
   meta: { fontSize: 13 },

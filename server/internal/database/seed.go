@@ -87,6 +87,22 @@ func SeedSystemSettings() {
 			Key:   "PATH_TRACKER_ALERT_WEBHOOK_URL",
 			Value: "",
 		},
+		{
+			Key:   "PATH_TRACKER_ROLLOUT_PERCENT",
+			Value: "100",
+		},
+		{
+			Key:   "PATH_TRACKER_ROLLOUT_ALLOWLIST",
+			Value: "",
+		},
+		{
+			Key:   "PATH_TRACKER_ROLLOUT_DENYLIST",
+			Value: "",
+		},
+		{
+			Key:   "PATH_TRACKER_PHASE3_EXPERIMENT",
+			Value: "off",
+		},
 	}
 
 	for _, s := range settings {

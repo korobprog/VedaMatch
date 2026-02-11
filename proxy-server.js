@@ -23,6 +23,37 @@ const TARGET_API_URL = process.env.API_BASE_URL || 'https://rvlautoai.ru/webhook
 // Провайдер по умолчанию (можно изменить через переменную окружения)
 const DEFAULT_PROVIDER = process.env.DEFAULT_PROVIDER || 'Capi';
 
+// Значения, которые считаем "пустыми" в заголовках/полях
+const EMPTY_SENTINELS = new Set(['', 'null', 'undefined']);
+
+function isEmptyLike(value) {
+  if (typeof value !== 'string') return true;
+  return EMPTY_SENTINELS.has(value.trim().toLowerCase());
+}
+
+function getFallbackProjectId() {
+  return (process.env.OPENAI_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || '').trim();
+}
+
+function normalizeProjectResourceName(name, projectId) {
+  if (typeof name !== 'string') return name;
+  const trimmed = name.trim();
+  if (!trimmed.startsWith('projects/')) return trimmed;
+
+  // "projects/" -> "projects/<projectId>"
+  if (/^projects\/\s*$/.test(trimmed)) {
+    return projectId ? `projects/${projectId}` : trimmed;
+  }
+
+  // "projects//locations/..." -> "projects/<projectId>/locations/..."
+  if (trimmed.startsWith('projects//')) {
+    if (!projectId) return trimmed;
+    return `projects/${projectId}/${trimmed.slice('projects//'.length)}`;
+  }
+
+  return trimmed;
+}
+
 // Маппинг моделей к провайдерам (на основе документации API)
 // Если модель не найдена, используется DEFAULT_PROVIDER
 const MODEL_PROVIDER_MAP = {
@@ -106,6 +137,59 @@ app.use((req, res, next) => {
   next();
 });
 
+// Санитизация project/organization, чтобы не отправлять пустые значения upstream.
+app.use((req, res, next) => {
+  const sanitizeHeader = (headerName) => {
+    const raw = req.headers[headerName];
+    if (Array.isArray(raw)) {
+      const first = raw[0] || '';
+      if (isEmptyLike(first)) {
+        delete req.headers[headerName];
+      } else {
+        req.headers[headerName] = first.trim();
+      }
+      return;
+    }
+    if (typeof raw === 'string') {
+      if (isEmptyLike(raw)) {
+        delete req.headers[headerName];
+      } else {
+        req.headers[headerName] = raw.trim();
+      }
+    }
+  };
+
+  sanitizeHeader('openai-project');
+  sanitizeHeader('x-openai-project');
+  sanitizeHeader('openai-organization');
+  sanitizeHeader('x-openai-organization');
+
+  if (req.method === 'POST' && req.body && typeof req.body === 'object') {
+    if (typeof req.body.project === 'string' && isEmptyLike(req.body.project)) {
+      delete req.body.project;
+    }
+
+    if (typeof req.body.name === 'string') {
+      const fallbackProjectId = getFallbackProjectId();
+      const normalizedName = normalizeProjectResourceName(req.body.name, fallbackProjectId);
+
+      if (normalizedName !== req.body.name) {
+        console.warn(`[PROXY] ⚠️ Исправляю некорректное поле name: "${req.body.name}" -> "${normalizedName}"`);
+        req.body.name = normalizedName;
+      }
+
+      // Если project по-прежнему пустой, лучше вернуть явную ошибку сразу.
+      if (/^projects\/\s*$/.test(String(req.body.name).trim()) || String(req.body.name).trim().startsWith('projects//')) {
+        return res.status(400).json({
+          error: "Invalid project resource name 'projects/'. Set GOOGLE_CLOUD_PROJECT or OPENAI_PROJECT_ID.",
+        });
+      }
+    }
+  }
+
+  next();
+});
+
 // Middleware для добавления параметра provider
 // Обрабатываем как /v1/chat/completions, так и /chat/completions (после перенаправления)
 app.use(['/v1/chat/completions', '/chat/completions'], (req, res, next) => {
@@ -178,6 +262,22 @@ app.use(
       '^/chat/completions': '/v1/chat/completions', // /chat/completions -> /v1/chat/completions
     },
     onProxyReq: (proxyReq, req, res) => {
+      const requestProjectHeader = (req.headers['openai-project'] || req.headers['x-openai-project'] || '').toString().trim();
+      const fallbackProjectId = getFallbackProjectId();
+      const effectiveProjectId = requestProjectHeader || fallbackProjectId;
+      if (effectiveProjectId) {
+        proxyReq.setHeader('OpenAI-Project', effectiveProjectId);
+      } else {
+        proxyReq.removeHeader('OpenAI-Project');
+      }
+
+      const requestOrgHeader = (req.headers['openai-organization'] || req.headers['x-openai-organization'] || '').toString().trim();
+      if (requestOrgHeader) {
+        proxyReq.setHeader('OpenAI-Organization', requestOrgHeader);
+      } else {
+        proxyReq.removeHeader('OpenAI-Organization');
+      }
+
       // Логируем заголовки авторизации для отладки
       if (req.headers.authorization) {
         const authHeader = req.headers.authorization;
@@ -373,4 +473,3 @@ app.listen(PROXY_PORT, () => {
   console.log(`\nДля изменения провайдера установите переменную окружения:`);
   console.log(`  DEFAULT_PROVIDER=HuggingSpace node proxy-server.js`);
 });
-

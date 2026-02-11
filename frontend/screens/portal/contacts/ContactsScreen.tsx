@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
@@ -40,6 +40,8 @@ export const ContactsScreen: React.FC = () => {
     const [showCityPicker, setShowCityPicker] = useState(false);
     const [citySearchQuery, setCitySearchQuery] = useState('');
     const [now, setNow] = useState(new Date());
+    const latestFetchRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -48,12 +50,24 @@ export const ContactsScreen: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestFetchRequestRef.current += 1;
+        };
+    }, []);
+
 
     const fetchContacts = useCallback(async () => {
+        const requestId = ++latestFetchRequestRef.current;
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const contacts = await contactService.getContacts();
-            console.log('Contacts fetched:', contacts.length);
+            if (requestId !== latestFetchRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setAllContacts(contacts);
 
             // Extract cities from contacts
@@ -72,27 +86,36 @@ export const ContactsScreen: React.FC = () => {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (response.data && response.data.length > 0) {
-                    setAvailableCities(response.data);
-                    console.log('Cities from API:', response.data.length);
+                    if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                        setAvailableCities(response.data);
+                    }
                 } else {
-                    setAvailableCities(citiesFromContacts);
-                    console.log('No cities from API, using contacts:', citiesFromContacts.length);
+                    if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                        setAvailableCities(citiesFromContacts);
+                    }
                 }
             } catch {
-                setAvailableCities(citiesFromContacts);
-                console.log('API error, using cities from contacts:', citiesFromContacts.length);
+                if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                    setAvailableCities(citiesFromContacts);
+                }
             }
 
             if (currentUser?.ID) {
-                const userFriends = await contactService.getFriends(currentUser.ID);
-                setFriends(userFriends);
-                const blocked = await contactService.getBlockedUsers(currentUser.ID);
-                setBlockedContacts(blocked);
+                const [userFriends, blocked] = await Promise.all([
+                    contactService.getFriends(currentUser.ID),
+                    contactService.getBlockedUsers(currentUser.ID),
+                ]);
+                if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                    setFriends(userFriends);
+                    setBlockedContacts(blocked);
+                }
             }
         } catch (error) {
             console.error('Error fetching contacts:', error);
         } finally {
-            setLoading(false);
+            if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [currentUser?.ID]);
 
@@ -136,6 +159,9 @@ export const ContactsScreen: React.FC = () => {
     };
 
 
+    const friendIdsSet = useMemo(() => new Set(friends.map((friend) => friend.ID)), [friends]);
+    const blockedIdsSet = useMemo(() => new Set(blockedContacts.map((blocked) => blocked.ID)), [blockedContacts]);
+
     const displayedContacts = (
         filter === 'all' ? allContacts :
             filter === 'friends' ? friends : blockedContacts
@@ -145,7 +171,7 @@ export const ContactsScreen: React.FC = () => {
 
         // In All and Friends, don't show anyone who is blocked
         if (filter !== 'blocked') {
-            const isBlocked = blockedContacts.some(bc => bc.ID === c.ID);
+            const isBlocked = blockedIdsSet.has(c.ID);
             if (isBlocked) return false;
         }
 
@@ -167,8 +193,8 @@ export const ContactsScreen: React.FC = () => {
         return true;
     }).sort((a, b) => {
         if (filter === 'all') {
-            const isFriendA = friends.some(f => f.ID === a.ID);
-            const isFriendB = friends.some(f => f.ID === b.ID);
+            const isFriendA = friendIdsSet.has(a.ID);
+            const isFriendB = friendIdsSet.has(b.ID);
             if (isFriendA && !isFriendB) return -1;
             if (!isFriendA && isFriendB) return 1;
         }
@@ -180,7 +206,7 @@ export const ContactsScreen: React.FC = () => {
         const online = isOnline(item.lastSeen);
         const lastSeenText = !online ? formatLastSeen(item.lastSeen) : '';
         const isBlocked = filter === 'blocked';
-        const isFriend = friends.some(f => f.ID === item.ID);
+        const isFriend = friendIdsSet.has(item.ID);
         const nameColor = isPhotoBg ? '#ffffff' : vTheme.colors.text;
         const descColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
 
@@ -311,11 +337,14 @@ export const ContactsScreen: React.FC = () => {
         setFilterCities([]);
     };
 
-    const filteredCities = availableCities.filter((city: string) =>
+    const filteredCities = useMemo(() => availableCities.filter((city: string) =>
         city.toLowerCase().includes(citySearchQuery.toLowerCase())
-    );
+    ), [availableCities, citySearchQuery]);
 
-    const uniqueCountries = Array.from(new Set(allContacts.map((c: UserContact) => c.country).filter(Boolean))).sort();
+    const uniqueCountries = useMemo(
+        () => Array.from(new Set(allContacts.map((c: UserContact) => c.country).filter(Boolean))).sort(),
+        [allContacts]
+    );
     const uniqueCities = availableCities;
 
     return (

@@ -16,17 +16,19 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime
+from typing import Dict, Any, List, Optional
 
 # Fix Windows console encoding
 try:
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace') # type: ignore
 except:
     pass
 
 
 def detect_test_framework(project_path: Path) -> dict:
     """Detect test framework and commands."""
-    result = {
+    result: Dict[str, Any] = {
         "type": "unknown",
         "framework": None,
         "cmd": None,
@@ -70,15 +72,15 @@ def detect_test_framework(project_path: Path) -> dict:
     if (project_path / "pyproject.toml").exists() or (project_path / "requirements.txt").exists():
         result["type"] = "python"
         result["framework"] = "pytest"
-        result["cmd"] = ["python", "-m", "pytest", "-v"]
-        result["coverage_cmd"] = ["python", "-m", "pytest", "--cov", "--cov-report=term-missing"]
+        result["cmd"] = [sys.executable, "-m", "pytest", "-v"]
+        result["coverage_cmd"] = [sys.executable, "-m", "pytest", "--cov", "--cov-report=term-missing"]
     
     return result
 
 
 def run_tests(cmd: list, cwd: Path) -> dict:
     """Run tests and return results."""
-    result = {
+    result: Dict[str, Any] = {
         "passed": False,
         "output": "",
         "error": "",
@@ -98,8 +100,11 @@ def run_tests(cmd: list, cwd: Path) -> dict:
             timeout=300  # 5 min timeout for tests
         )
         
-        result["output"] = proc.stdout[:3000] if proc.stdout else ""
-        result["error"] = proc.stderr[:500] if proc.stderr else ""
+        stdout_str = str(proc.stdout) if proc.stdout else ""
+        stderr_str = str(proc.stderr) if proc.stderr else ""
+        
+        result["output"] = stdout_str
+        result["error"] = stderr_str
         result["passed"] = proc.returncode == 0
         
         # Try to parse test counts from output

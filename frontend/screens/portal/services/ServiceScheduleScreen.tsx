@@ -1,7 +1,7 @@
 /**
  * ServiceScheduleScreen - Экран настройки расписания сервиса
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -92,10 +92,16 @@ export default function ServiceScheduleScreen() {
     const [slotDuration, setSlotDuration] = useState(60); // minutes
     const [breakBetween, setBreakBetween] = useState(0); // minutes
     const [maxBookingsPerDay, setMaxBookingsPerDay] = useState(0); // 0 = unlimited
+    const latestLoadRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
-    const loadSchedule = React.useCallback(async () => {
+    const loadSchedule = useCallback(async () => {
+        const requestId = ++latestLoadRequestRef.current;
         try {
             const data = await getServiceSchedule(serviceId);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             if (data && data.weeklySlots) {
                 const parsed: Record<DayOfWeek, DaySchedule> = { ...INITIAL_SCHEDULE };
 
@@ -110,16 +116,25 @@ export default function ServiceScheduleScreen() {
                 });
 
                 setSchedule(parsed);
-                if (typeof data.slotDuration === 'number') setSlotDuration(data.slotDuration);
-                if (typeof data.breakBetween === 'number') setBreakBetween(data.breakBetween);
-                if (typeof data.maxBookingsPerDay === 'number') setMaxBookingsPerDay(data.maxBookingsPerDay);
+                if (typeof data.slotDuration === 'number' && data.slotDuration > 0) setSlotDuration(data.slotDuration);
+                if (typeof data.breakBetween === 'number' && data.breakBetween >= 0) setBreakBetween(data.breakBetween);
+                if (typeof data.maxBookingsPerDay === 'number' && data.maxBookingsPerDay >= 0) setMaxBookingsPerDay(data.maxBookingsPerDay);
             }
         } catch (error) {
             console.error('Failed to load schedule:', error);
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [serviceId]);
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+        };
+    }, []);
 
     // Load existing schedule
     useEffect(() => {
@@ -220,10 +235,44 @@ export default function ServiceScheduleScreen() {
     };
 
     const handleSave = async () => {
+        if (saving) {
+            return;
+        }
         if (!serviceId) {
             Alert.alert('Ошибка', 'Не указан сервис');
             return;
         }
+
+        for (const { key, label } of DAYS) {
+            const daySchedule = schedule[key];
+            if (!daySchedule.enabled) {
+                continue;
+            }
+
+            const normalizedSlots = daySchedule.slots
+                .map((slot) => ({
+                    start: slot.startTime,
+                    end: slot.endTime,
+                    startMinutes: parseTimeToMinutes(slot.startTime),
+                    endMinutes: parseTimeToMinutes(slot.endTime),
+                }))
+                .sort((a, b) => a.startMinutes - b.startMinutes);
+
+            for (const slot of normalizedSlots) {
+                if (slot.startMinutes < 0 || slot.endMinutes < 0 || slot.startMinutes >= slot.endMinutes) {
+                    Alert.alert('Ошибка', `Некорректный интервал в "${label}": ${slot.start} - ${slot.end}`);
+                    return;
+                }
+            }
+
+            for (let i = 1; i < normalizedSlots.length; i++) {
+                if (normalizedSlots[i].startMinutes < normalizedSlots[i - 1].endMinutes) {
+                    Alert.alert('Ошибка', `Пересечение интервалов в "${label}"`);
+                    return;
+                }
+            }
+        }
+
         setSaving(true);
         try {
             const weeklySlots: NonNullable<CreateScheduleRequest['weeklySlots']> = {};
@@ -263,6 +312,14 @@ export default function ServiceScheduleScreen() {
         const newHours = Math.floor(totalMinutes / 60) % 24;
         const newMinutes = totalMinutes % 60;
         return `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+    };
+
+    const parseTimeToMinutes = (time: string): number => {
+        const [h, m] = time.split(':').map(Number);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) {
+            return -1;
+        }
+        return h * 60 + m;
     };
 
     function showTimePicker(day: DayOfWeek, slotIndex: number, field: 'startTime' | 'endTime', _currentValue: string) {

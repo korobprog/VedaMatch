@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,8 @@ import { pathTrackerService, PathTrackerToday } from '../../services/pathTracker
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
+
+import { ArrowLeft } from 'lucide-react-native';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -48,8 +50,9 @@ export const PathTrackerHomeScreen: React.FC = () => {
     }
   };
 
-  const openSuggestedService = (id?: string) => {
+  const openSuggestedService = async (id?: string) => {
     if (!id) return;
+    await pathTrackerService.markUnlockOpened(id);
     if (id === 'multimedia') {
       navigation.navigate('MultimediaHub');
       return;
@@ -99,8 +102,20 @@ export const PathTrackerHomeScreen: React.FC = () => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>{t('pathTracker.title')}</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('pathTracker.subtitle')}</Text>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => navigation.goBack()}
+        >
+          <ArrowLeft size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t('pathTracker.title')}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('pathTracker.subtitle')}</Text>
+        </View>
+        <View style={{ width: 40 }} />{/* Spacer to balance the back button */}
+      </View>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -108,6 +123,9 @@ export const PathTrackerHomeScreen: React.FC = () => {
         </Text>
         <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
           {t('pathTracker.streak', { current: today.state?.streakCurrent || 0, best: today.state?.streakBest || 0 })}
+        </Text>
+        <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
+          {t('pathTracker.unlockProgress', { current: today.state?.unlockCount || 0, total: today.state?.unlockTotal || 0 })}
         </Text>
         {today.isStale ? (
           <Text style={[styles.warning, { color: colors.warning }]}>{t('pathTracker.offlineCached')}</Text>
@@ -121,7 +139,7 @@ export const PathTrackerHomeScreen: React.FC = () => {
             {t('pathTracker.formatAndDuration', { format: today.step.format, minutes: today.step.durationMin })}
           </Text>
           <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
-            {t('pathTracker.stepStatus', { status: today.step.status })}
+            {t('pathTracker.stepStatus')}: {t(`pathTracker.stepStatuses.${today.step.status}`, { defaultValue: today.step.status })}
           </Text>
         </View>
       ) : null}
@@ -183,9 +201,28 @@ export const PathTrackerHomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 32, gap: 12 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 0 : 10,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 24, fontWeight: '800' },
-  subtitle: { fontSize: 14, marginTop: 4, marginBottom: 10 },
+  subtitle: { fontSize: 13, marginTop: 4 },
   card: {
     borderRadius: 14,
     borderWidth: 1,

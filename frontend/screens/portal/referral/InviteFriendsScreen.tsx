@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -66,14 +66,20 @@ export default function InviteFriendsScreen({ navigation }: any) {
     const [showRules, setShowRules] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const viewShotRef = React.useRef<any>(null);
+    const copiedResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const latestLoadRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
     const { user: currentUser } = useUser();
     const [inviteData, setInviteData] = useState<InviteData | null>(null);
     const [stats, setStats] = useState<ReferralStats | null>(null);
     const [referrals, setReferrals] = useState<ReferralInfo[]>([]);
 
     const loadData = useCallback(async () => {
+        const requestId = ++latestLoadRequestRef.current;
         try {
-            setError(null);
+            if (isMountedRef.current) {
+                setError(null);
+            }
             const headers = await getAuthHeaders();
             const [inviteRes, statsRes, listRes] = await Promise.all([
                 fetch(`${API_PATH}/referral/invite`, { headers }).then(r => {
@@ -89,20 +95,34 @@ export default function InviteFriendsScreen({ navigation }: any) {
                     return r.json();
                 }),
             ]);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setInviteData(inviteRes);
             setStats(statsRes);
-            setReferrals(listRes.referrals || []);
+            setReferrals(Array.isArray(listRes?.referrals) ? listRes.referrals : []);
         } catch (err: any) {
             console.error('[Referral] Failed to load data:', err);
-            setError(err.message || 'Ошибка загрузки данных');
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setError(err.message || 'Ошибка загрузки данных');
+            }
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, []);
 
     useEffect(() => {
         loadData();
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            if (copiedResetTimerRef.current) {
+                clearTimeout(copiedResetTimerRef.current);
+            }
+        };
     }, [loadData]);
 
     const onRefresh = () => {
@@ -114,7 +134,14 @@ export default function InviteFriendsScreen({ navigation }: any) {
         if (!inviteData) return;
         Clipboard.setString(inviteData.inviteCode);
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (copiedResetTimerRef.current) {
+            clearTimeout(copiedResetTimerRef.current);
+        }
+        copiedResetTimerRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+                setCopied(false);
+            }
+        }, 2000);
     };
 
     const handleShare = async () => {
@@ -134,7 +161,11 @@ export default function InviteFriendsScreen({ navigation }: any) {
         if (!inviteData) return;
         setSharingImage(true);
         try {
-            const uri = await captureRef(viewShotRef, {
+            const target = viewShotRef.current;
+            if (!target) {
+                throw new Error('ViewShot target is not ready');
+            }
+            const uri = await captureRef(target, {
                 format: 'png',
                 quality: 0.9,
             });
@@ -149,7 +180,9 @@ export default function InviteFriendsScreen({ navigation }: any) {
                 console.error('[Referral] Image share error:', err);
             }
         } finally {
-            setSharingImage(false);
+            if (isMountedRef.current) {
+                setSharingImage(false);
+            }
         }
     };
 

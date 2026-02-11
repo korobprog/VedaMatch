@@ -46,10 +46,25 @@ export interface PathTrackerToday {
     streakCurrent: number;
     streakBest: number;
     loadLevel: string;
+    trajectoryPhase?: string;
+    experienceSegment?: string;
+    unlockTotal?: number;
+    unlockCount?: number;
+    unlockNextService?: string;
+    rolloutCohort?: string;
+    phase3Variant?: string;
     lastFormat: string;
     experimentBucket?: string;
   };
   isStale?: boolean;
+}
+
+export interface PathTrackerUnlockStatus {
+  totalServices: number;
+  unlockedServices: number;
+  nextServiceId?: string;
+  nextServiceTitle?: string;
+  unlockedList: string[];
 }
 
 export interface PathTrackerWeeklyDay {
@@ -245,5 +260,33 @@ export const pathTrackerService = {
       throw new Error(text || 'Failed to load weekly summary');
     }
     return parseJSON<PathTrackerWeeklySummary>(response);
+  },
+
+  async getUnlockStatus(role?: string): Promise<PathTrackerUnlockStatus> {
+    const headers = await getAuthHeaders();
+    const query = role ? `?role=${encodeURIComponent(role)}` : '';
+    const response = await fetch(`${API_PATH}/path-tracker/unlock-status${query}`, { headers });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to load unlock status');
+    }
+    return parseJSON<PathTrackerUnlockStatus>(response);
+  },
+
+  async markUnlockOpened(serviceId: string) {
+    const headers = await getAuthHeaders();
+    try {
+      const response = await fetch(`${API_PATH}/path-tracker/unlock-opened`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ serviceId }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to mark unlock opened');
+      }
+      return parseJSON<{ ok: boolean }>(response);
+    } catch {
+      return { ok: false };
+    }
   },
 };

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log"
 	"math"
 	"rag-agent-server/internal/database"
@@ -216,7 +217,10 @@ func (h *NewsHandler) GetNewsCategories(c *fiber.Ctx) error {
 // GET /api/news/latest
 func (h *NewsHandler) GetLatestNews(c *fiber.Ctx) error {
 	limit := boundedNewsQueryInt(c, "limit", 3, 1, 10)
-	lang := c.Query("lang", "ru")
+	lang := strings.ToLower(strings.TrimSpace(c.Query("lang", "ru")))
+	if lang != "en" {
+		lang = "ru"
+	}
 
 	var newsItems []models.NewsItem
 	if err := database.DB.
@@ -510,9 +514,9 @@ func (h *NewsHandler) ProcessNewsAI(c *fiber.Ctx) error {
 func (h *NewsHandler) GetSources(c *fiber.Ctx) error {
 	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
 	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
-	sourceType := c.Query("type", "")
-	isActive := c.Query("active", "")
-	search := c.Query("search", "")
+	sourceType := strings.ToLower(strings.TrimSpace(c.Query("type", "")))
+	isActive := strings.ToLower(strings.TrimSpace(c.Query("active", "")))
+	search := strings.TrimSpace(c.Query("search", ""))
 
 	offset := (page - 1) * limit
 
@@ -659,6 +663,11 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	rawBody := c.Body()
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(rawBody, &rawFields); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON body"})
+	}
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
 	req.SourceType = models.NewsSourceType(strings.ToLower(strings.TrimSpace(string(req.SourceType))))
@@ -697,15 +706,29 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 		"vk_group_id":     req.VKGroupID,
 		"telegram_id":     req.TelegramID,
 		"tg_parser_type":  req.TGParserType,
-		"is_active":       req.IsActive,
-		"fetch_interval":  req.FetchInterval,
-		"mode":            req.Mode,
-		"auto_translate":  req.AutoTranslate,
-		"style_transfer":  req.StyleTransfer,
 		"default_tags":    req.DefaultTags,
 		"target_madh":     req.TargetMadh,
 		"target_yoga":     req.TargetYoga,
 		"target_identity": req.TargetIdentity,
+	}
+
+	if _, ok := rawFields["isActive"]; ok {
+		updates["is_active"] = req.IsActive
+	}
+	if _, ok := rawFields["fetchInterval"]; ok {
+		updates["fetch_interval"] = req.FetchInterval
+	}
+	if _, ok := rawFields["mode"]; ok {
+		if req.Mode == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Mode cannot be empty"})
+		}
+		updates["mode"] = req.Mode
+	}
+	if _, ok := rawFields["autoTranslate"]; ok {
+		updates["auto_translate"] = req.AutoTranslate
+	}
+	if _, ok := rawFields["styleTransfer"]; ok {
+		updates["style_transfer"] = req.StyleTransfer
 	}
 
 	// Only update access token if provided
@@ -879,6 +902,15 @@ func (h *NewsHandler) SubscribeToSource(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
 	}
+	var sourceExists int64
+	if err := database.DB.Model(&models.NewsSource{}).
+		Where("id = ?", sourceID).
+		Count(&sourceExists).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to verify source"})
+	}
+	if sourceExists == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Source not found"})
+	}
 
 	subscription := models.UserNewsSubscription{
 		UserID:   userID,
@@ -942,6 +974,15 @@ func (h *NewsHandler) AddToFavorites(c *fiber.Ctx) error {
 	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+	}
+	var sourceExists int64
+	if err := database.DB.Model(&models.NewsSource{}).
+		Where("id = ?", sourceID).
+		Count(&sourceExists).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to verify source"})
+	}
+	if sourceExists == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Source not found"})
 	}
 
 	favorite := models.UserNewsFavorite{

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -44,31 +44,47 @@ const ShelterDetailScreen: React.FC = () => {
     const [rating, setRating] = useState(5);
     const [comment, setComment] = useState('');
     const [submittingReview, setSubmittingReview] = useState(false);
+    const latestLoadRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const loadShelter = useCallback(async () => {
+        const requestId = ++latestLoadRequestRef.current;
         try {
-            setLoading(true);
-            const data = await yatraService.getShelter(shelterId);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
+            const [data, reviewsData] = await Promise.all([
+                yatraService.getShelter(shelterId),
+                yatraService.getShelterReviews(shelterId, 1, 3),
+            ]);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setShelter(data);
-
-            // Load reviews
-            const reviewsData = await yatraService.getShelterReviews(shelterId, 1, 3);
-            setReviews(reviewsData.reviews);
+            setReviews(Array.isArray(reviewsData?.reviews) ? reviewsData.reviews : []);
         } catch (error) {
             console.error('Error loading shelter details:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить информацию о жилье');
-            navigation.goBack();
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                Alert.alert('Ошибка', 'Не удалось загрузить информацию о жилье');
+                navigation.goBack();
+            }
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [shelterId, navigation]);
 
     useEffect(() => {
         loadShelter();
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+        };
     }, [loadShelter]);
 
     const handleShare = async () => {
@@ -76,6 +92,9 @@ const ShelterDetailScreen: React.FC = () => {
     };
 
     const handleSubmitReview = async () => {
+        if (submittingReview) {
+            return;
+        }
         if (!comment.trim()) {
             Alert.alert('Ошибка', 'Напишите текст отзыва');
             return;
@@ -85,7 +104,7 @@ const ShelterDetailScreen: React.FC = () => {
             setSubmittingReview(true);
             await yatraService.createReview(shelterId, {
                 rating,
-                comment,
+                comment: comment.trim(),
                 cleanlinessRating: rating, // Simple default
                 locationRating: rating,
                 valueRating: rating,
@@ -104,6 +123,7 @@ const ShelterDetailScreen: React.FC = () => {
     };
 
     const handleContact = (type: 'whatsapp' | 'phone' | 'email') => {
+        void (async () => {
         if (!shelter) return;
 
         let url = '';
@@ -122,16 +142,21 @@ const ShelterDetailScreen: React.FC = () => {
         }
 
         if (url) {
-            Linking.canOpenURL(url).then(supported => {
+            try {
+                const supported = await Linking.canOpenURL(url);
                 if (supported) {
-                    Linking.openURL(url);
+                    await Linking.openURL(url);
                 } else {
                     Alert.alert('Ошибка', 'Не удалось открыть приложение');
                 }
-            });
+            } catch (error) {
+                console.error('Failed to open contact URL:', error);
+                Alert.alert('Ошибка', 'Не удалось открыть приложение');
+            }
         } else {
             Alert.alert('Информация', 'Контакт не указан');
         }
+        })();
     };
 
     const getAmenityIcon = (key: string) => {

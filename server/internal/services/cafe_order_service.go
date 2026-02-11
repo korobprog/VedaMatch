@@ -18,6 +18,24 @@ type CafeOrderService struct {
 	dishService *DishService
 }
 
+func isValidCafePaymentMethod(method string) bool {
+	switch method {
+	case "", "cash", "card_terminal":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidOrderItemStatus(status string) bool {
+	switch status {
+	case "pending", "preparing", "ready", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
 // NewCafeOrderService creates a new cafe order service instance
 func NewCafeOrderService(db *gorm.DB, dishService *DishService) *CafeOrderService {
 	return &CafeOrderService{
@@ -46,6 +64,9 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	case models.CafeOrderTypeDineIn, models.CafeOrderTypeTakeaway, models.CafeOrderTypeDelivery:
 	default:
 		return nil, errors.New("invalid order type")
+	}
+	if !isValidCafePaymentMethod(req.PaymentMethod) {
+		return nil, errors.New("invalid payment method")
 	}
 
 	// Validate order type requirements
@@ -308,6 +329,9 @@ func (s *CafeOrderService) GetOrder(orderID uint) (*models.CafeOrderResponse, er
 
 // ListOrders returns a paginated list of orders
 func (s *CafeOrderService) ListOrders(filters models.CafeOrderFilters) (*models.CafeOrderListResponse, error) {
+	filters.Search = strings.TrimSpace(filters.Search)
+	filters.Sort = strings.TrimSpace(filters.Sort)
+
 	query := s.db.Model(&models.CafeOrder{})
 
 	// Apply filters
@@ -601,6 +625,9 @@ func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error 
 	if paymentMethod == "" {
 		return errors.New("payment method is required")
 	}
+	if !isValidCafePaymentMethod(paymentMethod) {
+		return errors.New("invalid payment method")
+	}
 	now := time.Now()
 	updateResult := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
 		"is_paid":        true,
@@ -620,6 +647,10 @@ func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error 
 
 // UpdateItemStatus updates the status of an order item
 func (s *CafeOrderService) UpdateItemStatus(itemID uint, status string) error {
+	status = strings.TrimSpace(status)
+	if !isValidOrderItemStatus(status) {
+		return errors.New("invalid item status")
+	}
 	updates := map[string]interface{}{"status": status}
 	if status == "ready" {
 		now := time.Now()

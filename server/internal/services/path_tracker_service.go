@@ -149,6 +149,19 @@ type PathTrackerAnalytics struct {
 	Alerts            PathTrackerAlertSignals        `json:"alerts"`
 }
 
+type PathTrackerOpsSnapshot struct {
+	Enabled                bool                    `json:"enabled"`
+	RolloutPercent         int                     `json:"rolloutPercent"`
+	Phase3ExperimentMode   string                  `json:"phase3ExperimentMode"`
+	AllowlistCount         int                     `json:"allowlistCount"`
+	DenylistCount          int                     `json:"denylistCount"`
+	AlertWebhookConfigured bool                    `json:"alertWebhookConfigured"`
+	RecentFailedAlerts1h   int64                   `json:"recentFailedAlerts1h"`
+	RecentSentAlerts1h     int64                   `json:"recentSentAlerts1h"`
+	Signals                PathTrackerAlertSignals `json:"signals"`
+	UpdatedAt              string                  `json:"updatedAt"`
+}
+
 type PathTrackerAlertSignals struct {
 	FallbackRate1h         float64 `json:"fallbackRate1h"`
 	FallbackSamples1h      int64   `json:"fallbackSamples1h"`
@@ -159,6 +172,37 @@ type PathTrackerAlertSignals struct {
 	GenerateErrors15m      int64   `json:"generateErrors15m"`
 	GenerateThreshold      float64 `json:"generateThreshold"`
 	GenerateErrorTriggered bool    `json:"generateErrorTriggered"`
+}
+
+type PathTrackerAlertEventView struct {
+	ID             uint   `json:"id"`
+	CreatedAt      string `json:"createdAt"`
+	AlertType      string `json:"alertType"`
+	Severity       string `json:"severity"`
+	Threshold      string `json:"threshold"`
+	CurrentValue   string `json:"currentValue"`
+	WindowMinutes  int    `json:"windowMinutes"`
+	DeliveryStatus string `json:"deliveryStatus"`
+	DeliveryCode   int    `json:"deliveryCode"`
+	ErrorText      string `json:"errorText,omitempty"`
+}
+
+type PathTrackerAlertRetrySummary struct {
+	LookbackMinutes int `json:"lookbackMinutes"`
+	ScanLimit       int `json:"scanLimit"`
+	Candidates      int `json:"candidates"`
+	Retried         int `json:"retried"`
+	Sent            int `json:"sent"`
+	Failed          int `json:"failed"`
+	Skipped         int `json:"skipped"`
+}
+
+type PathTrackerUnlockStatus struct {
+	TotalServices    int      `json:"totalServices"`
+	UnlockedServices int      `json:"unlockedServices"`
+	NextServiceID    string   `json:"nextServiceId,omitempty"`
+	NextServiceTitle string   `json:"nextServiceTitle,omitempty"`
+	UnlockedList     []string `json:"unlockedList"`
 }
 
 type AssistantResult struct {
@@ -280,6 +324,57 @@ func (s *PathTrackerService) IsEnabled() bool {
 	return !isFalseLike(setting.Value)
 }
 
+func (s *PathTrackerService) IsEnabledForUser(userID uint) bool {
+	if !s.IsEnabled() {
+		return false
+	}
+	if userID == 0 {
+		return false
+	}
+
+	deny := parseUintSet(s.getSystemSetting("PATH_TRACKER_ROLLOUT_DENYLIST"))
+	if _, blocked := deny[userID]; blocked {
+		return false
+	}
+
+	allow := parseUintSet(s.getSystemSetting("PATH_TRACKER_ROLLOUT_ALLOWLIST"))
+	if len(allow) > 0 {
+		_, ok := allow[userID]
+		return ok
+	}
+
+	percent := parseIntWithDefault(s.getSystemSetting("PATH_TRACKER_ROLLOUT_PERCENT"), 100)
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	bucket := int(userID % 100)
+	return bucket < percent
+}
+
+func (s *PathTrackerService) GetRolloutCohort(userID uint) string {
+	if userID == 0 {
+		return "holdout"
+	}
+	deny := parseUintSet(s.getSystemSetting("PATH_TRACKER_ROLLOUT_DENYLIST"))
+	if _, blocked := deny[userID]; blocked {
+		return "holdout"
+	}
+	allow := parseUintSet(s.getSystemSetting("PATH_TRACKER_ROLLOUT_ALLOWLIST"))
+	if len(allow) > 0 {
+		if _, ok := allow[userID]; ok {
+			return "allowlist"
+		}
+		return "holdout"
+	}
+	if s.IsEnabledForUser(userID) {
+		return "treatment"
+	}
+	return "holdout"
+}
+
 func (s *PathTrackerService) MaybeEmitMonitoringAlerts() {
 	alerts, err := s.buildAlertSignals()
 	if err != nil {
@@ -288,14 +383,6 @@ func (s *PathTrackerService) MaybeEmitMonitoringAlerts() {
 	}
 
 	webhookURL := strings.TrimSpace(s.getSystemSetting("PATH_TRACKER_ALERT_WEBHOOK_URL"))
-	if webhookURL == "" {
-		if alerts.FallbackTriggered || alerts.GenerateErrorTriggered {
-			log.Printf("[PathTracker][Alert] no webhook configured fallback_rate_1h=%.2f generate_error_rate_15m=%.2f",
-				alerts.FallbackRate1h, alerts.GenerateErrorRate15m)
-		}
-		return
-	}
-
 	cooldown := 10 * time.Minute
 	if alerts.FallbackTriggered && pathTrackerAlertNotifier.shouldSend("fallback_rate", cooldown) {
 		payload := map[string]any{
@@ -307,7 +394,8 @@ func (s *PathTrackerService) MaybeEmitMonitoringAlerts() {
 			"windowMinutes":  60,
 			"generatedAtUTC": time.Now().UTC().Format(time.RFC3339),
 		}
-		s.sendPathTrackerAlertWebhook(webhookURL, payload)
+		status, code, errText := s.sendPathTrackerAlertWebhook(webhookURL, payload)
+		s.storeAlertEvent(payload, status, code, errText)
 	}
 
 	if alerts.GenerateErrorTriggered && pathTrackerAlertNotifier.shouldSend("generate_error_rate", cooldown) {
@@ -321,8 +409,160 @@ func (s *PathTrackerService) MaybeEmitMonitoringAlerts() {
 			"windowMinutes":  15,
 			"generatedAtUTC": time.Now().UTC().Format(time.RFC3339),
 		}
-		s.sendPathTrackerAlertWebhook(webhookURL, payload)
+		status, code, errText := s.sendPathTrackerAlertWebhook(webhookURL, payload)
+		s.storeAlertEvent(payload, status, code, errText)
 	}
+}
+
+func (s *PathTrackerService) GetAlertEvents(page int, pageSize int, deliveryStatus string, alertType string, sortBy string, sortDir string) ([]PathTrackerAlertEventView, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+
+	query := s.db.Model(&models.PathTrackerAlertEvent{})
+	status := strings.TrimSpace(strings.ToLower(deliveryStatus))
+	if status != "" {
+		query = query.Where("delivery_status = ?", status)
+	}
+	typ := strings.TrimSpace(strings.ToLower(alertType))
+	if typ != "" {
+		query = query.Where("LOWER(alert_type) = ?", typ)
+	}
+
+	orderCol := "created_at"
+	switch strings.TrimSpace(strings.ToLower(sortBy)) {
+	case "deliverystatus":
+		orderCol = "delivery_status"
+	case "createdat":
+		orderCol = "created_at"
+	}
+	orderDir := "desc"
+	if strings.TrimSpace(strings.ToLower(sortDir)) == "asc" {
+		orderDir = "asc"
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	var rows []models.PathTrackerAlertEvent
+	if err := query.Order(fmt.Sprintf("%s %s, id desc", orderCol, orderDir)).Offset(offset).Limit(pageSize).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]PathTrackerAlertEventView, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, PathTrackerAlertEventView{
+			ID:             row.ID,
+			CreatedAt:      row.CreatedAt.UTC().Format(time.RFC3339),
+			AlertType:      row.AlertType,
+			Severity:       row.Severity,
+			Threshold:      row.Threshold,
+			CurrentValue:   row.CurrentValue,
+			WindowMinutes:  row.WindowMinutes,
+			DeliveryStatus: row.DeliveryStatus,
+			DeliveryCode:   row.DeliveryCode,
+			ErrorText:      row.ErrorText,
+		})
+	}
+	return out, total, nil
+}
+
+func (s *PathTrackerService) RetryAlertEvent(alertID uint) (*PathTrackerAlertEventView, error) {
+	var event models.PathTrackerAlertEvent
+	if err := s.db.First(&event, alertID).Error; err != nil {
+		return nil, err
+	}
+
+	webhookURL := strings.TrimSpace(s.getSystemSetting("PATH_TRACKER_ALERT_WEBHOOK_URL"))
+	payload := map[string]any{}
+	if raw := strings.TrimSpace(event.PayloadJSON); raw != "" {
+		_ = json.Unmarshal([]byte(raw), &payload)
+	}
+	if len(payload) == 0 {
+		payload = map[string]any{
+			"alertType":      event.AlertType,
+			"severity":       event.Severity,
+			"threshold":      event.Threshold,
+			"currentValue":   event.CurrentValue,
+			"windowMinutes":  event.WindowMinutes,
+			"generatedAtUTC": time.Now().UTC().Format(time.RFC3339),
+		}
+	}
+
+	status, code, errText := s.sendPathTrackerAlertWebhook(webhookURL, payload)
+	event.DeliveryStatus = status
+	event.DeliveryCode = code
+	event.ErrorText = strings.TrimSpace(errText)
+	if err := s.db.Save(&event).Error; err != nil {
+		return nil, err
+	}
+
+	return &PathTrackerAlertEventView{
+		ID:             event.ID,
+		CreatedAt:      event.CreatedAt.UTC().Format(time.RFC3339),
+		AlertType:      event.AlertType,
+		Severity:       event.Severity,
+		Threshold:      event.Threshold,
+		CurrentValue:   event.CurrentValue,
+		WindowMinutes:  event.WindowMinutes,
+		DeliveryStatus: event.DeliveryStatus,
+		DeliveryCode:   event.DeliveryCode,
+		ErrorText:      event.ErrorText,
+	}, nil
+}
+
+func (s *PathTrackerService) RetryFailedAlerts(minutes int, limit int) (*PathTrackerAlertRetrySummary, error) {
+	if minutes <= 0 {
+		minutes = 60
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	since := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute)
+	var rows []models.PathTrackerAlertEvent
+	if err := s.db.
+		Where("created_at >= ? AND delivery_status IN ?", since, []string{"failed", "skipped"}).
+		Order("created_at desc").
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	summary := &PathTrackerAlertRetrySummary{
+		LookbackMinutes: minutes,
+		ScanLimit:       limit,
+		Candidates:      len(rows),
+	}
+
+	for _, row := range rows {
+		summary.Retried++
+		retried, err := s.RetryAlertEvent(row.ID)
+		if err != nil {
+			summary.Failed++
+			continue
+		}
+		switch retried.DeliveryStatus {
+		case "sent":
+			summary.Sent++
+		case "skipped":
+			summary.Skipped++
+		default:
+			summary.Failed++
+		}
+	}
+	return summary, nil
 }
 
 func (s *PathTrackerService) GetToday(userID uint) (*TodayView, error) {
@@ -346,6 +586,13 @@ func (s *PathTrackerService) GetToday(userID uint) (*TodayView, error) {
 	if segment == "" {
 		segment = "gentle_recovery"
 	}
+	unlockStatus, unlockErr := s.GetUnlockStatus(userID, normalizeRole(user.Role))
+	if unlockErr != nil || unlockStatus == nil {
+		log.Printf("[PathTracker] failed to get unlock status for user %d: %v", userID, unlockErr)
+		unlockStatus = &PathTrackerUnlockStatus{
+			UnlockedList: []string{},
+		}
+	}
 	view := &TodayView{
 		Date:          dateLocal,
 		Role:          normalizeRole(user.Role),
@@ -359,6 +606,11 @@ func (s *PathTrackerService) GetToday(userID uint) (*TodayView, error) {
 			"experienceSegment": segment,
 			"lastFormat":        strings.TrimSpace(state.LastFormat),
 			"experimentBucket":  experimentBucket(userID),
+			"unlockTotal":       unlockStatus.TotalServices,
+			"unlockCount":       unlockStatus.UnlockedServices,
+			"unlockNextService": unlockStatus.NextServiceID,
+			"rolloutCohort":     s.GetRolloutCohort(userID),
+			"phase3Variant":     s.getPhase3ExperimentVariant(userID, normalizeRole(user.Role)),
 		},
 	}
 	if hasCheckin {
@@ -438,9 +690,11 @@ func (s *PathTrackerService) GenerateStep(userID uint) (*DailyStepView, error) {
 	loadLevel := s.deriveLoadLevel(checkin, state, missedDays, userID, dateLocal)
 	trajectory := s.buildTrajectoryProfile(userID, dateLocal, missedDays)
 	role := normalizeRole(user.Role)
+	phase3Variant := s.getPhase3ExperimentVariant(userID, role)
 	candidates := s.BuildDailyCandidateSet(role, checkin.AvailableMinutes, loadLevel)
 	candidates = s.ApplyGuardrails(candidates, loadLevel, missedDays, state.LastFormat)
 	candidates = s.ApplyTrajectoryAdaptation(candidates, role, trajectory, loadLevel, checkin.AvailableMinutes)
+	candidates = s.ApplyPhase3Experiment(candidates, role, trajectory, loadLevel, checkin.AvailableMinutes, phase3Variant)
 	if len(candidates) == 0 {
 		candidates = s.FallbackCandidateSet(role, checkin.AvailableMinutes)
 	}
@@ -485,13 +739,14 @@ func (s *PathTrackerService) GenerateStep(userID uint) (*DailyStepView, error) {
 		"initial":           true,
 		"trajectoryPhase":   trajectory.Phase,
 		"experienceSegment": trajectory.Segment,
+		"phase3Variant":     phase3Variant,
 		"completionRate30":  trajectory.CompletionRate30,
 		"suggestedService":  suggestedServiceID,
 		"experimentBucket":  experimentBucket(userID),
 	})
 
-	log.Printf("[PathTracker] step generated metric=path_tracker_step_generated user=%d role=%s date=%s format=%s phase=%s segment=%s fallback=%v",
-		userID, role, dateLocal, chosen.Format, trajectory.Phase, trajectory.Segment, source == models.PathTrackerGenerationTemplate)
+	log.Printf("[PathTracker] step generated metric=path_tracker_step_generated user=%d role=%s date=%s format=%s phase=%s segment=%s variant=%s fallback=%v",
+		userID, role, dateLocal, chosen.Format, trajectory.Phase, trajectory.Segment, phase3Variant, source == models.PathTrackerGenerationTemplate)
 	return buildDailyStepView(step, dateLocal)
 }
 
@@ -880,6 +1135,50 @@ func (s *PathTrackerService) GetAnalytics(days int) (*PathTrackerAnalytics, erro
 	}, nil
 }
 
+func (s *PathTrackerService) GetOpsSnapshot() (*PathTrackerOpsSnapshot, error) {
+	alerts, err := s.buildAlertSignals()
+	if err != nil {
+		return nil, err
+	}
+
+	since := time.Now().UTC().Add(-1 * time.Hour)
+	var failed1h int64
+	if err := s.db.Model(&models.PathTrackerAlertEvent{}).
+		Where("created_at >= ? AND delivery_status = ?", since, "failed").
+		Count(&failed1h).Error; err != nil {
+		return nil, err
+	}
+	var sent1h int64
+	if err := s.db.Model(&models.PathTrackerAlertEvent{}).
+		Where("created_at >= ? AND delivery_status = ?", since, "sent").
+		Count(&sent1h).Error; err != nil {
+		return nil, err
+	}
+
+	allow := parseUintSet(s.getSystemSetting("PATH_TRACKER_ROLLOUT_ALLOWLIST"))
+	deny := parseUintSet(s.getSystemSetting("PATH_TRACKER_ROLLOUT_DENYLIST"))
+	rolloutPercent := parseIntWithDefault(s.getSystemSetting("PATH_TRACKER_ROLLOUT_PERCENT"), 100)
+	if rolloutPercent < 0 {
+		rolloutPercent = 0
+	}
+	if rolloutPercent > 100 {
+		rolloutPercent = 100
+	}
+
+	return &PathTrackerOpsSnapshot{
+		Enabled:                s.IsEnabled(),
+		RolloutPercent:         rolloutPercent,
+		Phase3ExperimentMode:   strings.TrimSpace(s.getSystemSetting("PATH_TRACKER_PHASE3_EXPERIMENT")),
+		AllowlistCount:         len(allow),
+		DenylistCount:          len(deny),
+		AlertWebhookConfigured: strings.TrimSpace(s.getSystemSetting("PATH_TRACKER_ALERT_WEBHOOK_URL")) != "",
+		RecentFailedAlerts1h:   failed1h,
+		RecentSentAlerts1h:     sent1h,
+		Signals:                alerts,
+		UpdatedAt:              time.Now().UTC().Format(time.RFC3339),
+	}, nil
+}
+
 func (s *PathTrackerService) buildAlertSignals() (PathTrackerAlertSignals, error) {
 	const (
 		fallbackThreshold = 20.0
@@ -927,11 +1226,47 @@ func (s *PathTrackerService) getSystemSetting(key string) string {
 	return strings.TrimSpace(setting.Value)
 }
 
-func (s *PathTrackerService) sendPathTrackerAlertWebhook(webhookURL string, payload map[string]any) {
+func (s *PathTrackerService) getPhase3ExperimentVariant(userID uint, role string) string {
+	mode := strings.TrimSpace(strings.ToLower(s.getSystemSetting("PATH_TRACKER_PHASE3_EXPERIMENT")))
+	switch mode {
+	case "", "off", "disabled":
+		return "control"
+	case "variant_a":
+		return "variant_a"
+	case "variant_b":
+		return "variant_b"
+	case "on", "split":
+		// Stable 3-way split by user id.
+		switch userID % 3 {
+		case 1:
+			return "variant_a"
+		case 2:
+			return "variant_b"
+		default:
+			return "control"
+		}
+	default:
+		// Role-scoped modes, e.g. "yogi_variant_b".
+		if strings.Contains(mode, "variant_a") && strings.Contains(mode, normalizeRole(role)) {
+			return "variant_a"
+		}
+		if strings.Contains(mode, "variant_b") && strings.Contains(mode, normalizeRole(role)) {
+			return "variant_b"
+		}
+		return "control"
+	}
+}
+
+func (s *PathTrackerService) sendPathTrackerAlertWebhook(webhookURL string, payload map[string]any) (string, int, string) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("[PathTracker][Alert] marshal payload error: %v", err)
-		return
+		return "failed", 0, err.Error()
+	}
+
+	if strings.TrimSpace(webhookURL) == "" {
+		log.Printf("[PathTracker][Alert] webhook skipped: PATH_TRACKER_ALERT_WEBHOOK_URL is empty")
+		return "skipped", 0, "webhook_url_not_configured"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -940,23 +1275,41 @@ func (s *PathTrackerService) sendPathTrackerAlertWebhook(webhookURL string, payl
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewBuffer(body))
 	if err != nil {
 		log.Printf("[PathTracker][Alert] build request error: %v", err)
-		return
+		return "failed", 0, err.Error()
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("[PathTracker][Alert] webhook call failed: %v", err)
-		return
+		return "failed", 0, err.Error()
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
 		log.Printf("[PathTracker][Alert] webhook non-2xx status: %d", resp.StatusCode)
-		return
+		return "failed", resp.StatusCode, fmt.Sprintf("non_2xx_status_%d", resp.StatusCode)
 	}
 
 	log.Printf("[PathTracker][Alert] webhook sent type=%v", payload["alertType"])
+	return "sent", resp.StatusCode, ""
+}
+
+func (s *PathTrackerService) storeAlertEvent(payload map[string]any, deliveryStatus string, deliveryCode int, errorText string) {
+	event := models.PathTrackerAlertEvent{
+		AlertType:      toString(payload["alertType"]),
+		Severity:       toString(payload["severity"]),
+		Threshold:      toString(payload["threshold"]),
+		CurrentValue:   toString(payload["currentValue"]),
+		WindowMinutes:  toInt(payload["windowMinutes"]),
+		DeliveryStatus: deliveryStatus,
+		DeliveryCode:   deliveryCode,
+		ErrorText:      strings.TrimSpace(errorText),
+	}
+	if b, err := json.Marshal(payload); err == nil {
+		event.PayloadJSON = string(b)
+	}
+	_ = s.db.Create(&event).Error
 }
 
 func (s *PathTrackerService) BuildDailyCandidateSet(role string, minutes int, loadLevel string) []stepCandidate {
@@ -1076,6 +1429,45 @@ func (s *PathTrackerService) ApplyTrajectoryAdaptation(candidates []stepCandidat
 	return candidates
 }
 
+func (s *PathTrackerService) ApplyPhase3Experiment(candidates []stepCandidate, role string, profile trajectoryProfile, loadLevel string, minutes int, variant string) []stepCandidate {
+	if len(candidates) == 0 {
+		return candidates
+	}
+
+	prioritize := func(formats []string) []stepCandidate {
+		front := make([]stepCandidate, 0, len(candidates))
+		tail := make([]stepCandidate, 0, len(candidates))
+		for _, c := range candidates {
+			if containsString(formats, c.Format) {
+				front = append(front, c)
+			} else {
+				tail = append(tail, c)
+			}
+		}
+		if len(front) == 0 {
+			return candidates
+		}
+		return append(front, tail...)
+	}
+
+	switch strings.TrimSpace(strings.ToLower(variant)) {
+	case "variant_a":
+		// Consistency variant: bias toward repeatable short formats for steady builders.
+		if profile.Segment == "steady_builder" && loadLevel != models.PathTrackerLoadLow {
+			return prioritize([]string{"practice", "text"})
+		}
+	case "variant_b":
+		// Engagement variant: bias toward social/meaningful formats when user has bandwidth.
+		if minutes >= 5 && profile.Segment != "gentle_recovery" {
+			if normalizeRole(role) == models.RoleDevotee {
+				return prioritize([]string{"service", "communication"})
+			}
+			return prioritize([]string{"communication", "audio"})
+		}
+	}
+	return candidates
+}
+
 func (s *PathTrackerService) FallbackCandidateSet(role string, minutes int) []stepCandidate {
 	base := stepCandidate{
 		Format:       "practice",
@@ -1136,31 +1528,133 @@ func (s *PathTrackerService) FallbackTemplate(candidate stepCandidate, role stri
 }
 
 func (s *PathTrackerService) pickSuggestedService(role, loadLevel string, missedDays int, userID uint, dateLocal string, state models.PathTrackerState) (string, string) {
-	// Never push new sections during overload/recovery days.
 	if loadLevel == models.PathTrackerLoadLow || missedDays >= 2 {
 		return "", ""
 	}
-	if state.LastSuggestedDate == dateLocal {
+
+	normalizedRole := normalizeRole(role)
+	status, err := s.GetUnlockStatus(userID, normalizedRole)
+	if err != nil {
+		return "", ""
+	}
+	if status.NextServiceID == "" {
 		return "", ""
 	}
 
-	pool := []string{"multimedia", "news", "education", "services"}
-	switch normalizeRole(role) {
-	case models.RoleYogi:
-		pool = []string{"services", "education", "multimedia", "video_circles"}
-	case models.RoleDevotee:
-		pool = []string{"seva", "news", "video_circles", "multimedia"}
-	case models.RoleInGoodness:
-		pool = []string{"education", "services", "multimedia", "news"}
+	// Keep exactly one unlock recommendation per day.
+	if state.LastSuggestedDate == dateLocal && strings.TrimSpace(state.LastSuggestedService) != "" {
+		return state.LastSuggestedService, suggestedServiceTitle(state.LastSuggestedService)
 	}
-	if len(pool) == 0 {
-		return "", ""
+
+	var row models.PathTrackerUnlock
+	if err := s.db.Where("user_id = ? AND service_id = ?", userID, status.NextServiceID).First(&row).Error; err == nil {
+		row.LastSuggestedDate = dateLocal
+		row.Role = normalizedRole
+		_ = s.db.Save(&row).Error
+	} else {
+		row = models.PathTrackerUnlock{
+			UserID:            userID,
+			ServiceID:         status.NextServiceID,
+			Role:              normalizedRole,
+			FirstUnlockedDate: dateLocal,
+			LastSuggestedDate: dateLocal,
+			OpenCount:         0,
+		}
+		_ = s.db.Create(&row).Error
 	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(fmt.Sprintf("suggest:%d:%s", userID, dateLocal)))
-	idx := int(h.Sum32()) % len(pool)
-	serviceID := pool[idx]
-	return serviceID, suggestedServiceTitle(serviceID)
+	return status.NextServiceID, suggestedServiceTitle(status.NextServiceID)
+}
+
+func (s *PathTrackerService) GetUnlockStatus(userID uint, role string) (*PathTrackerUnlockStatus, error) {
+	sequence := unlockSequenceByRole(role)
+	if len(sequence) == 0 {
+		return &PathTrackerUnlockStatus{UnlockedList: []string{}}, nil
+	}
+
+	var unlockedRows []models.PathTrackerUnlock
+	if err := s.db.Where("user_id = ?", userID).Find(&unlockedRows).Error; err != nil {
+		return nil, err
+	}
+
+	unlockedSet := make(map[string]models.PathTrackerUnlock, len(unlockedRows))
+	unlockedList := make([]string, 0, len(unlockedRows))
+	for _, row := range unlockedRows {
+		id := strings.TrimSpace(row.ServiceID)
+		if id == "" {
+			continue
+		}
+		unlockedSet[id] = row
+		unlockedList = append(unlockedList, id)
+	}
+
+	nextID := ""
+	unlockedCount := 0
+	for _, serviceID := range sequence {
+		if _, ok := unlockedSet[serviceID]; !ok {
+			nextID = serviceID
+			break
+		}
+		unlockedCount++
+	}
+	if nextID == "" {
+		// When all unlocked, rotate gently by least recently opened service.
+		oldestDate := "9999-99-99"
+		for _, serviceID := range sequence {
+			row := unlockedSet[serviceID]
+			date := strings.TrimSpace(row.LastOpenedDate)
+			if date == "" {
+				nextID = serviceID
+				break
+			}
+			if date < oldestDate {
+				oldestDate = date
+				nextID = serviceID
+			}
+		}
+	}
+
+	return &PathTrackerUnlockStatus{
+		TotalServices:    len(sequence),
+		UnlockedServices: unlockedCount,
+		NextServiceID:    nextID,
+		NextServiceTitle: suggestedServiceTitle(nextID),
+		UnlockedList:     unlockedList,
+	}, nil
+}
+
+func (s *PathTrackerService) MarkUnlockOpened(userID uint, serviceID string) error {
+	serviceID = strings.TrimSpace(strings.ToLower(serviceID))
+	if serviceID == "" {
+		return nil
+	}
+	_, dateLocal, _, err := s.resolveUserAndDate(userID, "")
+	if err != nil {
+		return err
+	}
+
+	var row models.PathTrackerUnlock
+	if err := s.db.Where("user_id = ? AND service_id = ?", userID, serviceID).First(&row).Error; err == nil {
+		row.LastOpenedDate = dateLocal
+		row.OpenCount++
+		return s.db.Save(&row).Error
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return err
+	}
+	row = models.PathTrackerUnlock{
+		UserID:            userID,
+		ServiceID:         serviceID,
+		Role:              normalizeRole(user.Role),
+		FirstUnlockedDate: dateLocal,
+		LastSuggestedDate: dateLocal,
+		LastOpenedDate:    dateLocal,
+		OpenCount:         1,
+	}
+	return s.db.Create(&row).Error
 }
 
 func (s *PathTrackerService) deriveLoadLevel(checkin models.DailyCheckin, state models.PathTrackerState, missedDays int, userID uint, dateLocal string) string {
@@ -1361,6 +1855,79 @@ func containsString(items []string, target string) bool {
 	return false
 }
 
+func toString(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	case float64:
+		return strconv.FormatFloat(t, 'f', 2, 64)
+	case float32:
+		return strconv.FormatFloat(float64(t), 'f', 2, 64)
+	case int:
+		return strconv.Itoa(t)
+	case int64:
+		return strconv.FormatInt(t, 10)
+	case uint:
+		return strconv.FormatUint(uint64(t), 10)
+	case bool:
+		if t {
+			return "true"
+		}
+		return "false"
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+}
+
+func toInt(v any) int {
+	switch t := v.(type) {
+	case int:
+		return t
+	case int64:
+		return int(t)
+	case float64:
+		return int(t)
+	case float32:
+		return int(t)
+	case string:
+		n, _ := strconv.Atoi(strings.TrimSpace(t))
+		return n
+	default:
+		return 0
+	}
+}
+
+func parseIntWithDefault(raw string, fallback int) int {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func parseUintSet(raw string) map[uint]struct{} {
+	out := map[uint]struct{}{}
+	if strings.TrimSpace(raw) == "" {
+		return out
+	}
+	for _, token := range strings.Split(raw, ",") {
+		t := strings.TrimSpace(token)
+		if t == "" {
+			continue
+		}
+		n, err := strconv.ParseUint(t, 10, 64)
+		if err != nil || n == 0 {
+			continue
+		}
+		out[uint(n)] = struct{}{}
+	}
+	return out
+}
+
 func parseStepContent(raw string) (StepContent, error) {
 	trimmed := strings.TrimSpace(raw)
 	trimmed = strings.TrimPrefix(trimmed, "```json")
@@ -1508,6 +2075,19 @@ func suggestedServiceTitle(serviceID string) string {
 		return "Видео Кружки"
 	default:
 		return ""
+	}
+}
+
+func unlockSequenceByRole(role string) []string {
+	switch normalizeRole(role) {
+	case models.RoleYogi:
+		return []string{"services", "education", "multimedia", "video_circles", "news", "seva"}
+	case models.RoleDevotee:
+		return []string{"seva", "video_circles", "news", "multimedia", "education", "services"}
+	case models.RoleInGoodness:
+		return []string{"education", "services", "multimedia", "news", "video_circles", "seva"}
+	default:
+		return []string{"multimedia", "news", "education", "services", "video_circles", "seva"}
 	}
 }
 

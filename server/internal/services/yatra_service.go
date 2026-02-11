@@ -57,6 +57,9 @@ func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateReque
 	if endDate.Before(startDate) {
 		return nil, errors.New("end date must be after start date")
 	}
+	if req.MaxParticipants < 0 || req.MinParticipants < 0 {
+		return nil, errors.New("participant limits must be non-negative")
+	}
 
 	// Geocode start location if needed
 	startLat := req.StartLatitude
@@ -110,6 +113,9 @@ func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateReque
 	if yatra.MinParticipants == 0 {
 		yatra.MinParticipants = 1
 	}
+	if yatra.MinParticipants > yatra.MaxParticipants {
+		return nil, errors.New("min participants cannot exceed max participants")
+	}
 	if yatra.Language == "" {
 		yatra.Language = "en"
 	}
@@ -142,6 +148,12 @@ func (s *YatraService) GetYatra(yatraID uint) (*models.Yatra, error) {
 
 // ListYatras returns a paginated list of yatras
 func (s *YatraService) ListYatras(filters models.YatraFilters) ([]models.Yatra, int64, error) {
+	filters.City = strings.TrimSpace(filters.City)
+	filters.Language = strings.TrimSpace(filters.Language)
+	filters.Search = strings.TrimSpace(filters.Search)
+	filters.StartAfter = strings.TrimSpace(filters.StartAfter)
+	filters.StartBefore = strings.TrimSpace(filters.StartBefore)
+
 	query := s.db.Model(&models.Yatra{})
 
 	// Apply filters
@@ -485,12 +497,16 @@ func (s *YatraService) updateParticipantCount(yatraID uint) {
 		return
 	}
 
-	// Check if full
+	// Keep status in sync with capacity.
 	var yatra models.Yatra
 	if err := s.db.First(&yatra, yatraID).Error; err == nil {
 		if int(count) >= yatra.MaxParticipants && yatra.Status == models.YatraStatusOpen {
 			if err := s.db.Model(&yatra).Update("status", models.YatraStatusFull).Error; err != nil {
 				log.Printf("[YatraService] Failed to mark yatra full yatra_id=%d: %v", yatraID, err)
+			}
+		} else if int(count) < yatra.MaxParticipants && yatra.Status == models.YatraStatusFull {
+			if err := s.db.Model(&yatra).Update("status", models.YatraStatusOpen).Error; err != nil {
+				log.Printf("[YatraService] Failed to reopen yatra yatra_id=%d: %v", yatraID, err)
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -116,6 +116,14 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     const { refreshLocationData } = useLocation();
     const { wallet, loading: walletLoading } = useWallet();
     const [mediaActionInProgress, setMediaActionInProgress] = useState(false);
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     const handleGoBack = useCallback(() => {
         triggerTapFeedback();
@@ -151,7 +159,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             console.warn('Failed to pick image:', error);
             Alert.alert('Ошибка', 'Не удалось выбрать изображение');
         } finally {
-            setMediaActionInProgress(false);
+            if (isMountedRef.current) {
+                setMediaActionInProgress(false);
+            }
         }
     }, [mediaActionInProgress, pickImageUri, setPortalBackground]);
 
@@ -168,7 +178,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             console.warn('Failed to add wallpaper slide:', error);
             Alert.alert('Ошибка', 'Не удалось добавить фон');
         } finally {
-            setMediaActionInProgress(false);
+            if (isMountedRef.current) {
+                setMediaActionInProgress(false);
+            }
         }
     }, [addWallpaperSlide, mediaActionInProgress, pickImageUri]);
 
@@ -588,7 +600,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             disabled={mediaActionInProgress}
                             onPress={() => {
                                 triggerTapFeedback();
-                                handlePickImage();
+                                void handlePickImage();
                                 setIsSlideshowEnabled(false);
                             }}
                         >

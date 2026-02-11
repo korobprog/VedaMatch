@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -68,6 +68,7 @@ export const NewsScreen = () => {
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedMadh, setSelectedMadh] = useState('');
     const [personalized, setPersonalized] = useState(true); // Default to personalized
@@ -75,11 +76,24 @@ export const NewsScreen = () => {
     // Subscription & Favorite states
     const [subscriptions, setSubscriptions] = useState<number[]>([]);
     const [favorites, setFavorites] = useState<number[]>([]);
+    const [subscriptionUpdatingIds, setSubscriptionUpdatingIds] = useState<number[]>([]);
+    const [favoriteUpdatingIds, setFavoriteUpdatingIds] = useState<number[]>([]);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const inFlightPagesRef = useRef<Set<number>>(new Set());
 
     const loadNews = useCallback(async (pageNum: number = 1, reset: boolean = false) => {
+        if (inFlightPagesRef.current.has(pageNum)) {
+            return;
+        }
+        inFlightPagesRef.current.add(pageNum);
+        const requestId = ++latestLoadRequestRef.current;
+
         try {
             if (pageNum === 1) {
                 setLoading(true);
+            } else {
+                setLoadingMore(true);
             }
             setError(null);
 
@@ -92,76 +106,142 @@ export const NewsScreen = () => {
                 personalized: personalized // Pass preference
             });
 
+            if (!isMountedRef.current || requestId !== latestLoadRequestRef.current) {
+                return;
+            }
+
             if (reset || pageNum === 1) {
                 setNews(response.news);
             } else {
-                setNews(prev => [...prev, ...response.news]);
+                setNews(prev => {
+                    const seen = new Set(prev.map(item => item.id));
+                    const uniqueNext = response.news.filter(item => !seen.has(item.id));
+                    return [...prev, ...uniqueNext];
+                });
             }
 
             setHasMore(pageNum < response.totalPages);
             setPage(pageNum);
         } catch (err) {
+            if (!isMountedRef.current || requestId !== latestLoadRequestRef.current) {
+                return;
+            }
             console.error('[NEWS] Error loading news:', err);
             setError('Не удалось загрузить новости');
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            inFlightPagesRef.current.delete(pageNum);
+            if (isMountedRef.current && requestId === latestLoadRequestRef.current) {
+                setLoading(false);
+                setLoadingMore(false);
+            }
         }
     }, [lang, selectedCategory, selectedMadh, personalized]);
 
-    const loadUserPreferences = async () => {
+    const loadUserPreferences = useCallback(async () => {
         try {
             const [subs, favs] = await Promise.all([
                 newsService.getSubscriptions(),
                 newsService.getFavorites()
             ]);
+            if (!isMountedRef.current) {
+                return;
+            }
             setSubscriptions(subs);
             setFavorites(favs);
         } catch (err) {
             console.error('[NEWS] Error loading prefs:', err);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            inFlightPagesRef.current.clear();
+        };
+    }, []);
+
+    useEffect(() => {
+        loadUserPreferences();
+    }, [loadUserPreferences]);
 
     useEffect(() => {
         loadNews(1, true);
-        loadUserPreferences();
     }, [loadNews]);
 
-    const handleRefresh = useCallback(() => {
+    const handleRefresh = useCallback(async () => {
         setRefreshing(true);
-        loadNews(1, true);
-        loadUserPreferences();
-    }, [loadNews]);
+        try {
+            await Promise.all([loadNews(1, true), loadUserPreferences()]);
+        } finally {
+            if (isMountedRef.current) {
+                setRefreshing(false);
+            }
+        }
+    }, [loadNews, loadUserPreferences]);
 
     const toggleSubscription = async (sourceId: number) => {
+        if (subscriptionUpdatingIds.includes(sourceId)) {
+            return;
+        }
+        setSubscriptionUpdatingIds(prev => [...prev, sourceId]);
         const isSubscribed = subscriptions.includes(sourceId);
         // Optimistic update
-        if (isSubscribed) {
-            setSubscriptions(prev => prev.filter(id => id !== sourceId));
-            await newsService.unsubscribe(sourceId);
-        } else {
-            setSubscriptions(prev => [...prev, sourceId]);
-            await newsService.subscribe(sourceId);
+        try {
+            if (isSubscribed) {
+                setSubscriptions(prev => prev.filter(id => id !== sourceId));
+                await newsService.unsubscribe(sourceId);
+            } else {
+                setSubscriptions(prev => [...prev, sourceId]);
+                await newsService.subscribe(sourceId);
+            }
+        } catch (err) {
+            // Rollback optimistic update on failure.
+            setSubscriptions(prev =>
+                isSubscribed ? [...prev, sourceId] : prev.filter(id => id !== sourceId)
+            );
+            console.error('[NEWS] Error toggling subscription:', err);
+        } finally {
+            if (isMountedRef.current) {
+                setSubscriptionUpdatingIds(prev => prev.filter(id => id !== sourceId));
+            }
         }
     };
 
     const toggleFavorite = async (sourceId: number) => {
+        if (favoriteUpdatingIds.includes(sourceId)) {
+            return;
+        }
+        setFavoriteUpdatingIds(prev => [...prev, sourceId]);
         const isFavorite = favorites.includes(sourceId);
         // Optimistic update
-        if (isFavorite) {
-            setFavorites(prev => prev.filter(id => id !== sourceId));
-            await newsService.removeFavorite(sourceId);
-        } else {
-            setFavorites(prev => [...prev, sourceId]);
-            await newsService.addFavorite(sourceId);
+        try {
+            if (isFavorite) {
+                setFavorites(prev => prev.filter(id => id !== sourceId));
+                await newsService.removeFavorite(sourceId);
+            } else {
+                setFavorites(prev => [...prev, sourceId]);
+                await newsService.addFavorite(sourceId);
+            }
+        } catch (err) {
+            // Rollback optimistic update on failure.
+            setFavorites(prev =>
+                isFavorite ? [...prev, sourceId] : prev.filter(id => id !== sourceId)
+            );
+            console.error('[NEWS] Error toggling favorite:', err);
+        } finally {
+            if (isMountedRef.current) {
+                setFavoriteUpdatingIds(prev => prev.filter(id => id !== sourceId));
+            }
         }
     };
 
     const handleLoadMore = useCallback(() => {
-        if (!loading && hasMore) {
+        if (!loading && !loadingMore && hasMore) {
             loadNews(page + 1);
         }
-    }, [loading, hasMore, page, loadNews]);
+    }, [loading, loadingMore, hasMore, page, loadNews]);
 
     const handleCategorySelect = (categoryId: string) => {
         setSelectedCategory(categoryId);
@@ -280,6 +360,8 @@ export const NewsScreen = () => {
         const isHero = index === 0 && page === 1;
         const isSubscribed = subscriptions.includes(item.sourceId);
         const isFavorite = favorites.includes(item.sourceId);
+        const isSubscriptionUpdating = subscriptionUpdatingIds.includes(item.sourceId);
+        const isFavoriteUpdating = favoriteUpdatingIds.includes(item.sourceId);
 
         return (
             <TouchableOpacity
@@ -323,12 +405,14 @@ export const NewsScreen = () => {
                                     <TouchableOpacity
                                         onPress={() => toggleFavorite(item.sourceId)}
                                         style={styles.heroActionBtn}
+                                        disabled={isFavoriteUpdating}
                                     >
                                         <Star size={18} color={isFavorite ? colors.warning : colors.textPrimary} fill={isFavorite ? colors.warning : 'transparent'} />
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={() => toggleSubscription(item.sourceId)}
                                         style={styles.heroActionBtn}
+                                        disabled={isSubscriptionUpdating}
                                     >
                                         {isSubscribed ? <Bell size={18} color={colors.textPrimary} /> : <BellOff size={18} color={colors.textPrimary} />}
                                     </TouchableOpacity>
@@ -361,10 +445,10 @@ export const NewsScreen = () => {
                                 )}
                             </View>
                             <View style={styles.cardActions}>
-                                <TouchableOpacity onPress={() => toggleFavorite(item.sourceId)}>
+                                <TouchableOpacity onPress={() => toggleFavorite(item.sourceId)} disabled={isFavoriteUpdating}>
                                     <Star size={16} color={isFavorite ? colors.accent : colors.textSecondary} fill={isFavorite ? colors.accent : 'transparent'} />
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => toggleSubscription(item.sourceId)}>
+                                <TouchableOpacity onPress={() => toggleSubscription(item.sourceId)} disabled={isSubscriptionUpdating}>
                                     {isSubscribed ? <Bell size={16} color={colors.accent} /> : <BellOff size={16} color={colors.textSecondary} />}
                                 </TouchableOpacity>
                             </View>
@@ -396,7 +480,7 @@ export const NewsScreen = () => {
     };
 
     const renderFooter = () => {
-        if (!hasMore) return null;
+        if (!loadingMore || !hasMore) return null;
         return (
             <View style={styles.footer}>
                 <ActivityIndicator size="small" color={colors.accent} />

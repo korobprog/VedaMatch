@@ -297,8 +297,12 @@ function SeriesCard({
 }) {
   const handleAddSeason = async () => {
     try {
+      const nextSeasonNumber = Math.max(
+        0,
+        ...(series.seasons || []).map((season) => season.number || 0),
+      ) + 1;
       await api.post(`/admin/series/${series.id}/seasons`, {
-        number: (series.seasons?.length || 0) + 1,
+        number: nextSeasonNumber,
       });
       mutate();
     } catch (error) {
@@ -451,10 +455,14 @@ function SeasonSection({
       return;
     }
     try {
+      const nextEpisodeNumber = Math.max(
+        0,
+        ...(season.episodes || []).map((episode) => episode.number || 0),
+      ) + 1;
       await api.post(`/admin/seasons/${season.id}/episodes`, {
         title,
         videoURL,
-        number: (season.episodes?.length || 0) + 1,
+        number: nextEpisodeNumber,
       });
       mutate();
       setShowAddEpisode(false);
@@ -906,38 +914,54 @@ function BulkUploadModal({
   const [selectedSeriesId, setSelectedSeriesId] = useState<number>(0);
   const [parsedEpisodes, setParsedEpisodes] = useState<ParsedEpisode[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isParsingFiles, setIsParsingFiles] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFilesSelected = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const fileList = e.target.files;
-    if (!fileList) return;
-
-    const filesArray = Array.from(fileList);
-
-    // Parse filenames
-    const filenames = filesArray.map((f) => f.name);
-    const res = await api.post<{ parsed: ParsedFilenameEpisode[] }>(
-      "/admin/series/parse-filenames",
-      { filenames },
-    );
-
-    // Merge with file objects
-    const parsed = mapParsedEpisodesToFiles(
-      Array.isArray(res.data?.parsed) ? res.data.parsed : [],
-      filesArray,
-    );
-
-    if (parsed.length === 0) {
-      alert("No parseable files found");
+    if (isParsingFiles || isUploading) {
       return;
     }
+    const fileList = e.target.files;
+    if (!fileList) return;
+    setIsParsingFiles(true);
 
-    setParsedEpisodes(parsed);
-    setStep("preview");
+    try {
+      const filesArray = Array.from(fileList);
+
+      // Parse filenames
+      const filenames = filesArray.map((f) => f.name);
+      const res = await api.post<{ parsed: ParsedFilenameEpisode[] }>(
+        "/admin/series/parse-filenames",
+        { filenames },
+      );
+
+      // Merge with file objects
+      const parsed = mapParsedEpisodesToFiles(
+        Array.isArray(res.data?.parsed) ? res.data.parsed : [],
+        filesArray,
+      );
+
+      if (parsed.length === 0) {
+        alert("No parseable files found");
+        return;
+      }
+
+      setParsedEpisodes(parsed);
+      setStep("preview");
+    } catch (error) {
+      showApiError("Failed to parse selected files", error);
+    } finally {
+      setIsParsingFiles(false);
+      e.target.value = "";
+    }
   };
 
   const handleUpload = async () => {
+    if (isUploading) {
+      return;
+    }
     if (selectedSeriesId === 0) {
       alert("Please select a series");
       return;
@@ -946,6 +970,8 @@ function BulkUploadModal({
       alert("No episodes selected for upload");
       return;
     }
+    setIsUploading(true);
+    setUploadProgress(0);
     setStep("uploading");
 
     // Get selected series for slug
@@ -1000,6 +1026,8 @@ function BulkUploadModal({
     } catch (error) {
       showApiError("Bulk upload failed", error);
       setStep("preview");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -1071,6 +1099,7 @@ function BulkUploadModal({
                       accept="video/*"
                       onChange={handleFilesSelected}
                       className="hidden"
+                      disabled={isParsingFiles || isUploading}
                     />
                   </label>
                 </div>
@@ -1122,6 +1151,7 @@ function BulkUploadModal({
                 <button
                   type="button"
                   onClick={handleUpload}
+                  disabled={isUploading}
                   className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg"
                 >
                   Upload All
@@ -1189,6 +1219,7 @@ function S3ImportModal({
   const [files, setFiles] = useState<S3File[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
   const [importProgress, setImportProgress] = useState(0);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Auto-suggest prefix when series is selected
   const handleSeriesChange = (seriesId: number) => {
@@ -1205,10 +1236,15 @@ function S3ImportModal({
   };
 
   const loadS3Files = async () => {
+    const normalizedPrefix = prefix.trim();
+    if (!normalizedPrefix) {
+      alert("Please provide S3 prefix");
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.get(
-        `/admin/series/s3-files?prefix=${encodeURIComponent(prefix)}`,
+        `/admin/series/s3-files?prefix=${encodeURIComponent(normalizedPrefix)}`,
       );
       const fetchedFiles: S3File[] = Array.isArray(res.data?.files)
         ? res.data.files
@@ -1244,6 +1280,9 @@ function S3ImportModal({
   };
 
   const handleImport = async () => {
+    if (isImporting) {
+      return;
+    }
     if (selectedSeriesId === 0) {
       alert("Please select a series");
       return;
@@ -1255,6 +1294,8 @@ function S3ImportModal({
       return;
     }
 
+    setIsImporting(true);
+    setImportProgress(20);
     setStep("importing");
 
     try {
@@ -1270,6 +1311,8 @@ function S3ImportModal({
       console.error(err);
       alert(`Import failed: ${getErrorMessage(err)}`);
       setStep("preview");
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -1447,7 +1490,7 @@ function S3ImportModal({
                 <button
                   type="button"
                   onClick={handleImport}
-                  disabled={selectedFiles.size === 0}
+                  disabled={selectedFiles.size === 0 || isImporting}
                   className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg disabled:opacity-50"
                 >
                   Import {selectedFiles.size} Episodes

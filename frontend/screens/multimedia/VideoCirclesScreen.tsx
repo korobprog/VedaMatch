@@ -84,6 +84,7 @@ export const VideoCirclesScreen: React.FC = () => {
   const latestCirclesRequestRef = useRef(0);
   const latestTariffsRequestRef = useRef(0);
   const isMountedRef = useRef(true);
+  const interactionLocksRef = useRef<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -391,6 +392,12 @@ export const VideoCirclesScreen: React.FC = () => {
   };
 
   const handleInteraction = async (circle: VideoCircle, type: 'like' | 'comment' | 'chat') => {
+    const lockKey = `${circle.id}:${type}`;
+    if (interactionLocksRef.current.has(lockKey)) {
+      return;
+    }
+    interactionLocksRef.current.add(lockKey);
+
     let previousCircles: VideoCircle[] = [];
     const liked = !!likedMap[circle.id];
 
@@ -418,14 +425,22 @@ export const VideoCirclesScreen: React.FC = () => {
     try {
       const action = type === 'like' ? 'toggle' : 'add';
       const response = await videoCirclesService.interact(circle.id, type, action);
+      if (!isMountedRef.current) {
+        return;
+      }
       applyInteractionResponse(circle.id, response);
     } catch (error) {
       console.error('Failed interaction:', error);
+      if (!isMountedRef.current) {
+        return;
+      }
       setCircles(previousCircles);
       if (type === 'like') {
         setLikedMap((prevMap) => ({ ...prevMap, [circle.id]: liked }));
       }
       Alert.alert(t('common.error'), t('videoCircles.errorUpdateReaction'));
+    } finally {
+      interactionLocksRef.current.delete(lockKey);
     }
   };
 
@@ -466,9 +481,15 @@ export const VideoCirclesScreen: React.FC = () => {
   const handleBoost = async (circleId: number) => {
     try {
       await videoCirclesService.boostCircle(circleId, 'premium');
+      if (!isMountedRef.current) {
+        return;
+      }
       await loadCircles();
       Alert.alert(t('common.success'), t('videoCircles.successBoost'));
     } catch (error: unknown) {
+      if (!isMountedRef.current) {
+        return;
+      }
       const message = error instanceof Error && error.message.includes('INSUFFICIENT_LKM')
         ? t('videoCircles.insufficientLkm')
         : t('videoCircles.errorBoost');

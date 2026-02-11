@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -34,6 +34,9 @@ const YatraDetailScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [joining, setJoining] = useState(false);
     const [myParticipation, setMyParticipation] = useState<YatraParticipant | null>(null);
+    const [decisionInProgressId, setDecisionInProgressId] = useState<number | null>(null);
+    const latestLoadRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const { user } = useUser(); // Get current user
     const { isDarkMode } = useSettings();
@@ -47,16 +50,24 @@ const YatraDetailScreen: React.FC = () => {
 
     // Load yatra details and user's participation status
     const loadYatra = useCallback(async () => {
+        const requestId = ++latestLoadRequestRef.current;
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const data = await yatraService.getYatra(yatraId);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setYatra(data);
 
             // Load user's participation status
             if (user && user.ID) {
                 try {
                     const participation = await yatraService.getMyParticipation(yatraId);
-                    setMyParticipation(participation);
+                    if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                        setMyParticipation(participation);
+                    }
                 } catch {
                     console.log('No participation found');
                 }
@@ -66,53 +77,77 @@ const YatraDetailScreen: React.FC = () => {
             if (user && user.ID && (data.organizerId === user.ID || user.role === 'admin' || user.role === 'superadmin')) {
                 try {
                     const pending = await yatraService.getPendingParticipants(yatraId);
-                    setPendingParticipants(pending);
+                    if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                        setPendingParticipants(pending);
+                    }
                 } catch (e) {
                     console.error('Failed to load pending participants', e);
                 }
             }
         } catch (error) {
             console.error('Error loading yatra details:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить информацию о туре');
-            navigation.goBack();
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                Alert.alert('Ошибка', 'Не удалось загрузить информацию о туре');
+                navigation.goBack();
+            }
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [yatraId, navigation, user]);
 
     const handleJoin = async () => {
-        if (!yatra) return;
+        if (!yatra || joining) return;
 
         try {
             setJoining(true);
             await yatraService.joinYatra(yatra.id, { message: 'Хочу присоединиться!' });
             Alert.alert('Заявка отправлена', 'Организатор рассмотрит вашу заявку.');
-            loadYatra(); // Reload to update status
+            await loadYatra(); // Reload to update status
         } catch (error: any) {
             console.error('Error joining yatra:', error);
             Alert.alert('Ошибка', error.response?.data?.error || 'Не удалось отправить заявку');
         } finally {
-            setJoining(false);
+            if (isMountedRef.current) {
+                setJoining(false);
+            }
         }
     };
 
     const handleApprove = async (participantId: number) => {
+        if (decisionInProgressId !== null) {
+            return;
+        }
         try {
+            setDecisionInProgressId(participantId);
             await yatraService.approveParticipant(yatraId, participantId);
             Alert.alert('Успех', 'Участник одобрен');
-            loadYatra();
+            await loadYatra();
         } catch {
             Alert.alert('Ошибка', 'Не удалось одобрить участника');
+        } finally {
+            if (isMountedRef.current) {
+                setDecisionInProgressId(null);
+            }
         }
     };
 
     const handleReject = async (participantId: number) => {
+        if (decisionInProgressId !== null) {
+            return;
+        }
         try {
+            setDecisionInProgressId(participantId);
             await yatraService.rejectParticipant(yatraId, participantId);
             Alert.alert('Успех', 'Заявка отклонена');
-            loadYatra();
+            await loadYatra();
         } catch {
             Alert.alert('Ошибка', 'Не удалось отклонить заявку');
+        } finally {
+            if (isMountedRef.current) {
+                setDecisionInProgressId(null);
+            }
         }
     };
 
@@ -122,6 +157,10 @@ const YatraDetailScreen: React.FC = () => {
 
     useEffect(() => {
         loadYatra();
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+        };
     }, [loadYatra]);
 
     if (loading || !yatra) {
@@ -217,10 +256,18 @@ const YatraDetailScreen: React.FC = () => {
                                                     <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{participant.message || '...'}</Text>
                                                 </View>
                                                 <View style={{ flexDirection: 'row', gap: 12 }}>
-                                                    <TouchableOpacity onPress={() => handleApprove(participant.id)}>
+                                                    <TouchableOpacity
+                                                        disabled={decisionInProgressId !== null}
+                                                        onPress={() => handleApprove(participant.id)}
+                                                        style={decisionInProgressId !== null ? { opacity: 0.6 } : undefined}
+                                                    >
                                                         <CheckCircle size={24} color={colors.success} />
                                                     </TouchableOpacity>
-                                                    <TouchableOpacity onPress={() => handleReject(participant.id)}>
+                                                    <TouchableOpacity
+                                                        disabled={decisionInProgressId !== null}
+                                                        onPress={() => handleReject(participant.id)}
+                                                        style={decisionInProgressId !== null ? { opacity: 0.6 } : undefined}
+                                                    >
                                                         <XCircle size={24} color={colors.danger} />
                                                     </TouchableOpacity>
                                                 </View>

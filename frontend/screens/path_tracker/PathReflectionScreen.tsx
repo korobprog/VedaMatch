@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -48,8 +49,20 @@ export const PathReflectionScreen: React.FC = () => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>{t('pathTracker.reflectTitle')}</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('pathTracker.reflectSubtitle')}</Text>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => navigation.goBack()}
+        >
+          <ArrowLeft size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t('pathTracker.reflectTitle')}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('pathTracker.reflectSubtitle')}</Text>
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.label, { color: colors.textPrimary }]}>{t('pathTracker.reflectMood')}</Text>
@@ -94,8 +107,27 @@ export const PathReflectionScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 28 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 0 : 10,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
   title: { fontSize: 24, fontWeight: '800' },
-  subtitle: { fontSize: 14 },
+  subtitle: { fontSize: 13, marginTop: 4 },
   card: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 8 },
   label: { fontSize: 14, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

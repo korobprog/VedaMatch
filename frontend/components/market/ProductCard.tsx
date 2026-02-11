@@ -57,14 +57,14 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
             </View>
 
             <View style={styles.productInfo}>
-                <Text style={styles.productName} numberOfLines={2}>
+                <Text style={[styles.productName, { color: colors.text }]} numberOfLines={2}>
                     {item.name}
                 </Text>
 
                 {item.shopInfo && (
                     <View style={styles.shopRow}>
-                        <Store size={10} color="rgba(255,255,255,0.4)" style={{ marginRight: 4 }} />
-                        <Text style={styles.shopName} numberOfLines={1}>
+                        <Store size={10} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                        <Text style={[styles.shopName, { color: colors.textSecondary }]} numberOfLines={1}>
                             {item.shopInfo.name}
                         </Text>
                     </View>
@@ -88,7 +88,7 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({ item, onPress }) 
                             {item.rating > 0 ? item.rating.toFixed(1) : '5.0'}
                         </Text>
                     </View>
-                    <Text style={styles.salesText}>
+                    <Text style={[styles.salesText, { color: colors.textSecondary }]}>
                         {item.salesCount} {t ? t('market.sold') || 'sold' : 'sold'}
                     </Text>
                 </View>
@@ -158,7 +158,6 @@ const styles = StyleSheet.create({
         padding: 12,
     },
     productName: {
-        color: '#fff',
         fontSize: 13,
         fontWeight: '800',
         lineHeight: 18,
@@ -170,7 +169,6 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     shopName: {
-        color: 'rgba(255,255,255,0.4)',
         fontSize: 10,
         fontWeight: '600',
     },
@@ -209,7 +207,6 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     salesText: {
-        color: 'rgba(255,255,255,0.3)',
         fontSize: 10,
         fontWeight: '600',
     },

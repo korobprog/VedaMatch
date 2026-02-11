@@ -47,6 +47,9 @@ func (s *CafeService) CreateCafe(ownerID uint, req models.CafeCreateRequest) (*m
 	req.WorkingHours = strings.TrimSpace(req.WorkingHours)
 	req.LogoURL = strings.TrimSpace(req.LogoURL)
 	req.CoverURL = strings.TrimSpace(req.CoverURL)
+	if req.Name == "" {
+		return nil, errors.New("cafe name is required")
+	}
 
 	// Generate slug
 	slug := s.generateSlug(req.Name)
@@ -163,6 +166,11 @@ func (s *CafeService) GetCafeBySlug(slug string) (*models.CafeDetailResponse, er
 
 // ListCafes returns a paginated list of cafes
 func (s *CafeService) ListCafes(filters models.CafeFilters) (*models.CafeListResponse, error) {
+	filters.City = strings.TrimSpace(filters.City)
+	filters.Search = strings.TrimSpace(filters.Search)
+	filters.Status = models.CafeStatus(strings.TrimSpace(string(filters.Status)))
+	filters.Sort = strings.TrimSpace(filters.Sort)
+
 	query := s.db.Model(&models.Cafe{})
 
 	// Apply filters
@@ -284,6 +292,9 @@ func (s *CafeService) UpdateCafe(cafeID uint, req models.CafeUpdateRequest) (*mo
 	updates := make(map[string]interface{})
 	if req.Name != nil {
 		trimmed := strings.TrimSpace(*req.Name)
+		if trimmed == "" {
+			return nil, errors.New("cafe name cannot be empty")
+		}
 		updates["name"] = trimmed
 		updates["slug"] = s.generateSlug(trimmed)
 	}
@@ -422,7 +433,7 @@ func (s *CafeService) CreateTable(cafeID uint, req models.CafeTableCreateRequest
 		QRCodeID: qrCodeID,
 	}
 
-	if table.Seats == 0 {
+	if table.Seats <= 0 {
 		table.Seats = 4
 	}
 
@@ -465,7 +476,11 @@ func (s *CafeService) UpdateTable(tableID uint, req models.CafeTableUpdateReques
 
 	updates := make(map[string]interface{})
 	if req.Number != nil {
-		updates["number"] = strings.TrimSpace(*req.Number)
+		trimmed := strings.TrimSpace(*req.Number)
+		if trimmed == "" {
+			return nil, errors.New("table number cannot be empty")
+		}
+		updates["number"] = trimmed
 	}
 	if req.Name != nil {
 		updates["name"] = strings.TrimSpace(*req.Name)
@@ -564,6 +579,8 @@ func (s *CafeService) GetTableByQRCode(qrCodeID string) (*models.QRCodeScanRespo
 
 // CreateWaiterCall creates a new waiter call
 func (s *CafeService) CreateWaiterCall(cafeID uint, userID *uint, req models.WaiterCallRequest) (*models.WaiterCall, error) {
+	req.Reason = models.WaiterCallReason(strings.TrimSpace(string(req.Reason)))
+	req.Note = strings.TrimSpace(req.Note)
 	var table models.CafeTable
 	if err := s.db.Where("id = ? AND cafe_id = ? AND is_active = ?", req.TableID, cafeID, true).First(&table).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

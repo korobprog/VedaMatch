@@ -16,17 +16,19 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime
+from typing import List, Dict, Any
 
 # Fix Windows console encoding
 try:
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace') # type: ignore
 except:
     pass
 
 
 def detect_project_type(project_path: Path) -> dict:
     """Detect project type and available linters."""
-    result = {
+    result: Dict[str, Any] = {
         "type": "unknown",
         "linters": []
     }
@@ -57,11 +59,19 @@ def detect_project_type(project_path: Path) -> dict:
     if (project_path / "pyproject.toml").exists() or (project_path / "requirements.txt").exists():
         result["type"] = "python"
         
+        def cmd_exists(cmd):
+            try:
+                subprocess.run([cmd, "--version"], capture_output=True)
+                return True
+            except:
+                return False
+
         # Check for ruff
-        result["linters"].append({"name": "ruff", "cmd": ["ruff", "check", "."]})
+        if cmd_exists("ruff"):
+            result["linters"].append({"name": "ruff", "cmd": ["ruff", "check", "."]})
         
         # Check for mypy
-        if (project_path / "mypy.ini").exists() or (project_path / "pyproject.toml").exists():
+        if cmd_exists("mypy") and ((project_path / "mypy.ini").exists() or (project_path / "pyproject.toml").exists()):
             result["linters"].append({"name": "mypy", "cmd": ["mypy", "."]})
     
     return result
@@ -87,8 +97,11 @@ def run_linter(linter: dict, cwd: Path) -> dict:
             timeout=120
         )
         
-        result["output"] = proc.stdout[:2000] if proc.stdout else ""
-        result["error"] = proc.stderr[:500] if proc.stderr else ""
+        stdout_str = str(proc.stdout) if proc.stdout else ""
+        stderr_str = str(proc.stderr) if proc.stderr else ""
+        
+        result["output"] = stdout_str
+        result["error"] = stderr_str
         result["passed"] = proc.returncode == 0
         
     except FileNotFoundError:

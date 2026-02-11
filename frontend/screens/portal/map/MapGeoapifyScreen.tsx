@@ -281,6 +281,9 @@ export const MapGeoapifyScreen: React.FC = () => {
     }, [filters, mapReady, loadMarkers]);
 
     const handleMessage = (event: WebViewMessageEvent) => {
+        if (!isMountedRef.current) {
+            return;
+        }
         try {
             const data = JSON.parse(event.nativeEvent.data);
 
@@ -496,6 +499,9 @@ export const MapGeoapifyScreen: React.FC = () => {
                 }
             } catch (error) {
                 console.error('Search error:', error);
+                if (requestId === latestSearchRequestRef.current && isMountedRef.current) {
+                    setSearchResults([]);
+                }
             } finally {
                 if (requestId === latestSearchRequestRef.current && isMountedRef.current) {
                     setIsSearching(false);
@@ -505,7 +511,13 @@ export const MapGeoapifyScreen: React.FC = () => {
     };
 
     const handleSelectResult = (item: SearchResultItem) => {
+        if (!item?.properties) {
+            return;
+        }
         const { lat, lon, formatted } = item.properties;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            return;
+        }
         const safeFormatted = JSON.stringify(String(formatted ?? ''));
         if (webViewRef.current) {
             // First move view

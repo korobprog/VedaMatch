@@ -61,7 +61,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const params = route.params ?? { isDarkMode: false, phase: 'initial' as const };
     const { phase = 'initial', inviteCode: paramInviteCode } = params;
     const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
-    const theme = isPortalDarkMode ? COLORS.dark : COLORS.light;
+    const theme = COLORS.dark; // Registration/Profile phase always uses dark glass aesthetic
+    // const theme = isPortalDarkMode ? COLORS.dark : COLORS.light;
 
     const [avatar, setAvatar] = useState<Asset | null>(null);
     const [email, setEmail] = useState('');
@@ -104,7 +105,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
-    const { colors: roleColors, roleTheme } = useRoleTheme(role, isPortalDarkMode);
+    const { colors: roleColors, roleTheme } = useRoleTheme(role, true); // Force dark theme colors for text on dark background
     const isSeekerRole = role === 'user';
     const isInGoodnessRole = role === 'in_goodness';
     const isLiteProfileRole = isSeekerRole || isInGoodnessRole;

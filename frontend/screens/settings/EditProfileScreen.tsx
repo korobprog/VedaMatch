@@ -54,8 +54,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { fetchCountries, fetchCities } = useLocation();
     const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
 
-    const isDarkMode = isPortalDarkMode;
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const isDarkMode = true; // Edit Profile always uses dark glass aesthetic
+    const theme = COLORS.dark;
+    // const isDarkMode = isPortalDarkMode;
+    // const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -100,7 +102,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [openDatePicker, setOpenDatePicker] = useState(false);
     // const [openTimePicker, setOpenTimePicker] = useState(false);
 
-    const { colors: roleColors } = useRoleTheme(role, isPortalDarkMode);
+    const { colors: roleColors } = useRoleTheme(role, true);
 
     useEffect(() => {
         loadProfile();

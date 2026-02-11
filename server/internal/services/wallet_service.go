@@ -137,6 +137,10 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 	if fromUserID == toUserID {
 		return errors.New("cannot transfer to yourself")
 	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Transfer"
+	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		// Lock sender's wallet to prevent concurrent overspend.
@@ -316,6 +320,9 @@ func (s *WalletService) GetTransactions(userID uint, filters models.TransactionF
 	}
 
 	query := database.DB.Where("wallet_id = ?", wallet.ID)
+	filters.Type = models.TransactionType(strings.TrimSpace(string(filters.Type)))
+	filters.DateFrom = strings.TrimSpace(filters.DateFrom)
+	filters.DateTo = strings.TrimSpace(filters.DateTo)
 
 	// Apply filters
 	if filters.Type != "" {
@@ -495,6 +502,7 @@ func (s *WalletService) AdminCharge(adminID, userID uint, amount int, reason str
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
+	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		return errors.New("reason is required for admin actions")
 	}
@@ -537,6 +545,7 @@ func (s *WalletService) AdminSeize(adminID, userID uint, amount int, reason stri
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
+	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		return errors.New("reason is required for admin actions")
 	}
@@ -629,6 +638,10 @@ func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, descr
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Funds hold"
+	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		var wallet models.Wallet
@@ -673,6 +686,10 @@ func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, descr
 func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, toUserID uint, description string) error {
 	if amount <= 0 {
 		return errors.New("amount must be positive")
+	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Funds release"
 	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
@@ -752,6 +769,10 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, description string) error {
 	if amount <= 0 {
 		return errors.New("amount must be positive")
+	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Hold refund"
 	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {

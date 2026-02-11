@@ -52,6 +52,30 @@ type DailyStepEvent struct {
 	PayloadJSON string `json:"payloadJson" gorm:"type:jsonb"`
 }
 
+type PathTrackerAlertEvent struct {
+	gorm.Model
+	AlertType      string `json:"alertType" gorm:"size:80;index"`
+	Severity       string `json:"severity" gorm:"size:24;index"`
+	Threshold      string `json:"threshold" gorm:"size:24"`
+	CurrentValue   string `json:"currentValue" gorm:"size:24"`
+	WindowMinutes  int    `json:"windowMinutes"`
+	PayloadJSON    string `json:"payloadJson" gorm:"type:jsonb"`
+	DeliveryStatus string `json:"deliveryStatus" gorm:"size:24;index"` // sent|failed|skipped
+	DeliveryCode   int    `json:"deliveryCode"`
+	ErrorText      string `json:"errorText" gorm:"type:text"`
+}
+
+type PathTrackerUnlock struct {
+	gorm.Model
+	UserID            uint   `json:"userId" gorm:"index;uniqueIndex:idx_path_tracker_unlock_user_service"`
+	ServiceID         string `json:"serviceId" gorm:"size:40;uniqueIndex:idx_path_tracker_unlock_user_service;index"`
+	Role              string `json:"role" gorm:"size:32"`
+	FirstUnlockedDate string `json:"firstUnlockedDate" gorm:"size:10"`
+	LastSuggestedDate string `json:"lastSuggestedDate" gorm:"size:10"`
+	LastOpenedDate    string `json:"lastOpenedDate" gorm:"size:10"`
+	OpenCount         int    `json:"openCount"`
+}
+
 type PathTrackerState struct {
 	gorm.Model
 	UserID               uint   `json:"userId" gorm:"uniqueIndex"`

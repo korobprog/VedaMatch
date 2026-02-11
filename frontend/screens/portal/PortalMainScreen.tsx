@@ -75,13 +75,18 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
     useEffect(() => {
         // Shimmer loop
-        Animated.loop(
+        const loop = Animated.loop(
             Animated.timing(shimmerAnim, {
                 toValue: 60,
                 duration: 2500,
                 useNativeDriver: true,
             })
-        ).start();
+        );
+        loop.start();
+        return () => {
+            loop.stop();
+            shimmerAnim.stopAnimation();
+        };
     }, [shimmerAnim]);
 
     const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
@@ -205,15 +210,21 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     }, [isImageBackground, backgroundImageSource, nextBgSource, fadeAnim, isGradientBackground, gradientColors, effectiveBg, vTheme.colors.background]);
 
     useEffect(() => {
-        if (route.params?.initialTab === 'map') {
+        const initialTab = route.params?.initialTab;
+        if (!initialTab) {
+            return;
+        }
+        if (initialTab === 'map') {
             navigation.navigate('MapGeoapify');
             // Reset params to prevent infinite loop or re-triggering
             navigation.setParams({ initialTab: undefined });
-        } else if (route.params?.initialTab === 'path_tracker') {
+        } else if (initialTab === 'path_tracker') {
             navigation.navigate('PathTrackerHome');
             navigation.setParams({ initialTab: undefined });
-        } else if (route.params?.initialTab) {
-            setActiveTab(route.params.initialTab as ServiceTab);
+        } else if (SERVICE_TABS.has(initialTab as ServiceTab)) {
+            setActiveTab(initialTab as ServiceTab);
+        } else {
+            navigation.setParams({ initialTab: undefined });
         }
     }, [route.params?.initialTab, navigation]);
 
@@ -348,8 +359,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         </View>
                     </View>
 
-                    <View style={styles.logoContainer}>
-                        {/* Assistant Button with Internal Shimmer */}
+                    <View style={styles.logoContainer} pointerEvents="box-none">
                         <View style={styles.logoRow}>
                             <TouchableOpacity
                                 activeOpacity={0.8}
@@ -391,10 +401,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     resizeMode="contain"
                                 />
                             </TouchableOpacity>
-
-                            <Text style={styles.headerBrandText}>
-                                VEDAMATCH
-                            </Text>
                         </View>
                     </View>
 
@@ -606,7 +612,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         </View>
                     </View>
 
-                    <View style={styles.logoContainer}>
+                    <View style={styles.logoContainer} pointerEvents="box-none">
                         {/* Logo hidden in rooms as per user request */}
                     </View>
 
@@ -681,8 +687,9 @@ const styles = StyleSheet.create({
     logoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        paddingTop: Platform.OS === 'ios' ? 7 : 12, // Precisely match side icons vertical center
+        justifyContent: 'center',
+        gap: 8,
+        paddingTop: Platform.OS === 'ios' ? 7 : 12,
     },
     headerCircularButton: {
         width: 32,

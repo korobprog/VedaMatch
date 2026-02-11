@@ -177,9 +177,17 @@ const DatingCandidateCard = ({
     const [isPaused, setIsPaused] = useState(false);
     const [isFavorited, setIsFavorited] = useState(false);
     const [favoritingInProgress, setFavoritingInProgress] = useState(false);
+    const isCardMountedRef = useRef(true);
     const animatedCardImageStyle = useMemo(() => [styles.fullCardImage, { opacity: fadeAnim }], [fadeAnim]);
     const placeholderAnimatedWrapperStyle = useMemo(() => [styles.photoPlaceholderAnimatedWrapper, { opacity: fadeAnim }], [fadeAnim]);
     const activePaginationBarStyle = useMemo(() => ({ backgroundColor: roleColors.accent }), [roleColors.accent]);
+
+    useEffect(() => {
+        isCardMountedRef.current = true;
+        return () => {
+            isCardMountedRef.current = false;
+        };
+    }, []);
 
     useEffect(() => {
         let isActive = true;
@@ -204,21 +212,27 @@ const DatingCandidateCard = ({
         try {
             if (isFavorited) {
                 await datingService.removeFavoriteByCandidate(userId, item.ID);
-                Alert.alert(t('common.info'), t('dating.removedFromFavorites'));
-                setIsFavorited(false);
+                if (isCardMountedRef.current) {
+                    Alert.alert(t('common.info'), t('dating.removedFromFavorites'));
+                    setIsFavorited(false);
+                }
             } else {
                 await datingService.addToFavorites({
                     userId,
                     candidateId: item.ID,
                     compatibilityScore: ''
                 });
-                setIsFavorited(true);
-                Alert.alert(t('common.success'), t('dating.addedToFavorites'));
+                if (isCardMountedRef.current) {
+                    setIsFavorited(true);
+                    Alert.alert(t('common.success'), t('dating.addedToFavorites'));
+                }
             }
         } catch (error) {
             console.error('Failed to toggle favorite:', error);
         } finally {
-            setFavoritingInProgress(false);
+            if (isCardMountedRef.current) {
+                setFavoritingInProgress(false);
+            }
         }
     };
 

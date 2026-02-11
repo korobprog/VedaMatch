@@ -1072,6 +1072,7 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 			WHERE r.is_public = false 
 			AND rm1.user_id = ? 
 			AND rm2.user_id = ?
+			AND (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) = 2
 			LIMIT 1
 		`, userID, ad.UserID).Scan(&result).Error
 
@@ -1228,6 +1229,8 @@ func (h *AdsHandler) UpdateAdStatus(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	req.Status = strings.ToLower(strings.TrimSpace(req.Status))
+	req.Comment = strings.TrimSpace(req.Comment)
 
 	// Validate status
 	validStatuses := map[string]bool{"pending": true, "active": true, "rejected": true, "archived": true}

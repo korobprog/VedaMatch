@@ -217,7 +217,7 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
                     <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
                         <View style={styles.walletInnerGlass}>
                             <Wallet size={14} color="#FFFFFF" />
-                            <Text style={styles.walletBalanceGlass}>{formattedBalance}</Text>
+                            <Text style={[styles.walletBalanceGlass, { color: '#FFFFFF' }]}>{formattedBalance}</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -233,12 +233,12 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
                             colors={['rgba(255, 255, 255, 0.15)', 'transparent']}
                             style={styles.cardGradient}
                         />
-                        <View style={[styles.actionIconOuter, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-                            <Store size={22} color="#FFFFFF" />
+                        <View style={[styles.actionIconOuter, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : roleColors.accentSoft }]}>
+                            <Store size={22} color={isDarkMode ? "#FFFFFF" : roleColors.accent} />
                         </View>
                         <View>
-                            <Text style={[styles.featuredCardTitle, { color: '#FFFFFF' }]}>{t('market.shops')}</Text>
-                            <Text style={[styles.featuredCardSub, { color: 'rgba(255, 255, 255, 0.7)' }]}>{t('market.view_all_shops')}</Text>
+                            <Text style={[styles.featuredCardTitle, { color: roleColors.textPrimary }]}>{t('market.shops')}</Text>
+                            <Text style={[styles.featuredCardSub, { color: roleColors.textSecondary }]}>{t('market.view_all_shops')}</Text>
                         </View>
                     </TouchableOpacity>
 
@@ -246,12 +246,12 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
                         style={[styles.featuredCard, { borderColor: 'rgba(255, 255, 255, 0.2)' }]}
                         onPress={() => navigation.navigate('ShopsMap')}
                     >
-                        <View style={[styles.actionIconOuter, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-                            <Map size={22} color="#FFFFFF" />
+                        <View style={[styles.actionIconOuter, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : roleColors.accentSoft }]}>
+                            <Map size={22} color={isDarkMode ? "#FFFFFF" : roleColors.accent} />
                         </View>
                         <View>
-                            <Text style={[styles.featuredCardTitle, { color: '#FFFFFF' }]}>{t('market.map.title')}</Text>
-                            <Text style={[styles.featuredCardSub, { color: 'rgba(255, 255, 255, 0.7)' }]}>{t('market.nearby')}</Text>
+                            <Text style={[styles.featuredCardTitle, { color: roleColors.textPrimary }]}>{t('market.map.title')}</Text>
+                            <Text style={[styles.featuredCardSub, { color: roleColors.textSecondary }]}>{t('market.nearby')}</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -452,7 +452,6 @@ const createStyles = (roleColors: SemanticColorTokens, roleTheme: any, isDarkMod
         borderRadius: 20,
     },
     walletBalanceGlass: {
-        color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '800',
     },
@@ -477,7 +476,7 @@ const createStyles = (roleColors: SemanticColorTokens, roleTheme: any, isDarkMod
         padding: 16,
         justifyContent: 'center',
         overflow: 'hidden',
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : roleColors.surface,
     },
     cardGradient: {
         ...StyleSheet.absoluteFillObject,

@@ -19,6 +19,10 @@ const SAFE_API_PATH = typeof API_PATH !== 'undefined' ? API_PATH : 'http://local
 const openaiClient = new OpenAI({
   apiKey: 'not-needed-for-proxy',
   baseURL: `${SAFE_API_PATH}/v1`,
+  // Force-disable env fallback for OPENAI_ORG_ID / OPENAI_PROJECT_ID.
+  // Empty values in those env vars can produce invalid upstream resource names.
+  organization: null,
+  project: null,
   timeout: 180000,
   maxRetries: 2,
   dangerouslyAllowBrowser: true // Для React Native это безопасно через прокси

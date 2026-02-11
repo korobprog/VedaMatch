@@ -187,13 +187,13 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
                 <View style={styles.headerTitleContainer}>
                     <Text
-                        style={styles.headerTitle}
+                        style={[styles.headerTitle, { color: colors.textPrimary }]}
                         numberOfLines={1}
                         ellipsizeMode="tail"
                     >
                         Маркетплейс
                     </Text>
-                    <Text style={styles.headerSubtitle}>Услуги и специалисты</Text>
+                    <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Услуги и специалисты</Text>
                 </View>
 
                 <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
@@ -222,8 +222,8 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                             <PlusCircle size={24} color={colors.accent} />
                         </View>
                         <View>
-                            <Text style={styles.featuredCardTitle}>Создать</Text>
-                            <Text style={styles.featuredCardSub}>Свою услугу</Text>
+                            <Text style={[styles.featuredCardTitle, { color: colors.textPrimary }]}>Создать</Text>
+                            <Text style={[styles.featuredCardSub, { color: colors.textSecondary }]}>Свою услугу</Text>
                         </View>
                     </TouchableOpacity>
 
@@ -235,8 +235,8 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                             <Users size={24} color={colors.textPrimary} />
                         </View>
                         <View>
-                            <Text style={styles.featuredCardTitle}>Заказы</Text>
-                            <Text style={styles.featuredCardSub}>Ваши клиенты</Text>
+                            <Text style={[styles.featuredCardTitle, { color: colors.textPrimary }]}>Заказы</Text>
+                            <Text style={[styles.featuredCardSub, { color: colors.textSecondary }]}>Ваши клиенты</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -256,7 +256,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
             {/* Search - Floating Style */}
             <View style={styles.searchSection}>
-                <View style={styles.searchBackground}>
+                <View style={[styles.searchBackground, { backgroundColor: colors.surface }]}>
                     <Search size={20} color={colors.textSecondary} />
                     <TextInput
                         style={[styles.searchInput, { color: colors.textPrimary }]}
@@ -294,6 +294,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         </LinearGradient>
                         <Text style={[
                             styles.categoryCircleLabel,
+                            { color: colors.textSecondary },
                             selectedCategory === cat.key && styles.activeCategoryLabel
                         ]}>
                             {cat.label}
@@ -403,14 +404,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        color: 'rgba(255,255,255,1)',
         fontSize: 24,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
         letterSpacing: 1,
     },
     headerSubtitle: {
-        color: 'rgba(255,255,255,0.4)',
         fontSize: 10,
         fontWeight: '600',
         textTransform: 'uppercase',
@@ -468,13 +467,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     featuredCardTitle: {
-        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '800',
         textAlign: 'right',
     },
     featuredCardSub: {
-        color: 'rgba(255,255,255,0.4)',
         fontSize: 10,
         fontWeight: '600',
         textAlign: 'right',
@@ -507,7 +504,6 @@ const styles = StyleSheet.create({
     searchBackground: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(26,26,46,1)',
         borderRadius: 20,
         paddingHorizontal: 20,
         height: 60,
@@ -521,7 +517,6 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        color: 'rgba(255,255,255,1)',
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 12,
@@ -547,7 +542,6 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.1)',
     },
     categoryCircleLabel: {
-        color: 'rgba(255,255,255,0.4)',
         fontSize: 11,
         fontWeight: '700',
         textAlign: 'center',
@@ -584,7 +578,6 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.05)',
     },
     emptyTitle: {
-        color: 'rgba(255,255,255,1)',
         fontSize: 22,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -592,7 +585,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     emptySubtitle: {
-        color: 'rgba(255, 255, 255, 0.4)',
         fontSize: 14,
         textAlign: 'center',
         lineHeight: 22,

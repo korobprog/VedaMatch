@@ -165,7 +165,7 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
 
                 <View style={styles.footer}>
                     <View style={styles.priceRow}>
-                        <Text style={styles.priceFrom}>от</Text>
+                        <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>от</Text>
                         <Text style={[styles.priceValue, { color: colors.accent }]}>{formatBalance(minPrice)}</Text>
                     </View>
 
@@ -257,7 +257,6 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     title: {
-        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
@@ -282,7 +281,6 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(245, 158, 11, 0.2)',
     },
     ownerName: {
-        color: 'rgba(255, 255, 255, 0.5)',
         fontSize: 11,
         fontWeight: '600',
     },
@@ -300,7 +298,6 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     priceFrom: {
-        color: 'rgba(255, 255, 255, 0.4)',
         fontSize: 10,
         fontWeight: '600',
     },
@@ -349,7 +346,6 @@ const styles = StyleSheet.create({
         paddingLeft: 12,
     },
     compactTitle: {
-        color: 'rgba(255,255,255,1)',
         fontSize: 14,
         fontWeight: '700',
         marginBottom: 2,
@@ -361,7 +357,6 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     compactCategory: {
-        color: 'rgba(255, 255, 255, 0.5)',
         fontSize: 11,
     },
     compactPrice: {

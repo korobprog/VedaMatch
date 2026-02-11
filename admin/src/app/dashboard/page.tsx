@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { motion } from 'framer-motion';
 import {
@@ -30,9 +30,79 @@ import {
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
 export default function DashboardPage() {
+    const [alertStatusFilter, setAlertStatusFilter] = useState<string>('');
+    const [alertTypeFilter, setAlertTypeFilter] = useState<string>('');
+    const [alertSortBy, setAlertSortBy] = useState<string>('createdAt');
+    const [alertSortDir, setAlertSortDir] = useState<string>('desc');
+    const [retryBusyId, setRetryBusyId] = useState<number | null>(null);
+    const [bulkRetryBusy, setBulkRetryBusy] = useState(false);
+    const [alertsPage, setAlertsPage] = useState(1);
+    const alertsPageSize = 12;
+
     const { data: stats, error } = useSWR('/admin/stats', fetcher);
     const { data: trackerMetrics } = useSWR('/admin/path-tracker/metrics', fetcher);
     const { data: trackerAnalytics } = useSWR('/admin/path-tracker/analytics?days=14', fetcher);
+    const { data: trackerOps } = useSWR('/admin/path-tracker/ops', fetcher);
+    const alertsKey = `/admin/path-tracker/alerts?page=${alertsPage}&pageSize=${alertsPageSize}&status=${encodeURIComponent(alertStatusFilter)}&type=${encodeURIComponent(alertTypeFilter)}&sortBy=${encodeURIComponent(alertSortBy)}&sortDir=${encodeURIComponent(alertSortDir)}`;
+    const { data: trackerAlerts, mutate: mutateTrackerAlerts } = useSWR(alertsKey, fetcher);
+
+    const retryAlert = async (id: number) => {
+        setRetryBusyId(id);
+        try {
+            await api.post(`/admin/path-tracker/alerts/${id}/retry`);
+            await mutateTrackerAlerts();
+        } finally {
+            setRetryBusyId(null);
+        }
+    };
+
+    const retryFailedLastHour = async () => {
+        setBulkRetryBusy(true);
+        try {
+            await api.post('/admin/path-tracker/alerts/retry-failed?minutes=60&limit=50');
+            await mutateTrackerAlerts();
+        } finally {
+            setBulkRetryBusy(false);
+        }
+    };
+
+    const exportAlertsCsv = async () => {
+        if (typeof window === 'undefined') return;
+        const adminDataRaw = localStorage.getItem('admin_data');
+        const adminData = adminDataRaw ? JSON.parse(adminDataRaw) : null;
+        const token = adminData?.token;
+
+        const params = new URLSearchParams({
+            page: String(alertsPage),
+            pageSize: String(alertsPageSize),
+            status: alertStatusFilter,
+            type: alertTypeFilter,
+            sortBy: alertSortBy,
+            sortDir: alertSortDir,
+        });
+
+        const base = String(api.defaults.baseURL || '');
+        const url = `${base}/admin/path-tracker/alerts/export?${params.toString()}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!response.ok) {
+            throw new Error(`Export failed: ${response.status}`);
+        }
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `path_tracker_alerts_page_${alertsPage}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(downloadUrl);
+    };
+
+    const totalAlerts = Number(trackerAlerts?.total || 0);
+    const totalPages = Math.max(1, Math.ceil(totalAlerts / alertsPageSize));
 
     const cards = useMemo(() => [
         {
@@ -210,6 +280,35 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm space-y-4">
+                <div>
+                    <h2 className="text-xl font-bold">Path Tracker Ops</h2>
+                    <p className="text-sm text-[var(--muted-foreground)]">Operational rollout and delivery snapshot</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Feature Enabled</p>
+                        <p className="text-xl font-bold mt-2">{trackerOps?.enabled ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Rollout</p>
+                        <p className="text-xl font-bold mt-2">{Number(trackerOps?.rolloutPercent || 0).toFixed(0)}%</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">allow {trackerOps?.allowlistCount || 0} / deny {trackerOps?.denylistCount || 0}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Webhook</p>
+                        <p className="text-xl font-bold mt-2">{trackerOps?.alertWebhookConfigured ? 'Configured' : 'Missing'}</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">sent 1h: {trackerOps?.recentSentAlerts1h || 0}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Failed Alerts (1h)</p>
+                        <p className="text-xl font-bold mt-2">{trackerOps?.recentFailedAlerts1h || 0}</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">phase3: {trackerOps?.phase3ExperimentMode || 'off'}</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">updated {trackerOps?.updatedAt || '-'}</p>
+                    </div>
+                </div>
+            </div>
+
             {/* Path Tracker Trends */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm">
@@ -307,6 +406,164 @@ export default function DashboardPage() {
                             threshold {Number(trackerAnalytics?.alerts?.generateThreshold || 5).toFixed(1)}%, errors {trackerAnalytics?.alerts?.generateErrors15m || 0} / attempts {trackerAnalytics?.alerts?.generateAttempts15m || 0}
                         </p>
                     </div>
+                </div>
+            </div>
+
+            <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm space-y-4">
+                <div>
+                    <h2 className="text-xl font-bold">Path Tracker Alert History</h2>
+                    <p className="text-sm text-[var(--muted-foreground)]">Recent alert delivery events</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                    <select
+                        value={alertStatusFilter}
+                        onChange={(e) => {
+                            setAlertStatusFilter(e.target.value);
+                            setAlertsPage(1);
+                        }}
+                        className="bg-[var(--secondary)] border border-[var(--border)] rounded-lg text-sm px-3 py-2 outline-none"
+                    >
+                        <option value="">All statuses</option>
+                        <option value="sent">sent</option>
+                        <option value="failed">failed</option>
+                        <option value="skipped">skipped</option>
+                    </select>
+                    <select
+                        value={alertTypeFilter}
+                        onChange={(e) => {
+                            setAlertTypeFilter(e.target.value);
+                            setAlertsPage(1);
+                        }}
+                        className="bg-[var(--secondary)] border border-[var(--border)] rounded-lg text-sm px-3 py-2 outline-none"
+                    >
+                        <option value="">All alert types</option>
+                        <option value="path_tracker_fallback_rate_high">fallback_rate_high</option>
+                        <option value="path_tracker_generate_error_rate_high">generate_error_rate_high</option>
+                    </select>
+                    <select
+                        value={alertSortBy}
+                        onChange={(e) => {
+                            setAlertSortBy(e.target.value);
+                            setAlertsPage(1);
+                        }}
+                        className="bg-[var(--secondary)] border border-[var(--border)] rounded-lg text-sm px-3 py-2 outline-none"
+                    >
+                        <option value="createdAt">Sort by createdAt</option>
+                        <option value="deliveryStatus">Sort by deliveryStatus</option>
+                    </select>
+                    <select
+                        value={alertSortDir}
+                        onChange={(e) => {
+                            setAlertSortDir(e.target.value);
+                            setAlertsPage(1);
+                        }}
+                        className="bg-[var(--secondary)] border border-[var(--border)] rounded-lg text-sm px-3 py-2 outline-none"
+                    >
+                        <option value="desc">desc</option>
+                        <option value="asc">asc</option>
+                    </select>
+                    <button
+                        className="rounded-lg border border-[var(--border)] text-sm px-3 py-2 hover:bg-[var(--secondary)] transition-all"
+                        onClick={() => mutateTrackerAlerts()}
+                    >
+                        Refresh
+                    </button>
+                    <button
+                        className="rounded-lg border border-[var(--border)] text-sm px-3 py-2 hover:bg-[var(--secondary)] transition-all"
+                        onClick={exportAlertsCsv}
+                    >
+                        Export CSV
+                    </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        className="rounded-lg border border-[var(--border)] text-sm px-3 py-2 hover:bg-[var(--secondary)] transition-all disabled:opacity-50"
+                        onClick={retryFailedLastHour}
+                        disabled={bulkRetryBusy}
+                    >
+                        {bulkRetryBusy ? 'Retrying failed...' : 'Retry failed (1h)'}
+                    </button>
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                        Page {alertsPage} / {totalPages} · total {totalAlerts}
+                    </span>
+                    <button
+                        className="rounded-lg border border-[var(--border)] text-xs px-3 py-2 hover:bg-[var(--secondary)] transition-all disabled:opacity-50"
+                        onClick={() => setAlertsPage((p) => Math.max(1, p - 1))}
+                        disabled={alertsPage <= 1}
+                    >
+                        Prev
+                    </button>
+                    <button
+                        className="rounded-lg border border-[var(--border)] text-xs px-3 py-2 hover:bg-[var(--secondary)] transition-all disabled:opacity-50"
+                        onClick={() => setAlertsPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={alertsPage >= totalPages}
+                    >
+                        Next
+                    </button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="text-left text-[var(--muted-foreground)] border-b border-[var(--border)]">
+                                <th className="py-2 pr-3">Time (UTC)</th>
+                                <th className="py-2 pr-3">Type</th>
+                                <th className="py-2 pr-3">Severity</th>
+                                <th className="py-2 pr-3">Current / Threshold</th>
+                                <th className="py-2 pr-3">Window</th>
+                                <th className="py-2 pr-3">Delivery</th>
+                                <th className="py-2 pr-3">Error</th>
+                                <th className="py-2 pr-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {(trackerAlerts?.events || []).map((event: any) => (
+                                <tr key={event.id} className="border-b border-[var(--border)]/40">
+                                    <td className="py-2 pr-3 whitespace-nowrap">{event.createdAt || '-'}</td>
+                                    <td className="py-2 pr-3">{event.alertType || '-'}</td>
+                                    <td className="py-2 pr-3">{event.severity || '-'}</td>
+                                    <td className="py-2 pr-3">{event.currentValue || '-'} / {event.threshold || '-'}</td>
+                                    <td className="py-2 pr-3">{event.windowMinutes || 0}m</td>
+                                    <td className="py-2 pr-3">
+                                        <span className={`text-xs font-semibold ${
+                                            event.deliveryStatus === 'sent'
+                                                ? 'text-emerald-500'
+                                                : event.deliveryStatus === 'failed'
+                                                    ? 'text-red-500'
+                                                    : 'text-amber-500'
+                                        }`}>
+                                            {event.deliveryStatus || 'unknown'}
+                                        </span>
+                                        {event.deliveryCode ? <span className="ml-2 text-xs text-[var(--muted-foreground)]">({event.deliveryCode})</span> : null}
+                                    </td>
+                                    <td className="py-2 pr-3 max-w-[220px]">
+                                        {event.errorText ? (
+                                            <span
+                                                className="text-xs text-[var(--muted-foreground)] truncate inline-block max-w-[220px]"
+                                                title={event.errorText}
+                                            >
+                                                {event.errorText}
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-[var(--muted-foreground)]">-</span>
+                                        )}
+                                    </td>
+                                    <td className="py-2 pr-3">
+                                        {event.deliveryStatus !== 'sent' ? (
+                                            <button
+                                                className="text-xs rounded-md border border-[var(--border)] px-2 py-1 hover:bg-[var(--secondary)] transition-all disabled:opacity-50"
+                                                onClick={() => retryAlert(event.id)}
+                                                disabled={retryBusyId === event.id}
+                                            >
+                                                {retryBusyId === event.id ? 'Retrying...' : 'Retry'}
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs text-[var(--muted-foreground)]">-</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
