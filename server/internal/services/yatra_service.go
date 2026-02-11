@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"rag-agent-server/internal/models"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -28,6 +29,22 @@ func NewYatraService(db *gorm.DB, mapService *MapService) *YatraService {
 
 // CreateYatra creates a new yatra/tour
 func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateRequest) (*models.Yatra, error) {
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	req.StartDate = strings.TrimSpace(req.StartDate)
+	req.EndDate = strings.TrimSpace(req.EndDate)
+	req.StartCity = strings.TrimSpace(req.StartCity)
+	req.StartAddress = strings.TrimSpace(req.StartAddress)
+	req.EndCity = strings.TrimSpace(req.EndCity)
+	req.Requirements = strings.TrimSpace(req.Requirements)
+	req.Accommodation = strings.TrimSpace(req.Accommodation)
+	req.Transportation = strings.TrimSpace(req.Transportation)
+	req.Language = strings.TrimSpace(req.Language)
+	req.CoverImageURL = strings.TrimSpace(req.CoverImageURL)
+	if req.Title == "" {
+		return nil, errors.New("title is required")
+	}
+
 	startDate, err := time.Parse("2006-01-02", req.StartDate)
 	if err != nil {
 		return nil, errors.New("invalid start date format")
@@ -44,7 +61,7 @@ func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateReque
 	// Geocode start location if needed
 	startLat := req.StartLatitude
 	startLng := req.StartLongitude
-	if (startLat == nil || startLng == nil) && req.StartCity != "" {
+	if s.mapService != nil && (startLat == nil || startLng == nil) && req.StartCity != "" {
 		if geocoded, err := s.mapService.GeocodeCity(req.StartCity); err == nil {
 			startLat = &geocoded.Latitude
 			startLng = &geocoded.Longitude
@@ -54,7 +71,7 @@ func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateReque
 	// Geocode end location if needed
 	endLat := req.EndLatitude
 	endLng := req.EndLongitude
-	if (endLat == nil || endLng == nil) && req.EndCity != "" {
+	if s.mapService != nil && (endLat == nil || endLng == nil) && req.EndCity != "" {
 		if geocoded, err := s.mapService.GeocodeCity(req.EndCity); err == nil {
 			endLat = &geocoded.Latitude
 			endLng = &geocoded.Longitude
@@ -116,7 +133,9 @@ func (s *YatraService) GetYatra(yatraID uint) (*models.Yatra, error) {
 	}
 
 	// Increment views
-	s.db.Model(&yatra).UpdateColumn("views_count", gorm.Expr("views_count + 1"))
+	if err := s.db.Model(&yatra).UpdateColumn("views_count", gorm.Expr("views_count + 1")).Error; err != nil {
+		log.Printf("[YatraService] Failed to increment yatra views yatra_id=%d: %v", yatraID, err)
+	}
 
 	return &yatra, nil
 }
@@ -165,7 +184,9 @@ func (s *YatraService) ListYatras(filters models.YatraFilters) ([]models.Yatra, 
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	// Pagination
 	page := filters.Page
@@ -262,14 +283,26 @@ func (s *YatraService) JoinYatra(yatraID uint, userID uint, req models.YatraJoin
 	if yatra.OrganizerID == userID {
 		return nil, errors.New("organizer cannot join their own yatra")
 	}
+	var approvedCount int64
+	if err := s.db.Model(&models.YatraParticipant{}).
+		Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
+		Count(&approvedCount).Error; err != nil {
+		return nil, err
+	}
+	if int(approvedCount) >= yatra.MaxParticipants {
+		if yatra.Status == models.YatraStatusOpen {
+			_ = s.db.Model(&models.Yatra{}).Where("id = ?", yatraID).Update("status", models.YatraStatusFull).Error
+		}
+		return nil, errors.New("yatra is full")
+	}
 
 	participant := &models.YatraParticipant{
 		YatraID:          yatraID,
 		UserID:           userID,
 		Status:           models.YatraParticipantPending,
 		Role:             models.YatraRoleMember,
-		Message:          req.Message,
-		EmergencyContact: req.EmergencyContact,
+		Message:          strings.TrimSpace(req.Message),
+		EmergencyContact: strings.TrimSpace(req.EmergencyContact),
 	}
 
 	if err := s.db.Create(participant).Error; err != nil {
@@ -297,6 +330,21 @@ func (s *YatraService) ApproveParticipant(yatraID uint, participantID uint, orga
 
 	if participant.YatraID != yatraID {
 		return errors.New("participant does not belong to this yatra")
+	}
+	if participant.Status == models.YatraParticipantApproved {
+		return nil
+	}
+	var approvedCount int64
+	if err := s.db.Model(&models.YatraParticipant{}).
+		Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
+		Count(&approvedCount).Error; err != nil {
+		return err
+	}
+	if int(approvedCount) >= yatra.MaxParticipants {
+		if yatra.Status == models.YatraStatusOpen {
+			_ = s.db.Model(&models.Yatra{}).Where("id = ?", yatraID).Update("status", models.YatraStatusFull).Error
+		}
+		return errors.New("yatra is full")
 	}
 
 	now := time.Now()
@@ -424,18 +472,26 @@ func (s *YatraService) GetMyYatras(userID uint) (organized []models.Yatra, parti
 
 func (s *YatraService) updateParticipantCount(yatraID uint) {
 	var count int64
-	s.db.Model(&models.YatraParticipant{}).
+	if err := s.db.Model(&models.YatraParticipant{}).
 		Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
-		Count(&count)
+		Count(&count).Error; err != nil {
+		log.Printf("[YatraService] Failed to count participants yatra_id=%d: %v", yatraID, err)
+		return
+	}
 
-	s.db.Model(&models.Yatra{}).Where("id = ?", yatraID).
-		Update("participant_count", count)
+	if err := s.db.Model(&models.Yatra{}).Where("id = ?", yatraID).
+		Update("participant_count", count).Error; err != nil {
+		log.Printf("[YatraService] Failed to update participant count yatra_id=%d: %v", yatraID, err)
+		return
+	}
 
 	// Check if full
 	var yatra models.Yatra
 	if err := s.db.First(&yatra, yatraID).Error; err == nil {
 		if int(count) >= yatra.MaxParticipants && yatra.Status == models.YatraStatusOpen {
-			s.db.Model(&yatra).Update("status", models.YatraStatusFull)
+			if err := s.db.Model(&yatra).Update("status", models.YatraStatusFull).Error; err != nil {
+				log.Printf("[YatraService] Failed to mark yatra full yatra_id=%d: %v", yatraID, err)
+			}
 		}
 	}
 }
@@ -461,22 +517,36 @@ func (s *YatraService) addParticipantToChat(yatraID uint, userID uint) {
 		}
 
 		// Update yatra with room ID
-		s.db.Model(&yatra).Update("chat_room_id", room.ID)
+		if err := s.db.Model(&yatra).Update("chat_room_id", room.ID).Error; err != nil {
+			log.Printf("[YatraService] Failed to set chat_room_id yatra_id=%d: %v", yatraID, err)
+			return
+		}
+		yatra.ChatRoomID = &room.ID
 
 		// Add organizer to room
-		s.db.Create(&models.RoomMember{
+		if err := s.db.Create(&models.RoomMember{
 			RoomID: room.ID,
 			UserID: yatra.OrganizerID,
 			Role:   "admin",
-		})
+		}).Error; err != nil {
+			log.Printf("[YatraService] Failed to add organizer to room yatra_id=%d room_id=%d: %v", yatraID, room.ID, err)
+			return
+		}
+	}
+
+	if yatra.ChatRoomID == nil {
+		log.Printf("[YatraService] Missing chat room ID after room setup yatra_id=%d", yatraID)
+		return
 	}
 
 	// Add participant to room
-	s.db.FirstOrCreate(&models.RoomMember{
+	if err := s.db.FirstOrCreate(&models.RoomMember{
 		RoomID: *yatra.ChatRoomID,
 		UserID: userID,
 		Role:   "member",
-	}, "room_id = ? AND user_id = ?", *yatra.ChatRoomID, userID)
+	}, "room_id = ? AND user_id = ?", *yatra.ChatRoomID, userID).Error; err != nil {
+		log.Printf("[YatraService] Failed to add participant to room yatra_id=%d room_id=%d user_id=%d: %v", yatraID, *yatra.ChatRoomID, userID, err)
+	}
 }
 
 // GetYatraMarkers returns yatra markers for map display
@@ -489,7 +559,10 @@ func (s *YatraService) GetYatraMarkers(bbox models.MapBoundingBox, limit int) ([
 		Where("start_longitude >= ? AND start_longitude <= ?", bbox.LngMin, bbox.LngMax)
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		log.Printf("[YatraService] Error counting yatra markers: %v", err)
+		return nil, 0
+	}
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -533,16 +606,20 @@ func (s *YatraService) GetYatraReviews(yatraID uint, page, limit int) ([]models.
 	query := s.db.Model(&models.YatraReview{}).Where("yatra_id = ?", yatraID)
 
 	// Count total
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, 0, err
+	}
 
 	// Calculate average rating
 	var avgResult struct {
 		Avg float64
 	}
-	s.db.Model(&models.YatraReview{}).
+	if err := s.db.Model(&models.YatraReview{}).
 		Where("yatra_id = ?", yatraID).
 		Select("COALESCE(AVG(overall_rating), 0) as avg").
-		Scan(&avgResult)
+		Scan(&avgResult).Error; err != nil {
+		return nil, 0, 0, err
+	}
 
 	// Pagination
 	if page < 1 {
@@ -603,7 +680,7 @@ func (s *YatraService) CreateYatraReview(yatraID uint, authorID uint, req models
 		RouteRating:         req.RouteRating,
 		AccommodationRating: req.AccommodationRating,
 		ValueRating:         req.ValueRating,
-		Comment:             req.Comment,
+		Comment:             strings.TrimSpace(req.Comment),
 		Photos:              req.Photos,
 		Recommendation:      recommendation,
 	}
@@ -613,7 +690,9 @@ func (s *YatraService) CreateYatraReview(yatraID uint, authorID uint, req models
 	}
 
 	// Load author for response
-	s.db.Preload("Author").First(review, review.ID)
+	if err := s.db.Preload("Author").First(review, review.ID).Error; err != nil {
+		return nil, err
+	}
 
 	return review, nil
 }

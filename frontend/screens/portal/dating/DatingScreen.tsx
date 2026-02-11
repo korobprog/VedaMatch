@@ -15,9 +15,11 @@ import {
     Animated,
     Share,
     StatusBar,
-    Platform
+    Platform,
+    GestureResponderEvent
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { BlurView } from '@react-native-community/blur';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
@@ -32,6 +34,7 @@ import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../.
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import type { UserContact } from '../../../services/contactService';
 import {
     BarChart2,
     Filter,
@@ -88,6 +91,55 @@ interface CandidateFilterParams {
     industry: string;
 }
 
+interface UserProfileFilters {
+    madh?: string;
+    sampradaya?: string;
+    yogaStyle?: string;
+    guna?: string;
+    identity?: string;
+}
+
+interface FriendRef {
+    ID: number;
+}
+
+interface PreviewProfileApiResponse {
+    ID?: number;
+    spiritual_name?: string;
+    spiritualName?: string;
+    age?: number;
+    city?: string;
+    bio?: string;
+    sampradaya?: string;
+    madh?: string;
+    avatar_url?: string;
+    avatarUrl?: string;
+    photos?: Array<string | { url?: string | null }>;
+}
+
+const parseNumericId = (value: unknown): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+};
+
+const buildChatRecipient = (candidate: Profile): UserContact => ({
+    ID: candidate.ID,
+    spiritualName: candidate.spiritualName,
+    avatarUrl: candidate.avatarUrl,
+    karmicName: '',
+    city: candidate.city,
+    country: '',
+    email: '',
+    identity: '',
+    lastSeen: '',
+});
+
 const MODE_OPTIONS: Array<{ key: MatchMode; label: string; icon: LucideIcon }> = [
     { key: 'family', label: 'Family', icon: Heart },
     { key: 'business', label: 'Business', icon: Briefcase },
@@ -102,7 +154,7 @@ interface DatingCandidateCardProps {
     userId?: number;
     roleColors: { accent: string };
     roleTheme: { accent: string; accentStrong: string };
-    t: (key: string, options?: any) => string;
+    t: TFunction<'translation', undefined>;
     navigation: NativeStackNavigationProp<RootStackParamList>;
     onCheckCompatibility: (candidateId: number) => void;
 }
@@ -207,7 +259,16 @@ const DatingCandidateCard = ({
         };
     }, [displayPhotos.length, isPaused, fadeAnim]);
 
-    const handleTap = (event: any) => {
+    useEffect(() => {
+        setActiveIndex((prev) => {
+            if (displayPhotos.length === 0) {
+                return 0;
+            }
+            return Math.min(prev, displayPhotos.length - 1);
+        });
+    }, [displayPhotos.length]);
+
+    const handleTap = (event: GestureResponderEvent) => {
         const x = event.nativeEvent.locationX;
         const cardWidth = width - 40;
 
@@ -374,6 +435,42 @@ const DatingCandidateCard = ({
     );
 };
 
+const normalizeAgeRange = (minAgeRaw: string, maxAgeRaw: string): { minAge: string; maxAge: string } => {
+    const minAge = minAgeRaw.trim();
+    const maxAge = maxAgeRaw.trim();
+    const min = Number.parseInt(minAge, 10);
+    const max = Number.parseInt(maxAge, 10);
+
+    if (Number.isNaN(min) && Number.isNaN(max)) {
+        return { minAge: '', maxAge: '' };
+    }
+    if (Number.isNaN(min)) {
+        return { minAge: '', maxAge: `${max}` };
+    }
+    if (Number.isNaN(max)) {
+        return { minAge: `${min}`, maxAge: '' };
+    }
+    if (min > max) {
+        return { minAge: `${max}`, maxAge: `${min}` };
+    }
+    return { minAge: `${min}`, maxAge: `${max}` };
+};
+
+const normalizeProfilePhotos = (photos: PreviewProfileApiResponse['photos']): Photo[] => {
+    if (!Array.isArray(photos)) {
+        return [];
+    }
+    return photos
+        .map((photo) => {
+            if (typeof photo === 'string') {
+                return { url: photo };
+            }
+            const url = typeof photo?.url === 'string' ? photo.url : '';
+            return { url };
+        })
+        .filter((photo) => photo.url.trim() !== '');
+};
+
 export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const { t } = useTranslation();
     const { user } = useUser();
@@ -439,12 +536,13 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         skills: '',
         industry: ''
     });
+    const candidatesRequestRef = useRef(0);
 
     useEffect(() => {
         if (user?.ID) {
             fetchFriends();
             // Sync filters with user profile to ensure they find people like themselves by default
-            const u = user as any;
+            const u = user as UserProfileFilters;
             const nextMadh = u.madh || u.sampradaya || '';
             if (nextMadh) setFilterMadh(nextMadh);
             if (u.yogaStyle) setFilterYogaStyle(u.yogaStyle);
@@ -456,7 +554,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const fetchFriends = async () => {
         try {
             const data = await datingService.getFriends();
-            const ids = data.map((f: any) => f.ID);
+            const ids = Array.isArray(data)
+                ? data
+                    .map((f: FriendRef) => parseNumericId(f.ID))
+                    .filter((id): id is number => id !== null)
+                : [];
             setFriendIds(ids);
         } catch (error) {
             console.error('Failed to fetch friends:', error);
@@ -482,7 +584,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const fetchStats = useCallback(async (city?: string) => {
         try {
             const data = await datingService.getStats(city);
-            setStats(data);
+            setStats({
+                total: Number(data?.total) || 0,
+                city: Number(data?.city) || 0,
+                new: Number(data?.new) || 0
+            });
         } catch (error) {
             console.error('Failed to fetch stats:', error);
         }
@@ -516,15 +622,18 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const fetchCities = useCallback(async () => {
         try {
             const data = await datingService.getCities();
-            setAvailableCities(data);
+            setAvailableCities(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to fetch cities:', error);
         }
     }, []);
 
     const fetchCandidates = useCallback(async (overrides: Partial<CandidateFilterParams> = {}) => {
+        const requestId = ++candidatesRequestRef.current;
         if (!user?.ID) {
-            setLoading(false);
+            if (requestId === candidatesRequestRef.current) {
+                setLoading(false);
+            }
             return;
         }
 
@@ -533,14 +642,25 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             ...filtersRef.current,
             ...overrides,
         };
+        const normalizedAges = normalizeAgeRange(params.minAge, params.maxAge);
+        params.minAge = normalizedAges.minAge;
+        params.maxAge = normalizedAges.maxAge;
 
         try {
             const data = await datingService.getCandidates({ userId: user.ID, ...params });
-            setCandidates(data);
+            if (requestId !== candidatesRequestRef.current) {
+                return;
+            }
+            setCandidates(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to fetch candidates:', error);
+            if (requestId === candidatesRequestRef.current) {
+                setCandidates([]);
+            }
         } finally {
-            setLoading(false);
+            if (requestId === candidatesRequestRef.current) {
+                setLoading(false);
+            }
         }
     }, [user?.ID]);
 
@@ -591,15 +711,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             setShowCompatibilityModal(false);
             const candidate = candidates.find(c => c.ID === currentCandidateId);
             if (candidate) {
-                setChatRecipient({
-                    ID: candidate.ID,
-                    spiritualName: candidate.spiritualName,
-                    avatarUrl: candidate.avatarUrl,
-                    karmicName: '',
-                    city: candidate.city,
-                    country: '',
-                    email: ''
-                } as any);
+                setChatRecipient(buildChatRecipient(candidate));
                 navigation.navigate('Chat');
             }
             return;
@@ -619,8 +731,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         if (!user?.ID) return;
         setPreviewLoading(true);
         try {
-            const data = await datingService.getProfile(user.ID);
-            console.log('Preview profile data:', data);
+            const data = await datingService.getProfile(user.ID) as PreviewProfileApiResponse;
 
             // Map response to Profile interface
             const mappedProfile: Profile = {
@@ -631,7 +742,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                 bio: data.bio || '',
                 madh: data.sampradaya || data.madh || '',
                 avatarUrl: data.avatar_url || data.avatarUrl || user.avatar || '',
-                photos: data.photos || []
+                photos: normalizeProfilePhotos(data.photos)
             };
             setPreviewProfile(mappedProfile);
             setShowPreview(true);
@@ -1063,7 +1174,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pickerScrollContent}>
                                     <TouchableOpacity
                                         style={styles.pickerOptionRow}
-                                        onPress={() => { setFilterCity(''); setShowCityPicker(false); }}
+                                        onPress={() => { setFilterCity(''); setCitySearchQuery(''); setShowCityPicker(false); }}
                                     >
                                         <Text style={[styles.pickerAccentText, modalAccentTextStyle]}>{t('dating.allCities')}</Text>
                                     </TouchableOpacity>
@@ -1071,14 +1182,14 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         <TouchableOpacity
                                             key={index}
                                             style={styles.pickerOptionRow}
-                                            onPress={() => { setFilterCity(city); setShowCityPicker(false); }}
+                                            onPress={() => { setFilterCity(city); setCitySearchQuery(''); setShowCityPicker(false); }}
                                         >
                                             <Text style={styles.pickerOptionText}>{city}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
 
-                                <TouchableOpacity style={styles.modalCloseLink} onPress={() => setShowCityPicker(false)}>
+                                <TouchableOpacity style={styles.modalCloseLink} onPress={() => { setCitySearchQuery(''); setShowCityPicker(false); }}>
                                     <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                 </TouchableOpacity>
                             </LinearGradient>

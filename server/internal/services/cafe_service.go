@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CafeService handles cafe-related operations
@@ -19,6 +20,8 @@ type CafeService struct {
 	db         *gorm.DB
 	mapService *MapService
 }
+
+var ErrWaiterCallNotFound = errors.New("waiter call not found")
 
 // NewCafeService creates a new cafe service instance
 func NewCafeService(db *gorm.DB, mapService *MapService) *CafeService {
@@ -32,6 +35,19 @@ func NewCafeService(db *gorm.DB, mapService *MapService) *CafeService {
 
 // CreateCafe creates a new cafe
 func (s *CafeService) CreateCafe(ownerID uint, req models.CafeCreateRequest) (*models.Cafe, error) {
+	req.Name = strings.TrimSpace(req.Name)
+	req.City = strings.TrimSpace(req.City)
+	req.Address = strings.TrimSpace(req.Address)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Phone = strings.TrimSpace(req.Phone)
+	req.Email = strings.TrimSpace(req.Email)
+	req.Website = strings.TrimSpace(req.Website)
+	req.Telegram = strings.TrimSpace(req.Telegram)
+	req.Instagram = strings.TrimSpace(req.Instagram)
+	req.WorkingHours = strings.TrimSpace(req.WorkingHours)
+	req.LogoURL = strings.TrimSpace(req.LogoURL)
+	req.CoverURL = strings.TrimSpace(req.CoverURL)
+
 	// Generate slug
 	slug := s.generateSlug(req.Name)
 
@@ -48,7 +64,7 @@ func (s *CafeService) CreateCafe(ownerID uint, req models.CafeCreateRequest) (*m
 			}
 		}
 
-		if query != "" {
+		if query != "" && s.mapService != nil {
 			// Try to geocode using the full address/city
 			if geocoded, err := s.mapService.GeocodeLocation(query); err == nil {
 				lat = &geocoded.Latitude
@@ -174,7 +190,9 @@ func (s *CafeService) ListCafes(filters models.CafeFilters) (*models.CafeListRes
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	// Pagination
 	page := filters.Page
@@ -265,17 +283,18 @@ func (s *CafeService) UpdateCafe(cafeID uint, req models.CafeUpdateRequest) (*mo
 
 	updates := make(map[string]interface{})
 	if req.Name != nil {
-		updates["name"] = *req.Name
-		updates["slug"] = s.generateSlug(*req.Name)
+		trimmed := strings.TrimSpace(*req.Name)
+		updates["name"] = trimmed
+		updates["slug"] = s.generateSlug(trimmed)
 	}
 	if req.Description != nil {
-		updates["description"] = *req.Description
+		updates["description"] = strings.TrimSpace(*req.Description)
 	}
 	if req.City != nil {
-		updates["city"] = *req.City
+		updates["city"] = strings.TrimSpace(*req.City)
 	}
 	if req.Address != nil {
-		updates["address"] = *req.Address
+		updates["address"] = strings.TrimSpace(*req.Address)
 	}
 	if req.Latitude != nil {
 		updates["latitude"] = *req.Latitude
@@ -284,28 +303,28 @@ func (s *CafeService) UpdateCafe(cafeID uint, req models.CafeUpdateRequest) (*mo
 		updates["longitude"] = *req.Longitude
 	}
 	if req.Phone != nil {
-		updates["phone"] = *req.Phone
+		updates["phone"] = strings.TrimSpace(*req.Phone)
 	}
 	if req.Email != nil {
-		updates["email"] = *req.Email
+		updates["email"] = strings.TrimSpace(*req.Email)
 	}
 	if req.Website != nil {
-		updates["website"] = *req.Website
+		updates["website"] = strings.TrimSpace(*req.Website)
 	}
 	if req.Telegram != nil {
-		updates["telegram"] = *req.Telegram
+		updates["telegram"] = strings.TrimSpace(*req.Telegram)
 	}
 	if req.Instagram != nil {
-		updates["instagram"] = *req.Instagram
+		updates["instagram"] = strings.TrimSpace(*req.Instagram)
 	}
 	if req.WorkingHours != nil {
-		updates["working_hours"] = *req.WorkingHours
+		updates["working_hours"] = strings.TrimSpace(*req.WorkingHours)
 	}
 	if req.LogoURL != nil {
-		updates["logo_url"] = *req.LogoURL
+		updates["logo_url"] = strings.TrimSpace(*req.LogoURL)
 	}
 	if req.CoverURL != nil {
-		updates["cover_url"] = *req.CoverURL
+		updates["cover_url"] = strings.TrimSpace(*req.CoverURL)
 	}
 	if req.HasDelivery != nil {
 		updates["has_delivery"] = *req.HasDelivery
@@ -344,7 +363,7 @@ func (s *CafeService) UpdateCafe(cafeID uint, req models.CafeUpdateRequest) (*mo
 			shouldGeocode = true
 		}
 
-		if shouldGeocode {
+		if shouldGeocode && s.mapService != nil {
 			query := newAddress
 			if newCity != "" {
 				if query != "" {
@@ -367,6 +386,9 @@ func (s *CafeService) UpdateCafe(cafeID uint, req models.CafeUpdateRequest) (*mo
 		if err := s.db.Model(&cafe).Updates(updates).Error; err != nil {
 			return nil, err
 		}
+		if err := s.db.First(&cafe, cafeID).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	return &cafe, nil
@@ -381,6 +403,12 @@ func (s *CafeService) DeleteCafe(cafeID uint) error {
 
 // CreateTable creates a new table
 func (s *CafeService) CreateTable(cafeID uint, req models.CafeTableCreateRequest) (*models.CafeTable, error) {
+	req.Number = strings.TrimSpace(req.Number)
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Number == "" {
+		return nil, errors.New("table number is required")
+	}
+
 	qrCodeID := s.generateQRCode(cafeID, req.Number)
 
 	table := &models.CafeTable{
@@ -420,6 +448,8 @@ func (s *CafeService) GetTables(cafeID uint) ([]models.CafeTable, error) {
 		if err := s.db.Where("table_id = ? AND start_time > ? AND status = ?", tables[i].ID, now, "confirmed").
 			Order("start_time asc").First(&reservation).Error; err == nil {
 			tables[i].UpcomingReservation = &reservation
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[CafeService] failed to load upcoming reservation for table %d: %v", tables[i].ID, err)
 		}
 	}
 
@@ -435,10 +465,10 @@ func (s *CafeService) UpdateTable(tableID uint, req models.CafeTableUpdateReques
 
 	updates := make(map[string]interface{})
 	if req.Number != nil {
-		updates["number"] = *req.Number
+		updates["number"] = strings.TrimSpace(*req.Number)
 	}
 	if req.Name != nil {
-		updates["name"] = *req.Name
+		updates["name"] = strings.TrimSpace(*req.Name)
 	}
 	if req.PosX != nil {
 		updates["pos_x"] = *req.PosX
@@ -455,6 +485,9 @@ func (s *CafeService) UpdateTable(tableID uint, req models.CafeTableUpdateReques
 
 	if len(updates) > 0 {
 		if err := s.db.Model(&table).Updates(updates).Error; err != nil {
+			return nil, err
+		}
+		if err := s.db.First(&table, tableID).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -503,6 +536,8 @@ func (s *CafeService) GetTableByQRCode(qrCodeID string) (*models.QRCodeScanRespo
 	if err := s.db.Where("table_id = ? AND start_time > ? AND status = ?", table.ID, now, "confirmed").
 		Order("start_time asc").First(&reservation).Error; err == nil {
 		table.UpcomingReservation = &reservation
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[CafeService] failed to load upcoming reservation for table %d: %v", table.ID, err)
 	}
 
 	response := &models.QRCodeScanResponse{
@@ -529,6 +564,14 @@ func (s *CafeService) GetTableByQRCode(qrCodeID string) (*models.QRCodeScanRespo
 
 // CreateWaiterCall creates a new waiter call
 func (s *CafeService) CreateWaiterCall(cafeID uint, userID *uint, req models.WaiterCallRequest) (*models.WaiterCall, error) {
+	var table models.CafeTable
+	if err := s.db.Where("id = ? AND cafe_id = ? AND is_active = ?", req.TableID, cafeID, true).First(&table).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("table not found for this cafe")
+		}
+		return nil, err
+	}
+
 	call := &models.WaiterCall{
 		CafeID:  cafeID,
 		TableID: req.TableID,
@@ -542,19 +585,15 @@ func (s *CafeService) CreateWaiterCall(cafeID uint, userID *uint, req models.Wai
 		return nil, err
 	}
 
-	// Get table info for notification
-	var table models.CafeTable
-	if err := s.db.First(&table, req.TableID).Error; err == nil {
-		// Send WebSocket notification to cafe staff
-		websocket.NotifyWaiterCall(cafeID, map[string]interface{}{
-			"callId":      call.ID,
-			"tableId":     req.TableID,
-			"tableNumber": table.Number,
-			"tableName":   table.Name,
-			"reason":      call.Reason,
-			"note":        call.Note,
-		})
-	}
+	// Send WebSocket notification to cafe staff
+	websocket.NotifyWaiterCall(cafeID, map[string]interface{}{
+		"callId":      call.ID,
+		"tableId":     req.TableID,
+		"tableNumber": table.Number,
+		"tableName":   table.Name,
+		"reason":      call.Reason,
+		"note":        call.Note,
+	})
 
 	return call, nil
 }
@@ -573,41 +612,65 @@ func (s *CafeService) GetActiveWaiterCalls(cafeID uint) ([]models.WaiterCall, er
 // AcknowledgeWaiterCall acknowledges a waiter call
 func (s *CafeService) AcknowledgeWaiterCall(callID uint, staffUserID uint) error {
 	now := time.Now()
-	return s.db.Model(&models.WaiterCall{}).Where("id = ?", callID).
+	tx := s.db.Model(&models.WaiterCall{}).
+		Where("id = ? AND status = ?", callID, models.WaiterCallStatusPending).
 		Updates(map[string]interface{}{
 			"status":     models.WaiterCallStatusAcknowledged,
 			"handled_by": staffUserID,
 			"handled_at": now,
-		}).Error
+		})
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return ErrWaiterCallNotFound
+	}
+	return nil
 }
 
 // CompleteWaiterCall completes a waiter call
 func (s *CafeService) CompleteWaiterCall(callID uint) error {
 	now := time.Now()
-	return s.db.Model(&models.WaiterCall{}).Where("id = ?", callID).
+	tx := s.db.Model(&models.WaiterCall{}).
+		Where("id = ? AND status IN ?", callID, []models.WaiterCallStatus{models.WaiterCallStatusPending, models.WaiterCallStatusAcknowledged}).
 		Updates(map[string]interface{}{
 			"status":       models.WaiterCallStatusCompleted,
 			"completed_at": now,
-		}).Error
+		})
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return ErrWaiterCallNotFound
+	}
+	return nil
 }
 
 // ===== Staff Management =====
 
 // AddStaff adds a staff member to a cafe
 func (s *CafeService) AddStaff(cafeID, userID uint, role models.CafeStaffRole) error {
-	staff := &models.CafeStaff{
+	staff := models.CafeStaff{
 		CafeID:   cafeID,
 		UserID:   userID,
 		Role:     role,
 		IsActive: true,
 	}
-	return s.db.Create(staff).Error
+	return s.db.Unscoped().Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "cafe_id"}, {Name: "user_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"role":       role,
+			"is_active":  true,
+			"deleted_at": nil,
+		}),
+	}).Create(&staff).Error
 }
 
 // RemoveStaff removes a staff member from a cafe
 func (s *CafeService) RemoveStaff(cafeID, userID uint) error {
-	return s.db.Where("cafe_id = ? AND user_id = ?", cafeID, userID).
-		Delete(&models.CafeStaff{}).Error
+	return s.db.Model(&models.CafeStaff{}).
+		Where("cafe_id = ? AND user_id = ?", cafeID, userID).
+		Update("is_active", false).Error
 }
 
 // GetStaff returns all staff for a cafe
@@ -643,7 +706,7 @@ func (s *CafeService) IsCafeOwner(cafeID, userID uint) bool {
 
 func (s *CafeService) generateSlug(name string) string {
 	// Simple slug generation
-	slug := strings.ToLower(name)
+	slug := strings.ToLower(strings.TrimSpace(name))
 	slug = strings.ReplaceAll(slug, " ", "-")
 	// Remove special characters
 	slug = strings.Map(func(r rune) rune {
@@ -652,13 +715,19 @@ func (s *CafeService) generateSlug(name string) string {
 		}
 		return -1
 	}, slug)
+	if slug == "" {
+		slug = "cafe"
+	}
 
 	// Check uniqueness
 	baseSlug := slug
 	counter := 1
 	for {
 		var count int64
-		s.db.Model(&models.Cafe{}).Where("slug = ?", slug).Count(&count)
+		if err := s.db.Model(&models.Cafe{}).Where("slug = ?", slug).Count(&count).Error; err != nil {
+			log.Printf("[CafeService] failed to check slug uniqueness for %q: %v", slug, err)
+			return fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix())
+		}
 		if count == 0 {
 			break
 		}
@@ -671,7 +740,10 @@ func (s *CafeService) generateSlug(name string) string {
 
 func (s *CafeService) generateQRCode(cafeID uint, tableNumber string) string {
 	bytes := make([]byte, 8)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		log.Printf("[CafeService] failed to generate QR random bytes: %v", err)
+		return fmt.Sprintf("cafe_%d_table_%s_%d", cafeID, tableNumber, time.Now().UnixNano())
+	}
 	return fmt.Sprintf("cafe_%d_table_%s_%s", cafeID, tableNumber, hex.EncodeToString(bytes))
 }
 
@@ -685,7 +757,10 @@ func (s *CafeService) GetCafeMarkers(bbox models.MapBoundingBox, userLat, userLn
 		Where("longitude >= ? AND longitude <= ?", bbox.LngMin, bbox.LngMax)
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		log.Printf("[CafeService] Error counting cafe markers: %v", err)
+		return nil, 0
+	}
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -752,8 +827,10 @@ func (s *CafeService) GetCafeSummary() (map[string]int, error) {
 
 // IncrementViews increments the views count for a cafe
 func (s *CafeService) IncrementViews(cafeID uint) {
-	s.db.Model(&models.Cafe{}).Where("id = ?", cafeID).
-		UpdateColumn("views_count", gorm.Expr("views_count + 1"))
+	if err := s.db.Model(&models.Cafe{}).Where("id = ?", cafeID).
+		UpdateColumn("views_count", gorm.Expr("views_count + 1")).Error; err != nil {
+		log.Printf("[CafeService] failed to increment views for cafe %d: %v", cafeID, err)
+	}
 }
 
 // ValidateDeliveryAddress checks if address is within delivery radius

@@ -16,6 +16,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import {
     ShoppingCart,
@@ -44,6 +45,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { RootStackParamList } from '../../../types/navigation';
 
 interface CafeTable {
     id: number;
@@ -64,12 +66,12 @@ const getApiErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 const CafeCartScreen: React.FC = () => {
-    const navigation = useNavigation<any>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { t } = useTranslation();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
-    const { cart, updateQuantity, removeFromCart, clearCart, setOrderType, setTableInfo } = useCart();
+    const { cart, updateQuantityAtIndex, removeFromCartAtIndex, clearCart, setOrderType, setTableInfo } = useCart();
     const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [customerName, setCustomerName] = useState('');
@@ -102,6 +104,12 @@ const CafeCartScreen: React.FC = () => {
     };
 
     const handleSelectTable = (table: CafeTable) => {
+        if (table.upcomingReservation) {
+            Alert.alert(t('cafe.qr.tableReservedTitle'), t('cafe.qr.tableReservedMessage', {
+                time: new Date(table.upcomingReservation.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            }));
+            return;
+        }
         setTableInfo(table.id, table.number);
         setTableModalVisible(false);
     };
@@ -303,7 +311,7 @@ const CafeCartScreen: React.FC = () => {
                             <View style={styles.itemDetails}>
                                 <View style={styles.itemHeader}>
                                     <Text style={styles.itemName} numberOfLines={1}>{item.dish.name}</Text>
-                                    <TouchableOpacity style={styles.removeBtn} onPress={() => removeFromCart(item.dish.id)}>
+                                    <TouchableOpacity style={styles.removeBtn} onPress={() => removeFromCartAtIndex(index)}>
                                         <Trash2 size={16} color={colors.danger} />
                                     </TouchableOpacity>
                                 </View>
@@ -329,14 +337,14 @@ const CafeCartScreen: React.FC = () => {
                                     <View style={styles.qtyBox}>
                                         <TouchableOpacity
                                             style={styles.qtyBtn}
-                                            onPress={() => updateQuantity(item.dish.id, item.quantity - 1)}
+                                            onPress={() => updateQuantityAtIndex(index, item.quantity - 1)}
                                         >
                                             <Minus size={14} color={colors.textPrimary} />
                                         </TouchableOpacity>
                                         <Text style={styles.qtyVal}>{item.quantity}</Text>
                                         <TouchableOpacity
                                             style={styles.qtyBtn}
-                                            onPress={() => updateQuantity(item.dish.id, item.quantity + 1)}
+                                            onPress={() => updateQuantityAtIndex(index, item.quantity + 1)}
                                         >
                                             <Plus size={14} color={colors.textPrimary} />
                                         </TouchableOpacity>
@@ -491,6 +499,7 @@ const CafeCartScreen: React.FC = () => {
                                             cart.tableId === item.id && styles.tableCardActive,
                                             item.upcomingReservation && styles.tableCardReserved
                                         ]}
+                                        disabled={Boolean(item.upcomingReservation)}
                                         onPress={() => handleSelectTable(item)}
                                     >
                                         <Utensils size={20} color={cart.tableId === item.id ? colors.textPrimary : (item.upcomingReservation ? colors.danger : colors.accent)} />

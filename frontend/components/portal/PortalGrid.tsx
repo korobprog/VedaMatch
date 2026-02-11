@@ -9,9 +9,11 @@ import {
     TextInput,
     Pressable,
     Platform,
+    LayoutChangeEvent,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, {
     runOnJS,
     FadeIn,
@@ -22,6 +24,7 @@ import { Plus, FolderPlus, LayoutGrid } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { DEFAULT_SERVICES, PortalItem, PortalFolder as PortalFolderType, FOLDER_COLORS } from '../../types/portal';
+import { RootStackParamList } from '../../types/navigation';
 import { PortalIcon } from './PortalIcon';
 import { PortalFolderComponent } from './PortalFolder';
 import { FolderModal } from './FolderModal';
@@ -53,7 +56,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     godModeEnabled = false,
     activeMathLabel,
 }) => {
-    const navigation = useNavigation<any>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const {
         layout,
@@ -159,7 +162,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         }
     }, [newFolderName, createNewFolder]);
 
-    const handleItemLayout = (id: string, event: any) => {
+    const handleItemLayout = (id: string, event: LayoutChangeEvent) => {
         const { x, y, width, height } = event.nativeEvent.layout;
         itemLayouts.current[id] = { x, y, width, height };
     };
@@ -202,7 +205,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
         if (isItem && isInsideDock) {
             const slotWidth = d.width / 3;
-            const slotIndex = Math.min(2, Math.floor((absX - d.x) / slotWidth));
+            const rawSlotIndex = Math.floor((absX - d.x) / slotWidth);
+            const slotIndex = Math.max(0, Math.min(2, rawSlotIndex));
             runOnJS(moveItemToQuickAccess)(itemId, slotIndex);
             return;
         }
@@ -293,7 +297,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         if (!isReady) {
             return (
                 <Animated.View
-                    key={`skeleton - ${item.id} `}
+                    key={`skeleton-${item.id}`}
                     style={{ pointerEvents: 'none', width: CELL_WIDTH, alignItems: 'center' }}
                     exiting={FadeOut.duration(300)}
                 >
@@ -391,7 +395,10 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 isEditMode={isEditMode}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                onPress={() => onServicePress(item.serviceId)}
+                onPress={() => {
+                    if (isEditMode) return;
+                    onServicePress(item.serviceId);
+                }}
                 onSecondaryLongPress={() => setEditMode(true)}
             >
                 <View
@@ -623,7 +630,10 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                             <TouchableOpacity onPress={handleCreateFolder} style={styles.createButton}>
                                 <Text style={[styles.createText, { color: vTheme.colors.primary }]}>Создать</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setShowNewFolderInput(false)} style={styles.cancelButton}>
+                            <TouchableOpacity onPress={() => {
+                                setShowNewFolderInput(false);
+                                setNewFolderName('');
+                            }} style={styles.cancelButton}>
                                 <Text style={[styles.cancelText, { color: vTheme.colors.textSecondary }]}>Отмена</Text>
                             </TouchableOpacity>
                         </View>
@@ -657,7 +667,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 >
                     {quickAccess.map(renderDockItem)}
                     {[...Array(Math.max(0, 3 - quickAccess.length))].map((_, i) => (
-                        <View key={`empty - ${i} `} style={[
+                        <View key={`empty-${i}`} style={[
                             styles.emptyDockSlot,
                             { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }
                         ]} />

@@ -51,6 +51,13 @@ interface ChatContextType {
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
+const getErrorMessage = (error: unknown): string => {
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const msg = (error as { message?: string }).message;
+        if (msg) return msg;
+    }
+    return 'Unknown error';
+};
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const { t } = useTranslation();
@@ -82,7 +89,11 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 const savedHistory = await AsyncStorage.getItem('chat_history');
                 if (savedHistory && savedHistory !== 'undefined' && savedHistory !== 'null') {
                     const parsed = JSON.parse(savedHistory);
-                    setHistory(parsed);
+                    if (Array.isArray(parsed)) {
+                        setHistory(parsed as ChatHistory[]);
+                    } else {
+                        setHistory([]);
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load history', e);
@@ -167,9 +178,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                         createdAt: m.createdAt || m.CreatedAt
                     }));
                     setMessages(formattedMessages);
-                } catch (e: any) {
+                } catch (e: unknown) {
                     console.error('Failed to load P2P messages', e);
-                    Alert.alert('Error loading messages', e.message || 'Unknown network error');
+                    Alert.alert('Error loading messages', getErrorMessage(e));
                 } finally {
                     setIsLoading(false);
                 }
@@ -180,7 +191,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
     // WebSocket Listener for real-time messages
     useEffect(() => {
-        const removeListener = addListener((msg: any) => {
+        const removeListener = addListener((msg: Record<string, any>) => {
             console.log('📨 WebSocket message received:', msg);
 
             // Handle typing events
@@ -235,7 +246,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 const newMessage: Message = {
                     id: msg.id?.toString() || msg.ID?.toString() || Date.now().toString(),
                     text: msg.content || '',
-                    sender: senderType as any,
+                    sender: senderType,
                     type: msg.type || 'text',
                     content: msg.content || '',
                     fileName: msg.fileName,
@@ -318,15 +329,20 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 sender: 'bot',
             };
             setMessages((prev) => [...prev, botResponse]);
-        } catch (error: any) {
-            if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+        } catch (error: unknown) {
+            const errorName =
+                typeof error === 'object' && error !== null && 'name' in error
+                    ? String((error as { name?: string }).name)
+                    : '';
+            const message = getErrorMessage(error);
+            if (errorName === 'AbortError' || message.includes('aborted')) {
                 console.log(t('chat.aborted'));
                 return;
             }
 
             const errorMessage: Message = {
                 id: `error_${Date.now()}`,
-                text: `${t('common.error')}: ${error.message || t('chat.errorFetch')}`,
+                text: `${t('common.error')}: ${message || t('chat.errorFetch')}`,
                 sender: 'bot',
             };
             setMessages((prev) => [...prev, errorMessage]);
@@ -433,17 +449,17 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             timestamp: Date.now(),
         };
 
-        const updatedHistory = [newChat, ...history];
-
         setMessages(welcomeMessages);
         setCurrentChatId(chatId);
-        setHistory(updatedHistory);
+        setHistory((prevHistory) => {
+            const updatedHistory = [newChat, ...prevHistory];
+            AsyncStorage.setItem('chat_history', JSON.stringify(updatedHistory))
+                .catch((e) => console.error('Failed to save new chat history', e));
+            return updatedHistory;
+        });
         setRecipientId(null);
         setRecipientUser(null);
         setShowMenu(false);
-
-        AsyncStorage.setItem('chat_history', JSON.stringify(updatedHistory))
-            .catch((e) => console.error('Failed to save new chat history', e));
     };
 
     const loadChat = (id: string) => {
@@ -562,12 +578,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 console.log('✅ Updated messages count:', updated.length);
                 return updated;
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to send media:', error);
             setMessages(prev => prev.filter(m => !m.uploading));
             Alert.alert(
                 'Ошибка',
-                error.message || 'Не удалось отправить файл'
+                getErrorMessage(error) || 'Не удалось отправить файл'
             );
         } finally {
             setIsUploading(false);
@@ -662,9 +678,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                         try {
                             await messageService.deleteMessage(numericId);
                             console.log('✅ Server delete successful');
-                        } catch (serverError: any) {
+                        } catch (serverError: unknown) {
                             // If 404, it's already gone, so we can ignore and just remove locally
-                            if (serverError.response?.status === 404) {
+                            const status =
+                                typeof serverError === 'object' && serverError !== null
+                                    ? (serverError as { response?: { status?: number } }).response?.status
+                                    : undefined;
+                            if (status === 404) {
                                 console.log('ℹ️ Message not found on server (404), removing locally anyway');
                             } else {
                                 // Re-throw other errors to be caught by outer block
@@ -677,7 +697,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
                     // Always remove from local state
                     setMessages(prev => prev.filter(m => m.id !== messageId));
-                } catch (error: any) {
+                } catch (error: unknown) {
                     console.error('Failed to delete message', error);
                     Alert.alert('Error', 'Could not delete message');
                 }

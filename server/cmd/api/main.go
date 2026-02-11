@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"rag-agent-server/internal/websocket"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -28,6 +29,22 @@ func main() {
 	}
 
 	log.Println("Server Version: 1.6 (Manual CORS Fix)")
+
+	allowedOrigins := []string{
+		"http://localhost:3000",
+		"http://localhost:3001",
+		"http://localhost:3005",
+		"http://127.0.0.1:3005",
+		"http://localhost:8081",
+		"https://vedamatch.ru",
+		"https://www.vedamatch.ru",
+		"https://api.vedamatch.ru",
+		"https://admin.vedamatch.ru",
+	}
+	allowedOriginsMap := make(map[string]bool, len(allowedOrigins))
+	for _, origin := range allowedOrigins {
+		allowedOriginsMap[origin] = true
+	}
 
 	// Initialize Database
 	database.Connect()
@@ -80,21 +97,8 @@ func main() {
 		StreamRequestBody: true,                   // Stream large uploads instead of buffering in memory
 		// Custom error handler with SECURE CORS validation
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			// Strict allowlist matching the CORS config
-			allowedOrigins := map[string]bool{
-				"http://localhost:3000":      true,
-				"http://localhost:3001":      true,
-				"http://localhost:3005":      true,
-				"http://127.0.0.1:3005":      true,
-				"http://localhost:8081":      true,
-				"https://vedamatch.ru":       true,
-				"https://www.vedamatch.ru":   true,
-				"https://api.vedamatch.ru":   true,
-				"https://admin.vedamatch.ru": true,
-			}
-
 			origin := c.Get("Origin")
-			if allowedOrigins[origin] {
+			if allowedOriginsMap[origin] {
 				// Only set headers if Origin is explicitly allowed
 				c.Set("Access-Control-Allow-Origin", origin)
 				c.Set("Access-Control-Allow-Credentials", "true")
@@ -110,7 +114,7 @@ func main() {
 
 	// CORS Middleware
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "*",
+		AllowOrigins:     strings.Join(allowedOrigins, ","),
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
 		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Admin-ID,X-CSRF-Token",
 		AllowCredentials: true,
@@ -828,6 +832,11 @@ func main() {
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {
 		if fiberwebsocket.IsWebSocketUpgrade(c) {
+			jwtSecret := os.Getenv("JWT_SECRET")
+			if jwtSecret == "" {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Server auth not configured"})
+			}
+
 			// Extract token from query parameter "token"
 			tokenString := c.Query("token")
 			if tokenString == "" {
@@ -839,7 +848,7 @@ func main() {
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 				}
-				return []byte(os.Getenv("JWT_SECRET")), nil
+				return []byte(jwtSecret), nil
 			})
 
 			if err != nil || !token.Valid {
@@ -869,7 +878,13 @@ func main() {
 		// Note: We still keep :id in path for client compatibility but IGNORE it for security
 		// or verify it matches the token. Ideally, we should remove :id from path in v2.
 
-		userId := c.Locals("userId").(uint)
+		userIDValue := c.Locals("userId")
+		userId, ok := userIDValue.(uint)
+		if !ok || userId == 0 {
+			log.Printf("[WS-Security] Missing or invalid userId in websocket locals: %T", userIDValue)
+			_ = c.Close()
+			return
+		}
 
 		// Optional: Verify path param matches token (strict mode)
 		paramId, _ := strconv.ParseUint(c.Params("id"), 10, 32)
@@ -893,7 +908,11 @@ func main() {
 	app.Static("/uploads", "./uploads")
 
 	// Start Server
-	port := ":8000"
+	portValue := strings.TrimSpace(os.Getenv("PORT"))
+	if portValue == "" {
+		portValue = "8000"
+	}
+	port := ":" + strings.TrimPrefix(portValue, ":")
 	log.Printf("Server starting on port %s", port)
 	log.Fatal(app.Listen(port))
 }

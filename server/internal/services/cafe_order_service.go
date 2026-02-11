@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/websocket"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -29,8 +30,22 @@ func NewCafeOrderService(db *gorm.DB, dishService *DishService) *CafeOrderServic
 
 // CreateOrder creates a new cafe order
 func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCreateRequest) (*models.CafeOrder, error) {
+	req.CustomerName = strings.TrimSpace(req.CustomerName)
+	req.DeliveryAddress = strings.TrimSpace(req.DeliveryAddress)
+	req.DeliveryPhone = strings.TrimSpace(req.DeliveryPhone)
+	req.CustomerNote = strings.TrimSpace(req.CustomerNote)
+	req.PaymentMethod = strings.TrimSpace(req.PaymentMethod)
+
 	if len(req.Items) == 0 {
 		return nil, errors.New("order must contain at least one item")
+	}
+	if req.OrderType == "" {
+		req.OrderType = models.CafeOrderTypeTakeaway
+	}
+	switch req.OrderType {
+	case models.CafeOrderTypeDineIn, models.CafeOrderTypeTakeaway, models.CafeOrderTypeDelivery:
+	default:
+		return nil, errors.New("invalid order type")
 	}
 
 	// Validate order type requirements
@@ -55,8 +70,11 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 		if err != nil {
 			return nil, fmt.Errorf("dish %d not found", itemReq.DishID)
 		}
+		if dish.CafeID != req.CafeID {
+			return nil, fmt.Errorf("dish %d does not belong to this cafe", itemReq.DishID)
+		}
 
-		if !dish.IsAvailable {
+		if !dish.IsActive || !dish.IsAvailable {
 			return nil, fmt.Errorf("dish %s is currently unavailable", dish.Name)
 		}
 
@@ -66,13 +84,20 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 		var modifiers []models.CafeOrderItemModifier
 		for _, modReq := range itemReq.Modifiers {
 			var modifier models.DishModifier
-			if err := s.db.First(&modifier, modReq.ModifierID).Error; err != nil {
+			if err := s.db.Where("id = ? AND dish_id = ? AND is_available = ?", modReq.ModifierID, dish.ID, true).
+				First(&modifier).Error; err != nil {
 				return nil, fmt.Errorf("modifier %d not found", modReq.ModifierID)
 			}
 
 			qty := modReq.Quantity
 			if qty == 0 {
 				qty = 1
+			}
+			if qty < 0 {
+				return nil, fmt.Errorf("invalid modifier quantity for modifier %d", modReq.ModifierID)
+			}
+			if modifier.MaxQuantity > 0 && qty > modifier.MaxQuantity {
+				return nil, fmt.Errorf("modifier %d quantity exceeds maximum allowed", modReq.ModifierID)
 			}
 
 			modTotal := modifier.Price * float64(qty)
@@ -171,12 +196,18 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 		// If dine-in, update table status
 		if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
 			now := time.Now()
-			if err := tx.Model(&models.CafeTable{}).Where("id = ?", *req.TableID).Updates(map[string]interface{}{
+			updateResult := tx.Model(&models.CafeTable{}).
+				Where("id = ? AND cafe_id = ? AND is_occupied = ?", *req.TableID, req.CafeID, false).
+				Updates(map[string]interface{}{
 				"is_occupied":      true,
 				"current_order_id": order.ID,
 				"occupied_since":   now,
-			}).Error; err != nil {
-				return err
+			})
+			if updateResult.Error != nil {
+				return updateResult.Error
+			}
+			if updateResult.RowsAffected == 0 {
+				return errors.New("table is already occupied")
 			}
 		}
 
@@ -185,6 +216,32 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 
 		return nil
 	})
+	for attempt := 0; attempt < 3 && err != nil && isOrderNumberConflict(err); attempt++ {
+		order.OrderNumber = s.generateOrderNumber(req.CafeID)
+		err = s.db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Create(order).Error; err != nil {
+				return err
+			}
+			if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
+				now := time.Now()
+				updateResult := tx.Model(&models.CafeTable{}).
+					Where("id = ? AND cafe_id = ? AND is_occupied = ?", *req.TableID, req.CafeID, false).
+					Updates(map[string]interface{}{
+						"is_occupied":      true,
+						"current_order_id": order.ID,
+						"occupied_since":   now,
+					})
+				if updateResult.Error != nil {
+					return updateResult.Error
+				}
+				if updateResult.RowsAffected == 0 {
+					return errors.New("table is already occupied")
+				}
+			}
+			s.dishService.IncrementDishOrders(dishIDs)
+			return nil
+		})
+	}
 
 	if err != nil {
 		return nil, err
@@ -284,7 +341,9 @@ func (s *CafeOrderService) ListOrders(filters models.CafeOrderFilters) (*models.
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	// Pagination
 	page := filters.Page
@@ -417,6 +476,19 @@ func (s *CafeOrderService) GetActiveOrders(cafeID uint) (*models.ActiveOrdersRes
 
 // UpdateOrderStatus updates the status of an order
 func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrderStatus, staffUserID uint) error {
+	switch status {
+	case models.CafeOrderStatusNew,
+		models.CafeOrderStatusConfirmed,
+		models.CafeOrderStatusPreparing,
+		models.CafeOrderStatusReady,
+		models.CafeOrderStatusServed,
+		models.CafeOrderStatusDelivering,
+		models.CafeOrderStatusCompleted,
+		models.CafeOrderStatusCancelled:
+	default:
+		return errors.New("invalid order status")
+	}
+
 	now := time.Now()
 	updates := map[string]interface{}{"status": status}
 
@@ -479,6 +551,10 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 
 // CancelOrder cancels an order
 func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "cancelled"
+	}
 	now := time.Now()
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -521,12 +597,23 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 
 // MarkAsPaid marks an order as paid
 func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error {
+	paymentMethod = strings.TrimSpace(paymentMethod)
+	if paymentMethod == "" {
+		return errors.New("payment method is required")
+	}
 	now := time.Now()
-	return s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+	updateResult := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
 		"is_paid":        true,
 		"paid_at":        now,
 		"payment_method": paymentMethod,
-	}).Error
+	})
+	if updateResult.Error != nil {
+		return updateResult.Error
+	}
+	if updateResult.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ===== Order Item Status =====
@@ -554,37 +641,49 @@ func (s *CafeOrderService) GetOrderStats(cafeID uint) (*models.CafeOrderStatsRes
 	var totalRevenue float64
 
 	// Today's orders
-	s.db.Model(&models.CafeOrder{}).
+	if err := s.db.Model(&models.CafeOrder{}).
 		Where("cafe_id = ? AND created_at >= ? AND status != ?", cafeID, today, models.CafeOrderStatusCancelled).
-		Count(&todayOrders)
+		Count(&todayOrders).Error; err != nil {
+		return nil, err
+	}
 
 	// Today's revenue
-	s.db.Model(&models.CafeOrder{}).
+	if err := s.db.Model(&models.CafeOrder{}).
 		Where("cafe_id = ? AND created_at >= ? AND status = ?", cafeID, today, models.CafeOrderStatusCompleted).
-		Select("COALESCE(SUM(total), 0)").Scan(&todayRevenue)
+		Select("COALESCE(SUM(total), 0)").Scan(&todayRevenue).Error; err != nil {
+		return nil, err
+	}
 
 	// Pending orders
-	s.db.Model(&models.CafeOrder{}).
+	if err := s.db.Model(&models.CafeOrder{}).
 		Where("cafe_id = ? AND status IN ?", cafeID,
 			[]models.CafeOrderStatus{models.CafeOrderStatusNew, models.CafeOrderStatusConfirmed, models.CafeOrderStatusPreparing}).
-		Count(&pendingOrders)
+		Count(&pendingOrders).Error; err != nil {
+		return nil, err
+	}
 
 	// Total orders
-	s.db.Model(&models.CafeOrder{}).
+	if err := s.db.Model(&models.CafeOrder{}).
 		Where("cafe_id = ? AND status = ?", cafeID, models.CafeOrderStatusCompleted).
-		Count(&totalOrders)
+		Count(&totalOrders).Error; err != nil {
+		return nil, err
+	}
 
 	// Total revenue
-	s.db.Model(&models.CafeOrder{}).
+	if err := s.db.Model(&models.CafeOrder{}).
 		Where("cafe_id = ? AND status = ?", cafeID, models.CafeOrderStatusCompleted).
-		Select("COALESCE(SUM(total), 0)").Scan(&totalRevenue)
+		Select("COALESCE(SUM(total), 0)").Scan(&totalRevenue).Error; err != nil {
+		return nil, err
+	}
 
 	// Average preparation time
 	var avgPrepTime float64
-	s.db.Model(&models.CafeOrder{}).
+	if err := s.db.Model(&models.CafeOrder{}).
 		Where("cafe_id = ? AND confirmed_at IS NOT NULL AND ready_at IS NOT NULL", cafeID).
 		Select("COALESCE(AVG(EXTRACT(EPOCH FROM (ready_at - confirmed_at)) / 60), 0)").
-		Scan(&avgPrepTime)
+		Scan(&avgPrepTime).Error; err != nil {
+		return nil, err
+	}
 
 	return &models.CafeOrderStatsResponse{
 		TodayOrders:   int(todayOrders),
@@ -690,9 +789,20 @@ func (s *CafeOrderService) generateOrderNumber(cafeID uint) string {
 	// Get today's order count for this cafe
 	todayStart := now.Truncate(24 * time.Hour)
 	var count int64
-	s.db.Model(&models.CafeOrder{}).
+	err := s.db.Model(&models.CafeOrder{}).
 		Where("cafe_id = ? AND created_at >= ?", cafeID, todayStart).
-		Count(&count)
+		Count(&count).Error
+	if err != nil {
+		return fmt.Sprintf("C%d-%s-%04d", cafeID, dateStr, now.UnixNano()%10000)
+	}
 
 	return fmt.Sprintf("C%d-%s-%04d", cafeID, dateStr, count+1)
+}
+
+func isOrderNumberConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate") && strings.Contains(msg, "order_number")
 }

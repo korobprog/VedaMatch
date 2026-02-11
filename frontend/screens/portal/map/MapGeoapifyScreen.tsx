@@ -13,6 +13,8 @@ import {
     FlatList,
     ScrollView,
 } from 'react-native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import {
     ArrowLeft,
@@ -37,15 +39,17 @@ import type { MarkerConfig, TileConfig } from '../../../services/mapService';
 import { geoLocationService } from '../../../services/geoLocationService';
 import { MapMarker, MapCluster, MapFilters, MarkerType } from '../../../types/map';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { RootStackParamList } from '../../../types/navigation';
 
 // Initial coordinates - Moscow
 const INITIAL_LAT = 55.7558;
 const INITIAL_LNG = 37.6173;
 
-interface Props {
-    navigation?: any;
-    route?: any;
-}
+type MapGeoapifyNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type MapGeoapifyRouteProp = RouteProp<RootStackParamList, 'MapGeoapify'>;
+type MapGeoapifyRouteParams = NonNullable<RootStackParamList['MapGeoapify']> & {
+    filters?: Partial<MapFilters>;
+};
 
 interface MapBounds {
     north: number;
@@ -62,11 +66,14 @@ interface SearchResultItem {
     };
 }
 
-export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
+export const MapGeoapifyScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const navigation = useNavigation<MapGeoapifyNavigationProp>();
+    const route = useRoute<MapGeoapifyRouteProp>();
+    const routeParams = route.params as MapGeoapifyRouteParams | undefined;
 
     const webViewRef = useRef<WebView>(null);
     const bottomSheetRef = useRef<BottomSheet>(null);
@@ -95,17 +102,21 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const latestSearchRequestRef = useRef(0);
+    const latestMarkersRequestRef = useRef(0);
 
     const [filters, setFilters] = useState<MapFilters>({
-        showUsers: route?.params?.filters?.showUsers ?? true,
-        showShops: route?.params?.filters?.showShops ?? true,
-        showAds: route?.params?.filters?.showAds ?? true,
-        showCafes: route?.params?.filters?.showCafes ?? true,
+        showUsers: routeParams?.filters?.showUsers ?? true,
+        showShops: routeParams?.filters?.showShops ?? true,
+        showAds: routeParams?.filters?.showAds ?? true,
+        showCafes: routeParams?.filters?.showCafes ?? true,
     });
 
     useEffect(() => {
         return () => {
+            latestSearchRequestRef.current += 1;
+            latestMarkersRequestRef.current += 1;
             if (searchTimeoutRef.current) {
                 clearTimeout(searchTimeoutRef.current);
             }
@@ -114,13 +125,13 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
 
     // Handle incoming filter updates from params if screen is already mounted
     useEffect(() => {
-        if (route?.params?.filters) {
+        if (routeParams?.filters) {
             setFilters(prev => ({
                 ...prev,
-                ...route.params.filters
+                ...routeParams.filters
             }));
         }
-    }, [route?.params?.filters]);
+    }, [routeParams?.filters]);
 
     // Load tile config on mount
     useEffect(() => {
@@ -166,8 +177,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         setIsLoading(true);
         try {
             const summary = await mapService.getSummary();
-            console.log('[MapScreen] Loaded summary clusters:', summary?.clusters?.length || 0);
-            setClusters(summary?.clusters || []);
+            const nextClusters = Array.isArray(summary?.clusters) ? summary.clusters : [];
+            setClusters(nextClusters);
         } catch (error) {
             console.error('Failed to load initial data:', error);
             setClusters([]);
@@ -177,9 +188,12 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     const loadMarkers = useCallback(async (bounds: { north: number; south: number; east: number; west: number }, zoom: number) => {
+        const requestId = ++latestMarkersRequestRef.current;
         if (zoom < 10) {
             // Zoomed out - show clusters only
-            setMarkers([]);
+            if (requestId === latestMarkersRequestRef.current) {
+                setMarkers([]);
+            }
             return;
         }
 
@@ -191,12 +205,12 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
             if (filters.showCafes) categories.push('cafe');
 
             if (categories.length === 0) {
-                console.log('[MapScreen] No categories selected');
-                setMarkers([]);
+                if (requestId === latestMarkersRequestRef.current) {
+                    setMarkers([]);
+                }
                 return;
             }
 
-            console.log('[MapScreen] Fetching markers for bounds:', JSON.stringify(bounds));
             const result = await mapService.getMarkers({
                 latMin: bounds.south,
                 latMax: bounds.north,
@@ -208,10 +222,14 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                 userLng: user?.longitude,
             });
 
-            console.log('[MapScreen] Loaded markers:', result?.markers?.length || 0);
-            setMarkers(result?.markers || []);
+            if (requestId === latestMarkersRequestRef.current) {
+                setMarkers(Array.isArray(result?.markers) ? result.markers : []);
+            }
         } catch (error) {
             console.error('Failed to load markers:', error);
+            if (requestId === latestMarkersRequestRef.current) {
+                setMarkers([]);
+            }
         }
     }, [filters.showAds, filters.showCafes, filters.showShops, filters.showUsers, user?.latitude, user?.longitude]);
 
@@ -243,7 +261,6 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     const handleMessage = (event: WebViewMessageEvent) => {
         try {
             const data = JSON.parse(event.nativeEvent.data);
-            console.log('[MapWebView] Message:', data.type, data.info || '');
 
             switch (data.type) {
                 case 'mapReady':
@@ -286,9 +303,11 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                     }
                     break;
                 case 'boundsChanged':
-                    lastBoundsRef.current = data.bounds;
-                    lastZoomRef.current = data.zoom;
-                    loadMarkers(data.bounds, data.zoom);
+                    if (data?.bounds && typeof data?.zoom === 'number') {
+                        lastBoundsRef.current = data.bounds;
+                        lastZoomRef.current = data.zoom;
+                        loadMarkers(data.bounds, data.zoom);
+                    }
                     break;
                 case 'mapClick':
                     setSelectedMarker(null);
@@ -303,7 +322,10 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         setIsLoading(true);
         try {
             const location = await geoLocationService.detectLocation();
-            if (location && location.latitude && location.longitude && webViewRef.current) {
+            const hasCoords =
+                typeof location?.latitude === 'number' &&
+                typeof location?.longitude === 'number';
+            if (hasCoords && webViewRef.current) {
                 // Update map view
                 webViewRef.current.injectJavaScript(`
                     map.setView([${location.latitude}, ${location.longitude}], 15);
@@ -356,15 +378,24 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const handleBuildRoute = async (targetMarker?: MapMarker) => {
         const marker = targetMarker || selectedMarker;
-        if (!marker || !user?.latitude || !user?.longitude) {
+        const hasUserCoords =
+            typeof user?.latitude === 'number' &&
+            typeof user?.longitude === 'number';
+        if (!marker || !hasUserCoords) {
             Alert.alert('Ошибка', 'Не удалось определить маршрут');
             return;
         }
 
         try {
+            const startLat = user?.latitude;
+            const startLng = user?.longitude;
+            if (typeof startLat !== 'number' || typeof startLng !== 'number') {
+                Alert.alert('Ошибка', 'Не удалось определить маршрут');
+                return;
+            }
             const result = await mapService.getRoute({
-                startLat: user.latitude,
-                startLng: user.longitude,
+                startLat,
+                startLng,
                 endLat: marker.latitude,
                 endLng: marker.longitude,
                 mode: 'walk',
@@ -403,18 +434,22 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const handleSearch = (text: string) => {
         setSearchQuery(text);
+        const normalizedText = text.trim();
+        latestSearchRequestRef.current += 1;
 
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
         }
 
-        if (text.length < 3) {
+        if (normalizedText.length < 3) {
             setSearchResults([]);
+            setIsSearching(false);
             return;
         }
 
         setIsSearching(true);
         searchTimeoutRef.current = setTimeout(async () => {
+            const requestId = ++latestSearchRequestRef.current;
             try {
                 // Use map center as bias if available
                 let lat, lng;
@@ -423,14 +458,21 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
                     lng = (lastBoundsRef.current.east + lastBoundsRef.current.west) / 2;
                 }
 
-                const result = await mapService.autocomplete(text, lat, lng);
-                if (result && result.features) {
+                const result = await mapService.autocomplete(normalizedText, lat, lng);
+                if (requestId !== latestSearchRequestRef.current) {
+                    return;
+                }
+                if (result && Array.isArray(result.features)) {
                     setSearchResults(result.features);
+                } else {
+                    setSearchResults([]);
                 }
             } catch (error) {
                 console.error('Search error:', error);
             } finally {
-                setIsSearching(false);
+                if (requestId === latestSearchRequestRef.current) {
+                    setIsSearching(false);
+                }
             }
         }, 500);
     };
@@ -451,8 +493,13 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         Keyboard.dismiss();
     };
 
-    const userLat = user?.latitude || INITIAL_LAT;
-    const userLng = user?.longitude || INITIAL_LNG;
+    const hasUserCoords =
+        typeof user?.latitude === 'number' &&
+        typeof user?.longitude === 'number';
+    const userLat = hasUserCoords ? user.latitude : INITIAL_LAT;
+    const userLng = hasUserCoords ? user.longitude : INITIAL_LNG;
+    const userLatForScript = typeof user?.latitude === 'number' ? user.latitude : 0;
+    const userLngForScript = typeof user?.longitude === 'number' ? user.longitude : 0;
     const effectiveTileUrl = tileUrl || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
     // Leaflet HTML content
@@ -552,8 +599,8 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
         var userMarker = null;
 
         // Add user location marker
-        if (${user?.latitude && user?.longitude}) {
-            userMarker = L.circleMarker([${user?.latitude || 0}, ${user?.longitude || 0}], {
+        if (${hasUserCoords}) {
+            userMarker = L.circleMarker([${userLatForScript}, ${userLngForScript}], {
                 radius: 8,
                 fillColor: '${colors.accent}',
                 color: '${colors.textPrimary}',
@@ -753,7 +800,7 @@ export const MapGeoapifyScreen: React.FC<Props> = ({ navigation, route }) => {
     </script>
 </body>
 </html>
-    `, [colors.accent, colors.textPrimary, colors.warning, effectiveTileUrl, markerColors.ad, markerColors.cafe, markerColors.default, markerColors.shop, markerColors.user, user?.latitude, user?.longitude, userLat, userLng]);
+    `, [colors.accent, colors.textPrimary, colors.warning, effectiveTileUrl, hasUserCoords, markerColors.ad, markerColors.cafe, markerColors.default, markerColors.shop, markerColors.user, userLat, userLatForScript, userLng, userLngForScript]);
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>

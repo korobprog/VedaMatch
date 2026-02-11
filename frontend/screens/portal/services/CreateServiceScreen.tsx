@@ -18,6 +18,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
     ArrowLeft,
     Camera,
@@ -58,6 +59,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { RootStackParamList } from '../../../types/navigation';
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {
@@ -73,12 +75,6 @@ const CategoryIcon = ({ name, color, size }: { name: string, color: string, size
     }
 };
 
-type RouteParams = {
-    params: {
-        serviceId?: number;
-    };
-};
-
 interface TariffForm {
     name: string;
     price: string;
@@ -88,12 +84,20 @@ interface TariffForm {
 }
 
 const CATEGORIES: ServiceCategory[] = ['astrology', 'psychology', 'coaching', 'spirituality', 'yagya', 'education', 'health', 'other'];
-const CHANNELS: ServiceChannel[] = ['video', 'zoom', 'telegram', 'offline', 'file'];
+const CHANNELS: ServiceChannel[] = ['video', 'zoom', 'youtube', 'telegram', 'offline', 'file'];
 const ACCESS_TYPES: ServiceAccessType[] = ['paid', 'free', 'subscription', 'invite'];
 
+const toPositiveInt = (value: string, fallback: number): number => {
+    const parsed = parseInt(value, 10);
+    if (Number.isNaN(parsed) || parsed <= 0) {
+        return fallback;
+    }
+    return parsed;
+};
+
 export default function CreateServiceScreen() {
-    const navigation = useNavigation<any>();
-    const route = useRoute<RouteProp<RouteParams, 'params'>>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const route = useRoute<RouteProp<RootStackParamList, 'CreateService'>>();
     const serviceId = route.params?.serviceId;
     const isEditing = !!serviceId;
     const { user } = useUser();
@@ -140,11 +144,11 @@ export default function CreateServiceScreen() {
 
             if (service.tariffs && service.tariffs.length > 0) {
                 setTariffs(service.tariffs.map(t => ({
-                    name: t.name,
-                    price: t.price.toString(),
-                    durationMinutes: t.durationMinutes.toString(),
-                    sessionsCount: t.sessionsCount.toString(),
-                    isDefault: t.isDefault,
+                    name: String(t.name || ''),
+                    price: String(t.price ?? 0),
+                    durationMinutes: String(t.durationMinutes ?? 60),
+                    sessionsCount: String(t.sessionsCount ?? 1),
+                    isDefault: Boolean(t.isDefault),
                 })));
             }
         } catch (error) {
@@ -212,7 +216,11 @@ export default function CreateServiceScreen() {
                 t.isDefault = false;
             });
         }
-        (newTariffs[index] as any)[field] = value;
+        if (field === 'isDefault') {
+            newTariffs[index].isDefault = Boolean(value);
+        } else {
+            newTariffs[index][field] = String(value) as TariffForm[typeof field];
+        }
         setTariffs(newTariffs);
     };
 
@@ -228,6 +236,29 @@ export default function CreateServiceScreen() {
         if (channel === 'offline' && !offlineAddress.trim()) {
             Alert.alert('Ошибка', 'Укажите адрес');
             return false;
+        }
+        if ((channel === 'zoom' || channel === 'youtube' || channel === 'telegram') && !channelLink.trim()) {
+            Alert.alert('Ошибка', 'Укажите ссылку для выбранного канала');
+            return false;
+        }
+        for (let i = 0; i < tariffs.length; i += 1) {
+            const tariff = tariffs[i];
+            if (!tariff.name.trim()) {
+                Alert.alert('Ошибка', `Укажите название для тарифа #${i + 1}`);
+                return false;
+            }
+            if (accessType !== 'free' && toPositiveInt(tariff.price, 0) <= 0) {
+                Alert.alert('Ошибка', `Укажите корректную цену для тарифа #${i + 1}`);
+                return false;
+            }
+            if (toPositiveInt(tariff.durationMinutes, 0) <= 0) {
+                Alert.alert('Ошибка', `Укажите длительность для тарифа #${i + 1}`);
+                return false;
+            }
+            if (toPositiveInt(tariff.sessionsCount, 0) <= 0) {
+                Alert.alert('Ошибка', `Укажите число сессий для тарифа #${i + 1}`);
+                return false;
+            }
         }
         return true;
     };
@@ -270,10 +301,10 @@ export default function CreateServiceScreen() {
                 savedService = await createService(serviceData);
                 for (const tariff of tariffs) {
                     const tariffData: CreateTariffRequest = {
-                        name: tariff.name,
-                        price: parseInt(tariff.price, 10) || 0,
-                        durationMinutes: parseInt(tariff.durationMinutes, 10) || 60,
-                        sessionsCount: parseInt(tariff.sessionsCount, 10) || 1,
+                        name: tariff.name.trim(),
+                        price: accessType === 'free' ? 0 : toPositiveInt(tariff.price, 0),
+                        durationMinutes: toPositiveInt(tariff.durationMinutes, 60),
+                        sessionsCount: toPositiveInt(tariff.sessionsCount, 1),
                         isDefault: tariff.isDefault,
                     };
                     await addTariff(savedService.id, tariffData);
@@ -285,8 +316,9 @@ export default function CreateServiceScreen() {
                 isEditing ? 'Изменения успешно сохранены' : 'Теперь настройте расписание и слоты',
                 [{ text: 'OK', onPress: () => navigation.goBack() }]
             );
-        } catch (error: any) {
-            Alert.alert('Ошибка', error.message || 'Не удалось сохранить');
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Не удалось сохранить';
+            Alert.alert('Ошибка', message);
         } finally {
             setSaving(false);
         }
@@ -398,7 +430,11 @@ export default function CreateServiceScreen() {
                                         <TouchableOpacity
                                             style={styles.glassPicker}
                                             activeOpacity={0.7}
-                                            onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                                            onPress={() => {
+                                                setShowCategoryPicker(!showCategoryPicker);
+                                                setShowChannelPicker(false);
+                                                setShowAccessPicker(false);
+                                            }}
                                         >
                                             <View style={styles.pickerIconCircle}>
                                                 <CategoryIcon name={CATEGORY_ICON_NAMES[category]} size={14} color={colors.accent} />
@@ -437,7 +473,11 @@ export default function CreateServiceScreen() {
                                         <TouchableOpacity
                                             style={styles.glassPicker}
                                             activeOpacity={0.7}
-                                            onPress={() => setShowChannelPicker(!showChannelPicker)}
+                                            onPress={() => {
+                                                setShowChannelPicker(!showChannelPicker);
+                                                setShowCategoryPicker(false);
+                                                setShowAccessPicker(false);
+                                            }}
                                         >
                                             <View style={styles.pickerIconCircle}>
                                                 {channel === 'offline' ? <MapPin size={14} color={colors.accent} /> : <Video size={14} color={colors.accent} />}
@@ -452,7 +492,11 @@ export default function CreateServiceScreen() {
                                         <TouchableOpacity
                                             style={styles.glassPicker}
                                             activeOpacity={0.7}
-                                            onPress={() => setShowAccessPicker(!showAccessPicker)}
+                                            onPress={() => {
+                                                setShowAccessPicker(!showAccessPicker);
+                                                setShowCategoryPicker(false);
+                                                setShowChannelPicker(false);
+                                            }}
                                         >
                                             <View style={styles.pickerIconCircle}>
                                                 <Globe size={14} color={colors.accent} />
@@ -502,6 +546,21 @@ export default function CreateServiceScreen() {
                                                 </TouchableOpacity>
                                             ))}
                                         </ScrollView>
+                                    </View>
+                                )}
+
+                                {(channel === 'zoom' || channel === 'youtube' || channel === 'telegram') && (
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Ссылка канала</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={channelLink}
+                                            onChangeText={setChannelLink}
+                                            placeholder="https://..."
+                                            autoCapitalize="none"
+                                            autoCorrect={false}
+                                            placeholderTextColor="rgba(255,255,255,0.2)"
+                                        />
                                     </View>
                                 )}
 

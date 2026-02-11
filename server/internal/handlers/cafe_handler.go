@@ -10,6 +10,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,6 +21,22 @@ type CafeHandler struct {
 	cafeService  *services.CafeService
 	dishService  *services.DishService
 	orderService *services.CafeOrderService
+}
+
+func clampQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
+	value := c.QueryInt(key, def)
+	if value < min {
+		return min
+	}
+	if max > 0 && value > max {
+		return max
+	}
+	return value
+}
+
+func isAllowedCafeImageContentType(contentType string) bool {
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	return strings.HasPrefix(contentType, "image/")
 }
 
 // NewCafeHandler creates a new cafe handler instance
@@ -54,6 +71,12 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 			"error": "No photo provided",
 		})
 	}
+	contentType := file.Header.Get("Content-Type")
+	if !isAllowedCafeImageContentType(contentType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Only image uploads are allowed",
+		})
+	}
 
 	// 1. Try S3 Storage
 	s3Service := services.GetS3Service()
@@ -63,7 +86,6 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 			defer fileContent.Close()
 			ext := filepath.Ext(file.Filename)
 			fileName := fmt.Sprintf("cafes/u%d_%d%s", userID, time.Now().Unix(), ext)
-			contentType := file.Header.Get("Content-Type")
 
 			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
@@ -181,6 +203,8 @@ func (h *CafeHandler) ListCafes(c *fiber.Ctx) error {
 		City:   c.Query("city"),
 		Search: c.Query("search"),
 		Sort:   c.Query("sort"),
+		Page:   clampQueryInt(c, "page", 1, 1, 100000),
+		Limit:  clampQueryInt(c, "limit", 20, 1, 100),
 	}
 
 	if c.Query("status") != "" {
@@ -195,17 +219,6 @@ func (h *CafeHandler) ListCafes(c *fiber.Ctx) error {
 		hasDelivery := true
 		filters.HasDelivery = &hasDelivery
 	}
-	if c.Query("page") != "" {
-		if page, err := strconv.Atoi(c.Query("page")); err == nil {
-			filters.Page = page
-		}
-	}
-	if c.Query("limit") != "" {
-		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
-			filters.Limit = limit
-		}
-	}
-
 	cafes, err := h.cafeService.ListCafes(filters)
 	if err != nil {
 		log.Printf("[CafeHandler] Error listing cafes: %v", err)
@@ -328,6 +341,13 @@ func (h *CafeHandler) UpdateTable(c *fiber.Ctx) error {
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
 	}
+	belongs, err := h.tableBelongsToCafe(uint(cafeID), uint(tableID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify table"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Table not found"})
+	}
 
 	var req models.CafeTableUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -383,6 +403,13 @@ func (h *CafeHandler) DeleteTable(c *fiber.Ctx) error {
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
 	}
+	belongs, err := h.tableBelongsToCafe(uint(cafeID), uint(tableID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify table"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Table not found"})
+	}
 
 	if err := h.cafeService.DeleteTable(uint(tableID)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete table"})
@@ -430,12 +457,7 @@ func (h *CafeHandler) GetFeaturedDishes(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
 	}
 
-	limit := 10
-	if c.Query("limit") != "" {
-		if l, err := strconv.Atoi(c.Query("limit")); err == nil {
-			limit = l
-		}
-	}
+	limit := clampQueryInt(c, "limit", 10, 1, 50)
 
 	dishes, err := h.dishService.GetFeaturedDishes(uint(cafeID), limit)
 	if err != nil {
@@ -506,6 +528,13 @@ func (h *CafeHandler) UpdateCategory(c *fiber.Ctx) error {
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
 	}
+	belongs, err := h.categoryBelongsToCafe(uint(cafeID), uint(categoryID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify category"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Category not found"})
+	}
 
 	var req models.DishCategoryUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -535,6 +564,13 @@ func (h *CafeHandler) DeleteCategory(c *fiber.Ctx) error {
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
+	}
+	belongs, err := h.categoryBelongsToCafe(uint(cafeID), uint(categoryID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify category"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Category not found"})
 	}
 
 	if err := h.dishService.DeleteCategory(uint(categoryID)); err != nil {
@@ -575,9 +611,20 @@ func (h *CafeHandler) CreateDish(c *fiber.Ctx) error {
 // GetDish returns a dish by ID
 // GET /api/cafes/:id/dishes/:dishId
 func (h *CafeHandler) GetDish(c *fiber.Ctx) error {
+	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+	}
 	dishID, err := strconv.ParseUint(c.Params("dishId"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid dish ID"})
+	}
+	belongs, err := h.dishBelongsToCafe(uint(cafeID), uint(dishID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify dish"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Dish not found"})
 	}
 
 	dish, err := h.dishService.GetDish(uint(dishID))
@@ -600,6 +647,8 @@ func (h *CafeHandler) ListDishes(c *fiber.Ctx) error {
 		CafeID: uint(cafeID),
 		Search: c.Query("search"),
 		Sort:   c.Query("sort"),
+		Page:   clampQueryInt(c, "page", 1, 1, 100000),
+		Limit:  clampQueryInt(c, "limit", 20, 1, 100),
 	}
 
 	if c.Query("category_id") != "" {
@@ -619,17 +668,6 @@ func (h *CafeHandler) ListDishes(c *fiber.Ctx) error {
 		v := true
 		filters.IsVegan = &v
 	}
-	if c.Query("page") != "" {
-		if page, err := strconv.Atoi(c.Query("page")); err == nil {
-			filters.Page = page
-		}
-	}
-	if c.Query("limit") != "" {
-		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
-			filters.Limit = limit
-		}
-	}
-
 	dishes, err := h.dishService.ListDishes(filters)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list dishes"})
@@ -653,6 +691,13 @@ func (h *CafeHandler) UpdateDish(c *fiber.Ctx) error {
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
+	}
+	belongs, err := h.dishBelongsToCafe(uint(cafeID), uint(dishID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify dish"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Dish not found"})
 	}
 
 	var req models.DishUpdateRequest
@@ -683,6 +728,13 @@ func (h *CafeHandler) DeleteDish(c *fiber.Ctx) error {
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
+	}
+	belongs, err := h.dishBelongsToCafe(uint(cafeID), uint(dishID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify dish"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Dish not found"})
 	}
 
 	if err := h.dishService.DeleteDish(uint(dishID)); err != nil {
@@ -861,4 +913,34 @@ func (h *CafeHandler) hasStaffAccess(cafeID, userID uint, requiredRoles []models
 	}
 
 	return false
+}
+
+func (h *CafeHandler) categoryBelongsToCafe(cafeID, categoryID uint) (bool, error) {
+	var count int64
+	if err := database.DB.Model(&models.DishCategory{}).
+		Where("id = ? AND cafe_id = ?", categoryID, cafeID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (h *CafeHandler) dishBelongsToCafe(cafeID, dishID uint) (bool, error) {
+	var count int64
+	if err := database.DB.Model(&models.Dish{}).
+		Where("id = ? AND cafe_id = ?", dishID, cafeID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (h *CafeHandler) tableBelongsToCafe(cafeID, tableID uint) (bool, error) {
+	var count int64
+	if err := database.DB.Model(&models.CafeTable{}).
+		Where("id = ? AND cafe_id = ?", tableID, cafeID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

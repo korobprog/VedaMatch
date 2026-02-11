@@ -32,6 +32,11 @@ type MultimediaService struct {
 	publicURL string
 }
 
+const (
+	defaultPaginationLimit = 20
+	maxPaginationLimit     = 100
+)
+
 func sanitizeUploadFolder(folder string) (string, error) {
 	folder = strings.TrimSpace(folder)
 	if folder == "" {
@@ -41,6 +46,16 @@ func sanitizeUploadFolder(folder string) (string, error) {
 		return "", fmt.Errorf("invalid folder")
 	}
 	return strings.Trim(folder, "/"), nil
+}
+
+func normalizeLimit(limit int) int {
+	if limit < 1 {
+		return defaultPaginationLimit
+	}
+	if limit > maxPaginationLimit {
+		return maxPaginationLimit
+	}
+	return limit
 }
 
 func NewMultimediaService() *MultimediaService {
@@ -134,6 +149,11 @@ type TrackListResponse struct {
 func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, error) {
 	var tracks []models.MediaTrack
 	var total int64
+	filter.MediaType = strings.TrimSpace(filter.MediaType)
+	filter.Madh = strings.TrimSpace(filter.Madh)
+	filter.YogaStyle = strings.TrimSpace(filter.YogaStyle)
+	filter.Language = strings.TrimSpace(filter.Language)
+	filter.Search = strings.TrimSpace(filter.Search)
 
 	query := s.db.Model(&models.MediaTrack{}).Where("is_active = ?", true)
 
@@ -170,9 +190,7 @@ func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, e
 	if filter.Page < 1 {
 		filter.Page = 1
 	}
-	if filter.Limit < 1 {
-		filter.Limit = 20
-	}
+	filter.Limit = normalizeLimit(filter.Limit)
 	offset := (filter.Page - 1) * filter.Limit
 
 	err := query.Preload("Category").
@@ -303,10 +321,12 @@ func (s *MultimediaService) CheckRadioStatus() {
 			}
 
 			now := time.Now()
-			s.db.Model(station).Updates(map[string]interface{}{
+			if err := s.db.Model(station).Updates(map[string]interface{}{
 				"status":          status,
 				"last_checked_at": &now,
-			})
+			}).Error; err != nil {
+				log.Printf("[MultimediaService] Failed to update radio status for %s: %v", station.Name, err)
+			}
 			log.Printf("[MultimediaService] Checked radio %s: %s", station.Name, status)
 		}(&stations[i])
 	}
@@ -359,13 +379,27 @@ func (s *MultimediaService) GetPendingSuggestions() ([]models.UserMediaSuggestio
 }
 
 func (s *MultimediaService) ReviewSuggestion(id uint, status string, adminNote string, reviewerID uint) error {
+	status = strings.ToLower(strings.TrimSpace(status))
+	switch status {
+	case "pending", "approved", "rejected":
+	default:
+		return errors.New("invalid suggestion status")
+	}
+
 	now := time.Now()
-	return s.db.Model(&models.UserMediaSuggestion{}).Where("id = ?", id).Updates(map[string]interface{}{
+	tx := s.db.Model(&models.UserMediaSuggestion{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":         status,
-		"admin_note":     adminNote,
+		"admin_note":     strings.TrimSpace(adminNote),
 		"reviewed_by_id": reviewerID,
 		"reviewed_at":    now,
-	}).Error
+	})
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // --- S3 Upload ---
@@ -432,6 +466,10 @@ func (s *MultimediaService) UploadToS3(file *multipart.FileHeader, folder string
 func (s *MultimediaService) GetPresignedUploadURL(filename, folder, contentType string) (uploadURL, finalURL string, err error) {
 	if s.s3Client == nil {
 		return "", "", fmt.Errorf("S3 client not configured")
+	}
+	contentType = strings.TrimSpace(contentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
 	}
 
 	safeFolder, err := sanitizeUploadFolder(folder)
@@ -519,6 +557,16 @@ func (s *MultimediaService) uploadLargeFile(src io.Reader, key string, contentTy
 		if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
 			break
 		}
+		if readErr != nil {
+			if _, abortErr := s.s3Client.AbortMultipartUpload(context.TODO(), &s3.AbortMultipartUploadInput{
+				Bucket:   aws.String(s.bucket),
+				Key:      aws.String(key),
+				UploadId: uploadID,
+			}); abortErr != nil {
+				log.Printf("[MultimediaService] Failed to abort multipart upload after read error: %v", abortErr)
+			}
+			return "", fmt.Errorf("failed to read upload stream: %w", readErr)
+		}
 	}
 
 	// Complete multipart upload
@@ -531,6 +579,13 @@ func (s *MultimediaService) uploadLargeFile(src io.Reader, key string, contentTy
 		},
 	})
 	if err != nil {
+		if _, abortErr := s.s3Client.AbortMultipartUpload(context.TODO(), &s3.AbortMultipartUploadInput{
+			Bucket:   aws.String(s.bucket),
+			Key:      aws.String(key),
+			UploadId: uploadID,
+		}); abortErr != nil {
+			log.Printf("[MultimediaService] Failed to abort multipart upload after complete error: %v", abortErr)
+		}
 		return "", fmt.Errorf("failed to complete multipart upload: %w", err)
 	}
 
@@ -542,6 +597,14 @@ func (s *MultimediaService) uploadLargeFile(src io.Reader, key string, contentTy
 // --- Favorites ---
 
 func (s *MultimediaService) AddToFavorites(userID, trackID uint) error {
+	var track models.MediaTrack
+	if err := s.db.Select("id", "is_active").First(&track, trackID).Error; err != nil {
+		return err
+	}
+	if !track.IsActive {
+		return errors.New("track is inactive")
+	}
+
 	favorite := models.UserMediaFavorite{
 		UserID:       userID,
 		MediaTrackID: trackID,
@@ -570,9 +633,7 @@ func (s *MultimediaService) GetUserFavorites(userID uint, page, limit int) ([]mo
 	if page < 1 {
 		page = 1
 	}
-	if limit < 1 {
-		limit = 20
-	}
+	limit = normalizeLimit(limit)
 	offset := (page - 1) * limit
 
 	err := query.Preload("Category").Offset(offset).Limit(limit).Find(&tracks).Error
@@ -582,6 +643,18 @@ func (s *MultimediaService) GetUserFavorites(userID uint, page, limit int) ([]mo
 // --- Playback History ---
 
 func (s *MultimediaService) UpdatePlaybackHistory(userID, trackID uint, progress int) error {
+	if progress < 0 {
+		progress = 0
+	}
+
+	var track models.MediaTrack
+	if err := s.db.Select("id", "duration").First(&track, trackID).Error; err != nil {
+		return err
+	}
+	if track.Duration > 0 && progress > track.Duration {
+		progress = track.Duration
+	}
+
 	var history models.UserMediaHistory
 	err := s.db.Where("user_id = ? AND media_track_id = ?", userID, trackID).First(&history).Error
 
@@ -603,9 +676,7 @@ func (s *MultimediaService) UpdatePlaybackHistory(userID, trackID uint, progress
 func (s *MultimediaService) GetPlaybackHistory(userID uint, limit int) ([]models.MediaTrack, error) {
 	var tracks []models.MediaTrack
 
-	if limit < 1 {
-		limit = 20
-	}
+	limit = normalizeLimit(limit)
 
 	err := s.db.Raw(`
 		SELECT mt.* FROM media_tracks mt

@@ -13,7 +13,9 @@ interface CafeCartContextType {
     initCart: (cafeId: number, cafeName: string, tableId?: number, tableNumber?: string, orderType?: CafeOrderType) => void;
     addToCart: (dish: Dish, quantity: number, removedIngredients: string[], selectedModifiers: SelectedModifier[], note: string, cafeId?: number, cafeName?: string) => void;
     updateQuantity: (dishId: number, quantity: number) => void;
+    updateQuantityAtIndex: (itemIndex: number, quantity: number) => void;
     removeFromCart: (dishId: number) => void;
+    removeFromCartAtIndex: (itemIndex: number) => void;
     clearCart: () => void;
     setOrderType: (orderType: CafeOrderType) => void;
     setTableInfo: (tableId: number, tableNumber: string) => void;
@@ -224,6 +226,43 @@ export const CafeCartProvider: React.FC<CafeCartProviderProps> = ({ children }) 
         });
     }, []);
 
+    const updateQuantityAtIndex = useCallback((itemIndex: number, quantity: number) => {
+        setCart(prevCart => {
+            if (!prevCart) return null;
+            if (itemIndex < 0 || itemIndex >= prevCart.items.length) return prevCart;
+
+            if (quantity <= 0) {
+                const newItems = prevCart.items.filter((_, index) => index !== itemIndex);
+                const { subtotal, total } = recalculateCart(newItems, prevCart.deliveryFee);
+                if (newItems.length === 0) return null;
+                return { ...prevCart, items: newItems, subtotal, total };
+            }
+
+            const newItems = prevCart.items.map((item, index) => {
+                if (index !== itemIndex) return item;
+                return {
+                    ...item,
+                    quantity,
+                    itemTotal: calculateItemTotal(item.dish, quantity, item.selectedModifiers),
+                };
+            });
+            const { subtotal, total } = recalculateCart(newItems, prevCart.deliveryFee);
+            return { ...prevCart, items: newItems, subtotal, total };
+        });
+    }, []);
+
+    const removeFromCartAtIndex = useCallback((itemIndex: number) => {
+        setCart(prevCart => {
+            if (!prevCart) return null;
+            if (itemIndex < 0 || itemIndex >= prevCart.items.length) return prevCart;
+
+            const newItems = prevCart.items.filter((_, index) => index !== itemIndex);
+            const { subtotal, total } = recalculateCart(newItems, prevCart.deliveryFee);
+            if (newItems.length === 0) return null;
+            return { ...prevCart, items: newItems, subtotal, total };
+        });
+    }, []);
+
     const clearCart = useCallback(() => {
         setCart(null);
     }, []);
@@ -256,7 +295,9 @@ export const CafeCartProvider: React.FC<CafeCartProviderProps> = ({ children }) 
                 initCart,
                 addToCart,
                 updateQuantity,
+                updateQuantityAtIndex,
                 removeFromCart,
+                removeFromCartAtIndex,
                 clearCart,
                 setOrderType,
                 setTableInfo,

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // NewsHandler handles news-related API requests
@@ -21,27 +22,34 @@ func NewNewsHandler() *NewsHandler {
 	return &NewsHandler{}
 }
 
+func boundedNewsQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
+	value := c.QueryInt(key, def)
+	if value < min {
+		return min
+	}
+	if max > 0 && value > max {
+		return max
+	}
+	return value
+}
+
 // ==================== PUBLIC ENDPOINTS ====================
 
 // GetNews returns a paginated list of published news
 // GET /api/news
 func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
-	lang := c.Query("lang", "ru")
-	category := c.Query("category", "")
-	tags := c.Query("tags", "")
-	search := c.Query("search", "")
-	madhParam := c.Query("madh", "")
+	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
+	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
+	lang := strings.ToLower(strings.TrimSpace(c.Query("lang", "ru")))
+	if lang != "en" {
+		lang = "ru"
+	}
+	category := strings.TrimSpace(c.Query("category", ""))
+	tags := strings.TrimSpace(c.Query("tags", ""))
+	search := strings.TrimSpace(c.Query("search", ""))
+	madhParam := strings.TrimSpace(c.Query("madh", ""))
 
 	personalized := c.Query("personalized", "false") == "true"
-
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
 
 	offset := (page - 1) * limit
 
@@ -104,7 +112,10 @@ func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
 	}
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		log.Printf("[NEWS] Error counting news: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
+	}
 
 	var newsItems []models.NewsItem
 	if err := query.Preload("Source").Offset(offset).Limit(limit).Find(&newsItems).Error; err != nil {
@@ -136,7 +147,10 @@ func (h *NewsHandler) GetNewsItem(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
 	}
 
-	lang := c.Query("lang", "ru")
+	lang := strings.ToLower(strings.TrimSpace(c.Query("lang", "ru")))
+	if lang != "en" {
+		lang = "ru"
+	}
 
 	var newsItem models.NewsItem
 	if err := database.DB.Preload("Source").First(&newsItem, id).Error; err != nil {
@@ -149,7 +163,9 @@ func (h *NewsHandler) GetNewsItem(c *fiber.Ctx) error {
 	}
 
 	// Increment view count
-	database.DB.Model(&newsItem).UpdateColumn("views_count", newsItem.ViewsCount+1)
+	if err := database.DB.Model(&newsItem).UpdateColumn("views_count", gorm.Expr("views_count + 1")).Error; err != nil {
+		log.Printf("[NEWS] Failed to increment view_count for news %d: %v", newsItem.ID, err)
+	}
 
 	return c.JSON(newsItem.ToResponse(lang))
 }
@@ -158,11 +174,13 @@ func (h *NewsHandler) GetNewsItem(c *fiber.Ctx) error {
 // GET /api/news/categories
 func (h *NewsHandler) GetNewsCategories(c *fiber.Ctx) error {
 	var categories []string
-	database.DB.Model(&models.NewsItem{}).
+	if err := database.DB.Model(&models.NewsItem{}).
 		Where("status = ?", models.NewsItemStatusPublished).
 		Distinct("category").
 		Where("category != ''").
-		Pluck("category", &categories)
+		Pluck("category", &categories).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch categories"})
+	}
 
 	return c.JSON(fiber.Map{"categories": categories})
 }
@@ -170,12 +188,8 @@ func (h *NewsHandler) GetNewsCategories(c *fiber.Ctx) error {
 // GetLatestNews returns the latest N news items (for widgets)
 // GET /api/news/latest
 func (h *NewsHandler) GetLatestNews(c *fiber.Ctx) error {
-	limit, _ := strconv.Atoi(c.Query("limit", "3"))
+	limit := boundedNewsQueryInt(c, "limit", 3, 1, 10)
 	lang := c.Query("lang", "ru")
-
-	if limit < 1 || limit > 10 {
-		limit = 3
-	}
 
 	var newsItems []models.NewsItem
 	if err := database.DB.
@@ -199,19 +213,12 @@ func (h *NewsHandler) GetLatestNews(c *fiber.Ctx) error {
 // GetAdminNews returns all news with filters (for admin panel)
 // GET /api/admin/news
 func (h *NewsHandler) GetAdminNews(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
+	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
 	status := c.Query("status", "")
 	sourceID := c.Query("sourceId", "")
 	category := c.Query("category", "")
 	search := c.Query("search", "")
-
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
 
 	offset := (page - 1) * limit
 
@@ -234,7 +241,9 @@ func (h *NewsHandler) GetAdminNews(c *fiber.Ctx) error {
 	}
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
+	}
 
 	var newsItems []models.NewsItem
 	if err := query.Preload("Source").Offset(offset).Limit(limit).Find(&newsItems).Error; err != nil {
@@ -275,6 +284,16 @@ func (h *NewsHandler) CreateNews(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+
+	req.TitleRu = strings.TrimSpace(req.TitleRu)
+	req.TitleEn = strings.TrimSpace(req.TitleEn)
+	req.SummaryRu = strings.TrimSpace(req.SummaryRu)
+	req.SummaryEn = strings.TrimSpace(req.SummaryEn)
+	req.ContentRu = strings.TrimSpace(req.ContentRu)
+	req.ContentEn = strings.TrimSpace(req.ContentEn)
+	req.ImageURL = strings.TrimSpace(req.ImageURL)
+	req.Tags = strings.TrimSpace(req.Tags)
+	req.Category = strings.TrimSpace(req.Category)
 
 	if req.TitleRu == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Title is required"})
@@ -332,6 +351,15 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	req.TitleRu = strings.TrimSpace(req.TitleRu)
+	req.TitleEn = strings.TrimSpace(req.TitleEn)
+	req.SummaryRu = strings.TrimSpace(req.SummaryRu)
+	req.SummaryEn = strings.TrimSpace(req.SummaryEn)
+	req.ContentRu = strings.TrimSpace(req.ContentRu)
+	req.ContentEn = strings.TrimSpace(req.ContentEn)
+	req.ImageURL = strings.TrimSpace(req.ImageURL)
+	req.Tags = strings.TrimSpace(req.Tags)
+	req.Category = strings.TrimSpace(req.Category)
 
 	updates := map[string]interface{}{
 		"title_ru":     req.TitleRu,
@@ -343,9 +371,11 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 		"image_url":    req.ImageURL,
 		"tags":         req.Tags,
 		"category":     req.Category,
-		"status":       req.Status,
 		"is_important": req.IsImportant,
 		"scheduled_at": req.ScheduledAt,
+	}
+	if req.Status != "" {
+		updates["status"] = req.Status
 	}
 
 	if req.SourceID != nil {
@@ -445,18 +475,11 @@ func (h *NewsHandler) ProcessNewsAI(c *fiber.Ctx) error {
 // GetSources returns all news sources
 // GET /api/admin/news/sources
 func (h *NewsHandler) GetSources(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
+	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
 	sourceType := c.Query("type", "")
 	isActive := c.Query("active", "")
 	search := c.Query("search", "")
-
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
 
 	offset := (page - 1) * limit
 
@@ -477,7 +500,9 @@ func (h *NewsHandler) GetSources(c *fiber.Ctx) error {
 	}
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch sources"})
+	}
 
 	var sources []models.NewsSource
 	if err := query.Offset(offset).Limit(limit).Find(&sources).Error; err != nil {
@@ -631,7 +656,9 @@ func (h *NewsHandler) DeleteSource(c *fiber.Ctx) error {
 
 	// Check if source has news items
 	var count int64
-	database.DB.Model(&models.NewsItem{}).Where("source_id = ?", id).Count(&count)
+	if err := database.DB.Model(&models.NewsItem{}).Where("source_id = ?", id).Count(&count).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to verify source usage"})
+	}
 	if count > 0 {
 		return c.Status(400).JSON(fiber.Map{
 			"error":   "Cannot delete source with existing news",
@@ -697,13 +724,23 @@ func (h *NewsHandler) GetNewsStats(c *fiber.Ctx) error {
 	var stats models.NewsStatsResponse
 
 	// Total news
-	database.DB.Model(&models.NewsItem{}).Count(&stats.TotalNews)
-	database.DB.Model(&models.NewsItem{}).Where("status = ?", models.NewsItemStatusPublished).Count(&stats.PublishedNews)
-	database.DB.Model(&models.NewsItem{}).Where("status = ?", models.NewsItemStatusDraft).Count(&stats.DraftNews)
+	if err := database.DB.Model(&models.NewsItem{}).Count(&stats.TotalNews).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to load stats"})
+	}
+	if err := database.DB.Model(&models.NewsItem{}).Where("status = ?", models.NewsItemStatusPublished).Count(&stats.PublishedNews).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to load stats"})
+	}
+	if err := database.DB.Model(&models.NewsItem{}).Where("status = ?", models.NewsItemStatusDraft).Count(&stats.DraftNews).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to load stats"})
+	}
 
 	// Total sources
-	database.DB.Model(&models.NewsSource{}).Count(&stats.TotalSources)
-	database.DB.Model(&models.NewsSource{}).Where("is_active = ?", true).Count(&stats.ActiveSources)
+	if err := database.DB.Model(&models.NewsSource{}).Count(&stats.TotalSources).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to load stats"})
+	}
+	if err := database.DB.Model(&models.NewsSource{}).Where("is_active = ?", true).Count(&stats.ActiveSources).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to load stats"})
+	}
 
 	// By category
 	stats.ByCategory = make(map[string]int64)
@@ -711,11 +748,13 @@ func (h *NewsHandler) GetNewsStats(c *fiber.Ctx) error {
 		Category string
 		Count    int64
 	}
-	database.DB.Model(&models.NewsItem{}).
+	if err := database.DB.Model(&models.NewsItem{}).
 		Select("category, count(*) as count").
 		Where("category != ''").
 		Group("category").
-		Scan(&categoryStats)
+		Scan(&categoryStats).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to load stats"})
+	}
 	for _, cs := range categoryStats {
 		stats.ByCategory[cs.Category] = cs.Count
 	}
@@ -727,11 +766,13 @@ func (h *NewsHandler) GetNewsStats(c *fiber.Ctx) error {
 		Name     string
 		Count    int64
 	}
-	database.DB.Model(&models.NewsItem{}).
+	if err := database.DB.Model(&models.NewsItem{}).
 		Select("news_items.source_id, news_sources.name, count(*) as count").
 		Joins("LEFT JOIN news_sources ON news_sources.id = news_items.source_id").
 		Group("news_items.source_id, news_sources.name").
-		Scan(&sourceStats)
+		Scan(&sourceStats).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to load stats"})
+	}
 	for _, ss := range sourceStats {
 		if ss.Name != "" {
 			stats.BySource[ss.Name] = ss.Count
@@ -747,6 +788,9 @@ func (h *NewsHandler) GetNewsStats(c *fiber.Ctx) error {
 // POST /api/news/sources/:id/subscribe
 func (h *NewsHandler) SubscribeToSource(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -769,6 +813,9 @@ func (h *NewsHandler) SubscribeToSource(c *fiber.Ctx) error {
 // DELETE /api/news/sources/:id/subscribe
 func (h *NewsHandler) UnsubscribeFromSource(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -787,6 +834,9 @@ func (h *NewsHandler) UnsubscribeFromSource(c *fiber.Ctx) error {
 // GET /api/news/subscriptions
 func (h *NewsHandler) GetSubscriptions(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var sourceIDs []uint
 	if err := database.DB.Model(&models.UserNewsSubscription{}).
@@ -802,6 +852,9 @@ func (h *NewsHandler) GetSubscriptions(c *fiber.Ctx) error {
 // POST /api/news/sources/:id/favorite
 func (h *NewsHandler) AddToFavorites(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -824,6 +877,9 @@ func (h *NewsHandler) AddToFavorites(c *fiber.Ctx) error {
 // DELETE /api/news/sources/:id/favorite
 func (h *NewsHandler) RemoveFromFavorites(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -842,6 +898,9 @@ func (h *NewsHandler) RemoveFromFavorites(c *fiber.Ctx) error {
 // GET /api/news/favorites
 func (h *NewsHandler) GetFavorites(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var sourceIDs []uint
 	if err := database.DB.Model(&models.UserNewsFavorite{}).

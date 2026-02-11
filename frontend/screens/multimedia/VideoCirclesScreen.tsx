@@ -17,7 +17,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -44,6 +45,8 @@ import { DATING_TRADITIONS } from '../../constants/DatingConstants';
 
 type PortalRoleType = 'user' | 'in_goodness' | 'yogi' | 'devotee';
 type VideoCirclesRouteParams = RootStackParamList['VideoCirclesScreen'];
+type VideoCirclesNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type VideoCirclesRouteProp = RouteProp<RootStackParamList, 'VideoCirclesScreen'>;
 
 const ROLE_DOT_COLORS: Record<PortalRoleType, string> = {
   user: '#3B82F6',
@@ -70,14 +73,15 @@ const normalizePortalRole = (value?: string): PortalRoleType => {
 };
 
 export const VideoCirclesScreen: React.FC = () => {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<VideoCirclesNavigationProp>();
+  const route = useRoute<VideoCirclesRouteProp>();
   const { t } = useTranslation();
-  const routeParams = (route?.params || {}) as VideoCirclesRouteParams;
+  const routeParams: VideoCirclesRouteParams = route?.params;
   const { isDarkMode } = useSettings();
   const { user } = useUser();
   const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
   const openPublishHandled = useRef(false);
+  const latestCirclesRequestRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -137,6 +141,7 @@ export const VideoCirclesScreen: React.FC = () => {
   );
 
   const loadCircles = useCallback(async () => {
+    const requestId = ++latestCirclesRequestRef.current;
     try {
       const res = await videoCirclesService.getVideoCircles({
         status: filterStatus,
@@ -148,13 +153,19 @@ export const VideoCirclesScreen: React.FC = () => {
         limit: 30,
         sort: 'newest',
       });
-      setCircles(res.circles);
+      if (requestId === latestCirclesRequestRef.current) {
+        setCircles(Array.isArray(res?.circles) ? res.circles : []);
+      }
     } catch (error) {
       console.error('Failed to load video circles:', error);
-      Alert.alert(t('common.error'), t('videoCircles.errorLoad'));
+      if (requestId === latestCirclesRequestRef.current) {
+        Alert.alert(t('common.error'), t('videoCircles.errorLoad'));
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === latestCirclesRequestRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, roleScope, t]);
 
@@ -171,6 +182,12 @@ export const VideoCirclesScreen: React.FC = () => {
     loadCircles();
     loadTariffs();
   }, [loadCircles, loadTariffs]);
+
+  useEffect(() => {
+    return () => {
+      latestCirclesRequestRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     if (routeParams?.scope === 'friends') {
@@ -223,7 +240,6 @@ export const VideoCirclesScreen: React.FC = () => {
   }, [fabAnim]);
 
   const openVideoPicker = useCallback(async (source: 'camera' | 'gallery') => {
-    console.log('[VideoCircles] openVideoPicker called with source:', source);
     try {
       const result = source === 'camera'
         ? await launchCamera({
@@ -237,13 +253,10 @@ export const VideoCirclesScreen: React.FC = () => {
           selectionLimit: 1,
           quality: 0.8,
         });
-      console.log('[VideoCircles] picker result:', JSON.stringify(result, null, 2));
       if (result.didCancel) {
-        console.log('[VideoCircles] User cancelled the picker');
         return;
       }
       if (result.errorCode) {
-        console.log('[VideoCircles] Picker error:', result.errorCode, result.errorMessage);
         if (result.errorCode === 'camera_unavailable') {
           Alert.alert(
             t('qr.noAccess'),
@@ -259,7 +272,6 @@ export const VideoCirclesScreen: React.FC = () => {
         return;
       }
       if (!result.assets || result.assets.length === 0) {
-        console.log('[VideoCircles] No assets returned');
         return;
       }
       const asset = result.assets[0];
@@ -331,7 +343,7 @@ export const VideoCirclesScreen: React.FC = () => {
       });
       resetPublishForm();
       await loadCircles();
-      Alert.alert(t('common.success'), t('common.success'));
+      Alert.alert(t('common.success'), t('videoCircles.successPublish', { defaultValue: 'Видео-кружок опубликован' }));
     } catch (error) {
       console.error('Failed to publish circle:', error);
       Alert.alert(t('common.error'), t('videoCircles.errorBoost')); // Use generic error or specific one if added
@@ -369,11 +381,12 @@ export const VideoCirclesScreen: React.FC = () => {
   };
 
   const handleInteraction = async (circle: VideoCircle, type: 'like' | 'comment' | 'chat') => {
-    const prev = circles;
+    let previousCircles: VideoCircle[] = [];
     const liked = !!likedMap[circle.id];
 
-    setCircles((list) =>
-      list.map((item) => {
+    setCircles((list) => {
+      previousCircles = list;
+      return list.map((item) => {
         if (item.id !== circle.id) return item;
         if (type === 'like') {
           return {
@@ -385,8 +398,8 @@ export const VideoCirclesScreen: React.FC = () => {
           return { ...item, commentCount: item.commentCount + 1 };
         }
         return { ...item, chatCount: item.chatCount + 1 };
-      })
-    );
+      });
+    });
 
     if (type === 'like') {
       setLikedMap((prevMap) => ({ ...prevMap, [circle.id]: !liked }));
@@ -398,7 +411,7 @@ export const VideoCirclesScreen: React.FC = () => {
       applyInteractionResponse(circle.id, response);
     } catch (error) {
       console.error('Failed interaction:', error);
-      setCircles(prev);
+      setCircles(previousCircles);
       if (type === 'like') {
         setLikedMap((prevMap) => ({ ...prevMap, [circle.id]: liked }));
       }
@@ -428,7 +441,7 @@ export const VideoCirclesScreen: React.FC = () => {
 
   const handleChatPress = async (circle: VideoCircle) => {
     if (user?.ID && circle.authorId === user.ID) {
-      Alert.alert(t('common.error'), 'Это ваш кружок');
+      Alert.alert(t('common.error'), t('videoCircles.ownCircleError') || 'Это ваш кружок');
       return;
     }
 
@@ -703,7 +716,7 @@ export const VideoCirclesScreen: React.FC = () => {
                     <View style={[styles.metaPill, metaPillStyle]}>
                       <Tag size={11} color={roleColors.textSecondary} />
                       <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
-                        {t(`videoCircles.categories.${item.category}`)}
+                        {t(`videoCircles.categories.${item.category}`, { defaultValue: item.category })}
                       </Text>
                     </View>
                   )}
@@ -909,7 +922,11 @@ export const VideoCirclesScreen: React.FC = () => {
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.secondaryBtn, { borderColor: roleColors.border }]}
-                onPress={() => setCommentModalOpen(false)}
+                onPress={() => {
+                  setCommentModalOpen(false);
+                  setCommentTarget(null);
+                  setCommentText('');
+                }}
               >
                 <Text style={roleTextSecondaryStyle}>{t('common.cancel')}</Text>
               </TouchableOpacity>

@@ -11,6 +11,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -34,7 +35,7 @@ func parsePagination(c *fiber.Ctx, maxLimit int) (page int, limit int, offset in
 		page = 1
 	}
 	if limit < 1 || limit > maxLimit {
-		limit = 20
+		limit = maxLimit
 	}
 	offset = (page - 1) * limit
 	return
@@ -53,6 +54,11 @@ func buildAdAuthor(user *models.User) *models.AdAuthor {
 		MemberSince:   user.CreatedAt.Format("2006-01-02"),
 		IsVerified:    user.IsProfileComplete,
 	}
+}
+
+func isAllowedAdImageContentType(contentType string) bool {
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	return strings.HasPrefix(contentType, "image/")
 }
 
 // GetAds returns a paginated list of ads with filters
@@ -182,10 +188,15 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 
 // GetAd returns a single ad by ID
 func (h *AdsHandler) GetAd(c *fiber.Ctx) error {
-	id := c.Params("id")
+	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid ad ID",
+		})
+	}
 
 	var ad models.Ad
-	if err := database.DB.Preload("Photos").Preload("User").First(&ad, id).Error; err != nil {
+	if err := database.DB.Preload("Photos").Preload("User").First(&ad, adID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Ad not found",
 		})
@@ -250,6 +261,12 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 	}
 
 	// Validate required fields
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	req.City = strings.TrimSpace(req.City)
+	req.Phone = strings.TrimSpace(req.Phone)
+	req.Email = strings.TrimSpace(req.Email)
+
 	if req.Title == "" || len(req.Title) < 5 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Title must be at least 5 characters",
@@ -301,24 +318,27 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 		}
 	}
 
-	if err := database.DB.Create(&ad).Error; err != nil {
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&ad).Error; err != nil {
+			return err
+		}
+
+		// Create photo records atomically with ad creation.
+		for i, photoURL := range req.Photos {
+			photo := models.AdPhoto{
+				AdID:     ad.ID,
+				PhotoURL: photoURL,
+				Position: i,
+			}
+			if err := tx.Create(&photo).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not create ad",
 		})
-	}
-
-	// Create photo records
-	for i, photoURL := range req.Photos {
-		photo := models.AdPhoto{
-			AdID:     ad.ID,
-			PhotoURL: photoURL,
-			Position: i,
-		}
-		if err := database.DB.Create(&photo).Error; err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not save ad photos",
-			})
-		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -330,7 +350,12 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 
 // UpdateAd updates an existing ad
 func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
-	id := c.Params("id")
+	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid ad ID",
+		})
+	}
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -339,7 +364,7 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	}
 
 	var ad models.Ad
-	if err := database.DB.First(&ad, id).Error; err != nil {
+	if err := database.DB.First(&ad, adID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Ad not found",
 		})
@@ -358,6 +383,11 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 			"error": "Invalid request body",
 		})
 	}
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	req.City = strings.TrimSpace(req.City)
+	req.Phone = strings.TrimSpace(req.Phone)
+	req.Email = strings.TrimSpace(req.Email)
 
 	// Update fields
 	updateMap := map[string]interface{}{
@@ -386,8 +416,9 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	}
 
 	// Re-geocode if city changed and coordinates not provided
+	coordinatesProvided := req.Latitude != nil && req.Longitude != nil
 	cityChanged := req.City != "" && req.City != ad.City
-	if cityChanged || (req.Latitude == nil && ad.Latitude == nil) {
+	if cityChanged || (req.Latitude == nil && ad.Latitude == nil) || coordinatesProvided {
 		targetCity := ad.City
 		if req.City != "" {
 			targetCity = req.City
@@ -420,25 +451,26 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 
 	// Update photos if provided
 	if len(req.Photos) > 0 {
-		// Delete existing photos
-		if err := database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{}).Error; err != nil {
+		if err := database.DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{}).Error; err != nil {
+				return err
+			}
+
+			for i, photoURL := range req.Photos {
+				photo := models.AdPhoto{
+					AdID:     ad.ID,
+					PhotoURL: photoURL,
+					Position: i,
+				}
+				if err := tx.Create(&photo).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Could not replace ad photos",
 			})
-		}
-
-		// Create new photos
-		for i, photoURL := range req.Photos {
-			photo := models.AdPhoto{
-				AdID:     ad.ID,
-				PhotoURL: photoURL,
-				Position: i,
-			}
-			if err := database.DB.Create(&photo).Error; err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Could not save ad photos",
-				})
-			}
 		}
 	}
 
@@ -450,7 +482,12 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 
 // DeleteAd deletes an ad
 func (h *AdsHandler) DeleteAd(c *fiber.Ctx) error {
-	id := c.Params("id")
+	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid ad ID",
+		})
+	}
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -459,7 +496,7 @@ func (h *AdsHandler) DeleteAd(c *fiber.Ctx) error {
 	}
 
 	var ad models.Ad
-	if err := database.DB.First(&ad, id).Error; err != nil {
+	if err := database.DB.First(&ad, adID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Ad not found",
 		})
@@ -472,22 +509,15 @@ func (h *AdsHandler) DeleteAd(c *fiber.Ctx) error {
 		})
 	}
 
-	// Delete photos first
-	if err := database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not delete ad photos",
-		})
-	}
-
-	// Delete favorites
-	if err := database.DB.Where("ad_id = ?", ad.ID).Delete(&models.AdFavorite{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not delete ad favorites",
-		})
-	}
-
-	// Delete the ad
-	if err := database.DB.Delete(&ad).Error; err != nil {
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("ad_id = ?", ad.ID).Delete(&models.AdFavorite{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&ad).Error
+	}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not delete ad",
 		})
@@ -513,6 +543,17 @@ func (h *AdsHandler) ToggleFavorite(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid ad ID",
+		})
+	}
+	var ad models.Ad
+	if err := database.DB.Select("id").First(&ad, adIDUint).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Ad not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not verify ad",
 		})
 	}
 
@@ -784,6 +825,13 @@ func (h *AdsHandler) ReportAd(c *fiber.Ctx) error {
 			"error": "Invalid request body",
 		})
 	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	req.Comment = strings.TrimSpace(req.Comment)
+	if req.Reason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Reason is required",
+		})
+	}
 
 	report := models.AdReport{
 		AdID:       uint(adIDUint),
@@ -819,6 +867,12 @@ func (h *AdsHandler) UploadAdPhoto(c *fiber.Ctx) error {
 			"error": "No photo provided",
 		})
 	}
+	contentType := file.Header.Get("Content-Type")
+	if !isAllowedAdImageContentType(contentType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Only image uploads are allowed",
+		})
+	}
 
 	// 1. Try S3 Storage
 	s3Service := services.GetS3Service()
@@ -828,7 +882,6 @@ func (h *AdsHandler) UploadAdPhoto(c *fiber.Ctx) error {
 			defer fileContent.Close()
 			ext := filepath.Ext(file.Filename)
 			fileName := fmt.Sprintf("ads/u%d_%d%s", userID, time.Now().Unix(), ext)
-			contentType := file.Header.Get("Content-Type")
 
 			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
@@ -877,6 +930,10 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 	}
+	req.Method = strings.TrimSpace(strings.ToLower(req.Method))
+	if req.Method == "" {
+		req.Method = "message"
+	}
 
 	var ad models.Ad
 	if err := database.DB.Preload("User").First(&ad, adID).Error; err != nil {
@@ -911,47 +968,52 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 			LIMIT 1
 		`, userID, ad.UserID).Scan(&result).Error
 
-		if err == nil && result.ID != 0 {
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not search existing chat room"})
+		}
+		if result.ID != 0 {
 			roomID = result.ID
 			roomName = result.Name
 		} else {
-			// 2. Create new private room
-			currentUser := models.User{}
-			if err := database.DB.First(&currentUser, userID).Error; err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load user profile"})
-			}
+			// 2. Create new private room atomically with members.
+			err := database.DB.Transaction(func(tx *gorm.DB) error {
+				currentUser := models.User{}
+				if err := tx.First(&currentUser, userID).Error; err != nil {
+					return err
+				}
 
-			sellerName := ad.User.SpiritualName
-			if sellerName == "" {
-				sellerName = ad.User.KarmicName
-			}
+				sellerName := ad.User.SpiritualName
+				if sellerName == "" {
+					sellerName = ad.User.KarmicName
+				}
 
-			buyerName := currentUser.SpiritualName
-			if buyerName == "" {
-				buyerName = currentUser.KarmicName
-			}
+				buyerName := currentUser.SpiritualName
+				if buyerName == "" {
+					buyerName = currentUser.KarmicName
+				}
 
-			roomName = fmt.Sprintf("%s & %s", buyerName, sellerName)
-			newRoom := models.Room{
-				Name:        roomName,
-				Description: fmt.Sprintf("Chat regarding ad: %s", ad.Title),
-				OwnerID:     userID,
-				IsPublic:    false,
-				AiEnabled:   false,
-			}
+				roomName = fmt.Sprintf("%s & %s", buyerName, sellerName)
+				newRoom := models.Room{
+					Name:        roomName,
+					Description: fmt.Sprintf("Chat regarding ad: %s", ad.Title),
+					OwnerID:     userID,
+					IsPublic:    false,
+					AiEnabled:   false,
+				}
 
-			if err := database.DB.Create(&newRoom).Error; err != nil {
+				if err := tx.Create(&newRoom).Error; err != nil {
+					return err
+				}
+				roomID = newRoom.ID
+
+				members := []models.RoomMember{
+					{RoomID: roomID, UserID: userID, Role: "admin"},
+					{RoomID: roomID, UserID: ad.UserID, Role: "member"},
+				}
+				return tx.Create(&members).Error
+			})
+			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create chat room"})
-			}
-			roomID = newRoom.ID
-
-			// Add members
-			members := []models.RoomMember{
-				{RoomID: roomID, UserID: userID, Role: "admin"},
-				{RoomID: roomID, UserID: ad.UserID, Role: "member"},
-			}
-			if err := database.DB.Create(&members).Error; err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not add room members"})
 			}
 		}
 
@@ -1146,23 +1208,18 @@ func (h *AdsHandler) AdminDeleteAd(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 
-	// Delete photos
-	if err := database.DB.Where("ad_id = ?", adID).Delete(&models.AdPhoto{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad photos"})
-	}
-
-	// Delete favorites
-	if err := database.DB.Where("ad_id = ?", adID).Delete(&models.AdFavorite{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad favorites"})
-	}
-
-	// Delete reports
-	if err := database.DB.Where("ad_id = ?", adID).Delete(&models.AdReport{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad reports"})
-	}
-
-	// Delete ad (hard delete)
-	if err := database.DB.Unscoped().Delete(&ad).Error; err != nil {
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("ad_id = ?", adID).Delete(&models.AdPhoto{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("ad_id = ?", adID).Delete(&models.AdFavorite{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("ad_id = ?", adID).Delete(&models.AdReport{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(&ad).Error
+	}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete ad"})
 	}
 

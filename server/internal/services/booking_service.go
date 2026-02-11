@@ -6,6 +6,7 @@ import (
 	"math"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -29,6 +30,11 @@ func NewBookingService(walletService *WalletService, serviceService *ServiceServ
 
 // Create creates a new booking
 func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCreateRequest) (*models.ServiceBooking, error) {
+	if s.walletService == nil || s.serviceService == nil {
+		return nil, errors.New("booking dependencies are not configured")
+	}
+	req.ClientNote = strings.TrimSpace(req.ClientNote)
+
 	if req.ScheduledAt.IsZero() {
 		return nil, errors.New("scheduled_at is required")
 	}
@@ -36,9 +42,9 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 		return nil, errors.New("cannot create booking in the past")
 	}
 
-	// Get service
-	service, err := s.serviceService.GetByID(serviceID)
-	if err != nil {
+	// Get service without side effects (GetByID increments views)
+	var service models.Service
+	if err := database.DB.First(&service, serviceID).Error; err != nil {
 		return nil, errors.New("service not found")
 	}
 
@@ -133,7 +139,7 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	}
 
 	// Increment bookings count
-	if err := database.DB.Model(service).UpdateColumn("bookings_count", gorm.Expr("bookings_count + 1")).Error; err != nil {
+	if err := database.DB.Model(&service).UpdateColumn("bookings_count", gorm.Expr("bookings_count + 1")).Error; err != nil {
 		log.Printf("[Booking] Failed to increment bookings_count for service %d: %v", service.ID, err)
 	}
 
@@ -164,6 +170,8 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 
 // Confirm confirms a pending booking
 func (s *BookingService) Confirm(bookingID, ownerID uint, req models.BookingActionRequest) (*models.ServiceBooking, error) {
+	req.Note = strings.TrimSpace(req.Note)
+
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
 		return nil, errors.New("booking not found")
@@ -237,6 +245,11 @@ func (s *BookingService) Confirm(bookingID, ownerID uint, req models.BookingActi
 
 // Cancel cancels a booking
 func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingActionRequest) (*models.ServiceBooking, error) {
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" {
+		req.Reason = "cancelled"
+	}
+
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
 		return nil, errors.New("booking not found")
@@ -318,6 +331,11 @@ func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingAction
 
 // Complete marks a booking as completed
 func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingActionRequest) (*models.ServiceBooking, error) {
+	if s.walletService == nil {
+		return nil, errors.New("wallet service is not configured")
+	}
+	req.Note = strings.TrimSpace(req.Note)
+
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
 		return nil, errors.New("booking not found")
@@ -380,6 +398,10 @@ func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingAct
 
 // MarkNoShow marks that the client didn't show up
 func (s *BookingService) MarkNoShow(bookingID, ownerID uint) (*models.ServiceBooking, error) {
+	if s.walletService == nil {
+		return nil, errors.New("wallet service is not configured")
+	}
+
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
 		return nil, errors.New("booking not found")

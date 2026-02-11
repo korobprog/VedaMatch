@@ -41,6 +41,7 @@ func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarker
 	if limit <= 0 || limit > 2000 {
 		limit = 200
 	}
+	req.Categories = normalizeMarkerTypes(req.Categories)
 
 	// Calculate limits per category
 	categoryCount := len(req.Categories)
@@ -55,6 +56,9 @@ func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarker
 		categoryCount = 4
 	}
 	limitPerCategory := limit / categoryCount
+	if limitPerCategory < 1 {
+		limitPerCategory = 1
+	}
 
 	var truncatedUsers, truncatedShops, truncatedAds, truncatedCafes int
 
@@ -78,6 +82,9 @@ func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarker
 			truncatedCafes = truncated
 		}
 	}
+	if len(markers) > limit {
+		markers = markers[:limit]
+	}
 
 	return &models.MapMarkersResponse{
 		Markers:    markers,
@@ -100,7 +107,10 @@ func (s *MapService) getUserMarkers(bbox models.MapBoundingBox, userLat, userLng
 		Where("longitude >= ? AND longitude <= ?", bbox.LngMin, bbox.LngMax).
 		Where("is_blocked = ?", false)
 
-	query.Count(&totalCount)
+	if err := query.Count(&totalCount).Error; err != nil {
+		log.Printf("map_get_user_markers count_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	if userLat != nil && userLng != nil {
 		// Order by distance if user location provided
@@ -110,7 +120,10 @@ func (s *MapService) getUserMarkers(bbox models.MapBoundingBox, userLat, userLng
 		))
 	}
 
-	query.Limit(limit).Find(&users)
+	if err := query.Limit(limit).Find(&users).Error; err != nil {
+		log.Printf("map_get_user_markers find_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	markers := make([]models.MapMarker, 0, len(users))
 	for _, user := range users {
@@ -165,7 +178,10 @@ func (s *MapService) getShopMarkers(bbox models.MapBoundingBox, userLat, userLng
 		Where("longitude >= ? AND longitude <= ?", bbox.LngMin, bbox.LngMax).
 		Where("status = ?", models.ShopStatusActive)
 
-	query.Count(&totalCount)
+	if err := query.Count(&totalCount).Error; err != nil {
+		log.Printf("map_get_shop_markers count_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	if userLat != nil && userLng != nil {
 		query = query.Order(fmt.Sprintf(
@@ -174,7 +190,10 @@ func (s *MapService) getShopMarkers(bbox models.MapBoundingBox, userLat, userLng
 		))
 	}
 
-	query.Limit(limit).Find(&shops)
+	if err := query.Limit(limit).Find(&shops).Error; err != nil {
+		log.Printf("map_get_shop_markers find_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	markers := make([]models.MapMarker, 0, len(shops))
 	for _, shop := range shops {
@@ -226,7 +245,10 @@ func (s *MapService) getAdMarkers(bbox models.MapBoundingBox, userLat, userLng *
 		Where("longitude >= ? AND longitude <= ?", bbox.LngMin, bbox.LngMax).
 		Where("status = ?", models.AdStatusActive)
 
-	query.Count(&totalCount)
+	if err := query.Count(&totalCount).Error; err != nil {
+		log.Printf("map_get_ad_markers count_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	if userLat != nil && userLng != nil {
 		query = query.Order(fmt.Sprintf(
@@ -235,7 +257,10 @@ func (s *MapService) getAdMarkers(bbox models.MapBoundingBox, userLat, userLng *
 		))
 	}
 
-	query.Limit(limit).Preload("Photos").Find(&ads)
+	if err := query.Limit(limit).Preload("Photos").Find(&ads).Error; err != nil {
+		log.Printf("map_get_ad_markers find_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	markers := make([]models.MapMarker, 0, len(ads))
 	for _, ad := range ads {
@@ -293,7 +318,10 @@ func (s *MapService) getCafeMarkers(bbox models.MapBoundingBox, userLat, userLng
 		Where("longitude >= ? AND longitude <= ?", bbox.LngMin, bbox.LngMax).
 		Where("status = ?", models.CafeStatusActive)
 
-	query.Count(&totalCount)
+	if err := query.Count(&totalCount).Error; err != nil {
+		log.Printf("map_get_cafe_markers count_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	if userLat != nil && userLng != nil {
 		query = query.Order(fmt.Sprintf(
@@ -302,7 +330,10 @@ func (s *MapService) getCafeMarkers(bbox models.MapBoundingBox, userLat, userLng
 		))
 	}
 
-	query.Limit(limit).Find(&cafes)
+	if err := query.Limit(limit).Find(&cafes).Error; err != nil {
+		log.Printf("map_get_cafe_markers find_error=%v", err)
+		return []models.MapMarker{}, 0
+	}
 
 	markers := make([]models.MapMarker, 0, len(cafes))
 	for _, cafe := range cafes {
@@ -350,13 +381,19 @@ func (s *MapService) GetSummary() (*models.MapSummaryResponse, error) {
 	clusters := make(map[string]*models.MapCluster)
 
 	var totalUsersWithCoords int64
-	s.db.Model(&models.User{}).Where("latitude IS NOT NULL AND longitude IS NOT NULL AND is_blocked = ?", false).Count(&totalUsersWithCoords)
+	if err := s.db.Model(&models.User{}).Where("latitude IS NOT NULL AND longitude IS NOT NULL AND is_blocked = ?", false).Count(&totalUsersWithCoords).Error; err != nil {
+		return nil, fmt.Errorf("failed to count users with coordinates: %w", err)
+	}
 
 	var totalShopsWithCoords int64
-	s.db.Model(&models.Shop{}).Where("latitude IS NOT NULL AND longitude IS NOT NULL AND status = ?", models.ShopStatusActive).Count(&totalShopsWithCoords)
+	if err := s.db.Model(&models.Shop{}).Where("latitude IS NOT NULL AND longitude IS NOT NULL AND status = ?", models.ShopStatusActive).Count(&totalShopsWithCoords).Error; err != nil {
+		return nil, fmt.Errorf("failed to count shops with coordinates: %w", err)
+	}
 
 	var totalAdsWithCoords int64
-	s.db.Model(&models.Ad{}).Where("latitude IS NOT NULL AND longitude IS NOT NULL AND status = ?", models.AdStatusActive).Count(&totalAdsWithCoords)
+	if err := s.db.Model(&models.Ad{}).Where("latitude IS NOT NULL AND longitude IS NOT NULL AND status = ?", models.AdStatusActive).Count(&totalAdsWithCoords).Error; err != nil {
+		return nil, fmt.Errorf("failed to count ads with coordinates: %w", err)
+	}
 
 	log.Printf("[MapService] GetSummary: Users: %d, Shops: %d, Ads: %d", totalUsersWithCoords, totalShopsWithCoords, totalAdsWithCoords)
 
@@ -368,13 +405,15 @@ func (s *MapService) GetSummary() (*models.MapSummaryResponse, error) {
 		Count     int
 	}
 
-	s.db.Model(&models.User{}).
+	if err := s.db.Model(&models.User{}).
 		Select("city, AVG(latitude) as latitude, AVG(longitude) as longitude, COUNT(*) as count").
 		Where("city IS NOT NULL AND city != ''").
 		Where("latitude IS NOT NULL AND longitude IS NOT NULL").
 		Where("is_blocked = ?", false).
 		Group("city").
-		Scan(&userStats)
+		Scan(&userStats).Error; err != nil {
+		return nil, fmt.Errorf("failed to load user city stats: %w", err)
+	}
 
 	for _, stat := range userStats {
 		if stat.City == "" {
@@ -400,13 +439,15 @@ func (s *MapService) GetSummary() (*models.MapSummaryResponse, error) {
 		Count     int
 	}
 
-	s.db.Model(&models.Shop{}).
+	if err := s.db.Model(&models.Shop{}).
 		Select("city, AVG(latitude) as latitude, AVG(longitude) as longitude, COUNT(*) as count").
 		Where("city IS NOT NULL AND city != ''").
 		Where("latitude IS NOT NULL AND longitude IS NOT NULL").
 		Where("status = ?", models.ShopStatusActive).
 		Group("city").
-		Scan(&shopStats)
+		Scan(&shopStats).Error; err != nil {
+		return nil, fmt.Errorf("failed to load shop city stats: %w", err)
+	}
 
 	for _, stat := range shopStats {
 		if stat.City == "" {
@@ -432,13 +473,15 @@ func (s *MapService) GetSummary() (*models.MapSummaryResponse, error) {
 		Count     int
 	}
 
-	s.db.Model(&models.Ad{}).
+	if err := s.db.Model(&models.Ad{}).
 		Select("city, AVG(latitude) as latitude, AVG(longitude) as longitude, COUNT(*) as count").
 		Where("city IS NOT NULL AND city != ''").
 		Where("latitude IS NOT NULL AND longitude IS NOT NULL").
 		Where("status = ?", models.AdStatusActive).
 		Group("city").
-		Scan(&adStats)
+		Scan(&adStats).Error; err != nil {
+		return nil, fmt.Errorf("failed to load ad city stats: %w", err)
+	}
 
 	for _, stat := range adStats {
 		if stat.City == "" {
@@ -464,13 +507,15 @@ func (s *MapService) GetSummary() (*models.MapSummaryResponse, error) {
 		Count     int
 	}
 
-	s.db.Model(&models.Cafe{}).
+	if err := s.db.Model(&models.Cafe{}).
 		Select("city, AVG(latitude) as latitude, AVG(longitude) as longitude, COUNT(*) as count").
 		Where("city IS NOT NULL AND city != ''").
 		Where("latitude IS NOT NULL AND longitude IS NOT NULL").
 		Where("status = ?", models.CafeStatusActive).
 		Group("city").
-		Scan(&cafeStats)
+		Scan(&cafeStats).Error; err != nil {
+		return nil, fmt.Errorf("failed to load cafe city stats: %w", err)
+	}
 
 	for _, stat := range cafeStats {
 		if stat.City == "" {
@@ -530,6 +575,11 @@ func (s *MapService) GetRoute(req models.GeoapifyRouteRequest) (map[string]any, 
 
 // Autocomplete proxies autocomplete request to Geoapify
 func (s *MapService) Autocomplete(req models.GeoapifyAutocompleteRequest) (map[string]any, error) {
+	req.Text = strings.TrimSpace(req.Text)
+	if req.Text == "" {
+		return nil, fmt.Errorf("text is required")
+	}
+
 	limit := req.Limit
 	if limit <= 0 || limit > 10 {
 		limit = 5
@@ -597,6 +647,7 @@ type GeocodedCity struct {
 
 // GeocodeCity geocodes a city name and returns normalized city name with coordinates
 func (s *MapService) GeocodeCity(cityName string) (*GeocodedCity, error) {
+	cityName = strings.TrimSpace(cityName)
 	if cityName == "" {
 		return nil, fmt.Errorf("city name is empty")
 	}
@@ -660,6 +711,7 @@ type GeocodedLocation struct {
 
 // GeocodeLocation geocodes an address string and returns coordinates
 func (s *MapService) GeocodeLocation(query string) (*GeocodedLocation, error) {
+	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("query is empty")
 	}
@@ -728,4 +780,33 @@ func (s *MapService) fetchGeoapify(requestURL string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func normalizeMarkerTypes(input []models.MarkerType) []models.MarkerType {
+	if len(input) == 0 {
+		return nil
+	}
+
+	allowed := map[models.MarkerType]struct{}{
+		models.MarkerTypeUser: {},
+		models.MarkerTypeShop: {},
+		models.MarkerTypeAd:   {},
+		models.MarkerTypeCafe: {},
+	}
+	seen := make(map[models.MarkerType]struct{}, len(input))
+	result := make([]models.MarkerType, 0, len(input))
+
+	for _, raw := range input {
+		value := models.MarkerType(strings.ToLower(strings.TrimSpace(string(raw))))
+		if _, ok := allowed[value]; !ok {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	return result
 }

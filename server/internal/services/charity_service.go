@@ -30,6 +30,17 @@ func NewCharityService(walletService *WalletService) *CharityService {
 
 // CreateOrganization creates a new charity organization
 func (s *CharityService) CreateOrganization(userID uint, req models.CreateOrganizationRequest) (*models.CharityOrganization, error) {
+	req.Name = strings.TrimSpace(req.Name)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Country = strings.TrimSpace(req.Country)
+	req.City = strings.TrimSpace(req.City)
+	req.Website = strings.TrimSpace(req.Website)
+	req.Email = strings.TrimSpace(req.Email)
+	req.Phone = strings.TrimSpace(req.Phone)
+	if req.Name == "" {
+		return nil, errors.New("organization name is required")
+	}
+
 	// Create organization wallet
 	wallet := models.CharityOrganization{
 		Name:         req.Name,
@@ -106,6 +117,20 @@ func (s *CharityService) CreateProject(userID uint, req models.CreateProjectRequ
 		return nil, errors.New("organization must be verified to create projects")
 	}
 
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	req.ShortDesc = strings.TrimSpace(req.ShortDesc)
+	req.Category = strings.TrimSpace(req.Category)
+	if req.Title == "" {
+		return nil, errors.New("project title is required")
+	}
+	if req.GoalAmount <= 0 {
+		return nil, errors.New("goal amount must be positive")
+	}
+	if req.MinDonation < 0 {
+		return nil, errors.New("minimum donation must be non-negative")
+	}
+
 	project := models.CharityProject{
 		OrganizationID:   req.OrganizationID,
 		Title:            req.Title,
@@ -160,6 +185,14 @@ func (s *CharityService) UpdateProjectStatus(projectID uint, status models.Proje
 
 // Donate processes a donation transaction
 func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*models.DonateResponse, error) {
+	if s.WalletService == nil {
+		return nil, errors.New("wallet service is not configured")
+	}
+	req.KarmaMessage = strings.TrimSpace(req.KarmaMessage)
+	if req.Amount <= 0 {
+		return nil, errors.New("donation amount must be positive")
+	}
+
 	var response models.DonateResponse
 
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -186,6 +219,10 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		// Check if goal already reached
 		if project.GoalAmount > 0 && project.RaisedAmount >= project.GoalAmount {
 			return errors.New("project has already reached its fundraising goal")
+		}
+		remainingToGoal := project.GoalAmount - project.RaisedAmount
+		if project.GoalAmount > 0 && req.Amount > remainingToGoal {
+			return fmt.Errorf("donation exceeds remaining goal amount (%d LKM)", remainingToGoal)
 		}
 
 		// Load platform settings once
@@ -385,6 +422,10 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 
 // RefundDonation processes a donation refund within the 24-hour window
 func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
+	if s.WalletService == nil {
+		return errors.New("wallet service is not configured")
+	}
+
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		// 1. Get Donation (lock row to avoid race with confirm worker)
 		var donation models.CharityDonation
@@ -418,7 +459,7 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 
 		if err := tx.Model(&userWallet).Updates(map[string]interface{}{
 			"balance":     userWallet.Balance + donation.TotalPaid,
-			"total_spent": userWallet.TotalSpent - donation.TotalPaid,
+			"total_spent": gorm.Expr("GREATEST(total_spent - ?, 0)", donation.TotalPaid),
 		}).Error; err != nil {
 			return err
 		}
@@ -432,7 +473,7 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 			return err
 		}
 		if err := tx.Model(&orgWallet).Updates(map[string]interface{}{
-			"frozen_balance": gorm.Expr("frozen_balance - ?", donation.Amount),
+			"frozen_balance": gorm.Expr("GREATEST(frozen_balance - ?, 0)", donation.Amount),
 		}).Error; err != nil {
 			return err
 		}
@@ -451,8 +492,8 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 				return err
 			}
 			if err := tx.Model(&platformWallet).Updates(map[string]interface{}{
-				"balance":      platformWallet.Balance - donation.TipsAmount,
-				"total_earned": platformWallet.TotalEarned - donation.TipsAmount,
+				"balance":      gorm.Expr("GREATEST(balance - ?, 0)", donation.TipsAmount),
+				"total_earned": gorm.Expr("GREATEST(total_earned - ?, 0)", donation.TipsAmount),
 			}).Error; err != nil {
 				return err
 			}
@@ -489,8 +530,8 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		}
 
 		projectRefundUpdates := map[string]interface{}{
-			"raised_amount":   gorm.Expr("raised_amount - ?", donation.Amount),
-			"donations_count": gorm.Expr("donations_count - 1"),
+			"raised_amount":   gorm.Expr("GREATEST(raised_amount - ?, 0)", donation.Amount),
+			"donations_count": gorm.Expr("GREATEST(donations_count - 1, 0)"),
 		}
 
 		// Decrement unique donors if this was the user's last non-refunded donation
@@ -502,7 +543,7 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 			return err
 		}
 		if remainingCount == 0 {
-			projectRefundUpdates["unique_donors"] = gorm.Expr("unique_donors - ?", 1)
+			projectRefundUpdates["unique_donors"] = gorm.Expr("GREATEST(unique_donors - 1, 0)")
 		}
 
 		if err := tx.Model(&models.CharityProject{}).Where("id = ?", donation.ProjectID).Updates(projectRefundUpdates).Error; err != nil {
@@ -511,7 +552,7 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 
 		// 9. Update organization stats
 		if err := tx.Model(&models.CharityOrganization{}).Where("id = ?", donation.Project.OrganizationID).Updates(map[string]interface{}{
-			"total_raised": gorm.Expr("total_raised - ?", donation.Amount),
+			"total_raised": gorm.Expr("GREATEST(total_raised - ?, 0)", donation.Amount),
 		}).Error; err != nil {
 			return err
 		}
@@ -637,6 +678,9 @@ func generateSlug(title string) string {
 	re := regexp.MustCompile(`-+`)
 	slug = re.ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		slug = "charity"
+	}
 
 	// Add timestamp for uniqueness
 	return fmt.Sprintf("%s-%d", slug, time.Now().Unix())

@@ -26,26 +26,72 @@ import useSWR from "swr";
 import api from "@/lib/api";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
+const getErrorMessage = (error: unknown): string => {
+  if (typeof error === "object" && error !== null) {
+    const maybeError = error as {
+      response?: { data?: { error?: string; message?: string } };
+      message?: string;
+    };
+    return (
+      maybeError.response?.data?.error ||
+      maybeError.response?.data?.message ||
+      maybeError.message ||
+      "Unexpected error"
+    );
+  }
+  return "Unexpected error";
+};
 
-const statusColors: Record<string, string> = {
+type NewsStatus = "draft" | "published" | "archived" | "deleted";
+type SourceType = "rss" | "url" | "vk" | "telegram";
+
+const statusColors: Record<NewsStatus, string> = {
   draft: "bg-yellow-100 text-yellow-800 border-yellow-200",
   published: "bg-green-100 text-green-800 border-green-200",
   archived: "bg-gray-100 text-gray-800 border-gray-200",
   deleted: "bg-red-100 text-red-800 border-red-200",
 };
 
-const statusIcons: Record<string, React.ReactNode> = {
+const statusIcons: Record<NewsStatus, React.ReactNode> = {
   draft: <Clock className="w-3 h-3" />,
   published: <CheckCircle className="w-3 h-3" />,
   archived: <Archive className="w-3 h-3" />,
   deleted: <XCircle className="w-3 h-3" />,
 };
 
-const sourceTypeIcons: Record<string, React.ReactNode> = {
+const sourceTypeIcons: Record<SourceType, React.ReactNode> = {
   rss: <Rss className="w-4 h-4" />,
   url: <Link2 className="w-4 h-4" />,
   vk: <Globe className="w-4 h-4" />,
   telegram: <Send className="w-4 h-4" />,
+};
+
+const normalizeNewsStatus = (status?: string): NewsStatus => {
+  if (status === "published" || status === "archived" || status === "deleted") {
+    return status;
+  }
+  return "draft";
+};
+
+const normalizeSourceType = (sourceType?: string): SourceType => {
+  if (sourceType === "url" || sourceType === "vk" || sourceType === "telegram") {
+    return sourceType;
+  }
+  return "rss";
+};
+
+const formatFetchInterval = (seconds?: number): string => {
+  const safeSeconds = Number.isFinite(seconds) ? Number(seconds) : 0;
+  if (safeSeconds <= 0) {
+    return "Unknown interval";
+  }
+  if (safeSeconds < 3600) {
+    return `Every ${Math.max(1, Math.round(safeSeconds / 60))} min`;
+  }
+  if (safeSeconds < 86400) {
+    return `Every ${Math.max(1, Math.round(safeSeconds / 3600))} h`;
+  }
+  return `Every ${Math.max(1, Math.round(safeSeconds / 86400))} d`;
 };
 
 interface NewsItem {
@@ -105,6 +151,58 @@ const serializeCsvValues = (values: string[]): string =>
     ",",
   );
 
+const toOptionalTrimmedString = (value?: string): string | undefined => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const sanitizeNewsPayload = (
+  newsItem: Partial<NewsItem>,
+): Partial<NewsItem> => ({
+  ...newsItem,
+  titleRu: newsItem.titleRu?.trim() || "",
+  titleEn: newsItem.titleEn?.trim() || "",
+  summaryRu: newsItem.summaryRu?.trim() || "",
+  summaryEn: newsItem.summaryEn?.trim() || "",
+  contentRu: newsItem.contentRu?.trim() || "",
+  contentEn: newsItem.contentEn?.trim() || "",
+  imageUrl: newsItem.imageUrl?.trim() || "",
+  tags: newsItem.tags?.trim() || "",
+  category: newsItem.category?.trim() || "",
+});
+
+const sanitizeSourcePayload = (
+  source: Partial<NewsSource>,
+): Partial<NewsSource> => {
+  const sourceType = source.sourceType || "rss";
+  const next: Partial<NewsSource> = {
+    ...source,
+    sourceType,
+    name: source.name?.trim() || "",
+    description: source.description?.trim() || "",
+    url: toOptionalTrimmedString(source.url) || "",
+    vkGroupId: toOptionalTrimmedString(source.vkGroupId) || "",
+    telegramId: toOptionalTrimmedString(source.telegramId) || "",
+    defaultTags: source.defaultTags?.trim() || "",
+    targetMadh: serializeCsvValues(parseCsvValues(source.targetMadh || "")),
+    targetYoga: serializeCsvValues(parseCsvValues(source.targetYoga || "")),
+    targetIdentity: serializeCsvValues(parseCsvValues(source.targetIdentity || "")),
+  };
+
+  if (sourceType === "rss" || sourceType === "url") {
+    next.vkGroupId = "";
+    next.telegramId = "";
+  } else if (sourceType === "vk") {
+    next.url = "";
+    next.telegramId = "";
+  } else if (sourceType === "telegram") {
+    next.url = "";
+    next.vkGroupId = "";
+  }
+
+  return next;
+};
+
 const MADH_OPTIONS = [
   { id: "iskcon", label: "ISKCON" },
   { id: "gaudiya", label: "Gaudiya Math" },
@@ -137,6 +235,7 @@ export default function NewsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Modals
   const [newsModal, setNewsModal] = useState<{
@@ -173,47 +272,62 @@ export default function NewsPage() {
   // Stats
   const { data: stats } = useSWR("/admin/news/stats", fetcher);
 
-  const news = newsData?.news || [];
-  const sources = sourcesData?.sources || [];
+  const news = Array.isArray(newsData?.news) ? newsData.news : [];
+  const sources = Array.isArray(sourcesData?.sources) ? sourcesData.sources : [];
 
   // ========== NEWS ACTIONS ==========
   const handlePublish = async (id: number) => {
+    if (actionLoading) return;
+    setActionError(null);
     setActionLoading(id.toString());
     try {
       await api.post(`/admin/news/${id}/publish`);
-      mutateNews();
+      await mutateNews();
     } catch (err) {
       console.error("Failed to publish", err);
+      setActionError(`Publish failed: ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleDeleteNews = async (id: number) => {
+    if (actionLoading) return;
     if (!confirm("Вы уверены, что хотите удалить эту новость?")) return;
+    setActionError(null);
     setActionLoading(id.toString());
     try {
       await api.delete(`/admin/news/${id}`);
-      mutateNews();
+      await mutateNews();
     } catch (err) {
       console.error("Failed to delete", err);
+      setActionError(`Delete failed: ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleSaveNews = async (newsItem: Partial<NewsItem>) => {
+    if (actionLoading) return;
+    setActionError(null);
     setActionLoading("save");
+    const payload = sanitizeNewsPayload(newsItem);
+    if (!payload.titleRu || !payload.contentRu) {
+      setActionError("Save failed: Russian title and content are required");
+      setActionLoading(null);
+      return;
+    }
     try {
       if (newsModal.news?.ID) {
-        await api.put(`/admin/news/${newsModal.news.ID}`, newsItem);
+        await api.put(`/admin/news/${newsModal.news.ID}`, payload);
       } else {
-        await api.post("/admin/news", newsItem);
+        await api.post("/admin/news", payload);
       }
-      mutateNews();
+      await mutateNews();
       setNewsModal({ open: false, news: null });
     } catch (err) {
       console.error("Failed to save news", err);
+      setActionError(`Save failed: ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(null);
     }
@@ -221,42 +335,55 @@ export default function NewsPage() {
 
   // ========== SOURCE ACTIONS ==========
   const handleToggleSource = async (id: number) => {
+    if (actionLoading) return;
+    setActionError(null);
     setActionLoading(`source-${id}`);
     try {
       await api.post(`/admin/news/sources/${id}/toggle`);
-      mutateSources();
+      await mutateSources();
     } catch (err) {
       console.error("Failed to toggle source", err);
+      setActionError(`Toggle failed: ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleDeleteSource = async (id: number) => {
+    if (actionLoading) return;
     if (!confirm("Вы уверены, что хотите удалить этот источник?")) return;
+    setActionError(null);
     setActionLoading(`source-${id}`);
     try {
       await api.delete(`/admin/news/sources/${id}`);
-      mutateSources();
+      await mutateSources();
     } catch (err) {
       console.error("Failed to delete source", err);
+      setActionError(`Delete failed: ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleSaveSource = async (source: Partial<NewsSource>) => {
-    const sourceType = source.sourceType || "rss";
+    if (actionLoading) return;
+    setActionError(null);
+    const payload = sanitizeSourcePayload(source);
+    if (!payload.name?.trim()) {
+      setActionError("Save failed: Source name is required");
+      return;
+    }
+    const sourceType = normalizeSourceType(payload.sourceType);
     const requiresUrl = sourceType === "rss" || sourceType === "url";
-    if (requiresUrl && !source.url?.trim()) {
+    if (requiresUrl && !payload.url?.trim()) {
       alert("URL is required for RSS/URL sources");
       return;
     }
-    if (sourceType === "vk" && !source.vkGroupId?.trim()) {
+    if (sourceType === "vk" && !payload.vkGroupId?.trim()) {
       alert("VK Group ID is required for VK sources");
       return;
     }
-    if (sourceType === "telegram" && !source.telegramId?.trim()) {
+    if (sourceType === "telegram" && !payload.telegramId?.trim()) {
       alert("Telegram Channel ID is required for Telegram sources");
       return;
     }
@@ -264,14 +391,15 @@ export default function NewsPage() {
     setActionLoading("save");
     try {
       if (sourceModal.source?.ID) {
-        await api.put(`/admin/news/sources/${sourceModal.source.ID}`, source);
+        await api.put(`/admin/news/sources/${sourceModal.source.ID}`, payload);
       } else {
-        await api.post("/admin/news/sources", source);
+        await api.post("/admin/news/sources", payload);
       }
-      mutateSources();
+      await mutateSources();
       setSourceModal({ open: false, source: null });
     } catch (err) {
       console.error("Failed to save source", err);
+      setActionError(`Save failed: ${getErrorMessage(err)}`);
     } finally {
       setActionLoading(null);
     }
@@ -279,6 +407,11 @@ export default function NewsPage() {
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -556,10 +689,10 @@ function NewsTable({
                   </td>
                   <td className="px-6 py-4">
                     <span
-                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border ${statusColors[item.status] || ""}`}
+                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border ${statusColors[normalizeNewsStatus(item.status)]}`}
                     >
-                      {statusIcons[item.status]}
-                      {item.status}
+                      {statusIcons[normalizeNewsStatus(item.status)]}
+                      {normalizeNewsStatus(item.status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-[var(--muted-foreground)]">
@@ -673,11 +806,9 @@ function SourcesTable({
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center ${source.isActive ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"}`}
-              >
-                {sourceTypeIcons[source.sourceType] || (
-                  <Globe className="w-5 h-5" />
-                )}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${source.isActive ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"}`}
+                >
+                {sourceTypeIcons[normalizeSourceType(source.sourceType)]}
               </div>
               <div>
                 <h3 className="font-semibold text-sm">{source.name}</h3>
@@ -706,10 +837,10 @@ function SourcesTable({
 
           <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] mb-4">
             <span className="bg-[var(--secondary)] px-2 py-1 rounded">
-              Mode: {source.mode}
+              Mode: {source.mode || "draft"}
             </span>
             <span className="bg-[var(--secondary)] px-2 py-1 rounded">
-              Every {Math.round(source.fetchInterval / 60)}min
+              {formatFetchInterval(source.fetchInterval)}
             </span>
           </div>
 

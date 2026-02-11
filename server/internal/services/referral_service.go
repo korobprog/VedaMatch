@@ -4,13 +4,16 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ReferralService handles referral program logic
@@ -29,8 +32,8 @@ func NewReferralService(walletService *WalletService) *ReferralService {
 func GenerateInviteCode() string {
 	bytes := make([]byte, 4)
 	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to simple random
-		return strings.ToUpper(hex.EncodeToString(bytes))[:8]
+		// Fallback to time-based value when crypto RNG is unavailable.
+		return strings.ToUpper(fmt.Sprintf("%08X", time.Now().UnixNano()&0xffffffff))
 	}
 	return strings.ToUpper(hex.EncodeToString(bytes))
 }
@@ -73,6 +76,7 @@ func (s *ReferralService) EnsureInviteCode(userID uint) (string, error) {
 
 // LinkReferral connects a new user to their referrer using invite code
 func (s *ReferralService) LinkReferral(newUserID uint, inviteCode string) error {
+	inviteCode = strings.TrimSpace(inviteCode)
 	if inviteCode == "" {
 		return nil // No invite code provided, not an error
 	}
@@ -92,6 +96,9 @@ func (s *ReferralService) LinkReferral(newUserID uint, inviteCode string) error 
 	if err := database.DB.First(&newUser, newUserID).Error; err != nil {
 		return err
 	}
+	if newUser.ReferrerID != nil {
+		return nil // Referrer is already set, do not relink
+	}
 
 	// Prevent self-referral
 	if referrer.ID == newUserID {
@@ -104,12 +111,16 @@ func (s *ReferralService) LinkReferral(newUserID uint, inviteCode string) error 
 		return nil // Block linking silently or with a specific message if needed
 	}
 
-	// Update new user with referrer info
-	if err := database.DB.Model(&models.User{}).Where("id = ?", newUserID).Updates(map[string]interface{}{
+	// Update new user with referrer info only if not linked yet (race-safe).
+	res := database.DB.Model(&models.User{}).Where("id = ? AND referrer_id IS NULL", newUserID).Updates(map[string]interface{}{
 		"referrer_id":     referrer.ID,
 		"referral_status": models.ReferralStatusPending,
-	}).Error; err != nil {
-		return err
+	})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil
 	}
 
 	log.Printf("[Referral] User %d linked to referrer %d (code: %s)", newUserID, referrer.ID, inviteCode)
@@ -134,6 +145,10 @@ func (s *ReferralService) LinkReferral(newUserID uint, inviteCode string) error 
 
 // ProcessProfileCompletion awards 50 Pending LKM to the referral when they complete their profile
 func (s *ReferralService) ProcessProfileCompletion(userID uint) error {
+	if s.walletService == nil {
+		return errors.New("wallet service is not configured")
+	}
+
 	var user models.User
 	if err := database.DB.First(&user, userID).Error; err != nil {
 		return err
@@ -163,52 +178,102 @@ func (s *ReferralService) ProcessProfileCompletion(userID uint) error {
 // 1. Activates the referral's pending balance
 // 2. Awards 100 LKM to the referrer
 func (s *ReferralService) ProcessActivation(userID uint) error {
-	var user models.User
-	if err := database.DB.First(&user, userID).Error; err != nil {
-		return err
+	if s.walletService == nil {
+		return errors.New("wallet service is not configured")
 	}
 
-	// Only process if user was referred and not yet activated
-	if user.ReferrerID == nil || user.ReferralStatus != models.ReferralStatusPending {
-		return nil
-	}
+	var (
+		referrerID uint
+		userName   string
+	)
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, userID).Error; err != nil {
+			return err
+		}
 
-	return database.DB.Transaction(func(tx *gorm.DB) error {
-		// 1. Mark referral as activated
+		// Only process if user was referred and not yet activated
+		if user.ReferrerID == nil || user.ReferralStatus != models.ReferralStatusPending {
+			return nil
+		}
+		referrerID = *user.ReferrerID
+		userName = user.SpiritualName
+		if userName == "" {
+			userName = user.KarmicName
+		}
+		if userName == "" {
+			userName = "Друг"
+		}
+
+		// 1. Activate pending balance for referral user in the same transaction.
+		userWallet, err := s.walletService.getOrCreateWalletTx(tx, userID)
+		if err != nil {
+			return err
+		}
+		if userWallet.PendingBalance > 0 {
+			activated := userWallet.PendingBalance
+			newBalance := userWallet.Balance + activated
+			if err := tx.Model(userWallet).Updates(map[string]interface{}{
+				"balance":         newBalance,
+				"pending_balance": 0,
+				"total_earned":    userWallet.TotalEarned + activated,
+			}).Error; err != nil {
+				return err
+			}
+			activationTx := models.WalletTransaction{
+				WalletID:     userWallet.ID,
+				Type:         models.TransactionTypeBonus,
+				Amount:       activated,
+				Description:  "Welcome Bonus Activated",
+				BalanceAfter: newBalance,
+			}
+			if err := tx.Create(&activationTx).Error; err != nil {
+				return err
+			}
+		}
+
+		// 2. Award 100 LKM to referrer in the same transaction.
+		refWallet, err := s.walletService.getOrCreateWalletTx(tx, referrerID)
+		if err != nil {
+			return err
+		}
+		refNewBalance := refWallet.Balance + 100
+		if err := tx.Model(refWallet).Updates(map[string]interface{}{
+			"balance":      refNewBalance,
+			"total_earned": refWallet.TotalEarned + 100,
+		}).Error; err != nil {
+			return err
+		}
+		bonusTx := models.WalletTransaction{
+			WalletID:     refWallet.ID,
+			Type:         models.TransactionTypeBonus,
+			Amount:       100,
+			Description:  "Реферальный бонус (друг активировался)",
+			BalanceAfter: refNewBalance,
+		}
+		if err := tx.Create(&bonusTx).Error; err != nil {
+			return err
+		}
+
+		// 3. Mark referral as activated only after successful balance changes.
 		if err := tx.Model(&user).Update("referral_status", models.ReferralStatusActivated).Error; err != nil {
 			return err
 		}
 
-		// 2. Activate pending balance for the referral (convert pending to active)
-		if err := s.walletService.ActivatePendingBalance(userID); err != nil {
-			log.Printf("[Referral] Failed to activate pending balance for user %d: %v", userID, err)
-			// Don't fail the whole transaction, just log
-		}
-
-		// 3. Award 100 LKM to the referrer
-		referrerID := *user.ReferrerID
-		err := s.walletService.AddBonus(referrerID, 100, "Реферальный бонус (друг активировался)")
-		if err != nil {
-			log.Printf("[Referral] Failed to credit referrer %d: %v", referrerID, err)
-			return err
-		}
-
-		log.Printf("[Referral] User %d activated! Referrer %d received 100 LKM", userID, referrerID)
-
-		// Send Push Notification to Referrer
-		go func() {
-			name := user.SpiritualName
-			if name == "" {
-				name = user.KarmicName
-			}
-			if name == "" {
-				name = "Друг"
-			}
-			GetPushService().SendReferralActivated(referrerID, name, 100)
-		}()
-
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if referrerID == 0 {
+		return nil
+	}
+
+	log.Printf("[Referral] User %d activated! Referrer %d received 100 LKM", userID, referrerID)
+	go func(name string, refID uint) {
+		GetPushService().SendReferralActivated(refID, name, 100)
+	}(userName, referrerID)
+	return nil
 }
 
 // GetReferralStats returns statistics for a user's referral activity
@@ -218,10 +283,14 @@ func (s *ReferralService) GetReferralStats(userID uint) (*ReferralStats, error) 
 	var totalEarned int64
 
 	// Count total invites
-	database.DB.Model(&models.User{}).Where("referrer_id = ?", userID).Count(&totalInvited)
+	if err := database.DB.Model(&models.User{}).Where("referrer_id = ?", userID).Count(&totalInvited).Error; err != nil {
+		return nil, err
+	}
 
 	// Count active invites
-	database.DB.Model(&models.User{}).Where("referrer_id = ? AND referral_status = ?", userID, models.ReferralStatusActivated).Count(&activeInvited)
+	if err := database.DB.Model(&models.User{}).Where("referrer_id = ? AND referral_status = ?", userID, models.ReferralStatusActivated).Count(&activeInvited).Error; err != nil {
+		return nil, err
+	}
 
 	// Calculate total earned (100 LKM per active referral)
 	totalEarned = activeInvited * 100
@@ -295,16 +364,24 @@ func (s *ReferralService) GenerateInviteCodesForExistingUsers() error {
 	}
 
 	for _, user := range users {
-		code := GenerateInviteCode()
-		// Check uniqueness
-		for {
-			var existing models.User
-			if err := database.DB.Where("invite_code = ?", code).First(&existing).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					break // Unique
-				}
-			}
+		var code string
+		foundUnique := false
+		for i := 0; i < 10; i++ {
 			code = GenerateInviteCode()
+			var existing models.User
+			err := database.DB.Where("invite_code = ?", code).First(&existing).Error
+			if err == nil {
+				continue
+			}
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				foundUnique = true
+				break
+			}
+			return err
+		}
+		if !foundUnique {
+			log.Printf("[Referral] Failed to generate unique code for user %d after retries", user.ID)
+			continue
 		}
 
 		if err := database.DB.Model(&user).Update("invite_code", code).Error; err != nil {

@@ -11,6 +11,22 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+func parseBoundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
+	value := def
+	if raw := c.Query(key); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			value = parsed
+		}
+	}
+	if value < min {
+		return min
+	}
+	if max > 0 && value > max {
+		return max
+	}
+	return value
+}
+
 // YatraAdminHandler handles admin endpoints for yatra management
 type YatraAdminHandler struct {
 	yatraAdminService     *services.YatraAdminService
@@ -155,15 +171,11 @@ func (h *YatraAdminHandler) GetAllYatras(c *fiber.Ctx) error {
 	}
 
 	if c.Query("page") != "" {
-		if page, err := strconv.Atoi(c.Query("page")); err == nil {
-			filters.Page = page
-		}
+		filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
 	}
 
 	if c.Query("limit") != "" {
-		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
-			filters.Limit = limit
-		}
+		filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
 	}
 
 	yatras, total, err := h.yatraAdminService.GetAllYatras(filters)
@@ -342,15 +354,11 @@ func (h *YatraAdminHandler) GetOrganizers(c *fiber.Ctx) error {
 	}
 
 	if c.Query("page") != "" {
-		if page, err := strconv.Atoi(c.Query("page")); err == nil {
-			filters.Page = page
-		}
+		filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
 	}
 
 	if c.Query("limit") != "" {
-		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
-			filters.Limit = limit
-		}
+		filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
 	}
 
 	organizers, total, err := h.organizerAdminService.GetOrganizers(filters)
@@ -436,15 +444,11 @@ func (h *YatraAdminHandler) GetReports(c *fiber.Ctx) error {
 	}
 
 	if c.Query("page") != "" {
-		if page, err := strconv.Atoi(c.Query("page")); err == nil {
-			filters.Page = page
-		}
+		filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
 	}
 
 	if c.Query("limit") != "" {
-		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
-			filters.Limit = limit
-		}
+		filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
 	}
 
 	reports, total, err := h.reportService.GetAllReports(filters)
@@ -548,12 +552,7 @@ func (h *YatraAdminHandler) DismissReport(c *fiber.Ctx) error {
 // GetTopOrganizers returns top organizers
 // GET /api/admin/yatra/analytics/top-organizers
 func (h *YatraAdminHandler) GetTopOrganizers(c *fiber.Ctx) error {
-	limit := 10
-	if c.Query("limit") != "" {
-		if l, err := strconv.Atoi(c.Query("limit")); err == nil {
-			limit = l
-		}
-	}
+	limit := parseBoundedQueryInt(c, "limit", 10, 1, 100)
 
 	orderBy := c.Query("order_by") // "total", "rating", "participants", "completed"
 	if orderBy == "" {
@@ -594,12 +593,7 @@ func (h *YatraAdminHandler) GetThemes(c *fiber.Ctx) error {
 // GET /api/admin/yatra/analytics/trends
 func (h *YatraAdminHandler) GetTrends(c *fiber.Ctx) error {
 	period := c.Query("period") // "month"
-	months := 12
-	if c.Query("months") != "" {
-		if m, err := strconv.Atoi(c.Query("months")); err == nil {
-			months = m
-		}
-	}
+	months := parseBoundedQueryInt(c, "months", 12, 1, 60)
 
 	trends, err := h.analyticsService.GetTimeTrends(period, months)
 	if err != nil {
@@ -615,14 +609,8 @@ func (h *YatraAdminHandler) GetTrends(c *fiber.Ctx) error {
 // GET /api/admin/notifications
 func (h *YatraAdminHandler) GetNotifications(c *fiber.Ctx) error {
 	unreadOnly := c.Query("unread_only") == "true"
-	page := 1
-	limit := 50
-
-	if c.Query("page") != "" {
-		if p, err := strconv.Atoi(c.Query("page")); err == nil {
-			page = p
-		}
-	}
+	page := parseBoundedQueryInt(c, "page", 1, 1, 100000)
+	limit := parseBoundedQueryInt(c, "limit", 50, 1, 200)
 
 	notifications, total, err := h.notificationService.GetNotifications(unreadOnly, page, limit)
 	if err != nil {

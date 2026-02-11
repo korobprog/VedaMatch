@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -35,6 +35,18 @@ import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
+interface ChatMessage {
+    id: string;
+    content: string;
+    type?: string;
+    fileName?: string;
+    fileSize?: number;
+    duration?: number;
+    sender: string;
+    isMe: boolean;
+    time: string;
+}
+
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const { roomId, roomName, isYatraChat } = route.params;
     const { t, i18n } = useTranslation();
@@ -45,7 +57,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const { addListener } = useWebSocket();
     const isPhotoBg = portalBackgroundType === 'image';
 
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputText, setInputText] = useState('');
     const [loading, setLoading] = useState(true);
     const [inviteVisible, setInviteVisible] = useState(false);
@@ -59,7 +71,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [readerFontSize, setReaderFontSize] = useState(16);
     const [readerFontBold, setReaderFontBold] = useState(false);
+    const latestMessagesRequestRef = useRef(0);
     const triggerTapFeedback = usePressFeedback();
+
+    const toPositiveInt = (value: unknown): number | null => {
+        const parsed = Number.parseInt(String(value ?? ''), 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return parsed;
+    };
 
     const fetchVerse = useCallback(async (bookCode: string, chapter: number, verseNum: number, lang: string = 'ru') => {
         try {
@@ -67,11 +86,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             if (response.ok) {
                 const verses = await response.json();
                 setVersesInChapter(verses);
-                const verse = verses.find((v: any) => parseInt(v.verse, 10) === verseNum);
+                const verse = verses.find((v: { verse?: string | number }) => Number.parseInt(String(v.verse ?? ''), 10) === verseNum);
                 setCurrentVerse(verse || verses[0]);
             }
         } catch (err) {
             console.error('Error fetching verse', err);
+            setVersesInChapter([]);
+            setCurrentVerse(null);
         }
     }, []);
 
@@ -149,6 +170,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     const fetchMessages = useCallback(async () => {
+        const requestId = ++latestMessagesRequestRef.current;
+        if (!user?.ID) {
+            if (requestId === latestMessagesRequestRef.current) {
+                setLoading(false);
+                setMessages([]);
+            }
+            return;
+        }
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`, {
@@ -156,8 +185,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             });
             if (response.ok) {
                 const data = await response.json();
-                const formattedMessages = data.map((m: any) => ({
-                    id: m.ID.toString(),
+                const formattedMessages = data
+                    .filter((m: any) => m?.ID != null)
+                    .map((m: any) => ({
+                    id: String(m.ID),
                     content: m.content,
                     type: m.type || 'text',
                     fileName: m.fileName,
@@ -167,14 +198,24 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     isMe: m.senderId === user?.ID,
                     time: new Date(m.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
                 }));
-                setMessages(formattedMessages);
+                if (requestId === latestMessagesRequestRef.current) {
+                    setMessages(formattedMessages);
+                }
             }
         } catch (error) {
             console.error('Error fetching messages:', error);
         } finally {
-            setLoading(false);
+            if (requestId === latestMessagesRequestRef.current) {
+                setLoading(false);
+            }
         }
     }, [i18n.language, roomId, t, user?.ID, user?.karmicName, user?.spiritualName]);
+
+    useEffect(() => {
+        return () => {
+            latestMessagesRequestRef.current += 1;
+        };
+    }, []);
 
     useEffect(() => {
         fetchMessages();
@@ -185,9 +226,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     useEffect(() => {
         const removeListener = addListener((msg: any) => {
             // Check if message belongs to this room
-            if (msg.roomId === roomId) {
+            if (String(msg?.roomId) === String(roomId) && msg?.ID != null) {
                 const formattedMsg = {
-                    id: msg.ID.toString(),
+                    id: String(msg.ID),
                     content: msg.content,
                     type: msg.type || 'text',
                     fileName: msg.fileName,
@@ -303,10 +344,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const handleNextVerse = async () => {
         if (!roomDetails || !versesInChapter) return;
 
-        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse, 10) === roomDetails.currentVerse);
+        const currentVerse = toPositiveInt(roomDetails.currentVerse);
+        if (!currentVerse) return;
+        const currentVerseIdx = versesInChapter.findIndex(v => toPositiveInt(v.verse) === currentVerse);
         if (currentVerseIdx !== -1 && currentVerseIdx < versesInChapter.length - 1) {
             // Move to next verse in same chapter
-            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx + 1].verse, 10));
+            const nextVerse = toPositiveInt(versesInChapter[currentVerseIdx + 1].verse);
+            if (nextVerse) {
+                handleJumpToVerse(roomDetails.currentChapter, nextVerse);
+            }
         } else {
             // Check if next chapter exists
             const currentChapterIdx = chapters.findIndex(ch => ch.chapter === roomDetails.currentChapter);
@@ -320,10 +366,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const handlePrevVerse = async () => {
         if (!roomDetails || !versesInChapter) return;
 
-        const currentVerseIdx = versesInChapter.findIndex(v => parseInt(v.verse, 10) === roomDetails.currentVerse);
+        const currentVerse = toPositiveInt(roomDetails.currentVerse);
+        if (!currentVerse) return;
+        const currentVerseIdx = versesInChapter.findIndex(v => toPositiveInt(v.verse) === currentVerse);
         if (currentVerseIdx > 0) {
             // Move to previous verse in same chapter
-            handleJumpToVerse(roomDetails.currentChapter, parseInt(versesInChapter[currentVerseIdx - 1].verse, 10));
+            const prevVerse = toPositiveInt(versesInChapter[currentVerseIdx - 1].verse);
+            if (prevVerse) {
+                handleJumpToVerse(roomDetails.currentChapter, prevVerse);
+            }
         } else {
             // Check if previous chapter exists
             const currentChapterIdx = chapters.findIndex(ch => ch.chapter === roomDetails.currentChapter);
@@ -336,7 +387,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     const handleSendMessage = async () => {
-        if (!inputText.trim()) return;
+        if (!inputText.trim() || !user?.ID) return;
 
         const newMessage = {
             senderId: user?.ID,
@@ -378,13 +429,25 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 );
                 // Restore the input text so user doesn't lose their message
                 setInputText(newMessage.content);
+            } else {
+                // Restore input on any non-success response to avoid message loss.
+                setInputText(newMessage.content);
+                Alert.alert(
+                    t('common.error'),
+                    t('chat.sendError') || 'Не удалось отправить сообщение'
+                );
             }
         } catch (error) {
             console.error('Error sending message:', error);
+            setInputText(newMessage.content);
+            Alert.alert(
+                t('common.error'),
+                t('chat.sendError') || 'Не удалось отправить сообщение'
+            );
         }
     };
 
-    const renderMessage = ({ item }: any) => {
+    const renderMessage = ({ item }: { item: ChatMessage }) => {
         const isAudio = item.type === 'audio';
         const isImage = item.type === 'image';
         const isDocument = item.type === 'document';
@@ -420,12 +483,24 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 ) : isDocument ? (
                     <TouchableOpacity
                         style={styles.documentRow}
-                        onPress={() => Linking.openURL(item.content)}
+                        onPress={async () => {
+                            try {
+                                const supported = await Linking.canOpenURL(item.content);
+                                if (!supported) {
+                                    Alert.alert(t('common.error'), t('common.tryAgain') || 'Ссылка недоступна');
+                                    return;
+                                }
+                                await Linking.openURL(item.content);
+                            } catch (error) {
+                                console.error('Failed to open document URL:', error);
+                                Alert.alert(t('common.error'), t('common.tryAgain') || 'Не удалось открыть ссылку');
+                            }
+                        }}
                     >
                         <Text style={{ fontSize: 20, marginRight: 8 }}>📄</Text>
                         <View>
                         <Text style={[styles.messageText, { color: theme.text }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
-                            <Text style={{ color: theme.subText, fontSize: 10 }}>{mediaService.formatFileSize(item.fileSize)}</Text>
+                            <Text style={{ color: theme.subText, fontSize: 10 }}>{mediaService.formatFileSize(item.fileSize ?? 0)}</Text>
                         </View>
                     </TouchableOpacity>
                 ) : (
@@ -540,7 +615,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                             </View>
                                         )}
                                     </ScrollView>
-                                    <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter + 1, 1)} disabled={roomDetails.currentChapter >= chapters.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                    <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter + 1, 1)} disabled={chapters.length > 0 ? roomDetails.currentChapter >= chapters.length : true} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
                                         <ChevronRight size={20} color={roomDetails.currentChapter >= chapters.length ? 'rgba(0,0,0,0.1)' : vTheme.colors.primary} />
                                     </TouchableOpacity>
                                 </View>
@@ -554,15 +629,21 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                     </View>
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
                                         {versesInChapter.map((v) => (
+                                            (() => {
+                                                const verseNumber = toPositiveInt(v.verse);
+                                                if (!verseNumber) return null;
+                                                return (
                                             <TouchableOpacity
                                                 key={v.id}
-                                                style={[styles.verseNavItem, roomDetails.currentVerse === parseInt(v.verse, 10) && styles.verseNavItemActive]}
-                                                onPress={() => handleJumpToVerse(roomDetails.currentChapter, parseInt(v.verse, 10))}
+                                                style={[styles.verseNavItem, roomDetails.currentVerse === verseNumber && styles.verseNavItemActive]}
+                                                onPress={() => handleJumpToVerse(roomDetails.currentChapter, verseNumber)}
                                             >
                                                 <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse, 10) && styles.verseNavItemTextActive]}>
                                                     {v.verse}
                                                 </Text>
                                             </TouchableOpacity>
+                                                );
+                                            })()
                                         ))}
                                     </ScrollView>
                                     <TouchableOpacity onPress={() => handleJumpToVerse(roomDetails.currentChapter, roomDetails.currentVerse + 1)} disabled={roomDetails.currentVerse >= versesInChapter.length} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>

@@ -33,6 +33,15 @@ interface RoomSettingsModalProps {
     roomName: string;
 }
 
+const extractApiErrorMessage = (payload: unknown, fallback: string): string => {
+    if (typeof payload === 'object' && payload !== null) {
+        const maybePayload = payload as { error?: string; message?: string };
+        if (maybePayload.error) return maybePayload.error;
+        if (maybePayload.message) return maybePayload.message;
+    }
+    return fallback;
+};
+
 export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, onClose, roomId, roomName }) => {
     const { t } = useTranslation();
     const { isDarkMode, vTheme, portalBackgroundType } = useSettings();
@@ -77,7 +86,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         { id: 'peacock', emoji: '🦚' },
     ];
 
-    const EMOJI_MAP: any = {
+    const EMOJI_MAP: Record<string, string> = {
         'krishna': '🕉️',
         'om': '🕉️',
         'japa': '📿',
@@ -142,6 +151,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
 
     useEffect(() => {
         if (visible) {
+            setLoading(true);
             fetchSettings();
             loadFontSettings();
         }
@@ -181,7 +191,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         handleUpdateSettings({ aiEnabled: val });
     };
 
-    const handleUpdateSettings = async (updates: any) => {
+    const handleUpdateSettings = async (updates: Record<string, unknown>): Promise<boolean> => {
         setSaving(true);
         try {
             const token = await AsyncStorage.getItem('token');
@@ -195,22 +205,27 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                Alert.alert(t('common.error'), errorData.error || 'Failed to update settings');
+                const errorData = await response.json().catch(() => null);
+                Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to update settings'));
+                return false;
             }
+            return true;
         } catch (error) {
             console.error('Failed to update room settings', error);
             Alert.alert(t('common.error'), 'Network error');
+            return false;
         } finally {
             setSaving(false);
         }
     };
 
     const handleSaveReading = async () => {
-        await handleUpdateSettings({
+        const nextChapter = Math.max(1, Number(chapter) || 1);
+        const nextVerse = Math.max(1, Number(verse) || 1);
+        const updated = await handleUpdateSettings({
             bookCode: enableReading ? bookCode : '',
-            currentChapter: enableReading ? Number(chapter) : 1,
-            currentVerse: enableReading ? Number(verse) : 1,
+            currentChapter: enableReading ? nextChapter : 1,
+            currentVerse: enableReading ? nextVerse : 1,
             language: readingLanguage,
             showPurport: showPurport,
             name: editName,
@@ -218,7 +233,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             location: enableReading ? editLocation : '',
             startTime: (enableReading && startTime) ? startTime.toISOString() : null
         });
-        onClose();
+        if (updated) {
+            onClose();
+        }
     };
 
     const handleSelectPreset = (presetId: string) => {
@@ -227,24 +244,24 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleUploadImage = async () => {
-        const result = await launchImageLibrary({
-            mediaType: 'photo',
-            quality: 0.8,
-            includeBase64: false,
-        });
-
-        if (result.didCancel || !result.assets || result.assets.length === 0) return;
-
-        const asset = result.assets[0];
-        if (!asset.uri) return;
-
-        setUploadingImage(true);
         try {
+            const result = await launchImageLibrary({
+                mediaType: 'photo',
+                quality: 0.8,
+                includeBase64: false,
+            });
+
+            if (result.didCancel || !result.assets || result.assets.length === 0) return;
+
+            const asset = result.assets[0];
+            if (!asset.uri) return;
+
+            setUploadingImage(true);
             const token = await AsyncStorage.getItem('token');
             const formData = new FormData();
             formData.append('image', {
                 uri: asset.uri,
-                type: asset.type,
+                type: asset.type || 'image/jpeg',
                 name: asset.fileName || 'room_image.jpg',
             } as any);
 
@@ -261,7 +278,8 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                 setRoomImage(data.imageUrl);
                 Alert.alert(t('common.success'), t('chat.imageUpdated') || 'Image updated');
             } else {
-                Alert.alert(t('common.error'), 'Failed to upload image');
+                const errorData = await response.json().catch(() => null);
+                Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to upload image'));
             }
         } catch (error) {
             console.error('Upload error:', error);

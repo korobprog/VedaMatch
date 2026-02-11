@@ -15,6 +15,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
     ArrowLeft,
     Save,
@@ -28,15 +29,12 @@ import {
     updateServiceSchedule,
     CreateScheduleRequest,
 } from '../../../services/serviceService';
+import { RootStackParamList } from '../../../types/navigation';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 
-type RouteParams = {
-    params: {
-        serviceId: number;
-    };
-};
+type ServiceScheduleNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 interface TimeSlot {
     startTime: string;
@@ -78,8 +76,8 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 });
 
 export default function ServiceScheduleScreen() {
-    const navigation = useNavigation<any>();
-    const route = useRoute<RouteProp<RouteParams, 'params'>>();
+    const navigation = useNavigation<ServiceScheduleNavigationProp>();
+    const route = useRoute<RouteProp<RootStackParamList, 'ServiceSchedule'>>();
     const serviceId = route.params?.serviceId;
     const { user } = useUser();
     const { isDarkMode } = useSettings();
@@ -112,9 +110,9 @@ export default function ServiceScheduleScreen() {
                 });
 
                 setSchedule(parsed);
-                if (data.slotDuration) setSlotDuration(data.slotDuration);
-                if (data.breakBetween) setBreakBetween(data.breakBetween);
-                if (data.maxBookingsPerDay) setMaxBookingsPerDay(data.maxBookingsPerDay);
+                if (typeof data.slotDuration === 'number') setSlotDuration(data.slotDuration);
+                if (typeof data.breakBetween === 'number') setBreakBetween(data.breakBetween);
+                if (typeof data.maxBookingsPerDay === 'number') setMaxBookingsPerDay(data.maxBookingsPerDay);
             }
         } catch (error) {
             console.error('Failed to load schedule:', error);
@@ -127,8 +125,12 @@ export default function ServiceScheduleScreen() {
     useEffect(() => {
         if (serviceId) {
             loadSchedule();
+        } else {
+            setLoading(false);
+            Alert.alert('Ошибка', 'Не указан сервис');
+            navigation.goBack();
         }
-    }, [serviceId, loadSchedule]);
+    }, [serviceId, loadSchedule, navigation]);
 
     const handleToggleDay = (day: DayOfWeek) => {
         setSchedule(prev => ({
@@ -218,9 +220,13 @@ export default function ServiceScheduleScreen() {
     };
 
     const handleSave = async () => {
+        if (!serviceId) {
+            Alert.alert('Ошибка', 'Не указан сервис');
+            return;
+        }
         setSaving(true);
         try {
-            const weeklySlots: Record<string, any> = {};
+            const weeklySlots: NonNullable<CreateScheduleRequest['weeklySlots']> = {};
             DAYS.forEach(({ key }) => {
                 weeklySlots[key] = {
                     enabled: schedule[key].enabled,
@@ -239,9 +245,13 @@ export default function ServiceScheduleScreen() {
             await updateServiceSchedule(serviceId, request);
             Alert.alert('Готово! ✨', 'Расписание сохранено');
             navigation.goBack();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Save failed:', error);
-            Alert.alert('Ошибка', error.message || 'Не удалось сохранить');
+            const message =
+                typeof error === 'object' && error !== null && 'message' in error
+                    ? String((error as { message?: string }).message)
+                    : '';
+            Alert.alert('Ошибка', message || 'Не удалось сохранить');
         } finally {
             setSaving(false);
         }
@@ -256,10 +266,13 @@ export default function ServiceScheduleScreen() {
     };
 
     function showTimePicker(day: DayOfWeek, slotIndex: number, field: 'startTime' | 'endTime', _currentValue: string) {
+        const [startH, startM] = schedule[day].slots[slotIndex].startTime.split(':').map(Number);
+        const startTotal = startH * 60 + startM;
         const options = TIME_OPTIONS.filter(t => {
-            const h = parseInt(t.split(':')[0], 10);
+            const [h, m] = t.split(':').map(Number);
+            const total = h * 60 + m;
             if (field === 'startTime') return h >= 6 && h < 23;
-            return h > parseInt(schedule[day].slots[slotIndex].startTime.split(':')[0], 10);
+            return total > startTotal;
         });
 
         Alert.alert(

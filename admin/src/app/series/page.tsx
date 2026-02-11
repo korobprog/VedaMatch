@@ -25,7 +25,18 @@ import api from "@/lib/api";
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
 const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null) {
+    const maybeError = error as {
+      response?: { data?: { error?: string; message?: string } };
+      message?: string;
+    };
+    return (
+      maybeError.response?.data?.error ||
+      maybeError.response?.data?.message ||
+      maybeError.message ||
+      "Unknown error"
+    );
+  }
   return "Unknown error";
 };
 
@@ -78,6 +89,39 @@ interface ParsedEpisode extends ParsedFilenameEpisode {
   videoURL: string;
 }
 
+const toSeriesSlug = (title?: string): string =>
+  (title || "")
+    .toLowerCase()
+    .replace(/[^a-z\u0430-\u044f\u04510-9]+/gi, "-")
+    .replace(/^-|-$/g, "") || "unknown";
+
+const mapParsedEpisodesToFiles = (
+  parsed: ParsedFilenameEpisode[],
+  files: File[],
+): ParsedEpisode[] => {
+  const filesByName = new Map<string, File[]>();
+  files.forEach((file) => {
+    const list = filesByName.get(file.name) || [];
+    list.push(file);
+    filesByName.set(file.name, list);
+  });
+
+  return parsed
+    .map((entry) => {
+      const candidates = filesByName.get(entry.filename);
+      const file = candidates?.shift();
+      if (!file) {
+        return null;
+      }
+      return {
+        ...entry,
+        file,
+        videoURL: "",
+      };
+    })
+    .filter((entry): entry is ParsedEpisode => entry !== null);
+};
+
 export default function SeriesPage() {
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const [showSeriesModal, setShowSeriesModal] = useState(false);
@@ -88,11 +132,13 @@ export default function SeriesPage() {
   const { data: seriesData, mutate } = useSWR("/admin/series", fetcher);
   const { data: statsData } = useSWR("/admin/series/stats", fetcher);
 
-  const series: Series[] = seriesData?.series || [];
-  const stats = statsData || {
-    totalSeries: 0,
-    totalSeasons: 0,
-    totalEpisodes: 0,
+  const series: Series[] = Array.isArray(seriesData?.series)
+    ? seriesData.series
+    : [];
+  const stats = {
+    totalSeries: Number(statsData?.totalSeries) || 0,
+    totalSeasons: Number(statsData?.totalSeasons) || 0,
+    totalEpisodes: Number(statsData?.totalEpisodes) || 0,
   };
 
   const handleDeleteSeries = async (id: number) => {
@@ -320,10 +366,7 @@ function SeriesCard({
           <SeasonSection
             key={season.id}
             season={season}
-            seriesSlug={series.title
-              .toLowerCase()
-              .replace(/[^a-zа-яё0-9]+/gi, "-")
-              .replace(/^-|-$/g, "")}
+            seriesSlug={toSeriesSlug(series.title)}
             isExpanded={expandedSeasons.includes(season.id)}
             onToggle={() => toggleSeason(season.id)}
             mutate={mutate}
@@ -379,7 +422,7 @@ function SeasonSection({
       const { uploadUrl, finalUrl } = presignRes.data;
 
       // Upload to S3
-      await fetch(uploadUrl, {
+      const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         body: file,
         headers: {
@@ -387,19 +430,30 @@ function SeasonSection({
           "x-amz-acl": "public-read",
         },
       });
+      if (!uploadRes.ok) {
+        throw new Error(`S3 upload failed with status ${uploadRes.status}`);
+      }
 
       setEpisodeForm((prev) => ({ ...prev, videoURL: finalUrl }));
     } catch (err) {
       console.error(err);
       alert(`Upload failed: ${getErrorMessage(err)}`);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   };
 
   const handleAddEpisode = async () => {
+    const title = episodeForm.title.trim();
+    const videoURL = episodeForm.videoURL.trim();
+    if (!videoURL) {
+      alert("Please provide a video URL or upload a video first.");
+      return;
+    }
     try {
       await api.post(`/admin/seasons/${season.id}/episodes`, {
-        ...episodeForm,
+        title,
+        videoURL,
         number: (season.episodes?.length || 0) + 1,
       });
       mutate();
@@ -583,18 +637,31 @@ function SeriesModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const title = form.title.trim();
+    if (!title) {
+      alert("Series title is required");
+      return;
+    }
     setLoading(true);
+    const payload = {
+      ...form,
+      title,
+      description: form.description.trim(),
+      coverImageURL: form.coverImageURL.trim(),
+      genre: form.genre.trim(),
+    };
     try {
       if (series?.id) {
-        await api.put(`/admin/series/${series.id}`, form);
+        await api.put(`/admin/series/${series.id}`, payload);
       } else {
-        await api.post("/admin/series", form);
+        await api.post("/admin/series", payload);
       }
       onSave();
     } catch (err) {
-      console.error(err);
+      showApiError("Failed to save series", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -687,10 +754,7 @@ function SeriesModal({
                         setLoading(true);
 
                         // Generate slug for folder
-                        const slug =
-                          form.title
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, "-") || "temp";
+                        const slug = toSeriesSlug(form.title || "temp");
 
                         const presignRes = await api.post(
                           "/admin/multimedia/presign",
@@ -703,7 +767,7 @@ function SeriesModal({
 
                         const { uploadUrl, finalUrl } = presignRes.data;
 
-                        await fetch(uploadUrl, {
+                        const uploadRes = await fetch(uploadUrl, {
                           method: "PUT",
                           body: file,
                           headers: {
@@ -711,6 +775,11 @@ function SeriesModal({
                             "x-amz-acl": "public-read",
                           },
                         });
+                        if (!uploadRes.ok) {
+                          throw new Error(
+                            `Cover upload failed with status ${uploadRes.status}`,
+                          );
+                        }
 
                         setForm((prev) => ({
                           ...prev,
@@ -854,27 +923,34 @@ function BulkUploadModal({
     );
 
     // Merge with file objects
-    const parsed = res.data.parsed.map((p, i) => ({
-      ...p,
-      file: filesArray[i],
-      videoURL: "", // Will be set after upload
-    }));
+    const parsed = mapParsedEpisodesToFiles(
+      Array.isArray(res.data?.parsed) ? res.data.parsed : [],
+      filesArray,
+    );
+
+    if (parsed.length === 0) {
+      alert("No parseable files found");
+      return;
+    }
 
     setParsedEpisodes(parsed);
     setStep("preview");
   };
 
   const handleUpload = async () => {
+    if (selectedSeriesId === 0) {
+      alert("Please select a series");
+      return;
+    }
+    if (parsedEpisodes.length === 0) {
+      alert("No episodes selected for upload");
+      return;
+    }
     setStep("uploading");
 
     // Get selected series for slug
     const selectedSeries = series.find((s) => s.id === selectedSeriesId);
-    const seriesSlug = selectedSeries
-      ? selectedSeries.title
-          .toLowerCase()
-          .replace(/[^a-z\u0430-\u044f\u04510-9]+/gi, "-")
-          .replace(/^-|-$/g, "")
-      : "unknown";
+    const seriesSlug = selectedSeries ? toSeriesSlug(selectedSeries.title) : "unknown";
 
     try {
       const uploadedEpisodes: ParsedEpisode[] = [];
@@ -892,7 +968,7 @@ function BulkUploadModal({
         const { uploadUrl, finalUrl } = presignRes.data;
 
         // Upload to S3
-        await fetch(uploadUrl, {
+        const uploadRes = await fetch(uploadUrl, {
           method: "PUT",
           body: ep.file,
           headers: {
@@ -900,6 +976,9 @@ function BulkUploadModal({
             "x-amz-acl": "public-read",
           },
         });
+        if (!uploadRes.ok) {
+          throw new Error(`S3 upload failed with status ${uploadRes.status}`);
+        }
 
         uploadedEpisodes.push({ ...ep, videoURL: finalUrl });
         setUploadProgress(Math.round(((i + 1) / parsedEpisodes.length) * 100));
@@ -1118,9 +1197,8 @@ function S3ImportModal({
       const selectedSeries = series.find((s) => s.id === seriesId);
       if (selectedSeries) {
         const slug = selectedSeries.title
-          .toLowerCase()
-          .replace(/[^a-z\u0430-\u044f\u04510-9]+/gi, "-")
-          .replace(/^-|-$/g, "");
+          ? toSeriesSlug(selectedSeries.title)
+          : "unknown";
         setPrefix(`series/${slug}/`);
       }
     }
@@ -1132,17 +1210,19 @@ function S3ImportModal({
       const res = await api.get(
         `/admin/series/s3-files?prefix=${encodeURIComponent(prefix)}`,
       );
-      setFiles(res.data.files || []);
+      const fetchedFiles: S3File[] = Array.isArray(res.data?.files)
+        ? res.data.files
+        : [];
+      setFiles(fetchedFiles);
       // Select all by default
-      setSelectedFiles(
-        new Set((res.data.files || []).map((_: S3File, i: number) => i)),
-      );
+      setSelectedFiles(new Set(fetchedFiles.map((_: S3File, i: number) => i)));
       setStep("preview");
     } catch (err) {
       console.error(err);
       alert("Failed to load S3 files");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const toggleFile = (index: number) => {

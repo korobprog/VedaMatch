@@ -71,7 +71,16 @@ const ASSISTANT_OPTIONS: Array<{
     },
 ];
 
-export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
+interface SettingsNavigation {
+    goBack: () => void;
+    navigate: (screen: string, params?: unknown) => void;
+}
+
+interface AppSettingsScreenProps {
+    navigation: SettingsNavigation;
+}
+
+export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation }) => {
     const { t, i18n } = useTranslation();
     const {
         models,
@@ -112,33 +121,43 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         navigation.goBack();
     }, [navigation, triggerTapFeedback]);
 
-    const handlePickImage = useCallback(async () => {
+    const pickImageUri = useCallback(async (): Promise<string | null> => {
         const result = await launchImageLibrary({
             mediaType: 'photo',
             quality: 0.8,
         });
 
-        if (result.assets && result.assets.length > 0) {
-            const uri = result.assets[0].uri;
-            if (uri) {
-                await setPortalBackground(uri, 'image');
-            }
+        if (result.didCancel) {
+            return null;
         }
-    }, [setPortalBackground]);
+        if (result.errorCode) {
+            throw new Error(result.errorMessage || result.errorCode);
+        }
+        const uri = result.assets?.[0]?.uri;
+        return uri || null;
+    }, []);
+
+    const handlePickImage = useCallback(async () => {
+        try {
+            const uri = await pickImageUri();
+            if (!uri) return;
+            await setPortalBackground(uri, 'image');
+        } catch (error) {
+            console.warn('Failed to pick image:', error);
+            Alert.alert('Ошибка', 'Не удалось выбрать изображение');
+        }
+    }, [pickImageUri, setPortalBackground]);
 
     const handleAddSlideFromGallery = useCallback(async () => {
-        const result = await launchImageLibrary({
-            mediaType: 'photo',
-            quality: 0.8,
-        });
-
-        if (result.assets && result.assets.length > 0) {
-            const uri = result.assets[0].uri;
-            if (uri) {
-                await addWallpaperSlide(uri);
-            }
+        try {
+            const uri = await pickImageUri();
+            if (!uri) return;
+            await addWallpaperSlide(uri);
+        } catch (error) {
+            console.warn('Failed to add wallpaper slide:', error);
+            Alert.alert('Ошибка', 'Не удалось добавить фон');
         }
-    }, [addWallpaperSlide]);
+    }, [addWallpaperSlide, pickImageUri]);
 
     const handleRemoveSlide = useCallback((uri: string) => {
         if (wallpaperSlides.length <= 1) {
@@ -153,7 +172,12 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                 {
                     text: 'Удалить',
                     style: 'destructive',
-                    onPress: () => removeWallpaperSlide(uri),
+                    onPress: () => {
+                        void removeWallpaperSlide(uri).catch((error) => {
+                            console.warn('Failed to remove wallpaper slide:', error);
+                            Alert.alert('Ошибка', 'Не удалось удалить фон');
+                        });
+                    },
                 },
             ]
         );
@@ -205,6 +229,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
         location: false,
         models: false,
     });
+    const hasWallpaperSlides = wallpaperSlides.length > 0;
 
     const togglePanel = useCallback((panel: SettingsPanelKey) => {
         triggerTapFeedback();
@@ -215,6 +240,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
     }, [triggerTapFeedback]);
 
     useEffect(() => {
+        let isMounted = true;
         const loadExpandedPanels = async () => {
             try {
                 const saved = await AsyncStorage.getItem(SETTINGS_PANELS_STORAGE_KEY);
@@ -227,17 +253,32 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                     return;
                 }
 
-                setExpandedPanels((prev) => ({
-                    ...prev,
-                    ...parsed,
-                }));
+                if (isMounted) {
+                    setExpandedPanels((prev) => ({
+                        ...prev,
+                        ...parsed,
+                    }));
+                }
             } catch (error) {
                 console.warn('Failed to load settings accordion state:', error);
             }
         };
 
         loadExpandedPanels();
+        return () => {
+            isMounted = false;
+        };
     }, []);
+
+    const changeLanguageSafely = useCallback(async (language: 'ru' | 'en') => {
+        triggerTapFeedback();
+        try {
+            await i18n.changeLanguage(language);
+        } catch (error) {
+            console.warn('Failed to change language:', error);
+            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+        }
+    }, [i18n, t, triggerTapFeedback]);
 
     useEffect(() => {
         AsyncStorage.setItem(SETTINGS_PANELS_STORAGE_KEY, JSON.stringify(expandedPanels))
@@ -296,7 +337,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         activeOpacity={0.9}
                         onPress={() => {
                             triggerTapFeedback();
-                            navigation.navigate('EditProfile' as any);
+                            navigation.navigate('EditProfile');
                         }}
                     >
                         <View style={styles.actionContent}>
@@ -317,7 +358,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         ]}
                         onPress={() => {
                             triggerTapFeedback();
-                            navigation.navigate('Wallet' as any);
+                            navigation.navigate('Wallet');
                         }}
                         activeOpacity={0.88}
                     >
@@ -350,7 +391,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         activeOpacity={0.88}
                         onPress={() => {
                             triggerTapFeedback();
-                            navigation.navigate('InviteFriends' as any);
+                            navigation.navigate('InviteFriends');
                         }}
                     >
                         <View style={styles.actionContent}>
@@ -425,8 +466,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 }
                             ]}
                             onPress={() => {
-                                triggerTapFeedback();
-                                i18n.changeLanguage('ru');
+                                void changeLanguageSafely('ru');
                             }}
                         >
                             <Text style={i18n.language === 'ru' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>Русский</Text>
@@ -441,8 +481,7 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 }
                             ]}
                             onPress={() => {
-                                triggerTapFeedback();
-                                i18n.changeLanguage('en');
+                                void changeLanguageSafely('en');
                             }}
                         >
                             <Text style={i18n.language === 'en' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>English</Text>
@@ -613,6 +652,10 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                             value={isSlideshowEnabled}
                             onValueChange={(val) => {
                                 triggerTapFeedback();
+                                if (val && !hasWallpaperSlides) {
+                                    Alert.alert('Слайд-шоу недоступно', 'Сначала добавьте хотя бы один фон');
+                                    return;
+                                }
                                 setIsSlideshowEnabled(val);
                             }}
                             trackColor={{ false: vTheme.colors.backgroundSecondary, true: colors.accent }}
@@ -776,12 +819,17 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                                 },
                             ]}
                             onPress={async () => {
-                                await refreshLocationData();
-                                Alert.alert(
-                                    t('settings.locationCacheCleared'),
-                                    t('settings.locationCacheClearedMsg'),
-                                    [{ text: t('common.ok') }]
-                                );
+                                try {
+                                    await refreshLocationData();
+                                    Alert.alert(
+                                        t('settings.locationCacheCleared'),
+                                        t('settings.locationCacheClearedMsg'),
+                                        [{ text: t('common.ok') }]
+                                    );
+                                } catch (error) {
+                                    console.warn('Failed to clear location cache:', error);
+                                    Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+                                }
                             }}
                         >
                             <Text style={[{ color: theme.buttonText }, themedStyles.optionTextMedium]}>{t('settings.clearLocationCache')}</Text>
@@ -832,7 +880,14 @@ export const AppSettingsScreen: React.FC<any> = ({ navigation }) => {
                         ]}
                         onPress={() => {
                             triggerTapFeedback();
-                            logout();
+                            Alert.alert(
+                                t('auth.logout') || 'Logout',
+                                t('auth.logoutConfirm') || 'Вы уверены, что хотите выйти?',
+                                [
+                                    { text: t('common.cancel') || 'Отмена', style: 'cancel' },
+                                    { text: t('auth.logout') || 'Logout', style: 'destructive', onPress: logout },
+                                ]
+                            );
                         }}
                     >
                         <Text style={themedStyles.logoutText}>

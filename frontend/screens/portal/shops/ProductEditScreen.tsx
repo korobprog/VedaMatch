@@ -5,23 +5,69 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { marketService } from '../../../services/marketService';
 import { ProductType, ProductCategory, ProductCategoryConfig, VariantFormData, Product } from '../../../types/market';
+import { RootStackParamList } from '../../../types/navigation';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 
-type RouteParams = {
-    ProductEdit: { productId?: number };
+const parseVariantAttributes = (raw?: string): Record<string, string> => {
+    if (!raw || raw === 'undefined' || raw === 'null') {
+        return {};
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const toNonNegativeNumber = (raw: string): number | null => {
+    if (!raw.trim()) {
+        return null;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return null;
+    }
+    return parsed;
+};
+
+const toNonNegativeInt = (raw: string): number | null => {
+    if (!raw.trim()) {
+        return null;
+    }
+    const parsed = parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return null;
+    }
+    return parsed;
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (typeof error === 'object' && error !== null) {
+        const responseMessage = (error as { response?: { data?: { error?: string } } }).response?.data?.error;
+        if (responseMessage) {
+            return responseMessage;
+        }
+        const genericMessage = (error as { message?: string }).message;
+        if (genericMessage) {
+            return genericMessage;
+        }
+    }
+    return fallback;
 };
 
 export const ProductEditScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
-    const navigation = useNavigation();
-    const route = useRoute<RouteProp<RouteParams, 'ProductEdit'>>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const route = useRoute<RouteProp<RootStackParamList, 'EditProduct'>>();
     const productId = route.params?.productId;
     const isEditing = !!productId;
     const currentLang = i18n.language === 'ru' ? 'ru' : 'en';
@@ -76,7 +122,7 @@ export const ProductEditScreen: React.FC = () => {
         try {
             // Load categories
             const cats = await marketService.getProductCategories();
-            setCategories(cats);
+            setCategories(Array.isArray(cats) ? cats : []);
 
             if (isEditing && productId) {
                 setInitialLoading(true);
@@ -85,10 +131,11 @@ export const ProductEditScreen: React.FC = () => {
             }
         } catch (error) {
             console.error('Error loading data:', error);
+            Alert.alert(t('error') || 'Error', t('market.product.loadError') || 'Failed to load product data');
         } finally {
             setInitialLoading(false);
         }
-    }, [isEditing, productId]);
+    }, [isEditing, productId, t]);
 
     useEffect(() => {
         loadData();
@@ -123,16 +170,21 @@ export const ProductEditScreen: React.FC = () => {
                 salePrice: v.salePrice,
                 stock: v.stock,
                 imageUrl: v.imageUrl,
-                attributes: (v.attributes && v.attributes !== 'undefined' && v.attributes !== 'null') ? JSON.parse(v.attributes) : {},
+                attributes: parseVariantAttributes(v.attributes),
             })));
         }
     };
 
     const handlePickMainImage = async () => {
-        const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, quality: 0.8 });
-        if (result.assets && result.assets[0]) {
-            setMainImage(result.assets[0]);
-            setExistingMainImage('');
+        try {
+            const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, quality: 0.8 });
+            if (result.assets && result.assets[0]) {
+                setMainImage(result.assets[0]);
+                setExistingMainImage('');
+            }
+        } catch (error) {
+            console.error('Failed to pick main image:', error);
+            Alert.alert(t('error') || 'Error', t('market.product.imagePickError') || 'Failed to pick image');
         }
     };
 
@@ -141,10 +193,16 @@ export const ProductEditScreen: React.FC = () => {
             Alert.alert('Limit', 'Maximum 5 additional images');
             return;
         }
-        const remaining = 5 - additionalImages.length - existingImages.length;
-        const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: remaining, quality: 0.8 });
-        if (result.assets) {
-            setAdditionalImages(prev => [...prev, ...result.assets!]);
+        try {
+            const remaining = 5 - additionalImages.length - existingImages.length;
+            const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: remaining, quality: 0.8 });
+            const assets = result.assets ?? [];
+            if (assets.length > 0) {
+                setAdditionalImages(prev => [...prev, ...assets]);
+            }
+        } catch (error) {
+            console.error('Failed to pick additional images:', error);
+            Alert.alert(t('error') || 'Error', t('market.product.imagePickError') || 'Failed to pick image');
         }
     };
 
@@ -183,12 +241,31 @@ export const ProductEditScreen: React.FC = () => {
             Alert.alert(t('error') || 'Error', t('market.product.skuRequired') || 'SKU is required');
             return;
         }
+        const duplicateSkuIndex = variants.findIndex((v, idx) => (
+            idx !== editingVariantIndex && v.sku.trim().toLowerCase() === variantSku.trim().toLowerCase()
+        ));
+        if (duplicateSkuIndex !== -1) {
+            Alert.alert(t('error') || 'Error', t('market.product.skuDuplicate') || 'Variant SKU must be unique');
+            return;
+        }
+
+        const parsedVariantPrice = variantPrice.trim() ? toNonNegativeNumber(variantPrice) : undefined;
+        if (variantPrice.trim() && parsedVariantPrice === null) {
+            Alert.alert(t('error') || 'Error', t('market.product.priceRequired') || 'Valid price is required');
+            return;
+        }
+        const normalizedVariantPrice = parsedVariantPrice ?? undefined;
+        const parsedVariantStock = toNonNegativeInt(variantStock);
+        if (parsedVariantStock === null) {
+            Alert.alert(t('error') || 'Error', t('market.product.stockInvalid') || 'Stock must be zero or greater');
+            return;
+        }
 
         const variantData: VariantFormData = {
             sku: variantSku.trim(),
             name: variantName.trim(),
-            price: variantPrice ? parseFloat(variantPrice) : undefined,
-            stock: parseInt(variantStock, 10) || 0,
+            price: normalizedVariantPrice,
+            stock: parsedVariantStock,
             attributes: variantAttributes,
         };
 
@@ -220,9 +297,34 @@ export const ProductEditScreen: React.FC = () => {
         if (!name.trim() || name.length < 2) {
             return Alert.alert(t('error') || 'Error', t('market.product.nameRequired') || 'Product name must be at least 2 characters');
         }
-        if (!basePrice || parseFloat(basePrice) < 0) {
+        const parsedBasePrice = toNonNegativeNumber(basePrice);
+        if (parsedBasePrice === null) {
             return Alert.alert(t('error') || 'Error', t('market.product.priceRequired') || 'Valid price is required');
         }
+        const parsedSalePrice = salePrice.trim() ? toNonNegativeNumber(salePrice) : undefined;
+        if (salePrice.trim() && parsedSalePrice === null) {
+            return Alert.alert(t('error') || 'Error', t('market.product.salePriceInvalid') || 'Sale price must be zero or greater');
+        }
+        const normalizedSalePrice = parsedSalePrice ?? undefined;
+        if (normalizedSalePrice !== undefined && normalizedSalePrice > parsedBasePrice) {
+            return Alert.alert(t('error') || 'Error', t('market.product.salePriceTooHigh') || 'Sale price cannot exceed base price');
+        }
+        if (productType === 'digital' && !digitalUrl.trim()) {
+            return Alert.alert(t('error') || 'Error', t('market.product.digitalUrlRequired') || 'Digital URL is required');
+        }
+        if (hasVariants && variants.length === 0) {
+            return Alert.alert(t('error') || 'Error', t('market.product.variantRequired') || 'Add at least one variant');
+        }
+
+        const parsedStock = toNonNegativeInt(stock);
+        if (trackStock && !hasVariants && parsedStock === null) {
+            return Alert.alert(t('error') || 'Error', t('market.product.stockInvalid') || 'Stock must be zero or greater');
+        }
+        const parsedWeight = weight.trim() ? toNonNegativeNumber(weight) : undefined;
+        if (weight.trim() && parsedWeight === null) {
+            return Alert.alert(t('error') || 'Error', t('market.product.weightInvalid') || 'Weight must be zero or greater');
+        }
+        const normalizedWeight = parsedWeight ?? undefined;
 
         setLoading(true);
         try {
@@ -245,12 +347,12 @@ export const ProductEditScreen: React.FC = () => {
                 fullDescription: fullDescription.trim(),
                 category: selectedCategory,
                 productType,
-                basePrice: parseFloat(basePrice),
-                salePrice: salePrice ? parseFloat(salePrice) : undefined,
-                stock: parseInt(stock, 10) || 0,
+                basePrice: parsedBasePrice,
+                salePrice: normalizedSalePrice,
+                stock: parsedStock ?? 0,
                 trackStock,
-                digitalUrl: productType === 'digital' ? digitalUrl : undefined,
-                weight: weight ? parseFloat(weight) : undefined,
+                digitalUrl: productType === 'digital' ? digitalUrl.trim() : undefined,
+                weight: normalizedWeight,
                 dimensions: dimensions.trim() || undefined,
                 mainImageUrl: mainImageUrl || undefined,
                 images: [...existingImages, ...uploadedGalleryUrls],
@@ -268,9 +370,12 @@ export const ProductEditScreen: React.FC = () => {
                     { text: 'OK', onPress: () => navigation.goBack() }
                 ]);
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error saving product:', error);
-            Alert.alert(t('error') || 'Error', error.response?.data?.error || t('market.product.saveError') || 'Failed to save product');
+            Alert.alert(
+                t('error') || 'Error',
+                getErrorMessage(error, t('market.product.saveError') || 'Failed to save product')
+            );
         } finally {
             setLoading(false);
         }

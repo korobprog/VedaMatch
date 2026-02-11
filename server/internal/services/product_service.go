@@ -40,6 +40,18 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 		return nil, ErrShopRequired
 	}
 
+	req.Name = strings.TrimSpace(req.Name)
+	req.ShortDescription = strings.TrimSpace(req.ShortDescription)
+	req.FullDescription = strings.TrimSpace(req.FullDescription)
+	req.ExternalURL = strings.TrimSpace(req.ExternalURL)
+	req.DigitalURL = strings.TrimSpace(req.DigitalURL)
+	req.Currency = strings.TrimSpace(req.Currency)
+	req.MainImageURL = strings.TrimSpace(req.MainImageURL)
+	req.Dimensions = strings.TrimSpace(req.Dimensions)
+	if req.Name == "" {
+		return nil, errors.New("name is required")
+	}
+
 	// Generate slug
 	slug := s.generateSlug(req.Name)
 
@@ -89,6 +101,10 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 
 	// Create images
 	for i, imgURL := range req.Images {
+		imgURL = strings.TrimSpace(imgURL)
+		if imgURL == "" {
+			continue
+		}
 		img := models.ProductImage{
 			ProductID: product.ID,
 			ImageURL:  imgURL,
@@ -102,6 +118,13 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 
 	// Create variants
 	for _, varReq := range req.Variants {
+		varReq.SKU = strings.TrimSpace(varReq.SKU)
+		varReq.Name = strings.TrimSpace(varReq.Name)
+		varReq.ImageURL = strings.TrimSpace(varReq.ImageURL)
+		if varReq.SKU == "" {
+			tx.Rollback()
+			return nil, errors.New("variant sku is required")
+		}
 		attrJSON, err := json.Marshal(varReq.Attributes)
 		if err != nil {
 			tx.Rollback()
@@ -157,18 +180,18 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 
 	// Update fields
 	if req.Name != nil {
-		product.Name = *req.Name
+		product.Name = strings.TrimSpace(*req.Name)
 	}
 	if req.ShortDescription != nil {
-		product.ShortDescription = *req.ShortDescription
+		product.ShortDescription = strings.TrimSpace(*req.ShortDescription)
 	}
 	if req.FullDescription != nil {
-		product.FullDescription = *req.FullDescription
+		product.FullDescription = strings.TrimSpace(*req.FullDescription)
 	}
 	if req.Category != nil {
 		product.Category = *req.Category
 	}
-	if len(req.Tags) > 0 {
+	if req.Tags != nil {
 		tagsBytes, err := json.Marshal(req.Tags)
 		if err != nil {
 			return nil, err
@@ -179,7 +202,7 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.ProductType = *req.ProductType
 	}
 	if req.ExternalURL != nil {
-		product.ExternalURL = *req.ExternalURL
+		product.ExternalURL = strings.TrimSpace(*req.ExternalURL)
 	}
 	if req.BasePrice != nil {
 		product.BasePrice = *req.BasePrice
@@ -194,13 +217,16 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.Status = *req.Status
 	}
 	if req.MainImageURL != nil {
-		product.MainImageURL = *req.MainImageURL
+		product.MainImageURL = strings.TrimSpace(*req.MainImageURL)
 	}
 	if req.Weight != nil {
 		product.Weight = req.Weight
 	}
 	if req.Dimensions != nil {
-		product.Dimensions = *req.Dimensions
+		product.Dimensions = strings.TrimSpace(*req.Dimensions)
+	}
+	if strings.TrimSpace(product.Name) == "" {
+		return nil, errors.New("name is required")
 	}
 
 	if err := database.DB.Save(&product).Error; err != nil {
@@ -412,13 +438,35 @@ func (s *ProductService) UpdateStock(productID uint, variantID *uint, quantity i
 		return errors.New("stock quantity cannot be negative")
 	}
 	if variantID != nil {
-		return database.DB.Model(&models.ProductVariant{}).
+		result := database.DB.Model(&models.ProductVariant{}).
 			Where("id = ? AND product_id = ?", *variantID, productID).
-			Update("stock", quantity).Error
+			Update("stock", quantity)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			var exists int64
+			if err := database.DB.Model(&models.ProductVariant{}).
+				Where("id = ? AND product_id = ?", *variantID, productID).
+				Count(&exists).Error; err != nil {
+				return err
+			}
+			if exists == 0 {
+				return ErrVariantNotFound
+			}
+		}
+		return nil
 	}
-	return database.DB.Model(&models.Product{}).
+	result := database.DB.Model(&models.Product{}).
 		Where("id = ?", productID).
-		Update("stock", quantity).Error
+		Update("stock", quantity)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrProductNotFound
+	}
+	return nil
 }
 
 // ReserveStock reserves stock for an order (used during checkout)
@@ -427,15 +475,26 @@ func (s *ProductService) ReserveStock(productID uint, variantID *uint, quantity 
 		return errors.New("quantity must be greater than zero")
 	}
 	if variantID != nil {
-		var variant models.ProductVariant
-		if err := database.DB.Where("id = ? AND product_id = ?", *variantID, productID).First(&variant).Error; err != nil {
-			return ErrVariantNotFound
+		// Atomic reservation prevents race conditions and negative availability.
+		result := database.DB.Model(&models.ProductVariant{}).
+			Where("id = ? AND product_id = ? AND (stock - reserved) >= ?", *variantID, productID, quantity).
+			Update("reserved", gorm.Expr("reserved + ?", quantity))
+		if result.Error != nil {
+			return result.Error
 		}
-		if variant.Stock-variant.Reserved < quantity {
+		if result.RowsAffected == 0 {
+			var exists int64
+			if err := database.DB.Model(&models.ProductVariant{}).
+				Where("id = ? AND product_id = ?", *variantID, productID).
+				Count(&exists).Error; err != nil {
+				return err
+			}
+			if exists == 0 {
+				return ErrVariantNotFound
+			}
 			return ErrInsufficientStock
 		}
-		return database.DB.Model(&variant).
-			Update("reserved", gorm.Expr("reserved + ?", quantity)).Error
+		return nil
 	}
 
 	var product models.Product
@@ -455,16 +514,48 @@ func (s *ProductService) DeductStock(productID uint, variantID *uint, quantity i
 		return errors.New("quantity must be greater than zero")
 	}
 	if variantID != nil {
-		return database.DB.Model(&models.ProductVariant{}).
-			Where("id = ? AND product_id = ?", *variantID, productID).
+		result := database.DB.Model(&models.ProductVariant{}).
+			Where("id = ? AND product_id = ? AND stock >= ? AND reserved >= ?", *variantID, productID, quantity, quantity).
 			Updates(map[string]interface{}{
 				"stock":    gorm.Expr("stock - ?", quantity),
 				"reserved": gorm.Expr("reserved - ?", quantity),
-			}).Error
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			var exists int64
+			if err := database.DB.Model(&models.ProductVariant{}).
+				Where("id = ? AND product_id = ?", *variantID, productID).
+				Count(&exists).Error; err != nil {
+				return err
+			}
+			if exists == 0 {
+				return ErrVariantNotFound
+			}
+			return ErrInsufficientStock
+		}
+		return nil
 	}
-	return database.DB.Model(&models.Product{}).
-		Where("id = ?", productID).
-		Update("stock", gorm.Expr("stock - ?", quantity)).Error
+	result := database.DB.Model(&models.Product{}).
+		Where("id = ? AND (track_stock = false OR stock >= ?)", productID, quantity).
+		Update("stock", gorm.Expr("stock - ?", quantity))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		var product models.Product
+		if err := database.DB.Select("id", "track_stock", "stock").First(&product, productID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrProductNotFound
+			}
+			return err
+		}
+		if product.TrackStock {
+			return ErrInsufficientStock
+		}
+	}
+	return nil
 }
 
 // IncrementViewCount increments product view counter
@@ -475,6 +566,14 @@ func (s *ProductService) IncrementViewCount(productID uint) error {
 
 // ToggleFavorite adds or removes product from favorites
 func (s *ProductService) ToggleFavorite(userID, productID uint) (bool, error) {
+	var product models.Product
+	if err := database.DB.Select("id").First(&product, productID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, ErrProductNotFound
+		}
+		return false, err
+	}
+
 	var existing models.ProductFavorite
 	result := database.DB.Where("user_id = ? AND product_id = ?", userID, productID).First(&existing)
 
@@ -667,13 +766,16 @@ func (s *ProductService) buildProductResponse(p models.Product, userFavorites *[
 
 // Helper: generate slug
 func (s *ProductService) generateSlug(name string) string {
-	slug := strings.ToLower(name)
+	slug := strings.ToLower(strings.TrimSpace(name))
 	slug = strings.ReplaceAll(slug, " ", "-")
 	reg := regexp.MustCompile(`[^a-zа-яё0-9-]`)
 	slug = reg.ReplaceAllString(slug, "")
 	reg = regexp.MustCompile(`-+`)
 	slug = reg.ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		slug = "product"
+	}
 
 	// Add timestamp for uniqueness
 	slug = fmt.Sprintf("%s-%d", slug, time.Now().Unix())

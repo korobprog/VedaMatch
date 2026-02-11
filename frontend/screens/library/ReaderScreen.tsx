@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { libraryService } from '../../services/libraryService';
 import { offlineBookService } from '../../services/offlineBookService';
@@ -21,10 +22,14 @@ import {
 
 import { useUser } from '../../context/UserContext';
 import { useTranslation } from 'react-i18next';
+import type { RootStackParamList } from '../../types/navigation';
 declare var require: any;
 
+type ReaderTheme = 'paper' | 'sepia' | 'dark' | 'ancient';
+type ReaderRoute = RouteProp<RootStackParamList, 'Reader'>;
+
 export const ReaderScreen = () => {
-    const route = useRoute<any>();
+    const route = useRoute<ReaderRoute>();
     const navigation = useNavigation();
     const { t, i18n } = useTranslation();
     const { user } = useUser();
@@ -39,6 +44,8 @@ export const ReaderScreen = () => {
     const mainScrollRef = useRef<ScrollView>(null);
     const verseSelectorRef = useRef<ScrollView>(null);
     const versePositions = useRef<{ [key: number]: number }>({});
+    const lastReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingBookmarkVerseRef = useRef<string | null>(null);
 
     // Reader Settings State
     const [showSettings, setShowSettings] = useState(false);
@@ -49,7 +56,7 @@ export const ReaderScreen = () => {
     const [fontSizeBase, setFontSizeBase] = useState(16);
     const [fontBold, setFontBold] = useState(false);
     const [isSerif, setIsSerif] = useState(true);
-    const [readerTheme, setReaderTheme] = useState<'paper' | 'sepia' | 'dark' | 'ancient'>('paper');
+    const [readerTheme, setReaderTheme] = useState<ReaderTheme>('paper');
 
     // Bookmarks and History
     const [bookmarks, setBookmarks] = useState<string[]>([]); // Array of "bookCode-chapter-verse" strings
@@ -61,11 +68,21 @@ export const ReaderScreen = () => {
     const loadBookmarks = useCallback(async () => {
         try {
             const saved = await AsyncStorage.getItem(bookmarkKey);
-            if (saved && saved !== 'undefined' && saved !== 'null') setBookmarks(JSON.parse(saved));
+            if (!saved || saved === 'undefined' || saved === 'null') {
+                setBookmarks([]);
+                return;
+            }
+
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+                setBookmarks(parsed.filter((item): item is string => typeof item === 'string'));
+            } else {
+                setBookmarks([]);
+            }
         } catch (e) { console.error(e); }
     }, [bookmarkKey]);
 
-    const toggleBookmark = async (v: ScriptureVerse) => {
+    const toggleBookmark = async (v: Pick<ScriptureVerse, 'chapter' | 'verse'>) => {
         const id = `${bookCode}-${v.chapter}-${v.verse}`;
         let newBookmarks;
         if (bookmarks.includes(id)) {
@@ -79,7 +96,11 @@ export const ReaderScreen = () => {
 
     const saveLastRead = async (index: number) => {
         if (verses[index]) {
-            await AsyncStorage.setItem(lastReadKey, index.toString());
+            try {
+                await AsyncStorage.setItem(lastReadKey, index.toString());
+            } catch (error) {
+                console.error('Failed to save last read', error);
+            }
         }
     };
 
@@ -88,10 +109,22 @@ export const ReaderScreen = () => {
             const saved = await AsyncStorage.getItem(lastReadKey);
             if (saved && verses.length > 0) {
                 const index = parseInt(saved, 10);
-                setTimeout(() => handleVersePress(index), 1000); // Small delay to ensure layout is ready
+                if (Number.isNaN(index) || index < 0 || index >= verses.length) {
+                    return;
+                }
+                if (lastReadTimerRef.current) {
+                    clearTimeout(lastReadTimerRef.current);
+                }
+                lastReadTimerRef.current = setTimeout(() => handleVersePress(index), 1000); // Small delay to ensure layout is ready
             }
         } catch (e) { console.error(e); }
     }, [lastReadKey, verses.length]);
+
+    useEffect(() => () => {
+        if (lastReadTimerRef.current) {
+            clearTimeout(lastReadTimerRef.current);
+        }
+    }, []);
 
     useEffect(() => {
         loadBookmarks();
@@ -124,39 +157,34 @@ export const ReaderScreen = () => {
     useEffect(() => {
         const newLang = i18n.language.startsWith('ru') ? 'ru' : 'en';
         if (newLang !== language) {
-            console.log('Updating reader language from app settings:', newLang);
             setLanguage(newLang);
         }
     }, [i18n.language, language]);
 
     const toggleLanguage = useCallback(() => {
         const newLang = language === 'ru' ? 'en' : 'ru';
-        console.log('Toggling language from', language, 'to', newLang);
         setLanguage(newLang);
     }, [language]);
 
     const loadChapters = useCallback(async () => {
         try {
             const data = await libraryService.getChapters(bookCode);
-            setChapters(data);
+            setChapters(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to load chapters from network, trying offline', error);
             // Fallback to offline data
             const offlineData = await offlineBookService.getOfflineChapters(bookCode);
             if (offlineData.length > 0) {
                 setChapters(offlineData);
-                console.log('Loaded chapters from offline storage:', offlineData.length);
             }
         }
     }, [bookCode]);
 
     const loadVerses = useCallback(async (chapter: number, canto: number = 0) => {
         setLoading(true);
-        console.log('Loading verses for', bookCode, 'Chapter', chapter, 'Canto', canto, 'in language', language);
         try {
             const data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language);
-            console.log('Loaded', data.length, 'verses from network');
-            setVerses(data);
+            setVerses(Array.isArray(data) ? data : []);
             setCurrentChapter(chapter);
             setCurrentCanto(canto);
             setActiveVerseIndex(0);
@@ -167,7 +195,6 @@ export const ReaderScreen = () => {
             // Fallback to offline data
             const offlineData = await offlineBookService.getOfflineVerses(bookCode, chapter, canto, language);
             if (offlineData.length > 0) {
-                console.log('Loaded', offlineData.length, 'verses from offline storage');
                 setVerses(offlineData);
                 setCurrentChapter(chapter);
                 setCurrentCanto(canto);
@@ -176,6 +203,7 @@ export const ReaderScreen = () => {
                 mainScrollRef.current?.scrollTo({ y: 0, animated: false });
             } else {
                 console.error('No offline data available for this chapter');
+                setVerses([]);
             }
         } finally {
             setLoading(false);
@@ -208,16 +236,48 @@ export const ReaderScreen = () => {
     }, [language, navigation, title, toggleLanguage]);
 
     useEffect(() => {
-        loadVerses(currentChapter, currentCanto);
-    }, [currentCanto, currentChapter, loadVerses]);
+        if (chapters.length === 0) {
+            return;
+        }
+
+        const hasCurrentChapter = chapters.some(
+            (chapter) => chapter.chapter === currentChapter && (chapter.canto || 0) === currentCanto
+        );
+
+        if (!hasCurrentChapter) {
+            const firstChapter = chapters[0];
+            loadVerses(firstChapter.chapter, firstChapter.canto || 0);
+            return;
+        }
+
+        if (verses.length === 0) {
+            loadVerses(currentChapter, currentCanto);
+        }
+    }, [chapters, currentChapter, currentCanto, verses.length, loadVerses]);
 
     const handleVersePress = (index: number) => {
+        if (index < 0 || index >= verses.length) {
+            return;
+        }
         setActiveVerseIndex(index);
         const yOffset = versePositions.current[index];
         if (yOffset !== undefined) {
             mainScrollRef.current?.scrollTo({ y: yOffset - 10, animated: true });
         }
     };
+
+    useEffect(() => {
+        const pendingVerse = pendingBookmarkVerseRef.current;
+        if (!pendingVerse || verses.length === 0) {
+            return;
+        }
+
+        const verseIndex = verses.findIndex((verse) => String(verse.verse) === pendingVerse);
+        if (verseIndex >= 0) {
+            handleVersePress(verseIndex);
+        }
+        pendingBookmarkVerseRef.current = null;
+    }, [verses]);
 
     const onVerseLayout = (index: number, y: number) => {
         versePositions.current[index] = y;
@@ -349,7 +409,7 @@ export const ReaderScreen = () => {
 
                             <Text style={styles.sectionLabel}>{t('reader.theme', 'Тема оформления')}</Text>
                             <View style={styles.themeSelector}>
-                                {['paper', 'sepia', 'ancient', 'dark'].map((tName) => (
+                                {(['paper', 'sepia', 'ancient', 'dark'] as ReaderTheme[]).map((tName) => (
                                     <TouchableOpacity
                                         key={tName}
                                         style={[
@@ -357,7 +417,7 @@ export const ReaderScreen = () => {
                                             readerTheme === tName && styles.activeThemeBtn,
                                             { backgroundColor: tName === 'paper' ? '#FFF8E1' : tName === 'sepia' ? '#F4ECD8' : tName === 'ancient' ? '#F1E5AC' : '#1A1A1A' }
                                         ]}
-                                        onPress={() => setReaderTheme(tName as any)}
+                                        onPress={() => setReaderTheme(tName)}
                                     >
                                         <Text style={[
                                             styles.themeBtnText,
@@ -398,16 +458,33 @@ export const ReaderScreen = () => {
                                         <TouchableOpacity
                                             key={bId}
                                             style={styles.bookmarkItem}
-                                            onPress={() => {
-                                                const vIndex = verses.findIndex(ver => ver.verse === v);
-                                                if (vIndex !== -1) handleVersePress(vIndex);
+                                            onPress={async () => {
+                                                const targetChapter = parseInt(ch, 10);
+                                                if (Number.isNaN(targetChapter)) {
+                                                    return;
+                                                }
+
+                                                if (targetChapter !== currentChapter) {
+                                                    const targetChapterMeta = chapters.find((chapter) => chapter.chapter === targetChapter);
+                                                    pendingBookmarkVerseRef.current = v;
+                                                    await loadVerses(targetChapter, targetChapterMeta?.canto || 0);
+                                                } else {
+                                                    const vIndex = verses.findIndex(ver => String(ver.verse) === v);
+                                                    if (vIndex !== -1) handleVersePress(vIndex);
+                                                }
                                                 setShowBookmarksList(false);
                                             }}
                                         >
                                             <Text style={styles.bookmarkText}>
                                                 {t('reader.chapter')} {ch}, {t('reader.text')} {v}
                                             </Text>
-                                            <TouchableOpacity onPress={() => toggleBookmark({ chapter: parseInt(ch, 10), verse: v } as any)}>
+                                            <TouchableOpacity onPress={() => {
+                                                const targetChapter = parseInt(ch, 10);
+                                                if (Number.isNaN(targetChapter)) {
+                                                    return;
+                                                }
+                                                toggleBookmark({ chapter: targetChapter, verse: v });
+                                            }}>
                                                 <Trash2 size={18} color="#FF5252" />
                                             </TouchableOpacity>
                                         </TouchableOpacity>
@@ -481,7 +558,7 @@ export const ReaderScreen = () => {
                         >
                             {verses.map((v, index) => (
                                 <TouchableOpacity
-                                    key={`selector-${v.id}`}
+                                    key={`selector-${v.id || `${v.chapter}-${v.verse}-${index}`}`}
                                     style={[
                                         styles.verseBtn,
                                         activeVerseIndex === index && styles.activeVerseBtn,
@@ -522,7 +599,7 @@ export const ReaderScreen = () => {
                         const isBookmarked = bookmarks.includes(`${bookCode}-${v.chapter}-${v.verse}`);
                         return (
                             <View
-                                key={v.id}
+                                key={v.id || `${v.chapter}-${v.verse}-${index}`}
                                 style={[
                                     styles.verseContainer,
                                     readerTheme === 'dark' && { backgroundColor: '#2a2a2a' },

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {
     Bell,
@@ -47,6 +48,7 @@ import { PortalGrid } from '../../components/portal';
 import { BalancePill } from '../../components/wallet/BalancePill';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
+import { RootStackParamList } from '../../types/navigation';
 
 // Assistant avatar images
 import peacockAssistant from '../../assets/peacockAssistant.png';
@@ -55,9 +57,14 @@ import nanoBanano from '../../assets/nano_banano.png';
 
 
 type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services';
+type PortalMainProps = NativeStackScreenProps<RootStackParamList, 'Portal'>;
+const SERVICE_TABS = new Set<ServiceTab>([
+    'contacts', 'chat', 'dating', 'cafe', 'shops', 'ads', 'news', 'calls', 'multimedia',
+    'video_circles', 'knowledge_base', 'library', 'education', 'map', 'travel', 'services',
+]);
 
 // Inner component that uses portal layout context
-const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
+const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     useTranslation();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
     const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType, activeWallpaper, isSlideshowEnabled, assistantType } = useSettings();
@@ -201,9 +208,9 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         if (route.params?.initialTab === 'map') {
             navigation.navigate('MapGeoapify');
             // Reset params to prevent infinite loop or re-triggering
-            navigation.setParams({ initialTab: null });
+            navigation.setParams({ initialTab: undefined });
         } else if (route.params?.initialTab) {
-            setActiveTab(route.params.initialTab);
+            setActiveTab(route.params.initialTab as ServiceTab);
         }
     }, [route.params?.initialTab, navigation]);
 
@@ -258,7 +265,9 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             );
             return;
         }
-        setActiveTab(serviceId as ServiceTab);
+        if (SERVICE_TABS.has(serviceId as ServiceTab)) {
+            setActiveTab(serviceId as ServiceTab);
+        }
     }, [user, navigation, setIsMenuOpen]);
 
     const renderContent = () => {
@@ -625,7 +634,7 @@ const PortalContent: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 };
 
 // Main export with provider
-export const PortalMainScreen: React.FC<any> = ({ navigation, route }) => {
+export const PortalMainScreen: React.FC<PortalMainProps> = ({ navigation, route }) => {
     return (
         <PortalContent navigation={navigation} route={route} />
     );

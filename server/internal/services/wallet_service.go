@@ -139,9 +139,10 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		// Lock sender's wallet
+		// Lock sender's wallet to prevent concurrent overspend.
 		var fromWallet models.Wallet
-		if err := tx.Where("user_id = ?", fromUserID).First(&fromWallet).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", fromUserID).First(&fromWallet).Error; err != nil {
 			return errors.New("sender wallet not found")
 		}
 
@@ -149,27 +150,35 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 			return errors.New("insufficient balance")
 		}
 
-		// Lock receiver's wallet (or create if doesn't exist)
-		toWallet, err := s.getOrCreateWalletTx(tx, toUserID)
-		if err != nil {
+		// Lock receiver's wallet (or create if doesn't exist).
+		var toWallet models.Wallet
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", toUserID).First(&toWallet).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			createdWallet, createErr := s.getOrCreateWalletTx(tx, toUserID)
+			if createErr != nil {
+				return createErr
+			}
+			toWallet = *createdWallet
+		} else if err != nil {
 			return err
 		}
 
 		// Debit from sender
 		newFromBalance := fromWallet.Balance - amount
-		if err := tx.Model(&fromWallet).Update("balance", newFromBalance).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&fromWallet).Update("total_spent", fromWallet.TotalSpent+amount).Error; err != nil {
+		if err := tx.Model(&fromWallet).Updates(map[string]interface{}{
+			"balance":     newFromBalance,
+			"total_spent": fromWallet.TotalSpent + amount,
+		}).Error; err != nil {
 			return err
 		}
 
 		// Credit to receiver
 		newToBalance := toWallet.Balance + amount
-		if err := tx.Model(toWallet).Update("balance", newToBalance).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(toWallet).Update("total_earned", toWallet.TotalEarned+amount).Error; err != nil {
+		if err := tx.Model(&toWallet).Updates(map[string]interface{}{
+			"balance":      newToBalance,
+			"total_earned": toWallet.TotalEarned + amount,
+		}).Error; err != nil {
 			return err
 		}
 
@@ -211,6 +220,10 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Bonus credited"
+	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		wallet, err := s.getOrCreateWalletTx(tx, userID)
@@ -219,10 +232,10 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 		}
 
 		newBalance := wallet.Balance + amount
-		if err := tx.Model(wallet).Update("balance", newBalance).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(wallet).Update("total_earned", wallet.TotalEarned+amount).Error; err != nil {
+		if err := tx.Model(wallet).Updates(map[string]interface{}{
+			"balance":      newBalance,
+			"total_earned": wallet.TotalEarned + amount,
+		}).Error; err != nil {
 			return err
 		}
 
@@ -258,6 +271,10 @@ func (s *WalletService) Refund(userID uint, amount int, description string, book
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Refund"
+	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		wallet, err := s.getOrCreateWalletTx(tx, userID)
@@ -268,7 +285,7 @@ func (s *WalletService) Refund(userID uint, amount int, description string, book
 		newBalance := wallet.Balance + amount
 		if err := tx.Model(wallet).Updates(map[string]interface{}{
 			"balance":     newBalance,
-			"total_spent": wallet.TotalSpent - amount,
+			"total_spent": gorm.Expr("GREATEST(total_spent - ?, 0)", amount),
 		}).Error; err != nil {
 			return err
 		}
@@ -366,16 +383,20 @@ func (s *WalletService) GetStats(userID uint) (*models.WalletStatsResponse, erro
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 
 	var thisMonthIn int
-	database.DB.Model(&models.WalletTransaction{}).
+	if err := database.DB.Model(&models.WalletTransaction{}).
 		Where("wallet_id = ? AND type IN (?, ?) AND created_at >= ?",
 			wallet.ID, models.TransactionTypeCredit, models.TransactionTypeBonus, startOfMonth).
-		Select("COALESCE(SUM(amount), 0)").Scan(&thisMonthIn)
+		Select("COALESCE(SUM(amount), 0)").Scan(&thisMonthIn).Error; err != nil {
+		return nil, err
+	}
 
 	var thisMonthOut int
-	database.DB.Model(&models.WalletTransaction{}).
+	if err := database.DB.Model(&models.WalletTransaction{}).
 		Where("wallet_id = ? AND type = ? AND created_at >= ?",
 			wallet.ID, models.TransactionTypeDebit, startOfMonth).
-		Select("COALESCE(SUM(amount), 0)").Scan(&thisMonthOut)
+		Select("COALESCE(SUM(amount), 0)").Scan(&thisMonthOut).Error; err != nil {
+		return nil, err
+	}
 
 	return &models.WalletStatsResponse{
 		Balance:      wallet.Balance,
@@ -394,22 +415,39 @@ func (s *WalletService) Spend(userID uint, amount int, dedupKey string, descript
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
+	dedupKey = strings.TrimSpace(dedupKey)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Spend"
+	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		// Check for duplicate transaction (idempotency)
-		if dedupKey != "" {
-			var existing models.WalletTransaction
-			if err := tx.Where("dedup_key = ?", dedupKey).First(&existing).Error; err == nil {
-				log.Printf("[Wallet] Duplicate spend blocked: %s", dedupKey)
-				return nil // Already processed, return success
-			}
-		}
-
 		// Lock wallet for update
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			return errors.New("wallet not found")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if _, createErr := s.getOrCreateWalletTx(tx, userID); createErr != nil {
+					return createErr
+				}
+				if lockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+					Where("user_id = ?", userID).First(&wallet).Error; lockErr != nil {
+					return lockErr
+				}
+			} else {
+				return err
+			}
+		}
+
+		// Check for duplicate transaction (idempotency) scoped to this wallet.
+		if dedupKey != "" {
+			var existing models.WalletTransaction
+			if err := tx.Where("wallet_id = ? AND dedup_key = ?", wallet.ID, dedupKey).First(&existing).Error; err == nil {
+				log.Printf("[Wallet] Duplicate spend blocked: wallet=%d dedup=%s", wallet.ID, dedupKey)
+				return nil // Already processed, return success
+			} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
 		}
 
 		if wallet.Balance < amount {

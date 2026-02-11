@@ -15,6 +15,24 @@ type MultimediaHandler struct {
 	service *services.MultimediaService
 }
 
+func boundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
+	value := c.QueryInt(key, def)
+	if value < min {
+		return min
+	}
+	if max > 0 && value > max {
+		return max
+	}
+	return value
+}
+
+func isUnsafeFolderPath(path string) bool {
+	if strings.Contains(path, "..") || strings.Contains(path, "\\") {
+		return true
+	}
+	return strings.HasPrefix(path, "/")
+}
+
 func NewMultimediaHandler() *MultimediaHandler {
 	return &MultimediaHandler{
 		service: services.NewMultimediaService(),
@@ -68,8 +86,8 @@ func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
 		Language:   c.Query("language"),
 		Search:     c.Query("search"),
 		Featured:   c.QueryBool("featured"),
-		Page:       c.QueryInt("page", 1),
-		Limit:      c.QueryInt("limit", 20),
+		Page:       boundedQueryInt(c, "page", 1, 1, 100000),
+		Limit:      boundedQueryInt(c, "limit", 20, 1, 100),
 	}
 
 	result, err := h.service.GetTracks(filter)
@@ -388,7 +406,10 @@ func (h *MultimediaHandler) UploadMedia(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "No file uploaded"})
 	}
 
-	folder := c.FormValue("folder", "multimedia")
+	folder := strings.TrimSpace(c.FormValue("folder", "multimedia"))
+	if isUnsafeFolderPath(folder) {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid folder"})
+	}
 
 	url, err := h.service.UploadToS3(file, folder)
 	if err != nil {
@@ -426,7 +447,7 @@ func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
 	}
 
 	// Determine folder path
-	folder := body.Folder
+	folder := strings.TrimSpace(body.Folder)
 	if body.SeriesSlug != "" {
 		if strings.Contains(body.SeriesSlug, "..") || strings.Contains(body.SeriesSlug, "/") || strings.Contains(body.SeriesSlug, "\\") {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid series slug"})
@@ -436,7 +457,7 @@ func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
 	} else if folder == "" {
 		folder = "videos"
 	}
-	if strings.Contains(folder, "..") {
+	if isUnsafeFolderPath(folder) {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid folder"})
 	}
 
@@ -592,8 +613,8 @@ func (h *MultimediaHandler) GetFavorites(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	page := c.QueryInt("page", 1)
-	limit := c.QueryInt("limit", 20)
+	page := boundedQueryInt(c, "page", 1, 1, 100000)
+	limit := boundedQueryInt(c, "limit", 20, 1, 100)
 
 	tracks, total, err := h.service.GetUserFavorites(userID, page, limit)
 	if err != nil {

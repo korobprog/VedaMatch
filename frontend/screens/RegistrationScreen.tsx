@@ -20,6 +20,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import DatePicker from 'react-native-date-picker';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'react-native-image-picker';
 import { useUser } from '../context/UserContext';
 import { COLORS } from '../components/chat/ChatConstants';
 import {
@@ -50,6 +51,7 @@ import { RadioGroup } from '../components/registration/RadioGroup';
 
 const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
 const GENDER_OPTIONS = ['Male', 'Female'];
+type CountryData = { name: { common: string }; capital?: string[] };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 
@@ -61,7 +63,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
     const theme = isPortalDarkMode ? COLORS.dark : COLORS.light;
 
-    const [avatar, setAvatar] = useState<any>(null);
+    const [avatar, setAvatar] = useState<Asset | null>(null);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -123,7 +125,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     }, [isLiteProfileRole, isSeekerRole]);
 
-    const handleCountrySelect = async (cData: any) => {
+    const handleCountrySelect = async (cData: CountryData) => {
         setCountry(cData.name.common);
         // Autofill city with capital if available
         if (cData.capital && cData.capital.length > 0) {
@@ -226,6 +228,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 // Phase 2: Profile Update
                 const userStr = await AsyncStorage.getItem('user');
                 const user = (userStr && userStr !== 'undefined' && userStr !== 'null') ? JSON.parse(userStr) : null;
+                if (!user?.ID) {
+                    throw new Error('User session is missing. Please sign in again.');
+                }
 
                 const profileData = {
                     country,
@@ -246,6 +251,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
                 console.log('Sending profile data:', JSON.stringify(profileData, null, 2));
                 const token = await AsyncStorage.getItem('token');
+                if (!token || token === 'undefined' || token === 'null') {
+                    throw new Error('Auth token is missing. Please sign in again.');
+                }
                 const response = await axios.put(`${API_PATH}/update-profile`, profileData, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -255,6 +263,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
                 // Upload avatar if selected
                 if (avatar) {
+                    if (!avatar.uri) {
+                        throw new Error('Selected avatar is invalid.');
+                    }
                     const formData = new FormData();
                     formData.append('avatar', {
                         uri: Platform.OS === 'android' ? avatar.uri : avatar.uri.replace('file://', ''),
@@ -274,11 +285,16 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
                 await login(updatedUser);
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Registration/Update error:', error);
+            const errorMessage =
+                typeof error === 'object' && error !== null
+                    ? ((error as { response?: { data?: { error?: string } } }).response?.data?.error ||
+                        (error as { message?: string }).message)
+                    : '';
             Alert.alert(
                 'Error',
-                error.response?.data?.error || 'Operation failed. Please try again.'
+                errorMessage || 'Operation failed. Please try again.'
             );
         } finally {
             setLoading(false);

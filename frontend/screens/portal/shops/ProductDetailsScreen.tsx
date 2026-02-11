@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Image, Dimensions, Alert
+    Image, Dimensions, Alert, Platform
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../../types/navigation';
 import { marketService } from '../../../services/marketService';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
@@ -29,14 +31,28 @@ import {
 
 const { width } = Dimensions.get('window');
 
-type RouteParams = {
-    ProductDetails: { productId: number };
+interface Review {
+    ID: number;
+    rating: number;
+    title?: string;
+    comment: string;
+    isVerifiedPurchase?: boolean;
+    CreatedAt: string;
+    user?: { name?: string };
+}
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (typeof error === 'object' && error !== null) {
+        const maybeError = error as { response?: { data?: { error?: string; message?: string } }; message?: string };
+        return maybeError.response?.data?.error || maybeError.response?.data?.message || maybeError.message || fallback;
+    }
+    return fallback;
 };
 
 export const ProductDetailsScreen: React.FC = () => {
     const { t } = useTranslation();
-    const navigation = useNavigation<any>();
-    const route = useRoute<RouteProp<RouteParams, 'ProductDetails'>>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const route = useRoute<RouteProp<RootStackParamList, 'ProductDetails'>>();
     const productId = route.params.productId;
 
     const { user } = useUser();
@@ -54,7 +70,7 @@ export const ProductDetailsScreen: React.FC = () => {
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [quantity, setQuantity] = useState(1);
     const [isFavorite, setIsFavorite] = useState(false);
-    const [reviews, setReviews] = useState<any[]>([]);
+    const [reviews, setReviews] = useState<Review[]>([]);
     const [reviewsPage, setReviewsPage] = useState(1);
     const [loadingReviews, setLoadingReviews] = useState(false);
 
@@ -104,6 +120,13 @@ export const ProductDetailsScreen: React.FC = () => {
     };
 
     const handleAddReview = () => {
+        if (Platform.OS !== 'ios') {
+            Alert.alert(
+                t('market.addReview'),
+                t('market.addReviewPromptFallback') || 'Добавление отзыва сейчас доступно на iOS.',
+            );
+            return;
+        }
         Alert.prompt(
             'Add Review',
             'How many stars would you give this product? (1-5)',
@@ -139,8 +162,8 @@ export const ProductDetailsScreen: React.FC = () => {
             await marketService.addProductReview(productId, { rating, comment });
             Alert.alert('Success', 'Your review has been submitted');
             loadProduct(); // Refresh product stats and reviews
-        } catch (error: any) {
-            const msg = error.response?.data?.error || 'Failed to submit review';
+        } catch (error: unknown) {
+            const msg = getErrorMessage(error, 'Failed to submit review');
             Alert.alert('Error', msg);
         }
     };
@@ -178,6 +201,13 @@ export const ProductDetailsScreen: React.FC = () => {
             return selectedVariant.stock - selectedVariant.reserved;
         }
         return product?.stock || 0;
+    };
+
+    const getMaxQuantity = (): number => {
+        if (!product?.trackStock) {
+            return 99;
+        }
+        return Math.max(getStock(), 1);
     };
 
     const isInStock = (): boolean => {
@@ -221,7 +251,7 @@ export const ProductDetailsScreen: React.FC = () => {
 
     const handleQuantityChange = (delta: number) => {
         const newQty = quantity + delta;
-        const maxStock = getStock();
+        const maxStock = getMaxQuantity();
 
         if (newQty >= 1 && newQty <= maxStock) {
             setQuantity(newQty);
@@ -241,6 +271,7 @@ export const ProductDetailsScreen: React.FC = () => {
     };
 
     const handleBuyNow = () => {
+        if (!product) return;
         // Navigate directly to checkout
         navigation.navigate('Checkout', {
             items: [{
@@ -248,7 +279,7 @@ export const ProductDetailsScreen: React.FC = () => {
                 variantId: selectedVariant?.ID,
                 quantity,
                 product,
-                variant: selectedVariant,
+                variant: selectedVariant || undefined,
             }]
         });
     };
@@ -260,10 +291,11 @@ export const ProductDetailsScreen: React.FC = () => {
     };
 
     const handleContactSeller = () => {
-        if (product?.shopInfo) {
-            // Navigate to seller contact
-            navigation.navigate('Chat', { userId: product.shopId });
-        }
+        Alert.alert(
+            t('common.info') || 'Info',
+            t('market.contactViaShop') || 'Откройте магазин и свяжитесь с продавцом через его профиль.',
+            [{ text: t('common.ok') || 'OK', onPress: handleShopPress }]
+        );
     };
 
     if (loading || !product) {
@@ -475,12 +507,14 @@ export const ProductDetailsScreen: React.FC = () => {
                             <TouchableOpacity
                                 style={[styles.quantityBtn, { backgroundColor: surfaceElevated }]}
                                 onPress={() => handleQuantityChange(1)}
-                                disabled={quantity >= getStock()}
+                                disabled={quantity >= getMaxQuantity()}
                             >
-                                <Plus size={20} color={quantity >= getStock() ? textSecondary : textPrimary} />
+                                <Plus size={20} color={quantity >= getMaxQuantity() ? textSecondary : textPrimary} />
                             </TouchableOpacity>
                             <Text style={[styles.stockInfo, { color: colors.textSecondary }]}>
-                                {isInStock() ? `${getStock()} ${t('market.available')}` : t('market.outOfStock')}
+                                {isInStock()
+                                    ? (product.trackStock ? `${getStock()} ${t('market.available')}` : t('market.available'))
+                                    : t('market.outOfStock')}
                             </Text>
                         </View>
                     </View>

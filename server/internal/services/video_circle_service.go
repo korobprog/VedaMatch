@@ -19,6 +19,13 @@ var (
 	ErrInsufficientLKM = errors.New("insufficient lkm")
 )
 
+const (
+	defaultCircleDurationSec       = 60
+	maxCircleDurationSec           = 60
+	defaultRepublishDurationMinute = 60
+	maxRepublishDurationMinute     = 24 * 60
+)
+
 type VideoCircleService struct {
 	db     *gorm.DB
 	wallet *WalletService
@@ -64,8 +71,12 @@ func (s *VideoCircleService) ListTariffs() ([]models.VideoTariff, error) {
 }
 
 func (s *VideoCircleService) CreateTariff(req models.VideoTariffUpsertRequest, updatedBy uint) (*models.VideoTariff, error) {
-	if req.Code == "" {
+	code := normalizeVideoTariffCode(req.Code)
+	if code == "" {
 		return nil, errors.New("code is required")
+	}
+	if !isSupportedTariffCode(code) {
+		return nil, errors.New("unsupported tariff code")
 	}
 	if req.DurationMinutes <= 0 {
 		return nil, errors.New("durationMinutes must be > 0")
@@ -78,7 +89,7 @@ func (s *VideoCircleService) CreateTariff(req models.VideoTariffUpsertRequest, u
 		isActive = *req.IsActive
 	}
 	item := &models.VideoTariff{
-		Code:            req.Code,
+		Code:            code,
 		PriceLkm:        req.PriceLkm,
 		DurationMinutes: req.DurationMinutes,
 		IsActive:        isActive,
@@ -100,7 +111,11 @@ func (s *VideoCircleService) UpdateTariff(id uint, req models.VideoTariffUpsertR
 		"updated_by": updatedBy,
 	}
 	if req.Code != "" {
-		updates["code"] = req.Code
+		code := normalizeVideoTariffCode(req.Code)
+		if !isSupportedTariffCode(code) {
+			return nil, errors.New("unsupported tariff code")
+		}
+		updates["code"] = code
 	}
 	if req.PriceLkm >= 0 {
 		updates["price_lkm"] = req.PriceLkm
@@ -299,10 +314,10 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 
 	duration := req.DurationSec
 	if duration <= 0 {
-		duration = 60
+		duration = defaultCircleDurationSec
 	}
-	if duration > 60 {
-		duration = 60
+	if duration > maxCircleDurationSec {
+		duration = maxCircleDurationSec
 	}
 
 	expiresAt := time.Now().Add(60 * time.Minute)
@@ -536,7 +551,10 @@ func (s *VideoCircleService) RepublishCircle(circleID, userID uint, role string,
 
 	durationMinutes := req.DurationMinutes
 	if durationMinutes <= 0 {
-		durationMinutes = 60
+		durationMinutes = defaultRepublishDurationMinute
+	}
+	if durationMinutes > maxRepublishDurationMinute {
+		durationMinutes = maxRepublishDurationMinute
 	}
 
 	start := time.Now()
@@ -580,79 +598,89 @@ func (s *VideoCircleService) RepublishCircle(circleID, userID uint, role string,
 }
 
 func (s *VideoCircleService) AddInteraction(circleID, userID uint, req models.VideoCircleInteractionRequest) (*models.VideoCircleInteractionResponse, error) {
-	var circle models.VideoCircle
-	now := time.Now()
-	if err := s.db.First(&circle, circleID).Error; err != nil {
-		return nil, err
+	interactionType := normalizeVideoInteractionType(req.Type)
+	if interactionType == "" {
+		return nil, errors.New("unknown interaction type")
 	}
-	if circle.Status != models.VideoCircleStatusActive || !circle.ExpiresAt.After(now) {
-		return nil, ErrCircleExpired
-	}
-
-	interactionType := req.Type
 	action := strings.TrimSpace(strings.ToLower(req.Action))
 	if action == "" {
 		action = "add"
 	}
 
 	likedByUser := false
-	switch interactionType {
-	case models.VideoCircleInteractionLike:
-		if action != "toggle" {
-			action = "toggle"
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		var circle models.VideoCircle
+		now := time.Now()
+		if err := tx.First(&circle, circleID).Error; err != nil {
+			return err
 		}
-		var existing models.VideoCircleInteraction
-		err := s.db.Where("circle_id = ? AND user_id = ? AND type = ?", circleID, userID, models.VideoCircleInteractionLike).First(&existing).Error
-		if err == nil {
-			if err := s.db.Delete(&existing).Error; err != nil {
-				return nil, err
+		if circle.Status != models.VideoCircleStatusActive || !circle.ExpiresAt.After(now) {
+			return ErrCircleExpired
+		}
+
+		switch interactionType {
+		case models.VideoCircleInteractionLike:
+			if action != "toggle" {
+				action = "toggle"
 			}
-			if err := s.db.Model(&circle).Update("like_count", gorm.Expr("GREATEST(like_count - 1, 0)")).Error; err != nil {
-				return nil, err
+			var existing models.VideoCircleInteraction
+			err := tx.Where("circle_id = ? AND user_id = ? AND type = ?", circleID, userID, models.VideoCircleInteractionLike).First(&existing).Error
+			if err == nil {
+				if err := tx.Delete(&existing).Error; err != nil {
+					return err
+				}
+				if err := tx.Model(&circle).Update("like_count", gorm.Expr("GREATEST(like_count - 1, 0)")).Error; err != nil {
+					return err
+				}
+				likedByUser = false
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				newRecord := models.VideoCircleInteraction{
+					CircleID: circleID,
+					UserID:   userID,
+					Type:     models.VideoCircleInteractionLike,
+					Value:    1,
+				}
+				if err := tx.Create(&newRecord).Error; err != nil {
+					return err
+				}
+				if err := tx.Model(&circle).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
+					return err
+				}
+				likedByUser = true
+			} else {
+				return err
 			}
-			likedByUser = false
-		} else if errors.Is(err, gorm.ErrRecordNotFound) {
-			newRecord := models.VideoCircleInteraction{
-				CircleID: circleID,
-				UserID:   userID,
-				Type:     models.VideoCircleInteractionLike,
-				Value:    1,
+		case models.VideoCircleInteractionComment:
+			if action != "add" {
+				return errors.New("comment action must be add")
 			}
-			if err := s.db.Create(&newRecord).Error; err != nil {
-				return nil, err
+			record := models.VideoCircleInteraction{CircleID: circleID, UserID: userID, Type: models.VideoCircleInteractionComment, Value: 1}
+			if err := tx.Create(&record).Error; err != nil {
+				return err
 			}
-			if err := s.db.Model(&circle).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
-				return nil, err
+			if err := tx.Model(&circle).Update("comment_count", gorm.Expr("comment_count + 1")).Error; err != nil {
+				return err
 			}
-			likedByUser = true
-		} else {
-			return nil, err
+		case models.VideoCircleInteractionChat:
+			if action != "add" {
+				return errors.New("chat action must be add")
+			}
+			record := models.VideoCircleInteraction{CircleID: circleID, UserID: userID, Type: models.VideoCircleInteractionChat, Value: 1}
+			if err := tx.Create(&record).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&circle).Update("chat_count", gorm.Expr("chat_count + 1")).Error; err != nil {
+				return err
+			}
+		default:
+			return errors.New("unknown interaction type")
 		}
-	case models.VideoCircleInteractionComment:
-		if action != "add" {
-			return nil, errors.New("comment action must be add")
-		}
-		record := models.VideoCircleInteraction{CircleID: circleID, UserID: userID, Type: models.VideoCircleInteractionComment, Value: 1}
-		if err := s.db.Create(&record).Error; err != nil {
-			return nil, err
-		}
-		if err := s.db.Model(&circle).Update("comment_count", gorm.Expr("comment_count + 1")).Error; err != nil {
-			return nil, err
-		}
-	case models.VideoCircleInteractionChat:
-		if action != "add" {
-			return nil, errors.New("chat action must be add")
-		}
-		record := models.VideoCircleInteraction{CircleID: circleID, UserID: userID, Type: models.VideoCircleInteractionChat, Value: 1}
-		if err := s.db.Create(&record).Error; err != nil {
-			return nil, err
-		}
-		if err := s.db.Model(&circle).Update("chat_count", gorm.Expr("chat_count + 1")).Error; err != nil {
-			return nil, err
-		}
-	default:
-		return nil, errors.New("unknown interaction type")
+		return nil
+	}); err != nil {
+		return nil, err
 	}
+
+	var circle models.VideoCircle
 
 	if err := s.db.First(&circle, circleID).Error; err != nil {
 		return nil, err
@@ -687,7 +715,8 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 		return nil, errors.New("forbidden")
 	}
 
-	code := mapBoostTypeToTariffCode(req.BoostType)
+	boostType := normalizeVideoBoostType(req.BoostType)
+	code := mapBoostTypeToTariffCode(boostType)
 	if code == "" {
 		return nil, errors.New("invalid boostType")
 	}
@@ -710,8 +739,8 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	} else {
 		charged = tariff.PriceLkm
 		if charged > 0 {
-			dedupKey := fmt.Sprintf("video-circle-boost:%d:%d:%s:%d", circleID, userID, req.BoostType, time.Now().UnixNano())
-			if spendErr := s.wallet.Spend(userID, charged, dedupKey, fmt.Sprintf("Video circle %s boost", req.BoostType)); spendErr != nil {
+			dedupKey := fmt.Sprintf("video-circle-boost:%d:%d:%s:%d", circleID, userID, boostType, time.Now().UnixNano())
+			if spendErr := s.wallet.Spend(userID, charged, dedupKey, fmt.Sprintf("Video circle %s boost", boostType)); spendErr != nil {
 				if strings.Contains(strings.ToLower(spendErr.Error()), "insufficient") {
 					return nil, ErrInsufficientLKM
 				}
@@ -721,9 +750,21 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	}
 
 	success := false
+	boostApplied := false
+	prevExpiresAt := circle.ExpiresAt
+	prevPremiumBoost := circle.PremiumBoostActive
 	defer func() {
 		if !success && charged > 0 {
 			_ = s.wallet.Refund(userID, charged, "Video circle boost rollback", nil)
+		}
+		if !success && boostApplied {
+			rollbackUpdates := map[string]interface{}{
+				"expires_at":          prevExpiresAt,
+				"premium_boost_active": prevPremiumBoost,
+			}
+			if err := s.db.Model(&models.VideoCircle{}).Where("id = ?", circleID).Updates(rollbackUpdates).Error; err != nil {
+				log.Printf("circle_boost rollback_failed circle_id=%d error=%v", circleID, err)
+			}
 		}
 	}()
 
@@ -741,6 +782,7 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	if err := s.db.Model(&circle).Updates(updates).Error; err != nil {
 		return nil, err
 	}
+	boostApplied = true
 
 	walletAfter, err := s.wallet.GetOrCreateWallet(userID)
 	if err != nil {
@@ -751,7 +793,7 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	billingLog := models.VideoCircleBillingLog{
 		CircleID:      circleID,
 		UserID:        userID,
-		BoostType:     req.BoostType,
+		BoostType:     boostType,
 		TariffID:      tariff.ID,
 		ChargedLkm:    charged,
 		BypassReason:  bypassReason,
@@ -768,15 +810,15 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 		remaining = 0
 	}
 
-	log.Printf("circle_boost circle_id=%d user_id=%d boost_type=%s charged=%d bypass=%t", circleID, userID, req.BoostType, charged, isBypass)
+	log.Printf("circle_boost circle_id=%d user_id=%d boost_type=%s charged=%d bypass=%t", circleID, userID, boostType, charged, isBypass)
 	return &models.VideoBoostResponse{
 		CircleID:           circleID,
-		BoostType:          string(req.BoostType),
+		BoostType:          string(boostType),
 		ChargedLkm:         charged,
 		BypassReason:       bypassReason,
 		ExpiresAt:          newExpires,
 		RemainingSec:       remaining,
-		PremiumBoostActive: req.BoostType == models.VideoBoostTypePremium || circle.PremiumBoostActive,
+		PremiumBoostActive: boostType == models.VideoBoostTypePremium || circle.PremiumBoostActive,
 		BalanceBefore:      balanceBefore,
 		BalanceAfter:       balanceAfter,
 	}, nil
@@ -862,6 +904,45 @@ func mapBoostTypeToTariffCode(boostType models.VideoBoostType) models.VideoTarif
 		return models.VideoTariffCodePremiumBoost
 	default:
 		return ""
+	}
+}
+
+func normalizeVideoTariffCode(code models.VideoTariffCode) models.VideoTariffCode {
+	return models.VideoTariffCode(strings.ToLower(strings.TrimSpace(string(code))))
+}
+
+func normalizeVideoInteractionType(value models.VideoCircleInteractionType) models.VideoCircleInteractionType {
+	switch strings.ToLower(strings.TrimSpace(string(value))) {
+	case string(models.VideoCircleInteractionLike):
+		return models.VideoCircleInteractionLike
+	case string(models.VideoCircleInteractionComment):
+		return models.VideoCircleInteractionComment
+	case string(models.VideoCircleInteractionChat):
+		return models.VideoCircleInteractionChat
+	default:
+		return ""
+	}
+}
+
+func normalizeVideoBoostType(value models.VideoBoostType) models.VideoBoostType {
+	switch strings.ToLower(strings.TrimSpace(string(value))) {
+	case string(models.VideoBoostTypeLKM):
+		return models.VideoBoostTypeLKM
+	case string(models.VideoBoostTypeCity):
+		return models.VideoBoostTypeCity
+	case string(models.VideoBoostTypePremium):
+		return models.VideoBoostTypePremium
+	default:
+		return ""
+	}
+}
+
+func isSupportedTariffCode(code models.VideoTariffCode) bool {
+	switch code {
+	case models.VideoTariffCodeLKMBoost, models.VideoTariffCodeCityBoost, models.VideoTariffCodePremiumBoost:
+		return true
+	default:
+		return false
 	}
 }
 

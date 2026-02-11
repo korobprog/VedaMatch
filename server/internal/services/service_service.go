@@ -9,6 +9,7 @@ import (
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strconv"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -23,6 +24,17 @@ func NewServiceService() *ServiceService {
 
 // Create creates a new service
 func (s *ServiceService) Create(ownerID uint, req models.ServiceCreateRequest) (*models.Service, error) {
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	req.CoverImageURL = strings.TrimSpace(req.CoverImageURL)
+	req.Language = strings.TrimSpace(req.Language)
+	req.Formats = strings.TrimSpace(req.Formats)
+	req.ChannelLink = strings.TrimSpace(req.ChannelLink)
+	req.OfflineAddress = strings.TrimSpace(req.OfflineAddress)
+	if req.Title == "" {
+		return nil, errors.New("title is required")
+	}
+
 	service := models.Service{
 		OwnerID:        ownerID,
 		Title:          req.Title,
@@ -91,22 +103,22 @@ func (s *ServiceService) Update(serviceID, ownerID uint, req models.ServiceUpdat
 	updates := make(map[string]interface{})
 
 	if req.Title != nil {
-		updates["title"] = *req.Title
+		updates["title"] = strings.TrimSpace(*req.Title)
 	}
 	if req.Description != nil {
-		updates["description"] = *req.Description
+		updates["description"] = strings.TrimSpace(*req.Description)
 	}
 	if req.CoverImageURL != nil {
-		updates["cover_image_url"] = *req.CoverImageURL
+		updates["cover_image_url"] = strings.TrimSpace(*req.CoverImageURL)
 	}
 	if req.Category != nil {
 		updates["category"] = *req.Category
 	}
 	if req.Language != nil {
-		updates["language"] = *req.Language
+		updates["language"] = strings.TrimSpace(*req.Language)
 	}
 	if req.Formats != nil {
-		updates["formats"] = *req.Formats
+		updates["formats"] = strings.TrimSpace(*req.Formats)
 	}
 	if req.ScheduleType != nil {
 		updates["schedule_type"] = *req.ScheduleType
@@ -115,10 +127,10 @@ func (s *ServiceService) Update(serviceID, ownerID uint, req models.ServiceUpdat
 		updates["channel"] = *req.Channel
 	}
 	if req.ChannelLink != nil {
-		updates["channel_link"] = *req.ChannelLink
+		updates["channel_link"] = strings.TrimSpace(*req.ChannelLink)
 	}
 	if req.OfflineAddress != nil {
-		updates["offline_address"] = *req.OfflineAddress
+		updates["offline_address"] = strings.TrimSpace(*req.OfflineAddress)
 	}
 	if req.OfflineLat != nil {
 		updates["offline_lat"] = *req.OfflineLat
@@ -266,11 +278,20 @@ func (s *ServiceService) AddTariff(serviceID, ownerID uint, req models.TariffCre
 		return nil, errors.New("not authorized")
 	}
 
+	req.Name = strings.TrimSpace(req.Name)
+	req.Includes = strings.TrimSpace(req.Includes)
+	if req.Name == "" {
+		return nil, errors.New("tariff name is required")
+	}
+	if req.Price < 0 {
+		return nil, errors.New("tariff price must be non-negative")
+	}
+
 	tariff := models.ServiceTariff{
 		ServiceID:       serviceID,
 		Name:            req.Name,
 		Price:           req.Price,
-		Currency:        "LKS",
+		Currency:        "LKM",
 		DurationMinutes: req.DurationMinutes,
 		SessionsCount:   req.SessionsCount,
 		ValidityDays:    req.ValidityDays,
@@ -323,9 +344,12 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 
 	updates := make(map[string]interface{})
 	if req.Name != nil {
-		updates["name"] = *req.Name
+		updates["name"] = strings.TrimSpace(*req.Name)
 	}
 	if req.Price != nil {
+		if *req.Price < 0 {
+			return nil, errors.New("tariff price must be non-negative")
+		}
 		updates["price"] = *req.Price
 	}
 	if req.DurationMinutes != nil {
@@ -338,7 +362,7 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 		updates["validity_days"] = *req.ValidityDays
 	}
 	if req.Includes != nil {
-		updates["includes"] = *req.Includes
+		updates["includes"] = strings.TrimSpace(*req.Includes)
 	}
 	if req.IsDefault != nil {
 		if *req.IsDefault {
