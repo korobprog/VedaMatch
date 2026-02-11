@@ -51,6 +51,14 @@ func safeImageExtension(filename string) string {
 	}
 }
 
+func requireCafeUserID(c *fiber.Ctx) (uint, error) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	return userID, nil
+}
+
 // NewCafeHandler creates a new cafe handler instance
 func NewCafeHandler() *CafeHandler {
 	mapService := services.NewMapService(database.DB)
@@ -247,7 +255,10 @@ func (h *CafeHandler) ListCafes(c *fiber.Ctx) error {
 // UpdateCafe updates a cafe
 // PUT /api/cafes/:id
 func (h *CafeHandler) UpdateCafe(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -278,7 +289,10 @@ func (h *CafeHandler) UpdateCafe(c *fiber.Ctx) error {
 // DeleteCafe deletes a cafe
 // DELETE /api/cafes/:id
 func (h *CafeHandler) DeleteCafe(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -301,7 +315,10 @@ func (h *CafeHandler) DeleteCafe(c *fiber.Ctx) error {
 // CreateTable creates a new table
 // POST /api/cafes/:id/tables
 func (h *CafeHandler) CreateTable(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -344,7 +361,10 @@ func (h *CafeHandler) GetTables(c *fiber.Ctx) error {
 // UpdateTable updates a table
 // PUT /api/cafes/:id/tables/:tableId
 func (h *CafeHandler) UpdateTable(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -381,7 +401,10 @@ func (h *CafeHandler) UpdateTable(c *fiber.Ctx) error {
 // UpdateFloorLayout updates multiple table positions
 // PUT /api/cafes/:id/floor-layout
 func (h *CafeHandler) UpdateFloorLayout(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -406,7 +429,10 @@ func (h *CafeHandler) UpdateFloorLayout(c *fiber.Ctx) error {
 // DeleteTable deletes a table
 // DELETE /api/cafes/:id/tables/:tableId
 func (h *CafeHandler) DeleteTable(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})

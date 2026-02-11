@@ -206,44 +206,63 @@ export default function CreateServiceScreen() {
     };
 
     const handleAddTariff = () => {
-        if (tariffs.length >= 5) {
+        let hitLimit = false;
+        setTariffs((prev) => {
+            if (prev.length >= 5) {
+                hitLimit = true;
+                return prev;
+            }
+            return [...prev, {
+                name: `Тариф ${prev.length + 1}`,
+                price: '1000',
+                durationMinutes: '60',
+                sessionsCount: '1',
+                isDefault: false,
+            }];
+        });
+        if (hitLimit) {
             Alert.alert('Лимит', 'Максимум 5 тарифов');
-            return;
         }
-        setTariffs([...tariffs, {
-            name: `Тариф ${tariffs.length + 1}`,
-            price: '1000',
-            durationMinutes: '60',
-            sessionsCount: '1',
-            isDefault: false,
-        }]);
     };
 
     const handleRemoveTariff = (index: number) => {
-        if (tariffs.length <= 1) {
+        let canRemove = true;
+        setTariffs((prev) => {
+            if (prev.length <= 1) {
+                canRemove = false;
+                return prev;
+            }
+
+            const next = prev.filter((_, i) => i !== index).map((tariff) => ({ ...tariff }));
+            if (!next.some((tariff) => tariff.isDefault) && next[0]) {
+                next[0].isDefault = true;
+            }
+            return next;
+        });
+        if (!canRemove) {
             Alert.alert('Ошибка', 'Нужен хотя бы один тариф');
-            return;
         }
-        const newTariffs = tariffs.filter((_, i) => i !== index);
-        if (!newTariffs.some(t => t.isDefault)) {
-            newTariffs[0].isDefault = true;
-        }
-        setTariffs(newTariffs);
     };
 
     const handleTariffChange = (index: number, field: keyof TariffForm, value: string | boolean) => {
-        const newTariffs = [...tariffs];
-        if (field === 'isDefault' && value === true) {
-            newTariffs.forEach((t) => {
-                t.isDefault = false;
-            });
-        }
-        if (field === 'isDefault') {
-            newTariffs[index].isDefault = Boolean(value);
-        } else {
-            newTariffs[index][field] = String(value) as TariffForm[typeof field];
-        }
-        setTariffs(newTariffs);
+        setTariffs((prev) => prev.map((tariff, i) => {
+            if (field === 'isDefault' && value === true) {
+                if (i === index) {
+                    return { ...tariff, isDefault: true };
+                }
+                return { ...tariff, isDefault: false };
+            }
+
+            if (i !== index) {
+                return tariff;
+            }
+
+            if (field === 'isDefault') {
+                return { ...tariff, isDefault: Boolean(value) };
+            }
+
+            return { ...tariff, [field]: String(value) } as TariffForm;
+        }));
     };
 
     const validateForm = (): boolean => {

@@ -104,11 +104,13 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const [hasMore, setHasMore] = useState(true);
     const isMountedRef = useRef(true);
     const latestLoadRequestRef = useRef(0);
+    const loadMoreInProgressRef = useRef(false);
 
     useEffect(() => {
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
+            loadMoreInProgressRef.current = false;
         };
     }, []);
 
@@ -163,6 +165,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                 setRefreshing(false);
                 setLoadingMore(false);
             }
+            loadMoreInProgressRef.current = false;
         }
     }, [selectedCategory, searchQuery]);
 
@@ -183,7 +186,8 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     }, [refreshing, loading, loadServices]);
 
     const onLoadMore = () => {
-        if (loading || refreshing || loadingMore || !hasMore) return;
+        if (loading || refreshing || loadingMore || !hasMore || loadMoreInProgressRef.current) return;
+        loadMoreInProgressRef.current = true;
         const nextPage = page + 1;
         void loadServices({ reset: false, pageOverride: nextPage });
     };

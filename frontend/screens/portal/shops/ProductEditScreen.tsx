@@ -203,8 +203,9 @@ export const ProductEditScreen: React.FC = () => {
     const handlePickMainImage = async () => {
         try {
             const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, quality: 0.8 });
-            if (result.assets && result.assets[0]) {
-                setMainImage(result.assets[0]);
+            const picked = result.assets?.find((asset) => typeof asset?.uri === 'string' && asset.uri.length > 0);
+            if (picked) {
+                setMainImage(picked);
                 setExistingMainImage('');
             }
         } catch (error) {
@@ -221,7 +222,7 @@ export const ProductEditScreen: React.FC = () => {
         try {
             const remaining = 5 - additionalImages.length - existingImages.length;
             const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: remaining, quality: 0.8 });
-            const assets = result.assets ?? [];
+            const assets = (result.assets ?? []).filter((asset): asset is Asset => typeof asset?.uri === 'string' && asset.uri.length > 0);
             if (assets.length > 0) {
                 setAdditionalImages(prev => [...prev, ...assets]);
             }
@@ -368,6 +369,9 @@ export const ProductEditScreen: React.FC = () => {
             // 2. Upload additional images if any
             const uploadedGalleryUrls: string[] = [];
             for (const asset of additionalImages) {
+                if (!asset.uri) {
+                    continue;
+                }
                 const url = await marketService.uploadProductImage(asset);
                 uploadedGalleryUrls.push(url);
             }

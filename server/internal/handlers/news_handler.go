@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"math"
 	"rag-agent-server/internal/database"
@@ -186,7 +187,11 @@ func (h *NewsHandler) GetNewsItem(c *fiber.Ctx) error {
 
 	var newsItem models.NewsItem
 	if err := database.DB.Preload("Source").First(&newsItem, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		}
+		log.Printf("[NEWS] Error fetching news item %d: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
 	// Only return published news to public
@@ -312,7 +317,11 @@ func (h *NewsHandler) GetAdminNewsItem(c *fiber.Ctx) error {
 
 	var newsItem models.NewsItem
 	if err := database.DB.Preload("Source").First(&newsItem, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		}
+		log.Printf("[ADMIN NEWS] Error fetching news item %d: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
 	return c.JSON(newsItem)
@@ -388,7 +397,11 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 
 	var newsItem models.NewsItem
 	if err := database.DB.First(&newsItem, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		}
+		log.Printf("[ADMIN NEWS] Error loading news %d for update: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
 	var req models.NewsItemCreateRequest
@@ -451,7 +464,11 @@ func (h *NewsHandler) DeleteNews(c *fiber.Ctx) error {
 
 	var newsItem models.NewsItem
 	if err := database.DB.First(&newsItem, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		}
+		log.Printf("[ADMIN NEWS] Error loading news %d for delete: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
 	if err := database.DB.Delete(&newsItem).Error; err != nil {
@@ -473,7 +490,11 @@ func (h *NewsHandler) PublishNews(c *fiber.Ctx) error {
 
 	var newsItem models.NewsItem
 	if err := database.DB.First(&newsItem, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		}
+		log.Printf("[ADMIN NEWS] Error loading news %d for publish: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
 	now := c.Context().Time()

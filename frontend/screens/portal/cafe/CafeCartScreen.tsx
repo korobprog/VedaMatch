@@ -87,6 +87,7 @@ const CafeCartScreen: React.FC = () => {
     const [loadingTables, setLoadingTables] = useState(false);
     const latestTablesRequestRef = useRef(0);
     const latestSubmitOrderRequestRef = useRef(0);
+    const submitInProgressRef = useRef(false);
     const isMountedRef = useRef(true);
 
     const fetchTables = useCallback(async () => {
@@ -177,7 +178,8 @@ const CafeCartScreen: React.FC = () => {
     };
 
     const handleSubmitOrder = async () => {
-        if (!cart || loading) return;
+        if (!cart || loading || submitInProgressRef.current) return;
+        submitInProgressRef.current = true;
         const requestId = ++latestSubmitOrderRequestRef.current;
 
         const normalizedAddress = deliveryAddress.trim();
@@ -206,6 +208,11 @@ const CafeCartScreen: React.FC = () => {
                 setLoading(true);
             }
 
+            if (!cart.cafeId) {
+                Alert.alert(t('common.error'), t('cafe.cart.errorSubmit'));
+                return;
+            }
+
             const orderData = {
                 cafeId: cart.cafeId,
                 orderType: cart.orderType,
@@ -223,7 +230,7 @@ const CafeCartScreen: React.FC = () => {
                         modifierId: m.modifier.id,
                         quantity: m.quantity,
                     })),
-                    note: item.note || undefined,
+                    note: item.note?.trim() || undefined,
                 })),
             };
 
@@ -239,6 +246,9 @@ const CafeCartScreen: React.FC = () => {
                 orderNumber: order.orderNumber,
             });
         } catch (error: unknown) {
+            if (requestId !== latestSubmitOrderRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Error creating order:', error);
             const errorMessage = getApiErrorMessage(error, t('cafe.cart.errorSubmit'));
             Alert.alert(t('common.error'), errorMessage);
@@ -246,6 +256,7 @@ const CafeCartScreen: React.FC = () => {
             if (requestId === latestSubmitOrderRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
+            submitInProgressRef.current = false;
         }
     };
 

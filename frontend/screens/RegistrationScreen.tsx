@@ -108,6 +108,8 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const isMountedRef = useRef(true);
     const latestSubmitRequestRef = useRef(0);
     const latestDetectRequestRef = useRef(0);
+    const submitInProgressRef = useRef(false);
+    const skipInProgressRef = useRef(false);
     const { colors: roleColors, roleTheme } = useRoleTheme(role, true); // Force dark theme colors for text on dark background
     const isSeekerRole = role === 'user';
     const isInGoodnessRole = role === 'in_goodness';
@@ -146,7 +148,14 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         }
         setShowCountryPicker(false);
         // Fetch cities for selected country
-        await fetchCities(cData.name.common);
+        try {
+            await fetchCities(cData.name.common);
+        } catch (error) {
+            console.error('[CountrySelect] Failed to fetch cities:', error);
+            if (isMountedRef.current) {
+                Alert.alert(t('common.error'), t('registration.locationDetectionFailed'));
+            }
+        }
     };
 
     const handleAutoDetect = async () => {
@@ -199,6 +208,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     const handleSubmit = async () => {
+        if (submitInProgressRef.current || loading) {
+            return;
+        }
         if (phase === 'initial') {
             if (!email || !password) {
                 Alert.alert(t('error'), 'Email and password are required');
@@ -223,6 +235,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             return;
         }
         const requestId = ++latestSubmitRequestRef.current;
+        submitInProgressRef.current = true;
 
         if (isMountedRef.current) {
             setLoading(true);
@@ -335,6 +348,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
+            submitInProgressRef.current = false;
         }
     };
 
@@ -347,9 +361,22 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 {
                     text: 'Skip',
                     onPress: async () => {
-                        const userStr = await AsyncStorage.getItem('user');
-                        if (userStr && userStr !== 'undefined' && userStr !== 'null') {
-                            await login(JSON.parse(userStr));
+                        if (skipInProgressRef.current) {
+                            return;
+                        }
+                        skipInProgressRef.current = true;
+                        try {
+                            const userStr = await AsyncStorage.getItem('user');
+                            if (userStr && userStr !== 'undefined' && userStr !== 'null') {
+                                await login(JSON.parse(userStr));
+                            }
+                        } catch (error) {
+                            console.error('Skip flow failed:', error);
+                            if (isMountedRef.current) {
+                                Alert.alert('Error', 'Operation failed. Please try again.');
+                            }
+                        } finally {
+                            skipInProgressRef.current = false;
                         }
                     }
                 }

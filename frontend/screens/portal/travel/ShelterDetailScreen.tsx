@@ -90,12 +90,16 @@ const ShelterDetailScreen: React.FC = () => {
     }, [shelterId, navigation]);
 
     useEffect(() => {
-        loadShelter();
+        isMountedRef.current = true;
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
             latestSubmitReviewRequestRef.current += 1;
         };
+    }, []);
+
+    useEffect(() => {
+        void loadShelter();
     }, [loadShelter]);
 
     const handleShare = async () => {

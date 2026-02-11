@@ -74,8 +74,10 @@ export const ProductDetailsScreen: React.FC = () => {
     const [reviewsPage, setReviewsPage] = useState(1);
     const [loadingReviews, setLoadingReviews] = useState(false);
     const [hasMoreReviews, setHasMoreReviews] = useState(false);
+    const [favoriteUpdating, setFavoriteUpdating] = useState(false);
     const latestProductRequestRef = useRef(0);
     const latestReviewsRequestRef = useRef(0);
+    const reviewSubmittingRef = useRef(false);
     const isMountedRef = useRef(true);
 
     const loadReviews = useCallback(async (page: number) => {
@@ -116,9 +118,11 @@ export const ProductDetailsScreen: React.FC = () => {
     const loadProduct = useCallback(async () => {
         const requestId = ++latestProductRequestRef.current;
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const data = await marketService.getProduct(productId);
-            if (requestId !== latestProductRequestRef.current) {
+            if (requestId !== latestProductRequestRef.current || !isMountedRef.current) {
                 return;
             }
             setProduct(data);
@@ -132,18 +136,18 @@ export const ProductDetailsScreen: React.FC = () => {
             } else {
                 setSelectedVariant(null);
             }
+            void loadReviews(1);
         } catch (error) {
             console.error('Error loading product:', error);
-            if (requestId === latestProductRequestRef.current) {
+            if (requestId === latestProductRequestRef.current && isMountedRef.current) {
                 setProduct(null);
                 Alert.alert('Error', 'Failed to load product');
             }
         } finally {
-            if (requestId === latestProductRequestRef.current) {
+            if (requestId === latestProductRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }
-        void loadReviews(1);
     }, [loadReviews, productId]);
 
     useEffect(() => {
@@ -205,13 +209,19 @@ export const ProductDetailsScreen: React.FC = () => {
     };
 
     const submitReview = async (rating: number, comment: string) => {
+        if (reviewSubmittingRef.current) {
+            return;
+        }
+        reviewSubmittingRef.current = true;
         try {
             await marketService.addProductReview(productId, { rating, comment });
             Alert.alert('Success', 'Your review has been submitted');
-            loadProduct(); // Refresh product stats and reviews
+            void loadProduct(); // Refresh product stats and reviews
         } catch (error: unknown) {
             const msg = getErrorMessage(error, 'Failed to submit review');
             Alert.alert('Error', msg);
+        } finally {
+            reviewSubmittingRef.current = false;
         }
     };
 
@@ -274,11 +284,23 @@ export const ProductDetailsScreen: React.FC = () => {
     };
 
     const handleToggleFavorite = async () => {
+        if (favoriteUpdating) {
+            return;
+        }
         try {
+            if (isMountedRef.current) {
+                setFavoriteUpdating(true);
+            }
             const result = await marketService.toggleFavorite(productId);
-            setIsFavorite(result.isFavorite);
+            if (isMountedRef.current) {
+                setIsFavorite(result.isFavorite);
+            }
         } catch (error) {
             console.error('Error toggling favorite:', error);
+        } finally {
+            if (isMountedRef.current) {
+                setFavoriteUpdating(false);
+            }
         }
     };
 
@@ -414,7 +436,7 @@ export const ProductDetailsScreen: React.FC = () => {
                     )}
 
                     {/* Favorite button */}
-                    <TouchableOpacity style={styles.favoriteBtn} onPress={handleToggleFavorite}>
+                    <TouchableOpacity style={styles.favoriteBtn} onPress={handleToggleFavorite} disabled={favoriteUpdating}>
                         <Heart size={24} color={isFavorite ? colors.danger : textPrimary} fill={isFavorite ? colors.danger : 'transparent'} />
                     </TouchableOpacity>
 

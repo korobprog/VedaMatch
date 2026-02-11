@@ -92,17 +92,21 @@ export const ReaderScreen = () => {
         } catch (e) { console.error(e); }
     }, [bookmarkKey]);
 
-    const toggleBookmark = async (v: Pick<ScriptureVerse, 'chapter' | 'verse'>) => {
+    const toggleBookmark = useCallback(async (v: Pick<ScriptureVerse, 'chapter' | 'verse'>) => {
         const id = `${bookCode}-${v.chapter}-${v.verse}`;
-        let newBookmarks;
-        if (bookmarks.includes(id)) {
-            newBookmarks = bookmarks.filter(b => b !== id);
-        } else {
-            newBookmarks = [...bookmarks, id];
+        let nextBookmarks: string[] = [];
+        setBookmarks((prev) => {
+            nextBookmarks = prev.includes(id)
+                ? prev.filter((bookmarkId) => bookmarkId !== id)
+                : [...prev, id];
+            return nextBookmarks;
+        });
+        try {
+            await AsyncStorage.setItem(bookmarkKey, JSON.stringify(nextBookmarks));
+        } catch (error) {
+            console.error('Failed to save bookmarks', error);
         }
-        setBookmarks(newBookmarks);
-        await AsyncStorage.setItem(bookmarkKey, JSON.stringify(newBookmarks));
-    };
+    }, [bookCode, bookmarkKey]);
 
     const saveLastRead = async (index: number) => {
         if (verses[index]) {
@@ -113,6 +117,15 @@ export const ReaderScreen = () => {
             }
         }
     };
+
+    const saveFontSettings = useCallback(async (size: number, bold: boolean) => {
+        try {
+            await AsyncStorage.setItem('reader_font_size', size.toString());
+            await AsyncStorage.setItem('reader_font_bold', bold.toString());
+        } catch (error) {
+            console.error('Failed to save font settings', error);
+        }
+    }, []);
 
     const loadLastRead = useCallback(async () => {
         try {
@@ -129,6 +142,14 @@ export const ReaderScreen = () => {
             }
         } catch (e) { console.error(e); }
     }, [lastReadKey, verses.length]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            void saveFontSettings(fontSizeBase, fontBold);
+        }, 200);
+
+        return () => clearTimeout(timer);
+    }, [fontBold, fontSizeBase]);
 
     useEffect(() => () => {
         isMountedRef.current = false;

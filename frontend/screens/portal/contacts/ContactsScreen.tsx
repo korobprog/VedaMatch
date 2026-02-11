@@ -116,6 +116,9 @@ export const ContactsScreen: React.FC = () => {
                     setFriends(userFriends);
                     setBlockedContacts(blocked);
                 }
+            } else if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                setFriends([]);
+                setBlockedContacts([]);
             }
         } catch (error) {
             console.error('Error fetching contacts:', error);
@@ -365,6 +368,12 @@ export const ContactsScreen: React.FC = () => {
         [allContacts]
     );
     const uniqueCities = availableCities;
+    const allCount = useMemo(() => {
+        const currentUserId = currentUser?.ID;
+        return allContacts.filter((contact) => contact.ID !== currentUserId && !blockedIdsSet.has(contact.ID)).length;
+    }, [allContacts, blockedIdsSet, currentUser?.ID]);
+    const friendsCount = friends.length;
+    const blockedCount = blockedContacts.length;
 
     return (
         <ProtectedScreen requireCompleteProfile={false}>
@@ -375,7 +384,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'all' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'all' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'all' ? theme.text : theme.subText) }]}>
-                            {t('contacts.all')} ({displayedContacts.length})
+                            {t('contacts.all')} ({allCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -383,7 +392,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'friends' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'friends' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'friends' ? theme.text : theme.subText) }]}>
-                            {t('contacts.friends')} ({friends.length})
+                            {t('contacts.friends')} ({friendsCount})
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -391,7 +400,7 @@ export const ContactsScreen: React.FC = () => {
                         style={[styles.filterBtn, filter === 'blocked' && { borderBottomColor: isPhotoBg ? '#ffffff' : theme.accent }]}
                     >
                         <Text style={[styles.filterText, { color: isPhotoBg ? (filter === 'blocked' ? '#ffffff' : 'rgba(255,255,255,0.7)') : (filter === 'blocked' ? theme.text : theme.subText) }]}>
-                            {t('contacts.blocked')}
+                            {t('contacts.blocked')} ({blockedCount})
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -555,12 +564,12 @@ export const ContactsScreen: React.FC = () => {
                                         </Text>
                                     </View>
                                 ) : (
-                                    filteredCities.map((city: string, index: number) => {
+                                    filteredCities.map((city: string) => {
                                         const isSelected = filterCities.includes(city);
                                         const count = allContacts.filter((c: UserContact) => c.city === city).length;
                                         return (
                                             <TouchableOpacity
-                                                key={index}
+                                                key={city}
                                                 style={[
                                                     styles.cityItem,
                                                     { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.1)' : theme.borderColor },

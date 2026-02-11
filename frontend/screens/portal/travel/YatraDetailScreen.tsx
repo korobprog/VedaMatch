@@ -199,13 +199,17 @@ const YatraDetailScreen: React.FC = () => {
     };
 
     useEffect(() => {
-        loadYatra();
+        isMountedRef.current = true;
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
             latestJoinRequestRef.current += 1;
             latestDecisionRequestRef.current += 1;
         };
+    }, []);
+
+    useEffect(() => {
+        void loadYatra();
     }, [loadYatra]);
 
     if (loading || !yatra) {
@@ -272,7 +276,10 @@ const YatraDetailScreen: React.FC = () => {
                                 {yatra.organizer?.city}, {yatra.organizer?.country}
                             </Text>
                         </View>
-                        <TouchableOpacity style={[styles.messageButton, { backgroundColor: colors.surface }]}>
+                        <TouchableOpacity
+                            style={[styles.messageButton, { backgroundColor: colors.surface }]}
+                            onPress={() => navigation.navigate('Chat', { userId: yatra.organizerId })}
+                        >
                             <MessageCircle size={20} color={colors.textPrimary} />
                         </TouchableOpacity>
                     </View>

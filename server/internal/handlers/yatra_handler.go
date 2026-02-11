@@ -21,6 +21,14 @@ type YatraHandler struct {
 	shelterService *services.ShelterService
 }
 
+func requireYatraUserID(c *fiber.Ctx) (uint, error) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	return userID, nil
+}
+
 // NewYatraHandler creates a new yatra handler instance
 func NewYatraHandler() *YatraHandler {
 	mapService := services.NewMapService(database.DB)
@@ -121,7 +129,10 @@ func (h *YatraHandler) ListYatras(c *fiber.Ctx) error {
 // UpdateYatra updates a yatra
 // PUT /api/yatra/:id
 func (h *YatraHandler) UpdateYatra(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
@@ -143,7 +154,10 @@ func (h *YatraHandler) UpdateYatra(c *fiber.Ctx) error {
 // PublishYatra publishes a draft yatra
 // POST /api/yatra/:id/publish
 func (h *YatraHandler) PublishYatra(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
@@ -159,7 +173,10 @@ func (h *YatraHandler) PublishYatra(c *fiber.Ctx) error {
 // DeleteYatra deletes a yatra
 // DELETE /api/yatra/:id
 func (h *YatraHandler) DeleteYatra(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
@@ -224,7 +241,10 @@ func (h *YatraHandler) JoinYatra(c *fiber.Ctx) error {
 // ApproveParticipant approves a join request
 // POST /api/yatra/:id/participants/:participantId/approve
 func (h *YatraHandler) ApproveParticipant(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
@@ -244,7 +264,10 @@ func (h *YatraHandler) ApproveParticipant(c *fiber.Ctx) error {
 // RejectParticipant rejects a join request
 // POST /api/yatra/:id/participants/:participantId/reject
 func (h *YatraHandler) RejectParticipant(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
@@ -264,7 +287,10 @@ func (h *YatraHandler) RejectParticipant(c *fiber.Ctx) error {
 // RemoveParticipant removes a participant
 // DELETE /api/yatra/:id/participants/:participantId
 func (h *YatraHandler) RemoveParticipant(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})

@@ -94,6 +94,7 @@ export default function ServiceScheduleScreen() {
     const [maxBookingsPerDay, setMaxBookingsPerDay] = useState(0); // 0 = unlimited
     const latestLoadRequestRef = useRef(0);
     const latestSaveRequestRef = useRef(0);
+    const saveInProgressRef = useRef(false);
     const isMountedRef = useRef(true);
 
     const loadSchedule = useCallback(async () => {
@@ -161,29 +162,36 @@ export default function ServiceScheduleScreen() {
     };
 
     const handleAddSlot = (day: DayOfWeek) => {
-        const daySchedule = schedule[day];
-        if (daySchedule.slots.length >= 5) {
-            Alert.alert('Лимит', 'Максимум 5 слотов на день');
-            return;
-        }
+        let warningMessage = '';
+        setSchedule(prev => {
+            const daySchedule = prev[day];
+            if (daySchedule.slots.length >= 5) {
+                warningMessage = 'Максимум 5 слотов на день';
+                return prev;
+            }
 
-        const lastSlot = daySchedule.slots[daySchedule.slots.length - 1];
-        const newStartTime = lastSlot ? incrementTime(lastSlot.endTime, 60) : '09:00';
-        const newEndTime = incrementTime(newStartTime, 60);
-        const newStartMinutes = parseTimeToMinutes(newStartTime);
-        const newEndMinutes = parseTimeToMinutes(newEndTime);
-        if (newStartMinutes < 0 || newEndMinutes < 0 || newStartMinutes >= newEndMinutes) {
-            Alert.alert('Лимит', 'Нельзя добавить интервал позже 23:30');
-            return;
-        }
+            const lastSlot = daySchedule.slots[daySchedule.slots.length - 1];
+            const newStartTime = lastSlot ? incrementTime(lastSlot.endTime, 60) : '09:00';
+            const newEndTime = incrementTime(newStartTime, 60);
+            const newStartMinutes = parseTimeToMinutes(newStartTime);
+            const newEndMinutes = parseTimeToMinutes(newEndTime);
+            if (newStartMinutes < 0 || newEndMinutes < 0 || newStartMinutes >= newEndMinutes) {
+                warningMessage = 'Нельзя добавить интервал позже 23:30';
+                return prev;
+            }
 
-        setSchedule(prev => ({
-            ...prev,
-            [day]: {
-                ...prev[day],
-                slots: [...prev[day].slots, { startTime: newStartTime, endTime: newEndTime }],
-            },
-        }));
+            return {
+                ...prev,
+                [day]: {
+                    ...prev[day],
+                    slots: [...prev[day].slots, { startTime: newStartTime, endTime: newEndTime }],
+                },
+            };
+        });
+
+        if (warningMessage) {
+            Alert.alert('Лимит', warningMessage);
+        }
     };
 
     const handleRemoveSlot = (day: DayOfWeek, index: number) => {
@@ -243,7 +251,7 @@ export default function ServiceScheduleScreen() {
     };
 
     const handleSave = async () => {
-        if (saving) {
+        if (saving || saveInProgressRef.current) {
             return;
         }
         if (!serviceId) {
@@ -282,6 +290,7 @@ export default function ServiceScheduleScreen() {
         }
 
         const requestId = ++latestSaveRequestRef.current;
+        saveInProgressRef.current = true;
         setSaving(true);
         try {
             const weeklySlots: NonNullable<CreateScheduleRequest['weeklySlots']> = {};
@@ -320,6 +329,7 @@ export default function ServiceScheduleScreen() {
             if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
                 setSaving(false);
             }
+            saveInProgressRef.current = false;
         }
     };
 

@@ -76,6 +76,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     const modalScale = useRef(new Animated.Value(0.96)).current;
     const isMountedRef = useRef(true);
     const latestSettingsRequestRef = useRef(0);
+    const latestUpdateRequestRef = useRef(0);
 
     const PRESET_IMAGES = [
         { id: 'krishna', emoji: '🕉️' },
@@ -164,6 +165,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         return () => {
             isMountedRef.current = false;
             latestSettingsRequestRef.current += 1;
+            latestUpdateRequestRef.current += 1;
         };
     }, []);
 
@@ -205,6 +207,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleToggleAi = (val: boolean) => {
+        if (saving) {
+            return;
+        }
         const previous = aiEnabled;
         setAiEnabled(val);
         void handleUpdateSettings({ aiEnabled: val }).then((updated) => {
@@ -215,6 +220,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleTogglePublic = (val: boolean) => {
+        if (saving) {
+            return;
+        }
         const previous = isPublic;
         setIsPublic(val);
         void handleUpdateSettings({ isPublic: val }).then((updated) => {
@@ -225,6 +233,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleUpdateSettings = async (updates: Record<string, unknown>): Promise<boolean> => {
+        const requestId = ++latestUpdateRequestRef.current;
         if (isMountedRef.current) {
             setSaving(true);
         }
@@ -254,7 +263,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             }
             return false;
         } finally {
-            if (isMountedRef.current) {
+            if (isMountedRef.current && requestId === latestUpdateRequestRef.current) {
                 setSaving(false);
             }
         }
@@ -452,11 +461,13 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                 triggerTapFeedback();
                                 handleSaveReading();
                             }}
+                            disabled={saving || uploadingImage}
                             style={[
                                 styles.headerIcon,
                                 {
                                     backgroundColor: colors.accent,
                                     borderColor: colors.accent,
+                                    opacity: saving || uploadingImage ? 0.6 : 1,
                                 }
                             ]}
                         >
