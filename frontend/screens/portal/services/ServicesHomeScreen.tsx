@@ -13,6 +13,8 @@ import {
     RefreshControl,
     Dimensions,
     ActivityIndicator,
+    ImageBackground,
+    Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -176,36 +178,39 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
 
     const renderHeader = () => (
         <View style={styles.header}>
-            {/* Top Bar */}
-            <View style={styles.headerTop}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => onBack ? onBack() : navigation.goBack()}
-                >
-                    <ArrowLeft size={22} color={colors.textPrimary} />
-                </TouchableOpacity>
-
-                <View style={styles.headerTitleContainer}>
-                    <Text
-                        style={[styles.headerTitle, { color: colors.textPrimary }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
+            <ImageBackground
+                source={require('../../../assets/services_banner_bg.png')}
+                style={styles.bannerHeader}
+                imageStyle={styles.bannerImage}
+            >
+                <View style={styles.bannerOverlay} />
+                <View style={styles.headerTop}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => onBack ? onBack() : navigation.goBack()}
                     >
-                        Маркетплейс
-                    </Text>
-                    <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Услуги и специалисты</Text>
+                        <ArrowLeft size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+
+                    <View style={styles.headerTitleContainer}>
+                        <Text
+                            style={[styles.headerTitle, { color: '#FFFFFF' }]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                        >
+                            Маркетплейс
+                        </Text>
+                        <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>Услуги и специалисты</Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
+                        <View style={styles.walletInnerGlass}>
+                            <Wallet size={14} color="#FFFFFF" />
+                            <Text style={[styles.walletBalanceGlass, { color: '#FFFFFF' }]}>{formattedBalance}</Text>
+                        </View>
+                    </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
-                    <LinearGradient
-                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
-                        style={[styles.walletInner, { borderColor: colors.accentSoft }]}
-                    >
-                        <Wallet size={14} color={colors.accent} />
-                        <Text style={[styles.walletBalance, { color: colors.accent }]}>{formattedBalance}</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+            </ImageBackground>
 
             {/* Featured Actions - Premium Cards */}
             <View style={styles.featuredActions}>
@@ -381,23 +386,28 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingTop: 10,
+        marginBottom: 24,
+    },
+    bannerHeader: {
+        width: '100%',
+        height: 240,
+        justifyContent: 'center',
+        paddingTop: Platform.OS === 'ios' ? 44 : 20,
+        borderBottomLeftRadius: 36,
+        borderBottomRightRadius: 36,
+        overflow: 'hidden',
+    },
+    bannerImage: {
+        resizeMode: 'cover',
+    },
+    bannerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
-        marginBottom: 24,
-    },
-    backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     headerTitleContainer: {
         flex: 1,
@@ -408,6 +418,9 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
         letterSpacing: 1,
+        textShadowColor: 'rgba(0, 0, 0, 0.6)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 8,
     },
     headerSubtitle: {
         fontSize: 10,
@@ -415,24 +428,37 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 2,
         marginTop: 2,
+        textShadowColor: 'rgba(0, 0, 0, 0.4)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     walletButton: {
         borderRadius: 20,
         overflow: 'hidden',
     },
-    walletInner: {
+    walletInnerGlass: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         gap: 6,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderColor: 'rgba(255, 255, 255, 0.3)',
         borderRadius: 20,
     },
-    walletBalance: {
-        color: 'rgba(245,158,11,1)',
-        fontSize: 14,
+    walletBalanceGlass: {
+        fontSize: 13,
         fontWeight: '800',
     },
     featuredActions: {
