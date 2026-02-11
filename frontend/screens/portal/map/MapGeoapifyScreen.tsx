@@ -353,7 +353,12 @@ export const MapGeoapifyScreen: React.FC = () => {
             const hasCoords =
                 typeof location?.latitude === 'number' &&
                 typeof location?.longitude === 'number';
-            if (hasCoords && webViewRef.current) {
+            if (
+                hasCoords &&
+                webViewRef.current &&
+                requestId === latestLocateRequestRef.current &&
+                isMountedRef.current
+            ) {
                 // Update map view
                 webViewRef.current.injectJavaScript(`
                     map.setView([${location.latitude}, ${location.longitude}], 15);
@@ -371,11 +376,13 @@ export const MapGeoapifyScreen: React.FC = () => {
                     }
                     true;
                 `);
-            } else {
+            } else if (requestId === latestLocateRequestRef.current && isMountedRef.current) {
                 Alert.alert('Location Error', 'Could not detect your current location.');
             }
         } catch {
-            Alert.alert('Permission Denied', 'Please enable location permissions in settings.');
+            if (requestId === latestLocateRequestRef.current && isMountedRef.current) {
+                Alert.alert('Permission Denied', 'Please enable location permissions in settings.');
+            }
         } finally {
             if (requestId === latestLocateRequestRef.current && isMountedRef.current) {
                 setIsLoading(false);
@@ -529,6 +536,7 @@ export const MapGeoapifyScreen: React.FC = () => {
         }
         setSearchQuery('');
         setSearchResults([]);
+        setIsSearching(false);
         Keyboard.dismiss();
     };
 
@@ -897,7 +905,12 @@ export const MapGeoapifyScreen: React.FC = () => {
                 <View style={[styles.searchResultsContainer, { backgroundColor: colors.surfaceElevated }]}>
                     <FlatList
                         data={searchResults}
-                        keyExtractor={(item, index) => index.toString()}
+                        keyExtractor={(item) => {
+                            const lat = item?.properties?.lat ?? 0;
+                            const lon = item?.properties?.lon ?? 0;
+                            const formatted = item?.properties?.formatted ?? '';
+                            return `${formatted}-${lat}-${lon}`;
+                        }}
                         renderItem={({ item }) => (
                             <TouchableOpacity
                                 style={[styles.searchItem, { borderBottomColor: colors.border }]}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -275,96 +276,111 @@ func (s *YatraService) DeleteYatra(yatraID uint, organizerID uint) error {
 
 // JoinYatra creates a join request for a yatra
 func (s *YatraService) JoinYatra(yatraID uint, userID uint, req models.YatraJoinRequest) (*models.YatraParticipant, error) {
-	var yatra models.Yatra
-	if err := s.db.First(&yatra, yatraID).Error; err != nil {
-		return nil, err
-	}
-
-	// Check if yatra is open
-	if yatra.Status != models.YatraStatusOpen {
-		return nil, errors.New("yatra is not accepting participants")
-	}
-
-	// Check if already a participant
-	var existing models.YatraParticipant
-	if err := s.db.Where("yatra_id = ? AND user_id = ?", yatraID, userID).First(&existing).Error; err == nil {
-		return nil, errors.New("already applied to this yatra")
-	}
-
-	// Check if user is the organizer
-	if yatra.OrganizerID == userID {
-		return nil, errors.New("organizer cannot join their own yatra")
-	}
-	var approvedCount int64
-	if err := s.db.Model(&models.YatraParticipant{}).
-		Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
-		Count(&approvedCount).Error; err != nil {
-		return nil, err
-	}
-	if int(approvedCount) >= yatra.MaxParticipants {
-		if yatra.Status == models.YatraStatusOpen {
-			_ = s.db.Model(&models.Yatra{}).Where("id = ?", yatraID).Update("status", models.YatraStatusFull).Error
+	var participant models.YatraParticipant
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var yatra models.Yatra
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
+			return err
 		}
-		return nil, errors.New("yatra is full")
-	}
 
-	participant := &models.YatraParticipant{
-		YatraID:          yatraID,
-		UserID:           userID,
-		Status:           models.YatraParticipantPending,
-		Role:             models.YatraRoleMember,
-		Message:          strings.TrimSpace(req.Message),
-		EmergencyContact: strings.TrimSpace(req.EmergencyContact),
-	}
+		// Check if yatra is open
+		if yatra.Status != models.YatraStatusOpen {
+			return errors.New("yatra is not accepting participants")
+		}
 
-	if err := s.db.Create(participant).Error; err != nil {
+		// Check if already a participant
+		var existing models.YatraParticipant
+		if err := tx.Where("yatra_id = ? AND user_id = ?", yatraID, userID).First(&existing).Error; err == nil {
+			return errors.New("already applied to this yatra")
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		// Check if user is the organizer
+		if yatra.OrganizerID == userID {
+			return errors.New("organizer cannot join their own yatra")
+		}
+
+		var approvedCount int64
+		if err := tx.Model(&models.YatraParticipant{}).
+			Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
+			Count(&approvedCount).Error; err != nil {
+			return err
+		}
+		if int(approvedCount) >= yatra.MaxParticipants {
+			_ = tx.Model(&models.Yatra{}).Where("id = ? AND status = ?", yatraID, models.YatraStatusOpen).
+				Update("status", models.YatraStatusFull).Error
+			return errors.New("yatra is full")
+		}
+
+		participant = models.YatraParticipant{
+			YatraID:          yatraID,
+			UserID:           userID,
+			Status:           models.YatraParticipantPending,
+			Role:             models.YatraRoleMember,
+			Message:          strings.TrimSpace(req.Message),
+			EmergencyContact: strings.TrimSpace(req.EmergencyContact),
+		}
+
+		return tx.Create(&participant).Error
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return participant, nil
+	return &participant, nil
 }
 
 // ApproveParticipant approves a participant request
 func (s *YatraService) ApproveParticipant(yatraID uint, participantID uint, organizerID uint) error {
-	var yatra models.Yatra
-	if err := s.db.First(&yatra, yatraID).Error; err != nil {
-		return err
-	}
-
-	if yatra.OrganizerID != organizerID {
-		return errors.New("not authorized")
-	}
-
-	var participant models.YatraParticipant
-	if err := s.db.First(&participant, participantID).Error; err != nil {
-		return err
-	}
-
-	if participant.YatraID != yatraID {
-		return errors.New("participant does not belong to this yatra")
-	}
-	if participant.Status == models.YatraParticipantApproved {
-		return nil
-	}
-	var approvedCount int64
-	if err := s.db.Model(&models.YatraParticipant{}).
-		Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
-		Count(&approvedCount).Error; err != nil {
-		return err
-	}
-	if int(approvedCount) >= yatra.MaxParticipants {
-		if yatra.Status == models.YatraStatusOpen {
-			_ = s.db.Model(&models.Yatra{}).Where("id = ?", yatraID).Update("status", models.YatraStatusFull).Error
+	var approvedUserID uint
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var yatra models.Yatra
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
+			return err
 		}
-		return errors.New("yatra is full")
-	}
 
-	now := time.Now()
-	if err := s.db.Model(&participant).Updates(map[string]interface{}{
-		"status":      models.YatraParticipantApproved,
-		"reviewed_at": now,
-		"reviewed_by": organizerID,
-	}).Error; err != nil {
+		if yatra.OrganizerID != organizerID {
+			return errors.New("not authorized")
+		}
+
+		var participant models.YatraParticipant
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&participant, participantID).Error; err != nil {
+			return err
+		}
+
+		if participant.YatraID != yatraID {
+			return errors.New("participant does not belong to this yatra")
+		}
+		if participant.Status == models.YatraParticipantApproved {
+			approvedUserID = participant.UserID
+			return nil
+		}
+
+		var approvedCount int64
+		if err := tx.Model(&models.YatraParticipant{}).
+			Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
+			Count(&approvedCount).Error; err != nil {
+			return err
+		}
+		if int(approvedCount) >= yatra.MaxParticipants {
+			_ = tx.Model(&models.Yatra{}).Where("id = ? AND status = ?", yatraID, models.YatraStatusOpen).
+				Update("status", models.YatraStatusFull).Error
+			return errors.New("yatra is full")
+		}
+
+		now := time.Now()
+		if err := tx.Model(&participant).Updates(map[string]interface{}{
+			"status":      models.YatraParticipantApproved,
+			"reviewed_at": now,
+			"reviewed_by": organizerID,
+		}).Error; err != nil {
+			return err
+		}
+		approvedUserID = participant.UserID
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 
@@ -372,7 +388,9 @@ func (s *YatraService) ApproveParticipant(yatraID uint, participantID uint, orga
 	s.updateParticipantCount(yatraID)
 
 	// Create or add to chat room
-	s.addParticipantToChat(yatraID, participant.UserID)
+	if approvedUserID != 0 {
+		s.addParticipantToChat(yatraID, approvedUserID)
+	}
 
 	return nil
 }

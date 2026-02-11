@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -55,16 +55,40 @@ const CreateCafeScreen = () => {
 
     const [logo, setLogo] = useState<string | null>(null);
     const [cover, setCover] = useState<string | null>(null);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const latestSubmitRequestRef = useRef(0);
+    const latestUploadRequestRef = useRef(0);
 
     useEffect(() => {
         if (isEditing) {
-            loadCafeData();
+            void loadCafeData();
         }
-    }, [cafeId]);
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            latestSubmitRequestRef.current += 1;
+            latestUploadRequestRef.current += 1;
+        };
+    }, [isEditing]);
 
-    const loadCafeData = async () => {
+    const loadCafeData = useCallback(async () => {
+        if (!cafeId) {
+            if (isMountedRef.current) {
+                setLoading(false);
+                navigation.goBack();
+            }
+            return;
+        }
+        const requestId = ++latestLoadRequestRef.current;
         try {
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const cafe = await cafeService.getCafe(cafeId);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setName(cafe.name);
             setDescription(cafe.description || '');
             setCity(cafe.city);
@@ -80,12 +104,16 @@ const CreateCafeScreen = () => {
             setLogo(cafe.logoUrl || null);
             setCover(cafe.coverUrl || null);
         } catch (error) {
-            Alert.alert(t('common.error'), t('cafe.form.errorLoad'));
-            navigation.goBack();
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                Alert.alert(t('common.error'), t('cafe.form.errorLoad'));
+                navigation.goBack();
+            }
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    };
+    }, [cafeId, navigation, t]);
 
     const handlePickImage = async (type: 'logo' | 'cover') => {
         const options = {
@@ -98,43 +126,57 @@ const CreateCafeScreen = () => {
         launchImageLibrary(options, async (response) => {
             if (response.didCancel) return;
             if (response.errorMessage) {
-                Alert.alert(t('common.error'), response.errorMessage);
+                if (isMountedRef.current) {
+                    Alert.alert(t('common.error'), response.errorMessage);
+                }
                 return;
             }
 
             if (response.assets && response.assets.length > 0) {
                 const asset = response.assets[0];
+                const requestId = ++latestUploadRequestRef.current;
                 try {
                     const url = type === 'logo'
                         ? await cafeService.uploadLogo(asset)
                         : await cafeService.uploadCover(asset);
+                    if (requestId !== latestUploadRequestRef.current || !isMountedRef.current) {
+                        return;
+                    }
 
                     if (type === 'logo') setLogo(url);
                     else setCover(url);
                 } catch (error) {
-                    Alert.alert(t('common.error'), t('cafe.form.errorUpload'));
+                    if (requestId === latestUploadRequestRef.current && isMountedRef.current) {
+                        Alert.alert(t('common.error'), t('cafe.form.errorUpload'));
+                    }
                 }
             }
         });
     };
 
     const handleSubmit = async () => {
-        if (!name || !city) {
+        if (submitting) {
+            return;
+        }
+        const trimmedName = name.trim();
+        const trimmedCity = city.trim();
+        if (!trimmedName || !trimmedCity) {
             Alert.alert(t('common.error'), t('cafe.form.errorFill'));
             return;
         }
 
+        const requestId = ++latestSubmitRequestRef.current;
         setSubmitting(true);
         const data = {
-            name,
-            description,
-            city,
-            address,
-            phone,
-            email,
-            website,
-            telegram,
-            instagram,
+            name: trimmedName,
+            description: description.trim(),
+            city: trimmedCity,
+            address: address.trim(),
+            phone: phone.trim(),
+            email: email.trim(),
+            website: website.trim(),
+            telegram: telegram.trim(),
+            instagram: instagram.trim(),
             hasDelivery,
             hasTakeaway,
             hasDineIn,
@@ -148,11 +190,17 @@ const CreateCafeScreen = () => {
             } else {
                 await cafeService.createCafe(data);
             }
-            navigation.goBack();
+            if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
+                navigation.goBack();
+            }
         } catch (error) {
-            Alert.alert(t('common.error'), t('cafe.form.errorSave'));
+            if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
+                Alert.alert(t('common.error'), t('cafe.form.errorSave'));
+            }
         } finally {
-            setSubmitting(false);
+            if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
+                setSubmitting(false);
+            }
         }
     };
 

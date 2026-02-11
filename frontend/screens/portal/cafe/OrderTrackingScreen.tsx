@@ -31,6 +31,7 @@ import { cafeService } from '../../../services/cafeService';
 import {
     CafeOrder,
     CafeOrderStatus,
+    WaiterCallReason,
     getOrderStatusColor,
 } from '../../../types/cafe';
 import { useUser } from '../../../context/UserContext';
@@ -53,35 +54,59 @@ const OrderTrackingScreen: React.FC = () => {
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
-    const { orderId } = route.params;
+    const orderId = route.params?.orderId;
     const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const [order, setOrder] = useState<CafeOrder | null>(null);
     const [loading, setLoading] = useState(true);
 
     const progressAnim = useRef(new Animated.Value(0)).current;
+    const latestLoadRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
+    const actionInProgressRef = useRef(false);
 
     const loadOrder = useCallback(async (silent = false) => {
+        if (!orderId) {
+            if (isMountedRef.current) {
+                setLoading(false);
+                navigation.goBack();
+            }
+            return;
+        }
+        const requestId = ++latestLoadRequestRef.current;
         try {
-            if (!silent) setLoading(true);
+            if (!silent && isMountedRef.current) setLoading(true);
             const orderData = await cafeService.getOrder(orderId);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setOrder(orderData);
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Error loading order:', error);
             if (!silent) {
                 Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
             }
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    }, [orderId, t]);
+    }, [orderId, t, navigation]);
 
     useEffect(() => {
-        loadOrder();
+        void loadOrder();
         const interval = setInterval(() => {
-            loadOrder(true);
+            void loadOrder(true);
         }, 10000);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            actionInProgressRef.current = false;
+        };
     }, [loadOrder]);
 
     useEffect(() => {
@@ -102,22 +127,29 @@ const OrderTrackingScreen: React.FC = () => {
             t('cafe.tracking.callWaiter'),
             t('cafe.tracking.chooseReason'),
             [
-                { text: t('cafe.tracking.reasonOrder'), onPress: () => callWaiter('order') },
-                { text: t('cafe.tracking.reasonPayment'), onPress: () => callWaiter('payment') },
-                { text: t('cafe.tracking.reasonService'), onPress: () => callWaiter('service') },
+                { text: t('cafe.tracking.reasonOrder'), onPress: () => callWaiter('reorder') },
+                { text: t('cafe.tracking.reasonPayment'), onPress: () => callWaiter('bill') },
+                { text: t('cafe.tracking.reasonService'), onPress: () => callWaiter('help') },
                 { text: t('common.cancel'), style: 'cancel' },
             ]
         );
     };
 
-    const callWaiter = async (reason: any) => {
-        if (!order || !order.tableId) return;
+    const callWaiter = async (reason: WaiterCallReason) => {
+        if (!order || !order.tableId || actionInProgressRef.current) return;
+        actionInProgressRef.current = true;
         try {
             await cafeService.callWaiter(order.cafeId, order.tableId, reason);
-            Alert.alert(t('common.success'), t('cafe.tracking.waiterComing'));
+            if (isMountedRef.current) {
+                Alert.alert(t('common.success'), t('cafe.tracking.waiterComing'));
+            }
         } catch (error) {
             console.error('Error calling waiter:', error);
-            Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
+            if (isMountedRef.current) {
+                Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
+            }
+        } finally {
+            actionInProgressRef.current = false;
         }
     };
 
@@ -131,11 +163,19 @@ const OrderTrackingScreen: React.FC = () => {
                     text: t('cafe.tracking.cancelYes'),
                     style: 'destructive',
                     onPress: async () => {
+                        if (actionInProgressRef.current) {
+                            return;
+                        }
+                        actionInProgressRef.current = true;
                         try {
                             await cafeService.cancelOrder(orderId, t('cafe.tracking.status.cancelled'));
-                            loadOrder();
+                            await loadOrder();
                         } catch {
-                            Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
+                            if (isMountedRef.current) {
+                                Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
+                            }
+                        } finally {
+                            actionInProgressRef.current = false;
                         }
                     },
                 },
@@ -144,14 +184,24 @@ const OrderTrackingScreen: React.FC = () => {
     };
 
     const handleRepeatOrder = async () => {
+        if (actionInProgressRef.current || !orderId) {
+            return;
+        }
+        actionInProgressRef.current = true;
         try {
             const newOrder = await cafeService.repeatOrder(orderId);
-            navigation.replace('OrderSuccess', {
-                orderId: newOrder.id,
-                orderNumber: newOrder.orderNumber,
-            });
+            if (isMountedRef.current) {
+                navigation.replace('OrderSuccess', {
+                    orderId: newOrder.id,
+                    orderNumber: newOrder.orderNumber,
+                });
+            }
         } catch {
-            Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
+            if (isMountedRef.current) {
+                Alert.alert(t('common.error'), t('cafe.dashboard.loadError'));
+            }
+        } finally {
+            actionInProgressRef.current = false;
         }
     };
 

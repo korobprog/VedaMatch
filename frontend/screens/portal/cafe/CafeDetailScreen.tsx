@@ -46,7 +46,9 @@ const CafeDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'CafeDetail'>>();
     const { t } = useTranslation();
-    const { cafeId, tableId, tableNumber } = route.params;
+    const cafeId = route.params?.cafeId;
+    const tableId = route.params?.tableId;
+    const tableNumber = route.params?.tableNumber;
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -57,31 +59,57 @@ const CafeDetailScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
     const scrollY = useRef(new Animated.Value(0)).current;
+    const latestLoadRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const { cart, initCart } = useCart();
 
     const loadCafeData = useCallback(async () => {
+        if (!cafeId) {
+            if (isMountedRef.current) {
+                setLoading(false);
+                navigation.goBack();
+            }
+            return;
+        }
+        const requestId = ++latestLoadRequestRef.current;
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const [cafeData, menuData] = await Promise.all([
                 cafeService.getCafe(cafeId),
                 cafeService.getMenu(cafeId),
             ]);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setCafe(cafeData);
             setMenu(menuData);
 
             if (menuData.categories.length > 0) {
                 setSelectedCategory(menuData.categories[0].id);
+            } else {
+                setSelectedCategory(null);
             }
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Error loading cafe:', error);
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    }, [cafeId]);
+    }, [cafeId, navigation]);
 
     useEffect(() => {
         loadCafeData();
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+        };
     }, [loadCafeData]);
 
     useEffect(() => {
@@ -244,6 +272,7 @@ const CafeDetailScreen: React.FC = () => {
                                 key={dish.id}
                                 style={styles.dishCard}
                                 onPress={() => handleDishPress(dish)}
+                                disabled={!dish.isAvailable}
                                 activeOpacity={0.9}
                             >
                                 <View style={styles.dishImageContainer}>

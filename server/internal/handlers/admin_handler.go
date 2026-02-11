@@ -100,6 +100,15 @@ func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
+	body.Email = strings.TrimSpace(strings.ToLower(body.Email))
+	body.Password = strings.TrimSpace(body.Password)
+	body.Role = strings.TrimSpace(body.Role)
+	if body.Email == "" || body.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "email and password are required"})
+	}
+	if len(body.Password) < 8 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "password must be at least 8 characters"})
+	}
 
 	if !models.IsAdminRole(body.Role) {
 		body.Role = models.RoleAdmin
@@ -111,7 +120,7 @@ func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
 	}
 
 	newAdmin := models.User{
-		Email:             strings.TrimSpace(strings.ToLower(body.Email)),
+		Email:             body.Email,
 		Password:          string(hashedPassword),
 		Role:              body.Role,
 		IsProfileComplete: true,
@@ -139,8 +148,12 @@ func (h *AdminHandler) UpdateUserRole(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid role"})
 	}
 
-	if err := database.DB.Model(&models.User{}).Where("id = ?", userID).Update("role", body.Role).Error; err != nil {
+	updateResult := database.DB.Model(&models.User{}).Where("id = ?", userID).Update("role", body.Role)
+	if updateResult.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update role"})
+	}
+	if updateResult.RowsAffected == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
 	return c.JSON(fiber.Map{"message": "Role updated successfully"})
@@ -702,8 +715,8 @@ func (h *AdminHandler) GetReferralLeaderboard(c *fiber.Ctx) error {
 	err := database.DB.Table("users").
 		Select("users.id, users.spiritual_name, users.karmic_name, users.email, users.avatar_url, " +
 			"COUNT(referrals.id) as total_invited, " +
-			"SUM(CASE WHEN referrals.referral_status = 'active' THEN 1 ELSE 0 END) as active_invited, " +
-			"SUM(CASE WHEN referrals.referral_status = 'active' THEN 100 ELSE 0 END) as total_earned").
+			"SUM(CASE WHEN referrals.referral_status = ? THEN 1 ELSE 0 END) as active_invited, " +
+			"SUM(CASE WHEN referrals.referral_status = ? THEN 100 ELSE 0 END) as total_earned", models.ReferralStatusActivated, models.ReferralStatusActivated).
 		Joins("JOIN users as referrals ON referrals.referrer_id = users.id").
 		Group("users.id").
 		Order("total_earned DESC").

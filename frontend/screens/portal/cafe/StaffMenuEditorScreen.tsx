@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
@@ -67,21 +67,35 @@ const StaffMenuEditorScreen: React.FC = () => {
         price: '',
         description: '',
     });
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const actionLocksRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
-        loadMenu();
+        void loadMenu();
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            actionLocksRef.current.clear();
+        };
     }, [cafeId]);
 
-    const loadMenu = async () => {
+    const loadMenu = useCallback(async () => {
         if (!cafeId) {
             console.error('[StaffMenuEditor] No cafeId provided');
             return;
         }
+        const requestId = ++latestLoadRequestRef.current;
 
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             console.log(`[StaffMenuEditor] Loading menu for cafe ${cafeId}...`);
             const data = await cafeService.getMenu(cafeId);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.log('[StaffMenuEditor] Menu data received:', data);
 
             const categoriesData = data.categories || [];
@@ -96,6 +110,9 @@ const StaffMenuEditorScreen: React.FC = () => {
             });
             setExpandedCategories(initialExpanded);
         } catch (error: any) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Error loading menu:', error);
             if (error.response) {
                 console.error('Response data:', error.response.data);
@@ -103,9 +120,11 @@ const StaffMenuEditorScreen: React.FC = () => {
             }
             Alert.alert(t('common.error'), t('cafe.menu.loadError'));
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    };
+    }, [cafeId, t]);
 
     const toggleCategory = (id: number) => {
         setExpandedCategories(prev => ({
@@ -115,6 +134,11 @@ const StaffMenuEditorScreen: React.FC = () => {
     };
 
     const handleToggleDishAvailability = async (dish: Dish) => {
+        const lockKey = `availability:${dish.id}`;
+        if (actionLocksRef.current.has(lockKey)) {
+            return;
+        }
+        actionLocksRef.current.add(lockKey);
         try {
             const updatedDish = { ...dish, isAvailable: !dish.isAvailable };
             await cafeService.updateDish(cafeId, dish.id, { isAvailable: updatedDish.isAvailable });
@@ -126,6 +150,8 @@ const StaffMenuEditorScreen: React.FC = () => {
             })));
         } catch (error) {
             Alert.alert(t('common.error'), t('cafe.menu.updateError'));
+        } finally {
+            actionLocksRef.current.delete(lockKey);
         }
     };
 
@@ -139,11 +165,18 @@ const StaffMenuEditorScreen: React.FC = () => {
                     text: t('common.delete'),
                     style: 'destructive',
                     onPress: async () => {
+                        const lockKey = `delete:${dish.id}`;
+                        if (actionLocksRef.current.has(lockKey)) {
+                            return;
+                        }
+                        actionLocksRef.current.add(lockKey);
                         try {
                             await cafeService.deleteDish(cafeId, dish.id);
-                            loadMenu();
+                            await loadMenu();
                         } catch (error) {
                             Alert.alert(t('common.error'), t('cafe.menu.deleteError'));
+                        } finally {
+                            actionLocksRef.current.delete(lockKey);
                         }
                     }
                 }
@@ -156,14 +189,21 @@ const StaffMenuEditorScreen: React.FC = () => {
             Alert.alert(t('common.error'), t('cafe.menu.errorCategoryName'));
             return;
         }
+        const lockKey = 'create-category';
+        if (actionLocksRef.current.has(lockKey)) {
+            return;
+        }
+        actionLocksRef.current.add(lockKey);
 
         try {
             await cafeService.createCategory(cafeId, { name: newCategoryName });
             setNewCategoryName('');
             setCategoryModalVisible(false);
-            loadMenu();
+            await loadMenu();
         } catch (error) {
             Alert.alert(t('common.error'), t('cafe.menu.updateError'));
+        } finally {
+            actionLocksRef.current.delete(lockKey);
         }
     };
 
@@ -177,22 +217,53 @@ const StaffMenuEditorScreen: React.FC = () => {
             Alert.alert(t('common.error'), t('cafe.menu.loadError'));
             return;
         }
+        const parsedPrice = Number.parseFloat(newDish.price);
+        if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+            Alert.alert(t('common.error'), t('cafe.menu.errorDishFields'));
+            return;
+        }
+        const lockKey = `create-dish:${selectedCategoryId}`;
+        if (actionLocksRef.current.has(lockKey)) {
+            return;
+        }
+        actionLocksRef.current.add(lockKey);
 
         try {
             await cafeService.createDish(cafeId, {
                 name: newDish.name,
-                price: parseFloat(newDish.price),
+                price: parsedPrice,
                 description: newDish.description,
                 categoryId: selectedCategoryId,
                 isAvailable: true,
             });
             setNewDish({ name: '', price: '', description: '' });
             setDishModalVisible(false);
-            loadMenu();
+            await loadMenu();
         } catch (error) {
             Alert.alert(t('common.error'), t('cafe.menu.updateError'));
+        } finally {
+            actionLocksRef.current.delete(lockKey);
         }
     };
+
+    const filteredCategories = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return categories;
+        }
+        return categories
+            .map((category) => ({
+                ...category,
+                dishes: (category.dishes || []).filter((dish) =>
+                    dish.name.toLowerCase().includes(query) ||
+                    (dish.description || '').toLowerCase().includes(query)
+                ),
+            }))
+            .filter((category) =>
+                category.name.toLowerCase().includes(query) ||
+                (category.dishes && category.dishes.length > 0)
+            );
+    }, [categories, searchQuery]);
 
     const renderDishItem = ({ item: dish }: { item: Dish }) => (
         <View style={styles.dishCard}>
@@ -287,7 +358,7 @@ const StaffMenuEditorScreen: React.FC = () => {
             </View>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {categories.map((category, index) => (
+                {filteredCategories.map((category, index) => (
                     <View key={`cat-${category.id || index}`} style={styles.categorySection}>
                         <TouchableOpacity
                             style={styles.categoryHeader}

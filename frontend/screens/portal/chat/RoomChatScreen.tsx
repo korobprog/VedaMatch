@@ -166,7 +166,12 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             if (requestId !== latestFontSettingsRequestRef.current || !isMountedRef.current) {
                 return;
             }
-            if (size) setReaderFontSize(parseInt(size, 10));
+            if (size) {
+                const parsedSize = Number.parseInt(size, 10);
+                if (Number.isFinite(parsedSize) && parsedSize >= 12 && parsedSize <= 40) {
+                    setReaderFontSize(parsedSize);
+                }
+            }
             if (bold) setReaderFontBold(bold === 'true');
             if (expanded !== null) setIsExpanded(expanded === 'true');
         } catch (e) {
@@ -262,6 +267,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     useEffect(() => {
         const removeListener = addListener((msg: any) => {
+            if (!isMountedRef.current) {
+                return;
+            }
             // Check if message belongs to this room
             if (String(msg?.roomId) === String(roomId) && msg?.ID != null) {
                 const formattedMsg = {
@@ -424,13 +432,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     const handleSendMessage = async () => {
-        if (!inputText.trim() || !user?.ID || sending) return;
+        const normalizedText = inputText.trim();
+        if (!normalizedText || !user?.ID || sending) return;
         setSending(true);
 
         const newMessage = {
             senderId: user?.ID,
             roomId: roomId,
-            content: inputText,
+            content: normalizedText,
             type: 'text',
         };
 
@@ -453,7 +462,12 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 // but for now relying on WS is cleaner for "sync"
             } else if (response.status === 402) {
                 // Insufficient LKM balance - show modal to top up
-                const errorData = await response.json();
+                let errorData: { message?: string } = {};
+                try {
+                    errorData = await response.json();
+                } catch {
+                    errorData = {};
+                }
                 Alert.alert(
                     t('wallet.insufficientBalance') || 'Недостаточно LKM',
                     errorData.message || t('wallet.topUpToChat') || 'Пополните баланс для использования AI Chat',

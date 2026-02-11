@@ -116,6 +116,8 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     const { refreshLocationData } = useLocation();
     const { wallet, loading: walletLoading } = useWallet();
     const [mediaActionInProgress, setMediaActionInProgress] = useState(false);
+    const [portalBackgroundBusy, setPortalBackgroundBusy] = useState(false);
+    const [locationActionInProgress, setLocationActionInProgress] = useState(false);
     const isMountedRef = useRef(true);
 
     useEffect(() => {
@@ -129,6 +131,24 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         triggerTapFeedback();
         navigation.goBack();
     }, [navigation, triggerTapFeedback]);
+
+    const applyPortalBackground = useCallback(async (value: string, type: 'image' | 'color' | 'gradient') => {
+        if (portalBackgroundBusy) {
+            return;
+        }
+
+        setPortalBackgroundBusy(true);
+        try {
+            await setPortalBackground(value, type);
+        } catch (error) {
+            console.warn('Failed to apply portal background:', error);
+            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+        } finally {
+            if (isMountedRef.current) {
+                setPortalBackgroundBusy(false);
+            }
+        }
+    }, [portalBackgroundBusy, setPortalBackground, t]);
 
     const pickImageUri = useCallback(async (): Promise<string | null> => {
         const result = await launchImageLibrary({
@@ -154,7 +174,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         try {
             const uri = await pickImageUri();
             if (!uri) return;
-            await setPortalBackground(uri, 'image');
+            await applyPortalBackground(uri, 'image');
         } catch (error) {
             console.warn('Failed to pick image:', error);
             Alert.alert('Ошибка', 'Не удалось выбрать изображение');
@@ -163,7 +183,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                 setMediaActionInProgress(false);
             }
         }
-    }, [mediaActionInProgress, pickImageUri, setPortalBackground]);
+    }, [applyPortalBackground, mediaActionInProgress, pickImageUri]);
 
     const handleAddSlideFromGallery = useCallback(async () => {
         if (mediaActionInProgress) {
@@ -631,7 +651,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 ]}
                                 onPress={() => {
                                     triggerTapFeedback();
-                                    setPortalBackground(color, 'color');
+                                    void applyPortalBackground(color, 'color');
                                     setIsSlideshowEnabled(false);
                                 }}
                             />
@@ -646,7 +666,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                 activeOpacity={0.88}
                                 onPress={() => {
                                     triggerTapFeedback();
-                                    setPortalBackground(grad, 'gradient');
+                                    void applyPortalBackground(grad, 'gradient');
                                     setIsSlideshowEnabled(false);
                                 }}
                                 style={[
@@ -736,7 +756,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
-                                        setPortalBackground(uri, 'image');
+                                        void applyPortalBackground(uri, 'image');
                                     }}
                                 >
                                     <RNImage source={{ uri }} style={styles.wallpaperImage} />
@@ -842,24 +862,38 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             style={[
                                 styles.sizeBtn,
                                 themedStyles.locationClearTop,
+                                locationActionInProgress && styles.disabledControl,
                                 {
                                     backgroundColor: colors.accent,
                                     borderColor: colors.accent,
                                 },
                             ]}
                             onPress={async () => {
+                                if (locationActionInProgress) {
+                                    return;
+                                }
+                                setLocationActionInProgress(true);
                                 try {
                                     await refreshLocationData();
-                                    Alert.alert(
-                                        t('settings.locationCacheCleared'),
-                                        t('settings.locationCacheClearedMsg'),
-                                        [{ text: t('common.ok') }]
-                                    );
+                                    if (isMountedRef.current) {
+                                        Alert.alert(
+                                            t('settings.locationCacheCleared'),
+                                            t('settings.locationCacheClearedMsg'),
+                                            [{ text: t('common.ok') }]
+                                        );
+                                    }
                                 } catch (error) {
                                     console.warn('Failed to clear location cache:', error);
-                                    Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+                                    if (isMountedRef.current) {
+                                        Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+                                    }
+                                } finally {
+                                    if (isMountedRef.current) {
+                                        setLocationActionInProgress(false);
+                                    }
                                 }
                             }}
+                            disabled={locationActionInProgress}
                         >
                             <Text style={[{ color: theme.buttonText }, themedStyles.optionTextMedium]}>{t('settings.clearLocationCache')}</Text>
                         </TouchableOpacity>

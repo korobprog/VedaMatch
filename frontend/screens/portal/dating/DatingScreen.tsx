@@ -552,6 +552,8 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const [showPreview, setShowPreview] = useState(false);
     const [previewProfile, setPreviewProfile] = useState<Profile | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
+    const [savingFavorite, setSavingFavorite] = useState(false);
+    const [connecting, setConnecting] = useState(false);
     const [stats, setStats] = useState({ total: 0, city: 0, new: 0 });
     const [showStats, setShowStats] = useState(false);
     const [filterNew, setFilterNew] = useState(false);
@@ -759,21 +761,31 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     };
 
     const handleSaveFavorite = async () => {
-        if (!currentCandidateId || !compatibilityText || !user?.ID) return;
+        if (!currentCandidateId || !compatibilityText || !user?.ID || checkingComp || savingFavorite) return;
+        setSavingFavorite(true);
         try {
             await datingService.addToFavorites({
                 userId: user.ID,
                 candidateId: currentCandidateId,
                 compatibilityScore: compatibilityText
             });
-            Alert.alert('Saved', 'Added to favorites!');
+            if (isMountedRef.current) {
+                Alert.alert('Saved', 'Added to favorites!');
+            }
         } catch {
-            Alert.alert('Error', 'Could not save to favorites');
+            if (isMountedRef.current) {
+                Alert.alert('Error', 'Could not save to favorites');
+            }
+        } finally {
+            if (isMountedRef.current) {
+                setSavingFavorite(false);
+            }
         }
     };
 
     const handleConnect = async () => {
-        if (!currentCandidateId || !user?.ID) return;
+        if (!currentCandidateId || !user?.ID || checkingComp || connecting) return;
+        setConnecting(true);
 
         // If already friend, navigate to chat
         if (friendIds.includes(currentCandidateId)) {
@@ -783,21 +795,33 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                 setChatRecipient(buildChatRecipient(candidate));
                 navigation.navigate('Chat');
             }
+            if (isMountedRef.current) {
+                setConnecting(false);
+            }
             return;
         }
 
         // Else add friend (request)
         try {
             await datingService.addFriend(user.ID, currentCandidateId);
-            setFriendIds((prev) => (prev.includes(currentCandidateId) ? prev : [...prev, currentCandidateId]));
-            Alert.alert('Success', 'Request sent! You can now chat.');
+            if (isMountedRef.current) {
+                setFriendIds((prev) => (prev.includes(currentCandidateId) ? prev : [...prev, currentCandidateId]));
+                setShowCompatibilityModal(false);
+                Alert.alert('Success', 'Request sent! You can now chat.');
+            }
         } catch {
-            Alert.alert('Error', 'Could not connect.');
+            if (isMountedRef.current) {
+                Alert.alert('Error', 'Could not connect.');
+            }
+        } finally {
+            if (isMountedRef.current) {
+                setConnecting(false);
+            }
         }
     };
 
     const fetchPreviewProfile = async () => {
-        if (!user?.ID) return;
+        if (!user?.ID || previewLoading) return;
         const requestId = ++previewRequestRef.current;
         setPreviewLoading(true);
         try {
@@ -879,9 +903,10 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             <TouchableOpacity
                                 style={styles.glassActionBtn}
                                 onPress={() => fetchPreviewProfile()}
+                                disabled={previewLoading}
                             >
                                 <Eye size={16} color={roleColors.accent} />
-                                <Text style={styles.glassActionText}>Preview</Text>
+                                <Text style={styles.glassActionText}>{previewLoading ? 'Loading...' : 'Preview'}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -1046,12 +1071,23 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 </ScrollView>
 
                                 <View style={styles.modalFooter}>
-                                    <TouchableOpacity style={styles.glassButtonSecondary} onPress={handleSaveFavorite}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.glassButtonSecondary,
+                                            (checkingComp || savingFavorite || !currentCandidateId) && styles.buttonDisabled
+                                        ]}
+                                        onPress={handleSaveFavorite}
+                                        disabled={checkingComp || savingFavorite || !currentCandidateId}
+                                    >
                                         <Text style={styles.glassButtonText}>{t('dating.save')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={styles.premiumButtonPrimary}
+                                        style={[
+                                            styles.premiumButtonPrimary,
+                                            (checkingComp || connecting || !currentCandidateId) && styles.buttonDisabled
+                                        ]}
                                         onPress={handleConnect}
+                                        disabled={checkingComp || connecting || !currentCandidateId}
                                     >
                                         <LinearGradient colors={[roleTheme.accent, roleTheme.accentStrong]} style={styles.buttonGradient}>
                                             <Text style={styles.premiumButtonText}>
@@ -1763,6 +1799,9 @@ const styles = StyleSheet.create({
         height: 56,
         borderRadius: 20,
         overflow: 'hidden',
+    },
+    buttonDisabled: {
+        opacity: 0.55,
     },
     premiumButtonText: {
         color: 'rgba(0,0,0,1)',

@@ -338,7 +338,7 @@ export interface OrderStatsResponse {
 
 // ==================== WAITER CALL TYPES ====================
 
-export type WaiterCallReason = 'order' | 'payment' | 'service' | 'other';
+export type WaiterCallReason = 'bill' | 'help' | 'cleanup' | 'reorder' | 'problem';
 
 export interface WaiterCall {
     id: number;
@@ -427,11 +427,11 @@ export function getOrderTypeLabel(type: CafeOrderType): string {
 
 export function getWaiterCallReasonLabel(reason: WaiterCallReason): string {
     const labels: Record<WaiterCallReason, string> = {
-        order: 'Сделать заказ',
-        payment: 'Оплата',
-        service: 'Обслуживание',
-        other: 'Другое',
+        bill: 'Счёт',
+        help: 'Нужна помощь',
+        cleanup: 'Убрать стол',
+        reorder: 'Дозаказ',
+        problem: 'Проблема',
     };
     return labels[reason] || reason;
 }
-

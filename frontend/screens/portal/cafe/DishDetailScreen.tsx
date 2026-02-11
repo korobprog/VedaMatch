@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -50,7 +50,9 @@ const DishDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'DishDetail'>>();
     const { t } = useTranslation();
-    const { cafeId, dishId, cafeName } = route.params;
+    const cafeId = route.params?.cafeId;
+    const dishId = route.params?.dishId;
+    const cafeName = route.params?.cafeName;
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -62,17 +64,27 @@ const DishDetailScreen: React.FC = () => {
     const [removedIngredients, setRemovedIngredients] = useState<string[]>([]);
     const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([]);
     const [note, setNote] = useState('');
+    const latestLoadRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const { addToCart } = useCart();
 
-    useEffect(() => {
-        loadDish();
-    }, [dishId]);
-
-    const loadDish = async () => {
+    const loadDish = useCallback(async () => {
+        if (!cafeId || !dishId) {
+            if (isMountedRef.current) {
+                navigation.goBack();
+            }
+            return;
+        }
+        const requestId = ++latestLoadRequestRef.current;
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const dishData = await cafeService.getDish(cafeId, dishId);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setDish(dishData);
 
             if (dishData.modifiers) {
@@ -82,11 +94,24 @@ const DishDetailScreen: React.FC = () => {
                 setSelectedModifiers(defaults);
             }
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Error loading dish:', error);
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    };
+    }, [cafeId, dishId, navigation]);
+
+    useEffect(() => {
+        loadDish();
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+        };
+    }, [loadDish]);
 
     const toggleIngredient = (ingredientName: string) => {
         setRemovedIngredients(prev =>
@@ -129,7 +154,7 @@ const DishDetailScreen: React.FC = () => {
     };
 
     const handleAddToCart = () => {
-        if (!dish) return;
+        if (!dish || !cafeId) return;
         addToCart(dish, quantity, removedIngredients, selectedModifiers, note, cafeId, cafeName);
         navigation.goBack();
     };

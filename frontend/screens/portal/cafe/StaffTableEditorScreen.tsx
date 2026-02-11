@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -64,15 +64,29 @@ const StaffTableEditorScreen: React.FC = () => {
     const [editNumber, setEditNumber] = useState('');
     const [editName, setEditName] = useState('');
     const [editSeats, setEditSeats] = useState('');
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const dragStartRef = useRef<Record<number, { x: number; y: number }>>({});
 
     useEffect(() => {
-        loadTables();
+        void loadTables();
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            dragStartRef.current = {};
+        };
     }, [cafeId]);
 
-    const loadTables = async () => {
+    const loadTables = useCallback(async () => {
+        const requestId = ++latestLoadRequestRef.current;
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const data = await cafeService.getTables(cafeId);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             // Convert to editor format with normalized positions
             const tablePositions: TablePosition[] = data.map((table: CafeTable) => ({
@@ -87,18 +101,27 @@ const StaffTableEditorScreen: React.FC = () => {
 
             setTables(tablePositions);
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Error loading tables:', error);
             Alert.alert(t('common.error'), t('cafe.staff.tables.loadError'));
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    };
+    }, [cafeId, t]);
 
     const handleTableDrag = (tableId: number, dx: number, dy: number) => {
+        const start = dragStartRef.current[tableId];
+        if (!start) {
+            return;
+        }
         setTables(prev => prev.map(table => {
             if (table.id === tableId) {
-                const newX = Math.max(0, Math.min(EDITOR_WIDTH - TABLE_SIZE, table.x + dx));
-                const newY = Math.max(0, Math.min(EDITOR_HEIGHT - TABLE_SIZE, table.y + dy));
+                const newX = Math.max(0, Math.min(EDITOR_WIDTH - TABLE_SIZE, start.x + dx));
+                const newY = Math.max(0, Math.min(EDITOR_HEIGHT - TABLE_SIZE, start.y + dy));
                 return { ...table, x: newX, y: newY };
             }
             return table;
@@ -173,7 +196,7 @@ const StaffTableEditorScreen: React.FC = () => {
                 isOccupied: false,
             };
 
-            setTables([...tables, newTable]);
+            setTables(prev => [...prev, newTable]);
         } catch (error) {
             console.error('Error adding table:', error);
             Alert.alert(t('common.error'), t('cafe.staff.tables.saveError'));
@@ -239,10 +262,18 @@ const StaffTableEditorScreen: React.FC = () => {
         const panResponder = PanResponder.create({
             onStartShouldSetPanResponder: () => true,
             onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: () => {
+                dragStartRef.current[table.id] = { x: table.x, y: table.y };
+            },
             onPanResponderMove: (_, gestureState) => {
                 handleTableDrag(table.id, gestureState.dx, gestureState.dy);
             },
-            onPanResponderRelease: () => { },
+            onPanResponderRelease: () => {
+                delete dragStartRef.current[table.id];
+            },
+            onPanResponderTerminate: () => {
+                delete dragStartRef.current[table.id];
+            },
         });
 
         return (

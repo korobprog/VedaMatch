@@ -660,6 +660,8 @@ func (s *PathTrackerService) SaveCheckin(userID uint, input CheckinInput) (*mode
 			return nil, err
 		}
 		return &existing, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 
 	if err := s.db.Create(&checkin).Error; err != nil {
@@ -678,11 +680,16 @@ func (s *PathTrackerService) GenerateStep(userID uint) (*DailyStepView, error) {
 	var existing models.DailyStep
 	if err := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&existing).Error; err == nil {
 		return buildDailyStepView(existing, dateLocal)
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 
 	var checkin models.DailyCheckin
 	if err := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&checkin).Error; err != nil {
-		return nil, ErrCheckinRequired
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCheckinRequired
+		}
+		return nil, err
 	}
 
 	state := s.ensureState(userID)

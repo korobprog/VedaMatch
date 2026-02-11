@@ -93,6 +93,7 @@ export const VideoCirclesScreen: React.FC = () => {
   const [tariffs, setTariffs] = useState<VideoTariff[]>([]);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [boostingCircleIds, setBoostingCircleIds] = useState<number[]>([]);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [commentTarget, setCommentTarget] = useState<VideoCircle | null>(null);
   const [commentText, setCommentText] = useState('');
@@ -287,6 +288,9 @@ export const VideoCirclesScreen: React.FC = () => {
         Alert.alert('Слишком большой файл', 'Максимальный размер видео для кружка — 250MB');
         return;
       }
+      if (!isMountedRef.current) {
+        return;
+      }
       setSelectedVideo(asset);
       setPublishOpen(true);
     } catch (error) {
@@ -359,7 +363,9 @@ export const VideoCirclesScreen: React.FC = () => {
       console.error('Failed to publish circle:', error);
       Alert.alert(t('common.error'), t('videoCircles.errorBoost')); // Use generic error or specific one if added
     } finally {
-      setPublishing(false);
+      if (isMountedRef.current) {
+        setPublishing(false);
+      }
     }
   };
 
@@ -398,11 +404,11 @@ export const VideoCirclesScreen: React.FC = () => {
     }
     interactionLocksRef.current.add(lockKey);
 
-    let previousCircles: VideoCircle[] = [];
+    let previousCircle: VideoCircle | undefined;
     const liked = !!likedMap[circle.id];
 
     setCircles((list) => {
-      previousCircles = list;
+      previousCircle = list.find((item) => item.id === circle.id);
       return list.map((item) => {
         if (item.id !== circle.id) return item;
         if (type === 'like') {
@@ -434,7 +440,9 @@ export const VideoCirclesScreen: React.FC = () => {
       if (!isMountedRef.current) {
         return;
       }
-      setCircles(previousCircles);
+      if (previousCircle) {
+        setCircles((list) => list.map((item) => (item.id === circle.id ? previousCircle as VideoCircle : item)));
+      }
       if (type === 'like') {
         setLikedMap((prevMap) => ({ ...prevMap, [circle.id]: liked }));
       }
@@ -479,6 +487,10 @@ export const VideoCirclesScreen: React.FC = () => {
   };
 
   const handleBoost = async (circleId: number) => {
+    if (boostingCircleIds.includes(circleId)) {
+      return;
+    }
+    setBoostingCircleIds((prev) => [...prev, circleId]);
     try {
       await videoCirclesService.boostCircle(circleId, 'premium');
       if (!isMountedRef.current) {
@@ -494,6 +506,10 @@ export const VideoCirclesScreen: React.FC = () => {
         ? t('videoCircles.insufficientLkm')
         : t('videoCircles.errorBoost');
       Alert.alert(t('common.error'), message);
+    } finally {
+      if (isMountedRef.current) {
+        setBoostingCircleIds((prev) => prev.filter((id) => id !== circleId));
+      }
     }
   };
 
@@ -777,11 +793,20 @@ export const VideoCirclesScreen: React.FC = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.boostBtn, { backgroundColor: roleColors.accent }]}
+                  style={[
+                    styles.boostBtn,
+                    { backgroundColor: roleColors.accent },
+                    boostingCircleIds.includes(item.id) && styles.disabledAction,
+                  ]}
                   onPress={() => handleBoost(item.id)}
                   activeOpacity={0.8}
+                  disabled={boostingCircleIds.includes(item.id)}
                 >
-                  <Sparkles size={14} color="#fff" />
+                  {boostingCircleIds.includes(item.id) ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Sparkles size={14} color="#fff" />
+                  )}
                   <Text style={styles.boostText}>
                     {premiumPrice !== null ? `${premiumPrice} LKM` : t('videoCircles.premiumBoost')}
                   </Text>
@@ -1275,6 +1300,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 12,
+  },
+  disabledAction: {
+    opacity: 0.6,
   },
   boostText: {
     color: '#fff',

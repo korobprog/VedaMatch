@@ -509,6 +509,7 @@ func (s *ServiceService) GetWeeklySchedule(serviceID uint) (*models.WeeklySchedu
 
 	response := &models.WeeklyScheduleResponse{
 		WeeklySlots: make(map[string]models.WeeklyDayConfig),
+		SlotDuration: 60,
 	}
 
 	// Parse settings
@@ -532,7 +533,10 @@ func (s *ServiceService) GetWeeklySchedule(serviceID uint) (*models.WeeklySchedu
 		if schedule.DayOfWeek == nil {
 			continue
 		}
-		dayStr := fmt.Sprintf("%d", *schedule.DayOfWeek)
+		dayStr := serviceDayIndexToKey(*schedule.DayOfWeek)
+		if dayStr == "" {
+			dayStr = fmt.Sprintf("%d", *schedule.DayOfWeek)
+		}
 
 		config := response.WeeklySlots[dayStr]
 		config.Enabled = true
@@ -578,6 +582,7 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 	if val, ok := settings["slotDuration"].(float64); ok {
 		slotDuration = int(val)
 	}
+	settings["slotDuration"] = slotDuration
 
 	// But we need to update it if it changes (based on logic, usually duration is per slot)
 	// For now, let's assume all slots have same duration based on first slot or req
@@ -611,9 +616,9 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 			continue
 		}
 
-		dayInt, err := strconv.Atoi(dayStr)
+		dayInt, err := parseServiceDayKey(dayStr)
 		if err != nil {
-			return fmt.Errorf("invalid day_of_week: %s", dayStr)
+			return err
 		}
 		if dayInt < 0 || dayInt > 6 {
 			return fmt.Errorf("day_of_week out of range: %d", dayInt)
@@ -641,6 +646,53 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 	}
 
 	return nil
+}
+
+func parseServiceDayKey(dayStr string) (int, error) {
+	normalized := strings.ToLower(strings.TrimSpace(dayStr))
+	switch normalized {
+	case "monday":
+		return 1, nil
+	case "tuesday":
+		return 2, nil
+	case "wednesday":
+		return 3, nil
+	case "thursday":
+		return 4, nil
+	case "friday":
+		return 5, nil
+	case "saturday":
+		return 6, nil
+	case "sunday":
+		return 0, nil
+	default:
+		dayInt, err := strconv.Atoi(normalized)
+		if err != nil {
+			return 0, fmt.Errorf("invalid day_of_week: %s", dayStr)
+		}
+		return dayInt, nil
+	}
+}
+
+func serviceDayIndexToKey(day int) string {
+	switch day {
+	case 1:
+		return "monday"
+	case 2:
+		return "tuesday"
+	case 3:
+		return "wednesday"
+	case 4:
+		return "thursday"
+	case 5:
+		return "friday"
+	case 6:
+		return "saturday"
+	case 0:
+		return "sunday"
+	default:
+		return ""
+	}
 }
 
 // Pause changes service status to paused

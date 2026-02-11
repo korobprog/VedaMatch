@@ -1,7 +1,7 @@
 /**
  * WalletScreen - Экран кошелька Лакшми
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,6 @@ import {
     TouchableOpacity,
     RefreshControl,
     ActivityIndicator,
-    Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,12 +45,10 @@ import { WalletInfoModal } from '../../components/wallet/WalletInfoModal';
 import { FrozenBalanceModal } from '../../components/wallet/FrozenBalanceModal';
 import { Info } from 'lucide-react-native';
 
-const { width } = Dimensions.get('window');
-
 export default function WalletScreen() {
     const navigation = useNavigation<any>();
     const { user } = useUser();
-    const { wallet, refreshWallet, loading: walletLoading } = useWallet();
+    const { wallet, refreshWallet } = useWallet();
 
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [stats, setStats] = useState<WalletStatsResponse | null>(null);
@@ -60,20 +57,54 @@ export default function WalletScreen() {
     const [selectedReceipt, setSelectedReceipt] = useState<WalletTransaction | null>(null);
     const [showInfo, setShowInfo] = useState(false);
     const [showFrozen, setShowFrozen] = useState(false);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const refreshInProgressRef = useRef(false);
 
-    const loadData = useCallback(async () => {
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+        };
+    }, []);
+
+    const loadData = useCallback(async (options?: { refresh?: boolean }) => {
+        const requestId = latestLoadRequestRef.current + 1;
+        latestLoadRequestRef.current = requestId;
+        const isRefresh = options?.refresh === true;
+
+        if (isRefresh) {
+            setRefreshing(true);
+        } else {
+            setLoading(true);
+        }
+
         try {
             const [txResponse, statsResponse] = await Promise.all([
                 getTransactions({ limit: 50 }),
                 getWalletStats(),
             ]);
+
+            if (!isMountedRef.current || requestId !== latestLoadRequestRef.current) {
+                return;
+            }
+
             setTransactions(txResponse.transactions);
             setStats(statsResponse);
         } catch (error) {
+            if (!isMountedRef.current || requestId !== latestLoadRequestRef.current) {
+                return;
+            }
             console.error('Failed to load wallet data:', error);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (!isMountedRef.current || requestId !== latestLoadRequestRef.current) {
+                return;
+            }
+            if (isRefresh) {
+                setRefreshing(false);
+            } else {
+                setLoading(false);
+            }
         }
     }, []);
 
@@ -82,8 +113,21 @@ export default function WalletScreen() {
     }, [loadData]);
 
     const onRefresh = useCallback(async () => {
-        setRefreshing(true);
-        await Promise.all([refreshWallet(), loadData()]);
+        if (refreshInProgressRef.current) {
+            return;
+        }
+
+        refreshInProgressRef.current = true;
+        try {
+            await Promise.all([refreshWallet(), loadData({ refresh: true })]);
+        } catch (error) {
+            if (isMountedRef.current) {
+                console.error('Failed to refresh wallet screen:', error);
+                setRefreshing(false);
+            }
+        } finally {
+            refreshInProgressRef.current = false;
+        }
     }, [refreshWallet, loadData]);
 
     const renderTransaction = (item: WalletTransaction) => {
