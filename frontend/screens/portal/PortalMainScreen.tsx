@@ -56,11 +56,11 @@ import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
 
 
-type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services';
+type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services' | 'path_tracker';
 type PortalMainProps = NativeStackScreenProps<RootStackParamList, 'Portal'>;
 const SERVICE_TABS = new Set<ServiceTab>([
     'contacts', 'chat', 'dating', 'cafe', 'shops', 'ads', 'news', 'calls', 'multimedia',
-    'video_circles', 'knowledge_base', 'library', 'education', 'map', 'travel', 'services',
+    'video_circles', 'knowledge_base', 'library', 'education', 'map', 'travel', 'services', 'path_tracker',
 ]);
 
 // Inner component that uses portal layout context
@@ -209,6 +209,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('MapGeoapify');
             // Reset params to prevent infinite loop or re-triggering
             navigation.setParams({ initialTab: undefined });
+        } else if (route.params?.initialTab === 'path_tracker') {
+            navigation.navigate('PathTrackerHome');
+            navigation.setParams({ initialTab: undefined });
         } else if (route.params?.initialTab) {
             setActiveTab(route.params.initialTab as ServiceTab);
         }
@@ -246,9 +249,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('SevaHub');
             return;
         }
+        if (serviceId === 'path_tracker') {
+            navigation.navigate('PathTrackerHome');
+            return;
+        }
 
         const isSeeker = (user?.role || 'user') === 'user';
-        const seekerAllowedWithoutProfile = ['contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles'];
+        const seekerAllowedWithoutProfile = ['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles'];
         const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
 
         if (!user?.isProfileComplete && !canUseWithoutCompleteProfile) {

@@ -14,11 +14,25 @@ import {
     ArrowDownRight
 } from 'lucide-react';
 import api from '@/lib/api';
+import {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    BarChart,
+    Bar,
+    Legend,
+} from 'recharts';
 
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
 export default function DashboardPage() {
     const { data: stats, error } = useSWR('/admin/stats', fetcher);
+    const { data: trackerMetrics } = useSWR('/admin/path-tracker/metrics', fetcher);
+    const { data: trackerAnalytics } = useSWR('/admin/path-tracker/analytics?days=14', fetcher);
 
     const cards = useMemo(() => [
         {
@@ -153,6 +167,146 @@ export default function DashboardPage() {
                     <button className="w-full mt-8 py-3 rounded-xl border border-[var(--border)] text-sm font-medium hover:bg-[var(--secondary)] transition-all">
                         View All Logs
                     </button>
+                </div>
+            </div>
+
+            {/* Path Tracker Metrics */}
+            <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm space-y-6">
+                <div>
+                    <h2 className="text-xl font-bold">Path Tracker MVP</h2>
+                    <p className="text-sm text-[var(--muted-foreground)]">Completion and early retention snapshot</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Completion Rate</p>
+                        <p className="text-2xl font-bold mt-2">{Number(trackerMetrics?.completionRate || 0).toFixed(1)}%</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                            {trackerMetrics?.completedSteps || 0} / {trackerMetrics?.totalSteps || 0} steps
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">D1 Retention</p>
+                        <p className="text-2xl font-bold mt-2">{Number(trackerMetrics?.d1RetentionRate || 0).toFixed(1)}%</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                            {trackerMetrics?.d1RetainedUsers || 0} / {trackerMetrics?.d1RetentionEligible || 0} users
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">D7 Retention</p>
+                        <p className="text-2xl font-bold mt-2">{Number(trackerMetrics?.d7RetentionRate || 0).toFixed(1)}%</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                            {trackerMetrics?.d7RetainedUsers || 0} / {trackerMetrics?.d7RetentionEligible || 0} users
+                        </p>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                        Users with steps: <span className="font-semibold text-[var(--foreground)]">{trackerMetrics?.usersWithSteps || 0}</span>
+                    </p>
+                </div>
+            </div>
+
+            {/* Path Tracker Trends */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm">
+                    <div className="mb-4">
+                        <h2 className="text-xl font-bold">Path Tracker Trend (14d)</h2>
+                        <p className="text-sm text-[var(--muted-foreground)]">Assigned/completed steps and completion rate by day</p>
+                    </div>
+                    <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={trackerAnalytics?.trend || []}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                                <Tooltip />
+                                <Legend />
+                                <Line yAxisId="left" type="monotone" dataKey="assignedSteps" name="Assigned" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                                <Line yAxisId="left" type="monotone" dataKey="completedSteps" name="Completed" stroke="#22C55E" strokeWidth={2} dot={false} />
+                                <Line yAxisId="right" type="monotone" dataKey="completionRate" name="Completion %" stroke="#F97316" strokeWidth={2} dot={false} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm">
+                    <div className="mb-4">
+                        <h2 className="text-xl font-bold">A/B Bucket Compare</h2>
+                        <p className="text-sm text-[var(--muted-foreground)]">control vs weekly_summary_v1 completion rate</p>
+                    </div>
+                    <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={trackerAnalytics?.bucketComparison || []}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
+                                <YAxis tick={{ fontSize: 11 }} />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="completionRate" name="Completion %" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {(trackerAnalytics?.bucketComparison || []).map((bucket: any) => (
+                            <div key={bucket.bucket} className="rounded-xl border border-[var(--border)] p-3 bg-[var(--background)]/40">
+                                <p className="text-xs text-[var(--muted-foreground)] uppercase">{bucket.bucket}</p>
+                                <p className="text-lg font-bold mt-1">{Number(bucket.completionRate || 0).toFixed(1)}%</p>
+                                <p className="text-xs text-[var(--muted-foreground)] mt-1">{bucket.completedSteps || 0} / {bucket.totalSteps || 0} steps</p>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-4">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)] mb-2">Segment Comparison</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {(trackerAnalytics?.segmentComparison || []).map((segment: any) => (
+                                <div key={segment.segment} className="rounded-xl border border-[var(--border)] p-3 bg-[var(--background)]/40">
+                                    <p className="text-xs text-[var(--muted-foreground)] uppercase">{segment.segment}</p>
+                                    <p className="text-lg font-bold mt-1">{Number(segment.completionRate || 0).toFixed(1)}%</p>
+                                    <p className="text-xs text-[var(--muted-foreground)] mt-1">{segment.completedSteps || 0} / {segment.totalSteps || 0} steps</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Path Tracker Alerts */}
+            <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm space-y-4">
+                <div>
+                    <h2 className="text-xl font-bold">Path Tracker Alerts</h2>
+                    <p className="text-sm text-[var(--muted-foreground)]">Runtime alert signals for rollout safety</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Fallback Rate (1h)</p>
+                            <span className={`text-xs font-semibold ${trackerAnalytics?.alerts?.fallbackTriggered ? 'text-red-500' : 'text-emerald-500'}`}>
+                                {trackerAnalytics?.alerts?.fallbackTriggered ? 'ALERT' : 'OK'}
+                            </span>
+                        </div>
+                        <p className="text-2xl font-bold mt-2">{Number(trackerAnalytics?.alerts?.fallbackRate1h || 0).toFixed(1)}%</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                            threshold {Number(trackerAnalytics?.alerts?.fallbackThreshold || 20).toFixed(1)}%, samples {trackerAnalytics?.alerts?.fallbackSamples1h || 0}
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Generate Error Rate (15m)</p>
+                            <span className={`text-xs font-semibold ${trackerAnalytics?.alerts?.generateErrorTriggered ? 'text-red-500' : 'text-emerald-500'}`}>
+                                {trackerAnalytics?.alerts?.generateErrorTriggered ? 'ALERT' : 'OK'}
+                            </span>
+                        </div>
+                        <p className="text-2xl font-bold mt-2">{Number(trackerAnalytics?.alerts?.generateErrorRate15m || 0).toFixed(1)}%</p>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                            threshold {Number(trackerAnalytics?.alerts?.generateThreshold || 5).toFixed(1)}%, errors {trackerAnalytics?.alerts?.generateErrors15m || 0} / attempts {trackerAnalytics?.alerts?.generateAttempts15m || 0}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

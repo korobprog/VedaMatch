@@ -79,6 +79,14 @@ func SeedSystemSettings() {
 			Key:   "ROUTEWAY_API_URL",
 			Value: "https://api.routeway.ai/v1/chat/completions",
 		},
+		{
+			Key:   "PATH_TRACKER_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "PATH_TRACKER_ALERT_WEBHOOK_URL",
+			Value: "",
+		},
 	}
 
 	for _, s := range settings {

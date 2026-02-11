@@ -110,6 +110,9 @@ func Connect() {
 		&models.CharityOrganization{}, &models.CharityProject{},
 		&models.CharityDonation{}, &models.CharityEvidence{},
 		&models.CharityKarmaNote{}, &models.CharitySettings{},
+		// Path Tracker
+		&models.DailyCheckin{}, &models.DailyStep{},
+		&models.DailyStepEvent{}, &models.PathTrackerState{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)

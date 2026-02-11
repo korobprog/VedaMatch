@@ -139,6 +139,7 @@ import MyDonationsScreen from './screens/seva/MyDonationsScreen';
 import WalletScreen from './screens/wallet/WalletScreen';
 import InviteFriendsScreen from './screens/portal/referral/InviteFriendsScreen';
 import { WalletProvider } from './context/WalletContext';
+import { PathTrackerHomeScreen, PathCheckinScreen, PathStepScreen, PathReflectionScreen, PathWeeklySummaryScreen } from './screens/path_tracker';
 
 
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
@@ -428,6 +429,13 @@ const AppContent = () => {
                   <Stack.Screen name="SevaHub" component={SevaHubScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SevaProjectDetails" component={SevaProjectDetailsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="MyDonations" component={MyDonationsScreen} options={{ headerShown: false }} />
+
+                  {/* Path Tracker Routes */}
+                  <Stack.Screen name="PathTrackerHome" component={PathTrackerHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="PathCheckin" component={PathCheckinScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="PathStep" component={PathStepScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="PathReflection" component={PathReflectionScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="PathWeeklySummary" component={PathWeeklySummaryScreen} options={{ headerShown: false }} />
 
                   {/* Player Screens */}
                   <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

@@ -203,6 +203,7 @@ func main() {
 	charityHandler := handlers.NewCharityHandler(charityService)
 	systemHandler := handlers.NewSystemHandler()
 	videoCircleHandler := handlers.NewVideoCircleHandler()
+	pathTrackerHandler := handlers.NewPathTrackerHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -333,6 +334,8 @@ func main() {
 	admin.Put("/users/:id/role", adminHandler.UpdateUserRole)
 	admin.Post("/admins", adminHandler.AddAdmin)
 	admin.Get("/stats", adminHandler.GetStats)
+	admin.Get("/path-tracker/metrics", pathTrackerHandler.GetMetricsSummary)
+	admin.Get("/path-tracker/analytics", pathTrackerHandler.GetAnalytics)
 	admin.Get("/dating/profiles", adminHandler.GetDatingProfiles)
 	admin.Post("/dating/profiles/:id/flag", adminHandler.FlagDatingProfile)
 	admin.Get("/settings", adminHandler.GetSystemSettings)
@@ -564,6 +567,14 @@ func main() {
 	protected.Put("/user/portal-layout", userHandler.SavePortalLayout)
 	protected.Get("/system/portal-blueprint/:role", systemHandler.GetPortalBlueprint)
 	protected.Get("/system/god-mode-math-filters", systemHandler.GetGodModeMathFilters)
+	protected.Get("/path-tracker/today", pathTrackerHandler.GetToday)
+	protected.Get("/path-tracker/weekly-summary", pathTrackerHandler.GetWeeklySummary)
+	protected.Get("/path-tracker/metrics-summary", pathTrackerHandler.GetMetricsSummary)
+	protected.Post("/path-tracker/checkin", pathTrackerHandler.SaveCheckin)
+	protected.Post("/path-tracker/generate-step", pathTrackerHandler.GenerateStep)
+	protected.Post("/path-tracker/complete", pathTrackerHandler.CompleteStep)
+	protected.Post("/path-tracker/reflect", pathTrackerHandler.ReflectStep)
+	protected.Post("/path-tracker/assistant", pathTrackerHandler.AssistantHelp)
 
 	// User Profile Route (public profile by ID)
 	protected.Get("/users/:id", userHandler.GetUserById)

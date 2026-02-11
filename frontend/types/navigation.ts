@@ -10,7 +10,7 @@ export type RootStackParamList = {
     Login: { inviteCode?: string } | undefined;
     Plans: undefined;
     Portal: {
-        initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map';
+        initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map' | 'path_tracker';
         resetToGridAt?: number;
     } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
@@ -112,4 +112,11 @@ export type RootStackParamList = {
     SevaHub: undefined;
     SevaProjectDetails: { project: any };
     MyDonations: undefined;
+
+    // Path Tracker Routes
+    PathTrackerHome: undefined;
+    PathCheckin: undefined;
+    PathStep: { stepId?: number; step?: any };
+    PathReflection: { stepId: number };
+    PathWeeklySummary: undefined;
 };
