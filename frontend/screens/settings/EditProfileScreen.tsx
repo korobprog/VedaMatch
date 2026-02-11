@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -101,6 +101,11 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
     // const [openTimePicker, setOpenTimePicker] = useState(false);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const latestSaveRequestRef = useRef(0);
+    const latestCitySearchRequestRef = useRef(0);
+    const citySearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const { colors: roleColors } = useRoleTheme(role, true);
 
@@ -110,15 +115,33 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fetchCountries]);
 
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            latestSaveRequestRef.current += 1;
+            latestCitySearchRequestRef.current += 1;
+            if (citySearchTimeoutRef.current) {
+                clearTimeout(citySearchTimeoutRef.current);
+            }
+        };
+    }, []);
+
     const loadProfile = React.useCallback(async () => {
         if (!user?.ID) return;
+        const requestId = ++latestLoadRequestRef.current;
 
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
             const token = await AsyncStorage.getItem('token');
             const response = await axios.get(`${API_PATH}/contacts`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             const userData = response.data.find((u: any) => u.ID === user.ID);
 
             if (userData) {
@@ -148,8 +171,6 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
                 setMaritalStatus(userData.maritalStatus || '');
                 setBirthTime(userData.birthTime || '');
-                setMaritalStatus(userData.maritalStatus || '');
-                setBirthTime(userData.birthTime || '');
                 setYatra(userData.yatra || '');
                 setTimezone(userData.timezone || '');
                 setDatingEnabled(userData.datingEnabled || false);
@@ -168,15 +189,21 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 }
             }
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('[EditProfile] Error loading profile:', error);
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [user?.ID, fetchCities]);
 
     const handleSave = async () => {
         if (!user?.ID) return;
 
+        const requestId = ++latestSaveRequestRef.current;
         setSaving(true);
         try {
             const profileData = {
@@ -214,10 +241,16 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             const response = await axios.put(`${API_PATH}/update-profile`, profileData, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             const updatedUser = response.data.user;
 
             await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
             await login(updatedUser);
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             Alert.alert(
                 t('common.success'),
@@ -225,13 +258,17 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
             );
         } catch (error: any) {
-            console.error('[EditProfile] Error saving:', error);
-            Alert.alert(
-                t('common.error'),
-                error.response?.data?.error || 'Failed to update profile'
-            );
+            if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
+                console.error('[EditProfile] Error saving:', error);
+                Alert.alert(
+                    t('common.error'),
+                    error.response?.data?.error || 'Failed to update profile'
+                );
+            }
         } finally {
-            setSaving(false);
+            if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
+                setSaving(false);
+            }
         }
     };
 
@@ -245,25 +282,39 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             return;
         }
 
-        try {
-            const result = await mapService.autocomplete(query, undefined, undefined, 5);
-            if (result?.features) {
-                // Filter to show only cities/localities
-                const cities = result.features
-                    .filter((f: any) => f.properties?.city || f.properties?.name)
-                    .map((f: any) => ({
-                        city: f.properties.city || f.properties.name,
-                        country: f.properties.country,
-                        lat: f.properties.lat,
-                        lon: f.properties.lon,
-                        formatted: f.properties.formatted
-                    }));
-                setCitySuggestions(cities);
-                setShowCitySuggestions(cities.length > 0);
-            }
-        } catch (error) {
-            console.error('[EditProfile] City search error:', error);
+        if (citySearchTimeoutRef.current) {
+            clearTimeout(citySearchTimeoutRef.current);
         }
+        citySearchTimeoutRef.current = setTimeout(async () => {
+            const requestId = ++latestCitySearchRequestRef.current;
+            try {
+                const result = await mapService.autocomplete(query, undefined, undefined, 5);
+                if (requestId !== latestCitySearchRequestRef.current || !isMountedRef.current) {
+                    return;
+                }
+                if (result?.features) {
+                    // Filter to show only cities/localities
+                    const cities = result.features
+                        .filter((f: any) => f.properties?.city || f.properties?.name)
+                        .map((f: any) => ({
+                            city: f.properties.city || f.properties.name,
+                            country: f.properties.country,
+                            lat: f.properties.lat,
+                            lon: f.properties.lon,
+                            formatted: f.properties.formatted
+                        }));
+                    setCitySuggestions(cities);
+                    setShowCitySuggestions(cities.length > 0);
+                } else {
+                    setCitySuggestions([]);
+                    setShowCitySuggestions(false);
+                }
+            } catch (error) {
+                if (requestId === latestCitySearchRequestRef.current && isMountedRef.current) {
+                    console.error('[EditProfile] City search error:', error);
+                }
+            }
+        }, 350);
     };
 
     const handleCitySelect = (suggestion: any) => {

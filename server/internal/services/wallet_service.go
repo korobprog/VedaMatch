@@ -147,7 +147,15 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 		var fromWallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", fromUserID).First(&fromWallet).Error; err != nil {
-			return errors.New("sender wallet not found")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				createdWallet, createErr := s.getOrCreateWalletTx(tx, fromUserID)
+				if createErr != nil {
+					return createErr
+				}
+				fromWallet = *createdWallet
+			} else {
+				return err
+			}
 		}
 
 		if fromWallet.Balance < amount {
@@ -337,7 +345,7 @@ func (s *WalletService) GetTransactions(userID uint, filters models.TransactionF
 
 	if filters.DateTo != "" {
 		if dateTo, err := time.Parse("2006-01-02", filters.DateTo); err == nil {
-			query = query.Where("created_at <= ?", dateTo.Add(24*time.Hour))
+			query = query.Where("created_at < ?", dateTo.AddDate(0, 0, 1))
 		}
 	}
 

@@ -551,6 +551,10 @@ func (s *MapService) GetRoute(req models.GeoapifyRouteRequest) (map[string]any, 
 	if mode == "" {
 		mode = "walk"
 	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if !isValidRouteMode(mode) {
+		return nil, fmt.Errorf("invalid route mode: %s", mode)
+	}
 
 	requestURL := fmt.Sprintf(
 		"https://api.geoapify.com/v1/routing?waypoints=%f,%f|%f,%f&mode=%s&apiKey=%s",
@@ -571,6 +575,15 @@ func (s *MapService) GetRoute(req models.GeoapifyRouteRequest) (map[string]any, 
 	}
 
 	return result, nil
+}
+
+func isValidRouteMode(mode string) bool {
+	switch mode {
+	case "walk", "drive", "truck", "bicycle", "transit":
+		return true
+	default:
+		return false
+	}
 }
 
 // Autocomplete proxies autocomplete request to Geoapify

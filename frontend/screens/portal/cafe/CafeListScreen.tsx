@@ -61,6 +61,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const [cafes, setCafes] = useState<Cafe[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [search, setSearch] = useState('');
     const [filters, setFilters] = useState<CafeFilters>({
         sort: 'rating',
@@ -71,18 +72,25 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const [myCafe, setMyCafe] = useState<Cafe | null>(null);
     const didInitialLoad = useRef(false);
     const latestCafesRequestRef = useRef(0);
+    const latestMyCafeRequestRef = useRef(0);
     const isMountedRef = useRef(true);
 
     const checkMyCafe = async () => {
+        const requestId = ++latestMyCafeRequestRef.current;
         try {
             const response = await cafeService.getMyCafe();
+            if (requestId !== latestMyCafeRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             if (response.hasCafe && response.cafe && response.cafe.id) {
                 setMyCafe(response.cafe);
             } else {
                 setMyCafe(null);
             }
         } catch {
-            setMyCafe(null);
+            if (requestId === latestMyCafeRequestRef.current && isMountedRef.current) {
+                setMyCafe(null);
+            }
         }
     };
 
@@ -103,6 +111,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                     setLoading(true);
                     setFilters(prev => ({ ...prev, ...overrides, page: 1 }));
                 }
+            } else if (isMountedRef.current) {
+                setLoadingMore(true);
             }
 
             const response = await cafeService.getCafes({
@@ -116,7 +126,11 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             if (reset) {
                 setCafes(response.cafes);
             } else {
-                setCafes(prev => [...prev, ...response.cafes]);
+                setCafes(prev => {
+                    const seen = new Set(prev.map(c => c.id));
+                    const unique = response.cafes.filter(c => !seen.has(c.id));
+                    return [...prev, ...unique];
+                });
             }
 
             setHasMore(response.page < response.totalPages);
@@ -126,6 +140,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             if (requestId === latestCafesRequestRef.current && isMountedRef.current) {
                 setLoading(false);
                 setRefreshing(false);
+                setLoadingMore(false);
             }
         }
     }, [filters, search]);
@@ -140,16 +155,20 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         return () => {
             isMountedRef.current = false;
             latestCafesRequestRef.current += 1;
+            latestMyCafeRequestRef.current += 1;
         };
     }, []);
 
     const handleRefresh = () => {
+        if (loading || refreshing) {
+            return;
+        }
         setRefreshing(true);
         loadCafes(true);
     };
 
     const handleLoadMore = () => {
-        if (!loading && hasMore) {
+        if (!loading && !refreshing && !loadingMore && hasMore) {
             const nextPage = (filters.page || 1) + 1;
             setFilters(prev => ({ ...prev, page: nextPage }));
             loadCafes(false, { page: nextPage });
@@ -406,7 +425,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         onEndReached={handleLoadMore}
                         onEndReachedThreshold={0.5}
                         ListFooterComponent={
-                            loading && cafes.length > 0 ? (
+                            loadingMore && cafes.length > 0 ? (
                                 <ActivityIndicator size="small" color={colors.accent} style={styles.footerLoader} />
                             ) : null
                         }

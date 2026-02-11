@@ -1,7 +1,8 @@
 import { Metadata } from 'next';
 
-export async function generateMetadata({ searchParams }: { searchParams: { inviteCode?: string } }): Promise<Metadata> {
-    const inviteCode = searchParams.inviteCode;
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ inviteCode?: string }> }): Promise<Metadata> {
+    const resolvedParams = await searchParams;
+    const inviteCode = resolvedParams?.inviteCode;
 
     if (inviteCode) {
         return {
