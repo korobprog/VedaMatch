@@ -30,7 +30,7 @@ func main() {
 
 	log.Println("Server Version: 1.6 (Manual CORS Fix)")
 
-	allowedOrigins := []string{
+	defaultAllowedOrigins := []string{
 		"http://localhost:3000",
 		"http://localhost:3001",
 		"http://localhost:3005",
@@ -41,10 +41,7 @@ func main() {
 		"https://api.vedamatch.ru",
 		"https://admin.vedamatch.ru",
 	}
-	allowedOriginsMap := make(map[string]bool, len(allowedOrigins))
-	for _, origin := range allowedOrigins {
-		allowedOriginsMap[origin] = true
-	}
+	allowedOrigins, allowedOriginsMap := buildAllowedOrigins(defaultAllowedOrigins)
 
 	// Initialize Database
 	database.Connect()
@@ -100,6 +97,7 @@ func main() {
 			origin := c.Get("Origin")
 			if allowedOriginsMap[origin] {
 				// Only set headers if Origin is explicitly allowed
+				c.Set("Vary", "Origin")
 				c.Set("Access-Control-Allow-Origin", origin)
 				c.Set("Access-Control-Allow-Credentials", "true")
 			}
@@ -908,11 +906,47 @@ func main() {
 	app.Static("/uploads", "./uploads")
 
 	// Start Server
-	portValue := strings.TrimSpace(os.Getenv("PORT"))
-	if portValue == "" {
-		portValue = "8000"
-	}
-	port := ":" + strings.TrimPrefix(portValue, ":")
+	port := resolveListenPort("8000")
 	log.Printf("Server starting on port %s", port)
 	log.Fatal(app.Listen(port))
+}
+
+func buildAllowedOrigins(defaults []string) ([]string, map[string]bool) {
+	originsSet := make(map[string]bool, len(defaults))
+	ordered := make([]string, 0, len(defaults))
+	addOrigin := func(origin string) {
+		normalized := strings.TrimSpace(origin)
+		if normalized == "" {
+			return
+		}
+		if originsSet[normalized] {
+			return
+		}
+		originsSet[normalized] = true
+		ordered = append(ordered, normalized)
+	}
+
+	for _, origin := range defaults {
+		addOrigin(origin)
+	}
+
+	for _, origin := range strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",") {
+		addOrigin(origin)
+	}
+
+	return ordered, originsSet
+}
+
+func resolveListenPort(defaultPort string) string {
+	portValue := strings.TrimSpace(os.Getenv("PORT"))
+	if portValue == "" {
+		return ":" + defaultPort
+	}
+	portValue = strings.TrimPrefix(portValue, ":")
+	portNumber, err := strconv.Atoi(portValue)
+	if err != nil || portNumber <= 0 || portNumber > 65535 {
+		log.Printf("Invalid PORT value %q, falling back to %s", portValue, defaultPort)
+		return ":" + defaultPort
+	}
+	return fmt.Sprintf(":%d", portNumber)
 }

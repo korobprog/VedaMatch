@@ -82,6 +82,8 @@ export const VideoCirclesScreen: React.FC = () => {
   const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
   const openPublishHandled = useRef(false);
   const latestCirclesRequestRef = useRef(0);
+  const latestTariffsRequestRef = useRef(0);
+  const isMountedRef = useRef(true);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -153,16 +155,16 @@ export const VideoCirclesScreen: React.FC = () => {
         limit: 30,
         sort: 'newest',
       });
-      if (requestId === latestCirclesRequestRef.current) {
+      if (requestId === latestCirclesRequestRef.current && isMountedRef.current) {
         setCircles(Array.isArray(res?.circles) ? res.circles : []);
       }
     } catch (error) {
       console.error('Failed to load video circles:', error);
-      if (requestId === latestCirclesRequestRef.current) {
+      if (requestId === latestCirclesRequestRef.current && isMountedRef.current) {
         Alert.alert(t('common.error'), t('videoCircles.errorLoad'));
       }
     } finally {
-      if (requestId === latestCirclesRequestRef.current) {
+      if (requestId === latestCirclesRequestRef.current && isMountedRef.current) {
         setLoading(false);
         setRefreshing(false);
       }
@@ -170,9 +172,12 @@ export const VideoCirclesScreen: React.FC = () => {
   }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, roleScope, t]);
 
   const loadTariffs = useCallback(async () => {
+    const requestId = ++latestTariffsRequestRef.current;
     try {
       const list = await videoCirclesService.getVideoTariffs();
-      setTariffs(list);
+      if (requestId === latestTariffsRequestRef.current && isMountedRef.current) {
+        setTariffs(list);
+      }
     } catch (error) {
       console.error('Failed to load video tariffs:', error);
     }
@@ -185,7 +190,9 @@ export const VideoCirclesScreen: React.FC = () => {
 
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
       latestCirclesRequestRef.current += 1;
+      latestTariffsRequestRef.current += 1;
     };
   }, []);
 
@@ -323,6 +330,9 @@ export const VideoCirclesScreen: React.FC = () => {
   }, [city, matha, publishOpen, selectedVideo, user?.city, user?.madh]);
 
   const publishCircle = async () => {
+    if (publishing) {
+      return;
+    }
     if (!selectedVideo?.uri) {
       Alert.alert(t('common.error'), t('chat.imagePickError'));
       return;

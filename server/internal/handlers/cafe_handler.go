@@ -23,6 +23,8 @@ type CafeHandler struct {
 	orderService *services.CafeOrderService
 }
 
+const maxCafePhotoUploadSize = 10 * 1024 * 1024 // 10MB
+
 func clampQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	value := c.QueryInt(key, def)
 	if value < min {
@@ -37,6 +39,16 @@ func clampQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 func isAllowedCafeImageContentType(contentType string) bool {
 	contentType = strings.ToLower(strings.TrimSpace(contentType))
 	return strings.HasPrefix(contentType, "image/")
+}
+
+func safeImageExtension(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filepath.Base(filename)))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic":
+		return ext
+	default:
+		return ".jpg"
+	}
 }
 
 // NewCafeHandler creates a new cafe handler instance
@@ -77,6 +89,12 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 			"error": "Only image uploads are allowed",
 		})
 	}
+	if file.Size <= 0 || file.Size > maxCafePhotoUploadSize {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Image must be between 1 byte and 10MB",
+		})
+	}
+	ext := safeImageExtension(file.Filename)
 
 	// 1. Try S3 Storage
 	s3Service := services.GetS3Service()
@@ -84,7 +102,6 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 		fileContent, err := file.Open()
 		if err == nil {
 			defer fileContent.Close()
-			ext := filepath.Ext(file.Filename)
 			fileName := fmt.Sprintf("cafes/u%d_%d%s", userID, time.Now().Unix(), ext)
 
 			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
@@ -104,7 +121,6 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 		})
 	}
 
-	ext := filepath.Ext(file.Filename)
 	filename := fmt.Sprintf("cafe_u%d_%d%s", userID, time.Now().Unix(), ext)
 	filePath := filepath.Join(uploadsDir, filename)
 

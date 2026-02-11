@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
     Image, Switch, Alert, ActivityIndicator, Modal
@@ -117,29 +117,47 @@ export const ProductEditScreen: React.FC = () => {
     const [variantPrice, setVariantPrice] = useState('');
     const [variantStock, setVariantStock] = useState('');
     const [variantAttributes, setVariantAttributes] = useState<Record<string, string>>({});
+    const latestLoadRequestRef = useRef(0);
 
     const loadData = useCallback(async () => {
+        const requestId = ++latestLoadRequestRef.current;
         try {
             // Load categories
             const cats = await marketService.getProductCategories();
+            if (requestId !== latestLoadRequestRef.current) {
+                return;
+            }
             setCategories(Array.isArray(cats) ? cats : []);
 
             if (isEditing && productId) {
                 setInitialLoading(true);
                 const product = await marketService.getProduct(productId);
+                if (requestId !== latestLoadRequestRef.current) {
+                    return;
+                }
                 populateForm(product);
             }
         } catch (error) {
             console.error('Error loading data:', error);
-            Alert.alert(t('error') || 'Error', t('market.product.loadError') || 'Failed to load product data');
+            if (requestId === latestLoadRequestRef.current) {
+                Alert.alert(t('error') || 'Error', t('market.product.loadError') || 'Failed to load product data');
+            }
         } finally {
-            setInitialLoading(false);
+            if (requestId === latestLoadRequestRef.current) {
+                setInitialLoading(false);
+            }
         }
     }, [isEditing, productId, t]);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        return () => {
+            latestLoadRequestRef.current += 1;
+        };
+    }, []);
 
     const populateForm = (product: Product) => {
         setName(product.name);
@@ -293,6 +311,9 @@ export const ProductEditScreen: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        if (loading) {
+            return;
+        }
         // Validation
         if (!name.trim() || name.length < 2) {
             return Alert.alert(t('error') || 'Error', t('market.product.nameRequired') || 'Product name must be at least 2 characters');

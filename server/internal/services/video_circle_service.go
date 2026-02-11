@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -168,11 +169,13 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		}
 	}
 
-	if params.City != "" {
-		query = query.Where("city = ?", params.City)
+	city := strings.TrimSpace(params.City)
+	if city != "" {
+		query = query.Where("city = ?", city)
 	}
-	if params.Category != "" {
-		query = query.Where("category = ?", params.Category)
+	category := strings.TrimSpace(params.Category)
+	if category != "" {
+		query = query.Where("category = ?", category)
 	}
 
 	allowAllMatha := user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)
@@ -193,8 +196,9 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 	}
 
 	if allowAllMatha {
-		if params.Matha != "" {
-			query = query.Where("matha = ?", params.Matha)
+		matha := strings.TrimSpace(params.Matha)
+		if matha != "" {
+			query = query.Where("matha = ?", matha)
 		}
 	} else {
 		if user.Madh != "" {
@@ -303,8 +307,15 @@ func normalizePortalRoleScope(values []string) []string {
 }
 
 func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error) {
-	if strings.TrimSpace(req.MediaURL) == "" {
+	mediaURL := strings.TrimSpace(req.MediaURL)
+	if mediaURL == "" {
 		return nil, errors.New("mediaUrl is required")
+	}
+	thumbnailURL := strings.TrimSpace(req.ThumbnailURL)
+	city := strings.TrimSpace(req.City)
+	category := strings.TrimSpace(req.Category)
+	if category == "" {
+		return nil, errors.New("category is required")
 	}
 
 	var user models.User
@@ -338,11 +349,11 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 
 	circle := models.VideoCircle{
 		AuthorID:           userID,
-		MediaURL:           strings.TrimSpace(req.MediaURL),
-		ThumbnailURL:       strings.TrimSpace(req.ThumbnailURL),
-		City:               strings.TrimSpace(req.City),
+		MediaURL:           mediaURL,
+		ThumbnailURL:       thumbnailURL,
+		City:               city,
 		Matha:              matha,
-		Category:           strings.TrimSpace(req.Category),
+		Category:           category,
 		Status:             models.VideoCircleStatusActive,
 		DurationSec:        duration,
 		ExpiresAt:          expiresAt,
@@ -611,7 +622,7 @@ func (s *VideoCircleService) AddInteraction(circleID, userID uint, req models.Vi
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		var circle models.VideoCircle
 		now := time.Now()
-		if err := tx.First(&circle, circleID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&circle, circleID).Error; err != nil {
 			return err
 		}
 		if circle.Status != models.VideoCircleStatusActive || !circle.ExpiresAt.After(now) {

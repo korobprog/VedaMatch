@@ -74,6 +74,8 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     const [uploadingImage, setUploadingImage] = useState(false);
     const modalOpacity = useRef(new Animated.Value(0)).current;
     const modalScale = useRef(new Animated.Value(0.96)).current;
+    const isMountedRef = useRef(true);
+    const latestSettingsRequestRef = useRef(0);
 
     const PRESET_IMAGES = [
         { id: 'krishna', emoji: '🕉️' },
@@ -111,14 +113,18 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         try {
             const size = await AsyncStorage.getItem('reader_font_size');
             const bold = await AsyncStorage.getItem('reader_font_bold');
-            if (size) setFontSize(parseInt(size, 10));
-            if (bold) setIsBold(bold === 'true');
+            const parsedSize = Number.parseInt(String(size ?? ''), 10);
+            if (Number.isFinite(parsedSize) && parsedSize >= 12 && parsedSize <= 30 && isMountedRef.current) {
+                setFontSize(parsedSize);
+            }
+            if (bold && isMountedRef.current) setIsBold(bold === 'true');
         } catch (e) {
             console.error('Failed to load font settings', e);
         }
     }, []);
 
     const fetchSettings = useCallback(async () => {
+        const requestId = ++latestSettingsRequestRef.current;
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
@@ -126,6 +132,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             });
             if (response.ok) {
                 const currentRoom = await response.json();
+                if (!isMountedRef.current || requestId !== latestSettingsRequestRef.current) {
+                    return;
+                }
                 setIsPublic(currentRoom.isPublic);
                 setAiEnabled(currentRoom.aiEnabled);
                 setBookCode(currentRoom.bookCode || '');
@@ -145,9 +154,18 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         } catch (error) {
             console.error('Error fetching settings:', error);
         } finally {
-            setLoading(false);
+            if (isMountedRef.current && requestId === latestSettingsRequestRef.current) {
+                setLoading(false);
+            }
         }
     }, [roomId, roomName]);
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestSettingsRequestRef.current += 1;
+        };
+    }, []);
 
     useEffect(() => {
         if (visible) {
@@ -187,8 +205,23 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleToggleAi = (val: boolean) => {
+        const previous = aiEnabled;
         setAiEnabled(val);
-        handleUpdateSettings({ aiEnabled: val });
+        void handleUpdateSettings({ aiEnabled: val }).then((updated) => {
+            if (!updated && isMountedRef.current) {
+                setAiEnabled(previous);
+            }
+        });
+    };
+
+    const handleTogglePublic = (val: boolean) => {
+        const previous = isPublic;
+        setIsPublic(val);
+        void handleUpdateSettings({ isPublic: val }).then((updated) => {
+            if (!updated && isMountedRef.current) {
+                setIsPublic(previous);
+            }
+        });
     };
 
     const handleUpdateSettings = async (updates: Record<string, unknown>): Promise<boolean> => {
@@ -220,6 +253,17 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleSaveReading = async () => {
+        const normalizedName = editName.trim();
+        const normalizedDescription = editDescription.trim();
+        const normalizedLocation = editLocation.trim();
+        if (!normalizedName) {
+            Alert.alert(t('common.error'), t('chat.roomNameRequired') || 'Room name is required');
+            return;
+        }
+        if (enableReading && !bookCode.trim()) {
+            Alert.alert(t('common.error'), t('reader.selectBook') || 'Select a scripture first');
+            return;
+        }
         const nextChapter = Math.max(1, Number(chapter) || 1);
         const nextVerse = Math.max(1, Number(verse) || 1);
         const updated = await handleUpdateSettings({
@@ -228,9 +272,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             currentVerse: enableReading ? nextVerse : 1,
             language: readingLanguage,
             showPurport: showPurport,
-            name: editName,
-            description: editDescription,
-            location: enableReading ? editLocation : '',
+            name: normalizedName,
+            description: normalizedDescription,
+            location: enableReading ? normalizedLocation : '',
             startTime: (enableReading && startTime) ? startTime.toISOString() : null
         });
         if (updated) {
@@ -239,11 +283,17 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleSelectPreset = (presetId: string) => {
+        const previousImage = roomImage;
         setRoomImage(presetId);
-        handleUpdateSettings({ imageUrl: presetId });
+        void handleUpdateSettings({ imageUrl: presetId }).then((updated) => {
+            if (!updated && isMountedRef.current) {
+                setRoomImage(previousImage);
+            }
+        });
     };
 
     const handleUploadImage = async () => {
+        if (uploadingImage) return;
         try {
             const result = await launchImageLibrary({
                 mediaType: 'photo',
@@ -275,8 +325,10 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
 
             if (response.ok) {
                 const data = await response.json();
-                setRoomImage(data.imageUrl);
-                Alert.alert(t('common.success'), t('chat.imageUpdated') || 'Image updated');
+                if (isMountedRef.current) {
+                    setRoomImage(data.imageUrl);
+                    Alert.alert(t('common.success'), t('chat.imageUpdated') || 'Image updated');
+                }
             } else {
                 const errorData = await response.json().catch(() => null);
                 Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to upload image'));
@@ -715,7 +767,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                                 </View>
                                 <Switch
                                     value={isPublic}
-                                    onValueChange={(val) => { setIsPublic(val); handleUpdateSettings({ isPublic: val }); }}
+                                    onValueChange={handleTogglePublic}
                                     trackColor={{ false: colors.border, true: colors.accent }}
                                     thumbColor={isPublic ? '#fff' : '#f4f3f4'}
                                     disabled={saving}

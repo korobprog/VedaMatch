@@ -33,6 +33,33 @@ func boundedNewsQueryInt(c *fiber.Ctx, key string, def int, min int, max int) in
 	return value
 }
 
+func isValidNewsItemStatus(status models.NewsItemStatus) bool {
+	switch status {
+	case models.NewsItemStatusDraft, models.NewsItemStatusPublished, models.NewsItemStatusArchived, models.NewsItemStatusDeleted:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidNewsSourceType(sourceType models.NewsSourceType) bool {
+	switch sourceType {
+	case models.NewsSourceTypeVK, models.NewsSourceTypeTelegram, models.NewsSourceTypeRSS, models.NewsSourceTypeURL:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidNewsSourceMode(mode models.NewsSourceMode) bool {
+	switch mode {
+	case models.NewsSourceModeAutoPublish, models.NewsSourceModeDraft:
+		return true
+	default:
+		return false
+	}
+}
+
 // ==================== PUBLIC ENDPOINTS ====================
 
 // GetNews returns a paginated list of published news
@@ -215,10 +242,10 @@ func (h *NewsHandler) GetLatestNews(c *fiber.Ctx) error {
 func (h *NewsHandler) GetAdminNews(c *fiber.Ctx) error {
 	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
 	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
-	status := c.Query("status", "")
-	sourceID := c.Query("sourceId", "")
-	category := c.Query("category", "")
-	search := c.Query("search", "")
+	status := strings.TrimSpace(c.Query("status", ""))
+	sourceID := strings.TrimSpace(c.Query("sourceId", ""))
+	category := strings.TrimSpace(c.Query("category", ""))
+	search := strings.TrimSpace(c.Query("search", ""))
 
 	offset := (page - 1) * limit
 
@@ -324,6 +351,9 @@ func (h *NewsHandler) CreateNews(c *fiber.Ctx) error {
 	if newsItem.Status == "" {
 		newsItem.Status = models.NewsItemStatusDraft
 	}
+	if !isValidNewsItemStatus(newsItem.Status) {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid news status"})
+	}
 
 	if err := database.DB.Create(&newsItem).Error; err != nil {
 		log.Printf("[ADMIN NEWS] Error creating news: %v", err)
@@ -375,6 +405,9 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 		"scheduled_at": req.ScheduledAt,
 	}
 	if req.Status != "" {
+		if !isValidNewsItemStatus(req.Status) {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid news status"})
+		}
 		updates["status"] = req.Status
 	}
 
@@ -543,12 +576,31 @@ func (h *NewsHandler) CreateSource(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.Description = strings.TrimSpace(req.Description)
+	req.SourceType = models.NewsSourceType(strings.ToLower(strings.TrimSpace(string(req.SourceType))))
+	req.URL = strings.TrimSpace(req.URL)
+	req.VKGroupID = strings.TrimSpace(req.VKGroupID)
+	req.TelegramID = strings.TrimSpace(req.TelegramID)
+	req.TGParserType = strings.TrimSpace(req.TGParserType)
+	req.AccessToken = strings.TrimSpace(req.AccessToken)
+	req.Mode = models.NewsSourceMode(strings.ToLower(strings.TrimSpace(string(req.Mode))))
+	req.DefaultTags = strings.TrimSpace(req.DefaultTags)
+	req.TargetMadh = strings.TrimSpace(req.TargetMadh)
+	req.TargetYoga = strings.TrimSpace(req.TargetYoga)
+	req.TargetIdentity = strings.TrimSpace(req.TargetIdentity)
 
 	if req.Name == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Name is required"})
 	}
 	if req.SourceType == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Source type is required"})
+	}
+	if !isValidNewsSourceType(req.SourceType) {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source type"})
+	}
+	if req.Mode != "" && !isValidNewsSourceMode(req.Mode) {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source mode"})
 	}
 
 	source := models.NewsSource{
@@ -573,6 +625,9 @@ func (h *NewsHandler) CreateSource(c *fiber.Ctx) error {
 
 	if source.FetchInterval == 0 {
 		source.FetchInterval = 3600 // Default 1 hour
+	}
+	if source.FetchInterval < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Fetch interval must be positive"})
 	}
 	if source.Mode == "" {
 		source.Mode = models.NewsSourceModeDraft
@@ -603,6 +658,35 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 	var req models.NewsSourceCreateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.Description = strings.TrimSpace(req.Description)
+	req.SourceType = models.NewsSourceType(strings.ToLower(strings.TrimSpace(string(req.SourceType))))
+	req.URL = strings.TrimSpace(req.URL)
+	req.VKGroupID = strings.TrimSpace(req.VKGroupID)
+	req.TelegramID = strings.TrimSpace(req.TelegramID)
+	req.TGParserType = strings.TrimSpace(req.TGParserType)
+	req.AccessToken = strings.TrimSpace(req.AccessToken)
+	req.Mode = models.NewsSourceMode(strings.ToLower(strings.TrimSpace(string(req.Mode))))
+	req.DefaultTags = strings.TrimSpace(req.DefaultTags)
+	req.TargetMadh = strings.TrimSpace(req.TargetMadh)
+	req.TargetYoga = strings.TrimSpace(req.TargetYoga)
+	req.TargetIdentity = strings.TrimSpace(req.TargetIdentity)
+
+	if req.Name == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Name is required"})
+	}
+	if req.SourceType == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Source type is required"})
+	}
+	if !isValidNewsSourceType(req.SourceType) {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source type"})
+	}
+	if req.Mode != "" && !isValidNewsSourceMode(req.Mode) {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source mode"})
+	}
+	if req.FetchInterval < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Fetch interval must be positive"})
 	}
 
 	updates := map[string]interface{}{

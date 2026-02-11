@@ -105,6 +105,10 @@ export const MapGeoapifyScreen: React.FC = () => {
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestSearchRequestRef = useRef(0);
     const latestMarkersRequestRef = useRef(0);
+    const latestTileConfigRequestRef = useRef(0);
+    const latestSummaryRequestRef = useRef(0);
+    const latestLocateRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const [filters, setFilters] = useState<MapFilters>({
         showUsers: routeParams?.filters?.showUsers ?? true,
@@ -115,8 +119,12 @@ export const MapGeoapifyScreen: React.FC = () => {
 
     useEffect(() => {
         return () => {
+            isMountedRef.current = false;
             latestSearchRequestRef.current += 1;
             latestMarkersRequestRef.current += 1;
+            latestTileConfigRequestRef.current += 1;
+            latestSummaryRequestRef.current += 1;
+            latestLocateRequestRef.current += 1;
             if (searchTimeoutRef.current) {
                 clearTimeout(searchTimeoutRef.current);
             }
@@ -162,28 +170,42 @@ export const MapGeoapifyScreen: React.FC = () => {
     }, [clusters, mapReady]);
 
     const loadTileConfig = async () => {
+        const requestId = ++latestTileConfigRequestRef.current;
         try {
             const config = await mapService.getTileConfig();
-            setTileUrl(config.tileUrl);
-            setMapConfig(config);
+            if (requestId === latestTileConfigRequestRef.current && isMountedRef.current) {
+                setTileUrl(config.tileUrl);
+                setMapConfig(config);
+            }
         } catch (error) {
             console.error('Failed to load tile config:', error);
             // Fallback to OpenStreetMap tiles
-            setTileUrl('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+            if (requestId === latestTileConfigRequestRef.current && isMountedRef.current) {
+                setTileUrl('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+            }
         }
     };
 
     const loadInitialData = async () => {
-        setIsLoading(true);
+        const requestId = ++latestSummaryRequestRef.current;
+        if (isMountedRef.current) {
+            setIsLoading(true);
+        }
         try {
             const summary = await mapService.getSummary();
             const nextClusters = Array.isArray(summary?.clusters) ? summary.clusters : [];
-            setClusters(nextClusters);
+            if (requestId === latestSummaryRequestRef.current && isMountedRef.current) {
+                setClusters(nextClusters);
+            }
         } catch (error) {
             console.error('Failed to load initial data:', error);
-            setClusters([]);
+            if (requestId === latestSummaryRequestRef.current && isMountedRef.current) {
+                setClusters([]);
+            }
         } finally {
-            setIsLoading(false);
+            if (requestId === latestSummaryRequestRef.current && isMountedRef.current) {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -191,7 +213,7 @@ export const MapGeoapifyScreen: React.FC = () => {
         const requestId = ++latestMarkersRequestRef.current;
         if (zoom < 10) {
             // Zoomed out - show clusters only
-            if (requestId === latestMarkersRequestRef.current) {
+            if (requestId === latestMarkersRequestRef.current && isMountedRef.current) {
                 setMarkers([]);
             }
             return;
@@ -205,7 +227,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             if (filters.showCafes) categories.push('cafe');
 
             if (categories.length === 0) {
-                if (requestId === latestMarkersRequestRef.current) {
+                if (requestId === latestMarkersRequestRef.current && isMountedRef.current) {
                     setMarkers([]);
                 }
                 return;
@@ -222,12 +244,12 @@ export const MapGeoapifyScreen: React.FC = () => {
                 userLng: user?.longitude,
             });
 
-            if (requestId === latestMarkersRequestRef.current) {
+            if (requestId === latestMarkersRequestRef.current && isMountedRef.current) {
                 setMarkers(Array.isArray(result?.markers) ? result.markers : []);
             }
         } catch (error) {
             console.error('Failed to load markers:', error);
-            if (requestId === latestMarkersRequestRef.current) {
+            if (requestId === latestMarkersRequestRef.current && isMountedRef.current) {
                 setMarkers([]);
             }
         }
@@ -319,7 +341,10 @@ export const MapGeoapifyScreen: React.FC = () => {
     };
 
     const handleLocateMe = async () => {
-        setIsLoading(true);
+        const requestId = ++latestLocateRequestRef.current;
+        if (isMountedRef.current) {
+            setIsLoading(true);
+        }
         try {
             const location = await geoLocationService.detectLocation();
             const hasCoords =
@@ -349,7 +374,9 @@ export const MapGeoapifyScreen: React.FC = () => {
         } catch {
             Alert.alert('Permission Denied', 'Please enable location permissions in settings.');
         } finally {
-            setIsLoading(false);
+            if (requestId === latestLocateRequestRef.current && isMountedRef.current) {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -459,7 +486,7 @@ export const MapGeoapifyScreen: React.FC = () => {
                 }
 
                 const result = await mapService.autocomplete(normalizedText, lat, lng);
-                if (requestId !== latestSearchRequestRef.current) {
+                if (requestId !== latestSearchRequestRef.current || !isMountedRef.current) {
                     return;
                 }
                 if (result && Array.isArray(result.features)) {
@@ -470,7 +497,7 @@ export const MapGeoapifyScreen: React.FC = () => {
             } catch (error) {
                 console.error('Search error:', error);
             } finally {
-                if (requestId === latestSearchRequestRef.current) {
+                if (requestId === latestSearchRequestRef.current && isMountedRef.current) {
                     setIsSearching(false);
                 }
             }

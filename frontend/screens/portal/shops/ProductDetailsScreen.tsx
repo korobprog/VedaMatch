@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     Image, Dimensions, Alert, Platform
@@ -73,50 +73,88 @@ export const ProductDetailsScreen: React.FC = () => {
     const [reviews, setReviews] = useState<Review[]>([]);
     const [reviewsPage, setReviewsPage] = useState(1);
     const [loadingReviews, setLoadingReviews] = useState(false);
+    const [hasMoreReviews, setHasMoreReviews] = useState(false);
+    const latestProductRequestRef = useRef(0);
+    const latestReviewsRequestRef = useRef(0);
 
     const loadReviews = useCallback(async (page: number) => {
+        const requestId = ++latestReviewsRequestRef.current;
         try {
             setLoadingReviews(true);
             const data = await marketService.getProductReviews(productId, page);
-            if (page === 1) {
-                setReviews(data.reviews);
-            } else {
-                setReviews(prev => [...prev, ...data.reviews]);
+            if (requestId !== latestReviewsRequestRef.current) {
+                return;
             }
+            const incomingReviews = Array.isArray(data?.reviews) ? data.reviews : [];
+            if (page === 1) {
+                setReviews(incomingReviews);
+            } else {
+                setReviews(prev => [...prev, ...incomingReviews]);
+            }
+            const total = Number(data?.total) || 0;
+            const loadedCount = page === 1
+                ? incomingReviews.length
+                : (reviews.length + incomingReviews.length);
             setReviewsPage(page);
+            setHasMoreReviews(loadedCount < total && incomingReviews.length > 0);
         } catch (error) {
             console.error('Error loading reviews:', error);
         } finally {
-            setLoadingReviews(false);
+            if (requestId === latestReviewsRequestRef.current) {
+                setLoadingReviews(false);
+            }
         }
-    }, [productId]);
+    }, [productId, reviews.length]);
 
     const loadProduct = useCallback(async () => {
+        const requestId = ++latestProductRequestRef.current;
         try {
             setLoading(true);
             const data = await marketService.getProduct(productId);
+            if (requestId !== latestProductRequestRef.current) {
+                return;
+            }
             setProduct(data);
             setIsFavorite(data.isFavorite || false);
+            setSelectedImageIndex(0);
+            setQuantity(1);
 
             // Select first variant by default if exists
             if (data.variants && data.variants.length > 0) {
                 setSelectedVariant(data.variants[0]);
+            } else {
+                setSelectedVariant(null);
             }
         } catch (error) {
             console.error('Error loading product:', error);
-            Alert.alert('Error', 'Failed to load product');
+            if (requestId === latestProductRequestRef.current) {
+                setProduct(null);
+                Alert.alert('Error', 'Failed to load product');
+            }
         } finally {
-            setLoading(false);
+            if (requestId === latestProductRequestRef.current) {
+                setLoading(false);
+            }
         }
-        loadReviews(1);
+        void loadReviews(1);
     }, [loadReviews, productId]);
 
     useEffect(() => {
         loadProduct();
     }, [loadProduct]);
 
+    useEffect(() => {
+        return () => {
+            latestProductRequestRef.current += 1;
+            latestReviewsRequestRef.current += 1;
+        };
+    }, []);
+
     const loadMoreReviews = () => {
-        loadReviews(reviewsPage + 1);
+        if (loadingReviews || !hasMoreReviews) {
+            return;
+        }
+        void loadReviews(reviewsPage + 1);
     };
 
     const handleAddReview = () => {
@@ -610,7 +648,7 @@ export const ProductDetailsScreen: React.FC = () => {
                             />
                         )}
 
-                        {product.reviewsCount > reviews.length && (
+                        {hasMoreReviews && (
                             <TouchableOpacity style={styles.loadMoreReviews} onPress={loadMoreReviews}>
                                 <Text style={{ color: accent }}>{t('market.loadMoreReviews')}</Text>
                             </TouchableOpacity>

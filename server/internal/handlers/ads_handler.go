@@ -61,6 +61,60 @@ func isAllowedAdImageContentType(contentType string) bool {
 	return strings.HasPrefix(contentType, "image/")
 }
 
+func isValidAdType(adType models.AdType) bool {
+	switch adType {
+	case models.AdTypeLooking, models.AdTypeOffering:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidAdCategory(category models.AdCategory) bool {
+	switch category {
+	case models.AdCategoryWork,
+		models.AdCategoryRealEstate,
+		models.AdCategorySpiritual,
+		models.AdCategoryEducation,
+		models.AdCategoryGoods,
+		models.AdCategoryFood,
+		models.AdCategoryTransport,
+		models.AdCategoryEvents,
+		models.AdCategoryServices,
+		models.AdCategoryCharity,
+		models.AdCategoryYogaWellness,
+		models.AdCategoryAyurveda,
+		models.AdCategoryHousing,
+		models.AdCategoryFurniture:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeAdPhotoURLs(urls []string) []string {
+	if len(urls) == 0 {
+		return urls
+	}
+	seen := make(map[string]struct{}, len(urls))
+	normalized := make([]string, 0, len(urls))
+	for _, raw := range urls {
+		url := strings.TrimSpace(raw)
+		if url == "" {
+			continue
+		}
+		if _, exists := seen[url]; exists {
+			continue
+		}
+		seen[url] = struct{}{}
+		normalized = append(normalized, url)
+		if len(normalized) >= 10 {
+			break
+		}
+	}
+	return normalized
+}
+
 // GetAds returns a paginated list of ads with filters
 func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	page, limit, offset := parsePagination(c, 50)
@@ -266,20 +320,31 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 	req.City = strings.TrimSpace(req.City)
 	req.Phone = strings.TrimSpace(req.Phone)
 	req.Email = strings.TrimSpace(req.Email)
+	req.Photos = normalizeAdPhotoURLs(req.Photos)
 
 	if req.Title == "" || len(req.Title) < 5 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Title must be at least 5 characters",
 		})
 	}
-	if req.Description == "" || len(req.Description) < 10 {
+	if req.Description == "" || len(req.Description) < 20 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Description must be at least 10 characters",
+			"error": "Description must be at least 20 characters",
+		})
+	}
+	if !isValidAdType(req.AdType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid ad type",
+		})
+	}
+	if !isValidAdCategory(req.Category) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid category",
 		})
 	}
 
 	// Set defaults
-	currency := req.Currency
+	currency := strings.ToUpper(strings.TrimSpace(req.Currency))
 	if currency == "" {
 		currency = "RUB"
 	}
@@ -388,6 +453,27 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	req.City = strings.TrimSpace(req.City)
 	req.Phone = strings.TrimSpace(req.Phone)
 	req.Email = strings.TrimSpace(req.Email)
+	req.Photos = normalizeAdPhotoURLs(req.Photos)
+	if req.Title == "" || len(req.Title) < 5 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Title must be at least 5 characters",
+		})
+	}
+	if req.Description == "" || len(req.Description) < 20 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Description must be at least 20 characters",
+		})
+	}
+	if !isValidAdType(req.AdType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid ad type",
+		})
+	}
+	if !isValidAdCategory(req.Category) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid category",
+		})
+	}
 
 	// Update fields
 	updateMap := map[string]interface{}{
@@ -406,7 +492,7 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	}
 
 	if req.Currency != "" {
-		updateMap["currency"] = req.Currency
+		updateMap["currency"] = strings.ToUpper(strings.TrimSpace(req.Currency))
 	}
 
 	if err := database.DB.Model(&ad).Updates(updateMap).Error; err != nil {
@@ -450,7 +536,7 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	}
 
 	// Update photos if provided
-	if len(req.Photos) > 0 {
+	if req.Photos != nil {
 		if err := database.DB.Transaction(func(tx *gorm.DB) error {
 			if err := tx.Where("ad_id = ?", ad.ID).Delete(&models.AdPhoto{}).Error; err != nil {
 				return err
@@ -833,6 +919,23 @@ func (h *AdsHandler) ReportAd(c *fiber.Ctx) error {
 		})
 	}
 
+	var ad models.Ad
+	if err := database.DB.Select("id, user_id").First(&ad, adIDUint).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Ad not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not verify ad",
+		})
+	}
+	if ad.UserID == userID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "You cannot report your own ad",
+		})
+	}
+
 	report := models.AdReport{
 		AdID:       uint(adIDUint),
 		ReporterID: userID,
@@ -923,6 +1026,10 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	adIDUint, err := strconv.ParseUint(adID, 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
+	}
 
 	var req struct {
 		Method string `json:"method"` // "message"
@@ -936,7 +1043,7 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 	}
 
 	var ad models.Ad
-	if err := database.DB.Preload("User").First(&ad, adID).Error; err != nil {
+	if err := database.DB.Preload("User").First(&ad, adIDUint).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 

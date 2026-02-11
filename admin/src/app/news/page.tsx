@@ -44,6 +44,7 @@ const getErrorMessage = (error: unknown): string => {
 
 type NewsStatus = "draft" | "published" | "archived" | "deleted";
 type SourceType = "rss" | "url" | "vk" | "telegram";
+type SourceMode = "draft" | "auto_publish";
 
 const statusColors: Record<NewsStatus, string> = {
   draft: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -79,6 +80,9 @@ const normalizeSourceType = (sourceType?: string): SourceType => {
   }
   return "rss";
 };
+
+const normalizeSourceMode = (mode?: string): SourceMode =>
+  mode === "auto_publish" ? "auto_publish" : "draft";
 
 const formatFetchInterval = (seconds?: number): string => {
   const safeSeconds = Number.isFinite(seconds) ? Number(seconds) : 0;
@@ -174,15 +178,23 @@ const sanitizeNewsPayload = (
 const sanitizeSourcePayload = (
   source: Partial<NewsSource>,
 ): Partial<NewsSource> => {
-  const sourceType = source.sourceType || "rss";
+  const sourceType = normalizeSourceType(source.sourceType);
+  const fetchInterval =
+    Number.isFinite(source.fetchInterval) && Number(source.fetchInterval) > 0
+      ? Number(source.fetchInterval)
+      : 3600;
   const next: Partial<NewsSource> = {
     ...source,
     sourceType,
+    mode: normalizeSourceMode(source.mode),
+    fetchInterval,
     name: source.name?.trim() || "",
     description: source.description?.trim() || "",
     url: toOptionalTrimmedString(source.url) || "",
     vkGroupId: toOptionalTrimmedString(source.vkGroupId) || "",
     telegramId: toOptionalTrimmedString(source.telegramId) || "",
+    tgParserType:
+      source.tgParserType === "web" ? "web" : "bot",
     defaultTags: source.defaultTags?.trim() || "",
     targetMadh: serializeCsvValues(parseCsvValues(source.targetMadh || "")),
     targetYoga: serializeCsvValues(parseCsvValues(source.targetYoga || "")),
@@ -249,8 +261,10 @@ export default function NewsPage() {
 
   const newsQuery = useMemo(() => {
     const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (status) params.set("status", status);
+    const searchValue = search.trim();
+    const statusValue = status.trim();
+    if (searchValue) params.set("search", searchValue);
+    if (statusValue) params.set("status", statusValue);
     const query = params.toString();
     return query ? `/admin/news?${query}` : "/admin/news";
   }, [search, status]);
@@ -376,15 +390,15 @@ export default function NewsPage() {
     const sourceType = normalizeSourceType(payload.sourceType);
     const requiresUrl = sourceType === "rss" || sourceType === "url";
     if (requiresUrl && !payload.url?.trim()) {
-      alert("URL is required for RSS/URL sources");
+      setActionError("Save failed: URL is required for RSS/URL sources");
       return;
     }
     if (sourceType === "vk" && !payload.vkGroupId?.trim()) {
-      alert("VK Group ID is required for VK sources");
+      setActionError("Save failed: VK Group ID is required for VK sources");
       return;
     }
     if (sourceType === "telegram" && !payload.telegramId?.trim()) {
-      alert("Telegram Channel ID is required for Telegram sources");
+      setActionError("Save failed: Telegram Channel ID is required for Telegram sources");
       return;
     }
 

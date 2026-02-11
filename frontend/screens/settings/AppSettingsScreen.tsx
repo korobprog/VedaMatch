@@ -115,6 +115,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     const triggerTapFeedback = usePressFeedback();
     const { refreshLocationData } = useLocation();
     const { wallet, loading: walletLoading } = useWallet();
+    const [mediaActionInProgress, setMediaActionInProgress] = useState(false);
 
     const handleGoBack = useCallback(() => {
         triggerTapFeedback();
@@ -138,6 +139,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     }, []);
 
     const handlePickImage = useCallback(async () => {
+        if (mediaActionInProgress) {
+            return;
+        }
+        setMediaActionInProgress(true);
         try {
             const uri = await pickImageUri();
             if (!uri) return;
@@ -145,10 +150,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         } catch (error) {
             console.warn('Failed to pick image:', error);
             Alert.alert('Ошибка', 'Не удалось выбрать изображение');
+        } finally {
+            setMediaActionInProgress(false);
         }
-    }, [pickImageUri, setPortalBackground]);
+    }, [mediaActionInProgress, pickImageUri, setPortalBackground]);
 
     const handleAddSlideFromGallery = useCallback(async () => {
+        if (mediaActionInProgress) {
+            return;
+        }
+        setMediaActionInProgress(true);
         try {
             const uri = await pickImageUri();
             if (!uri) return;
@@ -156,8 +167,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         } catch (error) {
             console.warn('Failed to add wallpaper slide:', error);
             Alert.alert('Ошибка', 'Не удалось добавить фон');
+        } finally {
+            setMediaActionInProgress(false);
         }
-    }, [addWallpaperSlide, pickImageUri]);
+    }, [addWallpaperSlide, mediaActionInProgress, pickImageUri]);
 
     const handleRemoveSlide = useCallback((uri: string) => {
         if (wallpaperSlides.length <= 1) {
@@ -569,8 +582,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             activeOpacity={0.88}
                             style={[
                                 styles.imagePickerBtn,
+                                mediaActionInProgress && styles.disabledControl,
                                 { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }
                             ]}
+                            disabled={mediaActionInProgress}
                             onPress={() => {
                                 triggerTapFeedback();
                                 handlePickImage();
@@ -737,11 +752,13 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             style={[
                                 styles.wallpaperSlide,
                                 styles.wallpaperAddBtn,
+                                mediaActionInProgress && styles.disabledControl,
                                 {
                                     borderColor: vTheme.colors.divider,
                                     backgroundColor: vTheme.colors.backgroundSecondary,
                                 }
                             ]}
+                            disabled={mediaActionInProgress}
                             onPress={() => {
                                 triggerTapFeedback();
                                 handleAddSlideFromGallery();
@@ -1037,6 +1054,9 @@ const styles = StyleSheet.create({
     selectedPreset: {
         borderColor: '#FF9933',
         transform: [{ scale: 1.1 }],
+    },
+    disabledControl: {
+        opacity: 0.5,
     },
     gradientPreset: {
         flex: 1,

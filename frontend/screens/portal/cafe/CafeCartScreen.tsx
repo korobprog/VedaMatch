@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -56,6 +56,8 @@ interface CafeTable {
     } | null;
 }
 
+type CafePaymentMethod = 'cash' | 'card_terminal';
+
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
     if (typeof error === 'object' && error !== null) {
         const maybeResponse = error as { response?: { data?: { error?: string } } };
@@ -78,30 +80,56 @@ const CafeCartScreen: React.FC = () => {
     const [customerNote, setCustomerNote] = useState('');
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [deliveryPhone, setDeliveryPhone] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [paymentMethod, setPaymentMethod] = useState<CafePaymentMethod>('cash');
     const [loading, setLoading] = useState(false);
     const [tableModalVisible, setTableModalVisible] = useState(false);
     const [tables, setTables] = useState<CafeTable[]>([]);
     const [loadingTables, setLoadingTables] = useState(false);
+    const latestTablesRequestRef = useRef(0);
 
-    const fetchTables = async () => {
-        if (!cart) return;
+    const fetchTables = useCallback(async () => {
+        if (!cart?.cafeId) return;
+        const requestId = ++latestTablesRequestRef.current;
         try {
             setLoadingTables(true);
             const data = await cafeService.getTables(cart.cafeId);
-            setTables(data);
+            if (requestId === latestTablesRequestRef.current) {
+                setTables(Array.isArray(data) ? data : []);
+            }
         } catch (error) {
             console.error('Error fetching tables:', error);
-            Alert.alert(t('common.error'), t('cafe.staff.tables.loadError'));
+            if (requestId === latestTablesRequestRef.current) {
+                setTables([]);
+                Alert.alert(t('common.error'), t('cafe.staff.tables.loadError'));
+            }
         } finally {
-            setLoadingTables(false);
+            if (requestId === latestTablesRequestRef.current) {
+                setLoadingTables(false);
+            }
         }
-    };
+    }, [cart?.cafeId, t]);
 
-    const handleOpenTablePicker = () => {
+    useEffect(() => {
+        return () => {
+            latestTablesRequestRef.current += 1;
+        };
+    }, []);
+
+    const handleOpenTablePicker = useCallback(() => {
         setTableModalVisible(true);
-        fetchTables();
-    };
+        void fetchTables();
+    }, [fetchTables]);
+
+    const handleClearCart = useCallback(() => {
+        Alert.alert(
+            t('cafe.cart.clear'),
+            t('cafe.cart.clearConfirm', { defaultValue: 'Очистить корзину?' }),
+            [
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('cafe.cart.clear'), style: 'destructive', onPress: clearCart },
+            ]
+        );
+    }, [clearCart, t]);
 
     const handleSelectTable = (table: CafeTable) => {
         if (table.upcomingReservation) {
@@ -142,7 +170,12 @@ const CafeCartScreen: React.FC = () => {
     };
 
     const handleSubmitOrder = async () => {
-        if (!cart) return;
+        if (!cart || loading) return;
+
+        const normalizedAddress = deliveryAddress.trim();
+        const normalizedPhone = deliveryPhone.trim();
+        const normalizedCustomerName = customerName.trim();
+        const normalizedCustomerNote = customerNote.trim();
 
         if (cart.orderType === 'dine_in' && !cart.tableId) {
             Alert.alert(t('common.error'), t('cafe.cart.errorTable'));
@@ -150,11 +183,11 @@ const CafeCartScreen: React.FC = () => {
         }
 
         if (cart.orderType === 'delivery') {
-            if (!deliveryAddress.trim()) {
+            if (!normalizedAddress) {
                 Alert.alert(t('common.error'), t('cafe.cart.errorAddress'));
                 return;
             }
-            if (!deliveryPhone.trim()) {
+            if (!normalizedPhone) {
                 Alert.alert(t('common.error'), t('cafe.cart.errorPhone'));
                 return;
             }
@@ -167,10 +200,10 @@ const CafeCartScreen: React.FC = () => {
                 cafeId: cart.cafeId,
                 orderType: cart.orderType,
                 tableId: cart.tableId,
-                deliveryAddress: cart.orderType === 'delivery' ? deliveryAddress : undefined,
-                deliveryPhone: cart.orderType === 'delivery' ? deliveryPhone : undefined,
-                customerName: customerName || undefined,
-                customerNote: customerNote || undefined,
+                deliveryAddress: cart.orderType === 'delivery' ? normalizedAddress : undefined,
+                deliveryPhone: cart.orderType === 'delivery' ? normalizedPhone : undefined,
+                customerName: normalizedCustomerName || undefined,
+                customerNote: normalizedCustomerNote || undefined,
                 paymentMethod,
                 items: cart.items.map(item => ({
                     dishId: item.dish.id,
@@ -209,7 +242,7 @@ const CafeCartScreen: React.FC = () => {
                     <ArrowLeft size={22} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('cafe.cart.cart')}</Text>
-                <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
+                <TouchableOpacity style={styles.clearBtn} onPress={handleClearCart}>
                     <Text style={styles.clearBtnText}>{t('cafe.cart.clear')}</Text>
                 </TouchableOpacity>
             </SafeAreaView>
@@ -397,11 +430,11 @@ const CafeCartScreen: React.FC = () => {
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.paymentBtn, paymentMethod === 'card' && styles.paymentBtnActive]}
-                            onPress={() => setPaymentMethod('card')}
+                            style={[styles.paymentBtn, paymentMethod === 'card_terminal' && styles.paymentBtnActive]}
+                            onPress={() => setPaymentMethod('card_terminal')}
                         >
-                            <CreditCard size={20} color={paymentMethod === 'card' ? colors.textPrimary : colors.textSecondary} />
-                            <Text style={[styles.paymentBtnText, paymentMethod === 'card' && styles.paymentBtnTextActive]}>
+                            <CreditCard size={20} color={paymentMethod === 'card_terminal' ? colors.textPrimary : colors.textSecondary} />
+                            <Text style={[styles.paymentBtnText, paymentMethod === 'card_terminal' && styles.paymentBtnTextActive]}>
                                 {t('cafe.cart.card')}
                             </Text>
                         </TouchableOpacity>

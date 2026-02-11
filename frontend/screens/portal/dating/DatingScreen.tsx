@@ -182,11 +182,19 @@ const DatingCandidateCard = ({
     const activePaginationBarStyle = useMemo(() => ({ backgroundColor: roleColors.accent }), [roleColors.accent]);
 
     useEffect(() => {
+        let isActive = true;
         if (!isPreview && userId && item.ID) {
             datingService.checkIsFavorited(userId, item.ID)
-                .then((res) => setIsFavorited(res.isFavorited))
+                .then((res) => {
+                    if (isActive) {
+                        setIsFavorited(res.isFavorited);
+                    }
+                })
                 .catch(() => { });
         }
+        return () => {
+            isActive = false;
+        };
     }, [isPreview, userId, item.ID]);
 
     const handleToggleFavorite = async () => {
@@ -456,6 +464,22 @@ const normalizeAgeRange = (minAgeRaw: string, maxAgeRaw: string): { minAge: stri
     return { minAge: `${min}`, maxAge: `${max}` };
 };
 
+const normalizeCandidateFilters = (params: CandidateFilterParams): CandidateFilterParams => {
+    const normalizedAges = normalizeAgeRange(params.minAge, params.maxAge);
+    return {
+        ...params,
+        city: params.city.trim(),
+        madh: params.madh.trim(),
+        yogaStyle: params.yogaStyle.trim(),
+        guna: params.guna.trim(),
+        identity: params.identity.trim(),
+        skills: params.skills.trim(),
+        industry: params.industry.trim(),
+        minAge: normalizedAges.minAge,
+        maxAge: normalizedAges.maxAge,
+    };
+};
+
 const normalizeProfilePhotos = (photos: PreviewProfileApiResponse['photos']): Photo[] => {
     if (!Array.isArray(photos)) {
         return [];
@@ -537,6 +561,24 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         industry: ''
     });
     const candidatesRequestRef = useRef(0);
+    const friendsRequestRef = useRef(0);
+    const statsRequestRef = useRef(0);
+    const citiesRequestRef = useRef(0);
+    const previewRequestRef = useRef(0);
+    const compatibilityRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            candidatesRequestRef.current += 1;
+            friendsRequestRef.current += 1;
+            statsRequestRef.current += 1;
+            citiesRequestRef.current += 1;
+            previewRequestRef.current += 1;
+            compatibilityRequestRef.current += 1;
+        };
+    }, []);
 
     useEffect(() => {
         if (user?.ID) {
@@ -552,6 +594,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     }, [user]);
 
     const fetchFriends = async () => {
+        const requestId = ++friendsRequestRef.current;
         try {
             const data = await datingService.getFriends();
             const ids = Array.isArray(data)
@@ -559,7 +602,9 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     .map((f: FriendRef) => parseNumericId(f.ID))
                     .filter((id): id is number => id !== null)
                 : [];
-            setFriendIds(ids);
+            if (requestId === friendsRequestRef.current && isMountedRef.current) {
+                setFriendIds(ids);
+            }
         } catch (error) {
             console.error('Failed to fetch friends:', error);
         }
@@ -582,13 +627,16 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     }, [mode, filterNew, filterCity, filterMinAge, filterMaxAge, filterMadh, filterYogaStyle, filterGuna, filterIdentity, filterSkills, filterIndustry]);
 
     const fetchStats = useCallback(async (city?: string) => {
+        const requestId = ++statsRequestRef.current;
         try {
             const data = await datingService.getStats(city);
-            setStats({
-                total: Number(data?.total) || 0,
-                city: Number(data?.city) || 0,
-                new: Number(data?.new) || 0
-            });
+            if (requestId === statsRequestRef.current && isMountedRef.current) {
+                setStats({
+                    total: Number(data?.total) || 0,
+                    city: Number(data?.city) || 0,
+                    new: Number(data?.new) || 0
+                });
+            }
         } catch (error) {
             console.error('Failed to fetch stats:', error);
         }
@@ -620,9 +668,12 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     };
 
     const fetchCities = useCallback(async () => {
+        const requestId = ++citiesRequestRef.current;
         try {
             const data = await datingService.getCities();
-            setAvailableCities(Array.isArray(data) ? data : []);
+            if (requestId === citiesRequestRef.current && isMountedRef.current) {
+                setAvailableCities(Array.isArray(data) ? data : []);
+            }
         } catch (error) {
             console.error('Failed to fetch cities:', error);
         }
@@ -638,13 +689,10 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
         }
 
         setLoading(true);
-        const params: CandidateFilterParams = {
+        const params = normalizeCandidateFilters({
             ...filtersRef.current,
             ...overrides,
-        };
-        const normalizedAges = normalizeAgeRange(params.minAge, params.maxAge);
-        params.minAge = normalizedAges.minAge;
-        params.maxAge = normalizedAges.maxAge;
+        });
 
         try {
             const data = await datingService.getCandidates({ userId: user.ID, ...params });
@@ -675,17 +723,24 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
     const handleCheckCompatibility = async (candidateId: number) => {
         if (!user?.ID) return;
+        const requestId = ++compatibilityRequestRef.current;
         setCurrentCandidateId(candidateId);
         setCheckingComp(true);
         setShowCompatibilityModal(true);
         setCompatibilityText('Analyzing compatibility with AI Astro-processor...');
         try {
             const data = await datingService.checkCompatibility(user.ID, candidateId);
-            setCompatibilityText(data.compatibility);
+            if (requestId === compatibilityRequestRef.current && isMountedRef.current) {
+                setCompatibilityText(data.compatibility);
+            }
         } catch {
-            setCompatibilityText('Failed to analyze compatibility. Please try again.');
+            if (requestId === compatibilityRequestRef.current && isMountedRef.current) {
+                setCompatibilityText('Failed to analyze compatibility. Please try again.');
+            }
         } finally {
-            setCheckingComp(false);
+            if (requestId === compatibilityRequestRef.current && isMountedRef.current) {
+                setCheckingComp(false);
+            }
         }
     };
 
@@ -729,6 +784,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
 
     const fetchPreviewProfile = async () => {
         if (!user?.ID) return;
+        const requestId = ++previewRequestRef.current;
         setPreviewLoading(true);
         try {
             const data = await datingService.getProfile(user.ID) as PreviewProfileApiResponse;
@@ -744,13 +800,19 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                 avatarUrl: data.avatar_url || data.avatarUrl || user.avatar || '',
                 photos: normalizeProfilePhotos(data.photos)
             };
-            setPreviewProfile(mappedProfile);
-            setShowPreview(true);
+            if (requestId === previewRequestRef.current && isMountedRef.current) {
+                setPreviewProfile(mappedProfile);
+                setShowPreview(true);
+            }
         } catch (error) {
             console.error('Failed to fetch preview:', error);
-            Alert.alert('Error', 'Could not load profile preview');
+            if (requestId === previewRequestRef.current && isMountedRef.current) {
+                Alert.alert('Error', 'Could not load profile preview');
+            }
         } finally {
-            setPreviewLoading(false);
+            if (requestId === previewRequestRef.current && isMountedRef.current) {
+                setPreviewLoading(false);
+            }
         }
     };
 

@@ -1,7 +1,7 @@
 /**
  * CreateServiceScreen - Экран создания/редактирования сервиса
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -126,13 +126,18 @@ export default function CreateServiceScreen() {
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const [showChannelPicker, setShowChannelPicker] = useState(false);
     const [showAccessPicker, setShowAccessPicker] = useState(false);
+    const latestLoadRequestRef = useRef(0);
 
     // Load existing service for editing
     const loadService = useCallback(async () => {
+        const requestId = ++latestLoadRequestRef.current;
         if (!serviceId) return;
         setLoading(true);
         try {
             const service = await getServiceById(serviceId);
+            if (requestId !== latestLoadRequestRef.current) {
+                return;
+            }
             setTitle(service.title);
             setDescription(service.description);
             setCoverImageUrl(service.coverImageUrl);
@@ -153,10 +158,14 @@ export default function CreateServiceScreen() {
             }
         } catch (error) {
             console.error('Failed to load service:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить сервис');
-            navigation.goBack();
+            if (requestId === latestLoadRequestRef.current) {
+                Alert.alert('Ошибка', 'Не удалось загрузить сервис');
+                navigation.goBack();
+            }
         } finally {
-            setLoading(false);
+            if (requestId === latestLoadRequestRef.current) {
+                setLoading(false);
+            }
         }
     }, [navigation, serviceId]);
 
@@ -165,6 +174,12 @@ export default function CreateServiceScreen() {
             loadService();
         }
     }, [loadService, serviceId]);
+
+    useEffect(() => {
+        return () => {
+            latestLoadRequestRef.current += 1;
+        };
+    }, []);
 
     const handlePickImage = async () => {
         try {
@@ -264,6 +279,7 @@ export default function CreateServiceScreen() {
     };
 
     const handleSave = async () => {
+        if (saving || loading) return;
         if (!validateForm()) return;
 
         setSaving(true);

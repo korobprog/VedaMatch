@@ -1,7 +1,7 @@
 /**
  * ServiceDetailScreen - Детали сервиса
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     View,
     Text,
@@ -68,6 +68,16 @@ type RouteParams = {
     };
 };
 
+const parseServiceFormats = (raw?: string): ServiceFormat[] => {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        return Array.isArray(parsed) ? parsed.filter((value): value is ServiceFormat => typeof value === 'string') : [];
+    } catch {
+        return [];
+    }
+};
+
 export default function ServiceDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
@@ -80,26 +90,46 @@ export default function ServiceDetailScreen() {
     const [service, setService] = useState<Service | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const latestServiceRequestRef = useRef(0);
 
     const loadService = useCallback(async () => {
-        if (!serviceId) return;
+        const requestId = ++latestServiceRequestRef.current;
+        if (!serviceId) {
+            if (requestId == latestServiceRequestRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
+            return;
+        }
 
         try {
             const data = await getServiceById(serviceId);
-            setService(data);
+            if (requestId === latestServiceRequestRef.current) {
+                setService(data);
+            }
         } catch (error) {
             console.error('Failed to load service:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить услугу');
-            navigation.goBack();
+            if (requestId === latestServiceRequestRef.current) {
+                Alert.alert('Ошибка', 'Не удалось загрузить услугу');
+                navigation.goBack();
+            }
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (requestId === latestServiceRequestRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, [serviceId, navigation]);
 
     useEffect(() => {
         loadService();
     }, [loadService]);
+
+    useEffect(() => {
+        return () => {
+            latestServiceRequestRef.current += 1;
+        };
+    }, []);
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);
@@ -125,17 +155,12 @@ export default function ServiceDetailScreen() {
 
     const handleChat = () => {
         if (!service?.owner) return;
-        navigation.navigate('RoomChat', {
-            recipientId: service.owner.id,
-            recipientName: service.owner.karmicName,
-        });
+        navigation.navigate('Chat', { userId: service.owner.id, name: service.owner.karmicName });
     };
 
     const isOwner = user?.ID === service?.ownerId;
 
-    const formats = service?.formats
-        ? JSON.parse(service.formats) as ServiceFormat[]
-        : [];
+    const formats = useMemo(() => parseServiceFormats(service?.formats), [service?.formats]);
 
     const minPrice = service?.tariffs && service.tariffs.length > 0
         ? Math.min(...service.tariffs.map(t => t.price))
