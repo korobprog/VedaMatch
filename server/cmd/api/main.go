@@ -937,6 +937,11 @@ func buildAllowedOrigins(defaults []string) ([]string, map[string]bool) {
 		if normalized == "" {
 			return
 		}
+		if normalized == "*" {
+			log.Printf("Ignoring wildcard ALLOWED_ORIGINS entry because credentials are enabled")
+			return
+		}
+		normalized = strings.TrimSuffix(normalized, "/")
 		if originsSet[normalized] {
 			return
 		}

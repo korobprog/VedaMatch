@@ -73,15 +73,21 @@ export const ReaderScreen = () => {
         try {
             const saved = await AsyncStorage.getItem(bookmarkKey);
             if (!saved || saved === 'undefined' || saved === 'null') {
-                setBookmarks([]);
+                if (isMountedRef.current) {
+                    setBookmarks([]);
+                }
                 return;
             }
 
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed)) {
-                setBookmarks(parsed.filter((item): item is string => typeof item === 'string'));
+                if (isMountedRef.current) {
+                    setBookmarks(parsed.filter((item): item is string => typeof item === 'string'));
+                }
             } else {
-                setBookmarks([]);
+                if (isMountedRef.current) {
+                    setBookmarks([]);
+                }
             }
         } catch (e) { console.error(e); }
     }, [bookmarkKey]);
@@ -187,8 +193,13 @@ export const ReaderScreen = () => {
             console.error('Failed to load chapters from network, trying offline', error);
             // Fallback to offline data
             const offlineData = await offlineBookService.getOfflineChapters(bookCode);
-            if (requestId === latestChaptersRequestRef.current && isMountedRef.current && offlineData.length > 0) {
+            if (requestId !== latestChaptersRequestRef.current || !isMountedRef.current) {
+                return;
+            }
+            if (offlineData.length > 0) {
                 setChapters(offlineData);
+            } else {
+                setChapters([]);
             }
         }
     }, [bookCode]);

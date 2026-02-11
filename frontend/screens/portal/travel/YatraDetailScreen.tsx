@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
+    Share,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
@@ -28,7 +29,7 @@ import { SemanticColorTokens } from '../../../theme/semanticTokens';
 const YatraDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { yatraId } = route.params;
+    const yatraId: number | undefined = route.params?.yatraId;
 
     const [yatra, setYatra] = useState<Yatra | null>(null);
     const [loading, setLoading] = useState(true);
@@ -36,6 +37,8 @@ const YatraDetailScreen: React.FC = () => {
     const [myParticipation, setMyParticipation] = useState<YatraParticipant | null>(null);
     const [decisionInProgressId, setDecisionInProgressId] = useState<number | null>(null);
     const latestLoadRequestRef = useRef(0);
+    const latestJoinRequestRef = useRef(0);
+    const latestDecisionRequestRef = useRef(0);
     const isMountedRef = useRef(true);
 
     const { user } = useUser(); // Get current user
@@ -50,6 +53,14 @@ const YatraDetailScreen: React.FC = () => {
 
     // Load yatra details and user's participation status
     const loadYatra = useCallback(async () => {
+        if (!yatraId) {
+            if (isMountedRef.current) {
+                setLoading(false);
+                Alert.alert('Ошибка', 'Тур не найден');
+                navigation.goBack();
+            }
+            return;
+        }
         const requestId = ++latestLoadRequestRef.current;
         try {
             if (isMountedRef.current) {
@@ -71,6 +82,8 @@ const YatraDetailScreen: React.FC = () => {
                 } catch {
                     console.log('No participation found');
                 }
+            } else if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setMyParticipation(null);
             }
 
             // Check if user is organizer or admin to fetch pending requests
@@ -83,6 +96,8 @@ const YatraDetailScreen: React.FC = () => {
                 } catch (e) {
                     console.error('Failed to load pending participants', e);
                 }
+            } else if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setPendingParticipants([]);
             }
         } catch (error) {
             console.error('Error loading yatra details:', error);
@@ -98,61 +113,89 @@ const YatraDetailScreen: React.FC = () => {
     }, [yatraId, navigation, user]);
 
     const handleJoin = async () => {
-        if (!yatra || joining) return;
+        if (!yatra || joining || !yatraId) return;
 
+        const requestId = ++latestJoinRequestRef.current;
         try {
             setJoining(true);
             await yatraService.joinYatra(yatra.id, { message: 'Хочу присоединиться!' });
+            if (requestId !== latestJoinRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             Alert.alert('Заявка отправлена', 'Организатор рассмотрит вашу заявку.');
             await loadYatra(); // Reload to update status
         } catch (error: any) {
+            if (requestId !== latestJoinRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Error joining yatra:', error);
             Alert.alert('Ошибка', error.response?.data?.error || 'Не удалось отправить заявку');
         } finally {
-            if (isMountedRef.current) {
+            if (requestId === latestJoinRequestRef.current && isMountedRef.current) {
                 setJoining(false);
             }
         }
     };
 
     const handleApprove = async (participantId: number) => {
-        if (decisionInProgressId !== null) {
+        if (decisionInProgressId !== null || !yatraId) {
             return;
         }
+        const requestId = ++latestDecisionRequestRef.current;
         try {
             setDecisionInProgressId(participantId);
             await yatraService.approveParticipant(yatraId, participantId);
+            if (requestId !== latestDecisionRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             Alert.alert('Успех', 'Участник одобрен');
             await loadYatra();
         } catch {
-            Alert.alert('Ошибка', 'Не удалось одобрить участника');
+            if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
+                Alert.alert('Ошибка', 'Не удалось одобрить участника');
+            }
         } finally {
-            if (isMountedRef.current) {
+            if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
                 setDecisionInProgressId(null);
             }
         }
     };
 
     const handleReject = async (participantId: number) => {
-        if (decisionInProgressId !== null) {
+        if (decisionInProgressId !== null || !yatraId) {
             return;
         }
+        const requestId = ++latestDecisionRequestRef.current;
         try {
             setDecisionInProgressId(participantId);
             await yatraService.rejectParticipant(yatraId, participantId);
+            if (requestId !== latestDecisionRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             Alert.alert('Успех', 'Заявка отклонена');
             await loadYatra();
         } catch {
-            Alert.alert('Ошибка', 'Не удалось отклонить заявку');
+            if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
+                Alert.alert('Ошибка', 'Не удалось отклонить заявку');
+            }
         } finally {
-            if (isMountedRef.current) {
+            if (requestId === latestDecisionRequestRef.current && isMountedRef.current) {
                 setDecisionInProgressId(null);
             }
         }
     };
 
     const handleShare = async () => {
-        // Implement share logic
+        if (!yatra) {
+            return;
+        }
+        try {
+            await Share.share({
+                message: `${yatra.title}\n${yatra.startCity} → ${yatra.endCity}\n${yatraService.formatDateRange(yatra.startDate, yatra.endDate)}`,
+            });
+        } catch (error) {
+            console.error('Failed to share yatra:', error);
+        }
     };
 
     useEffect(() => {
@@ -160,6 +203,8 @@ const YatraDetailScreen: React.FC = () => {
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
+            latestJoinRequestRef.current += 1;
+            latestDecisionRequestRef.current += 1;
         };
     }, [loadYatra]);
 
@@ -419,7 +464,7 @@ const YatraDetailScreen: React.FC = () => {
 
                 {/* Reviews Section */}
                 <YatraReviewsSection
-                    yatraId={yatraId}
+                    yatraId={yatra.id}
                     yatraStatus={yatra.status}
                     isParticipant={!!myParticipation && myParticipation.status === 'approved'}
                 />

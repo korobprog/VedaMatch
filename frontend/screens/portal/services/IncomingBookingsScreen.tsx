@@ -1,7 +1,7 @@
 /**
  * IncomingBookingsScreen - Экран "Входящие записи" (для специалиста)
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -65,8 +65,20 @@ export default function IncomingBookingsScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [activeFilter, setActiveFilter] = useState<FilterTab>('pending');
     const [processingId, setProcessingId] = useState<number | null>(null);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const actionLocksRef = useRef<Set<number>>(new Set());
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            actionLocksRef.current.clear();
+        };
+    }, []);
 
     const loadBookings = useCallback(async (isRefresh = false) => {
+        const requestId = ++latestLoadRequestRef.current;
         if (isRefresh) {
             setRefreshing(true);
         } else {
@@ -82,13 +94,21 @@ export default function IncomingBookingsScreen() {
             }
 
             const response = await getIncomingBookings(filters);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setBookings(response.bookings || []);
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.log('[IncomingBookings] Failed to load:', error);
             setBookings([]);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, [activeFilter]);
 
@@ -99,19 +119,33 @@ export default function IncomingBookingsScreen() {
     );
 
     const handleRefresh = () => {
-        loadBookings(true);
+        if (refreshing || loading) {
+            return;
+        }
+        void loadBookings(true);
     };
 
     const handleConfirm = async (booking: ServiceBooking) => {
+        if (actionLocksRef.current.has(booking.id)) {
+            return;
+        }
+        actionLocksRef.current.add(booking.id);
         setProcessingId(booking.id);
         try {
             await confirmBooking(booking.id);
-            Alert.alert('Готово', 'Запись подтверждена');
-            loadBookings(true);
+            if (isMountedRef.current) {
+                Alert.alert('Готово', 'Запись подтверждена');
+            }
+            await loadBookings(true);
         } catch (error: any) {
-            Alert.alert('Ошибка', error.message || 'Не удалось подтвердить');
+            if (isMountedRef.current) {
+                Alert.alert('Ошибка', error.message || 'Не удалось подтвердить');
+            }
         } finally {
-            setProcessingId(null);
+            actionLocksRef.current.delete(booking.id);
+            if (isMountedRef.current) {
+                setProcessingId(null);
+            }
         }
     };
 
@@ -125,15 +159,26 @@ export default function IncomingBookingsScreen() {
                     text: 'Да, отклонить',
                     style: 'destructive',
                     onPress: async () => {
+                        if (actionLocksRef.current.has(booking.id)) {
+                            return;
+                        }
+                        actionLocksRef.current.add(booking.id);
                         setProcessingId(booking.id);
                         try {
                             await cancelBooking(booking.id, { reason: 'Отклонено специалистом' });
-                            Alert.alert('Готово', 'Запись отклонена');
-                            loadBookings(true);
+                            if (isMountedRef.current) {
+                                Alert.alert('Готово', 'Запись отклонена');
+                            }
+                            await loadBookings(true);
                         } catch (error: any) {
-                            Alert.alert('Ошибка', error.message || 'Не удалось отклонить');
+                            if (isMountedRef.current) {
+                                Alert.alert('Ошибка', error.message || 'Не удалось отклонить');
+                            }
                         } finally {
-                            setProcessingId(null);
+                            actionLocksRef.current.delete(booking.id);
+                            if (isMountedRef.current) {
+                                setProcessingId(null);
+                            }
                         }
                     },
                 },
@@ -142,15 +187,26 @@ export default function IncomingBookingsScreen() {
     };
 
     const handleComplete = async (booking: ServiceBooking) => {
+        if (actionLocksRef.current.has(booking.id)) {
+            return;
+        }
+        actionLocksRef.current.add(booking.id);
         setProcessingId(booking.id);
         try {
             await completeBooking(booking.id);
-            Alert.alert('Готово', 'Запись завершена');
-            loadBookings(true);
+            if (isMountedRef.current) {
+                Alert.alert('Готово', 'Запись завершена');
+            }
+            await loadBookings(true);
         } catch (error: any) {
-            Alert.alert('Ошибка', error.message || 'Не удалось завершить');
+            if (isMountedRef.current) {
+                Alert.alert('Ошибка', error.message || 'Не удалось завершить');
+            }
         } finally {
-            setProcessingId(null);
+            actionLocksRef.current.delete(booking.id);
+            if (isMountedRef.current) {
+                setProcessingId(null);
+            }
         }
     };
 
@@ -163,15 +219,26 @@ export default function IncomingBookingsScreen() {
                 {
                     text: 'Да, неявка',
                     onPress: async () => {
+                        if (actionLocksRef.current.has(booking.id)) {
+                            return;
+                        }
+                        actionLocksRef.current.add(booking.id);
                         setProcessingId(booking.id);
                         try {
                             await markNoShow(booking.id);
-                            Alert.alert('Готово', 'Отмечено как неявка');
-                            loadBookings(true);
+                            if (isMountedRef.current) {
+                                Alert.alert('Готово', 'Отмечено как неявка');
+                            }
+                            await loadBookings(true);
                         } catch (error: any) {
-                            Alert.alert('Ошибка', error.message || 'Не удалось отметить');
+                            if (isMountedRef.current) {
+                                Alert.alert('Ошибка', error.message || 'Не удалось отметить');
+                            }
                         } finally {
-                            setProcessingId(null);
+                            actionLocksRef.current.delete(booking.id);
+                            if (isMountedRef.current) {
+                                setProcessingId(null);
+                            }
                         }
                     },
                 },

@@ -127,15 +127,19 @@ export default function CreateServiceScreen() {
     const [showChannelPicker, setShowChannelPicker] = useState(false);
     const [showAccessPicker, setShowAccessPicker] = useState(false);
     const latestLoadRequestRef = useRef(0);
+    const latestSaveRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     // Load existing service for editing
     const loadService = useCallback(async () => {
         const requestId = ++latestLoadRequestRef.current;
         if (!serviceId) return;
-        setLoading(true);
+        if (isMountedRef.current) {
+            setLoading(true);
+        }
         try {
             const service = await getServiceById(serviceId);
-            if (requestId !== latestLoadRequestRef.current) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
                 return;
             }
             setTitle(service.title);
@@ -158,12 +162,12 @@ export default function CreateServiceScreen() {
             }
         } catch (error) {
             console.error('Failed to load service:', error);
-            if (requestId === latestLoadRequestRef.current) {
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
                 Alert.alert('Ошибка', 'Не удалось загрузить сервис');
                 navigation.goBack();
             }
         } finally {
-            if (requestId === latestLoadRequestRef.current) {
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }
@@ -176,8 +180,11 @@ export default function CreateServiceScreen() {
     }, [loadService, serviceId]);
 
     useEffect(() => {
+        isMountedRef.current = true;
         return () => {
+            isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
+            latestSaveRequestRef.current += 1;
         };
     }, []);
 
@@ -281,8 +288,11 @@ export default function CreateServiceScreen() {
     const handleSave = async () => {
         if (saving || loading) return;
         if (!validateForm()) return;
+        const requestId = ++latestSaveRequestRef.current;
 
-        setSaving(true);
+        if (isMountedRef.current) {
+            setSaving(true);
+        }
         try {
             let finalCoverUrl = coverImageUrl;
 
@@ -326,6 +336,9 @@ export default function CreateServiceScreen() {
                     await addTariff(savedService.id, tariffData);
                 }
             }
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             Alert.alert(
                 isEditing ? 'Сохранено!' : 'Создано! 🎉',
@@ -333,10 +346,15 @@ export default function CreateServiceScreen() {
                 [{ text: 'OK', onPress: () => navigation.goBack() }]
             );
         } catch (error: unknown) {
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             const message = error instanceof Error ? error.message : 'Не удалось сохранить';
             Alert.alert('Ошибка', message);
         } finally {
-            setSaving(false);
+            if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
+                setSaving(false);
+            }
         }
     };
 

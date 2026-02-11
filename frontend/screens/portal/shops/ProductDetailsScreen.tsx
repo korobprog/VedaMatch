@@ -76,35 +76,42 @@ export const ProductDetailsScreen: React.FC = () => {
     const [hasMoreReviews, setHasMoreReviews] = useState(false);
     const latestProductRequestRef = useRef(0);
     const latestReviewsRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const loadReviews = useCallback(async (page: number) => {
         const requestId = ++latestReviewsRequestRef.current;
         try {
-            setLoadingReviews(true);
+            if (isMountedRef.current) {
+                setLoadingReviews(true);
+            }
             const data = await marketService.getProductReviews(productId, page);
-            if (requestId !== latestReviewsRequestRef.current) {
+            if (requestId !== latestReviewsRequestRef.current || !isMountedRef.current) {
                 return;
             }
             const incomingReviews = Array.isArray(data?.reviews) ? data.reviews : [];
+            let loadedCount = incomingReviews.length;
             if (page === 1) {
                 setReviews(incomingReviews);
             } else {
-                setReviews(prev => [...prev, ...incomingReviews]);
+                setReviews(prev => {
+                    const seen = new Set(prev.map(item => item.ID));
+                    const uniqueIncoming = incomingReviews.filter(item => !seen.has(item.ID));
+                    const merged = [...prev, ...uniqueIncoming];
+                    loadedCount = merged.length;
+                    return merged;
+                });
             }
             const total = Number(data?.total) || 0;
-            const loadedCount = page === 1
-                ? incomingReviews.length
-                : (reviews.length + incomingReviews.length);
             setReviewsPage(page);
             setHasMoreReviews(loadedCount < total && incomingReviews.length > 0);
         } catch (error) {
             console.error('Error loading reviews:', error);
         } finally {
-            if (requestId === latestReviewsRequestRef.current) {
+            if (requestId === latestReviewsRequestRef.current && isMountedRef.current) {
                 setLoadingReviews(false);
             }
         }
-    }, [productId, reviews.length]);
+    }, [productId]);
 
     const loadProduct = useCallback(async () => {
         const requestId = ++latestProductRequestRef.current;
@@ -144,7 +151,9 @@ export const ProductDetailsScreen: React.FC = () => {
     }, [loadProduct]);
 
     useEffect(() => {
+        isMountedRef.current = true;
         return () => {
+            isMountedRef.current = false;
             latestProductRequestRef.current += 1;
             latestReviewsRequestRef.current += 1;
         };

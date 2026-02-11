@@ -10,7 +10,7 @@ import {
     Image,
 } from 'react-native';
 import { Calendar, Clock, User, MapPin, Video, MessageCircle, X, Sparkles } from 'lucide-react-native';
-import { ServiceBooking, STATUS_LABELS, STATUS_COLORS, formatBookingTime, formatDuration } from '../../../../services/bookingService';
+import { ServiceBooking, STATUS_LABELS, STATUS_COLORS } from '../../../../services/bookingService';
 import { CHANNEL_LABELS } from '../../../../services/serviceService';
 
 interface BookingCardProps {
@@ -26,12 +26,17 @@ export default function BookingCard({
     onCancel,
     onChat,
 }: BookingCardProps) {
-    const statusColor = STATUS_COLORS[booking.status];
+    const statusColor = STATUS_COLORS[booking.status] || 'rgba(158, 158, 158, 1)';
     const isUpcoming = booking.status === 'confirmed' || booking.status === 'pending';
-    const canCancel = isUpcoming && new Date(booking.scheduledAt) > new Date();
+    const scheduledAt = new Date(booking.scheduledAt);
+    const hasValidSchedule = !Number.isNaN(scheduledAt.getTime());
+    const canCancel = isUpcoming && hasValidSchedule && scheduledAt > new Date();
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
+        if (Number.isNaN(date.getTime())) {
+            return 'Дата не указана';
+        }
         return date.toLocaleDateString('ru-RU', {
             weekday: 'short',
             day: 'numeric',
@@ -41,6 +46,9 @@ export default function BookingCard({
 
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr);
+        if (Number.isNaN(date.getTime())) {
+            return '--:--';
+        }
         return date.toLocaleTimeString('ru-RU', {
             hour: '2-digit',
             minute: '2-digit',

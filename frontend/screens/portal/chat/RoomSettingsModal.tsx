@@ -225,7 +225,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     };
 
     const handleUpdateSettings = async (updates: Record<string, unknown>): Promise<boolean> => {
-        setSaving(true);
+        if (isMountedRef.current) {
+            setSaving(true);
+        }
         try {
             const token = await AsyncStorage.getItem('token');
             const response = await fetch(`${API_PATH}/rooms/${roomId}/settings`, {
@@ -239,16 +241,22 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
-                Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to update settings'));
+                if (isMountedRef.current) {
+                    Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to update settings'));
+                }
                 return false;
             }
             return true;
         } catch (error) {
             console.error('Failed to update room settings', error);
-            Alert.alert(t('common.error'), 'Network error');
+            if (isMountedRef.current) {
+                Alert.alert(t('common.error'), 'Network error');
+            }
             return false;
         } finally {
-            setSaving(false);
+            if (isMountedRef.current) {
+                setSaving(false);
+            }
         }
     };
 
@@ -306,7 +314,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             const asset = result.assets[0];
             if (!asset.uri) return;
 
-            setUploadingImage(true);
+            if (isMountedRef.current) {
+                setUploadingImage(true);
+            }
             const token = await AsyncStorage.getItem('token');
             const formData = new FormData();
             formData.append('image', {
@@ -331,13 +341,19 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                 }
             } else {
                 const errorData = await response.json().catch(() => null);
-                Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to upload image'));
+                if (isMountedRef.current) {
+                    Alert.alert(t('common.error'), extractApiErrorMessage(errorData, 'Failed to upload image'));
+                }
             }
         } catch (error) {
             console.error('Upload error:', error);
-            Alert.alert(t('common.error'), 'Upload failed');
+            if (isMountedRef.current) {
+                Alert.alert(t('common.error'), 'Upload failed');
+            }
         } finally {
-            setUploadingImage(false);
+            if (isMountedRef.current) {
+                setUploadingImage(false);
+            }
         }
     };
 
@@ -362,20 +378,30 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     );
 
     const handleGetSummary = async () => {
-        setSummaryLoading(true);
+        if (isMountedRef.current) {
+            setSummaryLoading(true);
+        }
         try {
             const response = await fetch(`${API_PATH}/rooms/${roomId}/summary`);
             const data = await response.json();
             if (response.ok) {
-                Alert.alert(t('chat.summary') || 'Chat Summary', data.summary);
+                if (isMountedRef.current) {
+                    Alert.alert(t('chat.summary') || 'Chat Summary', data.summary);
+                }
             } else {
-                Alert.alert(t('common.error'), data.error || 'Failed to get summary');
+                if (isMountedRef.current) {
+                    Alert.alert(t('common.error'), data.error || 'Failed to get summary');
+                }
             }
         } catch (error) {
             console.error('Failed to get chat summary', error);
-            Alert.alert(t('common.error'), 'Network error');
+            if (isMountedRef.current) {
+                Alert.alert(t('common.error'), 'Network error');
+            }
         } finally {
-            setSummaryLoading(false);
+            if (isMountedRef.current) {
+                setSummaryLoading(false);
+            }
         }
     };
 

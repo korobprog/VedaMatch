@@ -1,7 +1,7 @@
 /**
  * ServiceBookingScreen - Экран бронирования сервиса
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -74,13 +74,30 @@ export default function ServiceBookingScreen() {
     const [clientNote, setClientNote] = useState('');
 
     const [availableSlots, setAvailableSlots] = useState<AvailableSlotDay[]>([]);
+    const isMountedRef = useRef(true);
+    const latestServiceRequestRef = useRef(0);
+    const latestSlotsRequestRef = useRef(0);
+    const latestBookRequestRef = useRef(0);
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestServiceRequestRef.current += 1;
+            latestSlotsRequestRef.current += 1;
+            latestBookRequestRef.current += 1;
+        };
+    }, []);
 
     // Load service
     const loadService = useCallback(async () => {
         if (!serviceId) return;
+        const requestId = ++latestServiceRequestRef.current;
 
         try {
             const data = await getServiceById(serviceId);
+            if (requestId !== latestServiceRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setService(data);
 
             // Auto-select default tariff
@@ -89,17 +106,23 @@ export default function ServiceBookingScreen() {
                 setSelectedTariff(defaultTariff);
             }
         } catch (error) {
+            if (requestId !== latestServiceRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Failed to load service:', error);
             Alert.alert('Ошибка', 'Не удалось загрузить сервис');
             navigation.goBack();
         } finally {
-            setLoading(false);
+            if (requestId === latestServiceRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [serviceId, navigation]);
 
     // Load available slots
     const loadSlots = useCallback(async (_tariffId: number) => {
         if (!serviceId) return;
+        const requestId = ++latestSlotsRequestRef.current;
 
         setSlotsLoading(true);
         try {
@@ -113,6 +136,9 @@ export default function ServiceBookingScreen() {
                 startDate.toISOString().split('T')[0],
                 endDate.toISOString().split('T')[0]
             );
+            if (requestId !== latestSlotsRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             // Transform to our format
             const slots: AvailableSlotDay[] = (response.days || []).map((dayData: { date: string; slots: AvailableSlot[] }) => ({
@@ -127,10 +153,15 @@ export default function ServiceBookingScreen() {
 
             setAvailableSlots(slots);
         } catch (error) {
+            if (requestId !== latestSlotsRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Failed to load slots:', error);
             setAvailableSlots([]);
         } finally {
-            setSlotsLoading(false);
+            if (requestId === latestSlotsRequestRef.current && isMountedRef.current) {
+                setSlotsLoading(false);
+            }
         }
     }, [serviceId]);
 
@@ -168,6 +199,7 @@ export default function ServiceBookingScreen() {
 
     const handleBook = async () => {
         if (!canBook || !service || !selectedTariff) return;
+        if (booking) return;
 
         if (!hasEnoughBalance) {
             const currencyName = getCurrencyName(user?.language);
@@ -179,6 +211,7 @@ export default function ServiceBookingScreen() {
             return;
         }
 
+        const requestId = ++latestBookRequestRef.current;
         setBooking(true);
 
         try {
@@ -191,9 +224,15 @@ export default function ServiceBookingScreen() {
             };
 
             await bookService(serviceId, request);
+            if (requestId !== latestBookRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             // Refresh wallet balance
             await refreshWallet();
+            if (requestId !== latestBookRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             Alert.alert(
                 'Запись создана! ✨',
@@ -210,13 +249,18 @@ export default function ServiceBookingScreen() {
                 ]
             );
         } catch (error: any) {
+            if (requestId !== latestBookRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Booking failed:', error);
             Alert.alert(
                 'Ошибка бронирования',
                 error.message || 'Не удалось создать запись. Попробуйте позже.'
             );
         } finally {
-            setBooking(false);
+            if (requestId === latestBookRequestRef.current && isMountedRef.current) {
+                setBooking(false);
+            }
         }
     };
 

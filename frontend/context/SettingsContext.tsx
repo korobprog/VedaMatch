@@ -349,10 +349,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         return () => sub.remove();
     }, []);
 
-    // Derived: the currently displayed wallpaper (slideshow or manual)
+    // Derived values used by UI
     const activeWallpaper = isSlideshowEnabled && wallpaperSlides.length > 0
         ? wallpaperSlides[currentSlideIndex % wallpaperSlides.length]
         : portalBackground;
+    const effectivePortalBackgroundType: 'color' | 'gradient' | 'image' =
+        isSlideshowEnabled ? 'image' : portalBackgroundType;
 
     return (
         <SettingsContext.Provider value={{
@@ -377,7 +379,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             isMenuOpen,
             setIsMenuOpen,
             portalBackground,
-            portalBackgroundType,
+            portalBackgroundType: effectivePortalBackgroundType,
             setPortalBackground,
             assistantType,
             setAssistantType,

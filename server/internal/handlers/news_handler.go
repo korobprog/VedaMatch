@@ -61,6 +61,10 @@ func isValidNewsSourceMode(mode models.NewsSourceMode) bool {
 	}
 }
 
+func parseNewsBoolQuery(value string) bool {
+	return strings.ToLower(strings.TrimSpace(value)) == "true"
+}
+
 // ==================== PUBLIC ENDPOINTS ====================
 
 // GetNews returns a paginated list of published news
@@ -77,7 +81,7 @@ func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
 	search := strings.TrimSpace(c.Query("search", ""))
 	madhParam := strings.TrimSpace(c.Query("madh", ""))
 
-	personalized := c.Query("personalized", "false") == "true"
+	personalized := parseNewsBoolQuery(c.Query("personalized", "false"))
 
 	offset := (page - 1) * limit
 
@@ -246,7 +250,7 @@ func (h *NewsHandler) GetLatestNews(c *fiber.Ctx) error {
 func (h *NewsHandler) GetAdminNews(c *fiber.Ctx) error {
 	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
 	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
-	status := strings.TrimSpace(c.Query("status", ""))
+	status := strings.ToLower(strings.TrimSpace(c.Query("status", "")))
 	sourceID := strings.TrimSpace(c.Query("sourceId", ""))
 	category := strings.TrimSpace(c.Query("category", ""))
 	search := strings.TrimSpace(c.Query("search", ""))
@@ -256,12 +260,18 @@ func (h *NewsHandler) GetAdminNews(c *fiber.Ctx) error {
 	query := database.DB.Model(&models.NewsItem{}).Order("created_at DESC")
 
 	if status != "" {
+		normalizedStatus := models.NewsItemStatus(status)
+		if !isValidNewsItemStatus(normalizedStatus) {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid news status filter"})
+		}
 		query = query.Where("status = ?", status)
 	}
 	if sourceID != "" {
-		if sid, err := strconv.ParseUint(sourceID, 10, 32); err == nil {
-			query = query.Where("source_id = ?", sid)
+		sid, err := strconv.ParseUint(sourceID, 10, 32)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid sourceId filter"})
 		}
+		query = query.Where("source_id = ?", sid)
 	}
 	if category != "" {
 		query = query.Where("category = ?", category)
@@ -523,6 +533,9 @@ func (h *NewsHandler) GetSources(c *fiber.Ctx) error {
 	query := database.DB.Model(&models.NewsSource{}).Order("created_at DESC")
 
 	if sourceType != "" {
+		if !isValidNewsSourceType(models.NewsSourceType(sourceType)) {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid source type filter"})
+		}
 		query = query.Where("source_type = ?", sourceType)
 	}
 	switch isActive {

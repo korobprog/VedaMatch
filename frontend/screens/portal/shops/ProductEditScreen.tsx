@@ -118,32 +118,36 @@ export const ProductEditScreen: React.FC = () => {
     const [variantStock, setVariantStock] = useState('');
     const [variantAttributes, setVariantAttributes] = useState<Record<string, string>>({});
     const latestLoadRequestRef = useRef(0);
+    const latestSubmitRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const loadData = useCallback(async () => {
         const requestId = ++latestLoadRequestRef.current;
         try {
             // Load categories
             const cats = await marketService.getProductCategories();
-            if (requestId !== latestLoadRequestRef.current) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
                 return;
             }
             setCategories(Array.isArray(cats) ? cats : []);
 
             if (isEditing && productId) {
-                setInitialLoading(true);
+                if (isMountedRef.current) {
+                    setInitialLoading(true);
+                }
                 const product = await marketService.getProduct(productId);
-                if (requestId !== latestLoadRequestRef.current) {
+                if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
                     return;
                 }
                 populateForm(product);
             }
         } catch (error) {
             console.error('Error loading data:', error);
-            if (requestId === latestLoadRequestRef.current) {
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
                 Alert.alert(t('error') || 'Error', t('market.product.loadError') || 'Failed to load product data');
             }
         } finally {
-            if (requestId === latestLoadRequestRef.current) {
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
                 setInitialLoading(false);
             }
         }
@@ -154,8 +158,11 @@ export const ProductEditScreen: React.FC = () => {
     }, [loadData]);
 
     useEffect(() => {
+        isMountedRef.current = true;
         return () => {
+            isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
+            latestSubmitRequestRef.current += 1;
         };
     }, []);
 
@@ -314,6 +321,7 @@ export const ProductEditScreen: React.FC = () => {
         if (loading) {
             return;
         }
+        const requestId = ++latestSubmitRequestRef.current;
         // Validation
         if (!name.trim() || name.length < 2) {
             return Alert.alert(t('error') || 'Error', t('market.product.nameRequired') || 'Product name must be at least 2 characters');
@@ -347,7 +355,9 @@ export const ProductEditScreen: React.FC = () => {
         }
         const normalizedWeight = parsedWeight ?? undefined;
 
-        setLoading(true);
+        if (isMountedRef.current) {
+            setLoading(true);
+        }
         try {
             // 1. Upload main image if changed
             let mainImageUrl = existingMainImage;
@@ -382,23 +392,34 @@ export const ProductEditScreen: React.FC = () => {
 
             if (isEditing && productId) {
                 await marketService.updateProduct(productId, productData);
+                if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
+                    return;
+                }
                 Alert.alert(t('success') || 'Success', t('market.product.updateSuccess') || 'Product updated successfully', [
                     { text: 'OK', onPress: () => navigation.goBack() }
                 ]);
             } else {
                 await marketService.createProduct(productData);
+                if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
+                    return;
+                }
                 Alert.alert(t('success') || 'Success', t('market.product.createSuccess') || 'Product created successfully', [
                     { text: 'OK', onPress: () => navigation.goBack() }
                 ]);
             }
         } catch (error: unknown) {
             console.error('Error saving product:', error);
+            if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             Alert.alert(
                 t('error') || 'Error',
                 getErrorMessage(error, t('market.product.saveError') || 'Failed to save product')
             );
         } finally {
-            setLoading(false);
+            if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     };
 

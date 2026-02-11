@@ -86,32 +86,39 @@ const CafeCartScreen: React.FC = () => {
     const [tables, setTables] = useState<CafeTable[]>([]);
     const [loadingTables, setLoadingTables] = useState(false);
     const latestTablesRequestRef = useRef(0);
+    const latestSubmitOrderRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const fetchTables = useCallback(async () => {
         if (!cart?.cafeId) return;
         const requestId = ++latestTablesRequestRef.current;
         try {
-            setLoadingTables(true);
+            if (isMountedRef.current) {
+                setLoadingTables(true);
+            }
             const data = await cafeService.getTables(cart.cafeId);
-            if (requestId === latestTablesRequestRef.current) {
+            if (requestId === latestTablesRequestRef.current && isMountedRef.current) {
                 setTables(Array.isArray(data) ? data : []);
             }
         } catch (error) {
             console.error('Error fetching tables:', error);
-            if (requestId === latestTablesRequestRef.current) {
+            if (requestId === latestTablesRequestRef.current && isMountedRef.current) {
                 setTables([]);
                 Alert.alert(t('common.error'), t('cafe.staff.tables.loadError'));
             }
         } finally {
-            if (requestId === latestTablesRequestRef.current) {
+            if (requestId === latestTablesRequestRef.current && isMountedRef.current) {
                 setLoadingTables(false);
             }
         }
     }, [cart?.cafeId, t]);
 
     useEffect(() => {
+        isMountedRef.current = true;
         return () => {
+            isMountedRef.current = false;
             latestTablesRequestRef.current += 1;
+            latestSubmitOrderRequestRef.current += 1;
         };
     }, []);
 
@@ -171,6 +178,7 @@ const CafeCartScreen: React.FC = () => {
 
     const handleSubmitOrder = async () => {
         if (!cart || loading) return;
+        const requestId = ++latestSubmitOrderRequestRef.current;
 
         const normalizedAddress = deliveryAddress.trim();
         const normalizedPhone = deliveryPhone.trim();
@@ -194,7 +202,9 @@ const CafeCartScreen: React.FC = () => {
         }
 
         try {
-            setLoading(true);
+            if (isMountedRef.current) {
+                setLoading(true);
+            }
 
             const orderData = {
                 cafeId: cart.cafeId,
@@ -218,6 +228,10 @@ const CafeCartScreen: React.FC = () => {
             };
 
             const order = await cafeService.createOrder(orderData);
+            if (requestId !== latestSubmitOrderRequestRef.current || !isMountedRef.current) {
+                return;
+            }
+
             clearCart();
 
             navigation.replace('CafeOrderSuccess', {
@@ -229,7 +243,9 @@ const CafeCartScreen: React.FC = () => {
             const errorMessage = getApiErrorMessage(error, t('cafe.cart.errorSubmit'));
             Alert.alert(t('common.error'), errorMessage);
         } finally {
-            setLoading(false);
+            if (requestId === latestSubmitOrderRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     };
 

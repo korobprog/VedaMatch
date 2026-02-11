@@ -215,7 +215,11 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.FullDescription = strings.TrimSpace(*req.FullDescription)
 	}
 	if req.Category != nil {
-		product.Category = *req.Category
+		nextCategory := models.ProductCategory(strings.TrimSpace(string(*req.Category)))
+		if nextCategory == "" {
+			return nil, errors.New("category is required")
+		}
+		product.Category = nextCategory
 	}
 	if req.Tags != nil {
 		tagsBytes, err := json.Marshal(req.Tags)
@@ -235,12 +239,21 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.ExternalURL = strings.TrimSpace(*req.ExternalURL)
 	}
 	if req.BasePrice != nil {
+		if *req.BasePrice < 0 {
+			return nil, errors.New("base price cannot be negative")
+		}
 		product.BasePrice = *req.BasePrice
 	}
 	if req.SalePrice != nil {
+		if *req.SalePrice < 0 {
+			return nil, errors.New("sale price cannot be negative")
+		}
 		product.SalePrice = req.SalePrice
 	}
 	if req.Stock != nil {
+		if *req.Stock < 0 {
+			return nil, errors.New("stock cannot be negative")
+		}
 		product.Stock = *req.Stock
 	}
 	if req.Status != nil {
@@ -579,7 +592,7 @@ func (s *ProductService) DeductStock(productID uint, variantID *uint, quantity i
 	}
 	result := database.DB.Model(&models.Product{}).
 		Where("id = ? AND (track_stock = false OR stock >= ?)", productID, quantity).
-		Update("stock", gorm.Expr("stock - ?", quantity))
+		Update("stock", gorm.Expr("CASE WHEN track_stock THEN stock - ? ELSE stock END", quantity))
 	if result.Error != nil {
 		return result.Error
 	}

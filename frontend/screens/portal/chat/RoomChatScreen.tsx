@@ -97,6 +97,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     const verse = verses.find((v: { verse?: string | number }) => Number.parseInt(String(v.verse ?? ''), 10) === verseNum);
                     setCurrentVerse(verse || verses[0]);
                 }
+            } else if (requestId === latestVerseRequestRef.current && isMountedRef.current) {
+                setVersesInChapter([]);
+                setCurrentVerse(null);
             }
         } catch (err) {
             console.error('Error fetching verse', err);
@@ -116,9 +119,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
                     setChapters(data);
                 }
+            } else if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
+                setChapters([]);
             }
         } catch (err) {
             console.error('Error fetching chapters', err);
+            if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
+                setChapters([]);
+            }
         }
     }, []);
 
@@ -137,8 +145,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 setRoomDetails(currentRoom);
                 // Fetch chapters if changed
                 if (currentRoom.bookCode) {
+                    const chapter = toPositiveInt(currentRoom.currentChapter) ?? 1;
+                    const verse = toPositiveInt(currentRoom.currentVerse) ?? 1;
                     fetchChapters(currentRoom.bookCode);
-                    fetchVerse(currentRoom.bookCode, currentRoom.currentChapter, currentRoom.currentVerse, currentRoom.language || 'ru');
+                    fetchVerse(currentRoom.bookCode, chapter, verse, currentRoom.language || 'ru');
                 }
             }
         } catch (error) {
@@ -220,14 +230,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     isMe: m.senderId === user?.ID,
                     time: new Date(m.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
                 }));
-                if (requestId === latestMessagesRequestRef.current) {
+                if (requestId === latestMessagesRequestRef.current && isMountedRef.current) {
                     setMessages(formattedMessages);
                 }
             }
         } catch (error) {
             console.error('Error fetching messages:', error);
         } finally {
-            if (requestId === latestMessagesRequestRef.current) {
+            if (requestId === latestMessagesRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }

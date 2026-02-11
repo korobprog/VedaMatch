@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -86,13 +86,32 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
     const [tempDate, setTempDate] = useState(new Date());
     const [openDobPicker, setOpenDobPicker] = useState(false);
     const [tempDob, setTempDob] = useState(new Date());
+    const citySearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const latestFetchRequestRef = useRef(0);
+    const latestSaveRequestRef = useRef(0);
+    const latestCitySearchRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
-    // Debounce timer
-    const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestFetchRequestRef.current += 1;
+            latestSaveRequestRef.current += 1;
+            latestCitySearchRequestRef.current += 1;
+            if (citySearchTimeoutRef.current) {
+                clearTimeout(citySearchTimeoutRef.current);
+                citySearchTimeoutRef.current = null;
+            }
+        };
+    }, []);
 
     const fetchProfile = useCallback(async () => {
+        const requestId = ++latestFetchRequestRef.current;
         try {
             const data = await datingService.getUsers();
+            if (requestId !== latestFetchRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             const me = data.find((u: any) => u.ID === userId);
             if (me) {
                 setProfile({
@@ -130,9 +149,14 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 }
             }
         } catch (error) {
+            if (requestId !== latestFetchRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Failed to fetch profile:', error);
         } finally {
-            setLoading(false);
+            if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     }, [userId]);
 
@@ -152,6 +176,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
             }
         }
 
+        const requestId = ++latestSaveRequestRef.current;
         setSaving(true);
         try {
             const profileData = {
@@ -159,19 +184,30 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 intentions: profile.intentions.join(',')
             };
             const updatedUser = await datingService.updateProfile(userId, profileData);
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             // Update user in context
             await login(updatedUser);
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             Alert.alert(t('common.success'), t('profile.updateSuccess') || 'Profile updated successfully');
             navigation.goBack();
         } catch (error) {
-            Alert.alert(t('common.error'), t('common.errorUpdate') || 'Failed to update profile');
-            console.error('Save profile error:', error);
+            if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
+                Alert.alert(t('common.error'), t('common.errorUpdate') || 'Failed to update profile');
+                console.error('Save profile error:', error);
+            }
         } finally {
-            setSaving(false);
+            if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
+                setSaving(false);
+            }
         }
     };
 
     const performCitySearch = async (query: string) => {
+        const requestId = ++latestCitySearchRequestRef.current;
         setIsSearchingCities(true);
         try {
             const response = await axios.get(`https://nominatim.openstreetmap.org/search`, {
@@ -187,14 +223,22 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 },
                 timeout: 5000 // 5 seconds timeout
             });
+            if (requestId !== latestCitySearchRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setCitySuggestions(response.data);
         } catch (error: any) {
+            if (requestId !== latestCitySearchRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('City search failed:', error.message);
             if (error.response?.status === 403) {
                 console.warn('Nominatim blocked the request (403). Check User-Agent or usage policy.');
             }
         } finally {
-            setIsSearchingCities(false);
+            if (requestId === latestCitySearchRequestRef.current && isMountedRef.current) {
+                setIsSearchingCities(false);
+            }
         }
     };
 
@@ -202,8 +246,9 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         setCityQuery(query);
 
         // Clear previous timeout
-        if (searchTimeout) {
-            clearTimeout(searchTimeout);
+        if (citySearchTimeoutRef.current) {
+            clearTimeout(citySearchTimeoutRef.current);
+            citySearchTimeoutRef.current = null;
         }
 
         if (query.length < 3) {
@@ -212,11 +257,9 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
         }
 
         // Set a new timeout (600ms debounce)
-        const timeout = setTimeout(() => {
+        citySearchTimeoutRef.current = setTimeout(() => {
             performCitySearch(query);
         }, 600);
-
-        setSearchTimeout(timeout);
     };
 
     const handleCitySelect = (item: any) => {

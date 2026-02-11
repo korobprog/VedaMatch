@@ -492,7 +492,11 @@ func (s *VideoCircleService) UpdateCircle(circleID, userID uint, role string, re
 		updates["city"] = strings.TrimSpace(*req.City)
 	}
 	if req.Category != nil {
-		updates["category"] = strings.TrimSpace(*req.Category)
+		category := strings.TrimSpace(*req.Category)
+		if category == "" {
+			return nil, errors.New("category is required")
+		}
+		updates["category"] = category
 	}
 	if req.ThumbnailURL != nil {
 		updates["thumbnail_url"] = strings.TrimSpace(*req.ThumbnailURL)
@@ -787,7 +791,7 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	updates := map[string]interface{}{
 		"expires_at": newExpires,
 	}
-	if req.BoostType == models.VideoBoostTypePremium {
+	if boostType == models.VideoBoostTypePremium {
 		updates["premium_boost_active"] = true
 	}
 	if err := s.db.Model(&circle).Updates(updates).Error; err != nil {

@@ -34,7 +34,6 @@ import { CirclesQuickWidget } from './CirclesQuickWidget';
 import { CirclesPanelWidget } from './CirclesPanelWidget';
 import { PortalWidgetWrapper } from './PortalWidgetWrapper';
 import { DraggablePortalItem } from './DraggablePortalItem';
-import { SkeletonIcon } from './SkeletonIcon';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_COLUMNS = 4;
@@ -78,8 +77,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         deleteGridItem,
     } = usePortalLayout();
 
-    const [isReady, setIsReady] = useState(false); // Delay rendering to prevent layout jumps
-
     const [newFolderName, setNewFolderName] = useState('');
     const [selectedFolder, setSelectedFolder] = useState<PortalFolderType | null>(null);
     const [showFolderModal, setShowFolderModal] = useState(false);
@@ -98,14 +95,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     useEffect(() => {
         itemLayouts.current = {};
     }, [currentPage]);
-
-    // Delay rendering to allow layout to settle
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsReady(true);
-        }, 1200); // Extended time to ensure smooth transition
-        return () => clearTimeout(timer);
-    }, []);
 
     const page = layout.pages[currentPage];
     const items = useMemo(() => page?.items ?? [], [page]);
@@ -294,18 +283,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
     // Render individual grid item
     const renderItem = useCallback((item: PortalItem | PortalFolderType) => {
-        if (!isReady) {
-            return (
-                <Animated.View
-                    key={`skeleton-${item.id}`}
-                    style={{ pointerEvents: 'none', width: CELL_WIDTH, alignItems: 'center' }}
-                    exiting={FadeOut.duration(300)}
-                >
-                    <SkeletonIcon />
-                </Animated.View>
-            );
-        }
-
         let component = null;
         let pressHandler: () => void;
 
@@ -350,7 +327,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         }
 
         return (
-            <Animated.View key={item.id} entering={FadeIn.duration(500)} style={{ width: CELL_WIDTH, alignItems: 'center' }}>
+            <View key={item.id} style={{ width: CELL_WIDTH, alignItems: 'center' }}>
                 <DraggablePortalItem
                     id={item.id}
                     isEditMode={isEditMode}
@@ -365,10 +342,9 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 >
                     {component}
                 </DraggablePortalItem>
-            </Animated.View>
+            </View>
         );
     }, [
-        isReady,
         isEditMode,
         layout.iconSize,
         handleDragStart,

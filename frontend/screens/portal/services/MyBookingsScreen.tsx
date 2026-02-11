@@ -1,7 +1,7 @@
 /**
  * MyBookingsScreen - Экран "Мои записи" (для клиента)
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -49,8 +49,20 @@ export default function MyBookingsScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
     const [totalCount, setTotalCount] = useState(0);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const cancellingIdsRef = useRef<Set<number>>(new Set());
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            cancellingIdsRef.current.clear();
+        };
+    }, []);
 
     const loadBookings = useCallback(async (isRefresh = false) => {
+        const requestId = ++latestLoadRequestRef.current;
         if (isRefresh) {
             setRefreshing(true);
         } else {
@@ -73,6 +85,9 @@ export default function MyBookingsScreen() {
             }
 
             const response = await getMyBookings(filters);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             // Additional client-side filtering for "upcoming" - include pending
             let filteredBookings = response.bookings;
@@ -92,12 +107,17 @@ export default function MyBookingsScreen() {
             setBookings(filteredBookings);
             setTotalCount(response.total);
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.log('[MyBookings] Failed to load bookings (expected if none/unauthorized):', error);
             setBookings([]);
             setTotalCount(0);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, [activeFilter]);
 
@@ -106,7 +126,10 @@ export default function MyBookingsScreen() {
     }, [loadBookings]);
 
     const handleRefresh = () => {
-        loadBookings(true);
+        if (refreshing || loading) {
+            return;
+        }
+        void loadBookings(true);
     };
 
     const handleCancelBooking = async (booking: ServiceBooking) => {
@@ -119,12 +142,22 @@ export default function MyBookingsScreen() {
                     text: 'Да, отменить',
                     style: 'destructive',
                     onPress: async () => {
+                        if (cancellingIdsRef.current.has(booking.id)) {
+                            return;
+                        }
+                        cancellingIdsRef.current.add(booking.id);
                         try {
                             await cancelBooking(booking.id, { reason: 'Отменено клиентом' });
-                            Alert.alert('Готово', 'Запись отменена');
-                            loadBookings(true);
+                            if (isMountedRef.current) {
+                                Alert.alert('Готово', 'Запись отменена');
+                            }
+                            await loadBookings(true);
                         } catch (error: any) {
-                            Alert.alert('Ошибка', error.message || 'Не удалось отменить запись');
+                            if (isMountedRef.current) {
+                                Alert.alert('Ошибка', error.message || 'Не удалось отменить запись');
+                            }
+                        } finally {
+                            cancellingIdsRef.current.delete(booking.id);
                         }
                     },
                 },

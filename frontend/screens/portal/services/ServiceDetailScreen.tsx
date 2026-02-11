@@ -91,11 +91,12 @@ export default function ServiceDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const latestServiceRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
 
     const loadService = useCallback(async () => {
         const requestId = ++latestServiceRequestRef.current;
         if (!serviceId) {
-            if (requestId == latestServiceRequestRef.current) {
+            if (requestId === latestServiceRequestRef.current && isMountedRef.current) {
                 setLoading(false);
                 setRefreshing(false);
             }
@@ -104,17 +105,17 @@ export default function ServiceDetailScreen() {
 
         try {
             const data = await getServiceById(serviceId);
-            if (requestId === latestServiceRequestRef.current) {
+            if (requestId === latestServiceRequestRef.current && isMountedRef.current) {
                 setService(data);
             }
         } catch (error) {
             console.error('Failed to load service:', error);
-            if (requestId === latestServiceRequestRef.current) {
+            if (requestId === latestServiceRequestRef.current && isMountedRef.current) {
                 Alert.alert('Ошибка', 'Не удалось загрузить услугу');
                 navigation.goBack();
             }
         } finally {
-            if (requestId === latestServiceRequestRef.current) {
+            if (requestId === latestServiceRequestRef.current && isMountedRef.current) {
                 setLoading(false);
                 setRefreshing(false);
             }
@@ -126,15 +127,20 @@ export default function ServiceDetailScreen() {
     }, [loadService]);
 
     useEffect(() => {
+        isMountedRef.current = true;
         return () => {
+            isMountedRef.current = false;
             latestServiceRequestRef.current += 1;
         };
     }, []);
 
     const onRefresh = useCallback(() => {
+        if (refreshing || loading) {
+            return;
+        }
         setRefreshing(true);
-        loadService();
-    }, [loadService]);
+        void loadService();
+    }, [loadService, loading, refreshing]);
 
     const handleShare = async () => {
         if (!service) return;

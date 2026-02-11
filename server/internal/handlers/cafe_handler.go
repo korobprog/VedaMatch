@@ -102,7 +102,7 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 		fileContent, err := file.Open()
 		if err == nil {
 			defer fileContent.Close()
-			fileName := fmt.Sprintf("cafes/u%d_%d%s", userID, time.Now().Unix(), ext)
+			fileName := fmt.Sprintf("cafes/u%d_%d%s", userID, time.Now().UnixNano(), ext)
 
 			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
@@ -121,7 +121,7 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 		})
 	}
 
-	filename := fmt.Sprintf("cafe_u%d_%d%s", userID, time.Now().Unix(), ext)
+	filename := fmt.Sprintf("cafe_u%d_%d%s", userID, time.Now().UnixNano(), ext)
 	filePath := filepath.Join(uploadsDir, filename)
 
 	if err := c.SaveFile(file, filePath); err != nil {
@@ -216,15 +216,15 @@ func (h *CafeHandler) GetCafeBySlug(c *fiber.Ctx) error {
 // GET /api/cafes
 func (h *CafeHandler) ListCafes(c *fiber.Ctx) error {
 	filters := models.CafeFilters{
-		City:   c.Query("city"),
-		Search: c.Query("search"),
-		Sort:   c.Query("sort"),
+		City:   strings.TrimSpace(c.Query("city")),
+		Search: strings.TrimSpace(c.Query("search")),
+		Sort:   strings.TrimSpace(c.Query("sort")),
 		Page:   clampQueryInt(c, "page", 1, 1, 100000),
 		Limit:  clampQueryInt(c, "limit", 20, 1, 100),
 	}
 
-	if c.Query("status") != "" {
-		filters.Status = models.CafeStatus(c.Query("status"))
+	if status := strings.ToLower(strings.TrimSpace(c.Query("status"))); status != "" {
+		filters.Status = models.CafeStatus(status)
 	}
 	if c.Query("min_rating") != "" {
 		if rating, err := strconv.ParseFloat(c.Query("min_rating"), 64); err == nil {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     View,
@@ -105,10 +105,22 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [showYogaPicker, setShowYogaPicker] = useState(false);
     const [showGunaPicker, setShowGunaPicker] = useState(false);
     const [openDatePicker, setOpenDatePicker] = useState(false);
+    const isMountedRef = useRef(true);
+    const latestSubmitRequestRef = useRef(0);
+    const latestDetectRequestRef = useRef(0);
     const { colors: roleColors, roleTheme } = useRoleTheme(role, true); // Force dark theme colors for text on dark background
     const isSeekerRole = role === 'user';
     const isInGoodnessRole = role === 'in_goodness';
     const isLiteProfileRole = isSeekerRole || isInGoodnessRole;
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            latestSubmitRequestRef.current += 1;
+            latestDetectRequestRef.current += 1;
+        };
+    }, []);
 
     useEffect(() => {
         if (!isLiteProfileRole) {
@@ -138,9 +150,15 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     const handleAutoDetect = async () => {
-        setDetectingLocation(true);
+        const requestId = ++latestDetectRequestRef.current;
+        if (isMountedRef.current) {
+            setDetectingLocation(true);
+        }
         try {
             const detected = await autoDetectLocation();
+            if (requestId !== latestDetectRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             if (detected) {
                 setCountry(detected.country);
                 if (detected.city) {
@@ -166,13 +184,17 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             }
         } catch (error) {
             console.error('[AutoDetect] Error:', error);
-            Alert.alert(
-                t('common.error'),
-                t('registration.locationDetectionFailed'),
-                [{ text: t('common.ok') }]
-            );
+            if (requestId === latestDetectRequestRef.current && isMountedRef.current) {
+                Alert.alert(
+                    t('common.error'),
+                    t('registration.locationDetectionFailed'),
+                    [{ text: t('common.ok') }]
+                );
+            }
         } finally {
-            setDetectingLocation(false);
+            if (requestId === latestDetectRequestRef.current && isMountedRef.current) {
+                setDetectingLocation(false);
+            }
         }
     };
 
@@ -200,8 +222,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             Alert.alert(t('registration.required'), t('registration.agreementRequired'));
             return;
         }
+        const requestId = ++latestSubmitRequestRef.current;
 
-        setLoading(true);
+        if (isMountedRef.current) {
+            setLoading(true);
+        }
 
         try {
             if (phase === 'initial') {
@@ -221,6 +246,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 await AsyncStorage.setItem('user', JSON.stringify(user));
                 if (token) {
                     await AsyncStorage.setItem('token', token);
+                }
+                if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
+                    return;
                 }
 
                 // Move to phase 2
@@ -284,10 +312,16 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 }
 
                 await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+                if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
+                    return;
+                }
                 await login(updatedUser);
             }
         } catch (error: unknown) {
             console.error('Registration/Update error:', error);
+            if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             const errorMessage =
                 typeof error === 'object' && error !== null
                     ? ((error as { response?: { data?: { error?: string } } }).response?.data?.error ||
@@ -298,7 +332,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 errorMessage || 'Operation failed. Please try again.'
             );
         } finally {
-            setLoading(false);
+            if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+            }
         }
     };
 

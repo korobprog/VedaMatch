@@ -268,6 +268,9 @@ func (s *CafeService) GetMyCafe(userID uint) (*models.Cafe, error) {
 	if err == nil {
 		return &cafe, nil
 	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
 
 	// If not owner, try to find cafe where user is active staff
 	var staff models.CafeStaff
@@ -277,6 +280,11 @@ func (s *CafeService) GetMyCafe(userID uint) (*models.Cafe, error) {
 		if err == nil {
 			return &cafe, nil
 		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 
 	return nil, errors.New("cafe not found")
@@ -492,6 +500,9 @@ func (s *CafeService) UpdateTable(tableID uint, req models.CafeTableUpdateReques
 		updates["pos_y"] = *req.PosY
 	}
 	if req.Seats != nil {
+		if *req.Seats <= 0 {
+			return nil, errors.New("table seats must be greater than zero")
+		}
 		updates["seats"] = *req.Seats
 	}
 	if req.IsActive != nil {
@@ -581,6 +592,9 @@ func (s *CafeService) GetTableByQRCode(qrCodeID string) (*models.QRCodeScanRespo
 func (s *CafeService) CreateWaiterCall(cafeID uint, userID *uint, req models.WaiterCallRequest) (*models.WaiterCall, error) {
 	req.Reason = models.WaiterCallReason(strings.TrimSpace(string(req.Reason)))
 	req.Note = strings.TrimSpace(req.Note)
+	if !isValidWaiterCallReason(req.Reason) {
+		return nil, errors.New("invalid waiter call reason")
+	}
 	var table models.CafeTable
 	if err := s.db.Where("id = ? AND cafe_id = ? AND is_active = ?", req.TableID, cafeID, true).First(&table).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -613,6 +627,19 @@ func (s *CafeService) CreateWaiterCall(cafeID uint, userID *uint, req models.Wai
 	})
 
 	return call, nil
+}
+
+func isValidWaiterCallReason(reason models.WaiterCallReason) bool {
+	switch reason {
+	case models.WaiterCallReasonBill,
+		models.WaiterCallReasonHelp,
+		models.WaiterCallReasonCleanup,
+		models.WaiterCallReasonReorder,
+		models.WaiterCallReasonProblem:
+		return true
+	default:
+		return false
+	}
 }
 
 // GetActiveWaiterCalls returns active waiter calls for a cafe

@@ -93,6 +93,7 @@ export default function ServiceScheduleScreen() {
     const [breakBetween, setBreakBetween] = useState(0); // minutes
     const [maxBookingsPerDay, setMaxBookingsPerDay] = useState(0); // 0 = unlimited
     const latestLoadRequestRef = useRef(0);
+    const latestSaveRequestRef = useRef(0);
     const isMountedRef = useRef(true);
 
     const loadSchedule = useCallback(async () => {
@@ -133,6 +134,7 @@ export default function ServiceScheduleScreen() {
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
+            latestSaveRequestRef.current += 1;
         };
     }, []);
 
@@ -168,6 +170,12 @@ export default function ServiceScheduleScreen() {
         const lastSlot = daySchedule.slots[daySchedule.slots.length - 1];
         const newStartTime = lastSlot ? incrementTime(lastSlot.endTime, 60) : '09:00';
         const newEndTime = incrementTime(newStartTime, 60);
+        const newStartMinutes = parseTimeToMinutes(newStartTime);
+        const newEndMinutes = parseTimeToMinutes(newEndTime);
+        if (newStartMinutes < 0 || newEndMinutes < 0 || newStartMinutes >= newEndMinutes) {
+            Alert.alert('Лимит', 'Нельзя добавить интервал позже 23:30');
+            return;
+        }
 
         setSchedule(prev => ({
             ...prev,
@@ -273,6 +281,7 @@ export default function ServiceScheduleScreen() {
             }
         }
 
+        const requestId = ++latestSaveRequestRef.current;
         setSaving(true);
         try {
             const weeklySlots: NonNullable<CreateScheduleRequest['weeklySlots']> = {};
@@ -292,9 +301,15 @@ export default function ServiceScheduleScreen() {
             };
 
             await updateServiceSchedule(serviceId, request);
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             Alert.alert('Готово! ✨', 'Расписание сохранено');
             navigation.goBack();
         } catch (error: unknown) {
+            if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Save failed:', error);
             const message =
                 typeof error === 'object' && error !== null && 'message' in error
@@ -302,7 +317,9 @@ export default function ServiceScheduleScreen() {
                     : '';
             Alert.alert('Ошибка', message || 'Не удалось сохранить');
         } finally {
-            setSaving(false);
+            if (requestId === latestSaveRequestRef.current && isMountedRef.current) {
+                setSaving(false);
+            }
         }
     };
 
@@ -317,6 +334,9 @@ export default function ServiceScheduleScreen() {
     const parseTimeToMinutes = (time: string): number => {
         const [h, m] = time.split(':').map(Number);
         if (!Number.isFinite(h) || !Number.isFinite(m)) {
+            return -1;
+        }
+        if (h < 0 || h > 23 || m < 0 || m > 59) {
             return -1;
         }
         return h * 60 + m;

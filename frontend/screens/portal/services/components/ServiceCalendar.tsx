@@ -1,7 +1,7 @@
 /**
  * ServiceCalendar - Компонент календаря для выбора даты/времени записи
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -45,9 +45,15 @@ export default function ServiceCalendar({
     durationMinutes = 60,
 }: ServiceCalendarProps) {
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    const formatDateKey = useCallback((date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }, []);
 
-    // Get dates with available slots
-    const availableDatesSet = new Set(availableSlots.map(s => s.date));
+    // Use local YYYY-MM-DD keys to avoid UTC day shift around midnight.
+    const availableDatesSet = useMemo(() => new Set(availableSlots.map(s => s.date)), [availableSlots]);
 
     // Generate calendar days
     const getDaysInMonth = useCallback(() => {
@@ -72,10 +78,6 @@ export default function ServiceCalendar({
 
         return days;
     }, [currentMonth]);
-
-    const formatDateKey = (date: Date): string => {
-        return date.toISOString().split('T')[0];
-    };
 
     const isDateAvailable = (date: Date): boolean => {
         const today = new Date();

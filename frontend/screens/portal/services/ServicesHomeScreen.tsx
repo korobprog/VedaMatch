@@ -1,7 +1,7 @@
 /**
  * ServicesHomeScreen - Главный экран сервисов
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -97,15 +97,32 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
 
-    const loadServices = useCallback(async (reset = false) => {
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+        };
+    }, []);
+
+    const loadServices = useCallback(async ({ reset = false, pageOverride }: { reset?: boolean; pageOverride?: number } = {}) => {
+        const requestId = ++latestLoadRequestRef.current;
+        const targetPage = pageOverride ?? 1;
+        if (reset) {
+            setLoading(true);
+        } else {
+            setLoadingMore(true);
+        }
         try {
             const filters: ServiceFilters = {
-                page: reset ? 1 : page,
+                page: targetPage,
                 limit: 20,
             };
 
@@ -118,38 +135,57 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
             }
 
             const response = await getServices(filters);
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
 
             if (reset) {
                 setServices(response.services);
                 setPage(1);
             } else {
-                setServices(prev => [...prev, ...response.services]);
+                setServices(prev => {
+                    const seen = new Set(prev.map(item => item.id));
+                    const unique = response.services.filter(item => !seen.has(item.id));
+                    return [...prev, ...unique];
+                });
+                setPage(targetPage);
             }
 
             setHasMore(response.page < response.totalPages);
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.error('Failed to load services:', error);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+                setLoadingMore(false);
+            }
         }
-    }, [selectedCategory, searchQuery, page]);
-
-    useEffect(() => {
-        setLoading(true);
-        loadServices(true);
     }, [selectedCategory, searchQuery]);
 
+    useEffect(() => {
+        setPage(1);
+        setHasMore(true);
+        loadServices({ reset: true, pageOverride: 1 });
+    }, [selectedCategory, searchQuery, loadServices]);
+
     const onRefresh = useCallback(() => {
+        if (refreshing || loading) {
+            return;
+        }
         setRefreshing(true);
-        loadServices(true);
-    }, [loadServices]);
+        setPage(1);
+        setHasMore(true);
+        void loadServices({ reset: true, pageOverride: 1 });
+    }, [refreshing, loading, loadServices]);
 
     const onLoadMore = () => {
-        if (!loading && hasMore) {
-            setPage(prev => prev + 1);
-            loadServices();
-        }
+        if (loading || refreshing || loadingMore || !hasMore) return;
+        const nextPage = page + 1;
+        void loadServices({ reset: false, pageOverride: nextPage });
     };
 
     const handleServicePress = (service: Service) => {
@@ -329,7 +365,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     );
 
     const renderFooter = () => {
-        if (!hasMore || services.length === 0) return null;
+        if (!hasMore || services.length === 0 || !loadingMore) return null;
         return (
             <View style={styles.footerLoader}>
                 <ActivityIndicator color={colors.accent} />
@@ -342,8 +378,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
             colors={roleTheme.gradient}
             style={styles.gradient}
         >
-            <SafeAreaView style={styles.container} edges={['top']}>
-                {renderHeader()}
+            <View style={styles.container}>
                 <GodModeStatusBanner />
 
                 {loading && services.length === 0 ? (
@@ -360,6 +395,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         numColumns={2}
                         columnWrapperStyle={styles.row}
                         contentContainerStyle={styles.listContent}
+                        ListHeaderComponent={renderHeader}
                         refreshControl={
                             <RefreshControl
                                 refreshing={refreshing}
@@ -373,7 +409,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         ListFooterComponent={renderFooter}
                     />
                 )}
-            </SafeAreaView>
+            </View>
         </LinearGradient>
     );
 }

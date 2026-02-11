@@ -23,9 +23,7 @@ import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 import { useSettings } from '../../../../context/SettingsContext';
 import {
     Star,
-    Calendar,
     Crown,
-    CheckCircle2,
     Sparkles,
     Brain,
     Target,
@@ -67,8 +65,9 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
 
     // Get minimum price from tariffs
     const minPrice = service.tariffs && service.tariffs.length > 0
-        ? Math.min(...service.tariffs.map(t => t.price))
-        : 0;
+        ? Math.min(...service.tariffs.map(t => Number.isFinite(t.price) ? t.price : Number.POSITIVE_INFINITY))
+        : Number.POSITIVE_INFINITY;
+    const hasPrice = Number.isFinite(minPrice) && minPrice > 0;
 
     const ownerName = service.owner
         ? `${service.owner.karmicName}${service.owner.spiritualName ? ' ' + service.owner.spiritualName : ''}`
@@ -102,7 +101,7 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                         <CategoryIcon name={iconName} size={12} color={colors.accent} />
                         <Text style={[styles.compactCategory, { color: colors.textSecondary }]}>{categoryLabel}</Text>
                     </View>
-                    {minPrice > 0 && (
+                    {hasPrice && (
                         <Text style={[styles.compactPrice, { color: colors.accent }]}>от {formatBalance(minPrice)}</Text>
                     )}
                 </View>
@@ -164,10 +163,14 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                 </View>
 
                 <View style={styles.footer}>
-                    <View style={styles.priceRow}>
-                        <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>от</Text>
-                        <Text style={[styles.priceValue, { color: colors.accent }]}>{formatBalance(minPrice)}</Text>
-                    </View>
+                    {hasPrice ? (
+                        <View style={styles.priceRow}>
+                            <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>от</Text>
+                            <Text style={[styles.priceValue, { color: colors.accent }]}>{formatBalance(minPrice)}</Text>
+                        </View>
+                    ) : (
+                        <Text style={[styles.priceFrom, { color: colors.textSecondary }]}>По запросу</Text>
+                    )}
 
                     <View style={[styles.actionArrow, { backgroundColor: colors.accentSoft }]}>
                         <Sparkles size={12} color={colors.accent} />

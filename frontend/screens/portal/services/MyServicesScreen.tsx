@@ -1,7 +1,7 @@
 /**
  * MyServicesScreen - Экран "Мои сервисы" (для специалиста)
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -81,8 +81,20 @@ export default function MyServicesScreen() {
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const isMountedRef = useRef(true);
+    const latestLoadRequestRef = useRef(0);
+    const actionLocksRef = useRef<Set<number>>(new Set());
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            latestLoadRequestRef.current += 1;
+            actionLocksRef.current.clear();
+        };
+    }, []);
 
     const loadServices = useCallback(async (isRefresh = false) => {
+        const requestId = ++latestLoadRequestRef.current;
         if (isRefresh) {
             setRefreshing(true);
         } else {
@@ -91,13 +103,21 @@ export default function MyServicesScreen() {
 
         try {
             const response = await getMyServices();
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             setServices(response.services || []);
         } catch (error) {
+            if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             console.log('[MyServices] Failed to load services (expected if none/unauthorized):', error);
             setServices([]);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (requestId === latestLoadRequestRef.current && isMountedRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, []);
 
@@ -109,7 +129,10 @@ export default function MyServicesScreen() {
     );
 
     const handleRefresh = () => {
-        loadServices(true);
+        if (refreshing || loading) {
+            return;
+        }
+        void loadServices(true);
     };
 
     const handleCreateService = () => {
@@ -125,17 +148,29 @@ export default function MyServicesScreen() {
     };
 
     const handleToggleStatus = async (service: Service) => {
+        if (actionLocksRef.current.has(service.id)) {
+            return;
+        }
+        actionLocksRef.current.add(service.id);
         try {
             if (service.status === 'active') {
                 await pauseService(service.id);
-                Alert.alert('Готово', 'Услуга приостановлена');
+                if (isMountedRef.current) {
+                    Alert.alert('Готово', 'Услуга приостановлена');
+                }
             } else {
                 await publishService(service.id);
-                Alert.alert('Готово', 'Услуга опубликована');
+                if (isMountedRef.current) {
+                    Alert.alert('Готово', 'Услуга опубликована');
+                }
             }
-            loadServices(true);
+            await loadServices(true);
         } catch (error: any) {
-            Alert.alert('Ошибка', error.message || 'Не удалось изменить статус');
+            if (isMountedRef.current) {
+                Alert.alert('Ошибка', error.message || 'Не удалось изменить статус');
+            }
+        } finally {
+            actionLocksRef.current.delete(service.id);
         }
     };
 
@@ -149,12 +184,22 @@ export default function MyServicesScreen() {
                     text: 'Удалить',
                     style: 'destructive',
                     onPress: async () => {
+                        if (actionLocksRef.current.has(service.id)) {
+                            return;
+                        }
+                        actionLocksRef.current.add(service.id);
                         try {
                             await deleteService(service.id);
-                            Alert.alert('Готово', 'Услуга удалена');
-                            loadServices(true);
+                            if (isMountedRef.current) {
+                                Alert.alert('Готово', 'Услуга удалена');
+                            }
+                            await loadServices(true);
                         } catch (error: any) {
-                            Alert.alert('Ошибка', error.message || 'Не удалось удалить');
+                            if (isMountedRef.current) {
+                                Alert.alert('Ошибка', error.message || 'Не удалось удалить');
+                            }
+                        } finally {
+                            actionLocksRef.current.delete(service.id);
                         }
                     },
                 },

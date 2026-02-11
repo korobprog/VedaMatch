@@ -32,6 +32,7 @@ export const ContactsScreen: React.FC = () => {
     const [friends, setFriends] = useState<UserContact[]>([]);
     const [blockedContacts, setBlockedContacts] = useState<UserContact[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'friends' | 'blocked'>('all');
 
     // City Filter State - support multiple cities
@@ -41,6 +42,7 @@ export const ContactsScreen: React.FC = () => {
     const [citySearchQuery, setCitySearchQuery] = useState('');
     const [now, setNow] = useState(new Date());
     const latestFetchRequestRef = useRef(0);
+    const unblockingIdsRef = useRef<Set<number>>(new Set());
     const isMountedRef = useRef(true);
 
     useEffect(() => {
@@ -54,15 +56,20 @@ export const ContactsScreen: React.FC = () => {
         return () => {
             isMountedRef.current = false;
             latestFetchRequestRef.current += 1;
+            unblockingIdsRef.current.clear();
         };
     }, []);
 
 
-    const fetchContacts = useCallback(async () => {
+    const fetchContacts = useCallback(async (isRefresh = false) => {
         const requestId = ++latestFetchRequestRef.current;
         try {
             if (isMountedRef.current) {
-                setLoading(true);
+                if (isRefresh) {
+                    setRefreshing(true);
+                } else {
+                    setLoading(true);
+                }
             }
             const contacts = await contactService.getContacts();
             if (requestId !== latestFetchRequestRef.current || !isMountedRef.current) {
@@ -115,6 +122,7 @@ export const ContactsScreen: React.FC = () => {
         } finally {
             if (requestId === latestFetchRequestRef.current && isMountedRef.current) {
                 setLoading(false);
+                setRefreshing(false);
             }
         }
     }, [currentUser?.ID]);
@@ -125,13 +133,24 @@ export const ContactsScreen: React.FC = () => {
 
     const handleUnblock = async (contactId: number) => {
         if (!currentUser?.ID) return;
+        if (unblockingIdsRef.current.has(contactId)) return;
+        unblockingIdsRef.current.add(contactId);
         try {
             await contactService.unblockUser(currentUser.ID, contactId);
-            fetchContacts();
+            await fetchContacts(true);
         } catch (error) {
             console.error('Error unblocking user:', error);
+        } finally {
+            unblockingIdsRef.current.delete(contactId);
         }
     };
+
+    const handleRefresh = useCallback(() => {
+        if (loading || refreshing) {
+            return;
+        }
+        void fetchContacts(true);
+    }, [loading, refreshing, fetchContacts]);
 
     const isOnline = (lastSeen: string) => {
         if (!lastSeen) return false;
@@ -435,8 +454,8 @@ export const ContactsScreen: React.FC = () => {
                     keyExtractor={item => item.ID.toString()}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
-                    refreshing={loading}
-                    onRefresh={fetchContacts}
+                    refreshing={refreshing}
+                    onRefresh={handleRefresh}
                     ListHeaderComponent={filter === 'blocked' && displayedContacts.length > 0 ? (
                         <Text style={[styles.blockedHint, { color: theme.subText }]}>
                             {t('contacts.blockConfirmMsg')}

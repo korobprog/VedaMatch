@@ -14,7 +14,8 @@ import {
     KeyboardAvoidingView,
     Platform,
     TouchableWithoutFeedback,
-    Keyboard
+    Keyboard,
+    Share,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
@@ -33,7 +34,7 @@ import { SemanticColorTokens } from '../../../theme/semanticTokens';
 const ShelterDetailScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { shelterId } = route.params;
+    const shelterId: number | undefined = route.params?.shelterId;
 
     const [shelter, setShelter] = useState<Shelter | null>(null);
     const [loading, setLoading] = useState(true);
@@ -45,6 +46,7 @@ const ShelterDetailScreen: React.FC = () => {
     const [comment, setComment] = useState('');
     const [submittingReview, setSubmittingReview] = useState(false);
     const latestLoadRequestRef = useRef(0);
+    const latestSubmitReviewRequestRef = useRef(0);
     const isMountedRef = useRef(true);
     const { user } = useUser();
     const { isDarkMode } = useSettings();
@@ -52,6 +54,14 @@ const ShelterDetailScreen: React.FC = () => {
     const styles = React.useMemo(() => createStyles(colors), [colors]);
 
     const loadShelter = useCallback(async () => {
+        if (!shelterId) {
+            if (isMountedRef.current) {
+                setLoading(false);
+                Alert.alert('Ошибка', 'Жильё не найдено');
+                navigation.goBack();
+            }
+            return;
+        }
         const requestId = ++latestLoadRequestRef.current;
         try {
             if (isMountedRef.current) {
@@ -84,15 +94,29 @@ const ShelterDetailScreen: React.FC = () => {
         return () => {
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
+            latestSubmitReviewRequestRef.current += 1;
         };
     }, [loadShelter]);
 
     const handleShare = async () => {
-        // Implement share logic
+        if (!shelter) {
+            return;
+        }
+        try {
+            await Share.share({
+                message: `${shelter.title}\n${shelter.city}, ${shelter.country}`,
+            });
+        } catch (error) {
+            console.error('Share failed:', error);
+        }
     };
 
     const handleSubmitReview = async () => {
         if (submittingReview) {
+            return;
+        }
+        if (!shelterId) {
+            Alert.alert('Ошибка', 'Жильё не найдено');
             return;
         }
         if (!comment.trim()) {
@@ -100,6 +124,7 @@ const ShelterDetailScreen: React.FC = () => {
             return;
         }
 
+        const requestId = ++latestSubmitReviewRequestRef.current;
         try {
             setSubmittingReview(true);
             await yatraService.createReview(shelterId, {
@@ -110,15 +135,22 @@ const ShelterDetailScreen: React.FC = () => {
                 valueRating: rating,
                 hospitalityRating: rating
             });
+            if (requestId !== latestSubmitReviewRequestRef.current || !isMountedRef.current) {
+                return;
+            }
             Alert.alert('Спасибо!', 'Ваш отзыв опубликован');
             setReviewModalVisible(false);
             setComment('');
             setRating(5);
-            loadShelter(); // Reload to see new review and avg rating
+            await loadShelter(); // Reload to see new review and avg rating
         } catch {
-            Alert.alert('Ошибка', 'Не удалось отправить отзыв');
+            if (requestId === latestSubmitReviewRequestRef.current && isMountedRef.current) {
+                Alert.alert('Ошибка', 'Не удалось отправить отзыв');
+            }
         } finally {
-            setSubmittingReview(false);
+            if (requestId === latestSubmitReviewRequestRef.current && isMountedRef.current) {
+                setSubmittingReview(false);
+            }
         }
     };
 

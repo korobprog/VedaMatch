@@ -532,6 +532,9 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 		updates["delivered_by"] = staffUserID
 	case models.CafeOrderStatusCompleted:
 		updates["completed_at"] = now
+	case models.CafeOrderStatusCancelled:
+		updates["cancelled_at"] = now
+		updates["cancelled_by"] = staffUserID
 	}
 
 	updateResult := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(updates)
@@ -551,8 +554,8 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 	// Send WebSocket notification
 	websocket.NotifyOrderStatusUpdate(order.CafeID, orderID, string(status), order.CustomerID)
 
-	// If completed and was dine-in, free the table
-	if status == models.CafeOrderStatusCompleted {
+	// If completed/cancelled and was dine-in, free the table.
+	if status == models.CafeOrderStatusCompleted || status == models.CafeOrderStatusCancelled {
 		if order.TableID != nil {
 			if err := s.db.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
 				"is_occupied":      false,
@@ -563,10 +566,12 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 			}
 		}
 
-		// Update cafe orders count
-		if err := s.db.Model(&models.Cafe{}).Where("id = ?", order.CafeID).
-			UpdateColumn("orders_count", gorm.Expr("orders_count + 1")).Error; err != nil {
-			return err
+		// Update cafe orders count only for completed orders.
+		if status == models.CafeOrderStatusCompleted {
+			if err := s.db.Model(&models.Cafe{}).Where("id = ?", order.CafeID).
+				UpdateColumn("orders_count", gorm.Expr("orders_count + 1")).Error; err != nil {
+				return err
+			}
 		}
 	}
 
@@ -800,11 +805,17 @@ func (s *CafeOrderService) RepeatOrder(customerID, previousOrderID uint) (*model
 	}
 
 	req := models.CafeOrderCreateRequest{
-		CafeID:       prevOrder.CafeID,
-		OrderType:    prevOrder.OrderType,
-		TableID:      prevOrder.TableID,
-		Items:        items,
-		CustomerNote: prevOrder.CustomerNote,
+		CafeID:           prevOrder.CafeID,
+		OrderType:        prevOrder.OrderType,
+		TableID:          prevOrder.TableID,
+		DeliveryAddress:  prevOrder.DeliveryAddress,
+		DeliveryPhone:    prevOrder.DeliveryPhone,
+		DeliveryLat:      prevOrder.DeliveryLatitude,
+		DeliveryLng:      prevOrder.DeliveryLongitude,
+		CustomerName:     prevOrder.CustomerName,
+		Items:            items,
+		CustomerNote:     prevOrder.CustomerNote,
+		PaymentMethod:    prevOrder.PaymentMethod,
 	}
 
 	return s.CreateOrder(&customerID, req)
