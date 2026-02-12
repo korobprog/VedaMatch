@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // CafeHandler handles cafe-related HTTP requests
@@ -179,6 +180,9 @@ func (h *CafeHandler) GetMyCafe(c *fiber.Ctx) error {
 
 	cafe, err := h.cafeService.GetMyCafe(userID)
 	if err != nil {
+		if !strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get cafe", "hasCafe": false})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Cafe not found", "hasCafe": false})
 	}
 
@@ -201,6 +205,9 @@ func (h *CafeHandler) GetCafe(c *fiber.Ctx) error {
 
 	cafe, err := h.cafeService.GetCafe(uint(cafeID))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get cafe"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Cafe not found"})
 	}
 
@@ -214,6 +221,9 @@ func (h *CafeHandler) GetCafeBySlug(c *fiber.Ctx) error {
 
 	cafe, err := h.cafeService.GetCafeBySlug(slug)
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get cafe"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Cafe not found"})
 	}
 
@@ -684,6 +694,9 @@ func (h *CafeHandler) GetDish(c *fiber.Ctx) error {
 
 	dish, err := h.dishService.GetDish(uint(dishID))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get dish"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Dish not found"})
 	}
 

@@ -52,6 +52,7 @@ func Connect() {
 		&models.User{}, &models.Friend{}, &models.Message{}, &models.Block{},
 		&models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{},
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
+		&models.ChannelPromotedAdImpression{},
 		&models.SystemSetting{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
 		&models.DatingFavorite{}, &models.DatingCompatibility{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},

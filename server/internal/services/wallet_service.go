@@ -603,7 +603,10 @@ func (s *WalletService) AdminSeize(adminID, userID uint, amount int, reason stri
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			return errors.New("wallet not found")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("wallet not found")
+			}
+			return err
 		}
 
 		if wallet.Balance < amount {
@@ -641,7 +644,10 @@ func (s *WalletService) ActivatePendingBalance(userID uint) error {
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			return errors.New("wallet not found")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("wallet not found")
+			}
+			return err
 		}
 
 		if wallet.PendingBalance <= 0 {
@@ -696,7 +702,10 @@ func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, descr
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			return errors.New("wallet not found")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("wallet not found")
+			}
+			return err
 		}
 
 		if wallet.Balance < amount {
@@ -745,7 +754,10 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			return errors.New("wallet not found")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("wallet not found")
+			}
+			return err
 		}
 
 		if wallet.FrozenBalance < amount {
@@ -781,7 +793,13 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 			// Create wallet for provider if doesn't exist
 			toWallet = models.Wallet{UserID: &toUserID, Type: models.WalletTypePersonal, Balance: 0, PendingBalance: 0, FrozenBalance: 0}
 			if err := tx.Create(&toWallet).Error; err != nil {
-				return err
+				if isDuplicateKeyError(err) {
+					if getErr := tx.Where("user_id = ?", toUserID).First(&toWallet).Error; getErr != nil {
+						return getErr
+					}
+				} else {
+					return err
+				}
 			}
 		} else if err != nil {
 			return err
@@ -828,7 +846,10 @@ func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, desc
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			return errors.New("wallet not found")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("wallet not found")
+			}
+			return err
 		}
 
 		if wallet.FrozenBalance < amount {

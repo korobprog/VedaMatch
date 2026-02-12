@@ -183,12 +183,13 @@ type ChannelPostListResponse struct {
 }
 
 type ChannelFeedResponse struct {
-	Posts       []ChannelPost       `json:"posts"`
-	PromotedAds []ChannelPromotedAd `json:"promotedAds,omitempty"`
-	Total       int64               `json:"total"`
-	Page        int                 `json:"page"`
-	Limit       int                 `json:"limit"`
-	TotalPages  int                 `json:"totalPages"`
+	Posts               []ChannelPost       `json:"posts"`
+	PromotedAds         []ChannelPromotedAd `json:"promotedAds,omitempty"`
+	PromotedInsertEvery int                 `json:"promotedInsertEvery,omitempty"`
+	Total               int64               `json:"total"`
+	Page                int                 `json:"page"`
+	Limit               int                 `json:"limit"`
+	TotalPages          int                 `json:"totalPages"`
 }
 
 type ChannelListResponse struct {

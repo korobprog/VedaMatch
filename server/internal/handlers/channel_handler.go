@@ -7,16 +7,53 @@ import (
 	"rag-agent-server/internal/services"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
+type channelService interface {
+	IsFeatureEnabledForUser(userID uint) bool
+	CreateChannel(ownerID uint, req models.ChannelCreateRequest) (*models.Channel, error)
+	ListPublicChannels(filters services.ChannelListFilters) (*models.ChannelListResponse, error)
+	ListMyChannels(ownerID uint, filters services.ChannelListFilters) (*models.ChannelListResponse, error)
+	GetChannelByID(channelID uint, viewerID uint) (*models.Channel, error)
+	GetViewerRole(channelID uint, viewerID uint) (models.ChannelMemberRole, error)
+	UpdateChannel(channelID, actorID uint, req models.ChannelUpdateRequest) (*models.Channel, error)
+	UpdateChannelBranding(channelID, actorID uint, req models.ChannelBrandingUpdateRequest) (*models.Channel, error)
+	AddMember(channelID, actorID uint, req models.ChannelMemberAddRequest) (*models.ChannelMember, error)
+	ListMembers(channelID, actorID uint) ([]models.ChannelMember, error)
+	UpdateMemberRole(channelID, actorID, memberUserID uint, role models.ChannelMemberRole) (*models.ChannelMember, error)
+	RemoveMember(channelID, actorID, memberUserID uint) error
+	CreatePost(channelID, actorID uint, req models.ChannelPostCreateRequest) (*models.ChannelPost, error)
+	ListPosts(channelID, viewerID uint, page, limit int, includeDraft bool) (*models.ChannelPostListResponse, models.ChannelMemberRole, error)
+	UpdatePost(channelID, postID, actorID uint, req models.ChannelPostUpdateRequest) (*models.ChannelPost, error)
+	PinPost(channelID, postID, actorID uint) (*models.ChannelPost, error)
+	UnpinPost(channelID, postID, actorID uint) (*models.ChannelPost, error)
+	PublishPost(channelID, postID, actorID uint) (*models.ChannelPost, error)
+	SchedulePost(channelID, postID, actorID uint, scheduledAt time.Time) (*models.ChannelPost, error)
+	TrackCTAClick(channelID, postID, viewerID uint) error
+	TrackPromotedAdClick(adID uint, viewerID uint) error
+	GetFeed(filters services.ChannelFeedFilters) (*models.ChannelFeedResponse, error)
+	CreateShowcase(channelID, actorID uint, req models.ChannelShowcaseCreateRequest) (*models.ChannelShowcase, error)
+	ListShowcases(channelID, viewerID uint) ([]models.ChannelShowcase, error)
+	UpdateShowcase(channelID, showcaseID, actorID uint, req models.ChannelShowcaseUpdateRequest) (*models.ChannelShowcase, error)
+	DeleteShowcase(channelID, showcaseID, actorID uint) error
+	GetMetricsSnapshot() (map[string]int64, error)
+	DismissPrompt(userID uint, promptKey string, postID *uint) error
+	GetPromptDismissStatus(userID uint, promptKeys []string) (map[string]bool, error)
+}
+
 type ChannelHandler struct {
-	service *services.ChannelService
+	service channelService
 }
 
 func NewChannelHandler() *ChannelHandler {
-	return &ChannelHandler{service: services.NewChannelService()}
+	return NewChannelHandlerWithService(services.NewChannelService())
+}
+
+func NewChannelHandlerWithService(service channelService) *ChannelHandler {
+	return &ChannelHandler{service: service}
 }
 
 func (h *ChannelHandler) ensureFeatureEnabled(c *fiber.Ctx) error {
@@ -498,6 +535,30 @@ func (h *ChannelHandler) TrackCTAClick(c *fiber.Ctx) error {
 	viewerID := middleware.GetUserID(c)
 	if err := h.service.TrackCTAClick(channelID, postID, viewerID); err != nil {
 		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func (h *ChannelHandler) TrackPromotedAdClick(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	adID, err := parseUintParam(c, "adId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
+	}
+
+	viewerID := middleware.GetUserID(c)
+	if err := h.service.TrackPromotedAdClick(adID, viewerID); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "invalid") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{"success": true})

@@ -309,6 +309,7 @@ func main() {
 	api.Get("/channels/:id", middleware.OptionalAuth(), channelHandler.GetChannel)
 	api.Get("/channels/:id/posts", middleware.OptionalAuth(), channelHandler.ListPosts)
 	api.Post("/channels/:id/posts/:postId/cta-click", middleware.OptionalAuth(), channelHandler.TrackCTAClick)
+	api.Post("/channels/promoted-ads/:adId/click", middleware.OptionalAuth(), channelHandler.TrackPromotedAdClick)
 	api.Get("/channels/:id/showcases", middleware.OptionalAuth(), channelHandler.ListShowcases)
 
 	// Public Yatra Travel Routes (Spiritual Pilgrimage Service)

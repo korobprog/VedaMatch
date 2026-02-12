@@ -103,7 +103,11 @@ func (s *ServiceService) Update(serviceID, ownerID uint, req models.ServiceUpdat
 	updates := make(map[string]interface{})
 
 	if req.Title != nil {
-		updates["title"] = strings.TrimSpace(*req.Title)
+		title := strings.TrimSpace(*req.Title)
+		if title == "" {
+			return nil, errors.New("title is required")
+		}
+		updates["title"] = title
 	}
 	if req.Description != nil {
 		updates["description"] = strings.TrimSpace(*req.Description)

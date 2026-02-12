@@ -55,6 +55,9 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	// Verify shop exists
 	var shop models.Shop
 	if err := database.DB.First(&shop, shopID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, ErrShopRequired
 	}
 
@@ -213,6 +216,9 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.ProductUpdateRequest) (*models.Product, error) {
 	var product models.Product
 	if err := database.DB.First(&product, productID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, ErrProductNotFound
 	}
 
@@ -474,6 +480,9 @@ func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.Pro
 func (s *ProductService) DeleteProduct(productID uint, shopID uint) error {
 	var product models.Product
 	if err := database.DB.First(&product, productID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 		return ErrProductNotFound
 	}
 
@@ -578,6 +587,9 @@ func (s *ProductService) ReserveStock(productID uint, variantID *uint, quantity 
 
 	var product models.Product
 	if err := database.DB.First(&product, productID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 		return ErrProductNotFound
 	}
 	if product.TrackStock && product.Stock < quantity {
@@ -703,6 +715,9 @@ func (s *ProductService) AddReview(userID, productID uint, req models.ReviewCrea
 	// Verify product exists
 	var product models.Product
 	if err := database.DB.First(&product, productID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, ErrProductNotFound
 	}
 

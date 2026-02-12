@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AuthHandler struct {
@@ -103,6 +105,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	result := database.DB.Create(&user)
 	if result.Error != nil {
 		log.Printf("[AUTH] Registration failed: %v", result.Error)
+		if errors.Is(result.Error, gorm.ErrDuplicatedKey) || strings.Contains(strings.ToLower(result.Error.Error()), "duplicate") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "Email already exists",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not create user",
 		})

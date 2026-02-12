@@ -456,6 +456,10 @@ func (s *CafeService) CreateTable(cafeID uint, req models.CafeTableCreateRequest
 	if table.Seats <= 0 {
 		table.Seats = 4
 	}
+	if !table.IsActive {
+		// Default new tables to active so they are usable immediately.
+		table.IsActive = true
+	}
 
 	if err := s.db.Create(table).Error; err != nil {
 		return nil, err
@@ -537,13 +541,17 @@ func (s *CafeService) UpdateTable(tableID uint, req models.CafeTableUpdateReques
 func (s *CafeService) UpdateFloorLayout(cafeID uint, req models.CafeFloorLayoutRequest) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		for _, pos := range req.Tables {
-			if err := tx.Model(&models.CafeTable{}).
+			res := tx.Model(&models.CafeTable{}).
 				Where("id = ? AND cafe_id = ?", pos.ID, cafeID).
 				Updates(map[string]interface{}{
 					"pos_x": pos.PosX,
 					"pos_y": pos.PosY,
-				}).Error; err != nil {
-				return err
+				})
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				return fmt.Errorf("table not found: %d", pos.ID)
 			}
 		}
 		return nil
@@ -592,6 +600,8 @@ func (s *CafeService) GetTableByQRCode(qrCodeID string) (*models.QRCodeScanRespo
 		var order models.CafeOrder
 		if err := s.db.Preload("Items").First(&order, *table.CurrentOrderID).Error; err == nil {
 			response.ActiveOrder = &models.CafeOrderResponse{CafeOrder: order}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
 		}
 	}
 

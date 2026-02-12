@@ -174,13 +174,19 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 	}
 
 	// Update shop orders count
-	tx.Model(&models.Shop{}).Where("id = ?", req.ShopID).
-		UpdateColumn("orders_count", gorm.Expr("orders_count + 1"))
+	if err := tx.Model(&models.Shop{}).Where("id = ?", req.ShopID).
+		UpdateColumn("orders_count", gorm.Expr("orders_count + 1")).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	// Update product sales count
 	for _, item := range orderItems {
-		tx.Model(&models.Product{}).Where("id = ?", item.ProductID).
-			UpdateColumn("sales_count", gorm.Expr("sales_count + ?", item.Quantity))
+		if err := tx.Model(&models.Product{}).Where("id = ?", item.ProductID).
+			UpdateColumn("sales_count", gorm.Expr("sales_count + ?", item.Quantity)).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {

@@ -115,6 +115,22 @@ func SeedSystemSettings() {
 			Key:   "CHANNELS_V1_ROLLOUT_ALLOWLIST",
 			Value: "",
 		},
+		{
+			Key:   "CHANNELS_V1_ROLLOUT_DENYLIST",
+			Value: "",
+		},
+		{
+			Key:   "CHANNELS_PROMOTED_DAILY_CAP",
+			Value: "3",
+		},
+		{
+			Key:   "CHANNELS_PROMOTED_AD_COOLDOWN_HOURS",
+			Value: "6",
+		},
+		{
+			Key:   "CHANNELS_PROMOTED_INSERT_EVERY",
+			Value: "4",
+		},
 	}
 
 	for _, s := range settings {

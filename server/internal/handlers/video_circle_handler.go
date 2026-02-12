@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -428,6 +429,20 @@ func (h *VideoCircleHandler) UpdateTariff(c *fiber.Ctx) error {
 	var req models.VideoTariffUpsertRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	rawFields := map[string]json.RawMessage{}
+	if err := json.Unmarshal(c.Body(), &rawFields); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid JSON body"})
+	}
+	if _, ok := rawFields["priceLkm"]; !ok {
+		// Preserve existing value when field is omitted.
+		req.PriceLkm = -1
+	}
+	if _, ok := rawFields["durationMinutes"]; ok && req.DurationMinutes <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "durationMinutes must be > 0"})
+	}
+	if _, ok := rawFields["priceLkm"]; ok && req.PriceLkm < 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "priceLkm must be >= 0"})
 	}
 
 	item, err := h.service.UpdateTariff(uint(id64), req, userID)

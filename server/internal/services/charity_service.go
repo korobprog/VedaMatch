@@ -632,6 +632,7 @@ func (s *CharityService) GetRecentDonations(projectID uint, limit int) ([]models
 		Preload("DonorUser").
 		Preload("Project").
 		Where("is_anonymous = ?", false).
+		Where("status = ?", models.DonationStatusConfirmed).
 		Order("created_at DESC")
 
 	if projectID > 0 {

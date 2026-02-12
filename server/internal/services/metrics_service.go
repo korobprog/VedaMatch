@@ -16,6 +16,8 @@ const (
 	MetricChannelCTAClickTotal       = "channel_cta_click_total"
 	MetricOrdersFromChannelTotal     = "orders_from_channel_total"
 	MetricBookingsFromChannelTotal   = "bookings_from_channel_total"
+	MetricPromotedAdsServedTotal     = "promoted_ads_served_total"
+	MetricPromotedAdsClickedTotal    = "promoted_ads_clicked_total"
 )
 
 type MetricsService struct {

@@ -45,6 +45,13 @@ var (
 	ErrInvalidPayload      = errors.New("invalid payload")
 )
 
+const (
+	promotedAdPlacementChannelsFeed = "channels_feed"
+	defaultPromotedAdDailyCap       = 3
+	defaultPromotedAdCooldownHours  = 6
+	defaultPromotedInsertEvery      = 4
+)
+
 func NewChannelService() *ChannelService {
 	return &ChannelService{db: database.DB}
 }
@@ -67,24 +74,10 @@ func (s *ChannelService) IsFeatureEnabledForUser(userID uint) bool {
 		return false
 	}
 
+	denylist := parseUintAllowlist(s.getSystemSettingValue("CHANNELS_V1_ROLLOUT_DENYLIST", ""))
 	allowlist := parseUintAllowlist(s.getSystemSettingValue("CHANNELS_V1_ROLLOUT_ALLOWLIST", ""))
-	if len(allowlist) > 0 {
-		_, ok := allowlist[userID]
-		return ok
-	}
-
 	rolloutPercent := parseChannelIntWithDefault(s.getSystemSettingValue("CHANNELS_V1_ROLLOUT_PERCENT", "100"), 100)
-	if rolloutPercent >= 100 {
-		return true
-	}
-	if rolloutPercent <= 0 {
-		return false
-	}
-	if userID == 0 {
-		return false
-	}
-
-	return int(userID%100) < rolloutPercent
+	return isUserEnabledByRollout(userID, denylist, allowlist, rolloutPercent)
 }
 
 func (s *ChannelService) CreateChannel(ownerID uint, req models.ChannelCreateRequest) (*models.Channel, error) {
@@ -429,7 +422,9 @@ func (s *ChannelService) CreatePost(channelID, actorID uint, req models.ChannelP
 		return nil, err
 	}
 
-	s.db.Preload("Author").Preload("Channel").First(&post, post.ID)
+	if err := s.db.Preload("Author").Preload("Channel").First(&post, post.ID).Error; err != nil {
+		return nil, err
+	}
 	return &post, nil
 }
 
@@ -506,13 +501,8 @@ func (s *ChannelService) UpdatePost(channelID, postID, actorID uint, req models.
 	if rankRole(role) < rankRole(models.ChannelMemberRoleEditor) {
 		return nil, ErrChannelForbidden
 	}
-	if role == models.ChannelMemberRoleEditor {
-		if post.AuthorID != actorID {
-			return nil, ErrChannelForbidden
-		}
-		if post.Status != models.ChannelPostStatusDraft {
-			return nil, errors.New("editor can only edit draft posts")
-		}
+	if err := validatePostUpdatePermission(role, actorID, post); err != nil {
+		return nil, err
 	}
 
 	updates := map[string]interface{}{}
@@ -608,10 +598,6 @@ func (s *ChannelService) PublishPost(channelID, postID, actorID uint) (*models.C
 }
 
 func (s *ChannelService) SchedulePost(channelID, postID, actorID uint, scheduledAt time.Time) (*models.ChannelPost, error) {
-	if scheduledAt.IsZero() {
-		return nil, errors.New("scheduledAt is required")
-	}
-
 	post, channel, err := s.loadPost(channelID, postID)
 	if err != nil {
 		return nil, err
@@ -621,8 +607,8 @@ func (s *ChannelService) SchedulePost(channelID, postID, actorID uint, scheduled
 	if err != nil {
 		return nil, err
 	}
-	if post.Status == models.ChannelPostStatusPublished {
-		return nil, errors.New("published post cannot be scheduled")
+	if err := validateSchedulePostRequest(post.Status, scheduledAt); err != nil {
+		return nil, err
 	}
 	if err := validateChannelCTAPayload(post.CTAType, post.CTAPayloadJSON); err != nil {
 		return nil, err
@@ -656,8 +642,8 @@ func (s *ChannelService) PinPost(channelID, postID, actorID uint) (*models.Chann
 	if err != nil {
 		return nil, err
 	}
-	if post.Status != models.ChannelPostStatusPublished {
-		return nil, errors.New("only published posts can be pinned")
+	if err := validatePinPostStatus(post.Status); err != nil {
+		return nil, err
 	}
 
 	now := time.Now()
@@ -773,7 +759,40 @@ func (s *ChannelService) GetMetricsSnapshot() (map[string]int64, error) {
 		MetricChannelCTAClickTotal,
 		MetricOrdersFromChannelTotal,
 		MetricBookingsFromChannelTotal,
+		MetricPromotedAdsServedTotal,
+		MetricPromotedAdsClickedTotal,
 	})
+}
+
+func (s *ChannelService) TrackPromotedAdClick(adID uint, viewerID uint) error {
+	if adID == 0 {
+		return errors.New("invalid ad id")
+	}
+
+	query := s.db.Model(&models.Ad{}).
+		Where("id = ? AND status = ? AND category = ? AND ad_type = ?",
+			adID,
+			models.AdStatusActive,
+			models.AdCategoryServices,
+			models.AdTypeOffering,
+		)
+	if viewerID > 0 {
+		query = query.Where("user_id <> ?", viewerID)
+	}
+
+	var ad models.Ad
+	if err := query.First(&ad).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("promoted ad not found")
+		}
+		return err
+	}
+
+	if err := GetMetricsService().Increment(MetricPromotedAdsClickedTotal, 1); err != nil {
+		log.Printf("[Channels] metric increment failed (%s): %v", MetricPromotedAdsClickedTotal, err)
+	}
+
+	return nil
 }
 
 func (s *ChannelService) DismissPrompt(userID uint, promptKey string, postID *uint) error {
@@ -902,19 +921,28 @@ func (s *ChannelService) GetFeed(filters ChannelFeedFilters) (*models.ChannelFee
 	if totalPages == 0 {
 		totalPages = 1
 	}
-	promotedAds, err := s.loadPromotedAds(filters.ViewerID, 2)
+
+	promotedInsertEvery := s.getPromotedInsertEvery()
+	promotedFetchLimit := computePromotedFetchLimit(filters.Limit, promotedInsertEvery)
+	promotedAds, err := s.loadPromotedAds(filters.ViewerID, promotedFetchLimit)
 	if err != nil {
 		log.Printf("[Channels] failed to load promoted ads: %v", err)
 		promotedAds = nil
 	}
+	if len(promotedAds) > 0 {
+		if err := GetMetricsService().Increment(MetricPromotedAdsServedTotal, int64(len(promotedAds))); err != nil {
+			log.Printf("[Channels] metric increment failed (%s): %v", MetricPromotedAdsServedTotal, err)
+		}
+	}
 
 	return &models.ChannelFeedResponse{
-		Posts:       posts,
-		PromotedAds: promotedAds,
-		Total:       total,
-		Page:        filters.Page,
-		Limit:       filters.Limit,
-		TotalPages:  totalPages,
+		Posts:               posts,
+		PromotedAds:         promotedAds,
+		PromotedInsertEvery: promotedInsertEvery,
+		Total:               total,
+		Page:                filters.Page,
+		Limit:               filters.Limit,
+		TotalPages:          totalPages,
 	}, nil
 }
 
@@ -923,17 +951,57 @@ func (s *ChannelService) loadPromotedAds(viewerID uint, limit int) ([]models.Cha
 		return []models.ChannelPromotedAd{}, nil
 	}
 
+	dailyCap := s.getPromotedAdDailyCap()
+	cooldownDuration := s.getPromotedAdCooldownDuration()
+	if dailyCap == 0 {
+		return []models.ChannelPromotedAd{}, nil
+	}
+	viewerCity := ""
+	if viewerID > 0 {
+		var viewer models.User
+		if err := s.db.Select("id", "city").First(&viewer, viewerID).Error; err == nil {
+			viewerCity = strings.TrimSpace(viewer.City)
+		}
+
+		dailyCount, err := s.countPromotedAdImpressions(viewerID, promotedAdPlacementChannelsFeed, time.Now().Add(-24*time.Hour))
+		if err != nil {
+			return nil, err
+		}
+		remaining := dailyCap - dailyCount
+		if remaining <= 0 {
+			return []models.ChannelPromotedAd{}, nil
+		}
+		if limit > remaining {
+			limit = remaining
+		}
+	}
+
 	query := s.db.Model(&models.Ad{}).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order("position ASC").Limit(1)
 		}).
-		Where("status = ? AND category = ?", models.AdStatusActive, models.AdCategoryServices).
+		Where("status = ? AND category = ? AND ad_type = ?", models.AdStatusActive, models.AdCategoryServices, models.AdTypeOffering).
 		Order("views_count DESC").
 		Order("created_at DESC").
 		Limit(limit)
 
 	if viewerID > 0 {
 		query = query.Where("user_id <> ?", viewerID)
+
+		recentAdIDs, err := s.listRecentlySeenPromotedAdIDs(viewerID, promotedAdPlacementChannelsFeed, time.Now().Add(-cooldownDuration))
+		if err != nil {
+			return nil, err
+		}
+		if len(recentAdIDs) > 0 {
+			query = query.Where("id NOT IN ?", recentAdIDs)
+		}
+	}
+
+	if viewerCity != "" {
+		query = query.Order(clause.Expr{
+			SQL:  "CASE WHEN LOWER(city) = LOWER(?) THEN 0 ELSE 1 END",
+			Vars: []interface{}{viewerCity},
+		})
 	}
 
 	var ads []models.Ad
@@ -962,7 +1030,51 @@ func (s *ChannelService) loadPromotedAds(viewerID uint, limit int) ([]models.Cha
 		})
 	}
 
+	if viewerID > 0 && len(result) > 0 {
+		if err := s.savePromotedAdImpressions(viewerID, promotedAdPlacementChannelsFeed, result); err != nil {
+			log.Printf("[Channels] failed to save promoted ad impressions: %v", err)
+		}
+	}
+
 	return result, nil
+}
+
+func (s *ChannelService) countPromotedAdImpressions(userID uint, placement string, since time.Time) (int, error) {
+	var count int64
+	err := s.db.Model(&models.ChannelPromotedAdImpression{}).
+		Where("user_id = ? AND placement = ? AND created_at >= ?", userID, placement, since).
+		Count(&count).Error
+	return int(count), err
+}
+
+func (s *ChannelService) listRecentlySeenPromotedAdIDs(userID uint, placement string, since time.Time) ([]uint, error) {
+	var ids []uint
+	if err := s.db.Model(&models.ChannelPromotedAdImpression{}).
+		Where("user_id = ? AND placement = ? AND created_at >= ?", userID, placement, since).
+		Distinct("ad_id").
+		Pluck("ad_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *ChannelService) savePromotedAdImpressions(userID uint, placement string, ads []models.ChannelPromotedAd) error {
+	if userID == 0 || len(ads) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	rows := make([]models.ChannelPromotedAdImpression, 0, len(ads))
+	for _, ad := range ads {
+		rows = append(rows, models.ChannelPromotedAdImpression{
+			UserID:    userID,
+			AdID:      ad.ID,
+			Placement: placement,
+			CreatedAt: now,
+		})
+	}
+
+	return s.db.Create(&rows).Error
 }
 
 func (s *ChannelService) CreateShowcase(channelID, actorID uint, req models.ChannelShowcaseCreateRequest) (*models.ChannelShowcase, error) {
@@ -1195,6 +1307,47 @@ func (s *ChannelService) getSystemSettingValue(key, fallback string) string {
 	return fallback
 }
 
+func (s *ChannelService) getPromotedAdDailyCap() int {
+	value := parseChannelIntWithDefault(
+		s.getSystemSettingValue("CHANNELS_PROMOTED_DAILY_CAP", strconv.Itoa(defaultPromotedAdDailyCap)),
+		defaultPromotedAdDailyCap,
+	)
+	return clampChannelInt(value, 0, 50)
+}
+
+func (s *ChannelService) getPromotedAdCooldownDuration() time.Duration {
+	hours := parseChannelIntWithDefault(
+		s.getSystemSettingValue("CHANNELS_PROMOTED_AD_COOLDOWN_HOURS", strconv.Itoa(defaultPromotedAdCooldownHours)),
+		defaultPromotedAdCooldownHours,
+	)
+	hours = clampChannelInt(hours, 1, 168)
+	return time.Duration(hours) * time.Hour
+}
+
+func (s *ChannelService) getPromotedInsertEvery() int {
+	value := parseChannelIntWithDefault(
+		s.getSystemSettingValue("CHANNELS_PROMOTED_INSERT_EVERY", strconv.Itoa(defaultPromotedInsertEvery)),
+		defaultPromotedInsertEvery,
+	)
+	return clampChannelInt(value, 2, 20)
+}
+
+func computePromotedFetchLimit(feedLimit int, insertEvery int) int {
+	if feedLimit <= 0 {
+		feedLimit = 20
+	}
+	insertEvery = clampChannelInt(insertEvery, 2, 20)
+
+	limit := int(math.Ceil(float64(feedLimit) / float64(insertEvery)))
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > 10 {
+		limit = 10
+	}
+	return limit
+}
+
 func (s *ChannelService) listChannels(baseQuery *gorm.DB, filters ChannelListFilters) (*models.ChannelListResponse, error) {
 	page := filters.Page
 	if page < 1 {
@@ -1290,6 +1443,16 @@ func parseChannelIntWithDefault(raw string, fallback int) int {
 	return value
 }
 
+func clampChannelInt(value, minValue, maxValue int) int {
+	if value < minValue {
+		return minValue
+	}
+	if value > maxValue {
+		return maxValue
+	}
+	return value
+}
+
 func parseUintAllowlist(raw string) map[uint]struct{} {
 	result := make(map[uint]struct{})
 	for _, token := range strings.Split(raw, ",") {
@@ -1304,6 +1467,28 @@ func parseUintAllowlist(raw string) map[uint]struct{} {
 		result[uint(value)] = struct{}{}
 	}
 	return result
+}
+
+func isUserEnabledByRollout(userID uint, denylist map[uint]struct{}, allowlist map[uint]struct{}, rolloutPercent int) bool {
+	if len(denylist) > 0 {
+		if _, blocked := denylist[userID]; blocked {
+			return false
+		}
+	}
+	if len(allowlist) > 0 {
+		_, ok := allowlist[userID]
+		return ok
+	}
+	if rolloutPercent >= 100 {
+		return true
+	}
+	if rolloutPercent <= 0 {
+		return false
+	}
+	if userID == 0 {
+		return false
+	}
+	return int(userID%100) < rolloutPercent
 }
 
 func normalizePromptKey(raw string) string {
@@ -1386,6 +1571,36 @@ func validateChannelCTAPayload(ctaType models.ChannelPostCTAType, payload string
 	default:
 		return errors.New("invalid ctaType")
 	}
+}
+
+func validatePostUpdatePermission(role models.ChannelMemberRole, actorID uint, post *models.ChannelPost) error {
+	if role != models.ChannelMemberRoleEditor {
+		return nil
+	}
+	if post.AuthorID != actorID {
+		return ErrChannelForbidden
+	}
+	if post.Status != models.ChannelPostStatusDraft {
+		return errors.New("editor can only edit draft posts")
+	}
+	return nil
+}
+
+func validateSchedulePostRequest(status models.ChannelPostStatus, scheduledAt time.Time) error {
+	if scheduledAt.IsZero() {
+		return errors.New("scheduledAt is required")
+	}
+	if status == models.ChannelPostStatusPublished {
+		return errors.New("published post cannot be scheduled")
+	}
+	return nil
+}
+
+func validatePinPostStatus(status models.ChannelPostStatus) error {
+	if status != models.ChannelPostStatusPublished {
+		return errors.New("only published posts can be pinned")
+	}
+	return nil
 }
 
 func extractPositiveUint(value interface{}) (uint, bool) {

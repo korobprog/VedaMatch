@@ -572,10 +572,20 @@ func (s *PathTrackerService) GetToday(userID uint) (*TodayView, error) {
 	}
 
 	var checkin models.DailyCheckin
-	hasCheckin := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&checkin).Error == nil
+	hasCheckin := false
+	if err := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&checkin).Error; err == nil {
+		hasCheckin = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
 
 	var step models.DailyStep
-	hasStep := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&step).Error == nil
+	hasStep := false
+	if err := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&step).Error; err == nil {
+		hasStep = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
 
 	state := s.ensureState(userID)
 	phase := strings.TrimSpace(state.TrajectoryPhase)
@@ -623,7 +633,9 @@ func (s *PathTrackerService) GetToday(userID uint) (*TodayView, error) {
 		}
 		s.ensureViewedEvent(step.ID)
 		var reflectionCount int64
-		s.db.Model(&models.DailyStepEvent{}).Where("daily_step_id = ? AND event_type = ?", step.ID, "reflected").Count(&reflectionCount)
+		if err := s.db.Model(&models.DailyStepEvent{}).Where("daily_step_id = ? AND event_type = ?", step.ID, "reflected").Count(&reflectionCount).Error; err != nil {
+			return nil, err
+		}
 		view.HasReflection = reflectionCount > 0
 	}
 
@@ -781,7 +793,10 @@ func (s *PathTrackerService) CompleteStep(userID uint, stepID uint) (*DailyStepV
 	var step models.DailyStep
 	if stepID > 0 {
 		if err := s.db.Where("id = ? AND user_id = ?", stepID, userID).First(&step).Error; err != nil {
-			return nil, ErrStepNotFound
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrStepNotFound
+			}
+			return nil, err
 		}
 	} else {
 		_, dateLocal, _, err := s.resolveUserAndDate(userID, "")
@@ -789,7 +804,10 @@ func (s *PathTrackerService) CompleteStep(userID uint, stepID uint) (*DailyStepV
 			return nil, err
 		}
 		if err := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&step).Error; err != nil {
-			return nil, ErrStepNotFound
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrStepNotFound
+			}
+			return nil, err
 		}
 	}
 
@@ -831,7 +849,10 @@ func (s *PathTrackerService) CompleteStep(userID uint, stepID uint) (*DailyStepV
 func (s *PathTrackerService) ReflectStep(userID, stepID uint, resultMood, reflectionText string) (string, error) {
 	var step models.DailyStep
 	if err := s.db.Where("id = ? AND user_id = ?", stepID, userID).First(&step).Error; err != nil {
-		return "", ErrStepNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrStepNotFound
+		}
+		return "", err
 	}
 	payload := map[string]any{
 		"resultMood": strings.TrimSpace(strings.ToLower(resultMood)),
@@ -846,7 +867,10 @@ func (s *PathTrackerService) ReflectStep(userID, stepID uint, resultMood, reflec
 func (s *PathTrackerService) AssistantHelp(userID, stepID uint, requestType, message string) (*AssistantResult, error) {
 	var step models.DailyStep
 	if err := s.db.Where("id = ? AND user_id = ?", stepID, userID).First(&step).Error; err != nil {
-		return nil, ErrStepNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStepNotFound
+		}
+		return nil, err
 	}
 	var content StepContent
 	_ = json.Unmarshal([]byte(step.ContentJSON), &content)

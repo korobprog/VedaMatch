@@ -265,6 +265,11 @@ func (h *AdsHandler) GetAd(c *fiber.Ctx) error {
 
 	var ad models.Ad
 	if err := database.DB.Preload("Photos").Preload("User").First(&ad, adID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch ad",
+			})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Ad not found",
 		})
@@ -444,6 +449,11 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 
 	var ad models.Ad
 	if err := database.DB.First(&ad, adID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch ad",
+			})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Ad not found",
 		})
@@ -597,6 +607,11 @@ func (h *AdsHandler) DeleteAd(c *fiber.Ctx) error {
 
 	var ad models.Ad
 	if err := database.DB.First(&ad, adID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch ad",
+			})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Ad not found",
 		})
@@ -1212,6 +1227,9 @@ func (h *AdsHandler) UpdateAdStatus(c *fiber.Ctx) error {
 
 	var ad models.Ad
 	if err := database.DB.First(&ad, adID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch ad"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 
@@ -1257,6 +1275,9 @@ func (h *AdsHandler) AdminUpdateAd(c *fiber.Ctx) error {
 
 	var ad models.Ad
 	if err := database.DB.First(&ad, adID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch ad"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 
@@ -1308,6 +1329,9 @@ func (h *AdsHandler) AdminDeleteAd(c *fiber.Ctx) error {
 
 	var ad models.Ad
 	if err := database.DB.First(&ad, adID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch ad"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 

@@ -449,7 +449,10 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 	}
 
 	// Reload with source
-	database.DB.Preload("Source").First(&newsItem, id)
+	if err := database.DB.Preload("Source").First(&newsItem, id).Error; err != nil {
+		log.Printf("[ADMIN NEWS] Error reloading news %d after update: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to reload updated news"})
+	}
 
 	log.Printf("[ADMIN NEWS] Updated news item ID: %d", id)
 	return c.JSON(newsItem)
@@ -510,7 +513,10 @@ func (h *NewsHandler) PublishNews(c *fiber.Ctx) error {
 	}
 
 	// Reload the news item to get updated data
-	database.DB.First(&newsItem, id)
+	if err := database.DB.First(&newsItem, id).Error; err != nil {
+		log.Printf("[ADMIN NEWS] Error reloading news %d after publish: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to reload published news"})
+	}
 
 	// Send push notification for important news
 	if newsItem.IsImportant {
@@ -783,7 +789,10 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 	}
 
 	// Reload
-	database.DB.First(&source, id)
+	if err := database.DB.First(&source, id).Error; err != nil {
+		log.Printf("[ADMIN NEWS] Error reloading source %d after update: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to reload updated source"})
+	}
 
 	log.Printf("[ADMIN NEWS] Updated source ID: %d", id)
 	return c.JSON(source)
