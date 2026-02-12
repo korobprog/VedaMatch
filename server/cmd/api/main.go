@@ -957,7 +957,7 @@ func main() {
 	app.Static("/uploads", "./uploads")
 
 	// Start Server
-	port := resolveListenPort("8000")
+	port := resolveListenPort("8081")
 	log.Printf("Server starting on port %s", port)
 	log.Fatal(app.Listen(port))
 }
