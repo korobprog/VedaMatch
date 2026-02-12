@@ -134,8 +134,22 @@ export interface ChannelSchedulePostRequest {
   scheduledAt: string;
 }
 
+export interface ChannelPromotedAd {
+  id: number;
+  title: string;
+  description: string;
+  city: string;
+  price?: number;
+  currency: string;
+  isFree: boolean;
+  userId: number;
+  photoUrl?: string;
+  createdAt: string;
+}
+
 export interface ChannelFeedResponse {
   posts: ChannelPost[];
+  promotedAds?: ChannelPromotedAd[];
   total: number;
   page: number;
   limit: number;

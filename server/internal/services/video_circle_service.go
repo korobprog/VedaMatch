@@ -178,6 +178,13 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 
 	now := time.Now()
 	query := s.db.Model(&models.VideoCircle{}).Joins("JOIN users ON users.id = video_circles.author_id")
+	if params.ChannelID != nil {
+		channelService := NewChannelService()
+		if _, err := channelService.GetChannelByID(*params.ChannelID, userID); err != nil {
+			return nil, err
+		}
+		query = query.Where("video_circles.channel_id = ?", *params.ChannelID)
+	}
 
 	status := strings.TrimSpace(strings.ToLower(params.Status))
 	if status == "" {
@@ -199,42 +206,44 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 	}
 
 	allowAllMatha := user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)
-	normalizedRoleScope := normalizePortalRoleScope(params.RoleScope)
-	if allowAllMatha {
-		if len(normalizedRoleScope) > 0 {
-			query = query.Where("LOWER(users.role) IN ?", normalizedRoleScope)
-		}
-	} else {
-		if len(normalizedRoleScope) == 0 {
-			if normalizedUserRole := strings.ToLower(strings.TrimSpace(user.Role)); normalizedUserRole != "" {
-				normalizedRoleScope = []string{normalizedUserRole}
+	if params.ChannelID == nil {
+		normalizedRoleScope := normalizePortalRoleScope(params.RoleScope)
+		if allowAllMatha {
+			if len(normalizedRoleScope) > 0 {
+				query = query.Where("LOWER(users.role) IN ?", normalizedRoleScope)
+			}
+		} else {
+			if len(normalizedRoleScope) == 0 {
+				if normalizedUserRole := strings.ToLower(strings.TrimSpace(user.Role)); normalizedUserRole != "" {
+					normalizedRoleScope = []string{normalizedUserRole}
+				}
+			}
+			if len(normalizedRoleScope) > 0 {
+				query = query.Where("LOWER(users.role) IN ?", normalizedRoleScope)
 			}
 		}
-		if len(normalizedRoleScope) > 0 {
-			query = query.Where("LOWER(users.role) IN ?", normalizedRoleScope)
-		}
-	}
 
-	if allowAllMatha {
-		matha := strings.TrimSpace(params.Matha)
-		if matha != "" {
-			query = query.Where("matha = ?", matha)
-		}
-	} else {
-		if user.Madh != "" {
-			query = query.Where("matha = ?", user.Madh)
+		if allowAllMatha {
+			matha := strings.TrimSpace(params.Matha)
+			if matha != "" {
+				query = query.Where("matha = ?", matha)
+			}
 		} else {
-			// Profile without matha cannot access multi-matha feed by query override.
-			query = query.Where("1 = 0")
+			if user.Madh != "" {
+				query = query.Where("matha = ?", user.Madh)
+			} else {
+				// Profile without matha cannot access multi-matha feed by query override.
+				query = query.Where("1 = 0")
+			}
 		}
-	}
 
-	scope := strings.ToLower(strings.TrimSpace(params.Scope))
-	if scope == "friends" {
-		query = query.Where(
-			"video_circles.author_id IN (?)",
-			s.db.Model(&models.Friend{}).Select("friend_id").Where("user_id = ?", userID),
-		)
+		scope := strings.ToLower(strings.TrimSpace(params.Scope))
+		if scope == "friends" {
+			query = query.Where(
+				"video_circles.author_id IN (?)",
+				s.db.Model(&models.Friend{}).Select("friend_id").Where("user_id = ?", userID),
+			)
+		}
 	}
 
 	sort := strings.TrimSpace(strings.ToLower(params.Sort))
@@ -267,6 +276,7 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		items = append(items, models.VideoCircleResponse{
 			ID:                 c.ID,
 			AuthorID:           c.AuthorID,
+			ChannelID:          c.ChannelID,
 			MediaURL:           c.MediaURL,
 			ThumbnailURL:       c.ThumbnailURL,
 			City:               c.City,
@@ -366,9 +376,25 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 	if matha == "" {
 		return nil, errors.New("matha is required")
 	}
+	var channelID *uint
+	if req.ChannelID != nil {
+		channelService := NewChannelService()
+		if !channelService.IsFeatureEnabledForUser(userID) {
+			return nil, ErrChannelsDisabled
+		}
+		channel, role, err := channelService.requireRole(*req.ChannelID, userID, models.ChannelMemberRoleEditor)
+		if err != nil {
+			return nil, err
+		}
+		if rankRole(role) < rankRole(models.ChannelMemberRoleEditor) {
+			return nil, ErrChannelForbidden
+		}
+		channelID = &channel.ID
+	}
 
 	circle := models.VideoCircle{
 		AuthorID:           userID,
+		ChannelID:          channelID,
 		MediaURL:           mediaURL,
 		ThumbnailURL:       thumbnailURL,
 		City:               city,
@@ -392,6 +418,7 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 	return &models.VideoCircleResponse{
 		ID:                 circle.ID,
 		AuthorID:           circle.AuthorID,
+		ChannelID:          circle.ChannelID,
 		MediaURL:           circle.MediaURL,
 		ThumbnailURL:       circle.ThumbnailURL,
 		City:               circle.City,
@@ -439,6 +466,7 @@ func (s *VideoCircleService) ListMyCircles(userID uint, page, limit int) (*model
 		items = append(items, models.VideoCircleResponse{
 			ID:                 c.ID,
 			AuthorID:           c.AuthorID,
+			ChannelID:          c.ChannelID,
 			MediaURL:           c.MediaURL,
 			ThumbnailURL:       c.ThumbnailURL,
 			City:               c.City,
@@ -551,6 +579,7 @@ func (s *VideoCircleService) UpdateCircle(circleID, userID uint, role string, re
 	return &models.VideoCircleResponse{
 		ID:                 circle.ID,
 		AuthorID:           circle.AuthorID,
+		ChannelID:          circle.ChannelID,
 		MediaURL:           circle.MediaURL,
 		ThumbnailURL:       circle.ThumbnailURL,
 		City:               circle.City,
@@ -615,6 +644,7 @@ func (s *VideoCircleService) RepublishCircle(circleID, userID uint, role string,
 	return &models.VideoCircleResponse{
 		ID:                 circle.ID,
 		AuthorID:           circle.AuthorID,
+		ChannelID:          circle.ChannelID,
 		MediaURL:           circle.MediaURL,
 		ThumbnailURL:       circle.ThumbnailURL,
 		City:               circle.City,
@@ -676,6 +706,10 @@ func (s *VideoCircleService) AddInteraction(circleID, userID uint, req models.Vi
 					Value:    1,
 				}
 				if err := tx.Create(&newRecord).Error; err != nil {
+					if isDuplicateKeyErrorVideoCircle(err) {
+						likedByUser = true
+						return nil
+					}
 					return err
 				}
 				if err := tx.Model(&circle).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
@@ -794,7 +828,7 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 		}
 		if !success && boostApplied {
 			rollbackUpdates := map[string]interface{}{
-				"expires_at":          prevExpiresAt,
+				"expires_at":           prevExpiresAt,
 				"premium_boost_active": prevPremiumBoost,
 			}
 			if err := s.db.Model(&models.VideoCircle{}).Where("id = ?", circleID).Updates(rollbackUpdates).Error; err != nil {

@@ -263,7 +263,10 @@ func (s *MultimediaService) GetRadioStations(madh string) ([]models.RadioStation
 func (s *MultimediaService) GetRadioStationByID(id uint) (*models.RadioStation, error) {
 	var station models.RadioStation
 	err := s.db.First(&station, id).Error
-	return &station, err
+	if err != nil {
+		return nil, err
+	}
+	return &station, nil
 }
 
 func (s *MultimediaService) CreateRadioStation(station *models.RadioStation) error {
@@ -351,7 +354,10 @@ func (s *MultimediaService) GetTVChannels(madh string) ([]models.TVChannel, erro
 func (s *MultimediaService) GetTVChannelByID(id uint) (*models.TVChannel, error) {
 	var channel models.TVChannel
 	err := s.db.First(&channel, id).Error
-	return &channel, err
+	if err != nil {
+		return nil, err
+	}
+	return &channel, nil
 }
 
 func (s *MultimediaService) CreateTVChannel(channel *models.TVChannel) error {

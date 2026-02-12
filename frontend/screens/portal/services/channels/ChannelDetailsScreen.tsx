@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -19,6 +20,7 @@ import { marketService } from '../../../../services/marketService';
 import { getServiceById, getServices } from '../../../../services/serviceService';
 import type { Product } from '../../../../types/market';
 import type { Service } from '../../../../services/serviceService';
+import { VideoCircle, videoCirclesService } from '../../../../services/videoCirclesService';
 import { useSettings } from '../../../../context/SettingsContext';
 import { useUser } from '../../../../context/UserContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
@@ -33,6 +35,7 @@ type RouteParams = {
 const canEditPosts = (role?: ChannelMemberRole) => role === 'owner' || role === 'admin' || role === 'editor';
 const canModeratePosts = (role?: ChannelMemberRole) => role === 'owner' || role === 'admin';
 const MAX_SHOWCASE_PREVIEW_ITEMS = 4;
+const CHANNEL_PROMPT_KEY = 'channels_channel_details_tip_v1';
 
 type ShowcaseFilterPayload = {
   category?: string;
@@ -87,9 +90,12 @@ export default function ChannelDetailsScreen() {
   const [viewerRole, setViewerRole] = useState<ChannelMemberRole | undefined>(undefined);
   const [posts, setPosts] = useState<ChannelPost[]>([]);
   const [showcases, setShowcases] = useState<ChannelShowcase[]>([]);
+  const [channelStories, setChannelStories] = useState<VideoCircle[]>([]);
   const [showcaseProducts, setShowcaseProducts] = useState<Record<number, Product[]>>({});
   const [showcaseServices, setShowcaseServices] = useState<Record<number, Service[]>>({});
   const [showcaseLoading, setShowcaseLoading] = useState(false);
+  const [storiesLoading, setStoriesLoading] = useState(false);
+  const [showGuidePrompt, setShowGuidePrompt] = useState(false);
   const [includeDraft, setIncludeDraft] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -119,6 +125,7 @@ export default function ChannelDetailsScreen() {
     } else {
       setLoading(true);
     }
+    setStoriesLoading(true);
 
     try {
       const channelResponse = await channelService.getChannel(channelId);
@@ -130,9 +137,18 @@ export default function ChannelDetailsScreen() {
         setViewerRole(channelResponse.viewerRole);
       }
 
-      const [postsResponse, showcasesResponse] = await Promise.all([
+      const [postsResponse, showcasesResponse, storiesResponse, promptStatus] = await Promise.all([
         channelService.listPosts(channelId, { page: 1, limit: 100, includeDraft }),
         channelService.listShowcases(channelId),
+        videoCirclesService
+          .getVideoCircles({
+            channelId,
+            status: 'active',
+            limit: 20,
+            sort: 'newest',
+          })
+          .catch(() => ({ circles: [], total: 0, page: 1, limit: 20, totalPages: 1 })),
+        channelService.getPromptStatus([CHANNEL_PROMPT_KEY]).catch(() => ({ [CHANNEL_PROMPT_KEY]: false })),
       ]);
 
       if (!mountedRef.current || reqId !== latestLoadRef.current) {
@@ -144,6 +160,8 @@ export default function ChannelDetailsScreen() {
         setViewerRole(postsResponse.viewerRole);
       }
       setShowcases(showcasesResponse.showcases || []);
+      setChannelStories(storiesResponse.circles || []);
+      setShowGuidePrompt(!promptStatus[CHANNEL_PROMPT_KEY]);
     } catch (error: any) {
       console.error('[ChannelDetails] Failed to load channel:', error);
       if (mountedRef.current && reqId === latestLoadRef.current) {
@@ -153,6 +171,7 @@ export default function ChannelDetailsScreen() {
       if (mountedRef.current && reqId === latestLoadRef.current) {
         setLoading(false);
         setRefreshing(false);
+        setStoriesLoading(false);
       }
     }
   }, [channelId, includeDraft]);
@@ -268,6 +287,11 @@ export default function ChannelDetailsScreen() {
     }
     void loadData(true);
   };
+
+  const dismissGuidePrompt = useCallback(() => {
+    setShowGuidePrompt(false);
+    void channelService.dismissPrompt(CHANNEL_PROMPT_KEY).catch(() => {});
+  }, []);
 
   const isEditor = canEditPosts(viewerRole);
   const isModerator = canModeratePosts(viewerRole);
@@ -429,6 +453,60 @@ export default function ChannelDetailsScreen() {
               <Text style={styles.crmButtonText}>Открыть CRM-заказы канала</Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+
+        {showGuidePrompt ? (
+          <View style={styles.promptBanner}>
+            <Text style={styles.promptBannerText}>
+              Подсказка: закрепите ключевой пост и добавьте CTA "Купить" или "Записаться", чтобы вести человека до заказа.
+            </Text>
+            <TouchableOpacity style={styles.promptBannerAction} onPress={dismissGuidePrompt}>
+              <Text style={styles.promptBannerActionText}>Скрыть</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <View style={styles.storiesSection}>
+          <View style={styles.storiesHeaderRow}>
+            <Text style={styles.storiesTitle}>Кружки канала</Text>
+            {storiesLoading ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Text style={styles.storiesCount}>{channelStories.length}</Text>
+            )}
+          </View>
+
+          {channelStories.length > 0 ? (
+            <View style={styles.storiesRow}>
+              {channelStories.slice(0, 5).map(story => (
+                <TouchableOpacity
+                  key={story.id}
+                  style={styles.storyChip}
+                  onPress={() => navigation.navigate('VideoCirclesScreen', { channelId })}
+                >
+                  {story.thumbnailUrl ? (
+                    <Image source={{ uri: story.thumbnailUrl }} style={styles.storyThumb} />
+                  ) : (
+                    <View style={styles.storyThumbPlaceholder}>
+                      <Text style={styles.storyThumbPlaceholderText}>▶</Text>
+                    </View>
+                  )}
+                  <Text style={styles.storyLabel} numberOfLines={1}>
+                    #{story.id}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.storiesEmpty}>Пока нет активных кружков</Text>
+          )}
+
+          <TouchableOpacity
+            style={styles.storiesAction}
+            onPress={() => navigation.navigate('VideoCirclesScreen', { channelId })}
+          >
+            <Text style={styles.storiesActionText}>Открыть все кружки канала</Text>
+          </TouchableOpacity>
         </View>
 
         {isEditor ? (
@@ -638,6 +716,117 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       paddingVertical: 7,
     },
     crmButtonText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    promptBanner: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      padding: 10,
+      gap: 8,
+    },
+    promptBannerText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    promptBannerAction: {
+      alignSelf: 'flex-start',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      backgroundColor: colors.surface,
+    },
+    promptBannerActionText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    storiesSection: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 10,
+      gap: 8,
+    },
+    storiesHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    storiesTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    storiesCount: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    storiesRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    storyChip: {
+      width: 64,
+      alignItems: 'center',
+      gap: 4,
+    },
+    storyThumb: {
+      width: 56,
+      height: 56,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+    },
+    storyThumbPlaceholder: {
+      width: 56,
+      height: 56,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceElevated,
+    },
+    storyThumbPlaceholderText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    storyLabel: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      textAlign: 'center',
+    },
+    storiesEmpty: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    storiesAction: {
+      marginTop: 2,
+      alignSelf: 'flex-start',
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    storiesActionText: {
       color: colors.accent,
       fontSize: 12,
       fontWeight: '700',

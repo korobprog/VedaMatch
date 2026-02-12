@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AdminHandler struct{}
@@ -84,6 +86,9 @@ func (h *AdminHandler) ToggleBlockUser(c *fiber.Ctx) error {
 	userID := c.Params("id")
 	var user models.User
 	if err := database.DB.First(&user, userID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch user"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
@@ -593,7 +598,7 @@ func (h *AdminHandler) GetUserWallet(c *fiber.Ctx) error {
 	walletService := services.NewWalletService()
 	wallet, err := walletService.GetBalance(uint(userID))
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Wallet not found"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch wallet"})
 	}
 
 	return c.JSON(wallet)

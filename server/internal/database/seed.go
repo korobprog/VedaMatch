@@ -107,6 +107,14 @@ func SeedSystemSettings() {
 			Key:   "CHANNELS_V1_ENABLED",
 			Value: "true",
 		},
+		{
+			Key:   "CHANNELS_V1_ROLLOUT_PERCENT",
+			Value: "100",
+		},
+		{
+			Key:   "CHANNELS_V1_ROLLOUT_ALLOWLIST",
+			Value: "",
+		},
 	}
 
 	for _, s := range settings {

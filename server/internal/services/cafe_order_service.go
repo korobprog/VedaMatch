@@ -667,7 +667,14 @@ func (s *CafeOrderService) UpdateItemStatus(itemID uint, status string) error {
 		now := time.Now()
 		updates["prepared_at"] = &now
 	}
-	return s.db.Model(&models.CafeOrderItem{}).Where("id = ?", itemID).Updates(updates).Error
+	result := s.db.Model(&models.CafeOrderItem{}).Where("id = ?", itemID).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ===== Stats =====

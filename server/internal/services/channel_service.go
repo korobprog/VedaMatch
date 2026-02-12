@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"rag-agent-server/internal/database"
@@ -14,6 +15,7 @@ import (
 	"unicode"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ChannelService struct {
@@ -58,6 +60,31 @@ func (s *ChannelService) IsFeatureEnabled() bool {
 		return true
 	}
 	return parseBoolWithDefault(envValue, true)
+}
+
+func (s *ChannelService) IsFeatureEnabledForUser(userID uint) bool {
+	if !s.IsFeatureEnabled() {
+		return false
+	}
+
+	allowlist := parseUintAllowlist(s.getSystemSettingValue("CHANNELS_V1_ROLLOUT_ALLOWLIST", ""))
+	if len(allowlist) > 0 {
+		_, ok := allowlist[userID]
+		return ok
+	}
+
+	rolloutPercent := parseChannelIntWithDefault(s.getSystemSettingValue("CHANNELS_V1_ROLLOUT_PERCENT", "100"), 100)
+	if rolloutPercent >= 100 {
+		return true
+	}
+	if rolloutPercent <= 0 {
+		return false
+	}
+	if userID == 0 {
+		return false
+	}
+
+	return int(userID%100) < rolloutPercent
 }
 
 func (s *ChannelService) CreateChannel(ownerID uint, req models.ChannelCreateRequest) (*models.Channel, error) {
@@ -553,6 +580,9 @@ func (s *ChannelService) PublishPost(channelID, postID, actorID uint) (*models.C
 	if err != nil {
 		return nil, err
 	}
+	if post.Status == models.ChannelPostStatusPublished {
+		return post, nil
+	}
 	if err := validateChannelCTAPayload(post.CTAType, post.CTAPayloadJSON); err != nil {
 		return nil, err
 	}
@@ -570,6 +600,9 @@ func (s *ChannelService) PublishPost(channelID, postID, actorID uint) (*models.C
 
 	if err := s.db.Preload("Author").Preload("Channel").First(post, post.ID).Error; err != nil {
 		return nil, err
+	}
+	if err := GetMetricsService().Increment(MetricChannelPostsPublishedTotal, 1); err != nil {
+		log.Printf("[Channels] metric increment failed (%s): %v", MetricChannelPostsPublishedTotal, err)
 	}
 	return post, nil
 }
@@ -606,6 +639,9 @@ func (s *ChannelService) SchedulePost(channelID, postID, actorID uint, scheduled
 
 	if err := s.db.Preload("Author").Preload("Channel").First(post, post.ID).Error; err != nil {
 		return nil, err
+	}
+	if err := GetMetricsService().Increment(MetricChannelPostsScheduledTotal, 1); err != nil {
+		log.Printf("[Channels] metric increment failed (%s): %v", MetricChannelPostsScheduledTotal, err)
 	}
 	return post, nil
 }
@@ -704,7 +740,109 @@ func (s *ChannelService) PublishDuePosts(limit int) (int, error) {
 		return 0, err
 	}
 
+	if err := GetMetricsService().Increment(MetricChannelPostsPublishedTotal, int64(len(ids))); err != nil {
+		log.Printf("[Channels] metric increment failed (%s): %v", MetricChannelPostsPublishedTotal, err)
+	}
+
 	return len(ids), nil
+}
+
+func (s *ChannelService) TrackCTAClick(channelID, postID, viewerID uint) error {
+	post, _, err := s.loadPost(channelID, postID)
+	if err != nil {
+		return err
+	}
+	if post.Status != models.ChannelPostStatusPublished {
+		return ErrInvalidPostStatus
+	}
+
+	if _, err := s.GetChannelByID(channelID, viewerID); err != nil {
+		return err
+	}
+
+	if err := GetMetricsService().Increment(MetricChannelCTAClickTotal, 1); err != nil {
+		log.Printf("[Channels] metric increment failed (%s): %v", MetricChannelCTAClickTotal, err)
+	}
+	return nil
+}
+
+func (s *ChannelService) GetMetricsSnapshot() (map[string]int64, error) {
+	return GetMetricsService().Snapshot([]string{
+		MetricChannelPostsPublishedTotal,
+		MetricChannelPostsScheduledTotal,
+		MetricChannelCTAClickTotal,
+		MetricOrdersFromChannelTotal,
+		MetricBookingsFromChannelTotal,
+	})
+}
+
+func (s *ChannelService) DismissPrompt(userID uint, promptKey string, postID *uint) error {
+	if userID == 0 {
+		return errors.New("user is required")
+	}
+
+	normalizedKey := normalizePromptKey(promptKey)
+	if normalizedKey == "" {
+		return errors.New("promptKey is required")
+	}
+
+	entry := models.UserDismissedPrompt{
+		UserID:      userID,
+		PromptKey:   normalizedKey,
+		PostID:      postID,
+		DismissedAt: time.Now(),
+	}
+
+	return s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "user_id"},
+			{Name: "prompt_key"},
+		},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"post_id":      postID,
+			"dismissed_at": entry.DismissedAt,
+			"updated_at":   entry.DismissedAt,
+		}),
+	}).Create(&entry).Error
+}
+
+func (s *ChannelService) GetPromptDismissStatus(userID uint, promptKeys []string) (map[string]bool, error) {
+	status := make(map[string]bool)
+	if userID == 0 {
+		return status, errors.New("user is required")
+	}
+
+	normalized := make([]string, 0, len(promptKeys))
+	seen := make(map[string]struct{}, len(promptKeys))
+	for _, key := range promptKeys {
+		normalizedKey := normalizePromptKey(key)
+		if normalizedKey == "" {
+			continue
+		}
+		if _, exists := seen[normalizedKey]; exists {
+			continue
+		}
+		seen[normalizedKey] = struct{}{}
+		normalized = append(normalized, normalizedKey)
+		status[normalizedKey] = false
+	}
+
+	if len(normalized) == 0 {
+		return status, nil
+	}
+
+	var dismissed []models.UserDismissedPrompt
+	if err := s.db.Select("prompt_key").
+		Where("user_id = ? AND prompt_key IN ?", userID, normalized).
+		Find(&dismissed).Error; err != nil {
+		return nil, err
+	}
+
+	for _, item := range dismissed {
+		status[item.PromptKey] = true
+	}
+
+	return status, nil
 }
 
 func (s *ChannelService) GetFeed(filters ChannelFeedFilters) (*models.ChannelFeedResponse, error) {
@@ -764,14 +902,67 @@ func (s *ChannelService) GetFeed(filters ChannelFeedFilters) (*models.ChannelFee
 	if totalPages == 0 {
 		totalPages = 1
 	}
+	promotedAds, err := s.loadPromotedAds(filters.ViewerID, 2)
+	if err != nil {
+		log.Printf("[Channels] failed to load promoted ads: %v", err)
+		promotedAds = nil
+	}
 
 	return &models.ChannelFeedResponse{
-		Posts:      posts,
-		Total:      total,
-		Page:       filters.Page,
-		Limit:      filters.Limit,
-		TotalPages: totalPages,
+		Posts:       posts,
+		PromotedAds: promotedAds,
+		Total:       total,
+		Page:        filters.Page,
+		Limit:       filters.Limit,
+		TotalPages:  totalPages,
 	}, nil
+}
+
+func (s *ChannelService) loadPromotedAds(viewerID uint, limit int) ([]models.ChannelPromotedAd, error) {
+	if limit <= 0 {
+		return []models.ChannelPromotedAd{}, nil
+	}
+
+	query := s.db.Model(&models.Ad{}).
+		Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order("position ASC").Limit(1)
+		}).
+		Where("status = ? AND category = ?", models.AdStatusActive, models.AdCategoryServices).
+		Order("views_count DESC").
+		Order("created_at DESC").
+		Limit(limit)
+
+	if viewerID > 0 {
+		query = query.Where("user_id <> ?", viewerID)
+	}
+
+	var ads []models.Ad
+	if err := query.Find(&ads).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]models.ChannelPromotedAd, 0, len(ads))
+	for _, ad := range ads {
+		photoURL := ""
+		if len(ad.Photos) > 0 {
+			photoURL = ad.Photos[0].PhotoURL
+		}
+
+		result = append(result, models.ChannelPromotedAd{
+			ID:          ad.ID,
+			Title:       ad.Title,
+			Description: ad.Description,
+			City:        ad.City,
+			Price:       ad.Price,
+			Currency:    ad.Currency,
+			IsFree:      ad.IsFree,
+			UserID:      ad.UserID,
+			PhotoURL:    photoURL,
+			CreatedAt:   ad.CreatedAt,
+		})
+	}
+
+	return result, nil
 }
 
 func (s *ChannelService) CreateShowcase(channelID, actorID uint, req models.ChannelShowcaseCreateRequest) (*models.ChannelShowcase, error) {
@@ -996,6 +1187,14 @@ func (s *ChannelService) makeUniqueSlug(inputSlug, title string, excludeChannelI
 	return "", errors.New("failed to generate unique slug")
 }
 
+func (s *ChannelService) getSystemSettingValue(key, fallback string) string {
+	var setting models.SystemSetting
+	if err := s.db.Where("key = ?", key).First(&setting).Error; err == nil {
+		return strings.TrimSpace(setting.Value)
+	}
+	return fallback
+}
+
 func (s *ChannelService) listChannels(baseQuery *gorm.DB, filters ChannelListFilters) (*models.ChannelListResponse, error) {
 	page := filters.Page
 	if page < 1 {
@@ -1079,6 +1278,45 @@ func parseBoolWithDefault(raw string, fallback bool) bool {
 	}
 }
 
+func parseChannelIntWithDefault(raw string, fallback int) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func parseUintAllowlist(raw string) map[uint]struct{} {
+	result := make(map[uint]struct{})
+	for _, token := range strings.Split(raw, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+		value, err := strconv.ParseUint(token, 10, 32)
+		if err != nil || value == 0 {
+			continue
+		}
+		result[uint(value)] = struct{}{}
+	}
+	return result
+}
+
+func normalizePromptKey(raw string) string {
+	key := strings.TrimSpace(strings.ToLower(raw))
+	if key == "" {
+		return ""
+	}
+	if len(key) > 120 {
+		return key[:120]
+	}
+	return key
+}
+
 func rankRole(role models.ChannelMemberRole) int {
 	switch role {
 	case models.ChannelMemberRoleOwner:
@@ -1154,6 +1392,9 @@ func extractPositiveUint(value interface{}) (uint, bool) {
 	switch typed := value.(type) {
 	case float64:
 		if typed <= 0 {
+			return 0, false
+		}
+		if math.Trunc(typed) != typed {
 			return 0, false
 		}
 		return uint(typed), true

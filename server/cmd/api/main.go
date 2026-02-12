@@ -308,6 +308,7 @@ func main() {
 	api.Get("/channels", channelHandler.ListPublicChannels)
 	api.Get("/channels/:id", middleware.OptionalAuth(), channelHandler.GetChannel)
 	api.Get("/channels/:id/posts", middleware.OptionalAuth(), channelHandler.ListPosts)
+	api.Post("/channels/:id/posts/:postId/cta-click", middleware.OptionalAuth(), channelHandler.TrackCTAClick)
 	api.Get("/channels/:id/showcases", middleware.OptionalAuth(), channelHandler.ListShowcases)
 
 	// Public Yatra Travel Routes (Spiritual Pilgrimage Service)
@@ -341,6 +342,7 @@ func main() {
 	admin.Put("/users/:id/role", adminHandler.UpdateUserRole)
 	admin.Post("/admins", adminHandler.AddAdmin)
 	admin.Get("/stats", adminHandler.GetStats)
+	admin.Get("/channels/metrics", channelHandler.GetMetrics)
 	admin.Get("/path-tracker/metrics", pathTrackerHandler.GetMetricsSummary)
 	admin.Get("/path-tracker/analytics", pathTrackerHandler.GetAnalytics)
 	admin.Get("/path-tracker/ops", pathTrackerHandler.GetOpsSnapshot)
@@ -618,6 +620,8 @@ func main() {
 	// Channels (Release 1)
 	protected.Post("/channels", channelHandler.CreateChannel)
 	protected.Get("/channels/my", channelHandler.ListMyChannels)
+	protected.Get("/channels/prompts/status", channelHandler.GetPromptStatus)
+	protected.Post("/channels/prompts/:promptKey/dismiss", channelHandler.DismissPrompt)
 	protected.Patch("/channels/:id", channelHandler.UpdateChannel)
 	protected.Patch("/channels/:id/branding", channelHandler.UpdateBranding)
 	protected.Post("/channels/:id/members", channelHandler.AddMember)
@@ -717,11 +721,11 @@ func main() {
 	// Order Routes (Sattva Market - Buyer)
 	protected.Post("/orders", orderHandler.CreateOrder)
 	protected.Get("/orders/my", orderHandler.GetMyOrders)
+	protected.Get("/orders/seller", orderHandler.GetSellerOrders)
 	protected.Get("/orders/:id", orderHandler.GetOrder)
 	protected.Post("/orders/:id/cancel", orderHandler.CancelOrder)
 
 	// Order Routes (Sattva Market - Seller)
-	protected.Get("/orders/seller", orderHandler.GetSellerOrders)
 	protected.Put("/orders/:id/status", orderHandler.UpdateOrderStatus)
 	protected.Get("/orders/:id/contact-buyer", orderHandler.ContactBuyer)
 

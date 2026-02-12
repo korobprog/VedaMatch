@@ -139,7 +139,7 @@ func TestParseRoleScopeParam(t *testing.T) {
 		{name: "single valid role", query: "/?role_scope=user", expected: []string{"user"}},
 		{name: "multiple valid roles", query: "/?role_scope=user,yogi,devotee", expected: []string{"user", "yogi", "devotee"}},
 		{name: "invalid values ignored", query: "/?role_scope=user,invalid,admin", expected: []string{"user"}},
-		{name: "deduplicates and trims", query: "/?role_scope= user ,yogi,user ", expected: []string{"user", "yogi"}},
+		{name: "deduplicates and trims", query: "/?role_scope=%20user%20,yogi,user%20", expected: []string{"user", "yogi"}},
 	}
 
 	for _, tt := range tests {
@@ -167,6 +167,94 @@ func TestParseRoleScopeParam(t *testing.T) {
 				t.Fatalf("status = %d, want %d", res.StatusCode, fiber.StatusOK)
 			}
 		})
+	}
+}
+
+func TestParseOptionalChannelIDFromValues(t *testing.T) {
+	tests := []struct {
+		name      string
+		values    []string
+		wantNil   bool
+		wantValue uint
+		wantErr   bool
+	}{
+		{name: "empty", values: []string{"", ""}, wantNil: true},
+		{name: "valid first", values: []string{"42", ""}, wantValue: 42},
+		{name: "valid second", values: []string{"", "7"}, wantValue: 7},
+		{name: "invalid", values: []string{"abc"}, wantErr: true},
+		{name: "zero invalid", values: []string{"0"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseOptionalChannelIDFromValues(tt.values...)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Fatalf("expected nil, got %v", *got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatalf("expected value %d, got nil", tt.wantValue)
+			}
+			if *got != tt.wantValue {
+				t.Fatalf("value = %d, want %d", *got, tt.wantValue)
+			}
+		})
+	}
+}
+
+func TestGetVideoCircles_ChannelIDFilter(t *testing.T) {
+	app := fiber.New()
+	mock := &mockVideoCircleService{
+		listCirclesFn: func(userID uint, role string, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error) {
+			if params.ChannelID == nil || *params.ChannelID != 42 {
+				t.Fatalf("expected channelID=42, got %v", params.ChannelID)
+			}
+			return &models.VideoCircleListResponse{}, nil
+		},
+	}
+	handler := NewVideoCircleHandlerWithService(mock)
+	app.Get("/video-circles", func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		c.Locals("userRole", models.RoleUser)
+		return handler.GetVideoCircles(c)
+	})
+
+	req := httptest.NewRequest("GET", "/video-circles?channelId=42", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d, want %d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestGetVideoCircles_InvalidChannelID(t *testing.T) {
+	app := fiber.New()
+	handler := NewVideoCircleHandlerWithService(&mockVideoCircleService{})
+	app.Get("/video-circles", func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		return handler.GetVideoCircles(c)
+	})
+
+	req := httptest.NewRequest("GET", "/video-circles?channelId=abc", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", res.StatusCode, fiber.StatusBadRequest)
 	}
 }
 

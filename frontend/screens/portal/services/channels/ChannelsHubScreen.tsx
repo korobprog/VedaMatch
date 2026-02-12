@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { ArrowLeft, Pin, Plus, Radio } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
-import { Channel, ChannelPost } from '../../../../types/channel';
+import { Channel, ChannelPost, ChannelPromotedAd } from '../../../../types/channel';
 import { useSettings } from '../../../../context/SettingsContext';
 import { useUser } from '../../../../context/UserContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
@@ -31,6 +31,7 @@ export default function ChannelsHubScreen() {
   const [activeTab, setActiveTab] = useState<HubTab>('feed');
 
   const [feedPosts, setFeedPosts] = useState<ChannelPost[]>([]);
+  const [feedPromotedAds, setFeedPromotedAds] = useState<ChannelPromotedAd[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedRefreshing, setFeedRefreshing] = useState(false);
   const [feedPage, setFeedPage] = useState(1);
@@ -70,6 +71,7 @@ export default function ChannelsHubScreen() {
 
       if (page === 1) {
         setFeedPosts(response.posts);
+        setFeedPromotedAds(response.promotedAds || []);
       } else {
         setFeedPosts(prev => {
           const seen = new Set(prev.map(item => item.ID));
@@ -188,6 +190,44 @@ export default function ChannelsHubScreen() {
     );
   };
 
+  const formatAdPrice = (ad: ChannelPromotedAd) => {
+    if (ad.isFree) {
+      return 'Бесплатно';
+    }
+    if (typeof ad.price === 'number') {
+      return `${ad.price} ${ad.currency || 'RUB'}`;
+    }
+    return ad.currency || 'RUB';
+  };
+
+  const renderPromotedAds = () => {
+    if (feedPromotedAds.length === 0) {
+      return null;
+    }
+
+    return (
+      <View style={styles.promotedSection}>
+        <Text style={styles.promotedTitle}>Рекомендации в ленте</Text>
+        {feedPromotedAds.map(ad => (
+          <TouchableOpacity
+            key={ad.id}
+            style={styles.promotedCard}
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('AdDetail', { adId: ad.id })}
+          >
+            <View style={styles.promotedHeader}>
+              <Text style={styles.promotedBadge}>Промо</Text>
+              <Text style={styles.promotedCity}>{ad.city}</Text>
+            </View>
+            <Text style={styles.promotedCardTitle} numberOfLines={2}>{ad.title}</Text>
+            <Text style={styles.promotedDescription} numberOfLines={2}>{ad.description}</Text>
+            <Text style={styles.promotedPrice}>{formatAdPrice(ad)}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
   const renderMyChannelItem = ({ item }: { item: Channel }) => (
     <TouchableOpacity
       style={styles.channelCard}
@@ -280,6 +320,7 @@ export default function ChannelsHubScreen() {
                 keyExtractor={item => item.ID.toString()}
                 contentContainerStyle={styles.listContent}
                 renderItem={renderFeedItem}
+                ListHeaderComponent={renderPromotedAds}
                 refreshControl={
                   <RefreshControl
                     refreshing={feedRefreshing}
@@ -469,6 +510,54 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.textPrimary,
       fontSize: 12,
       fontWeight: '700',
+    },
+    promotedSection: {
+      marginBottom: 4,
+      gap: 8,
+    },
+    promotedTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    promotedCard: {
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      padding: 12,
+      gap: 6,
+    },
+    promotedHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    promotedBadge: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+    },
+    promotedCity: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    promotedCardTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    promotedDescription: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    promotedPrice: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: '800',
     },
     channelCard: {
       backgroundColor: colors.surface,

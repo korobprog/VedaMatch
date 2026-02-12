@@ -77,6 +77,7 @@ export const VideoCirclesScreen: React.FC = () => {
   const route = useRoute<VideoCirclesRouteProp>();
   const { t } = useTranslation();
   const routeParams: VideoCirclesRouteParams = route?.params;
+  const routeChannelId = routeParams?.channelId;
   const { isDarkMode } = useSettings();
   const { user } = useUser();
   const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
@@ -148,6 +149,7 @@ export const VideoCirclesScreen: React.FC = () => {
     const requestId = ++latestCirclesRequestRef.current;
     try {
       const res = await videoCirclesService.getVideoCircles({
+        channelId: routeChannelId,
         status: filterStatus,
         city: filterCity.trim() || undefined,
         matha: filterMatha.trim() || undefined,
@@ -171,7 +173,7 @@ export const VideoCirclesScreen: React.FC = () => {
         setRefreshing(false);
       }
     }
-  }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, roleScope, t]);
+  }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, roleScope, routeChannelId, t]);
 
   const loadTariffs = useCallback(async () => {
     const requestId = ++latestTariffsRequestRef.current;
@@ -351,6 +353,7 @@ export const VideoCirclesScreen: React.FC = () => {
           name: selectedVideo.fileName || `circle_${Date.now()}.mp4`,
           type: selectedVideo.type || 'video/mp4',
         },
+        channelId: routeChannelId,
         city: city.trim() || undefined,
         matha: matha.trim() || undefined,
         category: category.trim() || undefined,

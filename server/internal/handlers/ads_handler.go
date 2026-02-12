@@ -1022,8 +1022,10 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 	var req struct {
 		Method string `json:"method"` // "message"
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+		}
 	}
 	req.Method = strings.TrimSpace(strings.ToLower(req.Method))
 	if req.Method == "" {
@@ -1032,6 +1034,9 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 
 	var ad models.Ad
 	if err := database.DB.Preload("User").First(&ad, adIDUint).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch ad"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Ad not found"})
 	}
 

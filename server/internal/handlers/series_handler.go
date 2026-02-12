@@ -55,6 +55,9 @@ func (h *SeriesHandler) GetSeriesDetails(c *fiber.Ctx) error {
 	}).First(&series, id).Error
 
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch series"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Series not found"})
 	}
 
@@ -677,13 +680,16 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 
 			// Check if episode already exists
 			var existing models.Episode
-			if h.db.Where("season_id = ? AND number = ?", season.ID, episodeNum).First(&existing).Error == nil {
+			existingErr := h.db.Where("season_id = ? AND number = ?", season.ID, episodeNum).First(&existing).Error
+			if existingErr == nil {
 				log.Printf("[SeriesHandler] Episode S%dE%d already exists, updating URL", seasonNum, episodeNum)
 				if err := h.db.Model(&existing).Updates(models.Episode{VideoURL: f.URL}).Error; err != nil {
 					return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 				}
 				createdEpisodes = append(createdEpisodes, existing)
 				continue
+			} else if !errors.Is(existingErr, gorm.ErrRecordNotFound) {
+				return c.Status(500).JSON(fiber.Map{"error": existingErr.Error()})
 			}
 
 			episode := models.Episode{

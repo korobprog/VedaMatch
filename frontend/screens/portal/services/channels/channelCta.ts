@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 import { ChannelPost } from '../../../../types/channel';
 import { CartItem } from '../../../../types/market';
+import { channelService } from '../../../../services/channelService';
 
 type NavigationLike = {
   navigate: (screen: string, params?: Record<string, any>) => void;
@@ -99,6 +100,7 @@ export const getChannelPostCtaLabel = (post: ChannelPost): string | null => {
 
 export const handleChannelPostCta = (navigation: NavigationLike, post: ChannelPost) => {
   const payload = parsePayload(post.ctaPayloadJson);
+  void channelService.trackPostCtaClick(post.channelId, post.ID).catch(() => {});
 
   if (post.ctaType === 'order_products') {
     const orderPayload = parseOrderPayload(payload);
@@ -133,6 +135,9 @@ export const handleChannelPostCta = (navigation: NavigationLike, post: ChannelPo
 
     navigation.navigate('ServiceBooking', {
       serviceId: servicePayload.serviceId,
+      source: 'channel_post',
+      sourcePostId: post.ID,
+      sourceChannelId: post.channelId,
     });
   }
 };

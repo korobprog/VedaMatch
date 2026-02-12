@@ -52,6 +52,9 @@ func (s *YatraReportService) CreateReport(userID uint, req models.YatraReportCre
 	if err == nil {
 		return nil, errors.New("you have already reported this")
 	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
 
 	report := &models.YatraReport{
 		ReporterUserID: userID,

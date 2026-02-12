@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type MultimediaHandler struct {
@@ -119,6 +121,9 @@ func (h *MultimediaHandler) GetTrack(c *fiber.Ctx) error {
 
 	track, err := h.service.GetTrackByID(uint(id))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch track"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Track not found"})
 	}
 	return c.JSON(track)
@@ -232,6 +237,9 @@ func (h *MultimediaHandler) GetRadioStation(c *fiber.Ctx) error {
 
 	station, err := h.service.GetRadioStationByID(uint(id))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch station"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Station not found"})
 	}
 	return c.JSON(station)
@@ -344,6 +352,9 @@ func (h *MultimediaHandler) GetTVChannel(c *fiber.Ctx) error {
 
 	channel, err := h.service.GetTVChannelByID(uint(id))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch channel"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Channel not found"})
 	}
 	return c.JSON(channel)

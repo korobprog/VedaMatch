@@ -28,6 +28,9 @@ export interface ServiceBooking {
     pricePaid: number;
     clientNote?: string;
     providerNote?: string;
+    source?: string;
+    sourcePostId?: number;
+    sourceChannelId?: number;
     reminderSent: boolean;
     reminder24hSent: boolean;
     confirmedAt?: string;
@@ -66,6 +69,9 @@ export interface CreateBookingRequest {
     tariffId: number;
     scheduledAt: string; // ISO format
     clientNote?: string;
+    source?: string;
+    sourcePostId?: number;
+    sourceChannelId?: number;
 }
 
 // Alias for backward compatibility

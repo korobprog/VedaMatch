@@ -56,6 +56,11 @@ type ServiceBooking struct {
 	ClientNote   string `json:"clientNote" gorm:"type:text"`   // Message from client
 	ProviderNote string `json:"providerNote" gorm:"type:text"` // Private notes from provider
 
+	// Attribution (optional analytics source)
+	Source          string `json:"source" gorm:"type:varchar(80);index"`
+	SourcePostID    *uint  `json:"sourcePostId" gorm:"index"`
+	SourceChannelID *uint  `json:"sourceChannelId" gorm:"index"`
+
 	// Reminders tracking
 	ReminderSent    bool `json:"reminderSent" gorm:"default:false"`                             // 1-hour reminder
 	Reminder24hSent bool `json:"reminder24hSent" gorm:"column:reminder_24h_sent;default:false"` // 24-hour reminder
@@ -78,9 +83,12 @@ type ServiceBooking struct {
 
 // BookingCreateRequest for creating a new booking
 type BookingCreateRequest struct {
-	TariffID    uint      `json:"tariffId" binding:"required"`
-	ScheduledAt time.Time `json:"scheduledAt" binding:"required"`
-	ClientNote  string    `json:"clientNote"`
+	TariffID        uint      `json:"tariffId" binding:"required"`
+	ScheduledAt     time.Time `json:"scheduledAt" binding:"required"`
+	ClientNote      string    `json:"clientNote"`
+	Source          string    `json:"source"`
+	SourcePostID    *uint     `json:"sourcePostId"`
+	SourceChannelID *uint     `json:"sourceChannelId"`
 }
 
 // BookingActionRequest for confirm/cancel/complete actions

@@ -107,6 +107,9 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 		Status:          models.BookingStatusPending,
 		PricePaid:       tariff.Price,
 		ClientNote:      req.ClientNote,
+		Source:          normalizeBookingSource(req.Source),
+		SourcePostID:    req.SourcePostID,
+		SourceChannelID: req.SourceChannelID,
 	}
 
 	if err := database.DB.Create(&booking).Error; err != nil {
@@ -147,6 +150,11 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	database.DB.Preload("Service.Owner").Preload("Tariff").Preload("Client").First(&booking, booking.ID)
 
 	log.Printf("[Booking] Created booking %d for service %d by user %d", booking.ID, serviceID, clientID)
+	if booking.Source == "channel_post" {
+		if err := GetMetricsService().Increment(MetricBookingsFromChannelTotal, 1); err != nil {
+			log.Printf("[Booking] metric increment failed (%s): %v", MetricBookingsFromChannelTotal, err)
+		}
+	}
 
 	// Send push notification to service owner
 	go func() {
@@ -166,6 +174,17 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	}()
 
 	return &booking, nil
+}
+
+func normalizeBookingSource(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if len(value) > 80 {
+		return value[:80]
+	}
+	return value
 }
 
 // Confirm confirms a pending booking

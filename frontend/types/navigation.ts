@@ -83,7 +83,7 @@ export type RootStackParamList = {
     RadioScreen: undefined;
     AudioScreen: undefined;
     VideoScreen: undefined;
-    VideoCirclesScreen: { openPublish?: boolean; scope?: 'all' | 'friends' } | undefined;
+    VideoCirclesScreen: { openPublish?: boolean; scope?: 'all' | 'friends'; channelId?: number } | undefined;
     MyVideoCirclesScreen: undefined;
     VideoTariffsAdminScreen: undefined;
     TVScreen: undefined;
@@ -104,7 +104,12 @@ export type RootStackParamList = {
     // Services Routes
     ServicesHome: undefined;
     ServiceDetail: { serviceId: number };
-    ServiceBooking: { serviceId: number };
+    ServiceBooking: {
+        serviceId: number;
+        source?: string;
+        sourcePostId?: number;
+        sourceChannelId?: number;
+    };
     MyServices: undefined;
     MyBookings: undefined;
     CreateService: { serviceId?: number } | undefined;

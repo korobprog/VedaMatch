@@ -42,6 +42,8 @@ type VideoCircle struct {
 	gorm.Model
 	AuthorID           uint              `json:"authorId" gorm:"index;not null"`
 	Author             *User             `json:"author,omitempty" gorm:"foreignKey:AuthorID"`
+	ChannelID          *uint             `json:"channelId" gorm:"index"`
+	Channel            *Channel          `json:"channel,omitempty" gorm:"foreignKey:ChannelID"`
 	MediaURL           string            `json:"mediaUrl" gorm:"type:varchar(800);not null"`
 	ThumbnailURL       string            `json:"thumbnailUrl" gorm:"type:varchar(800)"`
 	City               string            `json:"city" gorm:"type:varchar(120);index:idx_video_circles_city_status,priority:1"`
@@ -95,6 +97,7 @@ type VideoCircleBillingLog struct {
 }
 
 type VideoCircleListParams struct {
+	ChannelID *uint
 	City      string
 	Matha     string
 	Category  string
@@ -109,6 +112,7 @@ type VideoCircleListParams struct {
 type VideoCircleResponse struct {
 	ID                 uint              `json:"id"`
 	AuthorID           uint              `json:"authorId"`
+	ChannelID          *uint             `json:"channelId,omitempty"`
 	MediaURL           string            `json:"mediaUrl"`
 	ThumbnailURL       string            `json:"thumbnailUrl"`
 	City               string            `json:"city"`
@@ -147,6 +151,7 @@ type VideoCircleInteractionLegacyRequest struct {
 type VideoCircleCreateRequest struct {
 	MediaURL     string     `json:"mediaUrl"`
 	ThumbnailURL string     `json:"thumbnailUrl"`
+	ChannelID    *uint      `json:"channelId"`
 	City         string     `json:"city"`
 	Matha        string     `json:"matha"`
 	Category     string     `json:"category"`

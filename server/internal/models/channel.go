@@ -183,11 +183,12 @@ type ChannelPostListResponse struct {
 }
 
 type ChannelFeedResponse struct {
-	Posts      []ChannelPost `json:"posts"`
-	Total      int64         `json:"total"`
-	Page       int           `json:"page"`
-	Limit      int           `json:"limit"`
-	TotalPages int           `json:"totalPages"`
+	Posts       []ChannelPost       `json:"posts"`
+	PromotedAds []ChannelPromotedAd `json:"promotedAds,omitempty"`
+	Total       int64               `json:"total"`
+	Page        int                 `json:"page"`
+	Limit       int                 `json:"limit"`
+	TotalPages  int                 `json:"totalPages"`
 }
 
 type ChannelListResponse struct {
@@ -196,6 +197,19 @@ type ChannelListResponse struct {
 	Page       int       `json:"page"`
 	Limit      int       `json:"limit"`
 	TotalPages int       `json:"totalPages"`
+}
+
+type ChannelPromotedAd struct {
+	ID          uint      `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	City        string    `json:"city"`
+	Price       *float64  `json:"price,omitempty"`
+	Currency    string    `json:"currency"`
+	IsFree      bool      `json:"isFree"`
+	UserID      uint      `json:"userId"`
+	PhotoURL    string    `json:"photoUrl,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type ChannelShowcaseCreateRequest struct {

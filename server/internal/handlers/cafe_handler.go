@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -514,7 +515,10 @@ func (h *CafeHandler) GetFeaturedDishes(c *fiber.Ctx) error {
 // CreateCategory creates a new category
 // POST /api/cafes/:id/categories
 func (h *CafeHandler) CreateCategory(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -557,7 +561,10 @@ func (h *CafeHandler) GetCategories(c *fiber.Ctx) error {
 // UpdateCategory updates a category
 // PUT /api/cafes/:id/categories/:categoryId
 func (h *CafeHandler) UpdateCategory(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -594,7 +601,10 @@ func (h *CafeHandler) UpdateCategory(c *fiber.Ctx) error {
 // DeleteCategory deletes a category
 // DELETE /api/cafes/:id/categories/:categoryId
 func (h *CafeHandler) DeleteCategory(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -627,7 +637,10 @@ func (h *CafeHandler) DeleteCategory(c *fiber.Ctx) error {
 // CreateDish creates a new dish
 // POST /api/cafes/:id/dishes
 func (h *CafeHandler) CreateDish(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -721,7 +734,10 @@ func (h *CafeHandler) ListDishes(c *fiber.Ctx) error {
 // UpdateDish updates a dish
 // PUT /api/cafes/:id/dishes/:dishId
 func (h *CafeHandler) UpdateDish(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -758,7 +774,10 @@ func (h *CafeHandler) UpdateDish(c *fiber.Ctx) error {
 // DeleteDish deletes a dish
 // DELETE /api/cafes/:id/dishes/:dishId
 func (h *CafeHandler) DeleteDish(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -791,7 +810,10 @@ func (h *CafeHandler) DeleteDish(c *fiber.Ctx) error {
 // UpdateStopList updates dish availability
 // POST /api/cafes/:id/stop-list
 func (h *CafeHandler) UpdateStopList(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -816,7 +838,10 @@ func (h *CafeHandler) UpdateStopList(c *fiber.Ctx) error {
 // GetStopList returns unavailable dishes
 // GET /api/cafes/:id/stop-list
 func (h *CafeHandler) GetStopList(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -908,6 +933,9 @@ func (h *CafeHandler) AcknowledgeWaiterCall(c *fiber.Ctx) error {
 	}
 
 	if err := h.cafeService.AcknowledgeWaiterCall(uint(callID), userID); err != nil {
+		if errors.Is(err, services.ErrWaiterCallNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Waiter call not found"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to acknowledge call"})
 	}
 
@@ -935,6 +963,9 @@ func (h *CafeHandler) CompleteWaiterCall(c *fiber.Ctx) error {
 	}
 
 	if err := h.cafeService.CompleteWaiterCall(uint(callID)); err != nil {
+		if errors.Is(err, services.ErrWaiterCallNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Waiter call not found"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to complete call"})
 	}
 

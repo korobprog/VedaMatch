@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 func parseBoundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
@@ -502,6 +504,9 @@ func (h *YatraAdminHandler) GetReport(c *fiber.Ctx) error {
 
 	report, err := h.reportService.GetReport(uint(reportID))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get report"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Report not found"})
 	}
 

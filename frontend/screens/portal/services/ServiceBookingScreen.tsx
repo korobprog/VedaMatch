@@ -38,6 +38,9 @@ import { useSettings } from '../../../context/SettingsContext';
 type RouteParams = {
     params: {
         serviceId: number;
+        source?: string;
+        sourcePostId?: number;
+        sourceChannelId?: number;
     };
 };
 
@@ -62,6 +65,9 @@ export default function ServiceBookingScreen() {
     const { wallet, refreshWallet, formattedBalance } = useWallet();
 
     const serviceId = route.params?.serviceId;
+    const source = route.params?.source;
+    const sourcePostId = route.params?.sourcePostId;
+    const sourceChannelId = route.params?.sourceChannelId;
 
     const [service, setService] = useState<Service | null>(null);
     const [loading, setLoading] = useState(true);
@@ -221,6 +227,9 @@ export default function ServiceBookingScreen() {
                 tariffId: selectedTariff.id,
                 scheduledAt,
                 clientNote: clientNote.trim() || undefined,
+                source,
+                sourcePostId,
+                sourceChannelId,
             };
 
             await bookService(serviceId, request);

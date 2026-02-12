@@ -20,7 +20,8 @@ func NewChannelHandler() *ChannelHandler {
 }
 
 func (h *ChannelHandler) ensureFeatureEnabled(c *fiber.Ctx) error {
-	if !h.service.IsFeatureEnabled() {
+	userID := middleware.GetUserID(c)
+	if !h.service.IsFeatureEnabledForUser(userID) {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Channels feature is disabled"})
 	}
 	return nil
@@ -480,6 +481,28 @@ func (h *ChannelHandler) SchedulePost(c *fiber.Ctx) error {
 	return c.JSON(post)
 }
 
+func (h *ChannelHandler) TrackCTAClick(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	channelID, err := parseUintParam(c, "id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
+	}
+	postID, err := parseUintParam(c, "postId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid post ID"})
+	}
+
+	viewerID := middleware.GetUserID(c)
+	if err := h.service.TrackCTAClick(channelID, postID, viewerID); err != nil {
+		return respondChannelError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"success": true})
+}
+
 func (h *ChannelHandler) GetFeed(c *fiber.Ctx) error {
 	if err := h.ensureFeatureEnabled(c); err != nil {
 		return err
@@ -611,6 +634,80 @@ func (h *ChannelHandler) DeleteShowcase(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"success": true})
+}
+
+func (h *ChannelHandler) GetMetrics(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	snapshot, err := h.service.GetMetricsSnapshot()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(snapshot)
+}
+
+func (h *ChannelHandler) DismissPrompt(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	promptKey := strings.TrimSpace(c.Params("promptKey"))
+	var req struct {
+		PostID *uint `json:"postId"`
+	}
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+		}
+	}
+
+	if err := h.service.DismissPrompt(userID, promptKey, req.PostID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func (h *ChannelHandler) GetPromptStatus(c *fiber.Ctx) error {
+	if err := h.ensureFeatureEnabled(c); err != nil {
+		return err
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	rawKeys := strings.TrimSpace(c.Query("keys"))
+	if rawKeys == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "keys query is required"})
+	}
+
+	keys := make([]string, 0)
+	for _, part := range strings.Split(rawKeys, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		keys = append(keys, part)
+	}
+	if len(keys) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "keys query is required"})
+	}
+
+	status, err := h.service.GetPromptDismissStatus(userID, keys)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": status})
 }
 
 func parseUintParam(c *fiber.Ctx, key string) (uint, error) {

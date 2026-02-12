@@ -48,8 +48,13 @@ func (h *VideoCircleHandler) GetVideoCircles(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	channelID, err := parseOptionalChannelIDParam(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channelId"})
+	}
 
 	params := models.VideoCircleListParams{
+		ChannelID: channelID,
 		City:      strings.TrimSpace(c.Query("city")),
 		Matha:     normalizeMathaParam(c),
 		Category:  strings.TrimSpace(c.Query("category")),
@@ -63,6 +68,15 @@ func (h *VideoCircleHandler) GetVideoCircles(c *fiber.Ctx) error {
 
 	result, err := h.service.ListCircles(userID, middleware.GetUserRole(c), params)
 	if err != nil {
+		if errors.Is(err, services.ErrChannelNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, services.ErrChannelForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, services.ErrChannelsDisabled) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -79,9 +93,21 @@ func (h *VideoCircleHandler) CreateVideoCircle(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	if req.ChannelID != nil && *req.ChannelID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channelId"})
+	}
 
 	result, err := h.service.CreateCircle(userID, middleware.GetUserRole(c), req)
 	if err != nil {
+		if errors.Is(err, services.ErrChannelNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, services.ErrChannelForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, services.ErrChannelsDisabled) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -140,10 +166,18 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 			expiresAt = &parsed
 		}
 	}
+	channelID, channelIDErr := parseOptionalChannelIDFromValues(
+		strings.TrimSpace(c.FormValue("channelId")),
+		strings.TrimSpace(c.FormValue("channel_id")),
+	)
+	if channelIDErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channelId"})
+	}
 
 	req := models.VideoCircleCreateRequest{
 		MediaURL:     mediaURL,
 		ThumbnailURL: thumbnailURL,
+		ChannelID:    channelID,
 		City:         strings.TrimSpace(c.FormValue("city")),
 		Matha:        strings.TrimSpace(c.FormValue("matha")),
 		Category:     strings.TrimSpace(c.FormValue("category")),
@@ -153,6 +187,15 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 
 	result, err := h.service.CreateCircle(userID, middleware.GetUserRole(c), req)
 	if err != nil {
+		if errors.Is(err, services.ErrChannelNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, services.ErrChannelForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, services.ErrChannelsDisabled) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -439,6 +482,30 @@ func parseRoleScopeParam(c *fiber.Ctx) []string {
 	}
 
 	return result
+}
+
+func parseOptionalChannelIDParam(c *fiber.Ctx) (*uint, error) {
+	return parseOptionalChannelIDFromValues(
+		strings.TrimSpace(c.Query("channelId")),
+		strings.TrimSpace(c.Query("channel_id")),
+	)
+}
+
+func parseOptionalChannelIDFromValues(values ...string) (*uint, error) {
+	for _, raw := range values {
+		if raw == "" {
+			continue
+		}
+
+		parsed, err := strconv.ParseUint(raw, 10, 32)
+		if err != nil || parsed == 0 {
+			return nil, errors.New("invalid channel id")
+		}
+		channelID := uint(parsed)
+		return &channelID, nil
+	}
+
+	return nil, nil
 }
 
 func saveUploadedCircleFile(c *fiber.Ctx, fileHeader *multipart.FileHeader, fileKind string) (string, error) {

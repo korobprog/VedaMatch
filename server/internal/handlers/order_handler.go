@@ -338,8 +338,13 @@ func (h *OrderHandler) ContactBuyer(c *fiber.Ctx) error {
 
 	order, err := h.orderService.GetOrder(uint(orderID))
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Order not found",
+		if errors.Is(err, services.ErrOrderNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Order not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not fetch order",
 		})
 	}
 

@@ -693,6 +693,8 @@ func (s *YatraService) CreateYatraReview(yatraID uint, authorID uint, req models
 	var existing models.YatraReview
 	if err := s.db.Where("yatra_id = ? AND author_id = ?", yatraID, authorID).First(&existing).Error; err == nil {
 		return nil, errors.New("you have already reviewed this yatra")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 
 	// Set default recommendation

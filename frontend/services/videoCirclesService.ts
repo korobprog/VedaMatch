@@ -9,6 +9,7 @@ export type VideoBoostType = 'lkm' | 'city' | 'premium';
 export interface VideoCircle {
   id: number;
   authorId: number;
+  channelId?: number;
   mediaUrl: string;
   thumbnailUrl?: string;
   city?: string;
@@ -36,6 +37,7 @@ export interface VideoCircleListResponse {
 export interface CreateVideoCirclePayload {
   mediaUrl: string;
   thumbnailUrl?: string;
+  channelId?: number;
   city?: string;
   matha?: string;
   category?: string;
@@ -54,6 +56,7 @@ export interface UploadVideoCirclePayload {
     name: string;
     type: string;
   };
+  channelId?: number;
   city?: string;
   matha?: string;
   category?: string;
@@ -84,6 +87,7 @@ export interface UpsertVideoTariffPayload {
 }
 
 export interface VideoCircleFilters {
+  channelId?: number;
   city?: string;
   matha?: string;
   category?: string;
@@ -102,6 +106,7 @@ class VideoCirclesService {
     const headers = await getAuthHeaders();
     const params = new URLSearchParams();
 
+    if (filters.channelId) params.append('channelId', String(filters.channelId));
     if (filters.city) params.append('city', filters.city);
     if (filters.matha) params.append('matha', filters.matha);
     if (filters.category) params.append('category', filters.category);
@@ -242,6 +247,7 @@ class VideoCirclesService {
       } as any);
     }
 
+    if (payload.channelId) formData.append('channelId', String(payload.channelId));
     if (payload.city) formData.append('city', payload.city);
     if (payload.matha) formData.append('matha', payload.matha);
     if (payload.category) formData.append('category', payload.category);

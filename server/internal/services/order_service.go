@@ -187,6 +187,13 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		return nil, err
 	}
 
+	if order.Source == "channel_post" {
+		if err := GetMetricsService().Increment(MetricOrdersFromChannelTotal, 1); err != nil {
+			// Metrics must not block business flow.
+			fmt.Printf("[Orders] metric increment failed (%s): %v\n", MetricOrdersFromChannelTotal, err)
+		}
+	}
+
 	// Load full order with items
 	database.DB.Preload("Items").First(&order, order.ID)
 

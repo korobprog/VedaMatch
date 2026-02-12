@@ -710,6 +710,8 @@ func (s *ProductService) AddReview(userID, productID uint, req models.ReviewCrea
 	var existingReview models.ProductReview
 	if err := database.DB.Where("user_id = ? AND product_id = ?", userID, productID).First(&existingReview).Error; err == nil {
 		return nil, errors.New("you have already reviewed this product")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 
 	// Check if verified purchase

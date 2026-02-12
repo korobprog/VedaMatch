@@ -40,9 +40,12 @@ func (h *BookingHandler) Book(c *fiber.Ctx) error {
 	}
 
 	var body struct {
-		TariffID    uint   `json:"tariffId"`
-		ScheduledAt string `json:"scheduledAt"` // ISO format
-		ClientNote  string `json:"clientNote"`
+		TariffID        uint   `json:"tariffId"`
+		ScheduledAt     string `json:"scheduledAt"` // ISO format
+		ClientNote      string `json:"clientNote"`
+		Source          string `json:"source"`
+		SourcePostID    *uint  `json:"sourcePostId"`
+		SourceChannelID *uint  `json:"sourceChannelId"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -59,9 +62,12 @@ func (h *BookingHandler) Book(c *fiber.Ctx) error {
 	}
 
 	req := models.BookingCreateRequest{
-		TariffID:    body.TariffID,
-		ScheduledAt: scheduledAt,
-		ClientNote:  body.ClientNote,
+		TariffID:        body.TariffID,
+		ScheduledAt:     scheduledAt,
+		ClientNote:      body.ClientNote,
+		Source:          body.Source,
+		SourcePostID:    body.SourcePostID,
+		SourceChannelID: body.SourceChannelID,
 	}
 
 	booking, err := h.bookingService.Create(uint(serviceID), userID, req)

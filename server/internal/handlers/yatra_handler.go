@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // YatraHandler handles yatra/travel-related HTTP requests
@@ -46,9 +48,9 @@ func NewYatraHandler() *YatraHandler {
 // CreateYatra creates a new yatra
 // POST /api/yatra
 func (h *YatraHandler) CreateYatra(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
 	}
 
 	var req models.YatraCreateRequest
@@ -75,6 +77,9 @@ func (h *YatraHandler) GetYatra(c *fiber.Ctx) error {
 
 	yatra, err := h.yatraService.GetYatra(uint(yatraID))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get yatra"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Yatra not found"})
 	}
 
@@ -192,9 +197,9 @@ func (h *YatraHandler) DeleteYatra(c *fiber.Ctx) error {
 // GetMyYatras returns user's yatras (organized and participating)
 // GET /api/yatra/my
 func (h *YatraHandler) GetMyYatras(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
 	}
 
 	organized, participating, err := h.yatraService.GetMyYatras(userID)
@@ -213,9 +218,9 @@ func (h *YatraHandler) GetMyYatras(c *fiber.Ctx) error {
 // JoinYatra submits a join request
 // POST /api/yatra/:id/join
 func (h *YatraHandler) JoinYatra(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
 	}
 
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
@@ -357,6 +362,9 @@ func (h *YatraHandler) GetShelter(c *fiber.Ctx) error {
 
 	shelter, err := h.shelterService.GetShelter(uint(shelterID))
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get shelter"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Shelter not found"})
 	}
 
@@ -423,7 +431,10 @@ func (h *YatraHandler) ListShelters(c *fiber.Ctx) error {
 // UpdateShelter updates a shelter
 // PUT /api/shelter/:id
 func (h *YatraHandler) UpdateShelter(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	shelterID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid shelter ID"})
@@ -445,7 +456,10 @@ func (h *YatraHandler) UpdateShelter(c *fiber.Ctx) error {
 // DeleteShelter deletes a shelter
 // DELETE /api/shelter/:id
 func (h *YatraHandler) DeleteShelter(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	shelterID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid shelter ID"})
@@ -534,7 +548,10 @@ func (h *YatraHandler) GetShelterReviews(c *fiber.Ctx) error {
 // DeleteShelterReview deletes a review
 // DELETE /api/shelter/:id/reviews/:reviewId
 func (h *YatraHandler) DeleteShelterReview(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireYatraUserID(c)
+	if err != nil {
+		return err
+	}
 	reviewID, err := strconv.ParseUint(c.Params("reviewId"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid review ID"})

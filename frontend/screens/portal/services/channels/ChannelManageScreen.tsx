@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { ArrowLeft, ChevronDown, ChevronUp, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react-native';
 import { channelService } from '../../../../services/channelService';
 import { Channel, ChannelMemberResponse, ChannelMemberRole, ChannelShowcase } from '../../../../types/channel';
 import { ProductCategoryConfig } from '../../../../types/market';
@@ -39,6 +39,7 @@ const SHOWCASE_KIND_PRESETS = [
 ] as const;
 
 type ShowcaseFilterMode = 'builder' | 'json';
+const KNOWN_SHOWCASE_FILTER_KEYS = new Set(['category', 'shopId', 'productIds', 'serviceIds', 'limit']);
 
 const toIntOrZero = (value: string) => {
   const parsed = Number(value);
@@ -53,6 +54,32 @@ const parseIDsList = (value: string) =>
     .split(',')
     .map(item => toIntOrZero(item.trim()))
     .filter(item => item > 0);
+
+const parseShowcaseFilterObject = (raw: string): Record<string, any> | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, any>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const toIDsCsv = (value: unknown): string => {
+  if (!Array.isArray(value)) {
+    return '';
+  }
+  return value
+    .map(item => toIntOrZero(String(item)))
+    .filter(item => item > 0)
+    .join(',');
+};
 
 export default function ChannelManageScreen() {
   const navigation = useNavigation<any>();
@@ -94,6 +121,7 @@ export default function ChannelManageScreen() {
   const [showcaseFilterServiceIDs, setShowcaseFilterServiceIDs] = useState('');
   const [showcaseFilterLimit, setShowcaseFilterLimit] = useState('');
   const [showcasePosition, setShowcasePosition] = useState('0');
+  const [editingShowcaseId, setEditingShowcaseId] = useState<number | null>(null);
   const [memberUserIdInput, setMemberUserIdInput] = useState('');
   const [memberRoleInput, setMemberRoleInput] = useState<ChannelMemberRole>('editor');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -125,6 +153,7 @@ export default function ChannelManageScreen() {
       label: `${item.emoji || ''} ${item.label?.ru || item.id}`.trim(),
     }));
   }, [isServiceShowcaseKind, serviceCategoryOptions, productCategoryOptions]);
+  const isEditShowcaseMode = editingShowcaseId !== null;
   const builtShowcaseFilterJson = useMemo(() => {
     const payload: Record<string, any> = {};
     const category = showcaseFilterCategory.trim();
@@ -160,6 +189,20 @@ export default function ChannelManageScreen() {
     showcaseFilterProductIDs,
     showcaseFilterServiceIDs,
   ]);
+
+  const resetShowcaseForm = useCallback(() => {
+    setEditingShowcaseId(null);
+    setShowcaseTitle('');
+    setShowcaseKind(DEFAULT_SHOWCASE_KIND);
+    setShowcaseFilterMode('builder');
+    setShowcaseFilterJson('');
+    setShowcaseFilterCategory('');
+    setShowcaseFilterShopID('');
+    setShowcaseFilterProductIDs('');
+    setShowcaseFilterServiceIDs('');
+    setShowcaseFilterLimit('');
+    setShowcasePosition('0');
+  }, []);
   const existingMemberIds = useMemo(() => new Set(members.map(member => member.userId)), [members]);
   const memberSearchResults = useMemo(() => {
     const q = memberSearchQuery.trim().toLowerCase();
@@ -338,7 +381,7 @@ export default function ChannelManageScreen() {
     }
   };
 
-  const createShowcase = async () => {
+  const submitShowcase = async () => {
     if (!channelId) {
       return;
     }
@@ -380,30 +423,69 @@ export default function ChannelManageScreen() {
 
     setCreatingShowcase(true);
     try {
-      const created = await channelService.createShowcase(channelId, {
-        title,
-        kind,
-        filterJson,
-        position: toIntOrZero(showcasePosition),
-        isActive: true,
-      });
-      setShowcases(prev => [...prev, created].sort((a, b) => a.position - b.position));
-      setShowcaseTitle('');
-      setShowcaseKind(DEFAULT_SHOWCASE_KIND);
-      setShowcaseFilterMode('builder');
-      setShowcaseFilterJson('');
+      if (editingShowcaseId) {
+        const updated = await channelService.updateShowcase(channelId, editingShowcaseId, {
+          title,
+          kind,
+          filterJson,
+          position: toIntOrZero(showcasePosition),
+        });
+        setShowcases(prev =>
+          prev
+            .map(showcase => (showcase.ID === updated.ID ? updated : showcase))
+            .sort((a, b) => a.position - b.position || a.ID - b.ID)
+        );
+        resetShowcaseForm();
+        Alert.alert('Готово', 'Витрина обновлена');
+      } else {
+        const created = await channelService.createShowcase(channelId, {
+          title,
+          kind,
+          filterJson,
+          position: toIntOrZero(showcasePosition),
+          isActive: true,
+        });
+        setShowcases(prev => [...prev, created].sort((a, b) => a.position - b.position));
+        resetShowcaseForm();
+        Alert.alert('Готово', 'Витрина добавлена');
+      }
+    } catch (error: any) {
+      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось сохранить витрину');
+    } finally {
+      setCreatingShowcase(false);
+    }
+  };
+
+  const beginEditShowcase = (item: ChannelShowcase) => {
+    setEditingShowcaseId(item.ID);
+    setShowcaseTitle(item.title || '');
+    setShowcaseKind(item.kind || DEFAULT_SHOWCASE_KIND);
+    setShowcasePosition(String(item.position ?? 0));
+
+    const parsed = parseShowcaseFilterObject(item.filterJson || '');
+    if (parsed === null) {
+      setShowcaseFilterMode('json');
+      setShowcaseFilterJson(item.filterJson || '');
       setShowcaseFilterCategory('');
       setShowcaseFilterShopID('');
       setShowcaseFilterProductIDs('');
       setShowcaseFilterServiceIDs('');
       setShowcaseFilterLimit('');
-      setShowcasePosition('0');
-      Alert.alert('Готово', 'Витрина добавлена');
-    } catch (error: any) {
-      Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось создать витрину');
-    } finally {
-      setCreatingShowcase(false);
+      return;
     }
+
+    const keys = Object.keys(parsed);
+    const onlyKnownKeys = keys.every(key => KNOWN_SHOWCASE_FILTER_KEYS.has(key));
+    const shopID = toIntOrZero(String(parsed.shopId ?? ''));
+    const limit = toIntOrZero(String(parsed.limit ?? ''));
+
+    setShowcaseFilterCategory(typeof parsed.category === 'string' ? parsed.category : '');
+    setShowcaseFilterShopID(shopID > 0 ? String(shopID) : '');
+    setShowcaseFilterProductIDs(toIDsCsv(parsed.productIds));
+    setShowcaseFilterServiceIDs(toIDsCsv(parsed.serviceIds));
+    setShowcaseFilterLimit(limit > 0 ? String(limit) : '');
+    setShowcaseFilterJson(item.filterJson || '');
+    setShowcaseFilterMode(onlyKnownKeys ? 'builder' : 'json');
   };
 
   const moveShowcase = async (index: number, direction: -1 | 1) => {
@@ -463,6 +545,9 @@ export default function ChannelManageScreen() {
           try {
             await channelService.deleteShowcase(channelId, item.ID);
             setShowcases(prev => prev.filter(showcase => showcase.ID !== item.ID));
+            if (editingShowcaseId === item.ID) {
+              resetShowcaseForm();
+            }
           } catch (error: any) {
             Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось удалить витрину');
           }
@@ -736,6 +821,14 @@ export default function ChannelManageScreen() {
               )}
 
               <Text style={styles.sectionTitle}>Витрины канала</Text>
+              {isEditShowcaseMode ? (
+                <View style={styles.editModeCard}>
+                  <Text style={styles.editModeText}>Режим редактирования витрины #{editingShowcaseId}</Text>
+                  <TouchableOpacity style={styles.editModeCancelBtn} onPress={resetShowcaseForm}>
+                    <Text style={styles.editModeCancelText}>Отменить</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               <TextInput
                 value={showcaseTitle}
                 onChangeText={setShowcaseTitle}
@@ -862,8 +955,12 @@ export default function ChannelManageScreen() {
                 style={styles.input}
                 keyboardType="numeric"
               />
-              <TouchableOpacity style={styles.primaryBtn} onPress={createShowcase} disabled={creatingShowcase}>
-                {creatingShowcase ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>Добавить витрину</Text>}
+              <TouchableOpacity style={styles.primaryBtn} onPress={submitShowcase} disabled={creatingShowcase}>
+                {creatingShowcase ? (
+                  <ActivityIndicator color={colors.textPrimary} />
+                ) : (
+                  <Text style={styles.primaryBtnText}>{isEditShowcaseMode ? 'Сохранить витрину' : 'Добавить витрину'}</Text>
+                )}
               </TouchableOpacity>
 
               <View style={styles.showcaseList}>
@@ -890,6 +987,9 @@ export default function ChannelManageScreen() {
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.showcaseToggle} onPress={() => toggleShowcaseActive(item)}>
                         <Text style={styles.showcaseToggleText}>{item.isActive ? 'Активна' : 'Скрыта'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.editBtn} onPress={() => beginEditShowcase(item)}>
+                        <Pencil size={14} color={colors.textPrimary} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteShowcase(item)}>
                         <Trash2 size={16} color={colors.danger} />
@@ -960,6 +1060,37 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.textPrimary,
       fontSize: 16,
       fontWeight: '800',
+    },
+    editModeCard: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 10,
+    },
+    editModeText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    editModeCancelBtn: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    editModeCancelText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
     },
     fieldLabel: {
       color: colors.textSecondary,
@@ -1304,6 +1435,16 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.textPrimary,
       fontSize: 12,
       fontWeight: '700',
+    },
+    editBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     deleteBtn: {
       width: 32,

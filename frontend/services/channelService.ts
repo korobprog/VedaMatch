@@ -143,6 +143,25 @@ class ChannelService {
     return response.data;
   }
 
+  async trackPostCtaClick(channelId: number, postId: number): Promise<void> {
+    const headers = await this.getHeaders();
+    await axios.post(`${API_PATH}/channels/${channelId}/posts/${postId}/cta-click`, {}, { headers });
+  }
+
+  async getPromptStatus(keys: string[]): Promise<Record<string, boolean>> {
+    const headers = await this.getHeaders();
+    const response = await axios.get(`${API_PATH}/channels/prompts/status`, {
+      headers,
+      params: { keys: keys.join(',') },
+    });
+    return response.data?.status || {};
+  }
+
+  async dismissPrompt(promptKey: string, payload: { postId?: number } = {}): Promise<void> {
+    const headers = await this.getHeaders();
+    await axios.post(`${API_PATH}/channels/prompts/${encodeURIComponent(promptKey)}/dismiss`, payload, { headers });
+  }
+
   async listShowcases(channelId: number): Promise<{ showcases: ChannelShowcase[] }> {
     const headers = await this.getHeaders();
     const response = await axios.get(`${API_PATH}/channels/${channelId}/showcases`, { headers });

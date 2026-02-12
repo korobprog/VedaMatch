@@ -602,6 +602,9 @@ func (h *NewsHandler) GetSource(c *fiber.Ctx) error {
 
 	var source models.NewsSource
 	if err := database.DB.First(&source, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch source"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Source not found"})
 	}
 
@@ -691,6 +694,9 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 
 	var source models.NewsSource
 	if err := database.DB.First(&source, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch source"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Source not found"})
 	}
 
@@ -793,6 +799,9 @@ func (h *NewsHandler) DeleteSource(c *fiber.Ctx) error {
 
 	var source models.NewsSource
 	if err := database.DB.First(&source, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch source"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Source not found"})
 	}
 
@@ -828,6 +837,9 @@ func (h *NewsHandler) ToggleSourceActive(c *fiber.Ctx) error {
 
 	var source models.NewsSource
 	if err := database.DB.First(&source, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch source"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Source not found"})
 	}
 
