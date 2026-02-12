@@ -15,6 +15,14 @@ type MultimediaHandler struct {
 	service *services.MultimediaService
 }
 
+func requireMultimediaUserID(c *fiber.Ctx) (uint, error) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	return userID, nil
+}
+
 func boundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	value := c.QueryInt(key, def)
 	if value < min {
@@ -124,16 +132,17 @@ func (h *MultimediaHandler) GetTrack(c *fiber.Ctx) error {
 // @Success 201 {object} models.MediaTrack
 // @Router /api/admin/multimedia/tracks [post]
 func (h *MultimediaHandler) CreateTrack(c *fiber.Ctx) error {
+	userID, err := requireMultimediaUserID(c)
+	if err != nil {
+		return err
+	}
+
 	var track models.MediaTrack
 	if err := c.BodyParser(&track); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	// Get admin ID from context
-	userID := middleware.GetUserID(c)
-	if userID != 0 {
-		track.CreatedByID = userID
-	}
+	track.CreatedByID = userID
 
 	if err := h.service.CreateTrack(&track); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
@@ -149,6 +158,10 @@ func (h *MultimediaHandler) CreateTrack(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/tracks/{id} [put]
 func (h *MultimediaHandler) UpdateTrack(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
@@ -173,6 +186,10 @@ func (h *MultimediaHandler) UpdateTrack(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/tracks/{id} [delete]
 func (h *MultimediaHandler) DeleteTrack(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
@@ -228,15 +245,16 @@ func (h *MultimediaHandler) GetRadioStation(c *fiber.Ctx) error {
 // @Success 201 {object} models.RadioStation
 // @Router /api/admin/multimedia/radio [post]
 func (h *MultimediaHandler) CreateRadioStation(c *fiber.Ctx) error {
+	userID, err := requireMultimediaUserID(c)
+	if err != nil {
+		return err
+	}
+
 	var station models.RadioStation
 	if err := c.BodyParser(&station); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
-	userID := middleware.GetUserID(c)
-	if userID != 0 {
-		station.CreatedByID = userID
-	}
+	station.CreatedByID = userID
 
 	if err := h.service.CreateRadioStation(&station); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
@@ -252,6 +270,10 @@ func (h *MultimediaHandler) CreateRadioStation(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/radio/{id} [put]
 func (h *MultimediaHandler) UpdateRadioStation(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid station ID"})
@@ -276,6 +298,10 @@ func (h *MultimediaHandler) UpdateRadioStation(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/radio/{id} [delete]
 func (h *MultimediaHandler) DeleteRadioStation(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid station ID"})
@@ -331,15 +357,16 @@ func (h *MultimediaHandler) GetTVChannel(c *fiber.Ctx) error {
 // @Success 201 {object} models.TVChannel
 // @Router /api/admin/multimedia/tv [post]
 func (h *MultimediaHandler) CreateTVChannel(c *fiber.Ctx) error {
+	userID, err := requireMultimediaUserID(c)
+	if err != nil {
+		return err
+	}
+
 	var channel models.TVChannel
 	if err := c.BodyParser(&channel); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
-	userID := middleware.GetUserID(c)
-	if userID != 0 {
-		channel.CreatedByID = userID
-	}
+	channel.CreatedByID = userID
 
 	if err := h.service.CreateTVChannel(&channel); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
@@ -355,6 +382,10 @@ func (h *MultimediaHandler) CreateTVChannel(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/tv/{id} [put]
 func (h *MultimediaHandler) UpdateTVChannel(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid channel ID"})
@@ -379,6 +410,10 @@ func (h *MultimediaHandler) UpdateTVChannel(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/tv/{id} [delete]
 func (h *MultimediaHandler) DeleteTVChannel(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid channel ID"})
@@ -401,6 +436,10 @@ func (h *MultimediaHandler) DeleteTVChannel(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/upload [post]
 func (h *MultimediaHandler) UploadMedia(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	file, err := c.FormFile("file")
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "No file uploaded"})
@@ -432,6 +471,10 @@ func (h *MultimediaHandler) UploadMedia(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/presign [post]
 func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	var body struct {
 		Filename    string `json:"filename"`
 		Folder      string `json:"folder"`
@@ -512,6 +555,10 @@ func (h *MultimediaHandler) CreateSuggestion(c *fiber.Ctx) error {
 // @Success 200 {array} models.UserMediaSuggestion
 // @Router /api/admin/multimedia/suggestions [get]
 func (h *MultimediaHandler) GetPendingSuggestions(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	suggestions, err := h.service.GetPendingSuggestions()
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
@@ -543,9 +590,9 @@ func (h *MultimediaHandler) ReviewSuggestion(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Status must be 'approved' or 'rejected'"})
 	}
 
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	userID, err := requireMultimediaUserID(c)
+	if err != nil {
+		return err
 	}
 
 	if err := h.service.ReviewSuggestion(uint(id), body.Status, body.AdminNote, userID); err != nil {
@@ -636,6 +683,10 @@ func (h *MultimediaHandler) GetFavorites(c *fiber.Ctx) error {
 // @Success 200 {object} services.MultimediaStats
 // @Router /api/admin/multimedia/stats [get]
 func (h *MultimediaHandler) GetStats(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	stats, err := h.service.GetStats()
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
@@ -653,6 +704,10 @@ func (h *MultimediaHandler) GetStats(c *fiber.Ctx) error {
 // @Success 201 {object} models.MediaCategory
 // @Router /api/admin/multimedia/categories [post]
 func (h *MultimediaHandler) CreateCategory(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	var category models.MediaCategory
 	if err := c.BodyParser(&category); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
@@ -672,6 +727,10 @@ func (h *MultimediaHandler) CreateCategory(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/categories/{id} [put]
 func (h *MultimediaHandler) UpdateCategory(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid category ID"})
@@ -696,6 +755,10 @@ func (h *MultimediaHandler) UpdateCategory(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/categories/{id} [delete]
 func (h *MultimediaHandler) DeleteCategory(c *fiber.Ctx) error {
+	if _, err := requireMultimediaUserID(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid category ID"})

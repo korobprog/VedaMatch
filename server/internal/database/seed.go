@@ -103,6 +103,10 @@ func SeedSystemSettings() {
 			Key:   "PATH_TRACKER_PHASE3_EXPERIMENT",
 			Value: "off",
 		},
+		{
+			Key:   "CHANNELS_V1_ENABLED",
+			Value: "true",
+		},
 	}
 
 	for _, s := range settings {

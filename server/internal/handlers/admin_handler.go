@@ -26,6 +26,14 @@ func NewAdminHandler() *AdminHandler {
 	return &AdminHandler{}
 }
 
+func requireAdminUserID(c *fiber.Ctx) (uint, error) {
+	adminID := middleware.GetUserID(c)
+	if adminID == 0 {
+		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	return adminID, nil
+}
+
 func getSystemSettingOrEnv(key string) string {
 	var setting models.SystemSetting
 	if err := database.DB.Where("key = ?", key).First(&setting).Error; err == nil && setting.Value != "" {
@@ -499,7 +507,10 @@ func (h *AdminHandler) GeocodeAllUsers(c *fiber.Ctx) error {
 // AdminChargeWallet adds LKM to user's wallet
 // POST /api/admin/wallet/charge
 func (h *AdminHandler) AdminChargeWallet(c *fiber.Ctx) error {
-	adminID := middleware.GetUserID(c)
+	adminID, err := requireAdminUserID(c)
+	if err != nil {
+		return err
+	}
 
 	var body struct {
 		UserID uint   `json:"userId"`
@@ -535,7 +546,10 @@ func (h *AdminHandler) AdminChargeWallet(c *fiber.Ctx) error {
 // AdminSeizeWallet removes LKM from user's wallet
 // POST /api/admin/wallet/seize
 func (h *AdminHandler) AdminSeizeWallet(c *fiber.Ctx) error {
-	adminID := middleware.GetUserID(c)
+	adminID, err := requireAdminUserID(c)
+	if err != nil {
+		return err
+	}
 
 	var body struct {
 		UserID uint   `json:"userId"`
@@ -618,6 +632,10 @@ func (h *AdminHandler) GetUserTransactions(c *fiber.Ctx) error {
 // ActivateUserPendingBalance activates pending balance for a user
 // POST /api/admin/wallet/:userId/activate
 func (h *AdminHandler) ActivateUserPendingBalance(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	userIDParam, err := c.ParamsInt("userId")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})

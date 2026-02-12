@@ -332,10 +332,31 @@ class MarketService {
         }
     }
 
-    async getMyOrders(page = 1, limit = 20, status?: OrderStatus): Promise<{ orders: Order[], total: number, page: number, totalPages: number }> {
+    async createOrderFromChannel(
+        data: OrderCreateData,
+        attribution: { source?: string; sourcePostId?: number; sourceChannelId?: number } = {}
+    ): Promise<{ orderId: number, orderNumber: string, message: string }> {
+        const payload: OrderCreateData = {
+            ...data,
+            source: attribution.source ?? data.source ?? 'channel_post',
+            sourcePostId: attribution.sourcePostId ?? data.sourcePostId,
+            sourceChannelId: attribution.sourceChannelId ?? data.sourceChannelId,
+        };
+        return this.createOrder(payload);
+    }
+
+    async getMyOrders(
+        page = 1,
+        limit = 20,
+        status?: OrderStatus,
+        extraFilters: { source?: string; sourcePostId?: number; sourceChannelId?: number } = {}
+    ): Promise<{ orders: Order[], total: number, page: number, totalPages: number }> {
         try {
             const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/orders/my`, { params: { page, limit, status }, headers });
+            const response = await axios.get(`${API_PATH}/orders/my`, {
+                params: { page, limit, status, ...extraFilters },
+                headers
+            });
             return response.data;
         } catch (error) {
             console.error('Error fetching my orders:', error);
@@ -366,10 +387,18 @@ class MarketService {
     }
 
     // Seller order endpoints
-    async getSellerOrders(page = 1, limit = 20, status?: OrderStatus): Promise<{ orders: Order[], total: number, page: number, totalPages: number }> {
+    async getSellerOrders(
+        page = 1,
+        limit = 20,
+        status?: OrderStatus,
+        extraFilters: { source?: string; sourcePostId?: number; sourceChannelId?: number } = {}
+    ): Promise<{ orders: Order[], total: number, page: number, totalPages: number }> {
         try {
             const headers = await this.getHeaders();
-            const response = await axios.get(`${API_PATH}/orders/seller`, { params: { page, limit, status }, headers });
+            const response = await axios.get(`${API_PATH}/orders/seller`, {
+                params: { page, limit, status, ...extraFilters },
+                headers
+            });
             return response.data;
         } catch (error) {
             console.error('Error fetching seller orders:', error);

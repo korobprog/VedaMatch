@@ -20,6 +20,21 @@ func NewWalletService() *WalletService {
 	return &WalletService{}
 }
 
+func isDuplicateKeyError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "unique constraint") ||
+		strings.Contains(msg, "unique violation") ||
+		strings.Contains(msg, "duplicate entry")
+}
+
 func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.Wallet, error) {
 	var wallet models.Wallet
 	err := tx.Where("user_id = ?", userID).First(&wallet).Error
@@ -42,6 +57,12 @@ func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.W
 	}
 
 	if err := tx.Create(&wallet).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			if getErr := tx.Where("user_id = ?", userID).First(&wallet).Error; getErr != nil {
+				return nil, getErr
+			}
+			return &wallet, nil
+		}
 		return nil, err
 	}
 
@@ -72,35 +93,55 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 		return nil, err
 	}
 
-	// Create new wallet with Welcome Bonus (Pending)
-	// Strategy: 0 Active + 50 Pending (unlocked after profile completion)
-	wallet = models.Wallet{
-		UserID:         &userID,
-		Type:           models.WalletTypePersonal,
-		Balance:        0,  // Active balance starts at 0
-		PendingBalance: 50, // Welcome bonus (locked)
-		FrozenBalance:  0,
-		TotalEarned:    0,
-		TotalSpent:     0,
-	}
+	created := false
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// Re-check inside transaction to avoid duplicate wallet under concurrent requests.
+		if txErr := tx.Where("user_id = ?", userID).First(&wallet).Error; txErr == nil {
+			return nil
+		} else if !errors.Is(txErr, gorm.ErrRecordNotFound) {
+			return txErr
+		}
 
-	if err := database.DB.Create(&wallet).Error; err != nil {
+		// Create new wallet with Welcome Bonus (Pending)
+		// Strategy: 0 Active + 50 Pending (unlocked after profile completion)
+		wallet = models.Wallet{
+			UserID:         &userID,
+			Type:           models.WalletTypePersonal,
+			Balance:        0,  // Active balance starts at 0
+			PendingBalance: 50, // Welcome bonus (locked)
+			FrozenBalance:  0,
+			TotalEarned:    0,
+			TotalSpent:     0,
+		}
+
+		if txErr := tx.Create(&wallet).Error; txErr != nil {
+			if isDuplicateKeyError(txErr) {
+				return tx.Where("user_id = ?", userID).First(&wallet).Error
+			}
+			return txErr
+		}
+		created = true
+
+		// Record welcome bonus transaction
+		welcomeTx := models.WalletTransaction{
+			WalletID:     wallet.ID,
+			Type:         models.TransactionTypeBonus,
+			Amount:       50,
+			Description:  "Welcome Bonus (Pending activation)",
+			BalanceAfter: 0, // Active balance is still 0
+		}
+		if txErr := tx.Create(&welcomeTx).Error; txErr != nil {
+			return txErr
+		}
+
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
-	// Record welcome bonus transaction
-	welcomeTx := models.WalletTransaction{
-		WalletID:     wallet.ID,
-		Type:         models.TransactionTypeBonus,
-		Amount:       50,
-		Description:  "Welcome Bonus (Pending activation)",
-		BalanceAfter: 0, // Active balance is still 0
+	if created {
+		log.Printf("[Wallet] Created wallet for user %d with 0 Active + 50 Pending LKM", userID)
 	}
-	if err := database.DB.Create(&welcomeTx).Error; err != nil {
-		return nil, err
-	}
-
-	log.Printf("[Wallet] Created wallet for user %d with 0 Active + 50 Pending LKM", userID)
 	return &wallet, nil
 }
 

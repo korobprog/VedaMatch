@@ -294,6 +294,9 @@ export interface Order {
     buyerPhone: string;
     buyerEmail: string;
     buyerNote: string;
+    source?: string;
+    sourcePostId?: number;
+    sourceChannelId?: number;
     notificationSent: boolean;
     CreatedAt: string;
     confirmedAt?: string;
@@ -325,6 +328,9 @@ export interface OrderCreateData {
     buyerPhone?: string;
     buyerEmail?: string;
     buyerNote?: string;
+    source?: string;
+    sourcePostId?: number;
+    sourceChannelId?: number;
 }
 
 // Category config

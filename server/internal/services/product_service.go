@@ -77,6 +77,23 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	if req.Category == "" {
 		return nil, errors.New("category is required")
 	}
+	if req.BasePrice < 0 {
+		return nil, errors.New("base price cannot be negative")
+	}
+	if req.SalePrice != nil {
+		if *req.SalePrice < 0 {
+			return nil, errors.New("sale price cannot be negative")
+		}
+		if *req.SalePrice > req.BasePrice {
+			return nil, errors.New("sale price cannot exceed base price")
+		}
+	}
+	if req.Stock < 0 {
+		return nil, errors.New("stock cannot be negative")
+	}
+	if req.Weight != nil && *req.Weight < 0 {
+		return nil, errors.New("weight cannot be negative")
+	}
 
 	// Generate slug
 	slug := s.generateSlug(req.Name)
@@ -242,11 +259,17 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		if *req.BasePrice < 0 {
 			return nil, errors.New("base price cannot be negative")
 		}
+		if product.SalePrice != nil && *product.SalePrice > *req.BasePrice {
+			return nil, errors.New("sale price cannot exceed base price")
+		}
 		product.BasePrice = *req.BasePrice
 	}
 	if req.SalePrice != nil {
 		if *req.SalePrice < 0 {
 			return nil, errors.New("sale price cannot be negative")
+		}
+		if *req.SalePrice > product.BasePrice {
+			return nil, errors.New("sale price cannot exceed base price")
 		}
 		product.SalePrice = req.SalePrice
 	}
@@ -267,6 +290,9 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.MainImageURL = strings.TrimSpace(*req.MainImageURL)
 	}
 	if req.Weight != nil {
+		if *req.Weight < 0 {
+			return nil, errors.New("weight cannot be negative")
+		}
 		product.Weight = req.Weight
 	}
 	if req.Dimensions != nil {

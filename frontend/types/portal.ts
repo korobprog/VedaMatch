@@ -63,6 +63,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'education', label: 'Обучение', icon: 'GraduationCap', color: '#8B5CF6' },
     { id: 'multimedia', label: 'Медия', icon: 'Music', color: '#6366F1' },
     { id: 'video_circles', label: 'Кружки', icon: 'PlayCircle', color: '#EA580C' },
+    { id: 'channels', label: 'Каналы', icon: 'Radio', color: '#0EA5A4' },
     { id: 'news', label: 'Новости', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },

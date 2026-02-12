@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"rag-agent-server/internal/database"
@@ -153,6 +154,9 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		BuyerPhone:      req.BuyerPhone,
 		BuyerEmail:      req.BuyerEmail,
 		BuyerNote:       req.BuyerNote,
+		Source:          normalizeOrderSource(req.Source),
+		SourcePostID:    req.SourcePostID,
+		SourceChannelID: req.SourceChannelID,
 	}
 
 	if err := tx.Create(&order).Error; err != nil {
@@ -187,6 +191,17 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 	database.DB.Preload("Items").First(&order, order.ID)
 
 	return &order, nil
+}
+
+func normalizeOrderSource(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if len(value) > 80 {
+		return value[:80]
+	}
+	return value
 }
 
 // GetOrder retrieves an order by ID
@@ -254,6 +269,15 @@ func (s *OrderService) getOrders(filters models.OrderFilters) (*models.OrderList
 	}
 	if filters.Status != "" {
 		query = query.Where("status = ?", filters.Status)
+	}
+	if filters.Source != "" {
+		query = query.Where("source = ?", normalizeOrderSource(filters.Source))
+	}
+	if filters.SourcePostID != nil {
+		query = query.Where("source_post_id = ?", *filters.SourcePostID)
+	}
+	if filters.SourceChannelID != nil {
+		query = query.Where("source_channel_id = ?", *filters.SourceChannelID)
 	}
 	if filters.Search != "" {
 		query = query.Where("order_number ILIKE ?", "%"+filters.Search+"%")

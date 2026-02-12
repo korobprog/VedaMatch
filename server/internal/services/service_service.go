@@ -151,8 +151,17 @@ func (s *ServiceService) Update(serviceID, ownerID uint, req models.ServiceUpdat
 		}
 	}
 
-	// Reload with relations
-	return s.GetByID(serviceID)
+	// Reload with relations without mutating view counters.
+	var updated models.Service
+	if err := database.DB.
+		Preload("Owner").
+		Preload("Tariffs", "is_active = ?", true).
+		Preload("Schedules", "is_active = ?", true).
+		First(&updated, serviceID).Error; err != nil {
+		return nil, err
+	}
+
+	return &updated, nil
 }
 
 // Delete soft-deletes a service

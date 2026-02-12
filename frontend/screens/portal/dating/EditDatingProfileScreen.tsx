@@ -143,8 +143,6 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     const date = new Date(me.dob);
                     if (!isNaN(date.getTime())) {
                         setTempDob(date);
-                        // Updating profile state again to ensure dob is set if missed in initial batch
-                        setProfile(prev => ({ ...prev, dob: me.dob }));
                     }
                 }
             }
@@ -264,9 +262,9 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
 
     const handleCitySelect = (item: any) => {
         if (citySearchType === 'current') {
-            setProfile({ ...profile, city: item.display_name });
+            setProfile(prev => ({ ...prev, city: item.display_name }));
         } else {
-            setProfile({ ...profile, birthPlaceLink: item.display_name });
+            setProfile(prev => ({ ...prev, birthPlaceLink: item.display_name }));
         }
         setCitySearchModal(false);
         setCityQuery('');
@@ -274,11 +272,13 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
     };
 
     const toggleIntention = (key: string) => {
-        if (profile.intentions.includes(key)) {
-            setProfile({ ...profile, intentions: profile.intentions.filter(i => i !== key) });
-        } else {
-            setProfile({ ...profile, intentions: [...profile.intentions, key] });
-        }
+        setProfile(prev => {
+            const hasKey = prev.intentions.includes(key);
+            return {
+                ...prev,
+                intentions: hasKey ? prev.intentions.filter(i => i !== key) : [...prev.intentions, key],
+            };
+        });
     };
 
     if (loading) {
@@ -307,7 +307,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         <Text style={[styles.label, { color: theme.text, marginTop: 0 }]}>{t('dating.enableProfile')}</Text>
                         <Switch
                             value={profile.datingEnabled}
-                            onValueChange={(val) => setProfile({ ...profile, datingEnabled: val })}
+                            onValueChange={(val) => setProfile(prev => ({ ...prev, datingEnabled: val }))}
                             trackColor={{ false: theme.borderColor, true: theme.accent }}
                         />
                     </View>

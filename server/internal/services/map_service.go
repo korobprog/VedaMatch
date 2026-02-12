@@ -558,8 +558,8 @@ func (s *MapService) GetRoute(req models.GeoapifyRouteRequest) (map[string]any, 
 
 	requestURL := fmt.Sprintf(
 		"https://api.geoapify.com/v1/routing?waypoints=%f,%f|%f,%f&mode=%s&apiKey=%s",
-		req.StartLat, req.StartLng,
-		req.EndLat, req.EndLng,
+		req.StartLng, req.StartLat,
+		req.EndLng, req.EndLat,
 		url.QueryEscape(mode),
 		s.geoapifyAPIKey,
 	)

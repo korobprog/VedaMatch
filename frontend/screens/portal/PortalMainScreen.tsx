@@ -90,7 +90,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     }, [shimmerAnim]);
 
     const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
-    const [activeTab, setActiveTab] = useState<ServiceTab | null>(route.params?.initialTab || null);
+    const initialTab = route.params?.initialTab;
+    const initialServiceTab = initialTab && initialTab !== 'channels' && SERVICE_TABS.has(initialTab as ServiceTab)
+        ? (initialTab as ServiceTab)
+        : null;
+    const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
 
     // Determine effective background values
@@ -221,6 +225,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         } else if (initialTab === 'path_tracker') {
             navigation.navigate('PathTrackerHome');
             navigation.setParams({ initialTab: undefined });
+        } else if (initialTab === 'channels') {
+            navigation.navigate('ChannelsHub');
+            navigation.setParams({ initialTab: undefined });
         } else if (SERVICE_TABS.has(initialTab as ServiceTab)) {
             setActiveTab(initialTab as ServiceTab);
         } else {
@@ -264,9 +271,13 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('PathTrackerHome');
             return;
         }
+        if (serviceId === 'channels') {
+            navigation.navigate('ChannelsHub');
+            return;
+        }
 
         const isSeeker = (user?.role || 'user') === 'user';
-        const seekerAllowedWithoutProfile = ['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles'];
+        const seekerAllowedWithoutProfile = ['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles', 'channels'];
         const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
 
         if (!user?.isProfileComplete && !canUseWithoutCompleteProfile) {

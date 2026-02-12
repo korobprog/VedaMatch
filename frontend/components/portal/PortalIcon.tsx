@@ -39,6 +39,7 @@ import {
     Contact,
     PlayCircle,
     Clapperboard,
+    Radio,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -87,6 +88,7 @@ const IconComponents: Record<string, any> = {
     Contact,
     PlayCircle,
     Clapperboard,
+    Radio,
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({

@@ -14,6 +14,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // NewsHandler handles news-related API requests
@@ -951,7 +952,7 @@ func (h *NewsHandler) SubscribeToSource(c *fiber.Ctx) error {
 		SourceID: uint(sourceID),
 	}
 
-	if err := database.DB.FirstOrCreate(&subscription, subscription).Error; err != nil {
+	if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&subscription).Error; err != nil {
 		log.Printf("[NEWS] Error subscribing to source: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to subscribe"})
 	}
@@ -1024,7 +1025,7 @@ func (h *NewsHandler) AddToFavorites(c *fiber.Ctx) error {
 		SourceID: uint(sourceID),
 	}
 
-	if err := database.DB.FirstOrCreate(&favorite, favorite).Error; err != nil {
+	if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&favorite).Error; err != nil {
 		log.Printf("[NEWS] Error adding to favorites: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to add to favorites"})
 	}

@@ -866,7 +866,10 @@ func (h *CafeHandler) CreateWaiterCall(c *fiber.Ctx) error {
 // GetActiveWaiterCalls returns active waiter calls
 // GET /api/cafes/:id/waiter-calls
 func (h *CafeHandler) GetActiveWaiterCalls(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -887,7 +890,10 @@ func (h *CafeHandler) GetActiveWaiterCalls(c *fiber.Ctx) error {
 // AcknowledgeWaiterCall acknowledges a waiter call
 // POST /api/cafes/:id/waiter-calls/:callId/acknowledge
 func (h *CafeHandler) AcknowledgeWaiterCall(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
@@ -911,7 +917,10 @@ func (h *CafeHandler) AcknowledgeWaiterCall(c *fiber.Ctx) error {
 // CompleteWaiterCall completes a waiter call
 // POST /api/cafes/:id/waiter-calls/:callId/complete
 func (h *CafeHandler) CompleteWaiterCall(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+	userID, err := requireCafeUserID(c)
+	if err != nil {
+		return err
+	}
 	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})

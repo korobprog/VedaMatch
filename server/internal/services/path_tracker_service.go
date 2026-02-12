@@ -665,6 +665,20 @@ func (s *PathTrackerService) SaveCheckin(userID uint, input CheckinInput) (*mode
 	}
 
 	if err := s.db.Create(&checkin).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			if getErr := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&existing).Error; getErr != nil {
+				return nil, getErr
+			}
+			existing.MoodCode = checkin.MoodCode
+			existing.EnergyCode = checkin.EnergyCode
+			existing.AvailableMinutes = checkin.AvailableMinutes
+			existing.FreeText = checkin.FreeText
+			existing.Timezone = checkin.Timezone
+			if saveErr := s.db.Save(&existing).Error; saveErr != nil {
+				return nil, saveErr
+			}
+			return &existing, nil
+		}
 		return nil, err
 	}
 	log.Printf("[PathTracker] checkin saved user=%d role=%s date=%s minutes=%d", user.ID, user.Role, dateLocal, input.AvailableMinutes)
@@ -729,6 +743,12 @@ func (s *PathTrackerService) GenerateStep(userID uint) (*DailyStepView, error) {
 		Status:            models.PathTrackerStepStatusAssigned,
 	}
 	if err := s.db.Create(&step).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			if getErr := s.db.Where("user_id = ? AND date_local = ?", userID, dateLocal).First(&existing).Error; getErr != nil {
+				return nil, getErr
+			}
+			return buildDailyStepView(existing, dateLocal)
+		}
 		return nil, err
 	}
 
@@ -1695,16 +1715,38 @@ func (s *PathTrackerService) deriveLoadLevel(checkin models.DailyCheckin, state 
 
 func (s *PathTrackerService) ensureState(userID uint) models.PathTrackerState {
 	var state models.PathTrackerState
-	if err := s.db.Where("user_id = ?", userID).First(&state).Error; err != nil {
-		state = models.PathTrackerState{
+	err := s.db.Where("user_id = ?", userID).First(&state).Error
+	if err == nil {
+		return state
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[PathTracker] ensureState read failed for user %d: %v", userID, err)
+		return models.PathTrackerState{
 			UserID:            userID,
 			LoadLevel:         models.PathTrackerLoadMedium,
 			TrajectoryPhase:   "reentry",
 			ExperienceSegment: "gentle_recovery",
-			StreakCurrent:     0,
-			StreakBest:        0,
 		}
-		_ = s.db.Create(&state).Error
+	}
+
+	state = models.PathTrackerState{
+		UserID:            userID,
+		LoadLevel:         models.PathTrackerLoadMedium,
+		TrajectoryPhase:   "reentry",
+		ExperienceSegment: "gentle_recovery",
+		StreakCurrent:     0,
+		StreakBest:        0,
+	}
+	if createErr := s.db.Create(&state).Error; createErr != nil {
+		if isDuplicateKeyError(createErr) {
+			getErr := s.db.Where("user_id = ?", userID).First(&state).Error
+			if getErr == nil {
+				return state
+			}
+			log.Printf("[PathTracker] ensureState refetch after duplicate failed for user %d: %v", userID, getErr)
+		} else {
+			log.Printf("[PathTracker] ensureState create failed for user %d: %v", userID, createErr)
+		}
 	}
 	return state
 }

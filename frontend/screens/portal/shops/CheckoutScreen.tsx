@@ -18,6 +18,10 @@ type RouteParams = {
     Checkout: {
         items?: CartItem[];
         shopId?: number;
+        source?: string;
+        sourcePostId?: number;
+        sourceChannelId?: number;
+        prefillBuyerNote?: string;
     };
 };
 
@@ -41,7 +45,7 @@ export const CheckoutScreen: React.FC = () => {
     const [buyerName, setBuyerName] = useState('');
     const [buyerPhone, setBuyerPhone] = useState('');
     const [buyerEmail, setBuyerEmail] = useState('');
-    const [buyerNote, setBuyerNote] = useState('');
+    const [buyerNote, setBuyerNote] = useState(route.params?.prefillBuyerNote || '');
 
     useEffect(() => {
         // Load products details if not available
@@ -150,11 +154,18 @@ export const CheckoutScreen: React.FC = () => {
                 buyerNote: buyerNote.trim(),
             };
 
-            const result = await marketService.createOrder(orderData);
+            const hasChannelAttribution = Boolean(route.params?.sourcePostId || route.params?.sourceChannelId || route.params?.source === 'channel_post');
+            const resultWithAttribution = hasChannelAttribution
+                ? await marketService.createOrderFromChannel(orderData, {
+                    source: route.params?.source || 'channel_post',
+                    sourcePostId: route.params?.sourcePostId,
+                    sourceChannelId: route.params?.sourceChannelId,
+                })
+                : await marketService.createOrder(orderData);
 
             navigation.replace('OrderSuccess', {
-                orderId: result.orderId,
-                orderNumber: result.orderNumber,
+                orderId: resultWithAttribution.orderId,
+                orderNumber: resultWithAttribution.orderNumber,
             });
         } catch (error: any) {
             console.error('Error creating order:', error);

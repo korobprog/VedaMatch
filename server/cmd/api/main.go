@@ -68,6 +68,7 @@ func main() {
 		log.Printf("[VideoCircles] failed to ensure default tariffs: %v", err)
 	}
 	services.StartVideoCircleExpiryScheduler()
+	services.StartChannelPostScheduler()
 
 	// Start News Scheduler (background job for fetching news from sources)
 	services.StartNewsScheduler()
@@ -204,6 +205,7 @@ func main() {
 	systemHandler := handlers.NewSystemHandler()
 	videoCircleHandler := handlers.NewVideoCircleHandler()
 	pathTrackerHandler := handlers.NewPathTrackerHandler()
+	channelHandler := handlers.NewChannelHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -302,6 +304,11 @@ func main() {
 
 	// Public Video Circle Tariffs
 	api.Get("/video-tariffs", videoCircleHandler.GetTariffs)
+	api.Get("/feed", middleware.OptionalAuth(), channelHandler.GetFeed)
+	api.Get("/channels", channelHandler.ListPublicChannels)
+	api.Get("/channels/:id", middleware.OptionalAuth(), channelHandler.GetChannel)
+	api.Get("/channels/:id/posts", middleware.OptionalAuth(), channelHandler.ListPosts)
+	api.Get("/channels/:id/showcases", middleware.OptionalAuth(), channelHandler.ListShowcases)
 
 	// Public Yatra Travel Routes (Spiritual Pilgrimage Service)
 	// IMPORTANT: Must be registered BEFORE protected group
@@ -608,6 +615,25 @@ func main() {
 	protected.Put("/rooms/:id/settings", roomHandler.UpdateRoomSettings)
 	protected.Post("/rooms/:id/image", roomHandler.UpdateRoomImage)
 
+	// Channels (Release 1)
+	protected.Post("/channels", channelHandler.CreateChannel)
+	protected.Get("/channels/my", channelHandler.ListMyChannels)
+	protected.Patch("/channels/:id", channelHandler.UpdateChannel)
+	protected.Patch("/channels/:id/branding", channelHandler.UpdateBranding)
+	protected.Post("/channels/:id/members", channelHandler.AddMember)
+	protected.Get("/channels/:id/members", channelHandler.ListMembers)
+	protected.Patch("/channels/:id/members/:userId", channelHandler.UpdateMemberRole)
+	protected.Delete("/channels/:id/members/:userId", channelHandler.RemoveMember)
+	protected.Post("/channels/:id/posts", channelHandler.CreatePost)
+	protected.Patch("/channels/:id/posts/:postId", channelHandler.UpdatePost)
+	protected.Post("/channels/:id/posts/:postId/pin", channelHandler.PinPost)
+	protected.Delete("/channels/:id/posts/:postId/pin", channelHandler.UnpinPost)
+	protected.Post("/channels/:id/posts/:postId/publish", channelHandler.PublishPost)
+	protected.Post("/channels/:id/posts/:postId/schedule", channelHandler.SchedulePost)
+	protected.Post("/channels/:id/showcases", channelHandler.CreateShowcase)
+	protected.Patch("/channels/:id/showcases/:showcaseId", channelHandler.UpdateShowcase)
+	protected.Delete("/channels/:id/showcases/:showcaseId", channelHandler.DeleteShowcase)
+
 	// Media Routes
 	protected.Post("/media/upload/:userId", mediaHandler.UploadPhoto)
 	protected.Get("/media/:userId", mediaHandler.ListPhotos)
@@ -777,6 +803,7 @@ func main() {
 	api.Get("/services/:id", serviceHandler.GetByID)
 	api.Get("/services/:id/tariffs", serviceHandler.GetTariffs)
 	api.Get("/services/:id/schedule", serviceHandler.GetSchedules)
+	api.Get("/services/:id/schedule/weekly", serviceHandler.GetWeeklySchedule)
 	api.Get("/services/:id/slots", bookingHandler.GetSlots)
 	protected.Post("/services", serviceHandler.Create)
 	protected.Put("/services/:id", serviceHandler.Update)
@@ -791,6 +818,7 @@ func main() {
 
 	// Service Schedule (Protected - Owner only)
 	protected.Post("/services/:id/schedule", serviceHandler.AddSchedule)
+	protected.Put("/services/:id/schedule/weekly", serviceHandler.UpdateWeeklySchedule)
 	protected.Delete("/schedule/:id", serviceHandler.DeleteSchedule)
 
 	// Bookings

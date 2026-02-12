@@ -99,28 +99,40 @@ func (s *CafeService) CreateCafe(ownerID uint, req models.CafeCreateRequest) (*m
 		Status:       models.CafeStatusActive,
 	}
 
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(cafe).Error; err != nil {
-			return err
+	var createErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			cafe.ID = 0
+			cafe.Slug = s.generateSlug(req.Name)
 		}
 
-		// Keep owner permissions consistent with created cafe.
-		staff := &models.CafeStaff{
-			CafeID:   cafe.ID,
-			UserID:   ownerID,
-			Role:     models.CafeStaffRoleAdmin,
-			IsActive: true,
-		}
-		if err := tx.Create(staff).Error; err != nil {
-			return err
-		}
+		createErr = s.db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Create(cafe).Error; err != nil {
+				return err
+			}
 
-		return nil
-	}); err != nil {
-		return nil, err
+			// Keep owner permissions consistent with created cafe.
+			staff := &models.CafeStaff{
+				CafeID:   cafe.ID,
+				UserID:   ownerID,
+				Role:     models.CafeStaffRoleAdmin,
+				IsActive: true,
+			}
+			if err := tx.Create(staff).Error; err != nil {
+				return err
+			}
+
+			return nil
+		})
+		if createErr == nil {
+			return cafe, nil
+		}
+		if !isDuplicateKeyError(createErr) {
+			return nil, createErr
+		}
 	}
 
-	return cafe, nil
+	return nil, createErr
 }
 
 // GetCafe retrieves a cafe by ID

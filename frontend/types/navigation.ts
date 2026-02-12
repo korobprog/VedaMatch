@@ -10,7 +10,7 @@ export type RootStackParamList = {
     Login: { inviteCode?: string } | undefined;
     Plans: undefined;
     Portal: {
-        initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map' | 'path_tracker';
+        initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map' | 'path_tracker' | 'channels';
         resetToGridAt?: number;
     } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
@@ -37,11 +37,18 @@ export type RootStackParamList = {
     EditProduct: { productId: number };
     MyProducts: undefined;
     ProductDetails: { productId: number };
-    Checkout: { items?: CartItem[]; shopId?: number } | undefined;
+    Checkout: {
+        items?: CartItem[];
+        shopId?: number;
+        source?: string;
+        sourcePostId?: number;
+        sourceChannelId?: number;
+        prefillBuyerNote?: string;
+    } | undefined;
     OrderSuccess: { orderId: number; orderNumber: string };
     MyOrders: undefined;
     OrderDetails: { orderId: number };
-    SellerOrders: undefined;
+    SellerOrders: { source?: string; sourceChannelId?: number } | undefined;
     ShopsMap: undefined;
     Messages: undefined;
 
@@ -103,6 +110,11 @@ export type RootStackParamList = {
     CreateService: { serviceId?: number } | undefined;
     IncomingBookings: undefined;
     ServiceSchedule: { serviceId: number };
+    ChannelsHub: undefined;
+    ChannelDetails: { channelId: number };
+    CreateChannel: undefined;
+    ChannelPostComposer: { channelId: number };
+    ChannelManage: { channelId: number };
 
     // Wallet Routes
     Wallet: undefined;

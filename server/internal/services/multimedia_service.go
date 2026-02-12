@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type MultimediaService struct {
@@ -609,7 +610,7 @@ func (s *MultimediaService) AddToFavorites(userID, trackID uint) error {
 		UserID:       userID,
 		MediaTrackID: trackID,
 	}
-	return s.db.Where("user_id = ? AND media_track_id = ?", userID, trackID).FirstOrCreate(&favorite).Error
+	return s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&favorite).Error
 }
 
 func (s *MultimediaService) RemoveFromFavorites(userID, trackID uint) error {

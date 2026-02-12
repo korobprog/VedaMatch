@@ -12,6 +12,13 @@ export { default as CreateServiceScreen } from './CreateServiceScreen';
 export { default as MyServicesScreen } from './MyServicesScreen';
 export { default as IncomingBookingsScreen } from './IncomingBookingsScreen';
 export { default as ServiceScheduleScreen } from './ServiceScheduleScreen';
+export {
+    ChannelsHubScreen,
+    ChannelDetailsScreen,
+    CreateChannelScreen,
+    ChannelPostComposerScreen,
+    ChannelManageScreen,
+} from './channels';
 
 // Components
 export { default as ServiceCard } from './components/ServiceCard';

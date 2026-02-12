@@ -53,6 +53,9 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	req.DeliveryPhone = strings.TrimSpace(req.DeliveryPhone)
 	req.CustomerNote = strings.TrimSpace(req.CustomerNote)
 	req.PaymentMethod = strings.TrimSpace(req.PaymentMethod)
+	if req.PaymentMethod == "" {
+		req.PaymentMethod = "cash"
+	}
 
 	if len(req.Items) == 0 {
 		return nil, errors.New("order must contain at least one item")
@@ -75,6 +78,9 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	}
 	if req.OrderType == models.CafeOrderTypeDelivery && req.DeliveryAddress == "" {
 		return nil, errors.New("delivery address required for delivery orders")
+	}
+	if req.OrderType == models.CafeOrderTypeDelivery && req.DeliveryPhone == "" {
+		return nil, errors.New("delivery phone required for delivery orders")
 	}
 
 	// Calculate order totals
@@ -151,7 +157,7 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 			Quantity:           itemReq.Quantity,
 			Total:              itemTotal,
 			RemovedIngredients: removedIngredientsJSON,
-			CustomerNote:       itemReq.Note,
+			CustomerNote:       strings.TrimSpace(itemReq.Note),
 			Status:             "pending",
 			Modifiers:          modifiers,
 		})

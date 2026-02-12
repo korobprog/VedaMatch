@@ -149,6 +149,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 setCity(userData.city || '');
                 setKarmicName(userData.karmicName || '');
                 setSpiritualName(userData.spiritualName || '');
+                setMadh(userData.madh || '');
                 setMentor(userData.mentor || '');
                 setGender(userData.gender || GENDER_OPTIONS[0]);
                 setIdentity(userData.identity || IDENTITY_OPTIONS[0]);
@@ -201,10 +202,12 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     }, [user?.ID, fetchCities]);
 
     const handleSave = async () => {
-        if (!user?.ID) return;
+        if (!user?.ID || saving) return;
 
         const requestId = ++latestSaveRequestRef.current;
-        setSaving(true);
+        if (isMountedRef.current) {
+            setSaving(true);
+        }
         try {
             const profileData = {
                 country,

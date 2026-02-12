@@ -91,6 +91,13 @@ func (h *OrderHandler) GetMyOrders(c *fiber.Ctx) error {
 		Status: models.OrderStatus(c.Query("status")),
 		Search: c.Query("search"),
 		Sort:   c.Query("sort", "newest"),
+		Source: c.Query("source"),
+	}
+	if sourcePostID := parseOptionalUintQuery(c, "sourcePostId"); sourcePostID != nil {
+		filters.SourcePostID = sourcePostID
+	}
+	if sourceChannelID := parseOptionalUintQuery(c, "sourceChannelId"); sourceChannelID != nil {
+		filters.SourceChannelID = sourceChannelID
 	}
 
 	page, _ := strconv.Atoi(c.Query("page", "1"))
@@ -229,6 +236,13 @@ func (h *OrderHandler) GetSellerOrders(c *fiber.Ctx) error {
 		Status: models.OrderStatus(c.Query("status")),
 		Search: c.Query("search"),
 		Sort:   c.Query("sort", "newest"),
+		Source: c.Query("source"),
+	}
+	if sourcePostID := parseOptionalUintQuery(c, "sourcePostId"); sourcePostID != nil {
+		filters.SourcePostID = sourcePostID
+	}
+	if sourceChannelID := parseOptionalUintQuery(c, "sourceChannelId"); sourceChannelID != nil {
+		filters.SourceChannelID = sourceChannelID
 	}
 
 	page, _ := strconv.Atoi(c.Query("page", "1"))
@@ -382,4 +396,17 @@ func (h *OrderHandler) notifySellerAboutOrder(order *models.Order) {
 
 	// Mark notification as sent
 	h.orderService.MarkNotificationSent(order.ID)
+}
+
+func parseOptionalUintQuery(c *fiber.Ctx, key string) *uint {
+	value := c.Query(key)
+	if value == "" {
+		return nil
+	}
+	parsed, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return nil
+	}
+	result := uint(parsed)
+	return &result
 }

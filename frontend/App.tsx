@@ -133,6 +133,11 @@ import {
   MyServicesScreen,
   IncomingBookingsScreen,
   ServiceScheduleScreen,
+  ChannelsHubScreen,
+  ChannelDetailsScreen,
+  CreateChannelScreen,
+  ChannelPostComposerScreen,
+  ChannelManageScreen,
 } from './screens/portal/services';
 import { SevaHubScreen, SevaProjectDetailsScreen } from './screens/seva';
 import MyDonationsScreen from './screens/seva/MyDonationsScreen';
@@ -420,6 +425,11 @@ const AppContent = () => {
                   <Stack.Screen name="MyServices" component={MyServicesScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="IncomingBookings" component={IncomingBookingsScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ServiceSchedule" component={ServiceScheduleScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ChannelsHub" component={ChannelsHubScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ChannelDetails" component={ChannelDetailsScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="CreateChannel" component={CreateChannelScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ChannelPostComposer" component={ChannelPostComposerScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="ChannelManage" component={ChannelManageScreen} options={{ headerShown: false }} />
 
                   {/* Wallet Routes */}
                   <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />

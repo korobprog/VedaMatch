@@ -4,7 +4,7 @@ import {
     RefreshControl, ActivityIndicator, Image, Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import { marketService } from '../../../services/marketService';
 import { Order, OrderStatus } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
@@ -13,6 +13,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { RootStackParamList } from '../../../types/navigation';
 
 const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; tone: 'accent' | 'success' | 'warning' | 'danger'; emoji: string }> = {
     new: { label: 'New', tone: 'accent', emoji: '🆕' },
@@ -39,6 +40,7 @@ const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 export const SellerOrdersScreen: React.FC = () => {
     const { t } = useTranslation();
     const navigation = useNavigation<any>();
+    const route = useRoute<RouteProp<RootStackParamList, 'SellerOrders'>>();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -53,11 +55,13 @@ export const SellerOrdersScreen: React.FC = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>('');
+    const channelSourceId = route.params?.sourceChannelId;
+    const sourceFilter = route.params?.source || (channelSourceId ? 'channel_post' : undefined);
 
     useFocusEffect(
         useCallback(() => {
             loadOrders(1, true);
-        }, [selectedStatus])
+        }, [selectedStatus, sourceFilter, channelSourceId])
     );
 
     const loadOrders = async (pageNum: number, reset: boolean = false) => {
@@ -67,7 +71,11 @@ export const SellerOrdersScreen: React.FC = () => {
             const result = await marketService.getSellerOrders(
                 pageNum,
                 20,
-                selectedStatus || undefined
+                selectedStatus || undefined,
+                {
+                    source: sourceFilter,
+                    sourceChannelId: channelSourceId,
+                }
             );
 
             if (reset) {
@@ -260,6 +268,19 @@ export const SellerOrdersScreen: React.FC = () => {
 
     const renderHeader = () => (
         <View style={styles.filterSection}>
+            {channelSourceId ? (
+                <View style={styles.sourceBanner}>
+                    <Text style={styles.sourceBannerText}>
+                        Показываются заказы из канала #{channelSourceId}
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.sourceBannerReset}
+                        onPress={() => navigation.setParams({ source: undefined, sourceChannelId: undefined })}
+                    >
+                        <Text style={styles.sourceBannerResetText}>Сбросить</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : null}
             <FlatList
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -350,6 +371,40 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     },
     filterSection: {
         marginBottom: 12,
+    },
+    sourceBanner: {
+        marginHorizontal: 16,
+        marginTop: 12,
+        marginBottom: 6,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: colors.accentSoft,
+        borderWidth: 1,
+        borderColor: colors.accent,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
+    sourceBannerText: {
+        color: colors.accent,
+        fontSize: 12,
+        fontWeight: '700',
+        flex: 1,
+    },
+    sourceBannerReset: {
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    sourceBannerResetText: {
+        color: colors.textPrimary,
+        fontSize: 12,
+        fontWeight: '700',
     },
     filterList: {
         paddingHorizontal: 16,

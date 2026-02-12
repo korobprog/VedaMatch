@@ -531,55 +531,50 @@ func (s *YatraService) updateParticipantCount(yatraID uint) {
 }
 
 func (s *YatraService) addParticipantToChat(yatraID uint, userID uint) {
-	var yatra models.Yatra
-	if err := s.db.First(&yatra, yatraID).Error; err != nil {
-		return
-	}
-
-	// Create chat room if not exists
-	if yatra.ChatRoomID == nil {
-		room := &models.Room{
-			Name:        yatra.Title + " - Group Chat",
-			Description: "Group chat for " + yatra.Title,
-			OwnerID:     yatra.OrganizerID,
-			IsPublic:    false,
-			YatraID:     &yatraID, // Link room to yatra for proper UI handling
-		}
-		if err := s.db.Create(room).Error; err != nil {
-			log.Printf("[YatraService] Failed to create chat room: %v", err)
-			return
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		var yatra models.Yatra
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
+			return err
 		}
 
-		// Update yatra with room ID
-		if err := s.db.Model(&yatra).Update("chat_room_id", room.ID).Error; err != nil {
-			log.Printf("[YatraService] Failed to set chat_room_id yatra_id=%d: %v", yatraID, err)
-			return
+		// Create chat room once under lock.
+		if yatra.ChatRoomID == nil {
+			room := &models.Room{
+				Name:        yatra.Title + " - Group Chat",
+				Description: "Group chat for " + yatra.Title,
+				OwnerID:     yatra.OrganizerID,
+				IsPublic:    false,
+				YatraID:     &yatraID, // Link room to yatra for proper UI handling
+			}
+			if err := tx.Create(room).Error; err != nil {
+				return err
+			}
+
+			if err := tx.Model(&yatra).Update("chat_room_id", room.ID).Error; err != nil {
+				return err
+			}
+			yatra.ChatRoomID = &room.ID
+
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.RoomMember{
+				RoomID: room.ID,
+				UserID: yatra.OrganizerID,
+				Role:   "admin",
+			}).Error; err != nil {
+				return err
+			}
 		}
-		yatra.ChatRoomID = &room.ID
 
-		// Add organizer to room
-		if err := s.db.Create(&models.RoomMember{
-			RoomID: room.ID,
-			UserID: yatra.OrganizerID,
-			Role:   "admin",
-		}).Error; err != nil {
-			log.Printf("[YatraService] Failed to add organizer to room yatra_id=%d room_id=%d: %v", yatraID, room.ID, err)
-			return
+		if yatra.ChatRoomID == nil {
+			return errors.New("chat room id is missing")
 		}
-	}
 
-	if yatra.ChatRoomID == nil {
-		log.Printf("[YatraService] Missing chat room ID after room setup yatra_id=%d", yatraID)
-		return
-	}
-
-	// Add participant to room
-	if err := s.db.FirstOrCreate(&models.RoomMember{
-		RoomID: *yatra.ChatRoomID,
-		UserID: userID,
-		Role:   "member",
-	}, "room_id = ? AND user_id = ?", *yatra.ChatRoomID, userID).Error; err != nil {
-		log.Printf("[YatraService] Failed to add participant to room yatra_id=%d room_id=%d user_id=%d: %v", yatraID, *yatra.ChatRoomID, userID, err)
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.RoomMember{
+			RoomID: *yatra.ChatRoomID,
+			UserID: userID,
+			Role:   "member",
+		}).Error
+	}); err != nil {
+		log.Printf("[YatraService] Failed to add participant to chat yatra_id=%d user_id=%d: %v", yatraID, userID, err)
 	}
 }
 

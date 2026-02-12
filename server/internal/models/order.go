@@ -62,6 +62,11 @@ type Order struct {
 	BuyerPhone string `json:"buyerPhone" gorm:"type:varchar(30)"`
 	BuyerEmail string `json:"buyerEmail" gorm:"type:varchar(100)"`
 
+	// Attribution (optional analytics source)
+	Source          string `json:"source" gorm:"type:varchar(80);index"`
+	SourcePostID    *uint  `json:"sourcePostId" gorm:"index"`
+	SourceChannelID *uint  `json:"sourceChannelId" gorm:"index"`
+
 	// Communication (through messenger)
 	// The notification is sent to shop's TechRoom, and includes deep link to buyer's contact
 	NotificationSent   bool       `json:"notificationSent" gorm:"default:false"`
@@ -127,6 +132,9 @@ type OrderCreateRequest struct {
 	BuyerPhone      string       `json:"buyerPhone"`
 	BuyerEmail      string       `json:"buyerEmail"`
 	BuyerNote       string       `json:"buyerNote"`
+	Source          string       `json:"source"`
+	SourcePostID    *uint        `json:"sourcePostId"`
+	SourceChannelID *uint        `json:"sourceChannelId"`
 }
 
 // OrderUpdateRequest for seller to update order
@@ -142,17 +150,20 @@ type OrderCancelRequest struct {
 
 // OrderFilters for querying orders
 type OrderFilters struct {
-	ShopID       *uint        `json:"shopId"`
-	BuyerID      *uint        `json:"buyerId"`
-	SellerID     *uint        `json:"sellerId"`
-	Status       OrderStatus  `json:"status"`
-	DeliveryType DeliveryType `json:"deliveryType"`
-	DateFrom     *time.Time   `json:"dateFrom"`
-	DateTo       *time.Time   `json:"dateTo"`
-	Search       string       `json:"search"` // By order number
-	Sort         string       `json:"sort"`   // newest, oldest
-	Page         int          `json:"page"`
-	Limit        int          `json:"limit"`
+	ShopID          *uint        `json:"shopId"`
+	BuyerID         *uint        `json:"buyerId"`
+	SellerID        *uint        `json:"sellerId"`
+	Status          OrderStatus  `json:"status"`
+	DeliveryType    DeliveryType `json:"deliveryType"`
+	Source          string       `json:"source"`
+	SourcePostID    *uint        `json:"sourcePostId"`
+	SourceChannelID *uint        `json:"sourceChannelId"`
+	DateFrom        *time.Time   `json:"dateFrom"`
+	DateTo          *time.Time   `json:"dateTo"`
+	Search          string       `json:"search"` // By order number
+	Sort            string       `json:"sort"`   // newest, oldest
+	Page            int          `json:"page"`
+	Limit           int          `json:"limit"`
 }
 
 // OrderResponse for API responses

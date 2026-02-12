@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/url"
 	"regexp"
@@ -408,6 +409,14 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 	if len(body.Episodes) == 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "No episodes provided"})
 	}
+	if body.SeriesID == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "SeriesID is required"})
+	}
+
+	var series models.Series
+	if err := h.db.Select("id").First(&series, body.SeriesID).Error; err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Series not found"})
+	}
 
 	log.Printf("[SeriesHandler] Bulk creating %d episodes for series %d", len(body.Episodes), body.SeriesID)
 
@@ -432,7 +441,7 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 			}
 		} else {
 			err := h.db.Where("series_id = ? AND number = ?", body.SeriesID, seasonNum).First(&season).Error
-			if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// Create season
 				season = models.Season{
 					SeriesID: body.SeriesID,
@@ -442,6 +451,8 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 				if err := h.db.Create(&season).Error; err != nil {
 					return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 				}
+			} else if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 			}
 		}
 
@@ -614,6 +625,11 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "SeriesID and files are required"})
 	}
 
+	var series models.Series
+	if err := h.db.Select("id").First(&series, body.SeriesID).Error; err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Series not found"})
+	}
+
 	log.Printf("[SeriesHandler] Importing %d S3 files into series %d", len(body.Files), body.SeriesID)
 
 	// Group by season
@@ -632,7 +648,7 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 		// Find or create season
 		var season models.Season
 		err := h.db.Where("series_id = ? AND number = ?", body.SeriesID, seasonNum).First(&season).Error
-		if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			season = models.Season{
 				SeriesID: body.SeriesID,
 				Number:   seasonNum,
@@ -640,6 +656,8 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 			if err := h.db.Create(&season).Error; err != nil {
 				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 			}
+		} else if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 
 		// Sort files by episode number

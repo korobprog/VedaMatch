@@ -34,7 +34,8 @@ import {
     Flame,
     BookOpen,
     Leaf,
-    Sparkles
+    Sparkles,
+    Radio,
 } from 'lucide-react-native';
 import {
     Service,
@@ -216,6 +217,10 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         navigation.navigate('Wallet');
     };
 
+    const handleChannels = () => {
+        navigation.navigate('ChannelsHub');
+    };
+
     const renderHeader = () => (
         <View style={styles.header}>
             <ImageBackground
@@ -290,6 +295,11 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                     <TouchableOpacity style={styles.miniAction} onPress={handleMyBookings}>
                         <History size={18} color={colors.textSecondary} />
                         <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>Мои записи</Text>
+                    </TouchableOpacity>
+                    <View style={styles.miniDivider} />
+                    <TouchableOpacity style={styles.miniAction} onPress={handleChannels}>
+                        <Radio size={18} color={colors.textSecondary} />
+                        <Text style={[styles.miniActionLabel, { color: colors.textSecondary }]}>Каналы</Text>
                     </TouchableOpacity>
                     <View style={styles.miniDivider} />
                     <TouchableOpacity style={styles.miniAction} onPress={handleMyServices}>

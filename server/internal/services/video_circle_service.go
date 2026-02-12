@@ -41,6 +41,20 @@ func NewVideoCircleService() *VideoCircleService {
 	}
 }
 
+func isDuplicateKeyErrorVideoCircle(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "unique constraint") ||
+		strings.Contains(msg, "unique violation") ||
+		strings.Contains(msg, "duplicate entry")
+}
+
 func (s *VideoCircleService) EnsureDefaultTariffs() error {
 	defaults := []models.VideoTariff{
 		{Code: models.VideoTariffCodeLKMBoost, PriceLkm: 10, DurationMinutes: 60, IsActive: true},
@@ -53,6 +67,9 @@ func (s *VideoCircleService) EnsureDefaultTariffs() error {
 		err := s.db.Where("code = ?", item.Code).First(&existing).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if createErr := s.db.Create(&item).Error; createErr != nil {
+				if isDuplicateKeyErrorVideoCircle(createErr) {
+					continue
+				}
 				return createErr
 			}
 			continue
@@ -97,6 +114,9 @@ func (s *VideoCircleService) CreateTariff(req models.VideoTariffUpsertRequest, u
 		UpdatedBy:       &updatedBy,
 	}
 	if err := s.db.Create(item).Error; err != nil {
+		if isDuplicateKeyErrorVideoCircle(err) {
+			return nil, errors.New("tariff with this code already exists")
+		}
 		return nil, err
 	}
 	return item, nil

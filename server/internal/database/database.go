@@ -51,6 +51,7 @@ func Connect() {
 		// Core models
 		&models.User{}, &models.Friend{}, &models.Message{}, &models.Block{},
 		&models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{},
+		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
 		&models.SystemSetting{}, &models.DatingFavorite{}, &models.DatingCompatibility{},
 		&models.AIPrompt{}, &models.UserPortalLayout{},
 		// Ads models
@@ -123,6 +124,11 @@ func Connect() {
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_video_circle_like_unique
 		ON video_circle_interactions (circle_id, user_id, type)
 		WHERE type = 'like'`)
+
+	// One pinned post per channel.
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_single_pinned_post
+		ON channel_posts (channel_id)
+		WHERE is_pinned = true`)
 
 	// FIX: Ensure wallets.user_id is nullable (Postgres sometimes keeps NOT NULL after migration)
 	DB.Exec("ALTER TABLE wallets ALTER COLUMN user_id DROP NOT NULL")

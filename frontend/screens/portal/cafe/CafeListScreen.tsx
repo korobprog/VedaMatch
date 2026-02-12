@@ -73,6 +73,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const didInitialLoad = useRef(false);
     const latestCafesRequestRef = useRef(0);
     const latestMyCafeRequestRef = useRef(0);
+    const loadMoreInProgressRef = useRef(false);
     const isMountedRef = useRef(true);
 
     const checkMyCafe = async () => {
@@ -98,7 +99,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         checkMyCafe();
     }, []);
 
-    const loadCafes = useCallback(async (reset = false, overrides: Partial<CafeFilters> = {}) => {
+    const loadCafes = useCallback(async (reset = false, overrides: Partial<CafeFilters> = {}, searchOverride?: string) => {
         const requestId = ++latestCafesRequestRef.current;
         const nextFilters: CafeFilters = {
             ...filters,
@@ -117,7 +118,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
 
             const response = await cafeService.getCafes({
                 ...nextFilters,
-                search: search || undefined,
+                search: (searchOverride ?? search) || undefined,
             });
             if (requestId !== latestCafesRequestRef.current || !isMountedRef.current) {
                 return;
@@ -142,6 +143,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                 setRefreshing(false);
                 setLoadingMore(false);
             }
+            loadMoreInProgressRef.current = false;
         }
     }, [filters, search]);
 
@@ -156,6 +158,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
             isMountedRef.current = false;
             latestCafesRequestRef.current += 1;
             latestMyCafeRequestRef.current += 1;
+            loadMoreInProgressRef.current = false;
         };
     }, []);
 
@@ -168,7 +171,8 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     };
 
     const handleLoadMore = () => {
-        if (!loading && !refreshing && !loadingMore && hasMore) {
+        if (!loading && !refreshing && !loadingMore && hasMore && !loadMoreInProgressRef.current) {
+            loadMoreInProgressRef.current = true;
             const nextPage = (filters.page || 1) + 1;
             setFilters(prev => ({ ...prev, page: nextPage }));
             loadCafes(false, { page: nextPage });
@@ -351,7 +355,7 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         onSubmitEditing={handleSearch}
                     />
                     {search.length > 0 && (
-                        <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true, { page: 1 }); }}>
+                        <TouchableOpacity onPress={() => { setSearch(''); loadCafes(true, { page: 1 }, ''); }}>
                             <XCircle size={20} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}

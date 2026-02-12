@@ -88,6 +88,53 @@ func Protected() fiber.Handler {
 	}
 }
 
+// OptionalAuth parses JWT token if provided and stores user context.
+// If token is missing or invalid, request continues as anonymous.
+func OptionalAuth() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		tokenString := c.Get("Authorization")
+		if tokenString == "" {
+			tokenString = c.Query("token")
+		}
+
+		if tokenString == "" {
+			return c.Next()
+		}
+
+		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
+			tokenString = tokenString[7:]
+		}
+
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			return c.Next()
+		}
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return []byte(secret), nil
+		})
+		if err != nil || !token.Valid {
+			return c.Next()
+		}
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			return c.Next()
+		}
+
+		if userId := claims["userId"]; userId != nil {
+			c.Locals("userID", userId)
+		}
+		if role, ok := claims["role"].(string); ok {
+			c.Locals("userRole", role)
+		} else {
+			c.Locals("userRole", models.RoleUser)
+		}
+
+		return c.Next()
+	}
+}
+
 // GetUserID extracts userID from context
 func GetUserID(c *fiber.Ctx) uint {
 	userID := c.Locals("userID")

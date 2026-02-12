@@ -84,6 +84,15 @@ export const NewsScreen = () => {
 
     const loadNews = useCallback(async (pageNum: number = 1, reset: boolean = false) => {
         if (inFlightPagesRef.current.has(pageNum)) {
+            if (reset) {
+                // Filter/state changed: invalidate older request for this page and allow immediate reload.
+                latestLoadRequestRef.current += 1;
+                inFlightPagesRef.current.delete(pageNum);
+            } else {
+                return;
+            }
+        }
+        if (inFlightPagesRef.current.has(pageNum)) {
             return;
         }
         inFlightPagesRef.current.add(pageNum);

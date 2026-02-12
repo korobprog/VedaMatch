@@ -115,6 +115,20 @@ func normalizeAdPhotoURLs(urls []string) []string {
 	return normalized
 }
 
+func isDuplicateKeyError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "unique constraint") ||
+		strings.Contains(msg, "unique violation") ||
+		strings.Contains(msg, "duplicate entry")
+}
+
 // GetAds returns a paginated list of ads with filters
 func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	page, limit, offset := parsePagination(c, 50)
@@ -643,74 +657,48 @@ func (h *AdsHandler) ToggleFavorite(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check if already favorited
-	var existing models.AdFavorite
-	result := database.DB.Where("user_id = ? AND ad_id = ?", userID, adIDUint).First(&existing)
-
-	if result.Error == nil {
-		tx := database.DB.Begin()
-		// Remove from favorites
-		if err := tx.Delete(&existing).Error; err != nil {
-			tx.Rollback()
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not remove from favorites",
-			})
+	isFavorite := false
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// Toggle off when favorite exists.
+		res := tx.Where("user_id = ? AND ad_id = ?", userID, adIDUint).Delete(&models.AdFavorite{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			if err := tx.Model(&models.Ad{}).Where("id = ?", adIDUint).
+				Update("favorites_count", gorm.Expr("GREATEST(favorites_count - 1, 0)")).Error; err != nil {
+				return err
+			}
+			isFavorite = false
+			return nil
 		}
 
-		// Decrement favorites count
+		// Toggle on when favorite is absent.
+		favorite := models.AdFavorite{
+			UserID: userID,
+			AdID:   uint(adIDUint),
+		}
+		if err := tx.Create(&favorite).Error; err != nil {
+			if isDuplicateKeyError(err) {
+				isFavorite = true
+				return nil
+			}
+			return err
+		}
+
 		if err := tx.Model(&models.Ad{}).Where("id = ?", adIDUint).
-			Update("favorites_count", gorm.Expr("GREATEST(favorites_count - 1, 0)")).Error; err != nil {
-			tx.Rollback()
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not update favorites count",
-			})
+			Update("favorites_count", gorm.Expr("favorites_count + 1")).Error; err != nil {
+			return err
 		}
-		if err := tx.Commit().Error; err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not update favorites",
-			})
-		}
-
-		return c.JSON(fiber.Map{
-			"isFavorite": false,
-		})
-	}
-	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not check favorite status",
-		})
-	}
-
-	// Add to favorites
-	favorite := models.AdFavorite{
-		UserID: userID,
-		AdID:   uint(adIDUint),
-	}
-	tx := database.DB.Begin()
-	if err := tx.Create(&favorite).Error; err != nil {
-		tx.Rollback()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not add to favorites",
-		})
-	}
-
-	// Increment favorites count
-	if err := tx.Model(&models.Ad{}).Where("id = ?", adIDUint).
-		Update("favorites_count", gorm.Expr("favorites_count + 1")).Error; err != nil {
-		tx.Rollback()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not update favorites count",
-		})
-	}
-	if err := tx.Commit().Error; err != nil {
+		isFavorite = true
+		return nil
+	}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not update favorites",
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"isFavorite": true,
-	})
+	return c.JSON(fiber.Map{"isFavorite": isFavorite})
 }
 
 // GetFavorites returns user's favorite ads

@@ -44,6 +44,7 @@ import {
     CHANNEL_LABELS,
     ServiceFormat,
 } from '../../../services/serviceService';
+import { getMediaUrl } from '../../../utils/url';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
@@ -161,6 +162,10 @@ export default function ServiceDetailScreen() {
 
     const handleChat = () => {
         if (!service?.owner) return;
+        if (user?.ID && service.owner.id === user.ID) {
+            Alert.alert('Информация', 'Это ваш сервис');
+            return;
+        }
         navigation.navigate('Chat', { userId: service.owner.id, name: service.owner.karmicName });
     };
 
@@ -226,7 +231,7 @@ export default function ServiceDetailScreen() {
                     {/* Immersive Cover Section */}
                     <View style={styles.coverSection}>
                         {service.coverImageUrl ? (
-                            <Image source={{ uri: service.coverImageUrl }} style={styles.coverImage} />
+                            <Image source={{ uri: getMediaUrl(service.coverImageUrl) || '' }} style={styles.coverImage} />
                         ) : (
                             <LinearGradient
                                 colors={[roleTheme.gradient[1], roleTheme.gradient[2]]}
@@ -274,7 +279,13 @@ export default function ServiceDetailScreen() {
                                         {service.owner.spiritualName || 'Проверенный мастер'}
                                     </Text>
                                 </View>
-                                <TouchableOpacity style={styles.chatIconButton} onPress={handleChat}>
+                                <TouchableOpacity
+                                    style={styles.chatIconButton}
+                                    onPress={(event) => {
+                                        event.stopPropagation();
+                                        handleChat();
+                                    }}
+                                >
                                     <MessageCircle size={18} color={colors.accent} />
                                 </TouchableOpacity>
                             </TouchableOpacity>
