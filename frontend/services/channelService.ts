@@ -162,6 +162,11 @@ class ChannelService {
     await axios.post(`${API_PATH}/channels/prompts/${encodeURIComponent(promptKey)}/dismiss`, payload, { headers });
   }
 
+  async trackPromotedAdClick(adId: number): Promise<void> {
+    const headers = await this.getHeaders();
+    await axios.post(`${API_PATH}/channels/promoted-ads/${adId}/click`, {}, { headers });
+  }
+
   async listShowcases(channelId: number): Promise<{ showcases: ChannelShowcase[] }> {
     const headers = await this.getHeaders();
     const response = await axios.get(`${API_PATH}/channels/${channelId}/showcases`, { headers });

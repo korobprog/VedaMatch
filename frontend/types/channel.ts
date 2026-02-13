@@ -150,6 +150,7 @@ export interface ChannelPromotedAd {
 export interface ChannelFeedResponse {
   posts: ChannelPost[];
   promotedAds?: ChannelPromotedAd[];
+  promotedInsertEvery?: number;
   total: number;
   page: number;
   limit: number;

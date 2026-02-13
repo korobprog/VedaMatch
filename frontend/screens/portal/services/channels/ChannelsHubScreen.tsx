@@ -20,6 +20,11 @@ import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 import { handleChannelPostCta, getChannelPostCtaLabel } from './channelCta';
 
 type HubTab = 'feed' | 'my';
+type FeedListItem =
+  | { type: 'post'; key: string; post: ChannelPost }
+  | { type: 'ad'; key: string; ad: ChannelPromotedAd };
+
+const FEED_PROMOTED_INTERVAL = 4;
 
 export default function ChannelsHubScreen() {
   const navigation = useNavigation<any>();
@@ -32,6 +37,7 @@ export default function ChannelsHubScreen() {
 
   const [feedPosts, setFeedPosts] = useState<ChannelPost[]>([]);
   const [feedPromotedAds, setFeedPromotedAds] = useState<ChannelPromotedAd[]>([]);
+  const [feedPromotedInsertEvery, setFeedPromotedInsertEvery] = useState(FEED_PROMOTED_INTERVAL);
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedRefreshing, setFeedRefreshing] = useState(false);
   const [feedPage, setFeedPage] = useState(1);
@@ -72,6 +78,11 @@ export default function ChannelsHubScreen() {
       if (page === 1) {
         setFeedPosts(response.posts);
         setFeedPromotedAds(response.promotedAds || []);
+        setFeedPromotedInsertEvery(
+          typeof response.promotedInsertEvery === 'number' && response.promotedInsertEvery >= 2
+            ? response.promotedInsertEvery
+            : FEED_PROMOTED_INTERVAL
+        );
       } else {
         setFeedPosts(prev => {
           const seen = new Set(prev.map(item => item.ID));
@@ -144,7 +155,7 @@ export default function ChannelsHubScreen() {
     void loadFeed(feedPage + 1, false);
   };
 
-  const renderFeedItem = ({ item }: { item: ChannelPost }) => {
+  const renderFeedPost = (item: ChannelPost) => {
     const ctaLabel = getChannelPostCtaLabel(item);
     const publishedAt = item.publishedAt || item.CreatedAt;
 
@@ -200,32 +211,73 @@ export default function ChannelsHubScreen() {
     return ad.currency || 'RUB';
   };
 
-  const renderPromotedAds = () => {
-    if (feedPromotedAds.length === 0) {
-      return null;
+  const renderPromotedFeedItem = (ad: ChannelPromotedAd) => {
+    return (
+      <TouchableOpacity
+        style={styles.promotedCard}
+        activeOpacity={0.9}
+        onPress={() => {
+          void channelService.trackPromotedAdClick(ad.id).catch(() => {});
+          navigation.navigate('AdDetail', { adId: ad.id });
+        }}
+      >
+        <View style={styles.promotedHeader}>
+          <Text style={styles.promotedBadge}>Промо</Text>
+          <Text style={styles.promotedCity}>{ad.city}</Text>
+        </View>
+        <Text style={styles.promotedCardTitle} numberOfLines={2}>{ad.title}</Text>
+        <Text style={styles.promotedDescription} numberOfLines={2}>{ad.description}</Text>
+        <Text style={styles.promotedPrice}>{formatAdPrice(ad)}</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const feedItems = React.useMemo<FeedListItem[]>(() => {
+    if (feedPosts.length === 0) {
+      return [];
     }
 
-    return (
-      <View style={styles.promotedSection}>
-        <Text style={styles.promotedTitle}>Рекомендации в ленте</Text>
-        {feedPromotedAds.map(ad => (
-          <TouchableOpacity
-            key={ad.id}
-            style={styles.promotedCard}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('AdDetail', { adId: ad.id })}
-          >
-            <View style={styles.promotedHeader}>
-              <Text style={styles.promotedBadge}>Промо</Text>
-              <Text style={styles.promotedCity}>{ad.city}</Text>
-            </View>
-            <Text style={styles.promotedCardTitle} numberOfLines={2}>{ad.title}</Text>
-            <Text style={styles.promotedDescription} numberOfLines={2}>{ad.description}</Text>
-            <Text style={styles.promotedPrice}>{formatAdPrice(ad)}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
+    const insertEvery = Math.max(2, feedPromotedInsertEvery || FEED_PROMOTED_INTERVAL);
+    const mixed: FeedListItem[] = [];
+    let adIndex = 0;
+
+    for (let i = 0; i < feedPosts.length; i += 1) {
+      const post = feedPosts[i];
+      mixed.push({
+        type: 'post',
+        key: `post-${post.ID}`,
+        post,
+      });
+
+      const shouldInsertAd = (i + 1) % insertEvery === 0 && adIndex < feedPromotedAds.length;
+      if (shouldInsertAd) {
+        const ad = feedPromotedAds[adIndex];
+        mixed.push({
+          type: 'ad',
+          key: `ad-${ad.id}-${i}`,
+          ad,
+        });
+        adIndex += 1;
+      }
+    }
+
+    if (adIndex === 0 && feedPromotedAds.length > 0) {
+      const ad = feedPromotedAds[0];
+      mixed.push({
+        type: 'ad',
+        key: `ad-tail-${ad.id}`,
+        ad,
+      });
+    }
+
+    return mixed;
+  }, [feedPosts, feedPromotedAds, feedPromotedInsertEvery]);
+
+  const renderFeedListItem = ({ item }: { item: FeedListItem }) => {
+    if (item.type === 'ad') {
+      return renderPromotedFeedItem(item.ad);
+    }
+    return renderFeedPost(item.post);
   };
 
   const renderMyChannelItem = ({ item }: { item: Channel }) => (
@@ -316,11 +368,10 @@ export default function ChannelsHubScreen() {
               </View>
             ) : (
               <FlatList
-                data={feedPosts}
-                keyExtractor={item => item.ID.toString()}
+                data={feedItems}
+                keyExtractor={item => item.key}
                 contentContainerStyle={styles.listContent}
-                renderItem={renderFeedItem}
-                ListHeaderComponent={renderPromotedAds}
+                renderItem={renderFeedListItem}
                 refreshControl={
                   <RefreshControl
                     refreshing={feedRefreshing}
@@ -510,15 +561,6 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
       color: colors.textPrimary,
       fontSize: 12,
       fontWeight: '700',
-    },
-    promotedSection: {
-      marginBottom: 4,
-      gap: 8,
-    },
-    promotedTitle: {
-      color: colors.textPrimary,
-      fontSize: 14,
-      fontWeight: '800',
     },
     promotedCard: {
       borderRadius: 14,
