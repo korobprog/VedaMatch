@@ -299,6 +299,9 @@ func (p *TelegramParser) ParseViaBot(ctx context.Context, channelID string) ([]P
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("telegram bot api returned status %d", resp.StatusCode)
+	}
 
 	var tgResp tgUpdatesResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tgResp); err != nil {
@@ -322,6 +325,9 @@ func (p *TelegramParser) ParseViaBot(ctx context.Context, channelID string) ([]P
 					continue
 				}
 			}
+		}
+		if msg.Chat == nil {
+			continue
 		}
 
 		text := msg.Text
@@ -369,7 +375,10 @@ func (p *TelegramParser) ParsePublic(ctx context.Context, channelID string) ([]P
 		return nil, fmt.Errorf("telegram web returned status %d", resp.StatusCode)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, fmt.Errorf("failed to read telegram web page: %w", readErr)
+	}
 	html := string(body)
 
 	var results []ParsedContent
@@ -451,6 +460,9 @@ func (p *TelegramParser) getFileURL(ctx context.Context, token, fileID string) (
 		return "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("telegram getFile returned status %d", resp.StatusCode)
+	}
 
 	var result struct {
 		OK     bool `json:"ok"`

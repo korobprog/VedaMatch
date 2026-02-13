@@ -42,6 +42,9 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 	// Get shop info
 	var shop models.Shop
 	if err := database.DB.First(&shop, req.ShopID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("shop not found")
 	}
 
@@ -97,8 +100,25 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		// Check stock
 		if product.TrackStock {
 			if cartItem.VariantID != nil {
-				if err := s.productService.ReserveStock(product.ID, cartItem.VariantID, cartItem.Quantity); err != nil {
+				res := tx.Model(&models.ProductVariant{}).
+					Where("id = ? AND product_id = ? AND (stock - reserved) >= ?", *cartItem.VariantID, product.ID, cartItem.Quantity).
+					Update("reserved", gorm.Expr("reserved + ?", cartItem.Quantity))
+				if res.Error != nil {
 					tx.Rollback()
+					return nil, res.Error
+				}
+				if res.RowsAffected == 0 {
+					var exists int64
+					if err := tx.Model(&models.ProductVariant{}).
+						Where("id = ? AND product_id = ?", *cartItem.VariantID, product.ID).
+						Count(&exists).Error; err != nil {
+						tx.Rollback()
+						return nil, err
+					}
+					tx.Rollback()
+					if exists == 0 {
+						return nil, fmt.Errorf("variant %d not found for product %d", *cartItem.VariantID, product.ID)
+					}
 					return nil, fmt.Errorf("insufficient stock for %s", product.Name)
 				}
 			} else if product.Stock < cartItem.Quantity {
@@ -201,7 +221,9 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 	}
 
 	// Load full order with items
-	database.DB.Preload("Items").First(&order, order.ID)
+	if err := database.DB.Preload("Items").First(&order, order.ID).Error; err != nil {
+		return nil, err
+	}
 
 	return &order, nil
 }
@@ -261,6 +283,9 @@ func (s *OrderService) GetSellerOrders(sellerID uint, filters models.OrderFilter
 	// Find seller's shop
 	var shop models.Shop
 	if err := database.DB.Where("owner_id = ?", sellerID).First(&shop).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("shop not found")
 	}
 	filters.ShopID = &shop.ID
@@ -297,7 +322,9 @@ func (s *OrderService) getOrders(filters models.OrderFilters) (*models.OrderList
 	}
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	page := filters.Page
 	if page < 1 {

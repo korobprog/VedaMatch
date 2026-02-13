@@ -100,7 +100,14 @@ func (s *CharityService) UpdateOrganizationStatus(orgID uint, status models.Orga
 		updates["verified_by_user_id"] = adminID
 	}
 
-	return database.DB.Model(&models.CharityOrganization{}).Where("id = ?", orgID).Updates(updates).Error
+	tx := database.DB.Model(&models.CharityOrganization{}).Where("id = ?", orgID).Updates(updates)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ==================== PROJECT ====================
@@ -110,6 +117,9 @@ func (s *CharityService) CreateProject(userID uint, req models.CreateProjectRequ
 	// Verify user owns the organization
 	var org models.CharityOrganization
 	if err := database.DB.Where("id = ? AND owner_user_id = ?", req.OrganizationID, userID).First(&org).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("organization not found or access denied")
 	}
 
@@ -161,13 +171,16 @@ func (s *CharityService) UpdateProjectStatus(projectID uint, status models.Proje
 		"status": status,
 	}
 
+	var project models.CharityProject
+	if err := database.DB.First(&project, projectID).Error; err != nil {
+		return err
+	}
+
 	if status == models.ProjectStatusActive {
 		updates["approved_at"] = &now
 		updates["approved_by"] = adminID
 
 		// Set initial reporting deadline if not set
-		var project models.CharityProject
-		database.DB.First(&project, projectID)
 		if project.NextReportDue == nil {
 			days := project.ReportingPeriodDays
 			if days <= 0 {
@@ -178,7 +191,14 @@ func (s *CharityService) UpdateProjectStatus(projectID uint, status models.Proje
 		}
 	}
 
-	return database.DB.Model(&models.CharityProject{}).Where("id = ?", projectID).Updates(updates).Error
+	tx := database.DB.Model(&models.CharityProject{}).Where("id = ?", projectID).Updates(updates)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ==================== DONATION ====================
@@ -199,6 +219,9 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		// 1. Get Project and Organization
 		var project models.CharityProject
 		if err := tx.Preload("Organization").First(&project, req.ProjectID).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
 			return errors.New("project not found")
 		}
 
@@ -395,7 +418,9 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 				IsVisible:    true,
 				DonationID:   &donation.ID,
 			}
-			tx.Create(&note)
+			if err := tx.Create(&note).Error; err != nil {
+				return err
+			}
 		}
 
 		// Prepare Response
@@ -432,6 +457,9 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Preload("Project.Organization").
 			First(&donation, donationID).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
 			return errors.New("donation not found")
 		}
 
@@ -596,6 +624,9 @@ func (s *CharityService) CreateEvidence(userID uint, projectID uint, evidenceTyp
 	// Verify user has permission (org owner or admin)
 	var project models.CharityProject
 	if err := database.DB.Preload("Organization").First(&project, projectID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("project not found")
 	}
 
@@ -619,7 +650,9 @@ func (s *CharityService) CreateEvidence(userID uint, projectID uint, evidenceTyp
 	}
 
 	// Update project last evidence date
-	database.DB.Model(&project).Update("last_evidence_at", time.Now())
+	if err := database.DB.Model(&project).Update("last_evidence_at", time.Now()).Error; err != nil {
+		return nil, err
+	}
 
 	return &evidence, nil
 }

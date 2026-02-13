@@ -169,11 +169,17 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	// Get cafe for delivery fee
 	var cafe models.Cafe
 	if err := s.db.First(&cafe, req.CafeID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("cafe not found")
 	}
 	if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
 		var table models.CafeTable
 		if err := s.db.Where("id = ? AND cafe_id = ? AND is_active = ?", *req.TableID, req.CafeID, true).First(&table).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
 			return nil, errors.New("table not found for this cafe")
 		}
 	}
@@ -543,43 +549,47 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 		updates["cancelled_by"] = staffUserID
 	}
 
-	updateResult := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(updates)
-	if updateResult.Error != nil {
-		return updateResult.Error
-	}
-	if updateResult.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-
-	// Get order for WebSocket notification
 	var order models.CafeOrder
-	if err := s.db.First(&order, orderID).Error; err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		updateResult := tx.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(updates)
+		if updateResult.Error != nil {
+			return updateResult.Error
+		}
+		if updateResult.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+
+		if err := tx.First(&order, orderID).Error; err != nil {
+			return err
+		}
+
+		// If completed/cancelled and was dine-in, free the table.
+		if status == models.CafeOrderStatusCompleted || status == models.CafeOrderStatusCancelled {
+			if order.TableID != nil {
+				if err := tx.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
+					"is_occupied":      false,
+					"current_order_id": nil,
+					"occupied_since":   nil,
+				}).Error; err != nil {
+					return err
+				}
+			}
+
+			// Update cafe orders count only for completed orders.
+			if status == models.CafeOrderStatusCompleted {
+				if err := tx.Model(&models.Cafe{}).Where("id = ?", order.CafeID).
+					UpdateColumn("orders_count", gorm.Expr("orders_count + 1")).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 
-	// Send WebSocket notification
+	// Send WebSocket notification after successful commit.
 	websocket.NotifyOrderStatusUpdate(order.CafeID, orderID, string(status), order.CustomerID)
-
-	// If completed/cancelled and was dine-in, free the table.
-	if status == models.CafeOrderStatusCompleted || status == models.CafeOrderStatusCancelled {
-		if order.TableID != nil {
-			if err := s.db.Model(&models.CafeTable{}).Where("id = ?", *order.TableID).Updates(map[string]interface{}{
-				"is_occupied":      false,
-				"current_order_id": nil,
-				"occupied_since":   nil,
-			}).Error; err != nil {
-				return err
-			}
-		}
-
-		// Update cafe orders count only for completed orders.
-		if status == models.CafeOrderStatusCompleted {
-			if err := s.db.Model(&models.Cafe{}).Where("id = ?", order.CafeID).
-				UpdateColumn("orders_count", gorm.Expr("orders_count + 1")).Error; err != nil {
-				return err
-			}
-		}
-	}
 
 	return nil
 }

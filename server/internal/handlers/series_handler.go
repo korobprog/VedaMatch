@@ -126,6 +126,9 @@ func (h *SeriesHandler) UpdateSeries(c *fiber.Ctx) error {
 
 	var series models.Series
 	if err := h.db.First(&series, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch series"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Series not found"})
 	}
 
@@ -156,11 +159,18 @@ func (h *SeriesHandler) DeleteSeries(c *fiber.Ctx) error {
 		if err := tx.Where("series_id = ?", id).Delete(&models.Season{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Delete(&models.Series{}, id).Error; err != nil {
-			return err
+		res := tx.Delete(&models.Series{}, id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
 		}
 		return nil
 	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Series not found"})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -206,6 +216,9 @@ func (h *SeriesHandler) UpdateSeason(c *fiber.Ctx) error {
 
 	var season models.Season
 	if err := h.db.First(&season, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch season"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Season not found"})
 	}
 
@@ -232,11 +245,18 @@ func (h *SeriesHandler) DeleteSeason(c *fiber.Ctx) error {
 		if err := tx.Where("season_id = ?", id).Delete(&models.Episode{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Delete(&models.Season{}, id).Error; err != nil {
-			return err
+		res := tx.Delete(&models.Season{}, id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
 		}
 		return nil
 	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Season not found"})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -282,6 +302,9 @@ func (h *SeriesHandler) UpdateEpisode(c *fiber.Ctx) error {
 
 	var episode models.Episode
 	if err := h.db.First(&episode, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch episode"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Episode not found"})
 	}
 
@@ -304,8 +327,12 @@ func (h *SeriesHandler) UpdateEpisode(c *fiber.Ctx) error {
 func (h *SeriesHandler) DeleteEpisode(c *fiber.Ctx) error {
 	id := c.Params("episodeId")
 
-	if err := h.db.Delete(&models.Episode{}, id).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	res := h.db.Delete(&models.Episode{}, id)
+	if res.Error != nil {
+		return c.Status(500).JSON(fiber.Map{"error": res.Error.Error()})
+	}
+	if res.RowsAffected == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Episode not found"})
 	}
 
 	return c.JSON(fiber.Map{"message": "Episode deleted"})
@@ -418,6 +445,9 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 
 	var series models.Series
 	if err := h.db.Select("id").First(&series, body.SeriesID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch series"})
+		}
 		return c.Status(400).JSON(fiber.Map{"error": "Series not found"})
 	}
 
@@ -440,6 +470,9 @@ func (h *SeriesHandler) BulkCreateEpisodes(c *fiber.Ctx) error {
 		var season models.Season
 		if body.SeasonID != 0 {
 			if err := h.db.First(&season, body.SeasonID).Error; err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch season"})
+				}
 				return c.Status(400).JSON(fiber.Map{"error": "Season not found"})
 			}
 		} else {
@@ -630,6 +663,9 @@ func (h *SeriesHandler) ImportS3Episodes(c *fiber.Ctx) error {
 
 	var series models.Series
 	if err := h.db.Select("id").First(&series, body.SeriesID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch series"})
+		}
 		return c.Status(400).JSON(fiber.Map{"error": "Series not found"})
 	}
 

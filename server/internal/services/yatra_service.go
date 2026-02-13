@@ -674,6 +674,9 @@ func (s *YatraService) CreateYatraReview(yatraID uint, authorID uint, req models
 	// Check if yatra exists and is completed
 	var yatra models.Yatra
 	if err := s.db.First(&yatra, yatraID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("yatra not found")
 	}
 
@@ -686,6 +689,9 @@ func (s *YatraService) CreateYatraReview(yatraID uint, authorID uint, req models
 	err := s.db.Where("yatra_id = ? AND user_id = ? AND status = ?",
 		yatraID, authorID, models.YatraParticipantApproved).First(&participant).Error
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("only participants can review this yatra")
 	}
 
@@ -734,17 +740,21 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 
 	// Count organized yatras (completed)
 	var organizedCompleted int64
-	s.db.Model(&models.Yatra{}).
+	if err := s.db.Model(&models.Yatra{}).
 		Where("organizer_id = ? AND status = ?", userID, models.YatraStatusCompleted).
-		Count(&organizedCompleted)
+		Count(&organizedCompleted).Error; err != nil {
+		return nil, err
+	}
 	stats.OrganizedCount = int(organizedCompleted)
 
 	// If no organized yatras, also count open/full ones
 	if stats.OrganizedCount == 0 {
 		var totalCount int64
-		s.db.Model(&models.Yatra{}).
+		if err := s.db.Model(&models.Yatra{}).
 			Where("organizer_id = ?", userID).
-			Count(&totalCount)
+			Count(&totalCount).Error; err != nil {
+			return nil, err
+		}
 		stats.OrganizedCount = int(totalCount)
 	}
 
@@ -752,38 +762,46 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 	var avgResult struct {
 		Avg float64
 	}
-	s.db.Model(&models.YatraReview{}).
+	if err := s.db.Model(&models.YatraReview{}).
 		Joins("JOIN yatras ON yatras.id = yatra_reviews.yatra_id").
 		Where("yatras.organizer_id = ?", userID).
 		Select("COALESCE(AVG(yatra_reviews.organizer_rating), 0) as avg").
-		Scan(&avgResult)
+		Scan(&avgResult).Error; err != nil {
+		return nil, err
+	}
 	stats.AverageRating = avgResult.Avg
 
 	// If no organizer ratings, use overall ratings
 	if stats.AverageRating == 0 {
-		s.db.Model(&models.YatraReview{}).
+		if err := s.db.Model(&models.YatraReview{}).
 			Joins("JOIN yatras ON yatras.id = yatra_reviews.yatra_id").
 			Where("yatras.organizer_id = ?", userID).
 			Select("COALESCE(AVG(yatra_reviews.overall_rating), 0) as avg").
-			Scan(&avgResult)
+			Scan(&avgResult).Error; err != nil {
+			return nil, err
+		}
 		stats.AverageRating = avgResult.Avg
 	}
 
 	// Count total participants across all organized yatras
 	var participantCount int64
-	s.db.Model(&models.YatraParticipant{}).
+	if err := s.db.Model(&models.YatraParticipant{}).
 		Joins("JOIN yatras ON yatras.id = yatra_participants.yatra_id").
 		Where("yatras.organizer_id = ? AND yatra_participants.status = ?",
 			userID, models.YatraParticipantApproved).
-		Count(&participantCount)
+		Count(&participantCount).Error; err != nil {
+		return nil, err
+	}
 	stats.TotalParticipants = int(participantCount)
 
 	// Count recommendations
 	var recommendCount int64
-	s.db.Model(&models.YatraReview{}).
+	if err := s.db.Model(&models.YatraReview{}).
 		Joins("JOIN yatras ON yatras.id = yatra_reviews.yatra_id").
 		Where("yatras.organizer_id = ? AND yatra_reviews.recommendation = ?", userID, true).
-		Count(&recommendCount)
+		Count(&recommendCount).Error; err != nil {
+		return nil, err
+	}
 	stats.Recommendations = int(recommendCount)
 
 	return stats, nil

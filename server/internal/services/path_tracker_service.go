@@ -772,7 +772,9 @@ func (s *PathTrackerService) GenerateStep(userID uint) (*DailyStepView, error) {
 	state.ExperienceSegment = trajectory.Segment
 	state.LastSuggestedDate = dateLocal
 	state.LastSuggestedService = suggestedServiceID
-	_ = s.db.Save(&state).Error
+	if err := s.db.Save(&state).Error; err != nil {
+		return nil, err
+	}
 	s.emitStepEvent(step.ID, "viewed", map[string]any{
 		"date":              dateLocal,
 		"initial":           true,
@@ -839,7 +841,9 @@ func (s *PathTrackerService) CompleteStep(userID uint, stepID uint) (*DailyStepV
 	}
 	state.LastActiveDate = today
 	state.LastFormat = step.Format
-	_ = s.db.Save(&state).Error
+	if err := s.db.Save(&state).Error; err != nil {
+		return nil, err
+	}
 
 	log.Printf("[PathTracker] complete metric=path_tracker_step_completed user=%d step=%d date=%s streak=%d experiment=%s",
 		userID, step.ID, step.DateLocal, state.StreakCurrent, experimentBucket(userID))

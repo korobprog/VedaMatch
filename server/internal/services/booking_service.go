@@ -45,6 +45,9 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	// Get service without side effects (GetByID increments views)
 	var service models.Service
 	if err := database.DB.First(&service, serviceID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("service not found")
 	}
 
@@ -56,6 +59,9 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	// Get tariff
 	var tariff models.ServiceTariff
 	if err := database.DB.Where("id = ? AND is_active = ?", req.TariffID, true).First(&tariff).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("tariff not found")
 	}
 
@@ -193,6 +199,9 @@ func (s *BookingService) Confirm(bookingID, ownerID uint, req models.BookingActi
 
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("booking not found")
 	}
 
@@ -271,6 +280,9 @@ func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingAction
 
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("booking not found")
 	}
 
@@ -357,6 +369,9 @@ func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingAct
 
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("booking not found")
 	}
 
@@ -423,6 +438,9 @@ func (s *BookingService) MarkNoShow(bookingID, ownerID uint) (*models.ServiceBoo
 
 	var booking models.ServiceBooking
 	if err := database.DB.Preload("Service").First(&booking, bookingID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 		return nil, errors.New("booking not found")
 	}
 

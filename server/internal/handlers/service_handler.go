@@ -189,7 +189,12 @@ func (h *ServiceHandler) Publish(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
 
 	if err := h.serviceService.Publish(uint(serviceID), userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -207,7 +212,12 @@ func (h *ServiceHandler) Pause(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
 
 	if err := h.serviceService.Pause(uint(serviceID), userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -223,7 +233,12 @@ func (h *ServiceHandler) Pause(c *fiber.Ctx) error {
 // GetTariffs returns tariffs for a service
 // GET /api/services/:id/tariffs
 func (h *ServiceHandler) GetTariffs(c *fiber.Ctx) error {
-	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
 
 	tariffs, err := h.serviceService.GetTariffs(uint(serviceID))
 	if err != nil {
@@ -242,7 +257,12 @@ func (h *ServiceHandler) AddTariff(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
 
 	var req models.TariffCreateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -268,7 +288,12 @@ func (h *ServiceHandler) UpdateTariff(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	tariffID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	tariffID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid tariff ID",
+		})
+	}
 
 	var req models.TariffUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -294,7 +319,12 @@ func (h *ServiceHandler) DeleteTariff(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	tariffID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	tariffID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid tariff ID",
+		})
+	}
 
 	if err := h.serviceService.DeleteTariff(uint(tariffID), userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -310,7 +340,12 @@ func (h *ServiceHandler) DeleteTariff(c *fiber.Ctx) error {
 // GetSchedules returns schedules for a service
 // GET /api/services/:id/schedule
 func (h *ServiceHandler) GetSchedules(c *fiber.Ctx) error {
-	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
 
 	schedules, err := h.serviceService.GetSchedules(uint(serviceID))
 	if err != nil {
@@ -329,7 +364,12 @@ func (h *ServiceHandler) AddSchedule(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
 
 	var req models.ScheduleCreateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -355,7 +395,12 @@ func (h *ServiceHandler) DeleteSchedule(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	scheduleID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	scheduleID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid schedule ID",
+		})
+	}
 
 	if err := h.serviceService.DeleteSchedule(uint(scheduleID), userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

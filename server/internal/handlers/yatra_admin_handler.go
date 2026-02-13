@@ -78,6 +78,9 @@ func NewYatraAdminHandler() *YatraAdminHandler {
 // GetTemplates returns all templates
 // GET /api/admin/yatra/templates
 func (h *YatraAdminHandler) GetTemplates(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	templates, err := h.templateService.GetTemplates()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get templates"})
@@ -88,6 +91,9 @@ func (h *YatraAdminHandler) GetTemplates(c *fiber.Ctx) error {
 // CreateTemplate creates a new template
 // POST /api/admin/yatra/templates
 func (h *YatraAdminHandler) CreateTemplate(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	var req models.ModerationTemplateCreateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
@@ -103,6 +109,9 @@ func (h *YatraAdminHandler) CreateTemplate(c *fiber.Ctx) error {
 // UpdateTemplate updates a template
 // PUT /api/admin/yatra/templates/:id
 func (h *YatraAdminHandler) UpdateTemplate(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid template ID"})
@@ -122,6 +131,9 @@ func (h *YatraAdminHandler) UpdateTemplate(c *fiber.Ctx) error {
 // DeleteTemplate deletes a template
 // DELETE /api/admin/yatra/templates/:id
 func (h *YatraAdminHandler) DeleteTemplate(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid template ID"})
@@ -135,6 +147,9 @@ func (h *YatraAdminHandler) DeleteTemplate(c *fiber.Ctx) error {
 // BroadcastEmail sends mass emails
 // POST /api/admin/yatra/broadcast
 func (h *YatraAdminHandler) BroadcastEmail(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	var req struct {
 		TemplateID      uint   `json:"template_id"`
 		RecipientFilter string `json:"recipient_filter"` // all_organizers, active_organizers
@@ -159,6 +174,9 @@ func (h *YatraAdminHandler) BroadcastEmail(c *fiber.Ctx) error {
 // GetAllYatras returns all yatras (admin view with drafts, cancelled, etc.)
 // GET /api/admin/yatra
 func (h *YatraAdminHandler) GetAllYatras(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	filters := services.AdminYatraFilters{
 		YatraFilters: models.YatraFilters{
 			Theme:    models.YatraTheme(c.Query("theme")),
@@ -204,6 +222,9 @@ func (h *YatraAdminHandler) GetAllYatras(c *fiber.Ctx) error {
 // GetYatraStats returns overall yatra statistics
 // GET /api/admin/yatra/stats
 func (h *YatraAdminHandler) GetYatraStats(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	stats, err := h.yatraAdminService.GetYatraStats()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get stats"})
@@ -318,6 +339,9 @@ func (h *YatraAdminHandler) UpdateYatra(c *fiber.Ctx) error {
 // GetYatraParticipants returns all participants (admin view)
 // GET /api/admin/yatra/:id/participants
 func (h *YatraAdminHandler) GetYatraParticipants(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
@@ -366,6 +390,9 @@ func (h *YatraAdminHandler) RemoveParticipant(c *fiber.Ctx) error {
 // GetOrganizers returns list of organizers with stats
 // GET /api/admin/organizers
 func (h *YatraAdminHandler) GetOrganizers(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	filters := services.OrganizerFilters{
 		BlockedOnly: c.Query("blocked_only") == "true",
 		TopRated:    c.Query("top_rated") == "true",
@@ -401,6 +428,9 @@ func (h *YatraAdminHandler) GetOrganizers(c *fiber.Ctx) error {
 // GetOrganizerStats returns detailed stats for an organizer
 // GET /api/admin/organizers/:id/stats
 func (h *YatraAdminHandler) GetOrganizerStats(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	userID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
@@ -462,6 +492,9 @@ func (h *YatraAdminHandler) UnblockOrganizer(c *fiber.Ctx) error {
 // GetReports returns all reports with filters
 // GET /api/admin/yatra-reports
 func (h *YatraAdminHandler) GetReports(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	filters := models.YatraReportFilters{
 		Status:     models.YatraReportStatus(c.Query("status")),
 		TargetType: models.YatraReportTargetType(c.Query("target_type")),
@@ -497,6 +530,9 @@ func (h *YatraAdminHandler) GetReports(c *fiber.Ctx) error {
 // GetReport returns a single report with details
 // GET /api/admin/yatra-reports/:id
 func (h *YatraAdminHandler) GetReport(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	reportID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid report ID"})
@@ -595,6 +631,9 @@ func (h *YatraAdminHandler) DismissReport(c *fiber.Ctx) error {
 // GetTopOrganizers returns top organizers
 // GET /api/admin/yatra/analytics/top-organizers
 func (h *YatraAdminHandler) GetTopOrganizers(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	limit := parseBoundedQueryInt(c, "limit", 10, 1, 100)
 
 	orderBy := c.Query("order_by") // "total", "rating", "participants", "completed"
@@ -613,6 +652,9 @@ func (h *YatraAdminHandler) GetTopOrganizers(c *fiber.Ctx) error {
 // GetGeography returns geographic distribution
 // GET /api/admin/yatra/analytics/geography
 func (h *YatraAdminHandler) GetGeography(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	points, err := h.analyticsService.GetGeographyData()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get geography data"})
@@ -624,6 +666,9 @@ func (h *YatraAdminHandler) GetGeography(c *fiber.Ctx) error {
 // GetThemes returns theme popularity trends
 // GET /api/admin/yatra/analytics/themes
 func (h *YatraAdminHandler) GetThemes(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	trends, err := h.analyticsService.GetThemeTrends()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get theme trends"})
@@ -635,6 +680,9 @@ func (h *YatraAdminHandler) GetThemes(c *fiber.Ctx) error {
 // GetTrends returns time-based trends
 // GET /api/admin/yatra/analytics/trends
 func (h *YatraAdminHandler) GetTrends(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	period := c.Query("period") // "month"
 	months := parseBoundedQueryInt(c, "months", 12, 1, 60)
 
@@ -651,6 +699,9 @@ func (h *YatraAdminHandler) GetTrends(c *fiber.Ctx) error {
 // GetNotifications returns admin notifications
 // GET /api/admin/notifications
 func (h *YatraAdminHandler) GetNotifications(c *fiber.Ctx) error {
+	if _, err := requireYatraAdminUserID(c); err != nil {
+		return err
+	}
 	unreadOnly := c.Query("unread_only") == "true"
 	page := parseBoundedQueryInt(c, "page", 1, 1, 100000)
 	limit := parseBoundedQueryInt(c, "limit", 50, 1, 200)

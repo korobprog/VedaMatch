@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"testing"
@@ -273,6 +274,78 @@ func TestChannelHandler_GetFeedParsesFilters(t *testing.T) {
 	}
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestChannelHandler_GetFeedReturnsPromotedPayload(t *testing.T) {
+	app := fiber.New()
+	now := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
+	handler := NewChannelHandlerWithService(&mockChannelService{
+		getFeedFn: func(filters services.ChannelFeedFilters) (*models.ChannelFeedResponse, error) {
+			return &models.ChannelFeedResponse{
+				Posts: []models.ChannelPost{
+					{
+						ChannelID: 1,
+						AuthorID:  2,
+						Content:   "post",
+						Status:    models.ChannelPostStatusPublished,
+					},
+				},
+				PromotedAds: []models.ChannelPromotedAd{
+					{
+						ID:        901,
+						Title:     "Promo 1",
+						City:      "Moscow",
+						Currency:  "RUB",
+						CreatedAt: now,
+					},
+					{
+						ID:        902,
+						Title:     "Promo 2",
+						City:      "SPB",
+						Currency:  "RUB",
+						CreatedAt: now,
+					},
+				},
+				PromotedInsertEvery: 5,
+				Total:               1,
+				Page:                1,
+				Limit:               20,
+				TotalPages:          1,
+			}, nil
+		},
+	})
+
+	app.Get("/feed", func(c *fiber.Ctx) error {
+		c.Locals("userID", "33")
+		return handler.GetFeed(c)
+	})
+
+	req := httptest.NewRequest("GET", "/feed?page=1&limit=20", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+
+	var body struct {
+		Posts               []map[string]any `json:"posts"`
+		PromotedAds         []map[string]any `json:"promotedAds"`
+		PromotedInsertEvery int              `json:"promotedInsertEvery"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body.Posts) != 1 {
+		t.Fatalf("posts len=%d, want=1", len(body.Posts))
+	}
+	if len(body.PromotedAds) != 2 {
+		t.Fatalf("promotedAds len=%d, want=2", len(body.PromotedAds))
+	}
+	if body.PromotedInsertEvery != 5 {
+		t.Fatalf("promotedInsertEvery=%d, want=5", body.PromotedInsertEvery)
 	}
 }
 

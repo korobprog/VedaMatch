@@ -226,6 +226,9 @@ func (h *ChannelHandler) AddMember(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
 	}
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var req models.ChannelMemberAddRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -297,6 +300,9 @@ func (h *ChannelHandler) UpdateMemberRole(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	var req models.ChannelMemberRoleUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
@@ -325,6 +331,9 @@ func (h *ChannelHandler) RemoveMember(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	if err := h.service.RemoveMember(channelID, userID, memberUserID); err != nil {
 		return respondChannelError(c, err)
 	}
@@ -342,6 +351,9 @@ func (h *ChannelHandler) CreatePost(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
 	}
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var req models.ChannelPostCreateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -408,6 +420,9 @@ func (h *ChannelHandler) UpdatePost(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	var req models.ChannelPostUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
@@ -436,6 +451,9 @@ func (h *ChannelHandler) PinPost(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	post, err := h.service.PinPost(channelID, postID, userID)
 	if err != nil {
 		return respondChannelError(c, err)
@@ -459,6 +477,9 @@ func (h *ChannelHandler) UnpinPost(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	post, err := h.service.UnpinPost(channelID, postID, userID)
 	if err != nil {
 		return respondChannelError(c, err)
@@ -482,6 +503,9 @@ func (h *ChannelHandler) PublishPost(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	post, err := h.service.PublishPost(channelID, postID, userID)
 	if err != nil {
 		return respondChannelError(c, err)
@@ -505,6 +529,9 @@ func (h *ChannelHandler) SchedulePost(c *fiber.Ctx) error {
 	}
 
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	var req models.ChannelPostScheduleRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
@@ -607,6 +634,9 @@ func (h *ChannelHandler) CreateShowcase(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
 	}
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var req models.ChannelShowcaseCreateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -661,6 +691,9 @@ func (h *ChannelHandler) UpdateShowcase(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid showcase ID"})
 	}
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	var req models.ChannelShowcaseUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -689,6 +722,9 @@ func (h *ChannelHandler) DeleteShowcase(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid showcase ID"})
 	}
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 
 	if err := h.service.DeleteShowcase(channelID, showcaseID, userID); err != nil {
 		return respondChannelError(c, err)

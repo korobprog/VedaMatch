@@ -11,6 +11,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -150,7 +151,7 @@ func (h *YatraHandler) UpdateYatra(c *fiber.Ctx) error {
 
 	yatra, err := h.yatraService.UpdateYatra(uint(yatraID), userID, updates)
 	if err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(yatra)
@@ -169,7 +170,7 @@ func (h *YatraHandler) PublishYatra(c *fiber.Ctx) error {
 	}
 
 	if err := h.yatraService.PublishYatra(uint(yatraID), userID); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "Yatra published"})
@@ -188,7 +189,7 @@ func (h *YatraHandler) DeleteYatra(c *fiber.Ctx) error {
 	}
 
 	if err := h.yatraService.DeleteYatra(uint(yatraID), userID); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "Yatra deleted"})
@@ -260,7 +261,7 @@ func (h *YatraHandler) ApproveParticipant(c *fiber.Ctx) error {
 	}
 
 	if err := h.yatraService.ApproveParticipant(uint(yatraID), uint(participantID), userID); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "Participant approved"})
@@ -283,7 +284,7 @@ func (h *YatraHandler) RejectParticipant(c *fiber.Ctx) error {
 	}
 
 	if err := h.yatraService.RejectParticipant(uint(yatraID), uint(participantID), userID); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "Participant rejected"})
@@ -306,7 +307,7 @@ func (h *YatraHandler) RemoveParticipant(c *fiber.Ctx) error {
 	}
 
 	if err := h.yatraService.RemoveParticipant(uint(yatraID), uint(participantID), userID); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "Participant removed"})
@@ -447,7 +448,7 @@ func (h *YatraHandler) UpdateShelter(c *fiber.Ctx) error {
 
 	shelter, err := h.shelterService.UpdateShelter(uint(shelterID), userID, updates)
 	if err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(shelter)
@@ -466,7 +467,7 @@ func (h *YatraHandler) DeleteShelter(c *fiber.Ctx) error {
 	}
 
 	if err := h.shelterService.DeleteShelter(uint(shelterID), userID); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "Shelter deleted"})
@@ -558,7 +559,7 @@ func (h *YatraHandler) DeleteShelterReview(c *fiber.Ctx) error {
 	}
 
 	if err := h.shelterService.DeleteReview(uint(reviewID), userID); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return respondYatraDomainError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"message": "Review deleted"})
@@ -720,4 +721,25 @@ func (h *YatraHandler) GetMyParticipation(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(participation)
+}
+
+func respondYatraDomainError(c *fiber.Ctx, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Not found"})
+	}
+
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	switch {
+	case strings.Contains(msg, "not authorized"), strings.Contains(msg, "forbidden"):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+	case strings.Contains(msg, "not found"):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	case strings.Contains(msg, "invalid"), strings.Contains(msg, "required"), strings.Contains(msg, "already"), strings.Contains(msg, "cannot"), strings.Contains(msg, "full"):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	default:
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
+	}
 }

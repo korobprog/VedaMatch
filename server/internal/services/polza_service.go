@@ -362,7 +362,10 @@ func (s *PolzaService) ListModels() ([]map[string]interface{}, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, fmt.Errorf("failed to read models response: %v", readErr)
+	}
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("failed to fetch models: status %d", resp.StatusCode)

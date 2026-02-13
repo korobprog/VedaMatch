@@ -397,7 +397,12 @@ func (h *PathTrackerHandler) CompleteStep(c *fiber.Ctx) error {
 	var body struct {
 		StepID uint `json:"stepId"`
 	}
-	_ = c.BodyParser(&body)
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	if body.StepID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "stepId is required"})
+	}
 
 	step, err := h.service.CompleteStep(userID, body.StepID)
 	if err != nil {

@@ -22,6 +22,15 @@ func NewServiceService() *ServiceService {
 	return &ServiceService{}
 }
 
+func isValidServiceStatus(status models.ServiceStatus) bool {
+	switch status {
+	case models.ServiceStatusDraft, models.ServiceStatusActive, models.ServiceStatusPaused, models.ServiceStatusArchived:
+		return true
+	default:
+		return false
+	}
+}
+
 // Create creates a new service
 func (s *ServiceService) Create(ownerID uint, req models.ServiceCreateRequest) (*models.Service, error) {
 	req.Title = strings.TrimSpace(req.Title)
@@ -146,6 +155,9 @@ func (s *ServiceService) Update(serviceID, ownerID uint, req models.ServiceUpdat
 		updates["access_type"] = *req.AccessType
 	}
 	if req.Status != nil {
+		if !isValidServiceStatus(*req.Status) {
+			return nil, errors.New("invalid service status")
+		}
 		updates["status"] = *req.Status
 	}
 
@@ -357,7 +369,11 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 
 	updates := make(map[string]interface{})
 	if req.Name != nil {
-		updates["name"] = strings.TrimSpace(*req.Name)
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			return nil, errors.New("tariff name is required")
+		}
+		updates["name"] = name
 	}
 	if req.Price != nil {
 		if *req.Price < 0 {

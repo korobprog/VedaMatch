@@ -43,8 +43,8 @@ func NewVideoHandler() *VideoHandler {
 // @Router /api/admin/video/upload [post]
 func (h *VideoHandler) UploadVideo(c *fiber.Ctx) error {
 	// Get user from context
-	user := c.Locals("user").(*models.User)
-	if user == nil {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -170,8 +170,8 @@ func (h *VideoHandler) GetVideoPlayback(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/video/{id}/progress [post]
 func (h *VideoHandler) SaveProgress(c *fiber.Ctx) error {
-	user := c.Locals("user").(*models.User)
-	if user == nil {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -212,8 +212,8 @@ func (h *VideoHandler) SaveProgress(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/video/{id}/progress [get]
 func (h *VideoHandler) GetProgress(c *fiber.Ctx) error {
-	user := c.Locals("user").(*models.User)
-	if user == nil {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
@@ -248,8 +248,8 @@ func (h *VideoHandler) GetProgress(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/video/{id}/subtitle [post]
 func (h *VideoHandler) UploadSubtitle(c *fiber.Ctx) error {
-	user := c.Locals("user").(*models.User)
-	if user == nil || (user.Role != "admin" && user.Role != "superadmin") {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || (user.Role != "admin" && user.Role != "superadmin") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Admin access required",
 		})
@@ -302,8 +302,8 @@ func (h *VideoHandler) UploadSubtitle(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/video/subtitle/{subtitleId} [delete]
 func (h *VideoHandler) DeleteSubtitle(c *fiber.Ctx) error {
-	user := c.Locals("user").(*models.User)
-	if user == nil || (user.Role != "admin" && user.Role != "superadmin") {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || (user.Role != "admin" && user.Role != "superadmin") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Admin access required",
 		})
@@ -334,8 +334,8 @@ func (h *VideoHandler) DeleteSubtitle(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/video/{id}/retry [post]
 func (h *VideoHandler) RetryTranscoding(c *fiber.Ctx) error {
-	user := c.Locals("user").(*models.User)
-	if user == nil || (user.Role != "admin" && user.Role != "superadmin") {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || (user.Role != "admin" && user.Role != "superadmin") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Admin access required",
 		})
@@ -368,8 +368,8 @@ func (h *VideoHandler) RetryTranscoding(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/video/{id} [delete]
 func (h *VideoHandler) DeleteVideo(c *fiber.Ctx) error {
-	user := c.Locals("user").(*models.User)
-	if user == nil || (user.Role != "admin" && user.Role != "superadmin") {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || (user.Role != "admin" && user.Role != "superadmin") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Admin access required",
 		})
@@ -424,11 +424,15 @@ func (h *VideoHandler) GetVideos(c *fiber.Ctx) error {
 
 	// Get total count
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to count videos"})
+	}
 
 	// Get videos
 	var videos []models.MediaTrack
-	query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&videos)
+	if err := query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&videos).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch videos"})
+	}
 
 	return c.JSON(fiber.Map{
 		"videos": videos,

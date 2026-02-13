@@ -177,9 +177,15 @@ func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
 	var blockedUsers int64
 	var admins int64
 
-	database.DB.Model(&models.User{}).Count(&totalUsers)
-	database.DB.Model(&models.User{}).Where("is_blocked = ?", true).Count(&blockedUsers)
-	database.DB.Model(&models.User{}).Where("role IN ?", []string{models.RoleAdmin, models.RoleSuperadmin}).Count(&admins)
+	if err := database.DB.Model(&models.User{}).Count(&totalUsers).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch user stats"})
+	}
+	if err := database.DB.Model(&models.User{}).Where("is_blocked = ?", true).Count(&blockedUsers).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch user stats"})
+	}
+	if err := database.DB.Model(&models.User{}).Where("role IN ?", []string{models.RoleAdmin, models.RoleSuperadmin}).Count(&admins).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch user stats"})
+	}
 
 	return c.JSON(fiber.Map{
 		"totalUsers":   totalUsers,
@@ -255,6 +261,9 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 	// Scan all environment variables for GEMINI_ keys to capture backups not yet in DB
 	for _, env := range os.Environ() {
 		pair := strings.SplitN(env, "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
 		key := pair[0]
 		val := pair[1]
 
@@ -761,19 +770,29 @@ func (h *AdminHandler) GetGlobalWalletStats(c *fiber.Ctx) error {
 	var totalPending int64
 	var totalFrozen int64
 
-	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(balance), 0)").Scan(&totalBalance)
-	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(pending_balance), 0)").Scan(&totalPending)
-	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(frozen_balance), 0)").Scan(&totalFrozen)
+	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(balance), 0)").Scan(&totalBalance).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
+	}
+	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(pending_balance), 0)").Scan(&totalPending).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
+	}
+	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(frozen_balance), 0)").Scan(&totalFrozen).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
+	}
 
 	var totalIssued int64
-	database.DB.Model(&models.WalletTransaction{}).
+	if err := database.DB.Model(&models.WalletTransaction{}).
 		Where("type IN ?", []models.TransactionType{models.TransactionTypeCredit, models.TransactionTypeBonus}).
-		Select("COALESCE(SUM(amount), 0)").Scan(&totalIssued)
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalIssued).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
+	}
 
 	var totalSpent int64
-	database.DB.Model(&models.WalletTransaction{}).
+	if err := database.DB.Model(&models.WalletTransaction{}).
 		Where("type = ?", models.TransactionTypeDebit).
-		Select("COALESCE(SUM(amount), 0)").Scan(&totalSpent)
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalSpent).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
+	}
 
 	return c.JSON(fiber.Map{
 		"totalActiveLKM":  totalBalance,

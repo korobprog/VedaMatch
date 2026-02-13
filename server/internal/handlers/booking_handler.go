@@ -3,21 +3,37 @@ package handlers
 import (
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
-	"rag-agent-server/internal/services"
 	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
+type bookingService interface {
+	Create(serviceID, clientID uint, req models.BookingCreateRequest) (*models.ServiceBooking, error)
+	GetMyBookings(clientID uint, filters models.BookingFilters) (*models.BookingListResponse, error)
+	GetIncomingBookings(ownerID uint, filters models.BookingFilters) (*models.BookingListResponse, error)
+	GetUpcoming(ownerID uint) (*models.UpcomingBookingsResponse, error)
+	Confirm(bookingID, ownerID uint, req models.BookingActionRequest) (*models.ServiceBooking, error)
+	Cancel(bookingID, userID uint, req models.BookingActionRequest) (*models.ServiceBooking, error)
+	Complete(bookingID, ownerID uint, req models.BookingActionRequest) (*models.ServiceBooking, error)
+	MarkNoShow(bookingID, ownerID uint) (*models.ServiceBooking, error)
+}
+
+type bookingCalendarService interface {
+	GetSlotsForRange(serviceID uint, dateFrom, dateTo, timezone string) ([]models.SlotsResponse, error)
+	GetAvailableSlots(serviceID uint, date, timezone string) (*models.SlotsResponse, error)
+	GetBusyTimes(userID uint, dateFrom, dateTo string) ([]models.ServiceBooking, error)
+}
+
 // BookingHandler handles booking-related HTTP requests
 type BookingHandler struct {
-	bookingService  *services.BookingService
-	calendarService *services.CalendarService
+	bookingService  bookingService
+	calendarService bookingCalendarService
 }
 
 // NewBookingHandler creates a new booking handler
-func NewBookingHandler(bookingService *services.BookingService, calendarService *services.CalendarService) *BookingHandler {
+func NewBookingHandler(bookingService bookingService, calendarService bookingCalendarService) *BookingHandler {
 	return &BookingHandler{
 		bookingService:  bookingService,
 		calendarService: calendarService,

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -69,7 +70,12 @@ func (s *NewsAIService) ProcessNewsItem(newsID uint) error {
 
 	// 2. Apply style transfer (Sattva style) if enabled
 	var source models.NewsSource
-	hasSource := s.db.First(&source, newsItem.SourceID).Error == nil
+	hasSource := false
+	if err := s.db.First(&source, newsItem.SourceID).Error; err == nil {
+		hasSource = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[NewsAI] Failed to load source %d for item %d: %v", newsItem.SourceID, newsItem.ID, err)
+	}
 
 	if hasSource && source.StyleTransfer && newsItem.ContentRu == "" && newsItem.OriginalLang == "ru" {
 		styledContent, err := s.ApplyStyleTransfer(originalContent)
@@ -358,9 +364,11 @@ func (s *NewsAIService) ProcessPendingNews(ctx context.Context, limit int) error
 			if err := s.ProcessNewsItem(item.ID); err != nil {
 				log.Printf("[NewsAI] Error processing item %d: %v", item.ID, err)
 				// Save error
-				s.db.Model(&item).Updates(map[string]interface{}{
+				if saveErr := s.db.Model(&item).Updates(map[string]interface{}{
 					"ai_processing_error": err.Error(),
-				})
+				}).Error; saveErr != nil {
+					log.Printf("[NewsAI] Failed to persist processing error for item %d: %v", item.ID, saveErr)
+				}
 			}
 			// Rate limiting - wait between requests
 			time.Sleep(2 * time.Second)
@@ -431,6 +439,9 @@ func (s *NewsAIService) GetLatestNewsSummary(lang string, limit int) (string, er
 	response, err := s.aiChatService.GenerateSimpleResponse(prompt)
 	if err != nil {
 		// Fallback: just return the list
+		if lang == "en" {
+			return "📰 Latest news:\n" + newsContext, nil
+		}
 		return "📰 Последние новости:\n" + newsContext, nil
 	}
 
@@ -490,6 +501,9 @@ func (s *NewsAIService) SearchAndSummarizeNews(query string, lang string) (strin
 
 	response, err := s.aiChatService.GenerateSimpleResponse(prompt)
 	if err != nil {
+		if lang == "en" {
+			return "📰 Found news:\n" + newsContext, nil
+		}
 		return "📰 Найденные новости:\n" + newsContext, nil
 	}
 

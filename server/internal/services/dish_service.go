@@ -83,7 +83,14 @@ func (s *DishService) UpdateCategory(categoryID uint, req models.DishCategoryUpd
 
 // DeleteCategory deletes a category
 func (s *DishService) DeleteCategory(categoryID uint) error {
-	return s.db.Delete(&models.DishCategory{}, categoryID).Error
+	result := s.db.Delete(&models.DishCategory{}, categoryID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ===== Dishes =====
@@ -172,7 +179,9 @@ func (s *DishService) ListDishes(filters models.DishFilters) (*models.DishListRe
 
 	// Count total
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	// Pagination
 	page := filters.Page
@@ -306,7 +315,14 @@ func (s *DishService) UpdateDish(dishID uint, req models.DishUpdateRequest) (*mo
 
 // DeleteDish deletes a dish
 func (s *DishService) DeleteDish(dishID uint) error {
-	return s.db.Delete(&models.Dish{}, dishID).Error
+	result := s.db.Delete(&models.Dish{}, dishID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ===== Stop List =====
@@ -354,7 +370,14 @@ func (s *DishService) GetIngredients(dishID uint) ([]models.DishIngredient, erro
 
 // DeleteIngredient deletes an ingredient
 func (s *DishService) DeleteIngredient(ingredientID uint) error {
-	return s.db.Delete(&models.DishIngredient{}, ingredientID).Error
+	result := s.db.Delete(&models.DishIngredient{}, ingredientID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ===== Modifiers =====
@@ -392,13 +415,27 @@ func (s *DishService) GetModifiers(dishID uint) ([]models.DishModifier, error) {
 
 // UpdateModifier updates a modifier
 func (s *DishService) UpdateModifier(modifierID uint, isAvailable bool) error {
-	return s.db.Model(&models.DishModifier{}).Where("id = ?", modifierID).
-		Update("is_available", isAvailable).Error
+	result := s.db.Model(&models.DishModifier{}).Where("id = ?", modifierID).
+		Update("is_available", isAvailable)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // DeleteModifier deletes a modifier
 func (s *DishService) DeleteModifier(modifierID uint) error {
-	return s.db.Delete(&models.DishModifier{}, modifierID).Error
+	result := s.db.Delete(&models.DishModifier{}, modifierID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ===== Menu =====

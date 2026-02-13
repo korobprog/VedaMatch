@@ -13,14 +13,28 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+type orderService interface {
+	CreateOrder(buyerID uint, req models.OrderCreateRequest) (*models.Order, error)
+	GetOrder(orderID uint) (*models.Order, error)
+	GetBuyerOrders(buyerID uint, filters models.OrderFilters) (*models.OrderListResponse, error)
+	GetSellerOrders(sellerID uint, filters models.OrderFilters) (*models.OrderListResponse, error)
+	UpdateOrderStatus(orderID uint, sellerID uint, status models.OrderStatus) (*models.Order, error)
+	CancelOrder(orderID uint, userID uint, reason string) (*models.Order, error)
+	MarkNotificationSent(orderID uint) error
+}
+
 type OrderHandler struct {
-	orderService *services.OrderService
+	orderService orderService
 	shopService  *services.ShopService
 }
 
 func NewOrderHandler() *OrderHandler {
+	return NewOrderHandlerWithService(services.NewOrderService())
+}
+
+func NewOrderHandlerWithService(orderService orderService) *OrderHandler {
 	return &OrderHandler{
-		orderService: services.NewOrderService(),
+		orderService: orderService,
 		shopService:  services.NewShopService(),
 	}
 }

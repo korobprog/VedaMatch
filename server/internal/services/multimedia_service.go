@@ -119,11 +119,25 @@ func (s *MultimediaService) CreateCategory(category *models.MediaCategory) error
 }
 
 func (s *MultimediaService) UpdateCategory(category *models.MediaCategory) error {
-	return s.db.Save(category).Error
+	tx := s.db.Model(&models.MediaCategory{}).Where("id = ?", category.ID).Select("*").Updates(category)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (s *MultimediaService) DeleteCategory(id uint) error {
-	return s.db.Delete(&models.MediaCategory{}, id).Error
+	tx := s.db.Delete(&models.MediaCategory{}, id)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // --- Tracks ---
@@ -239,11 +253,25 @@ func (s *MultimediaService) CreateTrack(track *models.MediaTrack) error {
 }
 
 func (s *MultimediaService) UpdateTrack(track *models.MediaTrack) error {
-	return s.db.Save(track).Error
+	tx := s.db.Model(&models.MediaTrack{}).Where("id = ?", track.ID).Select("*").Updates(track)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (s *MultimediaService) DeleteTrack(id uint) error {
-	return s.db.Delete(&models.MediaTrack{}, id).Error
+	tx := s.db.Delete(&models.MediaTrack{}, id)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // --- Radio Stations ---
@@ -274,11 +302,25 @@ func (s *MultimediaService) CreateRadioStation(station *models.RadioStation) err
 }
 
 func (s *MultimediaService) UpdateRadioStation(station *models.RadioStation) error {
-	return s.db.Save(station).Error
+	tx := s.db.Model(&models.RadioStation{}).Where("id = ?", station.ID).Select("*").Updates(station)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (s *MultimediaService) DeleteRadioStation(id uint) error {
-	return s.db.Delete(&models.RadioStation{}, id).Error
+	tx := s.db.Delete(&models.RadioStation{}, id)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (s *MultimediaService) CheckRadioStatus() {
@@ -365,11 +407,25 @@ func (s *MultimediaService) CreateTVChannel(channel *models.TVChannel) error {
 }
 
 func (s *MultimediaService) UpdateTVChannel(channel *models.TVChannel) error {
-	return s.db.Save(channel).Error
+	tx := s.db.Model(&models.TVChannel{}).Where("id = ?", channel.ID).Select("*").Updates(channel)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (s *MultimediaService) DeleteTVChannel(id uint) error {
-	return s.db.Delete(&models.TVChannel{}, id).Error
+	tx := s.db.Delete(&models.TVChannel{}, id)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // --- User Suggestions (UGC) ---

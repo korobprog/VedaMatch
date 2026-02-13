@@ -275,6 +275,11 @@ func (h *ProductHandler) CreateProduct(c *fiber.Ctx) error {
 	// Get seller's shop
 	shop, err := h.shopService.GetMyShop(userID)
 	if err != nil {
+		if !errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not load shop",
+			})
+		}
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "You need to create a shop first",
 		})
@@ -338,6 +343,11 @@ func (h *ProductHandler) UpdateProduct(c *fiber.Ctx) error {
 	// Get seller's shop
 	shop, err := h.shopService.GetMyShop(userID)
 	if err != nil {
+		if !errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not load shop",
+			})
+		}
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "You don't have a shop",
 		})
@@ -394,6 +404,11 @@ func (h *ProductHandler) DeleteProduct(c *fiber.Ctx) error {
 	// Get seller's shop
 	shop, err := h.shopService.GetMyShop(userID)
 	if err != nil {
+		if !errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not load shop",
+			})
+		}
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "You don't have a shop",
 		})
@@ -433,6 +448,11 @@ func (h *ProductHandler) GetMyProducts(c *fiber.Ctx) error {
 
 	shop, err := h.shopService.GetMyShop(userID)
 	if err != nil {
+		if !errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not load shop",
+			})
+		}
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error":   "You don't have a shop yet",
 			"hasShop": false,
@@ -472,6 +492,11 @@ func (h *ProductHandler) UpdateStock(c *fiber.Ctx) error {
 	// Verify ownership
 	shop, err := h.shopService.GetMyShop(userID)
 	if err != nil {
+		if !errors.Is(err, services.ErrShopNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not load shop",
+			})
+		}
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "You don't have a shop",
 		})
@@ -479,6 +504,11 @@ func (h *ProductHandler) UpdateStock(c *fiber.Ctx) error {
 
 	product, err := h.productService.GetProduct(uint(productID))
 	if err != nil {
+		if !errors.Is(err, services.ErrProductNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch product",
+			})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Product not found",
 		})
@@ -532,6 +562,11 @@ func (h *ProductHandler) ToggleFavorite(c *fiber.Ctx) error {
 
 	isFavorite, err := h.productService.ToggleFavorite(userID, uint(productID))
 	if err != nil {
+		if errors.Is(err, services.ErrProductNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Product not found",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not toggle favorite",
 		})

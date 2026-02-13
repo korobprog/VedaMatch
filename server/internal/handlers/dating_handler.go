@@ -1,19 +1,31 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"strconv"
 	"time"
 
 	"regexp"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type DatingHandler struct {
 	aiService *services.AiChatService
+}
+
+func requireDatingUserID(c *fiber.Ctx) (uint, error) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	return userID, nil
 }
 
 func NewDatingHandler(aiService *services.AiChatService) *DatingHandler {
@@ -239,7 +251,18 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 }
 
 func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	userID := c.Params("id")
+	paramUserID, parseErr := strconv.ParseUint(userID, 10, 32)
+	if parseErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	if uint(paramUserID) != authUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
 	var user models.User
 	if err := database.DB.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
@@ -337,6 +360,11 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 }
 
 func (h *DatingHandler) AddToFavorites(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+
 	var body struct {
 		UserID             uint   `json:"userId"`
 		CandidateID        uint   `json:"candidateId"`
@@ -346,6 +374,7 @@ func (h *DatingHandler) AddToFavorites(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
+	body.UserID = authUserID
 
 	favorite := models.DatingFavorite{
 		UserID:             body.UserID,
@@ -361,13 +390,13 @@ func (h *DatingHandler) AddToFavorites(c *fiber.Ctx) error {
 }
 
 func (h *DatingHandler) GetFavorites(c *fiber.Ctx) error {
-	userID := c.Query("userId")
-	if userID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "userId is required"})
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
 	}
 
 	var favorites []models.DatingFavorite
-	if err := database.DB.Preload("Candidate").Preload("Candidate.Photos").Where("user_id = ?", userID).Find(&favorites).Error; err != nil {
+	if err := database.DB.Preload("Candidate").Preload("Candidate.Photos").Where("user_id = ?", authUserID).Find(&favorites).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch favorites"})
 	}
 
@@ -385,8 +414,24 @@ func (h *DatingHandler) GetDatingProfile(c *fiber.Ctx) error {
 }
 
 func (h *DatingHandler) RemoveFromFavorites(c *fiber.Ctx) error {
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	id := c.Params("id")
-	if err := database.DB.Delete(&models.DatingFavorite{}, id).Error; err != nil {
+
+	var favorite models.DatingFavorite
+	if err := database.DB.First(&favorite, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Favorite not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load favorite"})
+	}
+	if favorite.UserID != authUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+
+	if err := database.DB.Delete(&favorite).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not remove from favorites"})
 	}
 
@@ -459,13 +504,13 @@ func (h *DatingHandler) GetFavoriteCount(c *fiber.Ctx) error {
 
 // GetWhoLikedMe returns users who added you to their favorites
 func (h *DatingHandler) GetWhoLikedMe(c *fiber.Ctx) error {
-	userID := c.Query("userId")
-	if userID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "userId is required"})
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
 	}
 
 	var favorites []models.DatingFavorite
-	if err := database.DB.Preload("User").Preload("User.Photos").Where("candidate_id = ?", userID).Find(&favorites).Error; err != nil {
+	if err := database.DB.Preload("User").Preload("User.Photos").Where("candidate_id = ?", authUserID).Find(&favorites).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch likes"})
 	}
 
@@ -484,15 +529,18 @@ func (h *DatingHandler) GetWhoLikedMe(c *fiber.Ctx) error {
 
 // CheckIsFavorited checks if current user has favorited a candidate
 func (h *DatingHandler) CheckIsFavorited(c *fiber.Ctx) error {
-	userID := c.Query("userId")
+	authUserID, authErr := requireDatingUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	candidateID := c.Query("candidateId")
 
-	if userID == "" || candidateID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "userId and candidateId are required"})
+	if candidateID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "candidateId is required"})
 	}
 
 	var count int64
-	database.DB.Model(&models.DatingFavorite{}).Where("user_id = ? AND candidate_id = ?", userID, candidateID).Count(&count)
+	database.DB.Model(&models.DatingFavorite{}).Where("user_id = ? AND candidate_id = ?", authUserID, candidateID).Count(&count)
 
 	return c.JSON(fiber.Map{
 		"isFavorited": count > 0,

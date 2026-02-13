@@ -464,6 +464,11 @@ func (h *ShopHandler) AdminModerateShop(c *fiber.Ctx) error {
 	}
 
 	moderatorID := middleware.GetUserID(c)
+	if moderatorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
 
 	var req struct {
 		Status  models.ShopStatus `json:"status"`

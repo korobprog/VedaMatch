@@ -43,6 +43,19 @@ func isUnsafeFolderPath(path string) bool {
 	return strings.HasPrefix(path, "/")
 }
 
+func respondMultimediaDomainError(c *fiber.Ctx, err error, notFoundMsg string) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": notFoundMsg})
+	}
+
+	errText := strings.ToLower(strings.TrimSpace(err.Error()))
+	if strings.Contains(errText, "invalid") || strings.Contains(errText, "required") || strings.Contains(errText, "inactive") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+}
+
 func NewMultimediaHandler() *MultimediaHandler {
 	return &MultimediaHandler{
 		service: services.NewMultimediaService(),
@@ -179,7 +192,7 @@ func (h *MultimediaHandler) UpdateTrack(c *fiber.Ctx) error {
 	track.ID = uint(id)
 
 	if err := h.service.UpdateTrack(&track); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Track not found")
 	}
 	return c.JSON(fiber.Map{"message": "Track updated"})
 }
@@ -201,7 +214,7 @@ func (h *MultimediaHandler) DeleteTrack(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteTrack(uint(id)); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Track not found")
 	}
 	return c.JSON(fiber.Map{"message": "Track deleted"})
 }
@@ -294,7 +307,7 @@ func (h *MultimediaHandler) UpdateRadioStation(c *fiber.Ctx) error {
 	station.ID = uint(id)
 
 	if err := h.service.UpdateRadioStation(&station); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Station not found")
 	}
 	return c.JSON(fiber.Map{"message": "Station updated"})
 }
@@ -316,7 +329,7 @@ func (h *MultimediaHandler) DeleteRadioStation(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteRadioStation(uint(id)); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Station not found")
 	}
 	return c.JSON(fiber.Map{"message": "Station deleted"})
 }
@@ -409,7 +422,7 @@ func (h *MultimediaHandler) UpdateTVChannel(c *fiber.Ctx) error {
 	channel.ID = uint(id)
 
 	if err := h.service.UpdateTVChannel(&channel); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Channel not found")
 	}
 	return c.JSON(fiber.Map{"message": "Channel updated"})
 }
@@ -431,7 +444,7 @@ func (h *MultimediaHandler) DeleteTVChannel(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteTVChannel(uint(id)); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Channel not found")
 	}
 	return c.JSON(fiber.Map{"message": "Channel deleted"})
 }
@@ -607,7 +620,7 @@ func (h *MultimediaHandler) ReviewSuggestion(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.ReviewSuggestion(uint(id), body.Status, body.AdminNote, userID); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Suggestion not found")
 	}
 	return c.JSON(fiber.Map{"message": "Suggestion reviewed"})
 }
@@ -632,7 +645,7 @@ func (h *MultimediaHandler) AddToFavorites(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.AddToFavorites(userID, uint(trackID)); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Track not found")
 	}
 	return c.JSON(fiber.Map{"message": "Added to favorites"})
 }
@@ -754,7 +767,7 @@ func (h *MultimediaHandler) UpdateCategory(c *fiber.Ctx) error {
 	category.ID = uint(id)
 
 	if err := h.service.UpdateCategory(&category); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Category not found")
 	}
 	return c.JSON(fiber.Map{"message": "Category updated"})
 }
@@ -776,7 +789,7 @@ func (h *MultimediaHandler) DeleteCategory(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteCategory(uint(id)); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondMultimediaDomainError(c, err, "Category not found")
 	}
 	return c.JSON(fiber.Map{"message": "Category deleted"})
 }

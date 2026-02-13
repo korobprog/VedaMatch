@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type AiHandler struct{}
@@ -78,7 +80,7 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 		var existing models.AiModel
 		result := database.DB.Where("model_id = ?", m.ID).First(&existing)
 
-		if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			// New model
 			newModel := models.AiModel{
 				ModelID:      m.ID,
@@ -95,6 +97,9 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 				continue
 			}
 			newCount++
+		} else if result.Error != nil {
+			log.Printf("[Sync] Failed loading model %s: %v", m.ID, result.Error)
+			continue
 		} else {
 			// Update existing
 			existing.Provider = m.Provider
@@ -110,7 +115,9 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 
 	// Disable models that are no longer in the API list
 	var allModels []models.AiModel
-	database.DB.Find(&allModels)
+	if err := database.DB.Find(&allModels).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load existing models"})
+	}
 
 	disabledCount := 0
 	for _, m := range allModels {
@@ -194,6 +201,9 @@ func (h *AiHandler) UpdateModel(c *fiber.Ctx) error {
 
 	var aiModel models.AiModel
 	if err := database.DB.First(&aiModel, id).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load model"})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Model not found"})
 	}
 
@@ -232,8 +242,12 @@ func (h *AiHandler) UpdateModel(c *fiber.Ctx) error {
 // DeleteModel removes a model from database
 func (h *AiHandler) DeleteModel(c *fiber.Ctx) error {
 	id := c.Params("id")
-	if err := database.DB.Delete(&models.AiModel{}, id).Error; err != nil {
+	res := database.DB.Delete(&models.AiModel{}, id)
+	if res.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete model"})
+	}
+	if res.RowsAffected == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Model not found"})
 	}
 	return c.JSON(fiber.Map{"message": "Model deleted successfully"})
 }
@@ -422,6 +436,9 @@ func (h *AiHandler) ToggleAutoRouting(c *fiber.Ctx) error {
 	var model models.AiModel
 
 	if err := database.DB.Where("id = ?", id).First(&model).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load model"})
+		}
 		return c.Status(404).JSON(fiber.Map{"error": "Model not found"})
 	}
 
