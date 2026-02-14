@@ -38,6 +38,10 @@ type AdminNotification struct {
 	Read   bool       `json:"read" gorm:"default:false;index"`
 	ReadAt *time.Time `json:"readAt"`
 	ReadBy *uint      `json:"readBy"` // Which admin read it
+
+	// Compatibility aliases for admin frontend versions.
+	IsRead bool   `json:"isRead" gorm:"-"`
+	Link   string `json:"link" gorm:"-"`
 }
 
 // AdminNotificationCreateRequest DTO for creating a notification
@@ -48,4 +52,15 @@ type AdminNotificationCreateRequest struct {
 	YatraID  *uint                 `json:"yatraId"`
 	ReportID *uint                 `json:"reportId"`
 	UserID   *uint                 `json:"userId"`
+}
+
+func (n *AdminNotification) SyncAliases() {
+	n.IsRead = n.Read
+	n.Link = n.LinkTo
+}
+
+func SyncAdminNotificationAliases(items []AdminNotification) {
+	for i := range items {
+		items[i].SyncAliases()
+	}
 }

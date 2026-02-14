@@ -6,22 +6,24 @@ export const NotificationManager: React.FC = () => {
     const { isLoggedIn } = useUser();
 
     useEffect(() => {
-        const initPush = async () => {
+        if (!isLoggedIn) return;
+
+        let unsubscribe: (() => void) | null = null;
+        let disposed = false;
+
+        (async () => {
             const hasPermission = await notificationService.requestUserPermission();
             if (hasPermission) {
                 await notificationService.getFcmToken();
             }
+            if (disposed) return;
+            unsubscribe = notificationService.setupListeners();
+        })();
 
-            const unsubscribe = notificationService.setupListeners();
-            return unsubscribe;
+        return () => {
+            disposed = true;
+            if (unsubscribe) unsubscribe();
         };
-
-        if (isLoggedIn) {
-            const unsubPromise = initPush();
-            return () => {
-                unsubPromise.then(unsub => unsub && unsub());
-            };
-        }
     }, [isLoggedIn]);
 
     // This component doesn't render anything UI-wise

@@ -1,40 +1,61 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { getAuthToken } from '../../lib/auth';
 
 interface Notification {
     id: number;
     type: string;
     message: string;
     link?: string;
+    linkTo?: string;
     isRead: boolean;
+    read?: boolean;
     createdAt: string;
 }
 
+interface PushHealth {
+    delivery_success_rate: number;
+    invalid_token_rate: number;
+    retry_rate: number;
+    latency_p95: number;
+    total_events: number;
+    fcmConfigured: boolean;
+    fcmKeySource: string;
+}
+
+const normalizeNotification = (raw: any): Notification => ({
+    ...raw,
+    isRead: typeof raw?.isRead === 'boolean' ? raw.isRead : !!raw?.read,
+    link: raw?.link || raw?.linkTo,
+});
+
 export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [pushHealth, setPushHealth] = useState<PushHealth | null>(null);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const router = useRouter();
 
     useEffect(() => {
         fetchNotifications();
+        fetchPushHealth();
     }, [page]);
 
     const fetchNotifications = async () => {
         setLoading(true);
         try {
+            const token = getAuthToken();
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications?page=${page}&limit=20`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': token ? `Bearer ${token}` : '',
                 },
             });
 
             if (response.ok) {
                 const data = await response.json();
-                setNotifications(data.notifications || []);
+                setNotifications((data.notifications || []).map(normalizeNotification));
             }
         } catch (error) {
             console.error('Error fetching notifications:', error);
@@ -43,17 +64,35 @@ export default function NotificationsPage() {
         }
     };
 
+    const fetchPushHealth = async () => {
+        try {
+            const token = getAuthToken();
+            if (!token) return;
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/push/health?window_hours=24`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            setPushHealth(data);
+        } catch (error) {
+            console.error('Error fetching push health:', error);
+        }
+    };
+
     const markAsRead = async (id: number) => {
         try {
+            const token = getAuthToken();
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': token ? `Bearer ${token}` : '',
                 },
             });
 
             setNotifications(prev =>
-                prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+                prev.map(n => n.id === id ? { ...n, isRead: true, read: true } : n)
             );
         } catch (error) {
             console.error('Error marking as read:', error);
@@ -77,12 +116,41 @@ export default function NotificationsPage() {
                     <p className="text-gray-600 mt-1">Stay updated with important events</p>
                 </div>
                 <button
-                    onClick={() => fetchNotifications()}
+                    onClick={() => {
+                        fetchNotifications();
+                        fetchPushHealth();
+                    }}
                     className="px-4 py-2 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg font-medium"
                 >
                     Refresh List
                 </button>
             </div>
+
+            {pushHealth && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div className="bg-white rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Success rate</p>
+                        <p className="text-xl font-semibold">{pushHealth.delivery_success_rate.toFixed(1)}%</p>
+                    </div>
+                    <div className="bg-white rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Invalid rate</p>
+                        <p className="text-xl font-semibold">{pushHealth.invalid_token_rate.toFixed(1)}%</p>
+                    </div>
+                    <div className="bg-white rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Retry rate</p>
+                        <p className="text-xl font-semibold">{pushHealth.retry_rate.toFixed(1)}%</p>
+                    </div>
+                    <div className="bg-white rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Latency p95</p>
+                        <p className="text-xl font-semibold">{pushHealth.latency_p95} ms</p>
+                    </div>
+                    <div className="bg-white rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">FCM key</p>
+                        <p className="text-xl font-semibold">{pushHealth.fcmConfigured ? 'Configured' : 'Missing'}</p>
+                        <p className="text-[11px] text-gray-500 mt-1">source: {pushHealth.fcmKeySource}</p>
+                    </div>
+                </div>
+            )}
 
             <div className="bg-white rounded-lg shadow overflow-hidden">
                 {loading ? (

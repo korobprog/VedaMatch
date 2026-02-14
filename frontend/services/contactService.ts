@@ -17,6 +17,14 @@ export interface UserContact {
     timezone?: string;
 }
 
+export interface PushTokenRegisterPayload {
+    token: string;
+    platform?: 'ios' | 'android' | 'web' | string;
+    provider?: 'fcm' | 'expo' | string;
+    deviceId?: string;
+    appVersion?: string;
+}
+
 const getAuthToken = async () => {
     return await AsyncStorage.getItem('token');
 };
@@ -30,6 +38,15 @@ export const getAuthHeaders = async (isJson = true) => {
         headers['Content-Type'] = 'application/json';
     }
     return headers;
+};
+
+const legacyUpdatePushToken = async (pushToken: string) => {
+    const headers = await getAuthHeaders();
+    await fetch(`${API_PATH}/update-push-token`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ pushToken }),
+    });
 };
 
 export const contactService = {
@@ -100,12 +117,37 @@ export const contactService = {
     },
 
     updatePushToken: async (pushToken: string) => {
+        await legacyUpdatePushToken(pushToken);
+    },
+
+    registerPushToken: async (payload: PushTokenRegisterPayload) => {
         const headers = await getAuthHeaders();
-        await fetch(`${API_PATH}/update-push-token`, {
-            method: 'PUT',
+        const response = await fetch(`${API_PATH}/push-tokens/register`, {
+            method: 'POST',
             headers,
-            body: JSON.stringify({ pushToken }),
+            body: JSON.stringify(payload),
         });
+
+        if (response.ok) {
+            return response.json();
+        }
+
+        // Fallback for older backends.
+        await legacyUpdatePushToken(payload.token);
+        return { ok: true, fallback: true };
+    },
+
+    unregisterPushToken: async (payload: { token?: string; deviceId?: string }) => {
+        const headers = await getAuthHeaders();
+        const response = await fetch(`${API_PATH}/push-tokens/unregister`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            throw new Error('Failed to unregister push token');
+        }
+        return response.json();
     },
 
     getBlockedUsers: async (userId: number): Promise<UserContact[]> => {

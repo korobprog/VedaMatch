@@ -1,18 +1,27 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Check, X } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { getAuthToken } from '../lib/auth';
 
 interface Notification {
     id: number;
     type: string;
     message: string;
     link?: string;
+    linkTo?: string;
     isRead: boolean;
+    read?: boolean;
     createdAt: string;
 }
+
+const normalizeNotification = (raw: any): Notification => ({
+    ...raw,
+    isRead: typeof raw?.isRead === 'boolean' ? raw.isRead : !!raw?.read,
+    link: raw?.link || raw?.linkTo,
+});
 
 export function AdminNotificationBell() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -43,11 +52,7 @@ export function AdminNotificationBell() {
 
     const fetchNotifications = async () => {
         try {
-            const dataStr = localStorage.getItem('admin_data');
-            if (!dataStr) return;
-            const data = JSON.parse(dataStr);
-            const token = data.token;
-
+            const token = getAuthToken();
             if (!token) return;
 
             // Use pending status to get unread ones primarily, but we'll sort them
@@ -60,7 +65,7 @@ export function AdminNotificationBell() {
             if (response.ok) {
                 const resData = await response.json();
                 // Assuming data is { notifications: [], total: ... } or just []
-                const notifs = resData.notifications || [];
+                const notifs = (resData.notifications || []).map(normalizeNotification);
                 setNotifications(notifs);
                 setUnreadCount(notifs.filter((n: Notification) => !n.isRead).length);
             }
@@ -71,11 +76,7 @@ export function AdminNotificationBell() {
 
     const markAsRead = async (id: number) => {
         try {
-            const dataStr = localStorage.getItem('admin_data');
-            if (!dataStr) return;
-            const data = JSON.parse(dataStr);
-            const token = data.token;
-
+            const token = getAuthToken();
             if (!token) return;
 
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications/${id}/read`, {
@@ -87,7 +88,7 @@ export function AdminNotificationBell() {
 
             // Optimistic update
             setNotifications(prev =>
-                prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+                prev.map(n => n.id === id ? { ...n, isRead: true, read: true } : n)
             );
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch (error) {

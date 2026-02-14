@@ -64,6 +64,7 @@ func (s *AdminNotificationService) GetNotifications(unreadOnly bool, page, limit
 	err := query.Order("created_at DESC").
 		Offset(offset).Limit(limit).
 		Find(&notifications).Error
+	models.SyncAdminNotificationAliases(notifications)
 
 	return notifications, total, err
 }

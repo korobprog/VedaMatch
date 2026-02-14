@@ -356,6 +356,139 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Settings updated"})
 }
 
+func (h *AdminHandler) SendTestPush(c *fiber.Ctx) error {
+	adminID, err := requireAdminUserID(c)
+	if err != nil {
+		return err
+	}
+
+	var body struct {
+		Token    string            `json:"token"`
+		UserID   *uint             `json:"userId"`
+		Title    string            `json:"title"`
+		Message  string            `json:"message"`
+		Body     string            `json:"body"`
+		Data     map[string]string `json:"data"`
+		Priority string            `json:"priority"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	pushService := services.GetPushService()
+	fcmKey, keySource := pushService.ResolveFCMServerKey()
+
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		title = "Test push"
+	}
+	messageBody := strings.TrimSpace(body.Body)
+	if messageBody == "" {
+		messageBody = strings.TrimSpace(body.Message)
+	}
+	if messageBody == "" {
+		messageBody = "Manual test notification from admin panel"
+	}
+	priority := strings.TrimSpace(body.Priority)
+	if priority == "" {
+		priority = "high"
+	}
+	data := body.Data
+	if data == nil {
+		data = map[string]string{}
+	}
+	if _, ok := data["type"]; !ok {
+		data["type"] = "admin_test_push"
+	}
+	data["ts"] = time.Now().Format(time.RFC3339)
+
+	pushMessage := services.PushMessage{
+		Title:    title,
+		Body:     messageBody,
+		Data:     data,
+		Priority: priority,
+	}
+
+	target := "user"
+	targetUserID := adminID
+	if body.UserID != nil && *body.UserID != 0 {
+		targetUserID = *body.UserID
+	}
+
+	if token := strings.TrimSpace(body.Token); token != "" {
+		target = "token"
+		if err := pushService.SendToTokens([]string{token}, pushMessage); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"ok":            false,
+				"error":         err.Error(),
+				"target":        target,
+				"fcmConfigured": fcmKey != "",
+				"fcmKeySource":  keySource,
+			})
+		}
+		return c.JSON(fiber.Map{
+			"ok":            true,
+			"target":        target,
+			"fcmConfigured": fcmKey != "",
+			"fcmKeySource":  keySource,
+		})
+	}
+
+	if err := pushService.SendToUser(targetUserID, pushMessage); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"ok":            false,
+			"error":         err.Error(),
+			"target":        target,
+			"userId":        targetUserID,
+			"fcmConfigured": fcmKey != "",
+			"fcmKeySource":  keySource,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"ok":            true,
+		"target":        target,
+		"userId":        targetUserID,
+		"fcmConfigured": fcmKey != "",
+		"fcmKeySource":  keySource,
+	})
+}
+
+func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	windowHours := 24
+	if raw := strings.TrimSpace(c.Query("window_hours")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 24*30 {
+			windowHours = parsed
+		}
+	}
+
+	pushService := services.GetPushService()
+	summary, err := pushService.GetHealthSummary(time.Duration(windowHours) * time.Hour)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to calculate push health"})
+	}
+
+	fcmKey, keySource := pushService.ResolveFCMServerKey()
+	return c.JSON(fiber.Map{
+		"windowHours":           summary.WindowHours,
+		"delivery_success_rate": summary.DeliverySuccessRate,
+		"invalid_token_rate":    summary.InvalidTokenRate,
+		"retry_rate":            summary.RetryRate,
+		"latency_p95":           summary.LatencyP95,
+		"total_events":          summary.TotalEvents,
+		"success_events":        summary.SuccessEvents,
+		"invalid_events":        summary.InvalidEvents,
+		"retry_events":          summary.RetryEvents,
+		"fcmConfigured":         fcmKey != "",
+		"fcmKeySource":          keySource,
+	})
+}
+
 // RAG Management Methods
 
 func (h *AdminHandler) ListGeminiCorpora(c *fiber.Ctx) error {

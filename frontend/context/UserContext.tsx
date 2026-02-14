@@ -1,5 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import DeviceInfo from 'react-native-device-info';
 import { contactService } from '../services/contactService';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 
@@ -71,9 +73,21 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             runHeartbeat();
 
             // Register push token
-            AsyncStorage.getItem('pushToken').then(token => {
+            AsyncStorage.getItem('pushToken').then(async token => {
                 if (token && token !== 'undefined' && token !== 'null') {
-                    contactService.updatePushToken(token);
+                    try {
+                        const deviceId = await DeviceInfo.getUniqueId();
+                        const appVersion = DeviceInfo.getVersion();
+                        await contactService.registerPushToken({
+                            token,
+                            provider: 'fcm',
+                            platform: Platform.OS,
+                            deviceId,
+                            appVersion,
+                        });
+                    } catch (error) {
+                        console.error('[UserContext] Failed to register push token:', error);
+                    }
                 }
             });
 

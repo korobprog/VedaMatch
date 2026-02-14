@@ -345,7 +345,11 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 
 func (h *AuthHandler) UpdatePushToken(c *fiber.Ctx) error {
 	var body struct {
-		PushToken string `json:"pushToken"`
+		PushToken  string `json:"pushToken"`
+		Platform   string `json:"platform"`
+		Provider   string `json:"provider"`
+		DeviceID   string `json:"deviceId"`
+		AppVersion string `json:"appVersion"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
@@ -356,11 +360,120 @@ func (h *AuthHandler) UpdatePushToken(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	if err := database.DB.Model(&models.User{}).Where("id = ?", userId).Update("push_token", body.PushToken).Error; err != nil {
+	token := strings.TrimSpace(body.PushToken)
+	if err := database.DB.Model(&models.User{}).Where("id = ?", userId).Update("push_token", token).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update push token"})
+	}
+
+	if token == "" {
+		// Legacy clients may clear token by sending empty string.
+		return c.JSON(fiber.Map{"message": "Push token cleared"})
+	}
+
+	_, _, err := services.GetPushService().UpsertUserDeviceToken(uint(userId), services.UserDeviceTokenInput{
+		Token:      token,
+		Provider:   body.Provider,
+		Platform:   body.Platform,
+		DeviceID:   body.DeviceID,
+		AppVersion: body.AppVersion,
+	})
+	if err != nil {
+		log.Printf("[AUTH] Failed to dual-write push token for user %d: %v", userId, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update push token"})
 	}
 
 	return c.JSON(fiber.Map{"message": "Push token updated"})
+}
+
+func (h *AuthHandler) RegisterPushToken(c *fiber.Ctx) error {
+	var body struct {
+		Token      string `json:"token"`
+		PushToken  string `json:"pushToken"`
+		Platform   string `json:"platform"`
+		Provider   string `json:"provider"`
+		DeviceID   string `json:"deviceId"`
+		AppVersion string `json:"appVersion"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	token := strings.TrimSpace(body.Token)
+	if token == "" {
+		token = strings.TrimSpace(body.PushToken)
+	}
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "token is required"})
+	}
+
+	tokenRecord, isNew, err := services.GetPushService().UpsertUserDeviceToken(uint(userID), services.UserDeviceTokenInput{
+		Token:      token,
+		Provider:   body.Provider,
+		Platform:   body.Platform,
+		DeviceID:   body.DeviceID,
+		AppVersion: body.AppVersion,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not register push token"})
+	}
+
+	// Legacy compatibility write.
+	if err := database.DB.Model(&models.User{}).Where("id = ?", userID).Update("push_token", token).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update legacy push token"})
+	}
+
+	return c.JSON(fiber.Map{
+		"ok":      true,
+		"tokenId": tokenRecord.ID,
+		"isNew":   isNew,
+	})
+}
+
+func (h *AuthHandler) UnregisterPushToken(c *fiber.Ctx) error {
+	var body struct {
+		Token     string `json:"token"`
+		PushToken string `json:"pushToken"`
+		DeviceID  string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	token := strings.TrimSpace(body.Token)
+	if token == "" {
+		token = strings.TrimSpace(body.PushToken)
+	}
+	deviceID := strings.TrimSpace(body.DeviceID)
+
+	if token == "" && deviceID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "token or deviceId is required"})
+	}
+
+	invalidated, err := services.GetPushService().UnregisterUserDeviceToken(uint(userID), token, deviceID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not unregister push token"})
+	}
+
+	if token != "" {
+		if err := database.DB.Model(&models.User{}).Where("id = ? AND push_token = ?", userID, token).Update("push_token", "").Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update legacy push token"})
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"ok":          true,
+		"invalidated": invalidated,
+	})
 }
 
 func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {

@@ -710,6 +710,7 @@ func (h *YatraAdminHandler) GetNotifications(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get notifications"})
 	}
+	models.SyncAdminNotificationAliases(notifications)
 
 	return c.JSON(fiber.Map{
 		"notifications": notifications,

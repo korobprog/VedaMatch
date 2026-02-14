@@ -5,20 +5,60 @@ import {
     onMessage,
     onNotificationOpenedApp,
     getInitialNotification,
+    onTokenRefresh,
     AuthorizationStatus
 } from '@react-native-firebase/messaging';
-import { getApp } from '@react-native-firebase/app';
-import { Platform, Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DeviceInfo from 'react-native-device-info';
 import { navigationRef } from '../navigation/navigationRef';
+import { contactService } from './contactService';
 
-// Lazy-loaded messaging instance to prevent initialization race conditions
+// Lazy-loaded messaging instance to prevent initialization race conditions.
 let messagingInstance: any = null;
 const getMessagingInstance = () => {
     if (!messagingInstance) {
         messagingInstance = getMessaging();
     }
     return messagingInstance;
+};
+
+const logPushTelemetry = (event: string, payload: Record<string, any> = {}) => {
+    console.log(`[PushTelemetry] ${event}`, payload);
+};
+
+const safeParseParams = (raw: any): Record<string, any> => {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    if (typeof raw !== 'string') return {};
+
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const registerTokenOnServer = async (token: string) => {
+    if (!token) return;
+
+    const deviceId = await DeviceInfo.getUniqueId();
+    const appVersion = DeviceInfo.getVersion();
+
+    await contactService.registerPushToken({
+        token,
+        provider: 'fcm',
+        platform: Platform.OS,
+        deviceId,
+        appVersion,
+    });
+
+    logPushTelemetry('token_registered', {
+        platform: Platform.OS,
+        hasDeviceId: !!deviceId,
+        appVersion,
+    });
 };
 
 export const notificationService = {
@@ -29,11 +69,12 @@ export const notificationService = {
             authStatus === AuthorizationStatus.AUTHORIZED ||
             authStatus === AuthorizationStatus.PROVISIONAL;
 
-        if (enabled) {
-            console.log('[NotificationService] Authorization status:', authStatus);
-            return true;
-        }
-        return false;
+        logPushTelemetry('permission_status', {
+            enabled,
+            authStatus,
+        });
+
+        return enabled;
     },
 
     getFcmToken: async () => {
@@ -41,12 +82,13 @@ export const notificationService = {
             const messaging = getMessagingInstance();
             const fcmToken = await getToken(messaging);
             if (fcmToken) {
-                console.log('[NotificationService] FCM Token:', fcmToken);
                 await AsyncStorage.setItem('pushToken', fcmToken);
+                await registerTokenOnServer(fcmToken);
                 return fcmToken;
             }
         } catch (error) {
             console.error('[NotificationService] Failed to get FCM token:', error);
+            logPushTelemetry('token_register_error', { reason: 'get_token_failed' });
         }
         return null;
     },
@@ -54,8 +96,7 @@ export const notificationService = {
     onMessageReceived: (message: any) => {
         console.log('[NotificationService] Foreground message:', message);
 
-        // Show in-app alert for foreground messages
-        if (message.notification) {
+        if (message?.notification) {
             Alert.alert(
                 message.notification.title || 'Notification',
                 message.notification.body || '',
@@ -73,43 +114,93 @@ export const notificationService = {
     handleNotificationAction: (data: any) => {
         if (!data) return;
 
-        console.log('[NotificationService] Handling notification action:', data);
+        logPushTelemetry('notification_opened', {
+            type: data?.type,
+            screen: data?.screen,
+        });
 
-        // Navigation logic based on data type or screen property
-        if (navigationRef.isReady()) {
-            if (data.screen) {
-                // @ts-ignore
-                navigationRef.navigate(data.screen, data.params ? JSON.parse(data.params) : {});
-            } else if (data.type === 'wallet_bonus' || data.type === 'wallet_activated') {
-                // @ts-ignore
-                navigationRef.navigate('Wallet');
-            } else if (data.type === 'referral_joined' || data.type === 'referral_activated') {
-                // @ts-ignore
-                navigationRef.navigate('InviteFriends');
-            }
+        if (!navigationRef.isReady()) {
+            return;
+        }
+
+        const params = safeParseParams(data.params);
+
+        if (data.screen) {
+            // @ts-ignore
+            navigationRef.navigate(data.screen, params);
+            return;
+        }
+
+        if (data.type === 'wallet_bonus' || data.type === 'wallet_activated') {
+            // @ts-ignore
+            navigationRef.navigate('Wallet');
+            return;
+        }
+
+        if (data.type === 'referral_joined' || data.type === 'referral_activated') {
+            // @ts-ignore
+            navigationRef.navigate('InviteFriends');
+            return;
+        }
+
+        if (data.type === 'news') {
+            // @ts-ignore
+            navigationRef.navigate('News');
+        }
+    },
+
+    handleBackgroundMessage: async (remoteMessage: any) => {
+        const data = remoteMessage?.data || {};
+        logPushTelemetry('notification_background_received', {
+            type: data?.type,
+            screen: data?.screen,
+        });
+
+        try {
+            await AsyncStorage.setItem('lastBackgroundNotification', JSON.stringify({
+                receivedAt: Date.now(),
+                data,
+            }));
+        } catch (error) {
+            console.error('[NotificationService] Failed to persist background notification:', error);
         }
     },
 
     setupListeners: () => {
         const messaging = getMessagingInstance();
 
-        // Foreground messages
         const unsubscribeForeground = onMessage(messaging, async remoteMessage => {
             notificationService.onMessageReceived(remoteMessage);
         });
 
-        // App opened from background/quit state
-        onNotificationOpenedApp(messaging, remoteMessage => {
-            notificationService.handleNotificationAction(remoteMessage.data);
+        const unsubscribeOpened = onNotificationOpenedApp(messaging, remoteMessage => {
+            notificationService.handleNotificationAction(remoteMessage?.data);
         });
 
-        // App opened from quit state
         getInitialNotification(messaging).then(remoteMessage => {
             if (remoteMessage) {
                 notificationService.handleNotificationAction(remoteMessage.data);
             }
         });
 
-        return unsubscribeForeground;
+        const unsubscribeTokenRefresh = onTokenRefresh(messaging, async refreshedToken => {
+            if (!refreshedToken) return;
+
+            await AsyncStorage.setItem('pushToken', refreshedToken);
+            logPushTelemetry('token_refreshed', { platform: Platform.OS });
+
+            try {
+                await registerTokenOnServer(refreshedToken);
+            } catch (error) {
+                console.error('[NotificationService] Failed to register refreshed token:', error);
+                logPushTelemetry('token_register_error', { reason: 'refresh_register_failed' });
+            }
+        });
+
+        return () => {
+            unsubscribeForeground();
+            unsubscribeOpened();
+            unsubscribeTokenRefresh();
+        };
     }
 };

@@ -355,6 +355,8 @@ func main() {
 	admin.Post("/dating/profiles/:id/flag", adminHandler.FlagDatingProfile)
 	admin.Get("/settings", adminHandler.GetSystemSettings)
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
+	admin.Post("/push/test", adminHandler.SendTestPush)
+	admin.Get("/push/health", adminHandler.GetPushHealth)
 	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)
 
 	// RAG Management
@@ -559,6 +561,8 @@ func main() {
 
 	protected.Put("/update-profile", authHandler.UpdateProfile)
 	protected.Put("/update-push-token", authHandler.UpdatePushToken)
+	protected.Post("/push-tokens/register", authHandler.RegisterPushToken)
+	protected.Post("/push-tokens/unregister", authHandler.UnregisterPushToken)
 	protected.Put("/update-location", authHandler.UpdateLocation)
 	protected.Put("/update-coordinates", authHandler.UpdateLocationCoordinates)
 	protected.Get("/location/nearby", authHandler.GetNearbyUsers)
