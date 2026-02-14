@@ -30,8 +30,8 @@ var polzaOnce sync.Once
 
 // Default models for smart routing
 const (
-	DefaultPolzaFastModel      = "gpt-4o-mini"          // Fast, cheap
-	DefaultPolzaReasoningModel = "deepseek/deepseek-r1" // Reasoning
+	DefaultPolzaFastModel      = "deepseek/deepseek-chat" // Fast, cheap
+	DefaultPolzaReasoningModel = "deepseek/deepseek-r1"   // Reasoning
 )
 
 // Reasoning keywords (RU)

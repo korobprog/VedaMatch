@@ -218,6 +218,59 @@ func (h *RAGHandler) ListChatSessions(c *fiber.Ctx) error {
 	return c.JSON(sessions)
 }
 
+// GetDomains lists available Domain Assistant domains and statuses
+func (h *RAGHandler) GetDomains(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"domains": h.ragService.GetDomains(),
+	})
+}
+
+// QueryHybrid performs hybrid retrieval (FTS + Vector + RRF) over domain data
+func (h *RAGHandler) QueryHybrid(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var req services.HybridQueryRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	if req.Query == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Query is required"})
+	}
+
+	resp, err := h.ragService.QueryHybrid(c.Context(), userID, req)
+	if err != nil {
+		log.Printf("[RAG] Failed to query hybrid: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(resp)
+}
+
+// GetSource returns a single source by ID for citation detail pages
+func (h *RAGHandler) GetSource(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	sourceID := c.Params("id")
+	if sourceID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Source ID is required"})
+	}
+
+	includePrivate := c.Query("includePrivate") == "true"
+	source, err := h.ragService.GetHybridSource(sourceID, userID, includePrivate)
+	if err != nil {
+		log.Printf("[RAG] Failed to get source: %v", err)
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(source)
+}
+
 // FileHeader wraps multipart.FileHeader for the services
 type FileHeader struct {
 	Filename string

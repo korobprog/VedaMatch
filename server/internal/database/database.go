@@ -78,6 +78,7 @@ func Connect() {
 		// RAG models
 		&models.Document{}, &models.Chunk{},
 		&models.ChatSession{}, &models.ChatMessage{},
+		&models.AssistantDocument{}, &models.DomainSyncState{},
 		// Cafe models
 		&models.Cafe{}, &models.CafeStaff{}, &models.CafeTable{},
 		&models.CafeReview{}, &models.WaiterCall{},
@@ -131,6 +132,17 @@ func Connect() {
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_single_pinned_post
 		ON channel_posts (channel_id)
 		WHERE is_pinned = true`)
+
+	// Hybrid RAG assistant indexes (FTS + de-dup upsert key)
+	DB.Exec(`ALTER TABLE assistant_documents
+		ADD COLUMN IF NOT EXISTS search_vector tsvector
+		GENERATED ALWAYS AS (
+			to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(content, ''))
+		) STORED`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_assistant_documents_search_vector
+		ON assistant_documents USING GIN (search_vector)`)
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assistant_documents_unique
+		ON assistant_documents (domain, source_type, source_id, language, visibility_scope, user_id)`)
 
 	// FIX: Ensure wallets.user_id is nullable (Postgres sometimes keeps NOT NULL after migration)
 	DB.Exec("ALTER TABLE wallets ALTER COLUMN user_id DROP NOT NULL")

@@ -10,22 +10,24 @@ import {
     Dimensions,
     TouchableOpacity,
     Alert,
+    AlertButton,
     Linking,
     Platform,
     Keyboard,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
-import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin } from 'lucide-react-native';
+import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin, ExternalLink } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
 import { ChatImage } from '../ChatImage';
-import { Message, COLORS } from './ChatConstants';
+import { Message, COLORS, AssistantSource } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
 import { useSettings } from '../../context/SettingsContext';
 import { WebView } from 'react-native-webview';
 import { mediaService } from '../../services/mediaService';
 import { AudioPlayer } from './AudioPlayer';
+import { ragService } from '../../services/ragService';
 import peacockAssistant from '../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
@@ -124,6 +126,47 @@ export const MessageList: React.FC<MessageListProps> = ({
         );
     };
 
+    const handleSourcePress = async (source: AssistantSource) => {
+        try {
+            const details = await ragService.getSourceById(source.id);
+            const previewText = (details.content || source.snippet || '').trim();
+            const shortPreview = previewText.length > 700 ? `${previewText.slice(0, 700)}...` : previewText;
+            const header = source.domain
+                ? t('chat.sourceDomain', { domain: source.domain, defaultValue: `Домен: ${source.domain}` })
+                : '';
+            const alertBody = [header, shortPreview].filter(Boolean).join('\n\n') || t('chat.sourceDetailsUnavailable', 'Детали источника недоступны');
+
+            const buttons: AlertButton[] = [
+                {
+                    text: t('common.close'),
+                    style: 'cancel' as const,
+                },
+            ];
+
+            if (details.sourceUrl) {
+                buttons.unshift({
+                    text: t('chat.openSource', 'Открыть источник'),
+                    onPress: () => Linking.openURL(details.sourceUrl || '').catch((error) => {
+                        console.warn('Failed to open source URL:', error);
+                    }),
+                });
+            }
+
+            Alert.alert(details.title || source.title || t('chat.sourceTitle', 'Источник'), alertBody, buttons);
+        } catch (error) {
+            console.warn('Failed to load source details:', error);
+            if (source.sourceUrl) {
+                Linking.openURL(source.sourceUrl).catch((openError) => {
+                    console.warn('Failed to open source URL:', openError);
+                });
+                return;
+            }
+
+            const fallbackText = source.snippet || t('chat.sourceDetailsUnavailable', 'Детали источника недоступны');
+            Alert.alert(source.title || t('chat.sourceTitle', 'Источник'), fallbackText);
+        }
+    };
+
     const mdStyles: any = {
         body: { color: theme.text, fontSize: 16, lineHeight: 22 },
         paragraph: { marginTop: 0, marginBottom: 8 },
@@ -194,6 +237,12 @@ export const MessageList: React.FC<MessageListProps> = ({
                 />
             </View>
         );
+    };
+
+    const formatConfidencePercent = (confidence?: number) => {
+        if (typeof confidence !== 'number' || Number.isNaN(confidence)) return null;
+        const normalized = Math.max(0, Math.min(1, confidence));
+        return `${Math.round(normalized * 100)}%`;
     };
 
     const handleDeleteMessage = (msg: Message) => {
@@ -337,6 +386,57 @@ export const MessageList: React.FC<MessageListProps> = ({
                             </Text>
                         </TouchableOpacity>
                     )}
+
+                    {!isUser && item.assistantContext ? (
+                        <View style={styles.ragMetaRow}>
+                            {item.assistantContext.retrieverPath ? (
+                                <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
+                                    <Text style={[styles.ragBadgeText, { color: theme.subText }]}>
+                                        {t('chat.retrieverLabel', 'Поиск')}: {item.assistantContext.retrieverPath}
+                                    </Text>
+                                </View>
+                            ) : null}
+                            {formatConfidencePercent(item.assistantContext.confidence) ? (
+                                <View style={[styles.ragBadge, { borderColor: theme.borderColor }]}>
+                                    <Text style={[styles.ragBadgeText, { color: theme.subText }]}>
+                                        {t('chat.confidenceLabel', 'Уверенность')}: {formatConfidencePercent(item.assistantContext.confidence)}
+                                    </Text>
+                                </View>
+                            ) : null}
+                        </View>
+                    ) : null}
+
+                    {!isUser && item.assistantContext?.sources?.length ? (
+                        <View style={[styles.sourcesContainer, { borderTopColor: theme.borderColor }]}>
+                            <Text style={[styles.sourcesTitle, { color: theme.subText }]}>
+                                {t('chat.sourcesTitle', 'Источники')}
+                            </Text>
+                            {item.assistantContext.sources.slice(0, 3).map((source, index) => (
+                                <TouchableOpacity
+                                    key={`${item.id}_source_${source.id || index}`}
+                                    style={[styles.sourceCard, { borderColor: theme.borderColor }]}
+                                    onPress={() => handleSourcePress(source)}
+                                    activeOpacity={0.85}
+                                >
+                                    <View style={styles.sourceHeader}>
+                                        <Text style={[styles.sourceTitle, { color: theme.text }]} numberOfLines={1}>
+                                            {source.title || `${t('chat.sourceTitle', 'Источник')} ${index + 1}`}
+                                        </Text>
+                                        {source.sourceUrl ? (
+                                            <ExternalLink size={13} color={theme.subText} />
+                                        ) : (
+                                            <FileText size={13} color={theme.subText} />
+                                        )}
+                                    </View>
+                                    {source.snippet ? (
+                                        <Text style={[styles.sourceSnippet, { color: theme.subText }]} numberOfLines={2}>
+                                            {source.snippet}
+                                        </Text>
+                                    ) : null}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    ) : null}
                 </>
             );
 
@@ -476,6 +576,57 @@ const styles = StyleSheet.create({
     navButton: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center' },
     navButtonText: { fontSize: 13, fontWeight: 'bold' },
     mapButton: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+    ragMetaRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginTop: 8,
+        gap: 6,
+    },
+    ragBadge: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    ragBadgeText: {
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    sourcesContainer: {
+        marginTop: 10,
+        borderTopWidth: 1,
+        paddingTop: 8,
+    },
+    sourcesTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 6,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    sourceCard: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        marginBottom: 6,
+    },
+    sourceHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    sourceTitle: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: '600',
+        marginRight: 8,
+    },
+    sourceSnippet: {
+        fontSize: 12,
+        lineHeight: 17,
+        marginTop: 4,
+    },
     uploadingContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
     uploadingText: { marginLeft: 8, fontSize: 14 },
     messageContentRow: {

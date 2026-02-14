@@ -45,6 +45,27 @@ export const COLORS = {
     },
 };
 
+export type AssistantSource = {
+    id: string;
+    domain: string;
+    sourceType?: string;
+    sourceId?: string;
+    title: string;
+    snippet: string;
+    sourceUrl?: string;
+    score?: number;
+    metadata?: Record<string, unknown>;
+};
+
+export type AssistantContext = {
+    domains: string[];
+    sources: AssistantSource[];
+    confidence: number;
+    language?: string;
+    visibilityScope?: string;
+    retrieverPath?: string;
+};
+
 export type Message = {
     id: string;
     text: string;
@@ -82,6 +103,7 @@ export type Message = {
             zoom?: number;
         };
     };
+    assistantContext?: AssistantContext;
 };
 
 export const MENU_OPTIONS = [

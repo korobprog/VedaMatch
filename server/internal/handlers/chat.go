@@ -18,10 +18,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type ChatHandler struct{}
+type ChatHandler struct {
+	domainAssistant *services.DomainAssistantService
+}
 
 func NewChatHandler() *ChatHandler {
-	return &ChatHandler{}
+	return &ChatHandler{
+		domainAssistant: services.GetDomainAssistantService(),
+	}
 }
 
 func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
@@ -66,6 +70,41 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 		log.Printf("[Chat] Applied system prompt (%d chars) for user %v", len(systemPrompt), userID)
 	} else {
 		log.Printf("[Chat] No system prompt found for user %v (check if prompts exist and are active)", userID)
+	}
+
+	lastUserMessage := extractLastUserMessage(messagesInterface)
+	var assistantContext *services.DomainContextResponse
+
+	// 0.5 Domain Assistant hybrid retrieval (MVP public scope).
+	if h.domainAssistant != nil &&
+		h.domainAssistant.IsDomainAssistantEnabled() &&
+		h.domainAssistant.IsHybridEnabled() &&
+		h.domainAssistant.IsChatCompletionsEnabled() &&
+		lastUserMessage != "" {
+		ctxResp, err := h.domainAssistant.BuildAssistantContext(c.Context(), services.DomainContextRequest{
+			Query:          lastUserMessage,
+			TopK:           5,
+			UserID:         userID,
+			IncludePrivate: false, // MVP: public-only
+			StrictRouting:  true,
+		})
+		if err != nil {
+			log.Printf("[Chat] Domain assistant retrieval warning: %v", err)
+		} else if ctxResp != nil {
+			assistantContext = ctxResp
+			if len(ctxResp.Sources) > 0 && (!ctxResp.NeedsDomainData || ctxResp.Confidence >= 0.20) {
+				ragPrompt := h.domainAssistant.BuildPromptSnippet(ctxResp)
+				if ragPrompt != "" {
+					messagesInterface = prependSystemMessage(messagesInterface, ragPrompt)
+					body["messages"] = messagesInterface
+					log.Printf("[Chat] Domain context injected: domains=%v, sources=%d, confidence=%.2f",
+						ctxResp.Domains, len(ctxResp.Sources), ctxResp.Confidence)
+				}
+			} else if ctxResp.NeedsDomainData {
+				log.Printf("[Chat] Domain intent detected but no reliable sources found")
+				return c.JSON(createOpenAIResponse("domain-assistant", "не найдено достаточно данных"))
+			}
+		}
 	}
 
 	intentResult := intentService.DetectIntent(messagesInterface)
@@ -133,6 +172,10 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 			})
 		}
 
+		if h.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
+			content = h.domainAssistant.AppendSources(content, assistantContext)
+		}
+
 		// Success!
 		log.Printf("[Polza] Success! Response length: %d", len(content))
 		response := services.ConvertToOpenAIFormat(content, targetModelID)
@@ -171,6 +214,25 @@ func normalizeMessages(msgs []interface{}) []map[string]string {
 		}
 	}
 	return normalized
+}
+
+func extractLastUserMessage(messages []interface{}) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		msg, ok := messages[i].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		role, _ := msg["role"].(string)
+		if role != "user" {
+			continue
+		}
+		content, _ := msg["content"].(string)
+		content = strings.TrimSpace(content)
+		if content != "" {
+			return content
+		}
+	}
+	return ""
 }
 
 func createOpenAIResponse(model string, content string) map[string]interface{} {

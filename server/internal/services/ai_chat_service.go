@@ -11,9 +11,10 @@ import (
 )
 
 type AiChatService struct {
-	apiURL     string
-	ragService *RAGPipelineService
-	geoService *GeoIntentService
+	apiURL          string
+	ragService      *RAGPipelineService
+	geoService      *GeoIntentService
+	domainAssistant *DomainAssistantService
 }
 
 func NewAiChatService() *AiChatService {
@@ -25,9 +26,10 @@ func NewAiChatService() *AiChatService {
 	mapService := NewMapService(database.DB)
 
 	return &AiChatService{
-		apiURL:     apiURL,
-		ragService: NewRAGPipelineService(database.DB),
-		geoService: NewGeoIntentService(mapService),
+		apiURL:          apiURL,
+		ragService:      NewRAGPipelineService(database.DB),
+		geoService:      NewGeoIntentService(mapService),
+		domainAssistant: GetDomainAssistantService(),
 	}
 }
 
@@ -105,15 +107,37 @@ func (s *AiChatService) getProvider(modelID string) string {
 	return "OpenAI"
 }
 
-// getFallbackModels returns a list of enabled TEXT models excluding the failed one
-func (s *AiChatService) getFallbackModels(failedModelID string) []models.AiModel {
-	var models []models.AiModel
-	// Fetch all enabled TEXT models except the one that just failed
-	if err := database.DB.Where("is_enabled = ? AND model_id != ? AND category = ?", true, failedModelID, "text").Limit(3).Find(&models).Error; err != nil {
-		log.Printf("[AiChatService] Failed to fetch fallback models: %v", err)
-		return nil
+// getFallbackModelIDs returns deterministic low-cost fallback chain + enabled DB models.
+func (s *AiChatService) getFallbackModelIDs(failedModelID string) []string {
+	candidates := []string{
+		"deepseek/deepseek-r1",
+		"gemini-2.5-flash-lite",
+		"gpt-4o-mini",
 	}
-	return models
+
+	var dbModels []models.AiModel
+	if err := database.DB.Where("is_enabled = ? AND model_id != ? AND category = ?", true, failedModelID, "text").Limit(5).Find(&dbModels).Error; err == nil {
+		for _, m := range dbModels {
+			if strings.TrimSpace(m.ModelID) != "" {
+				candidates = append(candidates, m.ModelID)
+			}
+		}
+	}
+
+	unique := make([]string, 0, len(candidates))
+	seen := map[string]struct{}{failedModelID: {}}
+	for _, m := range candidates {
+		m = strings.TrimSpace(m)
+		if m == "" {
+			continue
+		}
+		if _, exists := seen[m]; exists {
+			continue
+		}
+		seen[m] = struct{}{}
+		unique = append(unique, m)
+	}
+	return unique
 }
 
 // makeRequest handles the actual API call logic - uses Polza.ai only
@@ -161,24 +185,53 @@ func (s *AiChatService) GenerateReply(roomName string, lastMessages []models.Mes
 		}
 	}
 
-	// 0.5 Check for shopping intent (RAG)
-	shoppingKeywords := []string{"купить", "цена", "товар", "магазин", "есть ли", "заказать", "прайс", "buy", "price", "product", "shop", "stock"}
-	isShoppingQuery := false
-	for _, kw := range shoppingKeywords {
-		if strings.Contains(strings.ToLower(lastUserMsg), kw) {
-			isShoppingQuery = true
-			break
+	// 0.5 Domain Assistant hybrid retrieval (MVP: public scope in room chat).
+	var assistantContext *DomainContextResponse
+	if s.domainAssistant != nil &&
+		s.domainAssistant.IsDomainAssistantEnabled() &&
+		s.domainAssistant.IsHybridEnabled() &&
+		s.domainAssistant.IsMessagesEnabled() &&
+		strings.TrimSpace(lastUserMsg) != "" {
+		ctxResp, err := s.domainAssistant.BuildAssistantContext(context.Background(), DomainContextRequest{
+			Query:          lastUserMsg,
+			TopK:           5,
+			UserID:         0,     // MVP default scope for room AI
+			IncludePrivate: false, // public-only
+			StrictRouting:  true,
+		})
+		if err != nil {
+			log.Printf("[AiChatService] Domain assistant retrieval warning: %v", err)
+		} else if ctxResp != nil {
+			assistantContext = ctxResp
+			if len(ctxResp.Sources) > 0 && (!ctxResp.NeedsDomainData || ctxResp.Confidence >= 0.20) {
+				systemPrompt += "\n\n" + s.domainAssistant.BuildPromptSnippet(ctxResp)
+				log.Printf("[AiChatService] Domain context injected: domains=%v, sources=%d, confidence=%.2f",
+					ctxResp.Domains, len(ctxResp.Sources), ctxResp.Confidence)
+			} else if ctxResp.NeedsDomainData {
+				return "не найдено достаточно данных", nil, nil
+			}
 		}
 	}
 
-	if isShoppingQuery {
-		products, err := s.ragService.SearchProducts(context.Background(), lastUserMsg, 3)
-		if err == nil && len(products) > 0 {
-			marketContext := "Найденные товары в Sattva Market:\n"
-			for _, p := range products {
-				marketContext += fmt.Sprintf("- %s\n", p.Chunk.Content)
+	// Legacy shopping-only RAG fallback when Domain Assistant is disabled.
+	if assistantContext == nil {
+		shoppingKeywords := []string{"купить", "цена", "товар", "магазин", "есть ли", "заказать", "прайс", "buy", "price", "product", "shop", "stock"}
+		isShoppingQuery := false
+		for _, kw := range shoppingKeywords {
+			if strings.Contains(strings.ToLower(lastUserMsg), kw) {
+				isShoppingQuery = true
+				break
 			}
-			systemPrompt += "\n\n" + marketContext + "\nИспользуй эту информацию, чтобы помочь пользователю с покупкой. Если нужного товара нет, предложи посмотреть категории в Sattva Market."
+		}
+		if isShoppingQuery {
+			products, err := s.ragService.SearchProducts(context.Background(), lastUserMsg, 3)
+			if err == nil && len(products) > 0 {
+				marketContext := "Найденные товары в Sattva Market:\n"
+				for _, p := range products {
+					marketContext += fmt.Sprintf("- %s\n", p.Chunk.Content)
+				}
+				systemPrompt += "\n\n" + marketContext + "\nИспользуй эту информацию, чтобы помочь пользователю с покупкой. Если нужного товара нет, предложи посмотреть категории в Sattva Market."
+			}
 		}
 	}
 
@@ -194,27 +247,33 @@ func (s *AiChatService) GenerateReply(roomName string, lastMessages []models.Mes
 	}
 
 	// 1. Try Default Model
-	// User requested Gemini-first for compatibility/astro logic
-	defaultModelID := s.getModel("gemini-2.5-flash")
+	// Runtime defaults: fast=deepseek-chat, reasoning=deepseek-r1, fallback=gemini-lite->gpt-4o-mini.
+	defaultModelID := s.getModel("deepseek/deepseek-chat")
 	log.Printf("[AiChatService] Attempting to generate reply with primary model: %s", defaultModelID)
 
 	content, err := s.makeRequest(defaultModelID, messages)
 	if err == nil {
+		if s.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
+			content = s.domainAssistant.AppendSources(content, assistantContext)
+		}
 		return content, nil, nil
 	}
 
 	log.Printf("[AiChatService] Primary model %s failed: %v. Initiating fallback...", defaultModelID, err)
 
 	// 2. Fallback Loop
-	fallbacks := s.getFallbackModels(defaultModelID)
-	for _, fbModel := range fallbacks {
-		log.Printf("[AiChatService] Retrying with fallback model: %s (%s)", fbModel.ModelID, fbModel.Provider)
-		content, err := s.makeRequest(fbModel.ModelID, messages)
+	fallbacks := s.getFallbackModelIDs(defaultModelID)
+	for _, fallbackModelID := range fallbacks {
+		log.Printf("[AiChatService] Retrying with fallback model: %s", fallbackModelID)
+		content, err := s.makeRequest(fallbackModelID, messages)
 		if err == nil {
-			log.Printf("[AiChatService] Fallback successful with model: %s", fbModel.ModelID)
+			log.Printf("[AiChatService] Fallback successful with model: %s", fallbackModelID)
+			if s.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
+				content = s.domainAssistant.AppendSources(content, assistantContext)
+			}
 			return content, nil, nil
 		}
-		log.Printf("[AiChatService] Fallback model %s failed: %v", fbModel.ModelID, err)
+		log.Printf("[AiChatService] Fallback model %s failed: %v", fallbackModelID, err)
 	}
 
 	return "", nil, fmt.Errorf("all AI models failed to generate a response")
@@ -236,6 +295,28 @@ func (s *AiChatService) GetSummary(roomName string, lastMessages []models.Messag
 }
 
 func (s *AiChatService) GenerateSimpleResponse(prompt string) (string, error) {
+	var assistantContext *DomainContextResponse
+	if s.domainAssistant != nil &&
+		s.domainAssistant.IsDomainAssistantEnabled() &&
+		s.domainAssistant.IsHybridEnabled() &&
+		strings.TrimSpace(prompt) != "" {
+		ctxResp, err := s.domainAssistant.BuildAssistantContext(context.Background(), DomainContextRequest{
+			Query:          prompt,
+			TopK:           5,
+			UserID:         0,
+			IncludePrivate: false,
+			StrictRouting:  true,
+		})
+		if err != nil {
+			log.Printf("[AiChatService] Domain assistant simple warning: %v", err)
+		} else if ctxResp != nil {
+			assistantContext = ctxResp
+			if ctxResp.NeedsDomainData && (len(ctxResp.Sources) == 0 || ctxResp.Confidence < 0.20) {
+				return "не найдено достаточно данных", nil
+			}
+		}
+	}
+
 	// Add search context if related to products
 	shoppingKeywords := []string{"купить", "цена", "товар", "магазин", "есть ли", "заказать", "прайс", "buy", "price", "product", "shop", "stock"}
 	isShoppingQuery := false
@@ -247,6 +328,9 @@ func (s *AiChatService) GenerateSimpleResponse(prompt string) (string, error) {
 	}
 
 	finalPrompt := prompt
+	if assistantContext != nil && len(assistantContext.Sources) > 0 && s.domainAssistant != nil {
+		finalPrompt = s.domainAssistant.BuildPromptSnippet(assistantContext) + "\n\nВопрос пользователя: " + prompt
+	}
 	if isShoppingQuery {
 		products, err := s.ragService.SearchProducts(context.Background(), prompt, 3)
 		if err == nil && len(products) > 0 {
@@ -262,23 +346,28 @@ func (s *AiChatService) GenerateSimpleResponse(prompt string) (string, error) {
 		{"role": "user", "content": finalPrompt},
 	}
 
-	// User requested Gemini-first (LM gemini)
-	defaultModelID := s.getModel("gemini-2.5-flash")
+	defaultModelID := s.getModel("deepseek/deepseek-chat")
 	log.Printf("[AiChatService] Attempting simple response with primary model: %s", defaultModelID)
 
 	content, err := s.makeRequest(defaultModelID, messages)
 	if err == nil {
+		if s.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
+			content = s.domainAssistant.AppendSources(content, assistantContext)
+		}
 		return content, nil
 	}
 
 	log.Printf("[AiChatService] Primary model %s failed: %v. Initiating fallback...", defaultModelID, err)
 
 	// 2. Fallback Loop
-	fallbacks := s.getFallbackModels(defaultModelID)
-	for _, fbModel := range fallbacks {
-		log.Printf("[AiChatService] Retrying with fallback model: %s", fbModel.ModelID)
-		content, err := s.makeRequest(fbModel.ModelID, messages)
+	fallbacks := s.getFallbackModelIDs(defaultModelID)
+	for _, fallbackModelID := range fallbacks {
+		log.Printf("[AiChatService] Retrying with fallback model: %s", fallbackModelID)
+		content, err := s.makeRequest(fallbackModelID, messages)
 		if err == nil {
+			if s.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
+				content = s.domainAssistant.AppendSources(content, assistantContext)
+			}
 			return content, nil
 		}
 	}
@@ -295,4 +384,12 @@ func (s *AiChatService) GenerateResponse(ctx context.Context, messages []models.
 		})
 	}
 	return s.makeRequest(modelID, chatParams)
+}
+
+// IsDomainAssistantMessagesEnabled returns true when room-chat flow should use Domain Assistant.
+func (s *AiChatService) IsDomainAssistantMessagesEnabled() bool {
+	return s.domainAssistant != nil &&
+		s.domainAssistant.IsDomainAssistantEnabled() &&
+		s.domainAssistant.IsHybridEnabled() &&
+		s.domainAssistant.IsMessagesEnabled()
 }

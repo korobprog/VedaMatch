@@ -131,7 +131,8 @@ func (h *MessageHandler) handleAiResponse(roomID uint) {
 	if len(lastMessages) > 0 {
 		lastUserMsg := lastMessages[len(lastMessages)-1].Content
 
-		if services.IsNewsQuery(lastUserMsg) {
+		useLegacyNewsShortcut := h.aiService == nil || !h.aiService.IsDomainAssistantMessagesEnabled()
+		if useLegacyNewsShortcut && services.IsNewsQuery(lastUserMsg) {
 			// User is asking about news
 			log.Printf("[AI] Detected news query: %s", lastUserMsg)
 

@@ -664,11 +664,14 @@ func main() {
 	protected.Delete("/dating/favorites/:id", datingHandler.RemoveFromFavorites)
 
 	// RAG Routes
+	protected.Get("/rag/domains", ragHandler.GetDomains)
 	protected.Post("/rag/documents/upload", ragHandler.UploadDocument)
 	protected.Get("/rag/documents", ragHandler.ListDocuments)
 	protected.Get("/rag/documents/:id", ragHandler.GetDocument)
 	protected.Delete("/rag/documents/:id", ragHandler.DeleteDocument)
 	protected.Post("/rag/query", ragHandler.QueryDocuments)
+	protected.Post("/rag/query-hybrid", ragHandler.QueryHybrid)
+	protected.Get("/rag/sources/:id", ragHandler.GetSource)
 	protected.Get("/rag/statistics", ragHandler.GetStatistics)
 	protected.Post("/rag/sessions", ragHandler.CreateChatSession)
 	protected.Get("/rag/sessions", ragHandler.ListChatSessions)

@@ -19,6 +19,7 @@ type RAGPipelineService struct {
 	embeddingService *EmbeddingService
 	vectorStore      *VectorStoreService
 	retrievalService *RetrievalService
+	domainAssistant  *DomainAssistantService
 }
 
 // NewRAGPipelineService creates a new RAG pipeline service
@@ -34,6 +35,7 @@ func NewRAGPipelineService(db *gorm.DB) *RAGPipelineService {
 		embeddingService: embeddingService,
 		vectorStore:      vectorStore,
 		retrievalService: retrievalService,
+		domainAssistant:  GetDomainAssistantService(),
 	}
 }
 
@@ -289,6 +291,30 @@ func (s *RAGPipelineService) ListChatSessions(userID uuid.UUID) ([]models.ChatSe
 		return nil, fmt.Errorf("failed to list chat sessions: %w", err)
 	}
 	return sessions, nil
+}
+
+// GetDomains returns domain availability for Domain Assistant hybrid retrieval.
+func (s *RAGPipelineService) GetDomains() []DomainDescriptor {
+	if s.domainAssistant == nil {
+		return nil
+	}
+	return s.domainAssistant.ListDomains()
+}
+
+// QueryHybrid performs Domain Assistant hybrid retrieval (FTS + Vector + RRF).
+func (s *RAGPipelineService) QueryHybrid(ctx context.Context, userID uint, req HybridQueryRequest) (*HybridQueryResponse, error) {
+	if s.domainAssistant == nil {
+		return nil, fmt.Errorf("domain assistant is not initialized")
+	}
+	return s.domainAssistant.QueryHybrid(ctx, req, userID)
+}
+
+// GetHybridSource returns source document details by source id.
+func (s *RAGPipelineService) GetHybridSource(sourceID string, userID uint, includePrivate bool) (*models.AssistantDocument, error) {
+	if s.domainAssistant == nil {
+		return nil, fmt.Errorf("domain assistant is not initialized")
+	}
+	return s.domainAssistant.GetSourceByID(sourceID, userID, includePrivate)
 }
 
 // Helper functions

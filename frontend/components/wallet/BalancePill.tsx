@@ -37,18 +37,19 @@ export const BalancePill: React.FC<BalancePillProps> = ({
     lightMode = false,
 }) => {
     const navigation = useNavigation<any>();
-    const { wallet, loading, totalBalance, bonusBalance } = useWallet();
+    const { wallet, loading, regularBalance, bonusBalance } = useWallet();
 
     const handlePress = () => {
         navigation.navigate('Wallet');
     };
 
     const isSmall = size === 'small';
-    const textColor = lightMode ? '#FFFFFF' : '#FFB02E'; // Brighter gold for better visibility
-    const bgColor = lightMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,176,46,0.12)';
-    const borderColor = lightMode ? 'rgba(255,255,255,0.45)' : 'rgba(255,176,46,0.25)';
+    const textColor = lightMode ? '#FFFFFF' : '#FFB02E';
+    const bgColor = lightMode ? 'rgba(255,255,255,0.22)' : 'rgba(255,176,46,0.12)';
+    const borderColor = lightMode ? 'rgba(255,255,255,0.4)' : 'rgba(255,176,46,0.25)';
     const pendingBalance = wallet?.pendingBalance ?? 0;
-    const totalText = formatPillAmount(totalBalance, isSmall);
+
+    const regularText = formatPillAmount(regularBalance, isSmall);
     const bonusText = formatPillAmount(bonusBalance, isSmall);
 
     return (
@@ -59,7 +60,7 @@ export const BalancePill: React.FC<BalancePillProps> = ({
                 {
                     backgroundColor: bgColor,
                     borderColor: borderColor,
-                    borderWidth: 1,
+                    borderWidth: 1.5,
                 },
                 isSmall && styles.containerSmall,
             ]}
@@ -70,30 +71,39 @@ export const BalancePill: React.FC<BalancePillProps> = ({
                 color={textColor}
                 strokeWidth={2.5}
             />
+
             {loading ? (
-                <ActivityIndicator size="small" color={textColor} style={{ marginLeft: 4 }} />
+                <ActivityIndicator size="small" color={textColor} style={{ marginLeft: 2 }} />
             ) : (
-                <View style={styles.balanceContainer}>
-                    <Text style={[
-                        styles.balanceText,
-                        { color: textColor },
-                        isSmall && styles.balanceTextSmall,
-                    ]}>
-                        {totalText}
+                <View style={styles.textColumn}>
+                    <Text
+                        numberOfLines={1}
+                        style={[
+                            styles.balanceText,
+                            { color: textColor },
+                            isSmall && styles.balanceTextSmall,
+                        ]}
+                    >
+                        {regularText}
                     </Text>
+
                     {bonusBalance > 0 && (
-                        <View style={[styles.bonusBadge, isSmall && styles.bonusBadgeSmall]}>
-                            <Text style={[styles.bonusBadgeText, isSmall && styles.bonusBadgeTextSmall]}>
-                                B: {bonusText}
-                            </Text>
-                        </View>
-                    )}
-                    {showPending && (wallet?.pendingBalance ?? 0) > 0 && (
-                        <Text style={[styles.pendingText, isSmall && styles.pendingTextSmall]}>
-                            +{formatPillAmount(pendingBalance, isSmall)}
+                        <Text
+                            numberOfLines={1}
+                            style={[
+                                styles.bonusText,
+                                { color: lightMode ? 'rgba(255,255,255,0.85)' : '#10B981' },
+                                isSmall && styles.bonusTextSmall
+                            ]}
+                        >
+                            +{bonusText} B
                         </Text>
                     )}
                 </View>
+            )}
+
+            {showPending && pendingBalance > 0 && (
+                <View style={styles.pendingDot} />
             )}
         </TouchableOpacity>
     );
@@ -103,64 +113,57 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 5,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
         borderRadius: 20,
         gap: 5,
-        // Elevation/Shadow for depth
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 2,
+        minWidth: 48,
     },
     containerSmall: {
-        paddingHorizontal: 10,
-        paddingVertical: 3,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
         borderRadius: 15,
-    },
-    balanceContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
         gap: 4,
-        flexShrink: 1,
+        minWidth: 40,
+        maxHeight: 32,
+    },
+    textColumn: {
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
     },
     balanceText: {
-        fontSize: 15,
-        fontWeight: '700',
-        fontFamily: 'Cinzel-Bold',
-        flexShrink: 1,
+        fontSize: 14,
+        fontWeight: '800',
+        lineHeight: 15,
     },
     balanceTextSmall: {
-        fontSize: 13,
+        fontSize: 12,
+        lineHeight: 13,
     },
-    bonusBadge: {
-        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-        borderColor: 'rgba(16, 185, 129, 0.3)',
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingHorizontal: 6,
-        paddingVertical: 1,
-    },
-    bonusBadgeSmall: {
-        paddingHorizontal: 4,
-        borderRadius: 8,
-    },
-    bonusBadgeText: {
-        fontSize: 9,
+    bonusText: {
+        fontSize: 8.5,
         fontWeight: '700',
-        color: '#10B981',
+        lineHeight: 9,
+        marginTop: 0.5,
     },
-    bonusBadgeTextSmall: {
-        fontSize: 8,
+    bonusTextSmall: {
+        fontSize: 7.5,
+        lineHeight: 8,
     },
-    pendingText: {
-        fontSize: 10,
-        fontWeight: '500',
-        color: '#9CA3AF',
-    },
-    pendingTextSmall: {
-        fontSize: 9,
+    pendingDot: {
+        position: 'absolute',
+        top: 2,
+        right: 4,
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#EF4444',
     },
 });
 

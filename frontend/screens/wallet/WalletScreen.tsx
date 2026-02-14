@@ -27,6 +27,7 @@ import {
     Info,
 } from 'lucide-react-native';
 import { useWallet } from '../../context/WalletContext';
+import { useTranslation } from 'react-i18next';
 import {
     WalletTransaction,
     getTransactions,
@@ -48,8 +49,9 @@ type WalletTab = 'regular' | 'bonus';
 type HistoryFilter = 'all' | 'bonus';
 
 export default function WalletScreen() {
+    const { t } = useTranslation();
     const navigation = useNavigation<any>();
-    const { wallet, refreshWallet, totalBalance } = useWallet();
+    const { wallet, refreshWallet, totalBalance, regularBalance, bonusBalance } = useWallet();
 
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [stats, setStats] = useState<WalletStatsResponse | null>(null);
@@ -236,7 +238,7 @@ export default function WalletScreen() {
                                             walletTab === 'regular' && styles.accountTabTextActive,
                                         ]}
                                     >
-                                        Основной
+                                        {t('wallet.mainTab')}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
@@ -253,7 +255,7 @@ export default function WalletScreen() {
                                             walletTab === 'bonus' && styles.accountTabTextActive,
                                         ]}
                                     >
-                                        Бонусный
+                                        {t('wallet.bonusTab')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -272,7 +274,7 @@ export default function WalletScreen() {
                                     <View style={styles.balanceLabelRow}>
                                         <WalletIcon size={14} color="rgba(26,26,46,0.6)" />
                                         <Text style={styles.balanceLabel}>
-                                            {walletTab === 'regular' ? 'Основной счёт' : 'Бонусный счёт'}
+                                            {walletTab === 'regular' ? t('wallet.regularAccount') : t('wallet.bonusAccount')}
                                         </Text>
                                     </View>
                                     <View style={styles.balanceTopActions}>
@@ -289,64 +291,66 @@ export default function WalletScreen() {
                                     </View>
                                 </View>
 
-                                {walletTab === 'regular' ? (
-                                    <View style={styles.balanceValueContainer}>
+                                {/* Unified Balance View */}
+                                <View style={styles.balanceValueContainer}>
+                                    <View style={styles.mainBalanceRow}>
                                         <Text style={styles.balanceValue}>
-                                            {(wallet?.balance ?? 0).toLocaleString('ru-RU')}
+                                            {(walletTab === 'regular' ? regularBalance : bonusBalance).toLocaleString('ru-RU')}
                                         </Text>
+                                        <Text style={styles.balanceLkmSuffix}>LKM</Text>
+                                    </View>
 
-                                        <View style={styles.totalAvailableRow}>
-                                            <Text style={styles.totalAvailableLabel}>Итого доступно</Text>
-                                            <Text style={styles.totalAvailableValue}>{totalBalance.toLocaleString('ru-RU')} LKM</Text>
+                                    {/* Component Breakdown - Show both components regardless of tab */}
+                                    <View style={styles.breakdownBox}>
+                                        <View style={styles.breakdownHeader}>
+                                            <Text style={styles.breakdownHeaderTitle}>{t('wallet.composition')}</Text>
+                                            <Text style={styles.breakdownHeaderTotal}>{t('wallet.total')}: {totalBalance.toLocaleString('ru-RU')}</Text>
                                         </View>
 
-                                        {(wallet?.frozenBalance ?? 0) > 0 && (
-                                            <TouchableOpacity
-                                                style={styles.frozenBalanceRow}
-                                                onPress={() => setShowFrozen(true)}
-                                                activeOpacity={0.7}
-                                            >
-                                                <Text style={styles.frozenLabel}>
-                                                    🔒 Основной заморожено: {(wallet?.frozenBalance ?? 0).toLocaleString('ru-RU')}
-                                                </Text>
-                                                <Info size={12} color="#EF4444" style={{ marginLeft: 6, opacity: 0.7 }} />
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                ) : (
-                                    <View style={styles.balanceValueContainer}>
-                                        <Text style={styles.balanceValue}>
-                                            {(wallet?.bonusBalance ?? 0).toLocaleString('ru-RU')}
-                                        </Text>
-
-                                        {(wallet?.pendingBalance ?? 0) > 0 && (
-                                            <View style={styles.pendingBalanceRow}>
-                                                <Text style={styles.pendingLabel}>
-                                                    + {(wallet?.pendingBalance ?? 0).toLocaleString('ru-RU')} ожидают активации
-                                                </Text>
+                                        <View style={styles.breakdownItems}>
+                                            <View style={[styles.breakdownItem, walletTab === 'regular' && styles.breakdownItemActive]}>
+                                                <View style={[styles.breakdownDot, { backgroundColor: '#1a1a2e' }]} />
+                                                <Text style={styles.breakdownLabel}>{t('wallet.personal')}</Text>
+                                                <Text style={styles.breakdownValue}>{regularBalance.toLocaleString('ru-RU')}</Text>
                                             </View>
-                                        )}
 
-                                        {(wallet?.frozenBonusBalance ?? 0) > 0 && (
-                                            <TouchableOpacity
-                                                style={styles.frozenBalanceRow}
-                                                onPress={() => setShowFrozen(true)}
-                                                activeOpacity={0.7}
-                                            >
-                                                <Text style={styles.frozenLabel}>
-                                                    🔒 Бонусный заморожено: {(wallet?.frozenBonusBalance ?? 0).toLocaleString('ru-RU')}
-                                                </Text>
-                                                <Info size={12} color="#EF4444" style={{ marginLeft: 6, opacity: 0.7 }} />
-                                            </TouchableOpacity>
-                                        )}
+                                            <View style={styles.breakdownDivider} />
 
+                                            <View style={[styles.breakdownItem, walletTab === 'bonus' && styles.breakdownItemActive]}>
+                                                <View style={[styles.breakdownDot, { backgroundColor: '#3B82F6' }]} />
+                                                <Text style={styles.breakdownLabel}>{t('wallet.bonuses')}</Text>
+                                                <Text style={styles.breakdownValue}>{bonusBalance.toLocaleString('ru-RU')}</Text>
+                                            </View>
+                                        </View>
+
+                                        {/* Status Indicators */}
+                                        <View style={styles.statusBreakdown}>
+                                            {(wallet?.frozenBalance ?? 0) > 0 || (wallet?.frozenBonusBalance ?? 0) > 0 ? (
+                                                <TouchableOpacity
+                                                    style={styles.statusItem}
+                                                    onPress={() => setShowFrozen(true)}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Text style={styles.statusLabel}>🔒 {t('wallet.frozen')}: {((wallet?.frozenBalance ?? 0) + (wallet?.frozenBonusBalance ?? 0)).toLocaleString('ru-RU')}</Text>
+                                                </TouchableOpacity>
+                                            ) : null}
+
+                                            {(wallet?.pendingBalance ?? 0) > 0 ? (
+                                                <View style={styles.statusItem}>
+                                                    <Text style={styles.statusLabel}>⏳ {t('wallet.pending')}: {(wallet?.pendingBalance ?? 0).toLocaleString('ru-RU')}</Text>
+                                                </View>
+                                            ) : null}
+                                        </View>
+                                    </View>
+
+                                    {walletTab === 'bonus' && (
                                         <View style={styles.bonusInfoBox}>
                                             <Text style={styles.bonusInfoText}>
-                                                Бонусы можно тратить только на сервисы VedaMatch и в рамках лимитов, заданных сервисом.
+                                                {t('wallet.bonusWarning')}
                                             </Text>
                                         </View>
-                                    </View>
-                                )}
+                                    )}
+                                </View>
 
                                 <View style={styles.balanceFooter}>
                                     <View style={styles.balanceStatRow}>
@@ -354,7 +358,7 @@ export default function WalletScreen() {
                                             <ArrowDown size={10} color="#1a1a2e" />
                                         </View>
                                         <View>
-                                            <Text style={styles.balanceStatLabel}>Получено</Text>
+                                            <Text style={styles.balanceStatLabel}>{t('wallet.received')}</Text>
                                             <Text style={styles.balanceStatValue}>
                                                 {stats?.totalEarned.toLocaleString('ru-RU') || 0}
                                             </Text>
@@ -366,7 +370,7 @@ export default function WalletScreen() {
                                             <ArrowUp size={10} color="#1a1a2e" />
                                         </View>
                                         <View>
-                                            <Text style={styles.balanceStatLabel}>Потрачено</Text>
+                                            <Text style={styles.balanceStatLabel}>{t('wallet.spent')}</Text>
                                             <Text style={styles.balanceStatValue}>
                                                 {stats?.totalSpent.toLocaleString('ru-RU') || 0}
                                             </Text>
@@ -381,9 +385,9 @@ export default function WalletScreen() {
                             <View style={styles.sectionHeader}>
                                 <View style={styles.titleRow}>
                                     <TrendingUp size={18} color="#F59E0B" style={{ marginRight: 8 }} />
-                                    <Text style={styles.sectionTitle}>Аналитика</Text>
+                                    <Text style={styles.sectionTitle}>{t('wallet.analytics')}</Text>
                                 </View>
-                                <Text style={styles.sectionPeriod}>Текущий месяц</Text>
+                                <Text style={styles.sectionPeriod}>{t('wallet.thisMonth')}</Text>
                             </View>
 
                             <View style={styles.statsGrid}>
@@ -391,17 +395,16 @@ export default function WalletScreen() {
                                     <View style={[styles.statIconCircle, { backgroundColor: 'rgba(76, 175, 80, 0.1)' }]}>
                                         <ArrowDownCircle size={20} color="#4CAF50" />
                                     </View>
-                                    <Text style={styles.statCardLabel}>Доход</Text>
+                                    <Text style={styles.statCardLabel}>{t('wallet.income')}</Text>
                                     <Text style={[styles.statCardValue, { color: '#4CAF50' }]}>
                                         +{stats?.thisMonthIn.toLocaleString('ru-RU') || 0}
                                     </Text>
                                 </View>
-
                                 <View style={styles.statCard}>
                                     <View style={[styles.statIconCircle, { backgroundColor: 'rgba(244, 67, 54, 0.1)' }]}>
                                         <ArrowUpCircle size={20} color="#F44336" />
                                     </View>
-                                    <Text style={styles.statCardLabel}>Расход</Text>
+                                    <Text style={styles.statCardLabel}>{t('wallet.expense')}</Text>
                                     <Text style={[styles.statCardValue, { color: '#F44336' }]}>
                                         -{stats?.thisMonthOut.toLocaleString('ru-RU') || 0}
                                     </Text>
@@ -414,7 +417,7 @@ export default function WalletScreen() {
                             <View style={styles.sectionHeader}>
                                 <View style={styles.titleRow}>
                                     <HistoryIcon size={18} color="#F59E0B" style={{ marginRight: 8 }} />
-                                    <Text style={styles.historyTitle}>История операций</Text>
+                                    <Text style={styles.historyTitle}>{t('wallet.history')}</Text>
                                 </View>
                             </View>
 
@@ -433,7 +436,7 @@ export default function WalletScreen() {
                                             historyFilter === 'all' && styles.historyFilterTextActive,
                                         ]}
                                     >
-                                        Все
+                                        {t('wallet.all')}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
@@ -450,7 +453,7 @@ export default function WalletScreen() {
                                             historyFilter === 'bonus' && styles.historyFilterTextActive,
                                         ]}
                                     >
-                                        Бонусные
+                                        {t('wallet.bonusOnly')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -462,8 +465,8 @@ export default function WalletScreen() {
                                     </View>
                                     <Text style={styles.emptyText}>
                                         {historyFilter === 'bonus'
-                                            ? 'Бонусных операций пока нет'
-                                            : 'У вас пока нет транзакций'}
+                                            ? t('wallet.emptyBonusHistory')
+                                            : t('wallet.emptyHistory')}
                                     </Text>
                                 </View>
                             ) : (
@@ -641,46 +644,119 @@ const styles = StyleSheet.create({
         fontWeight: '900',
     },
     balanceValueContainer: {
-        marginBottom: 24,
+        marginBottom: 20,
+    },
+    mainBalanceRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 6,
     },
     balanceValue: {
         color: '#1a1a2e',
-        fontSize: 48,
+        fontSize: 52,
         fontWeight: '900',
-        letterSpacing: -1,
+        letterSpacing: -1.5,
     },
-    totalAvailableRow: {
-        marginTop: 8,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: 'rgba(26, 26, 46, 0.1)',
-        borderRadius: 12,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-    },
-    totalAvailableLabel: {
-        color: 'rgba(26, 26, 46, 0.65)',
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    totalAvailableValue: {
-        color: '#1a1a2e',
-        fontSize: 12,
+    balanceLkmSuffix: {
+        color: 'rgba(26, 26, 46, 0.45)',
+        fontSize: 20,
         fontWeight: '800',
     },
-    bonusInfoBox: {
-        marginTop: 8,
-        borderRadius: 12,
-        backgroundColor: 'rgba(26, 26, 46, 0.1)',
-        paddingHorizontal: 10,
+    breakdownBox: {
+        marginTop: 16,
+        backgroundColor: 'rgba(26, 26, 46, 0.08)',
+        borderRadius: 20,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(26, 26, 46, 0.05)',
+    },
+    breakdownHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+        paddingHorizontal: 4,
+    },
+    breakdownHeaderTitle: {
+        color: 'rgba(26, 26, 46, 0.5)',
+        fontSize: 10,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    breakdownHeaderTotal: {
+        color: '#1a1a2e',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    breakdownItems: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(26, 26, 46, 0.05)',
+        borderRadius: 14,
+        padding: 4,
+    },
+    breakdownItem: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        gap: 8,
+    },
+    breakdownItemActive: {
+        backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    },
+    breakdownDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    breakdownLabel: {
+        flex: 1,
+        color: 'rgba(26, 26, 46, 0.6)',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    breakdownValue: {
+        color: '#1a1a2e',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    breakdownDivider: {
+        width: 1,
+        height: 16,
+        backgroundColor: 'rgba(26, 26, 46, 0.1)',
+    },
+    statusBreakdown: {
+        marginTop: 12,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        paddingHorizontal: 4,
+    },
+    statusItem: {
+        backgroundColor: 'rgba(26, 26, 46, 0.05)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 10,
+    },
+    statusLabel: {
+        color: 'rgba(26, 26, 46, 0.7)',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    bonusInfoBox: {
+        marginTop: 12,
+        paddingHorizontal: 8,
     },
     bonusInfoText: {
-        color: 'rgba(26, 26, 46, 0.72)',
+        color: 'rgba(26, 26, 46, 0.65)',
         fontSize: 11,
-        fontWeight: '600',
-        lineHeight: 16,
+        fontWeight: '500',
+        fontStyle: 'italic',
+        lineHeight: 15,
     },
     balanceFooter: {
         flexDirection: 'row',
@@ -884,35 +960,5 @@ const styles = StyleSheet.create({
         padding: 4,
         borderRadius: 12,
         backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    pendingBalanceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 6,
-        backgroundColor: 'rgba(158, 158, 158, 0.15)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        alignSelf: 'flex-start',
-    },
-    pendingLabel: {
-        color: 'rgba(26, 26, 46, 0.6)',
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    frozenBalanceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 8,
-        backgroundColor: 'rgba(33, 150, 243, 0.15)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        alignSelf: 'flex-start',
-    },
-    frozenLabel: {
-        color: 'rgba(26, 26, 46, 0.6)',
-        fontSize: 12,
-        fontWeight: '700',
     },
 });

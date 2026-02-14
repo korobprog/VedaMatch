@@ -10,6 +10,7 @@ import { UserContact } from '../services/contactService';
 import { useUser } from './UserContext';
 import { useWebSocket } from './WebSocketContext';
 import { mediaService, MediaFile } from '../services/mediaService';
+import { ragService } from '../services/ragService';
 
 export interface ChatHistory {
     id: string;
@@ -75,6 +76,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
+    const [ragDomains, setRagDomains] = useState<string[]>([]);
     const { user: currentUser } = useUser();
     const { addListener } = useWebSocket();
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,6 +104,24 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             }
         };
         init();
+    }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadRagDomains = async () => {
+            try {
+                const domains = await ragService.getDomains();
+                if (!isMounted) return;
+                const enabledDomains = domains.filter(d => d.enabled).map(d => d.name);
+                setRagDomains(enabledDomains);
+            } catch (error) {
+                console.warn('[RAG] Failed to load domains:', error);
+            }
+        };
+        loadRagDomains();
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     // Auto-save messages to current chat or create new one (only for AI chats)
@@ -298,6 +318,50 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
 
         try {
+            let assistantContext: Message['assistantContext'] | undefined;
+            try {
+                const hybridResponse = await ragService.queryHybrid({
+                    query: text,
+                    topK: 5,
+                    includePrivate: false,
+                    domains: ragDomains.length > 0 ? ragDomains : undefined,
+                });
+
+                const context = hybridResponse.assistant_context;
+                const sourceCandidates = (context?.sources && context.sources.length > 0)
+                    ? context.sources
+                    : (hybridResponse.results || []);
+
+                assistantContext = {
+                    domains: context?.domains || [],
+                    sources: sourceCandidates.map((source, index) => ({
+                        id: source.id || `source_${index}`,
+                        domain: source.domain || 'unknown',
+                        sourceType: source.sourceType,
+                        sourceId: source.sourceId,
+                        title: source.title || `Source ${index + 1}`,
+                        snippet: source.snippet || '',
+                        sourceUrl: source.sourceUrl,
+                        score: source.score,
+                        metadata: source.metadata,
+                    })),
+                    confidence: typeof context?.confidence === 'number' ? context.confidence : 0,
+                    language: context?.language,
+                    visibilityScope: context?.visibility_scope,
+                    retrieverPath: hybridResponse.retriever_path,
+                };
+
+                const hasContextData =
+                    assistantContext.sources.length > 0 ||
+                    Boolean(assistantContext.retrieverPath) ||
+                    assistantContext.confidence > 0;
+                if (!hasContextData) {
+                    assistantContext = undefined;
+                }
+            } catch (ragError) {
+                console.warn('[RAG] Hybrid retrieval failed, fallback to chat-only:', ragError);
+            }
+
             const chatMessages: ChatMessage[] = messages
                 .filter((msg) => msg.sender !== 'bot' || msg.id !== '1')
                 .map((msg) => ({
@@ -328,6 +392,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 text: response.content,
                 sender: 'bot',
             };
+            if (assistantContext) {
+                botResponse.assistantContext = assistantContext;
+            }
             setMessages((prev) => [...prev, botResponse]);
         } catch (error: unknown) {
             const errorName =
