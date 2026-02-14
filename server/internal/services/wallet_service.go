@@ -20,6 +20,71 @@ func NewWalletService() *WalletService {
 	return &WalletService{}
 }
 
+// SpendOptions controls how regular and bonus balances can be used.
+type SpendOptions struct {
+	AllowBonus      bool
+	MaxBonusPercent int // 0..100
+}
+
+// SpendAllocation stores split between regular and bonus balances.
+type SpendAllocation struct {
+	RegularAmount int
+	BonusAmount   int
+	TotalAmount   int
+}
+
+func normalizeSpendOptions(opts SpendOptions) SpendOptions {
+	if opts.MaxBonusPercent < 0 {
+		opts.MaxBonusPercent = 0
+	}
+	if opts.MaxBonusPercent > 100 {
+		opts.MaxBonusPercent = 100
+	}
+	if opts.AllowBonus && opts.MaxBonusPercent == 0 {
+		opts.MaxBonusPercent = 100
+	}
+	if !opts.AllowBonus {
+		opts.MaxBonusPercent = 0
+	}
+	return opts
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func calculateSpendAllocation(amount, regularBalance, bonusBalance int, opts SpendOptions) (SpendAllocation, error) {
+	if amount <= 0 {
+		return SpendAllocation{}, errors.New("amount must be positive")
+	}
+	opts = normalizeSpendOptions(opts)
+
+	allocation := SpendAllocation{TotalAmount: amount}
+	if !opts.AllowBonus || bonusBalance <= 0 {
+		allocation.RegularAmount = amount
+		return allocation, nil
+	}
+
+	maxBonusByPercent := amount * opts.MaxBonusPercent / 100
+	allocation.BonusAmount = minInt(bonusBalance, maxBonusByPercent)
+	allocation.RegularAmount = amount - allocation.BonusAmount
+
+	if allocation.RegularAmount > regularBalance && allocation.BonusAmount > 0 {
+		neededFromBonus := allocation.RegularAmount - regularBalance
+		additionalBonusAllowed := maxBonusByPercent - allocation.BonusAmount
+		if neededFromBonus > 0 && additionalBonusAllowed > 0 {
+			bonusShift := minInt(neededFromBonus, minInt(additionalBonusAllowed, bonusBalance-allocation.BonusAmount))
+			allocation.BonusAmount += bonusShift
+			allocation.RegularAmount -= bonusShift
+		}
+	}
+
+	return allocation, nil
+}
+
 func isDuplicateKeyError(err error) bool {
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return true
@@ -47,13 +112,15 @@ func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.W
 	}
 
 	wallet = models.Wallet{
-		UserID:         &userID,
-		Type:           models.WalletTypePersonal,
-		Balance:        0,
-		PendingBalance: 50,
-		FrozenBalance:  0,
-		TotalEarned:    0,
-		TotalSpent:     0,
+		UserID:             &userID,
+		Type:               models.WalletTypePersonal,
+		Balance:            0,
+		BonusBalance:       0,
+		PendingBalance:     50,
+		FrozenBalance:      0,
+		FrozenBonusBalance: 0,
+		TotalEarned:        0,
+		TotalSpent:         0,
 	}
 
 	if err := tx.Create(&wallet).Error; err != nil {
@@ -70,6 +137,7 @@ func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.W
 		WalletID:     wallet.ID,
 		Type:         models.TransactionTypeBonus,
 		Amount:       50,
+		BonusAmount:  50,
 		Description:  "Welcome Bonus (Pending activation)",
 		BalanceAfter: 0,
 	}
@@ -105,13 +173,15 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 		// Create new wallet with Welcome Bonus (Pending)
 		// Strategy: 0 Active + 50 Pending (unlocked after profile completion)
 		wallet = models.Wallet{
-			UserID:         &userID,
-			Type:           models.WalletTypePersonal,
-			Balance:        0,  // Active balance starts at 0
-			PendingBalance: 50, // Welcome bonus (locked)
-			FrozenBalance:  0,
-			TotalEarned:    0,
-			TotalSpent:     0,
+			UserID:             &userID,
+			Type:               models.WalletTypePersonal,
+			Balance:            0,  // Active regular balance starts at 0
+			BonusBalance:       0,  // Active bonus is empty until pending activation
+			PendingBalance:     50, // Welcome bonus (locked)
+			FrozenBalance:      0,
+			FrozenBonusBalance: 0,
+			TotalEarned:        0,
+			TotalSpent:         0,
 		}
 
 		if txErr := tx.Create(&wallet).Error; txErr != nil {
@@ -127,6 +197,7 @@ func (s *WalletService) GetOrCreateWallet(userID uint) (*models.Wallet, error) {
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeBonus,
 			Amount:       50,
+			BonusAmount:  50,
 			Description:  "Welcome Bonus (Pending activation)",
 			BalanceAfter: 0, // Active balance is still 0
 		}
@@ -157,15 +228,17 @@ func (s *WalletService) GetBalance(userID uint) (*models.WalletResponse, error) 
 		respUserID = *wallet.UserID
 	}
 	return &models.WalletResponse{
-		ID:             wallet.ID,
-		UserID:         respUserID,
-		Balance:        wallet.Balance,
-		PendingBalance: wallet.PendingBalance,
-		FrozenBalance:  wallet.FrozenBalance,
-		Currency:       "LKM",
-		CurrencyName:   "LakshMoney",
-		TotalEarned:    wallet.TotalEarned,
-		TotalSpent:     wallet.TotalSpent,
+		ID:                 wallet.ID,
+		UserID:             respUserID,
+		Balance:            wallet.Balance,
+		BonusBalance:       wallet.BonusBalance,
+		PendingBalance:     wallet.PendingBalance,
+		FrozenBalance:      wallet.FrozenBalance,
+		FrozenBonusBalance: wallet.FrozenBonusBalance,
+		Currency:           "LKM",
+		CurrencyName:       "LakshMoney",
+		TotalEarned:        wallet.TotalEarned,
+		TotalSpent:         wallet.TotalSpent,
 	}, nil
 }
 
@@ -284,10 +357,10 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 			return err
 		}
 
-		newBalance := wallet.Balance + amount
+		newBonusBalance := wallet.BonusBalance + amount
 		if err := tx.Model(wallet).Updates(map[string]interface{}{
-			"balance":      newBalance,
-			"total_earned": wallet.TotalEarned + amount,
+			"bonus_balance": newBonusBalance,
+			"total_earned":  wallet.TotalEarned + amount,
 		}).Error; err != nil {
 			return err
 		}
@@ -297,8 +370,9 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeBonus,
 			Amount:       amount,
+			BonusAmount:  amount,
 			Description:  description,
-			BalanceAfter: newBalance,
+			BalanceAfter: wallet.Balance,
 		}
 		if err := tx.Create(&bonusTx).Error; err != nil {
 			return err
@@ -456,6 +530,8 @@ func (s *WalletService) GetStats(userID uint) (*models.WalletStatsResponse, erro
 
 	return &models.WalletStatsResponse{
 		Balance:      wallet.Balance,
+		BonusBalance: wallet.BonusBalance,
+		TotalBalance: wallet.Balance + wallet.BonusBalance,
 		TotalEarned:  wallet.TotalEarned,
 		TotalSpent:   wallet.TotalSpent,
 		ThisMonthIn:  thisMonthIn,
@@ -468,9 +544,18 @@ func (s *WalletService) GetStats(userID uint) (*models.WalletStatsResponse, erro
 // Spend deducts LKM from user's wallet with idempotency protection
 // dedupKey prevents double-spending (use messageID, requestID, etc.)
 func (s *WalletService) Spend(userID uint, amount int, dedupKey string, description string) error {
+	return s.SpendWithOptions(userID, amount, dedupKey, description, SpendOptions{
+		AllowBonus:      true,
+		MaxBonusPercent: 100,
+	})
+}
+
+// SpendWithOptions deducts LKM from user's wallet with optional bonus usage controls.
+func (s *WalletService) SpendWithOptions(userID uint, amount int, dedupKey string, description string, opts SpendOptions) error {
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
+	opts = normalizeSpendOptions(opts)
 	dedupKey = strings.TrimSpace(dedupKey)
 	description = strings.TrimSpace(description)
 	if description == "" {
@@ -506,15 +591,21 @@ func (s *WalletService) Spend(userID uint, amount int, dedupKey string, descript
 			}
 		}
 
-		if wallet.Balance < amount {
+		allocation, allocErr := calculateSpendAllocation(amount, wallet.Balance, wallet.BonusBalance, opts)
+		if allocErr != nil {
+			return allocErr
+		}
+		if wallet.Balance < allocation.RegularAmount || wallet.BonusBalance < allocation.BonusAmount {
 			return errors.New("insufficient balance")
 		}
 
 		// Deduct balance
-		newBalance := wallet.Balance - amount
+		newBalance := wallet.Balance - allocation.RegularAmount
+		newBonusBalance := wallet.BonusBalance - allocation.BonusAmount
 		if err := tx.Model(&wallet).Updates(map[string]interface{}{
-			"balance":     newBalance,
-			"total_spent": wallet.TotalSpent + amount,
+			"balance":       newBalance,
+			"bonus_balance": newBonusBalance,
+			"total_spent":   wallet.TotalSpent + amount,
 		}).Error; err != nil {
 			return err
 		}
@@ -524,6 +615,7 @@ func (s *WalletService) Spend(userID uint, amount int, dedupKey string, descript
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeDebit,
 			Amount:       amount,
+			BonusAmount:  allocation.BonusAmount,
 			Description:  description,
 			DedupKey:     dedupKey,
 			BalanceAfter: newBalance,
@@ -532,7 +624,7 @@ func (s *WalletService) Spend(userID uint, amount int, dedupKey string, descript
 			return err
 		}
 
-		log.Printf("[Wallet] Spend: %d LKM from user %d (dedup: %s)", amount, userID, dedupKey)
+		log.Printf("[Wallet] Spend: %d LKM from user %d (bonus=%d, dedup=%s)", amount, userID, allocation.BonusAmount, dedupKey)
 
 		// Trigger referral activation asynchronously (if user was referred)
 		go func(uid uint) {
@@ -655,10 +747,10 @@ func (s *WalletService) ActivatePendingBalance(userID uint) error {
 		}
 
 		pendingAmount := wallet.PendingBalance
-		newBalance := wallet.Balance + pendingAmount
+		newBonusBalance := wallet.BonusBalance + pendingAmount
 
 		if err := tx.Model(&wallet).Updates(map[string]interface{}{
-			"balance":         newBalance,
+			"bonus_balance":   newBonusBalance,
 			"pending_balance": 0,
 			"total_earned":    wallet.TotalEarned + pendingAmount,
 		}).Error; err != nil {
@@ -670,8 +762,9 @@ func (s *WalletService) ActivatePendingBalance(userID uint) error {
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeBonus,
 			Amount:       pendingAmount,
+			BonusAmount:  pendingAmount,
 			Description:  "Welcome Bonus Activated",
-			BalanceAfter: newBalance,
+			BalanceAfter: wallet.Balance,
 		}
 		if err := tx.Create(&activateTx).Error; err != nil {
 			return err
@@ -690,15 +783,25 @@ func (s *WalletService) ActivatePendingBalance(userID uint) error {
 
 // HoldFunds freezes funds for a booking (not spent yet)
 func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, description string) error {
+	_, err := s.HoldFundsWithOptions(userID, amount, bookingID, description, SpendOptions{
+		AllowBonus: false,
+	})
+	return err
+}
+
+// HoldFundsWithOptions freezes funds for a booking with optional bonus usage limits.
+func (s *WalletService) HoldFundsWithOptions(userID uint, amount int, bookingID uint, description string, opts SpendOptions) (*SpendAllocation, error) {
 	if amount <= 0 {
-		return errors.New("amount must be positive")
+		return nil, errors.New("amount must be positive")
 	}
+	opts = normalizeSpendOptions(opts)
 	description = strings.TrimSpace(description)
 	if description == "" {
 		description = "Funds hold"
 	}
 
-	return database.DB.Transaction(func(tx *gorm.DB) error {
+	var allocation SpendAllocation
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
@@ -708,16 +811,24 @@ func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, descr
 			return err
 		}
 
-		if wallet.Balance < amount {
+		currentAllocation, allocErr := calculateSpendAllocation(amount, wallet.Balance, wallet.BonusBalance, opts)
+		if allocErr != nil {
+			return allocErr
+		}
+		if wallet.Balance < currentAllocation.RegularAmount || wallet.BonusBalance < currentAllocation.BonusAmount {
 			return errors.New("insufficient balance")
 		}
 
-		newBalance := wallet.Balance - amount
-		newFrozen := wallet.FrozenBalance + amount
+		newBalance := wallet.Balance - currentAllocation.RegularAmount
+		newBonusBalance := wallet.BonusBalance - currentAllocation.BonusAmount
+		newFrozen := wallet.FrozenBalance + currentAllocation.RegularAmount
+		newFrozenBonus := wallet.FrozenBonusBalance + currentAllocation.BonusAmount
 
 		if err := tx.Model(&wallet).Updates(map[string]interface{}{
-			"balance":        newBalance,
-			"frozen_balance": newFrozen,
+			"balance":              newBalance,
+			"bonus_balance":        newBonusBalance,
+			"frozen_balance":       newFrozen,
+			"frozen_bonus_balance": newFrozenBonus,
 		}).Error; err != nil {
 			return err
 		}
@@ -727,6 +838,7 @@ func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, descr
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeHold,
 			Amount:       amount,
+			BonusAmount:  currentAllocation.BonusAmount,
 			Description:  description,
 			BookingID:    &bookingID,
 			BalanceAfter: newBalance,
@@ -735,14 +847,28 @@ func (s *WalletService) HoldFunds(userID uint, amount int, bookingID uint, descr
 			return err
 		}
 
-		log.Printf("[Wallet] Hold: %d LKM from user %d for booking %d", amount, userID, bookingID)
+		allocation = currentAllocation
+		log.Printf("[Wallet] Hold: %d LKM from user %d for booking %d (bonus=%d)", amount, userID, bookingID, currentAllocation.BonusAmount)
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
+
+	return &allocation, nil
 }
 
 // ReleaseFunds releases held funds to provider or back to user
 func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, toUserID uint, description string) error {
-	if amount <= 0 {
+	return s.ReleaseFundsWithSplit(userID, amount, 0, bookingID, toUserID, description)
+}
+
+// ReleaseFundsWithSplit releases regular+bonus frozen funds to provider.
+func (s *WalletService) ReleaseFundsWithSplit(userID uint, regularAmount int, bonusAmount int, bookingID uint, toUserID uint, description string) error {
+	if regularAmount < 0 || bonusAmount < 0 {
+		return errors.New("amount must be non-negative")
+	}
+	totalAmount := regularAmount + bonusAmount
+	if totalAmount <= 0 {
 		return errors.New("amount must be positive")
 	}
 	description = strings.TrimSpace(description)
@@ -760,15 +886,17 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 			return err
 		}
 
-		if wallet.FrozenBalance < amount {
+		if wallet.FrozenBalance < regularAmount || wallet.FrozenBonusBalance < bonusAmount {
 			return errors.New("insufficient frozen balance")
 		}
 
 		// Reduce frozen balance
-		newFrozen := wallet.FrozenBalance - amount
+		newFrozen := wallet.FrozenBalance - regularAmount
+		newFrozenBonus := wallet.FrozenBonusBalance - bonusAmount
 		if err := tx.Model(&wallet).Updates(map[string]interface{}{
-			"frozen_balance": newFrozen,
-			"total_spent":    wallet.TotalSpent + amount,
+			"frozen_balance":       newFrozen,
+			"frozen_bonus_balance": newFrozenBonus,
+			"total_spent":          wallet.TotalSpent + totalAmount,
 		}).Error; err != nil {
 			return err
 		}
@@ -777,7 +905,8 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 		releaseTx := models.WalletTransaction{
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeRelease,
-			Amount:       amount,
+			Amount:       totalAmount,
+			BonusAmount:  bonusAmount,
 			Description:  description,
 			BookingID:    &bookingID,
 			BalanceAfter: wallet.Balance, // Active balance unchanged
@@ -791,7 +920,15 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 		err := tx.Where("user_id = ?", toUserID).First(&toWallet).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Create wallet for provider if doesn't exist
-			toWallet = models.Wallet{UserID: &toUserID, Type: models.WalletTypePersonal, Balance: 0, PendingBalance: 0, FrozenBalance: 0}
+			toWallet = models.Wallet{
+				UserID:             &toUserID,
+				Type:               models.WalletTypePersonal,
+				Balance:            0,
+				BonusBalance:       0,
+				PendingBalance:     0,
+				FrozenBalance:      0,
+				FrozenBonusBalance: 0,
+			}
 			if err := tx.Create(&toWallet).Error; err != nil {
 				if isDuplicateKeyError(err) {
 					if getErr := tx.Where("user_id = ?", toUserID).First(&toWallet).Error; getErr != nil {
@@ -805,10 +942,10 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 			return err
 		}
 
-		newToBalance := toWallet.Balance + amount
+		newToBalance := toWallet.Balance + totalAmount
 		if err := tx.Model(&toWallet).Updates(map[string]interface{}{
 			"balance":      newToBalance,
-			"total_earned": toWallet.TotalEarned + amount,
+			"total_earned": toWallet.TotalEarned + totalAmount,
 		}).Error; err != nil {
 			return err
 		}
@@ -817,7 +954,7 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 		creditTx := models.WalletTransaction{
 			WalletID:        toWallet.ID,
 			Type:            models.TransactionTypeCredit,
-			Amount:          amount,
+			Amount:          totalAmount,
 			Description:     description,
 			BookingID:       &bookingID,
 			RelatedWalletID: &wallet.ID,
@@ -827,14 +964,23 @@ func (s *WalletService) ReleaseFunds(userID uint, amount int, bookingID uint, to
 			return err
 		}
 
-		log.Printf("[Wallet] Release: %d LKM from user %d to user %d (booking %d)", amount, userID, toUserID, bookingID)
+		log.Printf("[Wallet] Release: %d LKM from user %d to user %d (booking %d, bonus=%d)", totalAmount, userID, toUserID, bookingID, bonusAmount)
 		return nil
 	})
 }
 
 // RefundHold returns held funds back to user's active balance
 func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, description string) error {
-	if amount <= 0 {
+	return s.RefundHoldWithSplit(userID, amount, 0, bookingID, description)
+}
+
+// RefundHoldWithSplit returns frozen regular+bonus funds back to original balances.
+func (s *WalletService) RefundHoldWithSplit(userID uint, regularAmount int, bonusAmount int, bookingID uint, description string) error {
+	if regularAmount < 0 || bonusAmount < 0 {
+		return errors.New("amount must be non-negative")
+	}
+	totalAmount := regularAmount + bonusAmount
+	if totalAmount <= 0 {
 		return errors.New("amount must be positive")
 	}
 	description = strings.TrimSpace(description)
@@ -852,16 +998,20 @@ func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, desc
 			return err
 		}
 
-		if wallet.FrozenBalance < amount {
+		if wallet.FrozenBalance < regularAmount || wallet.FrozenBonusBalance < bonusAmount {
 			return errors.New("insufficient frozen balance")
 		}
 
-		newBalance := wallet.Balance + amount
-		newFrozen := wallet.FrozenBalance - amount
+		newBalance := wallet.Balance + regularAmount
+		newBonusBalance := wallet.BonusBalance + bonusAmount
+		newFrozen := wallet.FrozenBalance - regularAmount
+		newFrozenBonus := wallet.FrozenBonusBalance - bonusAmount
 
 		if err := tx.Model(&wallet).Updates(map[string]interface{}{
-			"balance":        newBalance,
-			"frozen_balance": newFrozen,
+			"balance":              newBalance,
+			"bonus_balance":        newBonusBalance,
+			"frozen_balance":       newFrozen,
+			"frozen_bonus_balance": newFrozenBonus,
 		}).Error; err != nil {
 			return err
 		}
@@ -870,7 +1020,8 @@ func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, desc
 		refundTx := models.WalletTransaction{
 			WalletID:     wallet.ID,
 			Type:         models.TransactionTypeRefund,
-			Amount:       amount,
+			Amount:       totalAmount,
+			BonusAmount:  bonusAmount,
 			Description:  description,
 			BookingID:    &bookingID,
 			BalanceAfter: newBalance,
@@ -879,7 +1030,7 @@ func (s *WalletService) RefundHold(userID uint, amount int, bookingID uint, desc
 			return err
 		}
 
-		log.Printf("[Wallet] RefundHold: %d LKM to user %d (booking %d cancelled)", amount, userID, bookingID)
+		log.Printf("[Wallet] RefundHold: %d LKM to user %d (booking %d cancelled, bonus=%d)", totalAmount, userID, bookingID, bonusAmount)
 		return nil
 	})
 }

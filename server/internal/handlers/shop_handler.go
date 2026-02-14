@@ -123,6 +123,11 @@ func (h *ShopHandler) GetShops(c *fiber.Ctx) error {
 			filters.MinRating = &ratingVal
 		}
 	}
+	if raw := c.Query("isVedaMatch"); raw != "" {
+		if parsed, err := strconv.ParseBool(raw); err == nil {
+			filters.IsVedaMatch = &parsed
+		}
+	}
 
 	result, err := h.service.GetShops(filters)
 	if err != nil {

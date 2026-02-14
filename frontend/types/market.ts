@@ -60,6 +60,7 @@ export interface ShopOwnerInfo {
 export interface Shop {
     ID: number;
     ownerId: number;
+    isVedaMatch?: boolean;
     name: string;
     slug: string;
     description: string;
@@ -111,6 +112,7 @@ export interface ShopFilters {
     category?: ShopCategory;
     city?: string;
     status?: ShopStatus;
+    isVedaMatch?: boolean;
     search?: string;
     nearLat?: number;
     nearLng?: number;

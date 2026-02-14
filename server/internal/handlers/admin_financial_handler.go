@@ -16,15 +16,17 @@ func NewAdminFinancialHandler() *AdminFinancialHandler {
 
 // FinancialStats represents the system's economic health
 type FinancialStats struct {
-	TotalActiveBalances  int64             `json:"totalActiveBalances"`
-	TotalFrozenBalances  int64             `json:"totalFrozenBalances"`
-	TotalPendingBalances int64             `json:"totalPendingBalances"`
-	TotalLiabilities     int64             `json:"totalLiabilities"` // Active + Frozen
-	TotalRealIncome      int64             `json:"totalRealIncome"`  // SUM of all Successful Deposits
-	CharityFunds         []CharityFundStat `json:"charityFunds"`
+	TotalActiveBalances      int64             `json:"totalActiveBalances"`
+	TotalBonusBalances       int64             `json:"totalBonusBalances"`
+	TotalFrozenBalances      int64             `json:"totalFrozenBalances"`
+	TotalFrozenBonusBalances int64             `json:"totalFrozenBonusBalances"`
+	TotalPendingBalances     int64             `json:"totalPendingBalances"`
+	TotalLiabilities         int64             `json:"totalLiabilities"` // Active + Frozen
+	TotalRealIncome          int64             `json:"totalRealIncome"`  // SUM of all Successful Deposits
+	CharityFunds             []CharityFundStat `json:"charityFunds"`
 
 	// Aliases for Admin Frontend Compatibility
-	CirculationLKM  int64 `json:"circulationLKM"`  // Active + Frozen
+	CirculationLKM  int64 `json:"circulationLKM"`  // Active + Bonus + Frozen
 	TotalIssuedLKM  int64 `json:"totalIssuedLKM"`  // Sum of all additions
 	TotalSpentLKM   int64 `json:"totalSpentLKM"`   // Sum of all subtractions
 	TotalPendingLKM int64 `json:"totalPendingLKM"` // Pending
@@ -50,10 +52,12 @@ func (h *AdminFinancialHandler) GetFinancialStats(c *fiber.Ctx) error {
 	// 1. Calculate Liabilities (What we "owe" to users in services)
 	// We sum balances from the wallets table
 	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(balance), 0)").Scan(&stats.TotalActiveBalances)
+	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(bonus_balance), 0)").Scan(&stats.TotalBonusBalances)
 	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(frozen_balance), 0)").Scan(&stats.TotalFrozenBalances)
+	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(frozen_bonus_balance), 0)").Scan(&stats.TotalFrozenBonusBalances)
 	database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(pending_balance), 0)").Scan(&stats.TotalPendingBalances)
 
-	stats.TotalLiabilities = stats.TotalActiveBalances + stats.TotalFrozenBalances
+	stats.TotalLiabilities = stats.TotalActiveBalances + stats.TotalBonusBalances + stats.TotalFrozenBalances + stats.TotalFrozenBonusBalances
 	stats.CirculationLKM = stats.TotalLiabilities
 	stats.TotalPendingLKM = stats.TotalPendingBalances
 

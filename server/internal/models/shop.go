@@ -39,6 +39,8 @@ type Shop struct {
 	gorm.Model
 	OwnerID uint  `json:"ownerId" gorm:"not null;index"`
 	Owner   *User `json:"owner,omitempty" gorm:"foreignKey:OwnerID"`
+	// Managed by platform team (VedaMatch)
+	IsVedaMatch bool `json:"isVedaMatch" gorm:"default:false;index"`
 
 	// Basic Info
 	Name        string       `json:"name" gorm:"type:varchar(200);not null"`
@@ -141,18 +143,19 @@ type ShopUpdateRequest struct {
 
 // ShopFilters for querying shops
 type ShopFilters struct {
-	Category  ShopCategory `json:"category"`
-	City      string       `json:"city"`
-	Status    ShopStatus   `json:"status"`
-	OwnerID   *uint        `json:"ownerId"`
-	Search    string       `json:"search"`
-	NearLat   *float64     `json:"nearLat"`
-	NearLng   *float64     `json:"nearLng"`
-	RadiusKm  *float64     `json:"radiusKm"`
-	MinRating *float64     `json:"minRating"`
-	Sort      string       `json:"sort"` // newest, rating, popular
-	Page      int          `json:"page"`
-	Limit     int          `json:"limit"`
+	Category    ShopCategory `json:"category"`
+	City        string       `json:"city"`
+	Status      ShopStatus   `json:"status"`
+	OwnerID     *uint        `json:"ownerId"`
+	IsVedaMatch *bool        `json:"isVedaMatch"`
+	Search      string       `json:"search"`
+	NearLat     *float64     `json:"nearLat"`
+	NearLng     *float64     `json:"nearLng"`
+	RadiusKm    *float64     `json:"radiusKm"`
+	MinRating   *float64     `json:"minRating"`
+	Sort        string       `json:"sort"` // newest, rating, popular
+	Page        int          `json:"page"`
+	Limit       int          `json:"limit"`
 }
 
 // ShopResponse for API responses

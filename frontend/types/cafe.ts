@@ -3,6 +3,7 @@
 export interface Cafe {
     id: number;
     ownerId: number;
+    isVedaMatch?: boolean;
     name: string;
     slug: string;
     description: string;
@@ -50,6 +51,7 @@ export interface CafeOwnerInfo {
 export interface CafeFilters {
     city?: string;
     status?: CafeStatus;
+    isVedaMatch?: boolean;
     search?: string;
     minRating?: number;
     hasDelivery?: boolean;

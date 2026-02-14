@@ -63,6 +63,7 @@ export interface Service {
     createdAt: string;
     updatedAt: string;
     ownerId: number;
+    isVedaMatch?: boolean;
     owner?: ServiceOwner;
     title: string;
     description: string;
@@ -92,6 +93,7 @@ export interface ServiceFilters {
     scheduleType?: ServiceScheduleType;
     channel?: ServiceChannel;
     accessType?: ServiceAccessType;
+    isVedaMatch?: boolean;
     language?: string;
     search?: string;
     nearLat?: number;
@@ -242,6 +244,7 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
     if (filters.scheduleType) params.append('scheduleType', filters.scheduleType);
     if (filters.channel) params.append('channel', filters.channel);
     if (filters.accessType) params.append('accessType', filters.accessType);
+    if (filters.isVedaMatch !== undefined) params.append('isVedaMatch', String(filters.isVedaMatch));
     if (filters.language) params.append('language', filters.language);
     if (filters.search) params.append('search', filters.search);
     if (filters.nearLat !== undefined) params.append('nearLat', filters.nearLat.toString());

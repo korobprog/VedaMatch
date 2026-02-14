@@ -12,8 +12,10 @@ export interface WalletResponse {
     id: number;
     userId: number;
     balance: number;
+    bonusBalance: number;
     pendingBalance: number;   // Pending (locked until activation)
     frozenBalance: number;    // Frozen (held for bookings)
+    frozenBonusBalance: number;
     currency: string;
     currencyName: string;
     totalEarned: number;
@@ -50,6 +52,8 @@ export interface TransactionListResponse {
 
 export interface WalletStatsResponse {
     balance: number;
+    bonusBalance: number;
+    totalBalance: number;
     totalEarned: number;
     totalSpent: number;
     thisMonthIn: number;

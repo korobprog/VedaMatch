@@ -77,6 +77,7 @@ func (s *ShopService) CreateShop(userID uint, userRole string, req models.ShopCr
 
 	shop := models.Shop{
 		OwnerID:      userID,
+		IsVedaMatch:  strings.EqualFold(userRole, models.RoleSuperadmin),
 		Name:         req.Name,
 		Slug:         slug,
 		Description:  req.Description,
@@ -254,6 +255,9 @@ func (s *ShopService) GetShops(filters models.ShopFilters) (*models.ShopListResp
 	}
 	if filters.OwnerID != nil {
 		query = query.Where("owner_id = ?", *filters.OwnerID)
+	}
+	if filters.IsVedaMatch != nil {
+		query = query.Where("is_veda_match = ?", *filters.IsVedaMatch)
 	}
 	if filters.Search != "" {
 		searchTerm := "%" + filters.Search + "%"

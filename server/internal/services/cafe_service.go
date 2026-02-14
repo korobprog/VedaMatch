@@ -34,7 +34,7 @@ func NewCafeService(db *gorm.DB, mapService *MapService) *CafeService {
 // ===== Cafe CRUD =====
 
 // CreateCafe creates a new cafe
-func (s *CafeService) CreateCafe(ownerID uint, req models.CafeCreateRequest) (*models.Cafe, error) {
+func (s *CafeService) CreateCafe(ownerID uint, ownerRole string, req models.CafeCreateRequest) (*models.Cafe, error) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.City = strings.TrimSpace(req.City)
 	req.Address = strings.TrimSpace(req.Address)
@@ -78,6 +78,7 @@ func (s *CafeService) CreateCafe(ownerID uint, req models.CafeCreateRequest) (*m
 
 	cafe := &models.Cafe{
 		OwnerID:      ownerID,
+		IsVedaMatch:  strings.EqualFold(ownerRole, models.RoleSuperadmin),
 		Name:         req.Name,
 		Slug:         slug,
 		Description:  req.Description,
@@ -196,6 +197,9 @@ func (s *CafeService) ListCafes(filters models.CafeFilters) (*models.CafeListRes
 	}
 	if filters.OwnerID != nil {
 		query = query.Where("owner_id = ?", *filters.OwnerID)
+	}
+	if filters.IsVedaMatch != nil {
+		query = query.Where("is_veda_match = ?", *filters.IsVedaMatch)
 	}
 	if filters.Search != "" {
 		query = query.Where("name ILIKE ? OR description ILIKE ?",

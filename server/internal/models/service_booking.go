@@ -49,8 +49,10 @@ type ServiceBooking struct {
 	Status BookingStatus `json:"status" gorm:"type:varchar(20);default:'pending';index"`
 
 	// Payment (game currency)
-	TransactionID *uint `json:"transactionId" gorm:"index"`
-	PricePaid     int   `json:"pricePaid" gorm:"default:0"` // Amount paid in Лакшми
+	TransactionID  *uint `json:"transactionId" gorm:"index"`
+	PricePaid      int   `json:"pricePaid" gorm:"default:0"`      // Total amount paid in Лакшми
+	RegularLkmHeld int   `json:"regularLkmHeld" gorm:"default:0"` // Frozen regular LKM
+	BonusLkmHeld   int   `json:"bonusLkmHeld" gorm:"default:0"`   // Frozen bonus LKM
 
 	// Notes
 	ClientNote   string `json:"clientNote" gorm:"type:text"`   // Message from client

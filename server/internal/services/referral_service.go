@@ -212,9 +212,9 @@ func (s *ReferralService) ProcessActivation(userID uint) error {
 		}
 		if userWallet.PendingBalance > 0 {
 			activated := userWallet.PendingBalance
-			newBalance := userWallet.Balance + activated
+			newBonusBalance := userWallet.BonusBalance + activated
 			if err := tx.Model(userWallet).Updates(map[string]interface{}{
-				"balance":         newBalance,
+				"bonus_balance":   newBonusBalance,
 				"pending_balance": 0,
 				"total_earned":    userWallet.TotalEarned + activated,
 			}).Error; err != nil {
@@ -224,8 +224,9 @@ func (s *ReferralService) ProcessActivation(userID uint) error {
 				WalletID:     userWallet.ID,
 				Type:         models.TransactionTypeBonus,
 				Amount:       activated,
+				BonusAmount:  activated,
 				Description:  "Welcome Bonus Activated",
-				BalanceAfter: newBalance,
+				BalanceAfter: userWallet.Balance,
 			}
 			if err := tx.Create(&activationTx).Error; err != nil {
 				return err
@@ -237,10 +238,10 @@ func (s *ReferralService) ProcessActivation(userID uint) error {
 		if err != nil {
 			return err
 		}
-		refNewBalance := refWallet.Balance + 100
+		refNewBonusBalance := refWallet.BonusBalance + 100
 		if err := tx.Model(refWallet).Updates(map[string]interface{}{
-			"balance":      refNewBalance,
-			"total_earned": refWallet.TotalEarned + 100,
+			"bonus_balance": refNewBonusBalance,
+			"total_earned":  refWallet.TotalEarned + 100,
 		}).Error; err != nil {
 			return err
 		}
@@ -248,8 +249,9 @@ func (s *ReferralService) ProcessActivation(userID uint) error {
 			WalletID:     refWallet.ID,
 			Type:         models.TransactionTypeBonus,
 			Amount:       100,
+			BonusAmount:  100,
 			Description:  "Реферальный бонус (друг активировался)",
-			BalanceAfter: refNewBalance,
+			BalanceAfter: refWallet.Balance,
 		}
 		if err := tx.Create(&bonusTx).Error; err != nil {
 			return err

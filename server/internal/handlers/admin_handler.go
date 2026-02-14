@@ -812,9 +812,9 @@ func (h *AdminHandler) GetReferralLeaderboard(c *fiber.Ctx) error {
 	// Initialize as empty slice to ensure JSON array [] is returned instead of null
 	leaderboard := make([]LeaderboardEntry, 0)
 	err := database.DB.Table("users").
-		Select("users.id, users.spiritual_name, users.karmic_name, users.email, users.avatar_url, " +
-			"COUNT(referrals.id) as total_invited, " +
-			"SUM(CASE WHEN referrals.referral_status = ? THEN 1 ELSE 0 END) as active_invited, " +
+		Select("users.id, users.spiritual_name, users.karmic_name, users.email, users.avatar_url, "+
+			"COUNT(referrals.id) as total_invited, "+
+			"SUM(CASE WHEN referrals.referral_status = ? THEN 1 ELSE 0 END) as active_invited, "+
 			"SUM(CASE WHEN referrals.referral_status = ? THEN 100 ELSE 0 END) as total_earned", models.ReferralStatusActivated, models.ReferralStatusActivated).
 		Joins("JOIN users as referrals ON referrals.referrer_id = users.id").
 		Group("users.id").
@@ -838,16 +838,24 @@ func (h *AdminHandler) GetGlobalWalletStats(c *fiber.Ctx) error {
 	}
 
 	var totalBalance int64
+	var totalBonus int64
 	var totalPending int64
 	var totalFrozen int64
+	var totalFrozenBonus int64
 
 	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(balance), 0)").Scan(&totalBalance).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
+	}
+	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(bonus_balance), 0)").Scan(&totalBonus).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
 	}
 	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(pending_balance), 0)").Scan(&totalPending).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
 	}
 	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(frozen_balance), 0)").Scan(&totalFrozen).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
+	}
+	if err := database.DB.Model(&models.Wallet{}).Select("COALESCE(SUM(frozen_bonus_balance), 0)").Scan(&totalFrozenBonus).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch wallet stats"})
 	}
 
@@ -866,11 +874,13 @@ func (h *AdminHandler) GetGlobalWalletStats(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"totalActiveLKM":  totalBalance,
-		"totalPendingLKM": totalPending,
-		"totalFrozenLKM":  totalFrozen,
-		"totalIssuedLKM":  totalIssued,
-		"totalSpentLKM":   totalSpent,
-		"circulationLKM":  totalBalance + totalFrozen,
+		"totalActiveLKM":      totalBalance + totalBonus,
+		"totalBonusLKM":       totalBonus,
+		"totalPendingLKM":     totalPending,
+		"totalFrozenLKM":      totalFrozen + totalFrozenBonus,
+		"totalFrozenBonusLKM": totalFrozenBonus,
+		"totalIssuedLKM":      totalIssued,
+		"totalSpentLKM":       totalSpent,
+		"circulationLKM":      totalBalance + totalBonus + totalFrozen + totalFrozenBonus,
 	})
 }

@@ -19,6 +19,28 @@ type BookingService struct {
 	referralService *ReferralService
 }
 
+func bookingHoldSplit(booking *models.ServiceBooking) (regular int, bonus int) {
+	regular = booking.RegularLkmHeld
+	bonus = booking.BonusLkmHeld
+	if regular+bonus == 0 && booking.PricePaid > 0 {
+		regular = booking.PricePaid
+	}
+	return regular, bonus
+}
+
+func isVedaMatchService(service *models.Service) (bool, error) {
+	if service.IsVedaMatch {
+		return true, nil
+	}
+
+	var owner models.User
+	if err := database.DB.Select("id", "role").First(&owner, service.OwnerID).Error; err != nil {
+		return false, err
+	}
+
+	return strings.EqualFold(owner.Role, models.RoleSuperadmin), nil
+}
+
 // NewBookingService creates a new booking service
 func NewBookingService(walletService *WalletService, serviceService *ServiceService, referralService *ReferralService) *BookingService {
 	return &BookingService{
@@ -69,13 +91,26 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 		return nil, errors.New("tariff does not belong to this service")
 	}
 
+	isVedaMatch, err := isVedaMatchService(&service)
+	if err != nil {
+		return nil, err
+	}
+	holdOptions := SpendOptions{
+		AllowBonus:      isVedaMatch && tariff.MaxBonusLkmPercent > 0,
+		MaxBonusPercent: tariff.MaxBonusLkmPercent,
+	}
+
 	// Check if client has enough balance (if paid)
 	if service.AccessType == models.ServiceAccessPaid && tariff.Price > 0 {
 		wallet, err := s.walletService.GetBalance(clientID)
 		if err != nil {
 			return nil, err
 		}
-		if wallet.Balance < tariff.Price {
+		allocation, allocErr := calculateSpendAllocation(tariff.Price, wallet.Balance, wallet.BonusBalance, holdOptions)
+		if allocErr != nil {
+			return nil, allocErr
+		}
+		if wallet.Balance < allocation.RegularAmount || wallet.BonusBalance < allocation.BonusAmount {
 			return nil, errors.New("insufficient LakshMoney balance")
 		}
 	}
@@ -125,16 +160,34 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	// Hold LakshMoney from client (if paid service)
 	// Funds are frozen until booking is completed or cancelled
 	if service.AccessType == models.ServiceAccessPaid && tariff.Price > 0 {
-		err := s.walletService.HoldFunds(
+		allocation, err := s.walletService.HoldFundsWithOptions(
 			clientID,
 			tariff.Price,
 			booking.ID,
 			"Бронирование: "+service.Title,
+			holdOptions,
 		)
 		if err != nil {
 			// Rollback booking
 			database.DB.Delete(&booking)
 			return nil, errors.New("payment hold failed: " + err.Error())
+		}
+
+		booking.RegularLkmHeld = allocation.RegularAmount
+		booking.BonusLkmHeld = allocation.BonusAmount
+		if err := database.DB.Model(&booking).Updates(map[string]interface{}{
+			"regular_lkm_held": booking.RegularLkmHeld,
+			"bonus_lkm_held":   booking.BonusLkmHeld,
+		}).Error; err != nil {
+			_ = s.walletService.RefundHoldWithSplit(
+				booking.ClientID,
+				booking.RegularLkmHeld,
+				booking.BonusLkmHeld,
+				booking.ID,
+				"Откат бронирования",
+			)
+			database.DB.Delete(&booking)
+			return nil, errors.New("failed to persist payment split")
 		}
 	}
 
@@ -317,9 +370,11 @@ func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingAction
 
 	// Refund hold if cancelled (money was frozen, not transferred)
 	if booking.PricePaid > 0 {
-		if err := s.walletService.RefundHold(
+		regularHeld, bonusHeld := bookingHoldSplit(&booking)
+		if err := s.walletService.RefundHoldWithSplit(
 			booking.ClientID,
-			booking.PricePaid,
+			regularHeld,
+			bonusHeld,
 			booking.ID,
 			"Отмена бронирования: "+req.Reason,
 		); err != nil {
@@ -396,9 +451,11 @@ func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingAct
 
 	// Release held funds to provider
 	if booking.PricePaid > 0 {
-		if err := s.walletService.ReleaseFunds(
+		regularHeld, bonusHeld := bookingHoldSplit(&booking)
+		if err := s.walletService.ReleaseFundsWithSplit(
 			booking.ClientID,
-			booking.PricePaid,
+			regularHeld,
+			bonusHeld,
 			booking.ID,
 			booking.Service.OwnerID,
 			"Оплата услуги: "+booking.Service.Title,
@@ -458,9 +515,11 @@ func (s *BookingService) MarkNoShow(bookingID, ownerID uint) (*models.ServiceBoo
 
 	// Release funds to provider on no-show (client penalty)
 	if booking.PricePaid > 0 {
-		if err := s.walletService.ReleaseFunds(
+		regularHeld, bonusHeld := bookingHoldSplit(&booking)
+		if err := s.walletService.ReleaseFundsWithSplit(
 			booking.ClientID,
-			booking.PricePaid,
+			regularHeld,
+			bonusHeld,
 			booking.ID,
 			booking.Service.OwnerID,
 			"Неявка клиента: "+booking.Service.Title,

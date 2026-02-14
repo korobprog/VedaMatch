@@ -201,8 +201,22 @@ export default function ServiceBookingScreen() {
 
     const canBook = selectedTariff && selectedDate && selectedTime;
 
+    const isVedaMatch = !!service?.isVedaMatch;
+    const maxBonusPercent = selectedTariff && isVedaMatch
+        ? Math.max(0, Math.min(100, selectedTariff.maxBonusLkmPercent ?? 0))
+        : 0;
+    const maxBonusByTariff = selectedTariff
+        ? Math.floor((selectedTariff.price * maxBonusPercent) / 100)
+        : 0;
+    const availableBonus = wallet?.bonusBalance ?? 0;
+    const bonusUsedForBooking = selectedTariff ? Math.min(availableBonus, maxBonusByTariff) : 0;
+    const regularNeededForBooking = selectedTariff ? selectedTariff.price - bonusUsedForBooking : 0;
+    const missingForBooking = selectedTariff && wallet
+        ? Math.max(0, regularNeededForBooking - wallet.balance)
+        : 0;
+
     const hasEnoughBalance = wallet && selectedTariff
-        ? wallet.balance >= selectedTariff.price
+        ? missingForBooking === 0
         : false;
 
     const handleBook = async () => {
@@ -213,7 +227,7 @@ export default function ServiceBookingScreen() {
             const currencyName = getCurrencyName(user?.language);
             Alert.alert(
                 `Недостаточно ${currencyName}`,
-                `Для бронирования нужно ${formatBalance(selectedTariff.price)}. Ваш баланс: ${formattedBalance}`,
+                `Для бронирования нужно ${formatBalance(selectedTariff.price)}. Ваш баланс: ${formattedBalance}. Не хватает: ${formatBalance(missingForBooking)}`,
                 [{ text: 'OK' }]
             );
             return;
@@ -430,7 +444,7 @@ export default function ServiceBookingScreen() {
                                 {!hasEnoughBalance && (
                                     <View style={styles.balanceAlert}>
                                         <Text style={styles.balanceAlertText}>
-                                            Недостаточно {getCurrencyName(user?.language)}. Не хватает {selectedTariff.price - (wallet?.balance || 0)} ₵
+                                            Недостаточно {getCurrencyName(user?.language)}. Не хватает {missingForBooking} ₵
                                         </Text>
                                     </View>
                                 )}

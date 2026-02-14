@@ -153,13 +153,14 @@ func (h *CafeHandler) CreateCafe(c *fiber.Ctx) error {
 			"error": "Unauthorized",
 		})
 	}
+	userRole := middleware.GetUserRole(c)
 
 	var req models.CafeCreateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	cafe, err := h.cafeService.CreateCafe(userID, req)
+	cafe, err := h.cafeService.CreateCafe(userID, userRole, req)
 	if err != nil {
 		log.Printf("[CafeHandler] Error creating cafe: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create cafe"})
@@ -253,6 +254,11 @@ func (h *CafeHandler) ListCafes(c *fiber.Ctx) error {
 	if c.Query("has_delivery") == "true" {
 		hasDelivery := true
 		filters.HasDelivery = &hasDelivery
+	}
+	if raw := strings.TrimSpace(c.Query("isVedaMatch")); raw != "" {
+		if parsed, err := strconv.ParseBool(raw); err == nil {
+			filters.IsVedaMatch = &parsed
+		}
 	}
 	cafes, err := h.cafeService.ListCafes(filters)
 	if err != nil {

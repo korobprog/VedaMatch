@@ -32,7 +32,7 @@ func isValidServiceStatus(status models.ServiceStatus) bool {
 }
 
 // Create creates a new service
-func (s *ServiceService) Create(ownerID uint, req models.ServiceCreateRequest) (*models.Service, error) {
+func (s *ServiceService) Create(ownerID uint, ownerRole string, req models.ServiceCreateRequest) (*models.Service, error) {
 	req.Title = strings.TrimSpace(req.Title)
 	req.Description = strings.TrimSpace(req.Description)
 	req.CoverImageURL = strings.TrimSpace(req.CoverImageURL)
@@ -46,6 +46,7 @@ func (s *ServiceService) Create(ownerID uint, req models.ServiceCreateRequest) (
 
 	service := models.Service{
 		OwnerID:        ownerID,
+		IsVedaMatch:    strings.EqualFold(ownerRole, models.RoleSuperadmin),
 		Title:          req.Title,
 		Description:    req.Description,
 		CoverImageURL:  req.CoverImageURL,
@@ -213,6 +214,9 @@ func (s *ServiceService) List(filters models.ServiceFilters) (*models.ServiceLis
 	}
 	if filters.AccessType != "" {
 		query = query.Where("access_type = ?", filters.AccessType)
+	}
+	if filters.IsVedaMatch != nil {
+		query = query.Where("is_veda_match = ?", *filters.IsVedaMatch)
 	}
 	if filters.Language != "" {
 		query = query.Where("language = ?", filters.Language)

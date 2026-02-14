@@ -26,6 +26,8 @@ type Cafe struct {
 	// Owner
 	OwnerID uint  `json:"ownerId" gorm:"not null;index"`
 	Owner   *User `json:"owner,omitempty" gorm:"foreignKey:OwnerID"`
+	// Managed by platform team (VedaMatch)
+	IsVedaMatch bool `json:"isVedaMatch" gorm:"default:false;index"`
 
 	// Basic Info
 	Name        string `json:"name" gorm:"type:varchar(200);not null"`
@@ -319,6 +321,7 @@ type CafeFilters struct {
 	City        string     `json:"city"`
 	Status      CafeStatus `json:"status"`
 	OwnerID     *uint      `json:"ownerId"`
+	IsVedaMatch *bool      `json:"isVedaMatch"`
 	Search      string     `json:"search"`
 	NearLat     *float64   `json:"nearLat"`
 	NearLng     *float64   `json:"nearLng"`

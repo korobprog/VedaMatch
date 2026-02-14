@@ -85,6 +85,8 @@ type Service struct {
 	// Owner (specialist)
 	OwnerID uint  `json:"ownerId" gorm:"not null;index"`
 	Owner   *User `json:"owner,omitempty" gorm:"foreignKey:OwnerID"`
+	// Managed by platform team (VedaMatch)
+	IsVedaMatch bool `json:"isVedaMatch" gorm:"default:false;index"`
 
 	// Basic Information
 	Title         string          `json:"title" gorm:"type:varchar(200);not null"`
@@ -177,6 +179,7 @@ type ServiceFilters struct {
 	ScheduleType ServiceScheduleType `json:"scheduleType"`
 	Channel      ServiceChannel      `json:"channel"`
 	AccessType   ServiceAccessType   `json:"accessType"`
+	IsVedaMatch  *bool               `json:"isVedaMatch"`
 	Language     string              `json:"language"`
 	Search       string              `json:"search"`
 	NearLat      *float64            `json:"nearLat"`

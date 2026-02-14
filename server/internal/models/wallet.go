@@ -35,9 +35,11 @@ type Wallet struct {
 	OrganizationID *uint `json:"organizationId" gorm:"index"`
 
 	// Balance in Лакшми
-	Balance        int `json:"balance" gorm:"default:0"`        // Active balance (can spend)
-	PendingBalance int `json:"pendingBalance" gorm:"default:0"` // Pending (locked until activation)
-	FrozenBalance  int `json:"frozenBalance" gorm:"default:0"`  // Frozen (held for bookings/charity)
+	Balance            int `json:"balance" gorm:"default:0"`            // Active regular balance (can spend everywhere)
+	BonusBalance       int `json:"bonusBalance" gorm:"default:0"`       // Active bonus balance (spend restrictions apply)
+	PendingBalance     int `json:"pendingBalance" gorm:"default:0"`     // Pending bonus (locked until activation)
+	FrozenBalance      int `json:"frozenBalance" gorm:"default:0"`      // Frozen regular (held for bookings/charity)
+	FrozenBonusBalance int `json:"frozenBonusBalance" gorm:"default:0"` // Frozen bonus (held for bookings)
 
 	// Statistics
 	TotalEarned int `json:"totalEarned" gorm:"default:0"` // Total credits received
@@ -84,8 +86,9 @@ type WalletTransaction struct {
 	Wallet   *Wallet `json:"wallet,omitempty" gorm:"foreignKey:WalletID"`
 
 	// Transaction details
-	Type   TransactionType `json:"type" gorm:"type:varchar(20);not null"`
-	Amount int             `json:"amount" gorm:"not null"` // Positive for credit, positive for debit (type determines direction)
+	Type        TransactionType `json:"type" gorm:"type:varchar(20);not null"`
+	Amount      int             `json:"amount" gorm:"not null"`                // Total amount
+	BonusAmount int             `json:"bonusAmount" gorm:"default:0;not null"` // Part of Amount paid from bonus balance
 
 	// Description
 	Description string `json:"description" gorm:"type:varchar(500)"`
@@ -112,15 +115,17 @@ type WalletTransaction struct {
 
 // WalletResponse for API response
 type WalletResponse struct {
-	ID             uint   `json:"id"`
-	UserID         uint   `json:"userId"`
-	Balance        int    `json:"balance"`
-	PendingBalance int    `json:"pendingBalance"`
-	FrozenBalance  int    `json:"frozenBalance"`
-	Currency       string `json:"currency"`
-	CurrencyName   string `json:"currencyName"`
-	TotalEarned    int    `json:"totalEarned"`
-	TotalSpent     int    `json:"totalSpent"`
+	ID                 uint   `json:"id"`
+	UserID             uint   `json:"userId"`
+	Balance            int    `json:"balance"`
+	BonusBalance       int    `json:"bonusBalance"`
+	PendingBalance     int    `json:"pendingBalance"`
+	FrozenBalance      int    `json:"frozenBalance"`
+	FrozenBonusBalance int    `json:"frozenBonusBalance"`
+	Currency           string `json:"currency"`
+	CurrencyName       string `json:"currencyName"`
+	TotalEarned        int    `json:"totalEarned"`
+	TotalSpent         int    `json:"totalSpent"`
 }
 
 // TransferRequest for transferring Лакшми between wallets
@@ -152,6 +157,8 @@ type TransactionListResponse struct {
 // WalletStatsResponse for wallet dashboard
 type WalletStatsResponse struct {
 	Balance      int `json:"balance"`
+	BonusBalance int `json:"bonusBalance"`
+	TotalBalance int `json:"totalBalance"`
 	TotalEarned  int `json:"totalEarned"`
 	TotalSpent   int `json:"totalSpent"`
 	ThisMonthIn  int `json:"thisMonthIn"`

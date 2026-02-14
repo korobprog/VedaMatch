@@ -52,6 +52,11 @@ func (h *ServiceHandler) List(c *fiber.Ctx) error {
 	if radius, err := strconv.ParseFloat(c.Query("radiusKm"), 64); err == nil {
 		filters.RadiusKm = &radius
 	}
+	if raw := c.Query("isVedaMatch"); raw != "" {
+		if parsed, err := strconv.ParseBool(raw); err == nil {
+			filters.IsVedaMatch = &parsed
+		}
+	}
 
 	result, err := h.serviceService.List(filters)
 	if err != nil {
@@ -90,6 +95,7 @@ func (h *ServiceHandler) Create(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	userRole := middleware.GetUserRole(c)
 
 	var req models.ServiceCreateRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -98,7 +104,7 @@ func (h *ServiceHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
-	service, err := h.serviceService.Create(userID, req)
+	service, err := h.serviceService.Create(userID, userRole, req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
