@@ -22,10 +22,13 @@ import {
     Gift,
     RefreshCw,
     Lock,
-    Unlock,
     Sparkles,
 } from 'lucide-react-native';
-import { TransactionType } from '../../services/walletService';
+import {
+    TransactionType,
+    getTransactionAmountParts,
+    getTransactionSign,
+} from '../../services/walletService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -36,6 +39,7 @@ interface ReceiptModalProps {
         id: number;
         type: TransactionType;
         amount: number;
+        bonusAmount?: number;
         description: string;
         createdAt: string;
         balanceAfter: number;
@@ -49,7 +53,7 @@ const TRANSACTION_ICONS: Record<TransactionType, React.ComponentType<any>> = {
     bonus: Gift,
     refund: RefreshCw,
     hold: Lock,
-    release: Unlock,
+    release: ArrowUpCircle,
     admin_charge: Sparkles,
     admin_seize: ArrowUpCircle,
 };
@@ -60,7 +64,7 @@ const TRANSACTION_COLORS: Record<TransactionType, string[]> = {
     bonus: ['#F59E0B', '#D97706'],
     refund: ['#3B82F6', '#2563EB'],
     hold: ['#6B7280', '#4B5563'],
-    release: ['#10B981', '#059669'],
+    release: ['#EF4444', '#DC2626'],
     admin_charge: ['#F59E0B', '#D97706'],
     admin_seize: ['#EF4444', '#DC2626'],
 };
@@ -71,7 +75,7 @@ const TRANSACTION_LABELS: Record<TransactionType, string> = {
     bonus: 'Бонус',
     refund: 'Возврат',
     hold: 'Заморозка',
-    release: 'Разморозка',
+    release: 'Списание из холда',
     admin_charge: 'Начисление',
     admin_seize: 'Списание',
 };
@@ -91,7 +95,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     const Icon = TRANSACTION_ICONS[transaction.type] || ArrowDownCircle;
     const colors = TRANSACTION_COLORS[transaction.type] || TRANSACTION_COLORS.credit;
     const label = TRANSACTION_LABELS[transaction.type] || 'Транзакция';
-    const isPositive = ['credit', 'bonus', 'refund', 'admin_charge', 'release'].includes(transaction.type);
+    const sign = getTransactionSign(transaction.type);
+    const { regularPart, bonusPart } = getTransactionAmountParts(transaction.amount, transaction.bonusAmount);
+    const signColor = sign === '+' ? '#10B981' : sign === '⎔' ? '#9CA3AF' : '#EF4444';
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -116,7 +122,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
             await Share.share({
                 url: Platform.OS === 'ios' ? uri : `file://${uri}`,
-                message: `${label}: ${isPositive ? '+' : '-'}${transaction.amount} ${currencyName}`,
+                message: `${label}: ${sign}${transaction.amount} ${currencyName}`,
             });
         } catch (error) {
             console.error('Share error:', error);
@@ -201,9 +207,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             <View style={styles.amountContainer}>
                                 <Text style={[
                                     styles.amountSign,
-                                    { color: isPositive ? '#10B981' : '#EF4444' }
+                                    { color: signColor }
                                 ]}>
-                                    {isPositive ? '+' : '-'}
+                                    {sign}
                                 </Text>
                                 <Text style={styles.amountValue}>
                                     {transaction.amount.toLocaleString('ru-RU')}
@@ -223,6 +229,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                     <Text style={styles.detailLabel}>Дата</Text>
                                     <Text style={styles.detailValue}>
                                         {formatDate(transaction.createdAt)}
+                                    </Text>
+                                </View>
+                                <View style={styles.detailRow}>
+                                    <Text style={styles.detailLabel}>Обычные</Text>
+                                    <Text style={styles.detailValue}>
+                                        {regularPart.toLocaleString('ru-RU')} {currencyName}
+                                    </Text>
+                                </View>
+                                <View style={styles.detailRow}>
+                                    <Text style={styles.detailLabel}>Бонусные</Text>
+                                    <Text style={styles.detailValue}>
+                                        {bonusPart.toLocaleString('ru-RU')} {currencyName}
                                     </Text>
                                 </View>
                                 <View style={styles.detailRow}>

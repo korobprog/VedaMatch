@@ -2,6 +2,22 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string }) => {
+      const dict: Record<string, string> = {
+        'videoCircles.title': 'Video Circles',
+        'videoCircles.myCircles': 'Мои',
+        'videoCircles.tariffs': 'Тарифы',
+      };
+      if (options?.defaultValue) {
+        return options.defaultValue;
+      }
+      return dict[key] ?? key;
+    },
+  }),
+}));
+
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
 const mockGetVideoCircles = jest.fn();
@@ -110,7 +126,7 @@ describe('VideoCirclesScreen', () => {
     expect(getByText('Moscow')).toBeTruthy();
     expect(getByText('gaudiya')).toBeTruthy();
     expect(getByText('kirtan')).toBeTruthy();
-    expect(getByText('Premium 30 LKM')).toBeTruthy();
+    expect(getByText('30 LKM')).toBeTruthy();
     expect(getByText('Мои')).toBeTruthy();
     expect(getByText('Тарифы')).toBeTruthy();
 
@@ -120,7 +136,7 @@ describe('VideoCirclesScreen', () => {
     fireEvent.press(getByText('Тарифы'));
     expect(mockNavigate).toHaveBeenCalledWith('VideoTariffsAdminScreen');
 
-    fireEvent.press(getByText('Premium 30 LKM'));
+    fireEvent.press(getByText('30 LKM'));
     await waitFor(() => {
       expect(mockBoostCircle).toHaveBeenCalledWith(101, 'premium');
     });

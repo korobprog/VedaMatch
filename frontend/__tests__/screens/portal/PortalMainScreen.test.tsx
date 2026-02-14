@@ -34,6 +34,12 @@ jest.mock('../../../context/SettingsContext', () => ({
   }),
 }));
 
+jest.mock('../../../context/ChatContext', () => ({
+  useChat: () => ({
+    handleNewChat: jest.fn(),
+  }),
+}));
+
 jest.mock('../../../components/portal', () => ({
   PortalGrid: () => null,
 }));
@@ -65,6 +71,7 @@ describe('PortalMainScreen', () => {
     );
 
     expect(getByText('Режим PRO: фильтры матхов')).toBeTruthy();
-    expect(getByText('Преданный')).toBeTruthy();
+    expect(getByText('Gauranga Math')).toBeTruthy();
+    expect(getByText('kirtan')).toBeTruthy();
   });
 });

@@ -5,20 +5,25 @@ import {
     StyleSheet,
     Modal,
     TouchableOpacity,
-    Dimensions
 } from 'react-native';
-import { X, Lock, CheckCircle2 } from 'lucide-react-native';
+import { Lock, CheckCircle2 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
 interface FrozenBalanceModalProps {
     visible: boolean;
     onClose: () => void;
-    amount: number;
+    regularAmount: number;
+    bonusAmount: number;
 }
 
-const { height } = Dimensions.get('window');
+export const FrozenBalanceModal: React.FC<FrozenBalanceModalProps> = ({
+    visible,
+    onClose,
+    regularAmount,
+    bonusAmount,
+}) => {
+    const totalAmount = regularAmount + bonusAmount;
 
-export const FrozenBalanceModal: React.FC<FrozenBalanceModalProps> = ({ visible, onClose, amount }) => {
     return (
         <Modal
             visible={visible}
@@ -39,10 +44,21 @@ export const FrozenBalanceModal: React.FC<FrozenBalanceModalProps> = ({ visible,
                         </View>
 
                         <Text style={styles.title}>Замороженный баланс</Text>
-                        <Text style={styles.bigAmount}>{amount} LKM</Text>
+                        <Text style={styles.bigAmount}>{totalAmount} LKM</Text>
+
+                        <View style={styles.amountSplitCard}>
+                            <View style={styles.amountSplitRow}>
+                                <Text style={styles.amountSplitLabel}>Основной</Text>
+                                <Text style={styles.amountSplitValue}>{regularAmount} LKM</Text>
+                            </View>
+                            <View style={styles.amountSplitRow}>
+                                <Text style={styles.amountSplitLabel}>Бонусный</Text>
+                                <Text style={styles.amountSplitValue}>{bonusAmount} LKM</Text>
+                            </View>
+                        </View>
 
                         <Text style={styles.description}>
-                            Эта сумма временно заблокирована под активные бронирования или услуги.
+                            Средства временно заблокированы под активные бронирования и операции ожидания.
                         </Text>
 
                         <View style={styles.scenarios}>
@@ -115,6 +131,31 @@ const styles = StyleSheet.create({
         color: '#EF4444',
         marginBottom: 12,
         fontFamily: 'Cinzel-Bold',
+    },
+    amountSplitCard: {
+        width: '100%',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        gap: 8,
+    },
+    amountSplitRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    amountSplitLabel: {
+        color: '#D1D5DB',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    amountSplitValue: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
     },
     description: {
         fontSize: 14,

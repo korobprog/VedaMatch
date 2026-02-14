@@ -24,6 +24,7 @@ func NewWalletService() *WalletService {
 type SpendOptions struct {
 	AllowBonus      bool
 	MaxBonusPercent int // 0..100
+	MaxBonusAmount  int // absolute cap in LKM; 0 means no absolute cap
 }
 
 // SpendAllocation stores split between regular and bonus balances.
@@ -45,6 +46,10 @@ func normalizeSpendOptions(opts SpendOptions) SpendOptions {
 	}
 	if !opts.AllowBonus {
 		opts.MaxBonusPercent = 0
+		opts.MaxBonusAmount = 0
+	}
+	if opts.MaxBonusAmount < 0 {
+		opts.MaxBonusAmount = 0
 	}
 	return opts
 }
@@ -69,6 +74,9 @@ func calculateSpendAllocation(amount, regularBalance, bonusBalance int, opts Spe
 	}
 
 	maxBonusByPercent := amount * opts.MaxBonusPercent / 100
+	if opts.MaxBonusAmount > 0 && opts.MaxBonusAmount < maxBonusByPercent {
+		maxBonusByPercent = opts.MaxBonusAmount
+	}
 	allocation.BonusAmount = minInt(bonusBalance, maxBonusByPercent)
 	allocation.RegularAmount = amount - allocation.BonusAmount
 
@@ -395,7 +403,16 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 
 // Refund refunds Лакшми to user's wallet
 func (s *WalletService) Refund(userID uint, amount int, description string, bookingID *uint) error {
-	if amount <= 0 {
+	return s.RefundWithSplit(userID, amount, 0, description, bookingID)
+}
+
+// RefundWithSplit refunds regular+bonus Лакшми to user's wallet.
+func (s *WalletService) RefundWithSplit(userID uint, regularAmount int, bonusAmount int, description string, bookingID *uint) error {
+	if regularAmount < 0 || bonusAmount < 0 {
+		return errors.New("amount must be non-negative")
+	}
+	totalAmount := regularAmount + bonusAmount
+	if totalAmount <= 0 {
 		return errors.New("amount must be positive")
 	}
 	description = strings.TrimSpace(description)
@@ -404,35 +421,42 @@ func (s *WalletService) Refund(userID uint, amount int, description string, book
 	}
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
-		wallet, err := s.getOrCreateWalletTx(tx, userID)
-		if err != nil {
-			return err
-		}
-
-		newBalance := wallet.Balance + amount
-		if err := tx.Model(wallet).Updates(map[string]interface{}{
-			"balance":     newBalance,
-			"total_spent": gorm.Expr("GREATEST(total_spent - ?, 0)", amount),
-		}).Error; err != nil {
-			return err
-		}
-
-		// Record refund transaction
-		refundTx := models.WalletTransaction{
-			WalletID:     wallet.ID,
-			Type:         models.TransactionTypeRefund,
-			Amount:       amount,
-			Description:  description,
-			BookingID:    bookingID,
-			BalanceAfter: newBalance,
-		}
-		if err := tx.Create(&refundTx).Error; err != nil {
-			return err
-		}
-
-		log.Printf("[Wallet] Refund: %d LKM to user %d", amount, userID)
-		return nil
+		return s.refundTxWithSplit(tx, userID, regularAmount, bonusAmount, description, bookingID)
 	})
+}
+
+func (s *WalletService) refundTxWithSplit(tx *gorm.DB, userID uint, regularAmount int, bonusAmount int, description string, bookingID *uint) error {
+	wallet, err := s.getOrCreateWalletTx(tx, userID)
+	if err != nil {
+		return err
+	}
+
+	totalAmount := regularAmount + bonusAmount
+	newBalance := wallet.Balance + regularAmount
+	newBonusBalance := wallet.BonusBalance + bonusAmount
+	if err := tx.Model(wallet).Updates(map[string]interface{}{
+		"balance":       newBalance,
+		"bonus_balance": newBonusBalance,
+		"total_spent":   gorm.Expr("GREATEST(total_spent - ?, 0)", totalAmount),
+	}).Error; err != nil {
+		return err
+	}
+
+	refundTx := models.WalletTransaction{
+		WalletID:     wallet.ID,
+		Type:         models.TransactionTypeRefund,
+		Amount:       totalAmount,
+		BonusAmount:  bonusAmount,
+		Description:  description,
+		BookingID:    bookingID,
+		BalanceAfter: newBalance,
+	}
+	if err := tx.Create(&refundTx).Error; err != nil {
+		return err
+	}
+
+	log.Printf("[Wallet] Refund: %d LKM to user %d (bonus=%d)", totalAmount, userID, bonusAmount)
+	return nil
 }
 
 // GetTransactions returns paginated transactions for a wallet
@@ -555,77 +579,29 @@ func (s *WalletService) SpendWithOptions(userID uint, amount int, dedupKey strin
 	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
-	opts = normalizeSpendOptions(opts)
 	dedupKey = strings.TrimSpace(dedupKey)
 	description = strings.TrimSpace(description)
 	if description == "" {
 		description = "Spend"
 	}
 
-	return database.DB.Transaction(func(tx *gorm.DB) error {
-		// Lock wallet for update
-		var wallet models.Wallet
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				if _, createErr := s.getOrCreateWalletTx(tx, userID); createErr != nil {
-					return createErr
-				}
-				if lockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-					Where("user_id = ?", userID).First(&wallet).Error; lockErr != nil {
-					return lockErr
-				}
-			} else {
-				return err
-			}
-		}
-
-		// Check for duplicate transaction (idempotency) scoped to this wallet.
-		if dedupKey != "" {
-			var existing models.WalletTransaction
-			if err := tx.Where("wallet_id = ? AND dedup_key = ?", wallet.ID, dedupKey).First(&existing).Error; err == nil {
-				log.Printf("[Wallet] Duplicate spend blocked: wallet=%d dedup=%s", wallet.ID, dedupKey)
-				return nil // Already processed, return success
-			} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-		}
-
-		allocation, allocErr := calculateSpendAllocation(amount, wallet.Balance, wallet.BonusBalance, opts)
-		if allocErr != nil {
-			return allocErr
-		}
-		if wallet.Balance < allocation.RegularAmount || wallet.BonusBalance < allocation.BonusAmount {
-			return errors.New("insufficient balance")
-		}
-
-		// Deduct balance
-		newBalance := wallet.Balance - allocation.RegularAmount
-		newBonusBalance := wallet.BonusBalance - allocation.BonusAmount
-		if err := tx.Model(&wallet).Updates(map[string]interface{}{
-			"balance":       newBalance,
-			"bonus_balance": newBonusBalance,
-			"total_spent":   wallet.TotalSpent + amount,
-		}).Error; err != nil {
+	opts = normalizeSpendOptions(opts)
+	processed := false
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		allocation, alreadyProcessed, err := s.spendTxWithOptions(tx, userID, amount, dedupKey, description, opts)
+		if err != nil {
 			return err
 		}
-
-		// Record transaction
-		spendTx := models.WalletTransaction{
-			WalletID:     wallet.ID,
-			Type:         models.TransactionTypeDebit,
-			Amount:       amount,
-			BonusAmount:  allocation.BonusAmount,
-			Description:  description,
-			DedupKey:     dedupKey,
-			BalanceAfter: newBalance,
+		processed = !alreadyProcessed
+		if processed {
+			log.Printf("[Wallet] Spend: %d LKM from user %d (bonus=%d, dedup=%s)", amount, userID, allocation.BonusAmount, dedupKey)
 		}
-		if err := tx.Create(&spendTx).Error; err != nil {
-			return err
-		}
+		return nil
+	}); err != nil {
+		return err
+	}
 
-		log.Printf("[Wallet] Spend: %d LKM from user %d (bonus=%d, dedup=%s)", amount, userID, allocation.BonusAmount, dedupKey)
-
+	if processed {
 		// Trigger referral activation asynchronously (if user was referred)
 		go func(uid uint) {
 			referralService := NewReferralService(s)
@@ -633,9 +609,70 @@ func (s *WalletService) SpendWithOptions(userID uint, amount int, dedupKey strin
 				log.Printf("[Wallet] Referral activation failed for user %d: %v", uid, err)
 			}
 		}(userID)
+	}
 
-		return nil
-	})
+	return nil
+}
+
+func (s *WalletService) spendTxWithOptions(tx *gorm.DB, userID uint, amount int, dedupKey string, description string, opts SpendOptions) (SpendAllocation, bool, error) {
+	var wallet models.Wallet
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if _, createErr := s.getOrCreateWalletTx(tx, userID); createErr != nil {
+				return SpendAllocation{}, false, createErr
+			}
+			if lockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("user_id = ?", userID).First(&wallet).Error; lockErr != nil {
+				return SpendAllocation{}, false, lockErr
+			}
+		} else {
+			return SpendAllocation{}, false, err
+		}
+	}
+
+	if dedupKey != "" {
+		var existing models.WalletTransaction
+		if err := tx.Where("wallet_id = ? AND dedup_key = ?", wallet.ID, dedupKey).First(&existing).Error; err == nil {
+			log.Printf("[Wallet] Duplicate spend blocked: wallet=%d dedup=%s", wallet.ID, dedupKey)
+			return SpendAllocation{TotalAmount: amount, BonusAmount: existing.BonusAmount, RegularAmount: amount - existing.BonusAmount}, true, nil
+		} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return SpendAllocation{}, false, err
+		}
+	}
+
+	allocation, allocErr := calculateSpendAllocation(amount, wallet.Balance, wallet.BonusBalance, opts)
+	if allocErr != nil {
+		return SpendAllocation{}, false, allocErr
+	}
+	if wallet.Balance < allocation.RegularAmount || wallet.BonusBalance < allocation.BonusAmount {
+		return SpendAllocation{}, false, errors.New("insufficient balance")
+	}
+
+	newBalance := wallet.Balance - allocation.RegularAmount
+	newBonusBalance := wallet.BonusBalance - allocation.BonusAmount
+	if err := tx.Model(&wallet).Updates(map[string]interface{}{
+		"balance":       newBalance,
+		"bonus_balance": newBonusBalance,
+		"total_spent":   wallet.TotalSpent + amount,
+	}).Error; err != nil {
+		return SpendAllocation{}, false, err
+	}
+
+	spendTx := models.WalletTransaction{
+		WalletID:     wallet.ID,
+		Type:         models.TransactionTypeDebit,
+		Amount:       amount,
+		BonusAmount:  allocation.BonusAmount,
+		Description:  description,
+		DedupKey:     dedupKey,
+		BalanceAfter: newBalance,
+	}
+	if err := tx.Create(&spendTx).Error; err != nil {
+		return SpendAllocation{}, false, err
+	}
+
+	return allocation, false, nil
 }
 
 // AdminCharge adds LKM to user's wallet (God Mode)

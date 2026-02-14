@@ -6,7 +6,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { marketService } from '../../../services/marketService';
-import { CartItem, DeliveryType, ProductVariant } from '../../../types/market';
+import { CartItem, DeliveryType, MarketPaymentMethod, ProductVariant } from '../../../types/market';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { getMediaUrl } from '../../../utils/url';
 import { useUser } from '../../../context/UserContext';
@@ -46,6 +46,7 @@ export const CheckoutScreen: React.FC = () => {
     const [buyerPhone, setBuyerPhone] = useState('');
     const [buyerEmail, setBuyerEmail] = useState('');
     const [buyerNote, setBuyerNote] = useState(route.params?.prefillBuyerNote || '');
+    const [paymentMethod, setPaymentMethod] = useState<MarketPaymentMethod>('external');
 
     useEffect(() => {
         // Load products details if not available
@@ -146,6 +147,7 @@ export const CheckoutScreen: React.FC = () => {
                     quantity: item.quantity,
                 })),
                 deliveryType,
+                paymentMethod,
                 deliveryAddress: deliveryAddress.trim(),
                 deliveryNote: deliveryNote.trim(),
                 buyerName: buyerName.trim(),
@@ -370,6 +372,46 @@ export const CheckoutScreen: React.FC = () => {
                         />
                     </View>
 
+                    {/* Payment Method */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>
+                            Payment Method
+                        </Text>
+                        <View style={styles.deliveryOptions}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.deliveryOption,
+                                    {
+                                        backgroundColor: paymentMethod === 'external' ? colors.accent : colors.surfaceElevated,
+                                        borderColor: paymentMethod === 'external' ? colors.accent : 'transparent'
+                                    }
+                                ]}
+                                onPress={() => setPaymentMethod('external')}
+                            >
+                                <Text style={{ fontSize: 24 }}>💳</Text>
+                                <Text style={[styles.deliveryLabel, { color: colors.textPrimary }]}>
+                                    External
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.deliveryOption,
+                                    {
+                                        backgroundColor: paymentMethod === 'lkm' ? colors.accent : colors.surfaceElevated,
+                                        borderColor: paymentMethod === 'lkm' ? colors.accent : 'transparent'
+                                    }
+                                ]}
+                                onPress={() => setPaymentMethod('lkm')}
+                            >
+                                <Text style={{ fontSize: 24 }}>🪙</Text>
+                                <Text style={[styles.deliveryLabel, { color: colors.textPrimary }]}>
+                                    LKM
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
                     {/* Order Summary */}
                     <View style={styles.summaryCard}>
                         <Text style={styles.sectionTitle}>
@@ -404,7 +446,9 @@ export const CheckoutScreen: React.FC = () => {
                     <View style={styles.infoCard}>
                         <Text style={{ fontSize: 20 }}>💬</Text>
                         <Text style={styles.infoText}>
-                            Payment and delivery details will be arranged with the seller via messenger after order confirmation.
+                            {paymentMethod === 'lkm'
+                                ? 'LKM will be charged immediately after order creation.'
+                                : 'Payment and delivery details will be arranged with the seller via messenger after order confirmation.'}
                         </Text>
                     </View>
 

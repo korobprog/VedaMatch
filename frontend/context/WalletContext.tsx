@@ -6,7 +6,6 @@ import {
     WalletResponse,
     getWalletBalance,
     formatBalance,
-    getCurrencyName,
 } from '../services/walletService';
 import { useUser } from './UserContext';
 
@@ -15,7 +14,10 @@ interface WalletContextType {
     loading: boolean;
     error: string | null;
     refreshWallet: () => Promise<void>;
-    formattedBalance: string;
+    regularBalance: number;
+    bonusBalance: number;
+    totalBalance: number;
+    formattedTotalBalance: string;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -60,14 +62,20 @@ export function WalletProvider({ children }: WalletProviderProps) {
         }
     }, [user, refreshWallet]);
 
-    const formattedBalance = wallet ? formatBalance(wallet.balance) : `0 ${getCurrencyName(user?.language)}`;
+    const regularBalance = wallet?.balance ?? 0;
+    const bonusBalance = wallet?.bonusBalance ?? 0;
+    const totalBalance = regularBalance + bonusBalance;
+    const formattedTotalBalance = formatBalance(totalBalance);
 
     const value: WalletContextType = {
         wallet,
         loading,
         error,
         refreshWallet,
-        formattedBalance,
+        regularBalance,
+        bonusBalance,
+        totalBalance,
+        formattedTotalBalance,
     };
 
     return (

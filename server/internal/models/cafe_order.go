@@ -71,10 +71,12 @@ type CafeOrder struct {
 	Total       float64 `json:"total" gorm:"type:decimal(12,2);not null"`
 	Currency    string  `json:"currency" gorm:"type:varchar(10);default:'RUB'"`
 
-	// Payment (on-site only for now)
-	PaymentMethod string     `json:"paymentMethod" gorm:"type:varchar(20)"` // cash, card_terminal
-	IsPaid        bool       `json:"isPaid" gorm:"default:false"`
-	PaidAt        *time.Time `json:"paidAt"`
+	// Payment
+	PaymentMethod  string     `json:"paymentMethod" gorm:"type:varchar(20)"` // cash, card_terminal, lkm
+	IsPaid         bool       `json:"isPaid" gorm:"default:false"`
+	PaidAt         *time.Time `json:"paidAt"`
+	RegularLkmPaid int        `json:"regularLkmPaid" gorm:"default:0"`
+	BonusLkmPaid   int        `json:"bonusLkmPaid" gorm:"default:0"`
 
 	// Notes
 	CustomerNote string `json:"customerNote" gorm:"type:text"` // Special requests
@@ -183,7 +185,7 @@ type CafeOrderCreateRequest struct {
 	DeliveryLng     *float64               `json:"deliveryLng"`
 	Items           []CafeOrderItemRequest `json:"items" binding:"required,min=1"`
 	CustomerNote    string                 `json:"customerNote"`
-	PaymentMethod   string                 `json:"paymentMethod"` // cash, card_terminal
+	PaymentMethod   string                 `json:"paymentMethod"` // cash, card_terminal, lkm
 }
 
 // CafeOrderUpdateRequest for staff to update order

@@ -14,13 +14,30 @@ interface BalancePillProps {
     lightMode?: boolean; // For dark backgrounds
 }
 
+function formatPillAmount(value: number, compact: boolean): string {
+    if (!compact) {
+        return value.toLocaleString('ru-RU');
+    }
+
+    const abs = Math.abs(value);
+    if (abs >= 1_000_000) {
+        const shortened = (value / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1);
+        return `${shortened.replace(/\.0$/, '')}M`;
+    }
+    if (abs >= 1_000) {
+        const shortened = (value / 1_000).toFixed(abs >= 10_000 ? 0 : 1);
+        return `${shortened.replace(/\.0$/, '')}K`;
+    }
+    return value.toLocaleString('ru-RU');
+}
+
 export const BalancePill: React.FC<BalancePillProps> = ({
     size = 'medium',
     showPending = false,
     lightMode = false,
 }) => {
     const navigation = useNavigation<any>();
-    const { wallet, loading } = useWallet();
+    const { wallet, loading, totalBalance, bonusBalance } = useWallet();
 
     const handlePress = () => {
         navigation.navigate('Wallet');
@@ -30,6 +47,9 @@ export const BalancePill: React.FC<BalancePillProps> = ({
     const textColor = lightMode ? '#FFFFFF' : '#FFB02E'; // Brighter gold for better visibility
     const bgColor = lightMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,176,46,0.12)';
     const borderColor = lightMode ? 'rgba(255,255,255,0.45)' : 'rgba(255,176,46,0.25)';
+    const pendingBalance = wallet?.pendingBalance ?? 0;
+    const totalText = formatPillAmount(totalBalance, isSmall);
+    const bonusText = formatPillAmount(bonusBalance, isSmall);
 
     return (
         <TouchableOpacity
@@ -59,11 +79,18 @@ export const BalancePill: React.FC<BalancePillProps> = ({
                         { color: textColor },
                         isSmall && styles.balanceTextSmall,
                     ]}>
-                        {wallet?.balance ?? 0}
+                        {totalText}
                     </Text>
+                    {bonusBalance > 0 && (
+                        <View style={[styles.bonusBadge, isSmall && styles.bonusBadgeSmall]}>
+                            <Text style={[styles.bonusBadgeText, isSmall && styles.bonusBadgeTextSmall]}>
+                                B: {bonusText}
+                            </Text>
+                        </View>
+                    )}
                     {showPending && (wallet?.pendingBalance ?? 0) > 0 && (
                         <Text style={[styles.pendingText, isSmall && styles.pendingTextSmall]}>
-                            +{wallet?.pendingBalance ?? 0}
+                            +{formatPillAmount(pendingBalance, isSmall)}
                         </Text>
                     )}
                 </View>
@@ -95,15 +122,37 @@ const styles = StyleSheet.create({
     balanceContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 2,
+        gap: 4,
+        flexShrink: 1,
     },
     balanceText: {
         fontSize: 15,
         fontWeight: '700',
         fontFamily: 'Cinzel-Bold',
+        flexShrink: 1,
     },
     balanceTextSmall: {
         fontSize: 13,
+    },
+    bonusBadge: {
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+    },
+    bonusBadgeSmall: {
+        paddingHorizontal: 4,
+        borderRadius: 8,
+    },
+    bonusBadgeText: {
+        fontSize: 9,
+        fontWeight: '700',
+        color: '#10B981',
+    },
+    bonusBadgeTextSmall: {
+        fontSize: 8,
     },
     pendingText: {
         fontSize: 10,

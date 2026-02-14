@@ -64,7 +64,7 @@ export default function ServiceBookingScreen() {
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
-    const { wallet, refreshWallet, formattedBalance } = useWallet();
+    const { wallet, refreshWallet, formattedTotalBalance } = useWallet();
 
     const serviceId = route.params?.serviceId;
     const source = route.params?.source;
@@ -227,7 +227,7 @@ export default function ServiceBookingScreen() {
             const currencyName = getCurrencyName(user?.language);
             Alert.alert(
                 `Недостаточно ${currencyName}`,
-                `Для бронирования нужно ${formatBalance(selectedTariff.price)}. Ваш баланс: ${formattedBalance}. Не хватает: ${formatBalance(missingForBooking)}`,
+                `Для бронирования нужно ${formatBalance(selectedTariff.price)}. Ваш баланс: ${formattedTotalBalance}. Не хватает: ${formatBalance(missingForBooking)}`,
                 [{ text: 'OK' }]
             );
             return;

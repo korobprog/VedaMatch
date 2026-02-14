@@ -52,6 +52,13 @@ type Order struct {
 	Total      float64 `json:"total" gorm:"type:decimal(12,2);not null"`
 	Currency   string  `json:"currency" gorm:"type:varchar(10);default:'RUB'"`
 
+	// Payment
+	PaymentMethod  string     `json:"paymentMethod" gorm:"type:varchar(20);default:'external'"` // external, lkm
+	IsPaid         bool       `json:"isPaid" gorm:"default:false"`
+	PaidAt         *time.Time `json:"paidAt"`
+	RegularLkmPaid int        `json:"regularLkmPaid" gorm:"default:0"`
+	BonusLkmPaid   int        `json:"bonusLkmPaid" gorm:"default:0"`
+
 	// Delivery
 	DeliveryType    DeliveryType `json:"deliveryType" gorm:"type:varchar(20);not null"`
 	DeliveryAddress string       `json:"deliveryAddress" gorm:"type:text"`
@@ -126,6 +133,7 @@ type OrderCreateRequest struct {
 	ShopID          uint         `json:"shopId" binding:"required"`
 	Items           []CartItem   `json:"items" binding:"required,min=1"`
 	DeliveryType    DeliveryType `json:"deliveryType" binding:"required"`
+	PaymentMethod   string       `json:"paymentMethod"` // external, lkm
 	DeliveryAddress string       `json:"deliveryAddress"`
 	DeliveryNote    string       `json:"deliveryNote"`
 	BuyerName       string       `json:"buyerName" binding:"required"`

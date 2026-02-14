@@ -60,6 +60,9 @@ jest.mock('react-native-linear-gradient', () => 'LinearGradient');
 jest.mock('../../../../components/ProtectedScreen', () => ({
   ProtectedScreen: ({ children }: any) => children,
 }));
+jest.mock('../../../../components/wallet/BalancePill', () => ({
+  BalancePill: () => null,
+}));
 
 describe('DatingScreen', () => {
   beforeEach(() => {

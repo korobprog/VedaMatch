@@ -114,7 +114,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const triggerTapFeedback = usePressFeedback();
     const { refreshLocationData } = useLocation();
-    const { wallet, loading: walletLoading } = useWallet();
+    const { wallet, loading: walletLoading, totalBalance, bonusBalance } = useWallet();
     const [mediaActionInProgress, setMediaActionInProgress] = useState(false);
     const [portalBackgroundBusy, setPortalBackgroundBusy] = useState(false);
     const [locationActionInProgress, setLocationActionInProgress] = useState(false);
@@ -413,17 +413,24 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             </View>
                             <View style={styles.walletInfo}>
                                 <Text style={[styles.walletLabel, { color: vTheme.colors.textSecondary }]}>
-                                    Доступно
+                                    Итого доступно
                                 </Text>
                                 <View style={styles.walletBalanceRow}>
                                     <Text style={styles.walletBalance}>
-                                        {walletLoading ? '...' : (wallet?.balance ?? 0)}
+                                        {walletLoading ? '...' : totalBalance.toLocaleString('ru-RU')}
                                     </Text>
                                     <Text style={styles.walletCurrency}>LKM</Text>
+                                    {!walletLoading && bonusBalance > 0 && (
+                                        <View style={styles.walletBonusBadge}>
+                                            <Text style={styles.walletBonusText}>
+                                                B: {bonusBalance.toLocaleString('ru-RU')}
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
                                 {(wallet?.pendingBalance ?? 0) > 0 && (
                                     <Text style={styles.walletPending}>
-                                        +{wallet?.pendingBalance} в ожидании
+                                        +{wallet?.pendingBalance.toLocaleString('ru-RU')} в ожидании
                                     </Text>
                                 )}
                             </View>
@@ -1192,6 +1199,19 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#F59E0B',
+    },
+    walletBonusBadge: {
+        backgroundColor: 'rgba(16,185,129,0.12)',
+        borderColor: 'rgba(16,185,129,0.35)',
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+    },
+    walletBonusText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#10B981',
     },
     walletPending: {
         fontSize: 12,

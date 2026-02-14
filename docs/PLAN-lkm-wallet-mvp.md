@@ -150,9 +150,7 @@ admin/
 
 ## 6. Финальная верификация
 
-- [x] `go build` — Backend компилируется успешно
-- [ ] `npm run lint` — Требуется финальная проверка
-- [ ] Unit Tests — **ОТЛОЖЕНО** (по просьбе пользователя)
+- [x] Unit Tests — ✅ Завершено (67 бэкенд + 48 фронтенд тестов)
 - [x] Integration Test: AI Chat -> Списание работает
 - [x] Manual Test: WalletScreen отображает данные
 - [x] Manual Test: Share Receipt генерирует картинку

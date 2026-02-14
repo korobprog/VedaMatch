@@ -23,7 +23,8 @@ import {
     History as HistoryIcon,
     Wallet as WalletIcon,
     TrendingUp,
-    MoreHorizontal
+    MoreHorizontal,
+    Info,
 } from 'lucide-react-native';
 import { useWallet } from '../../context/WalletContext';
 import {
@@ -35,20 +36,20 @@ import {
     TRANSACTION_TYPE_COLORS,
     formatTransactionAmount,
     formatTransactionDate,
-    getCurrencyName,
-    CURRENCY_CODE,
     getTransactionSign,
+    getTransactionAmountParts,
+    isBonusTransaction,
 } from '../../services/walletService';
-import { useUser } from '../../context/UserContext';
 import ReceiptModal from '../../components/wallet/ReceiptModal';
 import { WalletInfoModal } from '../../components/wallet/WalletInfoModal';
 import { FrozenBalanceModal } from '../../components/wallet/FrozenBalanceModal';
-import { Info } from 'lucide-react-native';
+
+type WalletTab = 'regular' | 'bonus';
+type HistoryFilter = 'all' | 'bonus';
 
 export default function WalletScreen() {
     const navigation = useNavigation<any>();
-    const { user } = useUser();
-    const { wallet, refreshWallet } = useWallet();
+    const { wallet, refreshWallet, totalBalance } = useWallet();
 
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [stats, setStats] = useState<WalletStatsResponse | null>(null);
@@ -57,6 +58,8 @@ export default function WalletScreen() {
     const [selectedReceipt, setSelectedReceipt] = useState<WalletTransaction | null>(null);
     const [showInfo, setShowInfo] = useState(false);
     const [showFrozen, setShowFrozen] = useState(false);
+    const [walletTab, setWalletTab] = useState<WalletTab>('regular');
+    const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
     const isMountedRef = useRef(true);
     const latestLoadRequestRef = useRef(0);
     const refreshInProgressRef = useRef(false);
@@ -130,9 +133,14 @@ export default function WalletScreen() {
         }
     }, [refreshWallet, loadData]);
 
+    const filteredTransactions = historyFilter === 'bonus'
+        ? transactions.filter((tx) => isBonusTransaction(tx))
+        : transactions;
+
     const renderTransaction = (item: WalletTransaction) => {
         const sign = getTransactionSign(item.type);
         const color = TRANSACTION_TYPE_COLORS[item.type];
+        const { regularPart, bonusPart } = getTransactionAmountParts(item.amount, item.bonusAmount);
 
         return (
             <TouchableOpacity
@@ -144,6 +152,8 @@ export default function WalletScreen() {
                 <View style={[styles.transactionIcon, { backgroundColor: `${color}15` }]}>
                     {sign === '+' ? (
                         <ArrowDown size={18} color={color} />
+                    ) : sign === '⎔' ? (
+                        <MoreHorizontal size={18} color={color} />
                     ) : (
                         <ArrowUp size={18} color={color} />
                     )}
@@ -155,12 +165,16 @@ export default function WalletScreen() {
                     <Text style={styles.transactionDate}>
                         {formatTransactionDate(item.createdAt)}
                     </Text>
+                    {bonusPart > 0 && (
+                        <Text style={styles.transactionSplit}>
+                            Обычные: {regularPart.toLocaleString('ru-RU')} | Бонусные: {bonusPart.toLocaleString('ru-RU')}
+                        </Text>
+                    )}
                 </View>
                 <View style={styles.transactionAmountContainer}>
                     <Text style={[styles.transactionAmount, { color }]}>
                         {formatTransactionAmount(item.type, item.amount)}
                     </Text>
-                    <Text style={styles.transactionCurrency}>{CURRENCY_CODE}</Text>
                 </View>
             </TouchableOpacity>
         );
@@ -207,6 +221,43 @@ export default function WalletScreen() {
                     >
                         {/* Immersive Balance Section */}
                         <View style={styles.balanceSection}>
+                            <View style={styles.accountTabs}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.accountTabButton,
+                                        walletTab === 'regular' && styles.accountTabButtonActive,
+                                    ]}
+                                    activeOpacity={0.85}
+                                    onPress={() => setWalletTab('regular')}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.accountTabText,
+                                            walletTab === 'regular' && styles.accountTabTextActive,
+                                        ]}
+                                    >
+                                        Основной
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.accountTabButton,
+                                        walletTab === 'bonus' && styles.accountTabButtonActive,
+                                    ]}
+                                    activeOpacity={0.85}
+                                    onPress={() => setWalletTab('bonus')}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.accountTabText,
+                                            walletTab === 'bonus' && styles.accountTabTextActive,
+                                        ]}
+                                    >
+                                        Бонусный
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
                             <LinearGradient
                                 colors={['#F59E0B', '#D97706']}
                                 start={{ x: 0, y: 0 }}
@@ -220,11 +271,13 @@ export default function WalletScreen() {
                                 <View style={styles.balanceTop}>
                                     <View style={styles.balanceLabelRow}>
                                         <WalletIcon size={14} color="rgba(26,26,46,0.6)" />
-                                        <Text style={styles.balanceLabel}>{getCurrencyName(user?.language)}</Text>
+                                        <Text style={styles.balanceLabel}>
+                                            {walletTab === 'regular' ? 'Основной счёт' : 'Бонусный счёт'}
+                                        </Text>
                                     </View>
-                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <View style={styles.balanceTopActions}>
                                         <View style={styles.currencyBadge}>
-                                            <Text style={styles.currencyBadgeText}>{CURRENCY_CODE}</Text>
+                                            <Text style={styles.currencyBadgeText}>LKM</Text>
                                         </View>
                                         <TouchableOpacity
                                             style={styles.infoButton}
@@ -235,28 +288,65 @@ export default function WalletScreen() {
                                         </TouchableOpacity>
                                     </View>
                                 </View>
-                                <View style={styles.balanceValueContainer}>
-                                    <Text style={styles.balanceValue}>
-                                        {wallet?.balance.toLocaleString('ru-RU') || 0}
-                                    </Text>
-                                    {/* Pending Balance - locked until activation */}
-                                    {(wallet?.pendingBalance ?? 0) > 0 && (
-                                        <View style={styles.pendingBalanceRow}>
-                                            <Text style={styles.pendingLabel}>+ {wallet?.pendingBalance.toLocaleString('ru-RU')} заблокировано</Text>
+
+                                {walletTab === 'regular' ? (
+                                    <View style={styles.balanceValueContainer}>
+                                        <Text style={styles.balanceValue}>
+                                            {(wallet?.balance ?? 0).toLocaleString('ru-RU')}
+                                        </Text>
+
+                                        <View style={styles.totalAvailableRow}>
+                                            <Text style={styles.totalAvailableLabel}>Итого доступно</Text>
+                                            <Text style={styles.totalAvailableValue}>{totalBalance.toLocaleString('ru-RU')} LKM</Text>
                                         </View>
-                                    )}
-                                    {/* Frozen Balance - held for bookings */}
-                                    {(wallet?.frozenBalance ?? 0) > 0 && (
-                                        <TouchableOpacity
-                                            style={styles.frozenBalanceRow}
-                                            onPress={() => setShowFrozen(true)}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Text style={styles.frozenLabel}>🔒 {wallet?.frozenBalance.toLocaleString('ru-RU')} в ожидании</Text>
-                                            <Info size={12} color="#EF4444" style={{ marginLeft: 6, opacity: 0.7 }} />
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
+
+                                        {(wallet?.frozenBalance ?? 0) > 0 && (
+                                            <TouchableOpacity
+                                                style={styles.frozenBalanceRow}
+                                                onPress={() => setShowFrozen(true)}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={styles.frozenLabel}>
+                                                    🔒 Основной заморожено: {(wallet?.frozenBalance ?? 0).toLocaleString('ru-RU')}
+                                                </Text>
+                                                <Info size={12} color="#EF4444" style={{ marginLeft: 6, opacity: 0.7 }} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ) : (
+                                    <View style={styles.balanceValueContainer}>
+                                        <Text style={styles.balanceValue}>
+                                            {(wallet?.bonusBalance ?? 0).toLocaleString('ru-RU')}
+                                        </Text>
+
+                                        {(wallet?.pendingBalance ?? 0) > 0 && (
+                                            <View style={styles.pendingBalanceRow}>
+                                                <Text style={styles.pendingLabel}>
+                                                    + {(wallet?.pendingBalance ?? 0).toLocaleString('ru-RU')} ожидают активации
+                                                </Text>
+                                            </View>
+                                        )}
+
+                                        {(wallet?.frozenBonusBalance ?? 0) > 0 && (
+                                            <TouchableOpacity
+                                                style={styles.frozenBalanceRow}
+                                                onPress={() => setShowFrozen(true)}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={styles.frozenLabel}>
+                                                    🔒 Бонусный заморожено: {(wallet?.frozenBonusBalance ?? 0).toLocaleString('ru-RU')}
+                                                </Text>
+                                                <Info size={12} color="#EF4444" style={{ marginLeft: 6, opacity: 0.7 }} />
+                                            </TouchableOpacity>
+                                        )}
+
+                                        <View style={styles.bonusInfoBox}>
+                                            <Text style={styles.bonusInfoText}>
+                                                Бонусы можно тратить только на сервисы VedaMatch и в рамках лимитов, заданных сервисом.
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
 
                                 <View style={styles.balanceFooter}>
                                     <View style={styles.balanceStatRow}>
@@ -328,16 +418,57 @@ export default function WalletScreen() {
                                 </View>
                             </View>
 
-                            {transactions.length === 0 ? (
+                            <View style={styles.historyFilterRow}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.historyFilterButton,
+                                        historyFilter === 'all' && styles.historyFilterButtonActive,
+                                    ]}
+                                    onPress={() => setHistoryFilter('all')}
+                                    activeOpacity={0.85}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.historyFilterText,
+                                            historyFilter === 'all' && styles.historyFilterTextActive,
+                                        ]}
+                                    >
+                                        Все
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.historyFilterButton,
+                                        historyFilter === 'bonus' && styles.historyFilterButtonActive,
+                                    ]}
+                                    onPress={() => setHistoryFilter('bonus')}
+                                    activeOpacity={0.85}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.historyFilterText,
+                                            historyFilter === 'bonus' && styles.historyFilterTextActive,
+                                        ]}
+                                    >
+                                        Бонусные
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {filteredTransactions.length === 0 ? (
                                 <View style={styles.emptyHistory}>
                                     <View style={styles.emptyIconCircle}>
                                         <HistoryIcon size={32} color="rgba(245, 158, 11, 0.2)" />
                                     </View>
-                                    <Text style={styles.emptyText}>У вас пока нет транзакций</Text>
+                                    <Text style={styles.emptyText}>
+                                        {historyFilter === 'bonus'
+                                            ? 'Бонусных операций пока нет'
+                                            : 'У вас пока нет транзакций'}
+                                    </Text>
                                 </View>
                             ) : (
                                 <View style={styles.historyList}>
-                                    {transactions.map((tx) => renderTransaction(tx))}
+                                    {filteredTransactions.map((tx) => renderTransaction(tx))}
                                 </View>
                             )}
                         </View>
@@ -359,7 +490,8 @@ export default function WalletScreen() {
 
                 <FrozenBalanceModal
                     visible={showFrozen}
-                    amount={wallet?.frozenBalance ?? 0}
+                    regularAmount={wallet?.frozenBalance ?? 0}
+                    bonusAmount={wallet?.frozenBonusBalance ?? 0}
                     onClose={() => setShowFrozen(false)}
                 />
             </SafeAreaView>
@@ -431,6 +563,32 @@ const styles = StyleSheet.create({
     balanceSection: {
         marginBottom: 32,
     },
+    accountTabs: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 12,
+    },
+    accountTabButton: {
+        flex: 1,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        borderRadius: 14,
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    accountTabButtonActive: {
+        backgroundColor: 'rgba(245, 158, 11, 0.16)',
+        borderColor: 'rgba(245, 158, 11, 0.35)',
+    },
+    accountTabText: {
+        color: 'rgba(255,255,255,0.65)',
+        fontWeight: '700',
+        fontSize: 13,
+    },
+    accountTabTextActive: {
+        color: '#FDE68A',
+    },
     balanceCard: {
         width: '100%',
         borderRadius: 32,
@@ -467,6 +625,10 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
+    balanceTopActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
     currencyBadge: {
         backgroundColor: 'rgba(26, 26, 46, 0.1)',
         paddingHorizontal: 8,
@@ -486,6 +648,39 @@ const styles = StyleSheet.create({
         fontSize: 48,
         fontWeight: '900',
         letterSpacing: -1,
+    },
+    totalAvailableRow: {
+        marginTop: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(26, 26, 46, 0.1)',
+        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    totalAvailableLabel: {
+        color: 'rgba(26, 26, 46, 0.65)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    totalAvailableValue: {
+        color: '#1a1a2e',
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    bonusInfoBox: {
+        marginTop: 8,
+        borderRadius: 12,
+        backgroundColor: 'rgba(26, 26, 46, 0.1)',
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+    },
+    bonusInfoText: {
+        color: 'rgba(26, 26, 46, 0.72)',
+        fontSize: 11,
+        fontWeight: '600',
+        lineHeight: 16,
     },
     balanceFooter: {
         flexDirection: 'row',
@@ -587,6 +782,31 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         fontFamily: 'Cinzel-Bold',
     },
+    historyFilterRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 8,
+    },
+    historyFilterButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+    },
+    historyFilterButtonActive: {
+        borderColor: 'rgba(245, 158, 11, 0.45)',
+        backgroundColor: 'rgba(245, 158, 11, 0.18)',
+    },
+    historyFilterText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    historyFilterTextActive: {
+        color: '#FDE68A',
+    },
     historyList: {
         marginTop: 4,
     },
@@ -622,18 +842,18 @@ const styles = StyleSheet.create({
         marginTop: 2,
         fontWeight: '500',
     },
+    transactionSplit: {
+        color: 'rgba(255, 255, 255, 0.55)',
+        fontSize: 11,
+        marginTop: 6,
+        fontWeight: '600',
+    },
     transactionAmountContainer: {
         alignItems: 'flex-end',
     },
     transactionAmount: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '800',
-    },
-    transactionCurrency: {
-        color: 'rgba(255, 255, 255, 0.3)',
-        fontSize: 10,
-        fontWeight: '700',
-        marginTop: 2,
     },
     emptyHistory: {
         alignItems: 'center',
@@ -665,7 +885,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         backgroundColor: 'rgba(255,255,255,0.1)',
     },
-    // Pending & Frozen Balance styles
     pendingBalanceRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -684,7 +903,7 @@ const styles = StyleSheet.create({
     frozenBalanceRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 4,
+        marginTop: 8,
         backgroundColor: 'rgba(33, 150, 243, 0.15)',
         paddingHorizontal: 10,
         paddingVertical: 4,

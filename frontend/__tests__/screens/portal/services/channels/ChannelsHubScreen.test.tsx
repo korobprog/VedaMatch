@@ -57,6 +57,14 @@ jest.mock('../../../../../services/channelService', () => ({
   },
 }));
 
+jest.mock('../../../../../components/portal/AssistantChatButton', () => ({
+  AssistantChatButton: () => null,
+}));
+
+jest.mock('../../../../../components/wallet/BalancePill', () => ({
+  BalancePill: () => null,
+}));
+
 const ChannelsHubScreen = require('../../../../../screens/portal/services/channels/ChannelsHubScreen').default;
 
 const readFeedOrder = (nodes: ReturnType<typeof render>['UNSAFE_getAllByType']) => {

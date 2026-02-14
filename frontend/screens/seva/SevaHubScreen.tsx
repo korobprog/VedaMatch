@@ -14,7 +14,7 @@ import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeSta
 
 const SevaHubScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const { wallet, refreshWallet } = useWallet();
+    const { wallet, refreshWallet, totalBalance, bonusBalance } = useWallet();
     const [projects, setProjects] = useState<CharityProject[]>([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -25,6 +25,7 @@ const SevaHubScreen: React.FC = () => {
     const [selectedProject, setSelectedProject] = useState<CharityProject | null>(null);
 
     const userBalance = wallet?.balance || 0;
+    const regularBalance = wallet?.balance ?? 0;
 
     useEffect(() => {
         loadData();
@@ -195,7 +196,15 @@ const SevaHubScreen: React.FC = () => {
 
                     <View style={styles.balanceRow}>
                         <WalletIcon color="#FFD700" size={18} style={{ marginRight: 6 }} />
-                        <Text style={styles.balanceText}>{userBalance.toLocaleString()} LKM</Text>
+                        <Text style={styles.balanceText}>Итого: {totalBalance.toLocaleString()} LKM</Text>
+                    </View>
+                    <View style={styles.balanceSplitRow}>
+                        <View style={styles.balanceSplitBadge}>
+                            <Text style={styles.balanceSplitText}>Основной: {regularBalance.toLocaleString()}</Text>
+                        </View>
+                        <View style={[styles.balanceSplitBadge, styles.balanceBonusBadge]}>
+                            <Text style={[styles.balanceSplitText, styles.balanceBonusText]}>Бонусный: {bonusBalance.toLocaleString()}</Text>
+                        </View>
                     </View>
 
                     <Text style={styles.headerTitle}>Seva Marketplace</Text>
@@ -280,12 +289,38 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 8,
+        marginBottom: 6,
     },
     balanceText: {
         color: '#FFD700',
         fontWeight: 'bold',
-        fontSize: 16,
+        fontSize: 15,
+    },
+    balanceSplitRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    balanceSplitBadge: {
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    balanceBonusBadge: {
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+        borderColor: 'rgba(16, 185, 129, 0.35)',
+    },
+    balanceSplitText: {
+        color: '#E5E7EB',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    balanceBonusText: {
+        color: '#86EFAC',
     },
     headerTitle: {
         fontSize: 28,

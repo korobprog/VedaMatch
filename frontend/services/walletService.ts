@@ -28,6 +28,7 @@ export interface WalletTransaction {
     walletId: number;
     type: TransactionType;
     amount: number;
+    bonusAmount?: number;
     description: string;
     bookingId?: number;
     relatedWalletId?: number;
@@ -84,7 +85,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
     bonus: 'Бонус',
     refund: 'Возврат',
     hold: 'Заморозка',
-    release: 'Разморозка',
+    release: 'Списание из холда',
     admin_charge: 'Начисление (Админ)',
     admin_seize: 'Списание (Админ)',
 };
@@ -95,7 +96,7 @@ export const TRANSACTION_TYPE_COLORS: Record<TransactionType, string> = {
     bonus: '#FF9800',        // Orange (Amber)
     refund: '#2196F3',       // Blue
     hold: '#9E9E9E',         // Gray
-    release: '#4CAF50',      // Green
+    release: '#F44336',      // Red
     admin_charge: '#FFD700', // Gold
     admin_seize: '#FF5722',  // Deep Orange
 };
@@ -187,11 +188,32 @@ export function formatBalanceWithSymbol(amount: number): string {
     return `${amount.toLocaleString('ru-RU')} ${CURRENCY_SYMBOL}`;
 }
 
+export interface TransactionAmountParts {
+    regularPart: number;
+    bonusPart: number;
+}
+
+/**
+ * Split transaction amount into regular and bonus parts.
+ */
+export function getTransactionAmountParts(amount: number, bonusAmount?: number): TransactionAmountParts {
+    const bonusPart = Math.max(0, bonusAmount ?? 0);
+    const regularPart = Math.max(0, amount - bonusPart);
+    return { regularPart, bonusPart };
+}
+
+/**
+ * Bonus transaction definition for history filtering.
+ */
+export function isBonusTransaction(transaction: Pick<WalletTransaction, 'type' | 'bonusAmount'>): boolean {
+    return (transaction.bonusAmount ?? 0) > 0 || transaction.type === 'bonus';
+}
+
 /**
  * Get transaction sign (+/-)
  */
 export function getTransactionSign(type: TransactionType): '+' | '-' | '⎔' {
-    if (type === 'credit' || type === 'bonus' || type === 'refund' || type === 'admin_charge' || type === 'release') {
+    if (type === 'credit' || type === 'bonus' || type === 'refund' || type === 'admin_charge') {
         return '+';
     }
     if (type === 'hold') {

@@ -47,6 +47,7 @@ export type OrderStatus =
     | 'dispute';
 
 export type DeliveryType = 'pickup' | 'delivery' | 'digital';
+export type MarketPaymentMethod = 'external' | 'lkm';
 
 // Shop interfaces
 export interface ShopOwnerInfo {
@@ -291,6 +292,11 @@ export interface Order {
     subtotal: number;
     total: number;
     currency: string;
+    paymentMethod: MarketPaymentMethod | string;
+    isPaid: boolean;
+    paidAt?: string | null;
+    regularLkmPaid?: number;
+    bonusLkmPaid?: number;
     deliveryType: DeliveryType;
     deliveryAddress: string;
     deliveryNote: string;
@@ -326,6 +332,7 @@ export interface OrderCreateData {
     shopId: number;
     items: CartItem[];
     deliveryType: DeliveryType;
+    paymentMethod?: MarketPaymentMethod;
     deliveryAddress?: string;
     deliveryNote?: string;
     buyerName: string;

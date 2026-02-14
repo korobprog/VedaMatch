@@ -11,17 +11,20 @@ import (
 	"rag-agent-server/internal/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // OrderService handles order-related business logic
 type OrderService struct {
 	productService *ProductService
+	walletService  *WalletService
 }
 
 // NewOrderService creates a new OrderService
 func NewOrderService() *OrderService {
 	return &OrderService{
 		productService: NewProductService(),
+		walletService:  NewWalletService(),
 	}
 }
 
@@ -33,10 +36,48 @@ var (
 	ErrInvalidOrderStatus = errors.New("invalid order status transition")
 )
 
+func normalizeMarketPaymentMethod(method string) string {
+	method = strings.ToLower(strings.TrimSpace(method))
+	if method == "" {
+		return "external"
+	}
+	return method
+}
+
+func isValidMarketPaymentMethod(method string) bool {
+	switch method {
+	case "external", "lkm":
+		return true
+	default:
+		return false
+	}
+}
+
+func clampBonusPercent(percent int) int {
+	if percent < 0 {
+		return 0
+	}
+	if percent > 100 {
+		return 100
+	}
+	return percent
+}
+
+func moneyToLKM(amount float64) int {
+	if amount <= 0 {
+		return 0
+	}
+	return int(math.Round(amount))
+}
+
 // CreateOrder creates a new order from cart items
 func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) (*models.Order, error) {
 	if len(req.Items) == 0 {
 		return nil, ErrEmptyCart
+	}
+	req.PaymentMethod = normalizeMarketPaymentMethod(req.PaymentMethod)
+	if !isValidMarketPaymentMethod(req.PaymentMethod) {
+		return nil, errors.New("invalid payment method")
 	}
 
 	// Get shop info
@@ -54,6 +95,7 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 	// Process items and calculate totals
 	var orderItems []models.OrderItem
 	var subtotal float64
+	bonusCapLKM := 0
 
 	for _, cartItem := range req.Items {
 		product, err := s.productService.GetProduct(cartItem.ProductID)
@@ -133,6 +175,10 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 
 		itemTotal := unitPrice * float64(cartItem.Quantity)
 		subtotal += itemTotal
+		if shop.IsVedaMatch {
+			itemTotalLKM := moneyToLKM(itemTotal)
+			bonusCapLKM += itemTotalLKM * clampBonusPercent(product.MaxBonusLkmPercent) / 100
+		}
 
 		orderItem := models.OrderItem{
 			ProductID:   product.ID,
@@ -167,6 +213,7 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		Subtotal:        subtotal,
 		Total:           subtotal, // No delivery fee for now
 		Currency:        "RUB",
+		PaymentMethod:   req.PaymentMethod,
 		DeliveryType:    req.DeliveryType,
 		DeliveryAddress: req.DeliveryAddress,
 		DeliveryNote:    req.DeliveryNote,
@@ -178,6 +225,7 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		SourcePostID:    req.SourcePostID,
 		SourceChannelID: req.SourceChannelID,
 	}
+	shouldTriggerReferralActivation := false
 
 	if err := tx.Create(&order).Error; err != nil {
 		tx.Rollback()
@@ -209,8 +257,65 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		}
 	}
 
+	if req.PaymentMethod == "lkm" {
+		totalLKM := moneyToLKM(order.Total)
+		if totalLKM < 0 {
+			tx.Rollback()
+			return nil, errors.New("invalid order amount")
+		}
+		if bonusCapLKM > totalLKM {
+			bonusCapLKM = totalLKM
+		}
+
+		paymentAllocation := SpendAllocation{}
+		if totalLKM > 0 {
+			allocation, _, err := s.walletService.spendTxWithOptions(
+				tx,
+				buyerID,
+				totalLKM,
+				fmt.Sprintf("market_order_%d", order.ID),
+				"Оплата заказа в магазине "+shop.Name,
+				SpendOptions{
+					AllowBonus:      shop.IsVedaMatch && bonusCapLKM > 0,
+					MaxBonusPercent: 100,
+					MaxBonusAmount:  bonusCapLKM,
+				},
+			)
+			if err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("payment failed: %w", err)
+			}
+			paymentAllocation = allocation
+			shouldTriggerReferralActivation = true
+		}
+
+		now := time.Now()
+		paymentUpdates := map[string]interface{}{
+			"is_paid":          true,
+			"paid_at":          now,
+			"regular_lkm_paid": paymentAllocation.RegularAmount,
+			"bonus_lkm_paid":   paymentAllocation.BonusAmount,
+		}
+		if err := tx.Model(&order).Updates(paymentUpdates).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		order.IsPaid = true
+		order.PaidAt = &now
+		order.RegularLkmPaid = paymentAllocation.RegularAmount
+		order.BonusLkmPaid = paymentAllocation.BonusAmount
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
+	}
+	if shouldTriggerReferralActivation {
+		go func(uid uint) {
+			referralService := NewReferralService(s.walletService)
+			if err := referralService.ProcessActivation(uid); err != nil {
+				fmt.Printf("[Orders] referral activation failed for user %d: %v\n", uid, err)
+			}
+		}(buyerID)
 	}
 
 	if order.Source == "channel_post" {
@@ -433,47 +538,74 @@ func (s *OrderService) UpdateOrderStatus(orderID uint, sellerID uint, status mod
 
 // CancelOrder cancels an order
 func (s *OrderService) CancelOrder(orderID uint, userID uint, reason string) (*models.Order, error) {
-	order, err := s.GetOrder(orderID)
-	if err != nil {
-		return nil, err
-	}
+	var cancelledOrder models.Order
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Preload("Items").
+			First(&cancelledOrder, orderID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrOrderNotFound
+			}
+			return err
+		}
 
-	// Check if user is buyer or seller
-	if order.BuyerID != userID && order.SellerID != userID {
-		return nil, ErrUnauthorizedOrder
-	}
+		// Check if user is buyer or seller
+		if cancelledOrder.BuyerID != userID && cancelledOrder.SellerID != userID {
+			return ErrUnauthorizedOrder
+		}
 
-	// Can only cancel if status is new or confirmed
-	if order.Status != models.OrderStatusNew && order.Status != models.OrderStatusConfirmed {
-		return nil, errors.New("order cannot be cancelled at this stage")
-	}
+		// Can only cancel if status is new or confirmed
+		if cancelledOrder.Status != models.OrderStatusNew && cancelledOrder.Status != models.OrderStatusConfirmed {
+			return errors.New("order cannot be cancelled at this stage")
+		}
 
-	now := time.Now()
-	updates := map[string]interface{}{
-		"status":        models.OrderStatusCancelled,
-		"cancelled_at":  now,
-		"cancelled_by":  userID,
-		"cancel_reason": reason,
-	}
+		now := time.Now()
+		updates := map[string]interface{}{
+			"status":        models.OrderStatusCancelled,
+			"cancelled_at":  now,
+			"cancelled_by":  userID,
+			"cancel_reason": reason,
+		}
 
-	// Restore reserved stock if order was confirmed
-	if order.Status == models.OrderStatusConfirmed {
-		for _, item := range order.Items {
-			// Restore reserved stock
-			if item.VariantID != nil {
-				database.DB.Model(&models.ProductVariant{}).
+		// Restore reserved stock if order was confirmed
+		if cancelledOrder.Status == models.OrderStatusConfirmed {
+			for _, item := range cancelledOrder.Items {
+				if item.VariantID == nil {
+					continue
+				}
+				if err := tx.Model(&models.ProductVariant{}).
 					Where("id = ?", *item.VariantID).
-					Update("reserved", gorm.Expr("reserved - ?", item.Quantity))
+					Update("reserved", gorm.Expr("reserved - ?", item.Quantity)).Error; err != nil {
+					return err
+				}
 			}
 		}
-	}
 
-	if err := database.DB.Model(&order).Updates(updates).Error; err != nil {
+		if cancelledOrder.PaymentMethod == "lkm" && cancelledOrder.IsPaid && (cancelledOrder.RegularLkmPaid+cancelledOrder.BonusLkmPaid) > 0 {
+			if err := s.walletService.refundTxWithSplit(
+				tx,
+				cancelledOrder.BuyerID,
+				cancelledOrder.RegularLkmPaid,
+				cancelledOrder.BonusLkmPaid,
+				"Возврат за отмену заказа "+cancelledOrder.OrderNumber,
+				nil,
+			); err != nil {
+				return err
+			}
+			updates["is_paid"] = false
+		}
+
+		if err := tx.Model(&cancelledOrder).Updates(updates).Error; err != nil {
+			return err
+		}
+
+		cancelledOrder.Status = models.OrderStatusCancelled
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
-	order.Status = models.OrderStatusCancelled
-	return order, nil
+	return &cancelledOrder, nil
 }
 
 // MarkNotificationSent marks that seller was notified

@@ -5,7 +5,6 @@ import {
     StyleSheet,
     Modal,
     TouchableOpacity,
-    Platform,
     Dimensions,
     ScrollView
 } from 'react-native';
@@ -51,45 +50,45 @@ export const WalletInfoModal: React.FC<WalletInfoModalProps> = ({ visible, onClo
                         <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                             <Text style={styles.mainDescription}>
-                                "Лакшмани (LKM) — это энергия благодарности внутри экосистемы Vedamatch.
-                                Вы получаете её за активность и помощь развитию сообщества."
+                                LKM — внутренняя валюта Vedamatch. Кошелёк показывает отдельно основной и бонусный баланс,
+                                а также полную историю списаний и начислений.
                             </Text>
 
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Возможности</Text>
+                                <Text style={styles.sectionTitle}>Как читать баланс</Text>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Тратить на AI-консультации</Text>
+                                    <Text style={styles.featureText}>Основной счёт — обычные LKM для всех стандартных оплат</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Дарить мастерам в знак благодарности</Text>
+                                    <Text style={styles.featureText}>Бонусный счёт — бонусные LKM, доступные по правилам сервиса</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Оплачивать дополнительные услуги</Text>
+                                    <Text style={styles.featureText}>В истории у операций видно разбивку: Обычные / Бонусные</Text>
                                 </View>
                             </View>
 
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Ограничения</Text>
+                                <Text style={styles.sectionTitle}>Ограничения бонусов</Text>
                                 <View style={styles.featureRow}>
                                     <AlertCircle size={18} color="#EF4444" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Нельзя вывести в фиатные деньги (рубли/доллары) на этапе тестирования</Text>
+                                    <Text style={styles.featureText}>Бонусные LKM расходуются только в сервисах с отметкой VedaMatch</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <AlertCircle size={18} color="#EF4444" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Нельзя продавать другим пользователям</Text>
+                                    <Text style={styles.featureText}>Для каждого товара/услуги может быть лимит процента оплаты бонусами</Text>
                                 </View>
                             </View>
 
                             <View style={styles.infoBox}>
                                 <View style={styles.infoBoxHeader}>
                                     <Clock size={16} color="#F59E0B" />
-                                    <Text style={styles.infoBoxTitle}>Срок жизни</Text>
+                                    <Text style={styles.infoBoxTitle}>Реальная история</Text>
                                 </View>
                                 <Text style={styles.infoBoxText}>
-                                    Бонусы сгорают через 90 дней, если ваш аккаунт неактивен.
+                                    Используйте фильтр «Все / Бонусные», чтобы быстро увидеть операции с бонусной частью.
                                 </Text>
                             </View>
 

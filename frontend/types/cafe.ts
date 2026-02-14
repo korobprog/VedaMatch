@@ -208,6 +208,8 @@ export interface CafeOrder {
     paymentMethod: string;
     isPaid: boolean;
     paidAt: string | null;
+    regularLkmPaid?: number;
+    bonusLkmPaid?: number;
     customerNote: string;
     estimatedReadyAt: string | null;
     createdAt: string;

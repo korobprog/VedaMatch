@@ -56,7 +56,7 @@ interface CafeTable {
     } | null;
 }
 
-type CafePaymentMethod = 'cash' | 'card_terminal';
+type CafePaymentMethod = 'cash' | 'card_terminal' | 'lkm';
 
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
     if (typeof error === 'object' && error !== null) {
@@ -463,6 +463,14 @@ const CafeCartScreen: React.FC = () => {
                             <CreditCard size={20} color={paymentMethod === 'card_terminal' ? colors.textPrimary : colors.textSecondary} />
                             <Text style={[styles.paymentBtnText, paymentMethod === 'card_terminal' && styles.paymentBtnTextActive]}>
                                 {t('cafe.cart.card')}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.paymentBtn, paymentMethod === 'lkm' && styles.paymentBtnActive]}
+                            onPress={() => setPaymentMethod('lkm')}
+                        >
+                            <Text style={[styles.paymentBtnText, paymentMethod === 'lkm' && styles.paymentBtnTextActive]}>
+                                LKM
                             </Text>
                         </TouchableOpacity>
                     </View>

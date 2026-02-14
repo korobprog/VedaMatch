@@ -14,13 +14,14 @@ import (
 
 // CafeOrderService handles cafe order-related operations
 type CafeOrderService struct {
-	db          *gorm.DB
-	dishService *DishService
+	db            *gorm.DB
+	dishService   *DishService
+	walletService *WalletService
 }
 
 func isValidCafePaymentMethod(method string) bool {
 	switch method {
-	case "", "cash", "card_terminal":
+	case "", "cash", "card_terminal", "lkm":
 		return true
 	default:
 		return false
@@ -39,8 +40,9 @@ func isValidOrderItemStatus(status string) bool {
 // NewCafeOrderService creates a new cafe order service instance
 func NewCafeOrderService(db *gorm.DB, dishService *DishService) *CafeOrderService {
 	return &CafeOrderService{
-		db:          db,
-		dishService: dishService,
+		db:            db,
+		dishService:   dishService,
+		walletService: NewWalletService(),
 	}
 }
 
@@ -83,9 +85,19 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 		return nil, errors.New("delivery phone required for delivery orders")
 	}
 
+	// Load cafe for VedaMatch/payment and delivery settings.
+	var cafe models.Cafe
+	if err := s.db.First(&cafe, req.CafeID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		return nil, errors.New("cafe not found")
+	}
+
 	// Calculate order totals
 	var items []models.CafeOrderItem
 	var subtotal float64
+	bonusCapLKM := 0
 	dishIDs := make([]uint, 0)
 
 	for _, itemReq := range req.Items {
@@ -162,18 +174,15 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 			Modifiers:          modifiers,
 		})
 
+		if cafe.IsVedaMatch {
+			itemTotalLKM := moneyToLKM(itemTotal)
+			bonusCapLKM += itemTotalLKM * clampBonusPercent(dish.MaxBonusLkmPercent) / 100
+		}
+
 		subtotal += itemTotal
 		dishIDs = append(dishIDs, dish.ID)
 	}
 
-	// Get cafe for delivery fee
-	var cafe models.Cafe
-	if err := s.db.First(&cafe, req.CafeID).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
-		}
-		return nil, errors.New("cafe not found")
-	}
 	if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
 		var table models.CafeTable
 		if err := s.db.Where("id = ? AND cafe_id = ? AND is_active = ?", *req.TableID, req.CafeID, true).First(&table).Error; err != nil {
@@ -219,9 +228,10 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 		EstimatedReadyAt:  &estimatedReadyAt,
 		Items:             items,
 	}
+	shouldTriggerReferralActivation := false
 
 	// Create order in transaction
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	createOrderTx := func(tx *gorm.DB) error {
 		if err := tx.Create(order).Error; err != nil {
 			return err
 		}
@@ -232,10 +242,10 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 			updateResult := tx.Model(&models.CafeTable{}).
 				Where("id = ? AND cafe_id = ? AND is_occupied = ?", *req.TableID, req.CafeID, false).
 				Updates(map[string]interface{}{
-				"is_occupied":      true,
-				"current_order_id": order.ID,
-				"occupied_since":   now,
-			})
+					"is_occupied":      true,
+					"current_order_id": order.ID,
+					"occupied_since":   now,
+				})
 			if updateResult.Error != nil {
 				return updateResult.Error
 			}
@@ -244,40 +254,78 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 			}
 		}
 
+		if req.PaymentMethod == "lkm" {
+			if customerID == nil || *customerID == 0 {
+				return errors.New("authentication required for lkm payment")
+			}
+			totalLKM := moneyToLKM(order.Total)
+			if totalLKM < 0 {
+				return errors.New("invalid order amount")
+			}
+
+			effectiveBonusCap := bonusCapLKM
+			if effectiveBonusCap > totalLKM {
+				effectiveBonusCap = totalLKM
+			}
+
+			paymentAllocation := SpendAllocation{}
+			if totalLKM > 0 {
+				allocation, _, err := s.walletService.spendTxWithOptions(
+					tx,
+					*customerID,
+					totalLKM,
+					fmt.Sprintf("cafe_order_%d", order.ID),
+					"Оплата заказа в кафе "+cafe.Name,
+					SpendOptions{
+						AllowBonus:      cafe.IsVedaMatch && effectiveBonusCap > 0,
+						MaxBonusPercent: 100,
+						MaxBonusAmount:  effectiveBonusCap,
+					},
+				)
+				if err != nil {
+					return fmt.Errorf("payment failed: %w", err)
+				}
+				paymentAllocation = allocation
+				shouldTriggerReferralActivation = true
+			}
+
+			now := time.Now()
+			if err := tx.Model(order).Updates(map[string]interface{}{
+				"is_paid":          true,
+				"paid_at":          now,
+				"regular_lkm_paid": paymentAllocation.RegularAmount,
+				"bonus_lkm_paid":   paymentAllocation.BonusAmount,
+			}).Error; err != nil {
+				return err
+			}
+			order.IsPaid = true
+			order.PaidAt = &now
+			order.RegularLkmPaid = paymentAllocation.RegularAmount
+			order.BonusLkmPaid = paymentAllocation.BonusAmount
+		}
+
 		// Increment dish order counts
 		s.dishService.IncrementDishOrders(dishIDs)
 
 		return nil
-	})
+	}
+
+	err := s.db.Transaction(createOrderTx)
 	for attempt := 0; attempt < 3 && err != nil && isOrderNumberConflict(err); attempt++ {
 		order.OrderNumber = s.generateOrderNumber(req.CafeID)
-		err = s.db.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Create(order).Error; err != nil {
-				return err
-			}
-			if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
-				now := time.Now()
-				updateResult := tx.Model(&models.CafeTable{}).
-					Where("id = ? AND cafe_id = ? AND is_occupied = ?", *req.TableID, req.CafeID, false).
-					Updates(map[string]interface{}{
-						"is_occupied":      true,
-						"current_order_id": order.ID,
-						"occupied_since":   now,
-					})
-				if updateResult.Error != nil {
-					return updateResult.Error
-				}
-				if updateResult.RowsAffected == 0 {
-					return errors.New("table is already occupied")
-				}
-			}
-			s.dishService.IncrementDishOrders(dishIDs)
-			return nil
-		})
+		err = s.db.Transaction(createOrderTx)
 	}
 
 	if err != nil {
 		return nil, err
+	}
+	if shouldTriggerReferralActivation && customerID != nil && *customerID != 0 {
+		go func(uid uint) {
+			referralService := NewReferralService(s.walletService)
+			if err := referralService.ProcessActivation(uid); err != nil {
+				fmt.Printf("[CafeOrders] referral activation failed for user %d: %v\n", uid, err)
+			}
+		}(*customerID)
 	}
 
 	// Send WebSocket notification to cafe staff
@@ -613,13 +661,29 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 			return errors.New("order cannot be cancelled")
 		}
 
-		// Update order
-		if err := tx.Model(&order).Updates(map[string]interface{}{
+		orderUpdates := map[string]interface{}{
 			"status":        models.CafeOrderStatusCancelled,
 			"cancelled_at":  now,
 			"cancelled_by":  userID,
 			"cancel_reason": reason,
-		}).Error; err != nil {
+		}
+
+		if order.PaymentMethod == "lkm" && order.IsPaid && order.CustomerID != nil && (order.RegularLkmPaid+order.BonusLkmPaid) > 0 {
+			if err := s.walletService.refundTxWithSplit(
+				tx,
+				*order.CustomerID,
+				order.RegularLkmPaid,
+				order.BonusLkmPaid,
+				"Возврат за отмену заказа "+order.OrderNumber,
+				nil,
+			); err != nil {
+				return err
+			}
+			orderUpdates["is_paid"] = false
+		}
+
+		// Update order
+		if err := tx.Model(&order).Updates(orderUpdates).Error; err != nil {
 			return err
 		}
 
@@ -645,6 +709,9 @@ func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error 
 	paymentMethod = strings.TrimSpace(paymentMethod)
 	if paymentMethod == "" {
 		return errors.New("payment method is required")
+	}
+	if paymentMethod == "lkm" {
+		return errors.New("lkm payment is processed automatically on order creation")
 	}
 	if !isValidCafePaymentMethod(paymentMethod) {
 		return errors.New("invalid payment method")
@@ -828,17 +895,17 @@ func (s *CafeOrderService) RepeatOrder(customerID, previousOrderID uint) (*model
 	}
 
 	req := models.CafeOrderCreateRequest{
-		CafeID:           prevOrder.CafeID,
-		OrderType:        prevOrder.OrderType,
-		TableID:          prevOrder.TableID,
-		DeliveryAddress:  prevOrder.DeliveryAddress,
-		DeliveryPhone:    prevOrder.DeliveryPhone,
-		DeliveryLat:      prevOrder.DeliveryLatitude,
-		DeliveryLng:      prevOrder.DeliveryLongitude,
-		CustomerName:     prevOrder.CustomerName,
-		Items:            items,
-		CustomerNote:     prevOrder.CustomerNote,
-		PaymentMethod:    prevOrder.PaymentMethod,
+		CafeID:          prevOrder.CafeID,
+		OrderType:       prevOrder.OrderType,
+		TableID:         prevOrder.TableID,
+		DeliveryAddress: prevOrder.DeliveryAddress,
+		DeliveryPhone:   prevOrder.DeliveryPhone,
+		DeliveryLat:     prevOrder.DeliveryLatitude,
+		DeliveryLng:     prevOrder.DeliveryLongitude,
+		CustomerName:    prevOrder.CustomerName,
+		Items:           items,
+		CustomerNote:    prevOrder.CustomerNote,
+		PaymentMethod:   prevOrder.PaymentMethod,
 	}
 
 	return s.CreateOrder(&customerID, req)
