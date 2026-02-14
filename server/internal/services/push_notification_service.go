@@ -1554,6 +1554,12 @@ func GetPushService() *PushNotificationService {
 	return pushService
 }
 
+// ResetPushServiceForTests resets singleton state to simplify isolated integration tests.
+func ResetPushServiceForTests() {
+	pushService = nil
+	pushServiceOnce = sync.Once{}
+}
+
 // SendNewsPushNotification is a convenience function for sending news push notifications
 func SendNewsPushNotification(newsItem models.NewsItem) {
 	go func() {
