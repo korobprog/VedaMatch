@@ -76,7 +76,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			"error": "Admin role cannot be assigned via public registration",
 		})
 	}
-	applyPortalRoleAndGodMode(&user, registerData.Role, registerData.GodModeEnabled)
+	// God mode cannot be set from public registration payload.
+	applyPortalRoleAndGodMode(&user, registerData.Role, false)
 
 	if user.Email == "" || user.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -302,7 +303,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.MaritalStatus = updateData.MaritalStatus
 	user.BirthTime = updateData.BirthTime
 	user.IsProfileComplete = true
-	applyPortalRoleAndGodMode(&user, updateData.Role, updateData.GodModeEnabled)
+	// Preserve privileged god mode flag; profile payload must not escalate this field.
+	applyPortalRoleAndGodMode(&user, updateData.Role, user.GodModeEnabled)
 
 	// Handle coordinates
 	if updateData.Latitude != nil && updateData.Longitude != nil {
@@ -528,16 +530,16 @@ func (h *AuthHandler) AdminStats(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	// Check if the user is an admin (assuming admin status is stored in the user model or can be checked)
-	// For now, let's assume any logged-in user can access this for testing, or add an admin check later.
-	// Example:
-	// var user models.User
-	// if err := database.DB.First(&user, userId).Error; err != nil {
-	// 	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
-	// }
-	// if !user.IsAdmin {
-	// 	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
-	// }
+	var user models.User
+	if err := database.DB.Select("id", "role").First(&user, userId).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load user"})
+		}
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	if !models.IsAdminRole(user.Role) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
 
 	var totalUsers int64
 	if err := database.DB.Debug().Model(&models.User{}).Count(&totalUsers).Error; err != nil {
@@ -579,6 +581,11 @@ func (h *AuthHandler) AdminStats(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {
+	userId := middleware.GetUserID(c)
+	if userId == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	var users []models.User
 	if err := database.DB.Find(&users).Error; err != nil {
 		log.Printf("[Contacts] Error fetching contacts: %v", err)

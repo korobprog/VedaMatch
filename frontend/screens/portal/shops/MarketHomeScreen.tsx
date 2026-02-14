@@ -28,12 +28,12 @@ import {
     Search as SearchIcon,
     X,
     ArrowLeft,
-    Wallet
 } from 'lucide-react-native';
-import { useWallet } from '../../../context/WalletContext';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { BalancePill } from '../../../components/wallet/BalancePill';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 
 const { width } = Dimensions.get('window');
 
@@ -44,7 +44,6 @@ interface MarketHomeScreenProps {
 export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
-    const { formattedBalance } = useWallet();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -214,12 +213,10 @@ export const MarketHomeScreen: React.FC<MarketHomeScreenProps> = ({ onBack }) =>
                         <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>{t('market.subtitle')}</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
-                        <View style={styles.walletInnerGlass}>
-                            <Wallet size={14} color="#FFFFFF" />
-                            <Text style={[styles.walletBalanceGlass, { color: '#FFFFFF' }]}>{formattedBalance}</Text>
-                        </View>
-                    </TouchableOpacity>
+                    <View style={styles.headerActions}>
+                        <AssistantChatButton />
+                        <BalancePill size="small" lightMode={true} />
+                    </View>
                 </View>
             </ImageBackground>
 
@@ -406,6 +403,11 @@ const createStyles = (roleColors: SemanticColorTokens, roleTheme: any, isDarkMod
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
     },
     backButton: {
         width: 44,

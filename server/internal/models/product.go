@@ -63,9 +63,10 @@ type Product struct {
 	DigitalFileID string      `json:"digitalFileId" gorm:"type:varchar(100)"` // For S3 stored digital goods
 
 	// Pricing (base price, can be overridden by variants)
-	BasePrice float64  `json:"basePrice" gorm:"type:decimal(12,2);not null"`
-	SalePrice *float64 `json:"salePrice" gorm:"type:decimal(12,2)"`
-	Currency  string   `json:"currency" gorm:"type:varchar(10);default:'RUB'"`
+	BasePrice          float64  `json:"basePrice" gorm:"type:decimal(12,2);not null"`
+	SalePrice          *float64 `json:"salePrice" gorm:"type:decimal(12,2)"`
+	Currency           string   `json:"currency" gorm:"type:varchar(10);default:'RUB'"`
+	MaxBonusLkmPercent int      `json:"maxBonusLkmPercent" gorm:"default:0"` // 0..100% can be paid with bonus LKM
 
 	// Stock (for products without variants)
 	Stock          int  `json:"stock" gorm:"default:0"`
@@ -167,24 +168,25 @@ type ProductFavorite struct {
 
 // ProductCreateRequest for creating a new product
 type ProductCreateRequest struct {
-	Name             string                 `json:"name" binding:"required,min=2,max=300"`
-	ShortDescription string                 `json:"shortDescription" binding:"max=500"`
-	FullDescription  string                 `json:"fullDescription"`
-	Category         ProductCategory        `json:"category" binding:"required"`
-	Tags             []string               `json:"tags"`
-	ProductType      ProductType            `json:"productType" binding:"required"`
-	ExternalURL      string                 `json:"externalUrl"`
-	DigitalURL       string                 `json:"digitalUrl"`
-	BasePrice        float64                `json:"basePrice" binding:"required,min=0"`
-	SalePrice        *float64               `json:"salePrice"`
-	Currency         string                 `json:"currency"`
-	Stock            int                    `json:"stock"`
-	TrackStock       bool                   `json:"trackStock"`
-	MainImageURL     string                 `json:"mainImageUrl"`
-	Images           []string               `json:"images"`
-	Weight           *float64               `json:"weight"`
-	Dimensions       string                 `json:"dimensions"`
-	Variants         []VariantCreateRequest `json:"variants"`
+	Name               string                 `json:"name" binding:"required,min=2,max=300"`
+	ShortDescription   string                 `json:"shortDescription" binding:"max=500"`
+	FullDescription    string                 `json:"fullDescription"`
+	Category           ProductCategory        `json:"category" binding:"required"`
+	Tags               []string               `json:"tags"`
+	ProductType        ProductType            `json:"productType" binding:"required"`
+	ExternalURL        string                 `json:"externalUrl"`
+	DigitalURL         string                 `json:"digitalUrl"`
+	BasePrice          float64                `json:"basePrice" binding:"required,min=0"`
+	SalePrice          *float64               `json:"salePrice"`
+	Currency           string                 `json:"currency"`
+	MaxBonusLkmPercent int                    `json:"maxBonusLkmPercent"`
+	Stock              int                    `json:"stock"`
+	TrackStock         bool                   `json:"trackStock"`
+	MainImageURL       string                 `json:"mainImageUrl"`
+	Images             []string               `json:"images"`
+	Weight             *float64               `json:"weight"`
+	Dimensions         string                 `json:"dimensions"`
+	Variants           []VariantCreateRequest `json:"variants"`
 }
 
 // VariantCreateRequest for creating product variants
@@ -200,20 +202,21 @@ type VariantCreateRequest struct {
 
 // ProductUpdateRequest for updating a product
 type ProductUpdateRequest struct {
-	Name             *string          `json:"name"`
-	ShortDescription *string          `json:"shortDescription"`
-	FullDescription  *string          `json:"fullDescription"`
-	Category         *ProductCategory `json:"category"`
-	Tags             []string         `json:"tags"`
-	ProductType      *ProductType     `json:"productType"`
-	ExternalURL      *string          `json:"externalUrl"`
-	BasePrice        *float64         `json:"basePrice"`
-	SalePrice        *float64         `json:"salePrice"`
-	Stock            *int             `json:"stock"`
-	Status           *ProductStatus   `json:"status"`
-	MainImageURL     *string          `json:"mainImageUrl"`
-	Weight           *float64         `json:"weight"`
-	Dimensions       *string          `json:"dimensions"`
+	Name               *string          `json:"name"`
+	ShortDescription   *string          `json:"shortDescription"`
+	FullDescription    *string          `json:"fullDescription"`
+	Category           *ProductCategory `json:"category"`
+	Tags               []string         `json:"tags"`
+	ProductType        *ProductType     `json:"productType"`
+	ExternalURL        *string          `json:"externalUrl"`
+	BasePrice          *float64         `json:"basePrice"`
+	SalePrice          *float64         `json:"salePrice"`
+	MaxBonusLkmPercent *int             `json:"maxBonusLkmPercent"`
+	Stock              *int             `json:"stock"`
+	Status             *ProductStatus   `json:"status"`
+	MainImageURL       *string          `json:"mainImageUrl"`
+	Weight             *float64         `json:"weight"`
+	Dimensions         *string          `json:"dimensions"`
 }
 
 // ProductFilters for querying products

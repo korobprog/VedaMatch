@@ -19,7 +19,7 @@ import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
-// KrishnaAssistant removed - now in Portal header
+// KrishnaAssistant - only used in Portal header
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';

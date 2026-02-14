@@ -624,7 +624,48 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                     </View>
 
                     <View style={styles.logoContainer} pointerEvents="box-none">
-                        {/* Logo hidden in rooms as per user request */}
+                        <View style={styles.logoRow}>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                    handleNewChat();
+                                    navigation.navigate('Chat');
+                                }}
+                                style={styles.assistantHeaderButton}
+                            >
+                                <LinearGradient
+                                    colors={[
+                                        'rgba(255,255,255,0.4)',
+                                        'rgba(255,230,150,0.3)',
+                                        'rgba(255,255,255,0.4)',
+                                    ]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={StyleSheet.absoluteFill}
+                                />
+
+                                <Animated.View style={[
+                                    styles.assistantShimmer,
+                                    {
+                                        width: 100,
+                                        transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
+                                    }
+                                ]}>
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={StyleSheet.absoluteFill}
+                                    />
+                                </Animated.View>
+
+                                <Image
+                                    source={assistantImage}
+                                    style={styles.assistantHeaderIcon}
+                                    resizeMode="contain"
+                                />
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     <View style={styles.headerRight}>
@@ -693,7 +734,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 0, // Ensure it's interactive but centered
+        zIndex: 5,
     },
     logoRow: {
         flexDirection: 'row',
@@ -717,9 +758,9 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     assistantHeaderButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
@@ -732,8 +773,8 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     assistantHeaderIcon: {
-        width: 24,
-        height: 24,
+        width: 28,
+        height: 28,
     },
     assistantShimmer: {
         position: 'absolute',

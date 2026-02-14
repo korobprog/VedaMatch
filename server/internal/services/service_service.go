@@ -311,19 +311,23 @@ func (s *ServiceService) AddTariff(serviceID, ownerID uint, req models.TariffCre
 	if req.Price < 0 {
 		return nil, errors.New("tariff price must be non-negative")
 	}
+	if req.MaxBonusLkmPercent < 0 || req.MaxBonusLkmPercent > 100 {
+		return nil, errors.New("maxBonusLkmPercent must be between 0 and 100")
+	}
 
 	tariff := models.ServiceTariff{
-		ServiceID:       serviceID,
-		Name:            req.Name,
-		Price:           req.Price,
-		Currency:        "LKM",
-		DurationMinutes: req.DurationMinutes,
-		SessionsCount:   req.SessionsCount,
-		ValidityDays:    req.ValidityDays,
-		Includes:        req.Includes,
-		IsDefault:       req.IsDefault,
-		IsActive:        true,
-		SortOrder:       req.SortOrder,
+		ServiceID:          serviceID,
+		Name:               req.Name,
+		Price:              req.Price,
+		Currency:           "LKM",
+		MaxBonusLkmPercent: req.MaxBonusLkmPercent,
+		DurationMinutes:    req.DurationMinutes,
+		SessionsCount:      req.SessionsCount,
+		ValidityDays:       req.ValidityDays,
+		Includes:           req.Includes,
+		IsDefault:          req.IsDefault,
+		IsActive:           true,
+		SortOrder:          req.SortOrder,
 	}
 
 	if tariff.SessionsCount == 0 {
@@ -380,6 +384,12 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 			return nil, errors.New("tariff price must be non-negative")
 		}
 		updates["price"] = *req.Price
+	}
+	if req.MaxBonusLkmPercent != nil {
+		if *req.MaxBonusLkmPercent < 0 || *req.MaxBonusLkmPercent > 100 {
+			return nil, errors.New("maxBonusLkmPercent must be between 0 and 100")
+		}
+		updates["max_bonus_lkm_percent"] = *req.MaxBonusLkmPercent
 	}
 	if req.DurationMinutes != nil {
 		updates["duration_minutes"] = *req.DurationMinutes
@@ -537,7 +547,7 @@ func (s *ServiceService) GetWeeklySchedule(serviceID uint) (*models.WeeklySchedu
 	}
 
 	response := &models.WeeklyScheduleResponse{
-		WeeklySlots: make(map[string]models.WeeklyDayConfig),
+		WeeklySlots:  make(map[string]models.WeeklyDayConfig),
 		SlotDuration: 60,
 	}
 

@@ -667,6 +667,9 @@ func (h *CafeHandler) CreateDish(c *fiber.Ctx) error {
 
 	dish, err := h.dishService.CreateDish(uint(cafeID), req)
 	if err != nil {
+		if strings.Contains(err.Error(), "maxBonusLkmPercent") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create dish"})
 	}
 
@@ -778,6 +781,9 @@ func (h *CafeHandler) UpdateDish(c *fiber.Ctx) error {
 
 	dish, err := h.dishService.UpdateDish(uint(dishID), req)
 	if err != nil {
+		if strings.Contains(err.Error(), "maxBonusLkmPercent") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update dish"})
 	}
 

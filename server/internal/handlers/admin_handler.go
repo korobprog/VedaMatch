@@ -33,6 +33,9 @@ func requireAdminUserID(c *fiber.Ctx) (uint, error) {
 	if adminID == 0 {
 		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	if !models.IsAdminRole(middleware.GetUserRole(c)) {
+		return 0, c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
 	return adminID, nil
 }
 
@@ -45,6 +48,10 @@ func getSystemSettingOrEnv(key string) string {
 }
 
 func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var users []models.User
 	query := database.DB.Model(&models.User{})
 
@@ -83,6 +90,10 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) ToggleBlockUser(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	userID := c.Params("id")
 	var user models.User
 	if err := database.DB.First(&user, userID).Error; err != nil {
@@ -104,6 +115,10 @@ func (h *AdminHandler) ToggleBlockUser(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var body struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -148,6 +163,10 @@ func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) UpdateUserRole(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	userID := c.Params("id")
 	var body struct {
 		Role string `json:"role"`
@@ -173,6 +192,10 @@ func (h *AdminHandler) UpdateUserRole(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var totalUsers int64
 	var blockedUsers int64
 	var admins int64
@@ -198,6 +221,10 @@ func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
 // Dating Management
 
 func (h *AdminHandler) GetDatingProfiles(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var users []models.User
 	query := database.DB.Where("dating_enabled = ?", true)
 
@@ -220,6 +247,10 @@ func (h *AdminHandler) GetDatingProfiles(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) FlagDatingProfile(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	userID := c.Params("id")
 	var body struct {
 		IsFlagged  bool   `json:"isFlagged"`
@@ -243,6 +274,10 @@ func (h *AdminHandler) FlagDatingProfile(c *fiber.Ctx) error {
 // System Settings
 
 func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var settings []models.SystemSetting
 	if err := database.DB.Find(&settings).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch settings"})
@@ -286,6 +321,10 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var updates map[string]string
 	if err := c.BodyParser(&updates); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
@@ -320,6 +359,10 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 // RAG Management Methods
 
 func (h *AdminHandler) ListGeminiCorpora(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	keyName := c.Query("key_name")
 	if keyName == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "key_name is required"})
@@ -367,6 +410,10 @@ func (h *AdminHandler) ListGeminiCorpora(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) CreateGeminiCorpus(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var body struct {
 		KeyName     string `json:"keyName"`
 		DisplayName string `json:"displayName"`
@@ -438,6 +485,10 @@ func (h *AdminHandler) CreateGeminiCorpus(c *fiber.Ctx) error {
 // GeocodeAllUsers geocodes all users who have a city but no coordinates
 // POST /api/admin/geocode-users
 func (h *AdminHandler) GeocodeAllUsers(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	mapService := services.NewMapService(database.DB)
 
 	// Find all users with city but without coordinates
@@ -599,6 +650,10 @@ func (h *AdminHandler) AdminSeizeWallet(c *fiber.Ctx) error {
 // GetUserWallet returns wallet info for a specific user
 // GET /api/admin/wallet/:userId
 func (h *AdminHandler) GetUserWallet(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	userID, err := c.ParamsInt("userId")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
@@ -616,6 +671,10 @@ func (h *AdminHandler) GetUserWallet(c *fiber.Ctx) error {
 // GetUserTransactions returns transaction history for a specific user
 // GET /api/admin/wallet/:userId/transactions
 func (h *AdminHandler) GetUserTransactions(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	userID, err := c.ParamsInt("userId")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
@@ -673,6 +732,10 @@ func (h *AdminHandler) ActivateUserPendingBalance(c *fiber.Ctx) error {
 // GetReferralGlobalStats returns global referral statistics
 // GET /api/admin/referrals/stats
 func (h *AdminHandler) GetReferralGlobalStats(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	// Panic recovery for this specific handler to prevent server crash and generic 500s
 	defer func() {
 		if r := recover(); r != nil {
@@ -731,6 +794,10 @@ func (h *AdminHandler) GetReferralGlobalStats(c *fiber.Ctx) error {
 // GetReferralLeaderboard returns top referrers
 // GET /api/admin/referrals/leaderboard
 func (h *AdminHandler) GetReferralLeaderboard(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	type LeaderboardEntry struct {
 		ID            uint   `json:"id"`
 		SpiritualName string `json:"spiritualName"`
@@ -766,6 +833,10 @@ func (h *AdminHandler) GetReferralLeaderboard(c *fiber.Ctx) error {
 // GetGlobalWalletStats returns overall wallet system statistics
 // GET /api/admin/wallet/global-stats
 func (h *AdminHandler) GetGlobalWalletStats(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var totalBalance int64
 	var totalPending int64
 	var totalFrozen int64

@@ -123,16 +123,20 @@ func (v *VideoService) UploadVideo(ctx context.Context, file *multipart.FileHead
 	log.Printf("[VideoService] Uploading original video for track %d", track.ID)
 	if err := v.s3Service.UploadFileFromReader(ctx, src, s3Original, file.Header.Get("Content-Type")); err != nil {
 		// Cleanup on failure
-		v.db.Delete(track)
+		if deleteErr := v.db.Delete(track).Error; deleteErr != nil {
+			log.Printf("[VideoService] Failed to cleanup track %d after upload failure: %v", track.ID, deleteErr)
+		}
 		return nil, fmt.Errorf("failed to upload video: %w", err)
 	}
 
 	// Update track with S3 URL
 	originalURL := v.s3Service.GetPublicURL(s3Original)
-	v.db.Model(track).Updates(map[string]interface{}{
+	if err := v.db.Model(track).Updates(map[string]interface{}{
 		"original_url": originalURL,
 		"url":          originalURL, // Temporary URL until HLS is ready
-	})
+	}).Error; err != nil {
+		return nil, fmt.Errorf("failed to update video original URL: %w", err)
+	}
 
 	// Determine qualities
 	qualities := req.Qualities
@@ -148,10 +152,12 @@ func (v *VideoService) UploadVideo(ctx context.Context, file *multipart.FileHead
 	}
 
 	// Update track with job ID
-	v.db.Model(track).Updates(map[string]interface{}{
+	if err := v.db.Model(track).Updates(map[string]interface{}{
 		"transcoding_job_id": jobID,
 		"transcoding_status": "pending",
-	})
+	}).Error; err != nil {
+		return nil, fmt.Errorf("failed to update transcoding job: %w", err)
+	}
 
 	return &UploadVideoResponse{
 		VideoID: track.ID,
@@ -183,11 +189,15 @@ func (v *VideoService) GetVideoPlaybackInfo(videoID uint, userID *uint) (*models
 
 	// Get quality variants
 	var qualities []models.VideoQuality
-	v.db.Where("media_track_id = ?", videoID).Find(&qualities)
+	if err := v.db.Where("media_track_id = ?", videoID).Find(&qualities).Error; err != nil {
+		return nil, err
+	}
 
 	// Get subtitles
 	var subtitles []models.VideoSubtitle
-	v.db.Where("media_track_id = ?", videoID).Find(&subtitles)
+	if err := v.db.Where("media_track_id = ?", videoID).Find(&subtitles).Error; err != nil {
+		return nil, err
+	}
 
 	info := &models.VideoPlaybackInfo{
 		ID:           track.ID,
@@ -298,7 +308,9 @@ func (v *VideoService) AddSubtitle(ctx context.Context, videoID uint, file *mult
 
 	// If this is default, unset other defaults
 	if isDefault {
-		v.db.Model(&models.VideoSubtitle{}).Where("media_track_id = ?", videoID).Update("is_default", false)
+		if err := v.db.Model(&models.VideoSubtitle{}).Where("media_track_id = ?", videoID).Update("is_default", false).Error; err != nil {
+			return err
+		}
 	}
 
 	// Create subtitle record
@@ -315,10 +327,12 @@ func (v *VideoService) AddSubtitle(ctx context.Context, videoID uint, file *mult
 	}
 
 	// Update track
-	v.db.Model(&models.MediaTrack{}).Where("id = ?", videoID).Updates(map[string]interface{}{
+	if err := v.db.Model(&models.MediaTrack{}).Where("id = ?", videoID).Updates(map[string]interface{}{
 		"has_subtitles":  true,
 		"subtitle_count": gorm.Expr("subtitle_count + 1"),
-	})
+	}).Error; err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -339,13 +353,20 @@ func (v *VideoService) DeleteSubtitle(subtitleID uint) error {
 	}
 
 	// Update track
-	v.db.Model(&models.MediaTrack{}).Where("id = ?", subtitle.MediaTrackID).Update("subtitle_count", gorm.Expr("subtitle_count - 1"))
+	if err := v.db.Model(&models.MediaTrack{}).Where("id = ?", subtitle.MediaTrackID).
+		Update("subtitle_count", gorm.Expr("CASE WHEN subtitle_count > 0 THEN subtitle_count - 1 ELSE 0 END")).Error; err != nil {
+		return err
+	}
 
 	// Check if any subtitles left
 	var count int64
-	v.db.Model(&models.VideoSubtitle{}).Where("media_track_id = ?", subtitle.MediaTrackID).Count(&count)
+	if err := v.db.Model(&models.VideoSubtitle{}).Where("media_track_id = ?", subtitle.MediaTrackID).Count(&count).Error; err != nil {
+		return err
+	}
 	if count == 0 {
-		v.db.Model(&models.MediaTrack{}).Where("id = ?", subtitle.MediaTrackID).Update("has_subtitles", false)
+		if err := v.db.Model(&models.MediaTrack{}).Where("id = ?", subtitle.MediaTrackID).Update("has_subtitles", false).Error; err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -373,11 +394,13 @@ func (v *VideoService) RetryTranscoding(videoID uint) (string, error) {
 	}
 
 	// Update track
-	v.db.Model(&track).Updates(map[string]interface{}{
+	if err := v.db.Model(&track).Updates(map[string]interface{}{
 		"transcoding_job_id":   jobID,
 		"transcoding_status":   "pending",
 		"transcoding_progress": 0,
-	})
+	}).Error; err != nil {
+		return "", err
+	}
 
 	return jobID, nil
 }
@@ -392,14 +415,23 @@ func (v *VideoService) DeleteVideo(ctx context.Context, videoID uint) error {
 	// Delete from S3 (all files in videos/{id}/ folder)
 	// TODO: v.s3Service.DeleteFolder(ctx, fmt.Sprintf("videos/%d/", videoID))
 
-	// Delete related records
-	v.db.Where("media_track_id = ?", videoID).Delete(&models.VideoQuality{})
-	v.db.Where("media_track_id = ?", videoID).Delete(&models.VideoSubtitle{})
-	v.db.Where("media_track_id = ?", videoID).Delete(&models.UserVideoProgress{})
-	v.db.Where("media_track_id = ?", videoID).Delete(&models.VideoTranscodingJob{})
-
-	// Delete track
-	return v.db.Delete(&track).Error
+	return v.db.Transaction(func(tx *gorm.DB) error {
+		// Delete related records
+		if err := tx.Where("media_track_id = ?", videoID).Delete(&models.VideoQuality{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("media_track_id = ?", videoID).Delete(&models.VideoSubtitle{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("media_track_id = ?", videoID).Delete(&models.UserVideoProgress{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("media_track_id = ?", videoID).Delete(&models.VideoTranscodingJob{}).Error; err != nil {
+			return err
+		}
+		// Delete track
+		return tx.Delete(&track).Error
+	})
 }
 
 // Helper functions

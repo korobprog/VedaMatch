@@ -32,6 +32,7 @@ import { usePressFeedback } from '../../../hooks/usePressFeedback';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { Video, ArrowLeft, ArrowRight, Settings, UserPlus, Send, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react-native';
 import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
+import { BalancePill } from '../../../components/wallet/BalancePill';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
@@ -225,16 +226,16 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 const formattedMessages = data
                     .filter((m: any) => m?.ID != null)
                     .map((m: any) => ({
-                    id: String(m.ID),
-                    content: m.content,
-                    type: m.type || 'text',
-                    fileName: m.fileName,
-                    fileSize: m.fileSize,
-                    duration: m.duration,
-                    sender: m.senderId === user?.ID ? (user?.spiritualName || user?.karmicName || t('common.me')) : (m.senderId === 0 ? t('chat.aiAssistant') : m.senderName || t('common.other')),
-                    isMe: m.senderId === user?.ID,
-                    time: new Date(m.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
-                }));
+                        id: String(m.ID),
+                        content: m.content,
+                        type: m.type || 'text',
+                        fileName: m.fileName,
+                        fileSize: m.fileSize,
+                        duration: m.duration,
+                        sender: m.senderId === user?.ID ? (user?.spiritualName || user?.karmicName || t('common.me')) : (m.senderId === 0 ? t('chat.aiAssistant') : m.senderName || t('common.other')),
+                        isMe: m.senderId === user?.ID,
+                        time: new Date(m.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+                    }));
                 if (requestId === latestMessagesRequestRef.current && isMountedRef.current) {
                     setMessages(formattedMessages);
                 }
@@ -345,7 +346,8 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
         navigation.setOptions({
             headerRight: () => (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, gap: 10 }}>
+                    <BalancePill size="small" lightMode={false} />
                     {!isYatraChatRoom && (
                         <TouchableOpacity
                             onPress={() => setInviteVisible(true)}
@@ -356,7 +358,6 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 backgroundColor: vTheme.colors.surface,
                                 justifyContent: 'center',
                                 alignItems: 'center',
-                                marginRight: 10,
                                 borderWidth: 1,
                                 borderColor: vTheme.colors.divider,
                                 ...vTheme.shadows.soft
@@ -555,7 +556,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     >
                         <Text style={{ fontSize: 20, marginRight: 8 }}>📄</Text>
                         <View>
-                        <Text style={[styles.messageText, { color: theme.text }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
+                            <Text style={[styles.messageText, { color: theme.text }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
                             <Text style={{ color: theme.subText, fontSize: 10 }}>{mediaService.formatFileSize(item.fileSize ?? 0)}</Text>
                         </View>
                     </TouchableOpacity>
@@ -689,15 +690,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                                 const verseNumber = toPositiveInt(v.verse);
                                                 if (!verseNumber) return null;
                                                 return (
-                                            <TouchableOpacity
-                                                key={v.id}
-                                                style={[styles.verseNavItem, roomDetails.currentVerse === verseNumber && styles.verseNavItemActive]}
-                                                onPress={() => handleJumpToVerse(roomDetails.currentChapter, verseNumber)}
-                                            >
-                                                <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse, 10) && styles.verseNavItemTextActive]}>
-                                                    {v.verse}
-                                                </Text>
-                                            </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        key={v.id}
+                                                        style={[styles.verseNavItem, roomDetails.currentVerse === verseNumber && styles.verseNavItemActive]}
+                                                        onPress={() => handleJumpToVerse(roomDetails.currentChapter, verseNumber)}
+                                                    >
+                                                        <Text style={[styles.verseNavItemText, roomDetails.currentVerse === parseInt(v.verse, 10) && styles.verseNavItemTextActive]}>
+                                                            {v.verse}
+                                                        </Text>
+                                                    </TouchableOpacity>
                                                 );
                                             })()
                                         ))}

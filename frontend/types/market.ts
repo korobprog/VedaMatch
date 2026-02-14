@@ -177,6 +177,7 @@ export interface Product {
     basePrice: number;
     salePrice?: number;
     currency: string;
+    maxBonusLkmPercent?: number;
     stock: number;
     trackStock: boolean;
     allowBackorder: boolean;
@@ -210,6 +211,7 @@ export interface ProductFormData {
     basePrice: number;
     salePrice?: number;
     currency?: string;
+    maxBonusLkmPercent?: number;
     stock?: number;
     trackStock?: boolean;
     mainImageUrl?: string;

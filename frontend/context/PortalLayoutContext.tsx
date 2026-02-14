@@ -86,11 +86,35 @@ const sanitizeAllFolders = (inputLayout: PortalLayout): { layout: PortalLayout; 
             };
         });
 
+        // Deduplicate page-level items by serviceId (folders always kept)
+        const seenServiceIds = new Set<string>();
+        const deduplicatedItems = cleanedItems.filter((item) => {
+            if (item.type === 'folder') return true;
+            if (seenServiceIds.has(item.serviceId)) {
+                changed = true;
+                return false;
+            }
+            seenServiceIds.add(item.serviceId);
+            return true;
+        }).map((item, index) => ({ ...item, position: index }));
+
         return {
             ...page,
-            items: cleanedItems,
+            items: deduplicatedItems,
         };
     });
+
+    // Deduplicate quickAccess by serviceId
+    const seenQA = new Set<string>();
+    const dedupedQA = layout.quickAccess.filter((item) => {
+        if (seenQA.has(item.serviceId)) {
+            changed = true;
+            return false;
+        }
+        seenQA.add(item.serviceId);
+        return true;
+    }).map((item, index) => ({ ...item, position: index }));
+    layout.quickAccess = dedupedQA;
 
     if (changed) {
         layout.lastModified = Date.now();

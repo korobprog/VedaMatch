@@ -18,6 +18,8 @@ import { useSettings } from '../../../../context/SettingsContext';
 import { useUser } from '../../../../context/UserContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 import { handleChannelPostCta, getChannelPostCtaLabel } from './channelCta';
+import { BalancePill } from '../../../../components/wallet/BalancePill';
+import { AssistantChatButton } from '../../../../components/portal/AssistantChatButton';
 
 type HubTab = 'feed' | 'my';
 type FeedListItem =
@@ -333,16 +335,18 @@ export default function ChannelsHubScreen() {
             <ArrowLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Каналы и лента</Text>
-          {activeTab === 'my' ? (
-            <TouchableOpacity
-              style={[styles.headerButton, styles.headerActionButton]}
-              onPress={() => navigation.navigate('CreateChannel')}
-            >
-              <Plus size={18} color={colors.textPrimary} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.headerButtonPlaceholder} />
-          )}
+          <View style={styles.headerActions}>
+            <AssistantChatButton size={36} />
+            <BalancePill size="small" lightMode={isDarkMode} />
+            {activeTab === 'my' ? (
+              <TouchableOpacity
+                style={[styles.headerButton, styles.headerActionButton]}
+                onPress={() => navigation.navigate('CreateChannel')}
+              >
+                <Plus size={18} color={colors.textPrimary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.tabBar}>
@@ -446,6 +450,11 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     headerActionButton: {
       backgroundColor: colors.accent,
       borderColor: colors.accent,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
     headerButtonPlaceholder: {
       width: 36,

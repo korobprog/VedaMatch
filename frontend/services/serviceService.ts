@@ -26,6 +26,7 @@ export interface ServiceTariff {
     serviceId: number;
     name: string;
     price: number;
+    maxBonusLkmPercent?: number;
     currency: string;
     durationMinutes: number;
     sessionsCount: number;
@@ -144,6 +145,7 @@ export interface UpdateServiceRequest {
 export interface CreateTariffRequest {
     name: string;
     price: number;
+    maxBonusLkmPercent?: number;
     durationMinutes?: number;
     sessionsCount?: number;
     validityDays?: number;

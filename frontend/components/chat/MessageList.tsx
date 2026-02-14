@@ -12,6 +12,7 @@ import {
     Alert,
     Linking,
     Platform,
+    Keyboard,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
@@ -59,6 +60,16 @@ export const MessageList: React.FC<MessageListProps> = ({
                 cancelAnimationFrame(autoScrollFrameRef.current);
             }
         };
+    }, []);
+
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const sub = Keyboard.addListener(showEvent, () => {
+            setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+        });
+        return () => sub.remove();
     }, []);
 
     const formatMessageTime = (dateStr?: string) => {
@@ -287,11 +298,13 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 if (audioMatch) return renderAudioPlayer(audioMatch[1], index);
                                 if (!part.trim() && index > 0) return null;
                                 return (
-                                    <View key={index} style={{ flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap', maxWidth: '100%' }}>
-                                        <Markdown style={mdStyles} rules={mdRules}>
-                                            {part}
-                                        </Markdown>
-                                        <Text style={[styles.timeText, { color: theme.subText, marginLeft: 6, marginBottom: 2 }]}>{time}</Text>
+                                    <View key={index} style={styles.messageContentRow}>
+                                        <View style={styles.markdownWrapper}>
+                                            <Markdown style={mdStyles} rules={mdRules}>
+                                                {part}
+                                            </Markdown>
+                                        </View>
+                                        <Text style={[styles.timeText, styles.embeddedTime, { color: theme.subText }]}>{time}</Text>
                                     </View>
                                 );
                             })}
@@ -418,6 +431,7 @@ const styles = StyleSheet.create({
     bubble: {
         borderRadius: 20,
         maxWidth: '85%',
+        minWidth: 100, // Ensure enough space for short text + time
         paddingVertical: 8,
         paddingHorizontal: 12,
     },
@@ -463,5 +477,21 @@ const styles = StyleSheet.create({
     navButtonText: { fontSize: 13, fontWeight: 'bold' },
     mapButton: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
     uploadingContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-    uploadingText: { marginLeft: 8, fontSize: 14 }
+    uploadingText: { marginLeft: 8, fontSize: 14 },
+    messageContentRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        maxWidth: '100%',
+    },
+    markdownWrapper: {
+        flexShrink: 1,
+        minWidth: 40,
+    },
+    embeddedTime: {
+        marginLeft: 10,
+        marginBottom: 2,
+        flexShrink: 0,
+    },
 });

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"log"
 	"rag-agent-server/internal/models"
 
@@ -97,27 +98,32 @@ func (s *DishService) DeleteCategory(categoryID uint) error {
 
 // CreateDish creates a new dish
 func (s *DishService) CreateDish(cafeID uint, req models.DishCreateRequest) (*models.Dish, error) {
+	if req.MaxBonusLkmPercent < 0 || req.MaxBonusLkmPercent > 100 {
+		return nil, errors.New("maxBonusLkmPercent must be between 0 and 100")
+	}
+
 	dish := &models.Dish{
-		CafeID:       cafeID,
-		CategoryID:   req.CategoryID,
-		Name:         req.Name,
-		Description:  req.Description,
-		Type:         req.Type,
-		Price:        req.Price,
-		OldPrice:     req.OldPrice,
-		ImageURL:     req.ImageURL,
-		ThumbURL:     req.ThumbURL,
-		Calories:     req.Calories,
-		Weight:       req.Weight,
-		CookingTime:  req.CookingTime,
-		IsVegetarian: req.IsVegetarian,
-		IsVegan:      req.IsVegan,
-		IsSpicy:      req.IsSpicy,
-		IsGlutenFree: req.IsGlutenFree,
-		IsActive:     true,
-		IsAvailable:  true,
-		IsFeatured:   req.IsFeatured,
-		SortOrder:    req.SortOrder,
+		CafeID:             cafeID,
+		CategoryID:         req.CategoryID,
+		Name:               req.Name,
+		Description:        req.Description,
+		Type:               req.Type,
+		Price:              req.Price,
+		OldPrice:           req.OldPrice,
+		MaxBonusLkmPercent: req.MaxBonusLkmPercent,
+		ImageURL:           req.ImageURL,
+		ThumbURL:           req.ThumbURL,
+		Calories:           req.Calories,
+		Weight:             req.Weight,
+		CookingTime:        req.CookingTime,
+		IsVegetarian:       req.IsVegetarian,
+		IsVegan:            req.IsVegan,
+		IsSpicy:            req.IsSpicy,
+		IsGlutenFree:       req.IsGlutenFree,
+		IsActive:           true,
+		IsAvailable:        true,
+		IsFeatured:         req.IsFeatured,
+		SortOrder:          req.SortOrder,
 	}
 
 	if dish.Type == "" {
@@ -263,6 +269,12 @@ func (s *DishService) UpdateDish(dishID uint, req models.DishUpdateRequest) (*mo
 	}
 	if req.OldPrice != nil {
 		updates["old_price"] = *req.OldPrice
+	}
+	if req.MaxBonusLkmPercent != nil {
+		if *req.MaxBonusLkmPercent < 0 || *req.MaxBonusLkmPercent > 100 {
+			return nil, errors.New("maxBonusLkmPercent must be between 0 and 100")
+		}
+		updates["max_bonus_lkm_percent"] = *req.MaxBonusLkmPercent
 	}
 	if req.ImageURL != nil {
 		updates["image_url"] = *req.ImageURL

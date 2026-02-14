@@ -184,6 +184,7 @@ export const KrishnaAssistant: React.FC = () => {
             <TouchableOpacity
                 activeOpacity={0.8}
                 style={styles.callButton}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 onPress={() => {
                     handleNewChat();
                     navigation.navigate('Chat');
@@ -312,19 +313,19 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     miniIcon: {
-        width: 30,
-        height: 30,
+        width: 34,
+        height: 34,
     },
     callButton: {
         position: 'absolute',
         top: '75%',
-        marginTop: -35,
+        marginTop: -28,
         right: 0,
         zIndex: 9999,
-        width: 50,
-        height: 70,
-        borderTopLeftRadius: 35,
-        borderBottomLeftRadius: 35,
+        width: 56,
+        height: 56,
+        borderTopLeftRadius: 28,
+        borderBottomLeftRadius: 28,
         overflow: 'hidden',
         borderWidth: 1.5,
         borderColor: 'rgba(255, 255, 255, 0.25)',

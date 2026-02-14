@@ -34,6 +34,8 @@ import ServiceCalendar from './components/ServiceCalendar';
 import TariffSelector from './components/TariffSelector';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { BalancePill } from '../../../components/wallet/BalancePill';
+import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 
 type RouteParams = {
     params: {
@@ -317,8 +319,9 @@ export default function ServiceBookingScreen() {
                         <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Запись на сессию</Text>
-                    <View style={styles.walletBadge}>
-                        <Text style={styles.walletBalance}>{formattedBalance}</Text>
+                    <View style={styles.headerActions}>
+                        <AssistantChatButton size={36} />
+                        <BalancePill size="small" />
                     </View>
                 </View>
 
@@ -517,6 +520,11 @@ const styles = StyleSheet.create({
         paddingVertical: 18,
         borderBottomWidth: 1,
         borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     headerCircleButton: {
         width: 44,

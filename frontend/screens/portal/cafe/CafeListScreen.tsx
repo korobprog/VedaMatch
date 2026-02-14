@@ -32,16 +32,16 @@ import {
     UserCircle,
     ArrowLeft,
     PlusCircle,
-    Wallet,
 } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
 import { Cafe, CafeFilters } from '../../../types/cafe';
-import { useWallet } from '../../../context/WalletContext';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { BalancePill } from '../../../components/wallet/BalancePill';
+import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 
 const { width } = Dimensions.get('window');
 
@@ -52,7 +52,6 @@ interface CafeListScreenProps {
 const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
-    const { formattedBalance } = useWallet();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -187,10 +186,6 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
         navigation.navigate('CafeDetail', { cafeId: cafe.id });
     };
 
-    const handleWallet = () => {
-        navigation.navigate('Wallet');
-    };
-
     const renderCafeCard = ({ item }: { item: Cafe }) => {
         if (!item || item.id === undefined) return null;
 
@@ -296,12 +291,10 @@ const CafeListScreen: React.FC<CafeListScreenProps> = ({ onBack }) => {
                         <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>{t('cafe.list.subtitle')}</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
-                        <View style={styles.walletInnerGlass}>
-                            <Wallet size={14} color="#FFFFFF" />
-                            <Text style={styles.walletBalanceGlass}>{formattedBalance}</Text>
-                        </View>
-                    </TouchableOpacity>
+                    <View style={styles.headerActions}>
+                        <AssistantChatButton />
+                        <BalancePill size="small" lightMode={true} />
+                    </View>
                 </View>
             </ImageBackground>
 
@@ -482,6 +475,11 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
     },
     backButton: {
         width: 44,

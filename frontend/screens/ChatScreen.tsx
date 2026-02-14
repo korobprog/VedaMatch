@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground, Image } from 'react-native';
+import { View, StatusBar, StyleSheet, Alert, BackHandler, Animated, TouchableOpacity, ImageBackground, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from '@react-native-community/blur';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -24,6 +25,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     const { user: currentUser } = useUser();
     const { t } = useTranslation();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const insets = useSafeAreaInsets();
     const overlayOpacity = useRef(new Animated.Value(0)).current;
     const isImageBackground = portalBackgroundType === 'image' && Boolean(portalBackground);
     const backgroundSource = useMemo(() => {
@@ -109,7 +111,11 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const content = (
-        <>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+        >
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
             {showMenu && (
@@ -182,7 +188,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                     }}
                 />
             </View>
-        </>
+        </KeyboardAvoidingView>
     );
 
     return (

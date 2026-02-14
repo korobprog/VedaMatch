@@ -369,7 +369,14 @@ func (s *ChannelService) RemoveMember(channelID, actorID, memberUserID uint) err
 		return errors.New("owner cannot be removed")
 	}
 
-	return s.db.Where("channel_id = ? AND user_id = ?", channelID, memberUserID).Delete(&models.ChannelMember{}).Error
+	result := s.db.Where("channel_id = ? AND user_id = ?", channelID, memberUserID).Delete(&models.ChannelMember{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("member not found")
+	}
+	return nil
 }
 
 func (s *ChannelService) CreatePost(channelID, actorID uint, req models.ChannelPostCreateRequest) (*models.ChannelPost, error) {
@@ -1200,7 +1207,14 @@ func (s *ChannelService) DeleteShowcase(channelID, showcaseID, actorID uint) err
 	if err != nil {
 		return err
 	}
-	return s.db.Where("id = ? AND channel_id = ?", showcaseID, channelID).Delete(&models.ChannelShowcase{}).Error
+	result := s.db.Where("id = ? AND channel_id = ?", showcaseID, channelID).Delete(&models.ChannelShowcase{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("showcase not found")
+	}
+	return nil
 }
 
 func (s *ChannelService) loadPost(channelID, postID uint) (*models.ChannelPost, *models.Channel, error) {

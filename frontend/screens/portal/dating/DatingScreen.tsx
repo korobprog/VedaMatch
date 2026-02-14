@@ -16,6 +16,7 @@ import {
     Share,
     StatusBar,
     Platform,
+    ImageBackground,
     GestureResponderEvent
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +36,8 @@ import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import type { UserContact } from '../../../services/contactService';
+import { BalancePill } from '../../../components/wallet/BalancePill';
+import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 import {
     BarChart2,
     Filter,
@@ -426,7 +429,7 @@ const DatingCandidateCard = ({
                         </View>
 
                         <Text style={styles.cardBioText} numberOfLines={3}>
-                            {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || 'Seeking spiritual resonance...')}
+                            {mode === 'business' && item.lookingForBusiness ? item.lookingForBusiness : (item.bio || t('dating.seekingResonance'))}
                         </Text>
 
                         {!isPreview && (
@@ -443,7 +446,7 @@ const DatingCandidateCard = ({
                                         style={styles.cardCompatibilityGradient}
                                     >
                                         <Text style={styles.cardCompatibilityBtnText}>
-                                            {mode === 'business' ? 'Connect' : 'Astrological Analysis'}
+                                            {mode === 'business' ? t('dating.connectBtn') : t('dating.astroAnalysis')}
                                         </Text>
                                         <Sparkles size={16} color="rgba(0,0,0,1)" />
                                     </LinearGradient>
@@ -859,22 +862,42 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
             <LinearGradient colors={roleTheme.gradient} style={styles.fullGradient}>
                 <StatusBar barStyle="light-content" />
                 <View style={styles.containerTransparent}>
-                    <View style={styles.premiumHeader}>
-                        <TouchableOpacity
-                            style={styles.headerIconButton}
-                            onPress={() => onBack ? onBack() : (navigation.canGoBack() ? navigation.goBack() : null)}
+                    <View style={styles.header}>
+                        <ImageBackground
+                            source={require('../../../assets/dating_banner_bg.png')}
+                            style={styles.bannerHeader}
+                            imageStyle={styles.bannerImage}
                         >
-                            <ChevronLeft size={24} color="rgba(255,255,255,0.7)" />
-                        </TouchableOpacity>
+                            <View style={styles.bannerOverlay} />
+                            <View style={styles.headerTop}>
+                                <TouchableOpacity
+                                    style={styles.backButton}
+                                    onPress={() => onBack ? onBack() : (navigation.canGoBack() ? navigation.goBack() : null)}
+                                >
+                                    <ChevronLeft size={22} color="#FFFFFF" />
+                                </TouchableOpacity>
 
-                        <Text style={styles.headerTitle}>Union</Text>
+                                <View style={styles.headerTitleContainer}>
+                                    <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>
+                                        {t('dating.dating')}
+                                    </Text>
+                                    <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>
+                                        {t('dating.findSoulmate')}
+                                    </Text>
+                                </View>
 
-                        <TouchableOpacity
-                            style={[styles.headerIconButton, showStats && styles.headerIconButtonActive]}
-                            onPress={() => setShowStats(!showStats)}
-                        >
-                            <BarChart2 size={20} color={showStats ? roleColors.accent : 'rgba(255,255,255,0.7)'} />
-                        </TouchableOpacity>
+                                <View style={styles.headerActions}>
+                                    <TouchableOpacity
+                                        style={[styles.headerIconButton, showStats && styles.headerIconButtonActive]}
+                                        onPress={() => setShowStats(!showStats)}
+                                    >
+                                        <BarChart2 size={20} color={showStats ? roleColors.accent : '#FFFFFF'} />
+                                    </TouchableOpacity>
+                                    <AssistantChatButton />
+                                    <BalancePill size="small" lightMode={true} />
+                                </View>
+                            </View>
+                        </ImageBackground>
                     </View>
                     <GodModeStatusBanner />
 
@@ -906,7 +929,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 disabled={previewLoading}
                             >
                                 <Eye size={16} color={roleColors.accent} />
-                                <Text style={styles.glassActionText}>{previewLoading ? 'Loading...' : 'Preview'}</Text>
+                                <Text style={styles.glassActionText}>{previewLoading ? t('common.loading') : t('dating.preview')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -914,7 +937,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
                             >
                                 <ImageIcon size={16} color={roleColors.accent} />
-                                <Text style={styles.glassActionText}>Media</Text>
+                                <Text style={styles.glassActionText}>{t('dating.media')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -970,7 +993,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <Users2 size={20} color={roleColors.accent} style={styles.statIcon} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.total}</Text>
-                                        <Text style={styles.statLabel}>Total</Text>
+                                        <Text style={styles.statLabel}>{t('dating.total')}</Text>
                                     </View>
                                 </TouchableOpacity>
                                 <TouchableOpacity
@@ -986,7 +1009,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <MapPin size={20} color={roleColors.accent} style={styles.statIcon} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.city}</Text>
-                                        <Text style={styles.statLabel}>In {user?.city}</Text>
+                                        <Text style={styles.statLabel}>{t('dating.in')} {user?.city}</Text>
                                     </View>
                                 </TouchableOpacity>
                                 <TouchableOpacity
@@ -1005,7 +1028,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <Sparkles size={20} color={roleColors.accent} style={styles.statIcon} />
                                     <View>
                                         <Text style={styles.statValue}>{stats.new}</Text>
-                                        <Text style={styles.statLabel}>New (24h)</Text>
+                                        <Text style={styles.statLabel}>{t('dating.new24h')}</Text>
                                     </View>
                                 </TouchableOpacity>
                             </ScrollView>
@@ -1116,21 +1139,21 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                 <ScrollView showsVerticalScrollIndicator={false}>
                                     {mode === 'business' && (
                                         <>
-                                            <Text style={styles.filterLabel}>Skills</Text>
+                                            <Text style={styles.filterLabel}>{t('dating.skills')}</Text>
                                             <TextInput
                                                 style={styles.filterInput}
                                                 value={filterSkills}
                                                 onChangeText={setFilterSkills}
-                                                placeholder="e.g. Management, Coding..."
+                                                placeholder={t('dating.skillsPlaceholder')}
                                                 placeholderTextColor="rgba(255,255,255,0.3)"
                                             />
 
-                                            <Text style={styles.filterLabel}>Industry</Text>
+                                            <Text style={styles.filterLabel}>{t('dating.industry')}</Text>
                                             <TextInput
                                                 style={styles.filterInput}
                                                 value={filterIndustry}
                                                 onChangeText={setFilterIndustry}
-                                                placeholder="e.g. IT, Wellness..."
+                                                placeholder={t('dating.industryPlaceholder')}
                                                 placeholderTextColor="rgba(255,255,255,0.3)"
                                             />
                                         </>
@@ -1163,31 +1186,31 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                         />
                                     </View>
 
-                                    <Text style={styles.filterLabel}>Tradition</Text>
+                                    <Text style={styles.filterLabel}>{t('dating.tradition')}</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowMadhPicker(true)}>
                                         <Text style={filterMadhTextStyle}>
-                                            {filterMadh || "Any"}
+                                            {filterMadh || t('dating.any')}
                                         </Text>
                                     </TouchableOpacity>
 
-                                    <Text style={styles.filterLabel}>Yoga Style</Text>
+                                    <Text style={styles.filterLabel}>{t('dating.yogaStyle')}</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowYogaPicker(true)}>
                                         <Text style={filterYogaStyleTextStyle}>
-                                            {filterYogaStyle || "Any"}
+                                            {filterYogaStyle || t('dating.any')}
                                         </Text>
                                     </TouchableOpacity>
 
-                                    <Text style={styles.filterLabel}>Guna</Text>
+                                    <Text style={styles.filterLabel}>{t('dating.guna')}</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowGunaPicker(true)}>
                                         <Text style={filterGunaTextStyle}>
-                                            {filterGuna || "Any"}
+                                            {filterGuna || t('dating.any')}
                                         </Text>
                                     </TouchableOpacity>
 
-                                    <Text style={styles.filterLabel}>Identity</Text>
+                                    <Text style={styles.filterLabel}>{t('dating.identity')}</Text>
                                     <TouchableOpacity style={styles.filterInput} onPress={() => setShowIdentityPicker(true)}>
                                         <Text style={filterIdentityTextStyle}>
-                                            {filterIdentity || "Any"}
+                                            {filterIdentity || t('dating.any')}
                                         </Text>
                                     </TouchableOpacity>
                                 </ScrollView>
@@ -1235,7 +1258,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
                             <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentPreview]}>
                                 <View style={styles.modalHeaderPremium}>
-                                    <Text style={styles.headerTitleSmall}>Profile Preview</Text>
+                                    <Text style={styles.headerTitleSmall}>{t('dating.profilePreview')}</Text>
                                     <TouchableOpacity onPress={() => setShowPreview(false)}>
                                         <X size={24} color="rgba(255,255,255,1)" />
                                     </TouchableOpacity>
@@ -1256,10 +1279,10 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                                 navigation={navigation}
                                                 onCheckCompatibility={handleCheckCompatibility}
                                             />
-                                            <Text style={styles.previewHint}>This is how others see your card</Text>
+                                            <Text style={styles.previewHint}>{t('dating.previewHint')}</Text>
                                         </>
                                     ) : (
-                                        <Text style={styles.errorText}>Failed to load profile</Text>
+                                        <Text style={styles.errorText}>{t('dating.failedToLoadProfile')}</Text>
                                     )}
                                 </ScrollView>
                             </LinearGradient>
@@ -1315,7 +1338,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax80]}>
                                 <View style={styles.modalHeader}>
                                     <Text style={styles.modalTitle}>
-                                        {showMadhPicker ? "Tradition" : showYogaPicker ? "Yoga Style" : showGunaPicker ? "Guna" : "Identity"}
+                                        {showMadhPicker ? t('dating.tradition') : showYogaPicker ? t('dating.yogaStyle') : showGunaPicker ? t('dating.guna') : t('dating.identity')}
                                     </Text>
                                 </View>
 
@@ -1330,7 +1353,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                             closeAllPickers();
                                         }}
                                     >
-                                        <Text style={[styles.pickerAccentText, modalAccentTextStyle]}>Show All</Text>
+                                        <Text style={[styles.pickerAccentText, modalAccentTextStyle]}>{t('dating.showAll')}</Text>
                                     </TouchableOpacity>
                                     {(showMadhPicker ? DATING_TRADITIONS : showYogaPicker ? YOGA_STYLES : showGunaPicker ? GUNAS : IDENTITY_OPTIONS).map((opt, index) => (
                                         <TouchableOpacity
@@ -1374,33 +1397,81 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: 'transparent',
     },
-    premiumHeader: {
+    header: {
+        marginBottom: 24,
+    },
+    bannerHeader: {
+        width: '100%',
+        height: 240,
+        justifyContent: 'center',
+        paddingTop: Platform.OS === 'ios' ? 44 : 20,
+        borderBottomLeftRadius: 36,
+        borderBottomRightRadius: 36,
+        overflow: 'hidden',
+    },
+    bannerImage: {
+        resizeMode: 'cover',
+    },
+    bannerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    },
+    headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
-        paddingBottom: 15,
     },
-    headerIconButton: {
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    headerTitle: {
+        fontSize: 30,
+        fontWeight: '900',
+        fontFamily: 'Cinzel-Bold',
+        letterSpacing: 2,
+        textShadowColor: 'rgba(0, 0, 0, 0.6)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 12,
+    },
+    headerSubtitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 4,
+        marginTop: 4,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+    backButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    headerIconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
     },
     headerIconButtonActive: {
-        backgroundColor: 'rgba(245, 158, 11, 0.15)',
-        borderColor: 'rgba(245, 158, 11, 0.3)',
-    },
-    headerTitle: {
-        color: 'rgba(255,255,255,1)',
-        fontSize: 24,
-        fontFamily: 'Cinzel-Regular',
-        letterSpacing: 3,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        borderColor: 'rgba(245, 158, 11, 0.5)',
     },
     topActionScrollContainer: {
         height: 48,

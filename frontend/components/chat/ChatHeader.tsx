@@ -108,16 +108,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     </View>
 
                     <View style={styles.rightActions}>
-                        {recipientUser ? (
-                            onCallPress && (
-                                <TouchableOpacity onPress={onCallPress} style={styles.actionButton}>
-                                    <Phone color="#F8FAFC" size={18} />
-                                </TouchableOpacity>
-                            )
-                        ) : (
-                            <View style={styles.aiBalanceContainer}>
-                                <BalancePill size="small" />
-                            </View>
+                        <View style={{ marginRight: recipientUser ? 10 : 0 }}>
+                            <BalancePill size="small" />
+                        </View>
+                        {recipientUser && onCallPress && (
+                            <TouchableOpacity onPress={onCallPress} style={styles.actionButton}>
+                                <Phone color="#F8FAFC" size={18} />
+                            </TouchableOpacity>
                         )}
                     </View>
                 </View>

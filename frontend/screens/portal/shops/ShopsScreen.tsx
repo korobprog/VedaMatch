@@ -18,20 +18,19 @@ import {
     X,
     Search as SearchIcon,
     ArrowLeft,
-    Wallet,
     Map as MapIcon,
     PlusCircle
 } from 'lucide-react-native';
-import { useWallet } from '../../../context/WalletContext';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { BalancePill } from '../../../components/wallet/BalancePill';
+import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 
 const { width } = Dimensions.get('window');
 
 export const ShopsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
     const navigation = useNavigation<any>();
-    const { formattedBalance } = useWallet();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors: roleColors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -157,15 +156,10 @@ export const ShopsScreen: React.FC = () => {
                     <Text style={styles.headerSubtitle}>{t('market.shops_list') || 'Список магазинов'}</Text>
                 </View>
 
-                <TouchableOpacity style={styles.walletButton} onPress={() => navigation.navigate('Wallet')}>
-                    <LinearGradient
-                        colors={[roleTheme.accentSoft, 'rgba(255,255,255,0.03)']}
-                        style={[styles.walletInner, { borderColor: roleColors.accentSoft }]}
-                    >
-                        <Wallet size={14} color={roleColors.accent} />
-                        <Text style={[styles.walletBalance, { color: roleColors.accent }]}>{formattedBalance}</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                <View style={styles.headerActions}>
+                    <AssistantChatButton />
+                    <BalancePill size="small" lightMode={true} />
+                </View>
             </View>
 
             <View style={styles.featuredActions}>
@@ -331,6 +325,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         marginBottom: 24,
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
     },
     backButton: {
         width: 44,

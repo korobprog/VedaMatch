@@ -56,8 +56,9 @@ type Dish struct {
 	Type        DishType `json:"type" gorm:"type:varchar(20);default:'food'"`
 
 	// Pricing
-	Price    float64 `json:"price" gorm:"type:decimal(10,2);not null"`
-	OldPrice float64 `json:"oldPrice" gorm:"type:decimal(10,2)"` // For showing discount
+	Price              float64 `json:"price" gorm:"type:decimal(10,2);not null"`
+	OldPrice           float64 `json:"oldPrice" gorm:"type:decimal(10,2)"`  // For showing discount
+	MaxBonusLkmPercent int     `json:"maxBonusLkmPercent" gorm:"default:0"` // 0..100% can be paid with bonus LKM
 
 	// Images
 	ImageURL string `json:"imageUrl" gorm:"type:varchar(500)"`
@@ -149,47 +150,49 @@ type DishCategoryUpdateRequest struct {
 
 // DishCreateRequest for creating a dish
 type DishCreateRequest struct {
-	CategoryID   uint     `json:"categoryId" binding:"required"`
-	Name         string   `json:"name" binding:"required,min=1,max=200"`
-	Description  string   `json:"description"`
-	Type         DishType `json:"type"`
-	Price        float64  `json:"price" binding:"required,gt=0"`
-	OldPrice     float64  `json:"oldPrice"`
-	ImageURL     string   `json:"imageUrl"`
-	ThumbURL     string   `json:"thumbUrl"`
-	Calories     int      `json:"calories"`
-	Weight       string   `json:"weight"`
-	CookingTime  int      `json:"cookingTime"`
-	IsVegetarian bool     `json:"isVegetarian"`
-	IsVegan      bool     `json:"isVegan"`
-	IsSpicy      bool     `json:"isSpicy"`
-	IsGlutenFree bool     `json:"isGlutenFree"`
-	IsActive     bool     `json:"isActive"`
-	IsFeatured   bool     `json:"isFeatured"`
-	SortOrder    int      `json:"sortOrder"`
+	CategoryID         uint     `json:"categoryId" binding:"required"`
+	Name               string   `json:"name" binding:"required,min=1,max=200"`
+	Description        string   `json:"description"`
+	Type               DishType `json:"type"`
+	Price              float64  `json:"price" binding:"required,gt=0"`
+	OldPrice           float64  `json:"oldPrice"`
+	MaxBonusLkmPercent int      `json:"maxBonusLkmPercent"`
+	ImageURL           string   `json:"imageUrl"`
+	ThumbURL           string   `json:"thumbUrl"`
+	Calories           int      `json:"calories"`
+	Weight             string   `json:"weight"`
+	CookingTime        int      `json:"cookingTime"`
+	IsVegetarian       bool     `json:"isVegetarian"`
+	IsVegan            bool     `json:"isVegan"`
+	IsSpicy            bool     `json:"isSpicy"`
+	IsGlutenFree       bool     `json:"isGlutenFree"`
+	IsActive           bool     `json:"isActive"`
+	IsFeatured         bool     `json:"isFeatured"`
+	SortOrder          int      `json:"sortOrder"`
 }
 
 // DishUpdateRequest for updating a dish
 type DishUpdateRequest struct {
-	CategoryID   *uint     `json:"categoryId"`
-	Name         *string   `json:"name"`
-	Description  *string   `json:"description"`
-	Type         *DishType `json:"type"`
-	Price        *float64  `json:"price"`
-	OldPrice     *float64  `json:"oldPrice"`
-	ImageURL     *string   `json:"imageUrl"`
-	ThumbURL     *string   `json:"thumbUrl"`
-	Calories     *int      `json:"calories"`
-	Weight       *string   `json:"weight"`
-	CookingTime  *int      `json:"cookingTime"`
-	IsVegetarian *bool     `json:"isVegetarian"`
-	IsVegan      *bool     `json:"isVegan"`
-	IsSpicy      *bool     `json:"isSpicy"`
-	IsGlutenFree *bool     `json:"isGlutenFree"`
-	IsActive     *bool     `json:"isActive"`
-	IsAvailable  *bool     `json:"isAvailable"` // For stop-list
-	IsFeatured   *bool     `json:"isFeatured"`
-	SortOrder    *int      `json:"sortOrder"`
+	CategoryID         *uint     `json:"categoryId"`
+	Name               *string   `json:"name"`
+	Description        *string   `json:"description"`
+	Type               *DishType `json:"type"`
+	Price              *float64  `json:"price"`
+	OldPrice           *float64  `json:"oldPrice"`
+	MaxBonusLkmPercent *int      `json:"maxBonusLkmPercent"`
+	ImageURL           *string   `json:"imageUrl"`
+	ThumbURL           *string   `json:"thumbUrl"`
+	Calories           *int      `json:"calories"`
+	Weight             *string   `json:"weight"`
+	CookingTime        *int      `json:"cookingTime"`
+	IsVegetarian       *bool     `json:"isVegetarian"`
+	IsVegan            *bool     `json:"isVegan"`
+	IsSpicy            *bool     `json:"isSpicy"`
+	IsGlutenFree       *bool     `json:"isGlutenFree"`
+	IsActive           *bool     `json:"isActive"`
+	IsAvailable        *bool     `json:"isAvailable"` // For stop-list
+	IsFeatured         *bool     `json:"isFeatured"`
+	SortOrder          *int      `json:"sortOrder"`
 }
 
 // DishIngredientRequest for managing ingredients

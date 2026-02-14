@@ -382,6 +382,7 @@ func (h *OrderHandler) notifySellerAboutOrder(order *models.Order) {
 	// Get shop with tech room
 	var shop models.Shop
 	if err := database.DB.First(&shop, order.ShopID).Error; err != nil {
+		fmt.Printf("[Order Notification] failed to load shop %d for order %d: %v\n", order.ShopID, order.ID, err)
 		return
 	}
 
@@ -389,11 +390,16 @@ func (h *OrderHandler) notifySellerAboutOrder(order *models.Order) {
 	if shop.TechRoomID != nil {
 		// Get buyer info
 		var buyer models.User
-		database.DB.First(&buyer, order.BuyerID)
+		if err := database.DB.First(&buyer, order.BuyerID).Error; err != nil {
+			fmt.Printf("[Order Notification] failed to load buyer %d for order %d: %v\n", order.BuyerID, order.ID, err)
+		}
 
 		buyerName := buyer.SpiritualName
 		if buyerName == "" {
 			buyerName = buyer.KarmicName
+		}
+		if buyerName == "" {
+			buyerName = "Покупатель"
 		}
 
 		notification := models.OrderNotification{
@@ -414,7 +420,9 @@ func (h *OrderHandler) notifySellerAboutOrder(order *models.Order) {
 	}
 
 	// Mark notification as sent
-	h.orderService.MarkNotificationSent(order.ID)
+	if err := h.orderService.MarkNotificationSent(order.ID); err != nil {
+		fmt.Printf("[Order Notification] failed to mark notification sent for order %d: %v\n", order.ID, err)
+	}
 }
 
 func parseOptionalUintQuery(c *fiber.Ctx, key string) *uint {

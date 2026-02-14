@@ -50,6 +50,10 @@ func isValidProductStatus(status models.ProductStatus) bool {
 	}
 }
 
+func isValidBonusLkmPercent(value int) bool {
+	return value >= 0 && value <= 100
+}
+
 // CreateProduct creates a new product
 func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequest) (*models.Product, error) {
 	// Verify shop exists
@@ -97,6 +101,9 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	if req.Weight != nil && *req.Weight < 0 {
 		return nil, errors.New("weight cannot be negative")
 	}
+	if !isValidBonusLkmPercent(req.MaxBonusLkmPercent) {
+		return nil, errors.New("maxBonusLkmPercent must be between 0 and 100")
+	}
 
 	// Generate slug
 	slug := s.generateSlug(req.Name)
@@ -112,25 +119,26 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	}
 
 	product := models.Product{
-		ShopID:           shopID,
-		Name:             req.Name,
-		Slug:             slug,
-		ShortDescription: req.ShortDescription,
-		FullDescription:  req.FullDescription,
-		Category:         req.Category,
-		Tags:             tagsJSON,
-		ProductType:      req.ProductType,
-		ExternalURL:      req.ExternalURL,
-		DigitalURL:       req.DigitalURL,
-		BasePrice:        req.BasePrice,
-		SalePrice:        req.SalePrice,
-		Currency:         req.Currency,
-		Stock:            req.Stock,
-		TrackStock:       req.TrackStock,
-		MainImageURL:     req.MainImageURL,
-		Weight:           req.Weight,
-		Dimensions:       req.Dimensions,
-		Status:           models.ProductStatusDraft,
+		ShopID:             shopID,
+		Name:               req.Name,
+		Slug:               slug,
+		ShortDescription:   req.ShortDescription,
+		FullDescription:    req.FullDescription,
+		Category:           req.Category,
+		Tags:               tagsJSON,
+		ProductType:        req.ProductType,
+		ExternalURL:        req.ExternalURL,
+		DigitalURL:         req.DigitalURL,
+		BasePrice:          req.BasePrice,
+		SalePrice:          req.SalePrice,
+		Currency:           req.Currency,
+		MaxBonusLkmPercent: req.MaxBonusLkmPercent,
+		Stock:              req.Stock,
+		TrackStock:         req.TrackStock,
+		MainImageURL:       req.MainImageURL,
+		Weight:             req.Weight,
+		Dimensions:         req.Dimensions,
+		Status:             models.ProductStatusDraft,
 	}
 
 	if product.Currency == "" {
@@ -303,6 +311,12 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 	}
 	if req.Dimensions != nil {
 		product.Dimensions = strings.TrimSpace(*req.Dimensions)
+	}
+	if req.MaxBonusLkmPercent != nil {
+		if !isValidBonusLkmPercent(*req.MaxBonusLkmPercent) {
+			return nil, errors.New("maxBonusLkmPercent must be between 0 and 100")
+		}
+		product.MaxBonusLkmPercent = *req.MaxBonusLkmPercent
 	}
 	if strings.TrimSpace(product.Name) == "" {
 		return nil, errors.New("name is required")

@@ -20,9 +20,10 @@ type ServiceTariff struct {
 	Service   *Service `json:"service,omitempty" gorm:"foreignKey:ServiceID"`
 
 	// Tariff info
-	Name     string `json:"name" gorm:"type:varchar(100);not null"`
-	Price    int    `json:"price" gorm:"not null"`                          // In Лакшми (game currency)
-	Currency string `json:"currency" gorm:"type:varchar(10);default:'LKS'"` // LKS = Лакшми
+	Name               string `json:"name" gorm:"type:varchar(100);not null"`
+	Price              int    `json:"price" gorm:"not null"`                          // In Лакшми (game currency)
+	Currency           string `json:"currency" gorm:"type:varchar(10);default:'LKS'"` // LKS = Лакшми
+	MaxBonusLkmPercent int    `json:"maxBonusLkmPercent" gorm:"default:0"`            // 0..100% can be paid with bonus LKM
 
 	// Session details
 	DurationMinutes int `json:"durationMinutes"`                // Duration of one session
@@ -45,27 +46,29 @@ type ServiceTariff struct {
 
 // TariffCreateRequest for creating a new tariff
 type TariffCreateRequest struct {
-	Name            string `json:"name" binding:"required,min=1,max=100"`
-	Price           int    `json:"price" binding:"required,min=0"`
-	Currency        string `json:"currency"`
-	DurationMinutes int    `json:"durationMinutes"`
-	SessionsCount   int    `json:"sessionsCount"`
-	ValidityDays    int    `json:"validityDays"`
-	Includes        string `json:"includes"` // JSON array
-	IsDefault       bool   `json:"isDefault"`
-	SortOrder       int    `json:"sortOrder"`
+	Name               string `json:"name" binding:"required,min=1,max=100"`
+	Price              int    `json:"price" binding:"required,min=0"`
+	Currency           string `json:"currency"`
+	MaxBonusLkmPercent int    `json:"maxBonusLkmPercent"`
+	DurationMinutes    int    `json:"durationMinutes"`
+	SessionsCount      int    `json:"sessionsCount"`
+	ValidityDays       int    `json:"validityDays"`
+	Includes           string `json:"includes"` // JSON array
+	IsDefault          bool   `json:"isDefault"`
+	SortOrder          int    `json:"sortOrder"`
 }
 
 // TariffUpdateRequest for updating a tariff
 type TariffUpdateRequest struct {
-	Name            *string `json:"name"`
-	Price           *int    `json:"price"`
-	Currency        *string `json:"currency"`
-	DurationMinutes *int    `json:"durationMinutes"`
-	SessionsCount   *int    `json:"sessionsCount"`
-	ValidityDays    *int    `json:"validityDays"`
-	Includes        *string `json:"includes"`
-	IsDefault       *bool   `json:"isDefault"`
-	IsActive        *bool   `json:"isActive"`
-	SortOrder       *int    `json:"sortOrder"`
+	Name               *string `json:"name"`
+	Price              *int    `json:"price"`
+	Currency           *string `json:"currency"`
+	MaxBonusLkmPercent *int    `json:"maxBonusLkmPercent"`
+	DurationMinutes    *int    `json:"durationMinutes"`
+	SessionsCount      *int    `json:"sessionsCount"`
+	ValidityDays       *int    `json:"validityDays"`
+	Includes           *string `json:"includes"`
+	IsDefault          *bool   `json:"isDefault"`
+	IsActive           *bool   `json:"isActive"`
+	SortOrder          *int    `json:"sortOrder"`
 }

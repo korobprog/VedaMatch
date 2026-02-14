@@ -187,10 +187,19 @@ func (h *BookingHandler) Confirm(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	bookingID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid booking ID",
+		})
+	}
 
 	var req models.BookingActionRequest
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
 
 	booking, err := h.bookingService.Confirm(uint(bookingID), userID, req)
 	if err != nil {
@@ -209,10 +218,19 @@ func (h *BookingHandler) Cancel(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	bookingID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid booking ID",
+		})
+	}
 
 	var req models.BookingActionRequest
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
 
 	booking, err := h.bookingService.Cancel(uint(bookingID), userID, req)
 	if err != nil {
@@ -231,10 +249,19 @@ func (h *BookingHandler) Complete(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	bookingID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid booking ID",
+		})
+	}
 
 	var req models.BookingActionRequest
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
 
 	booking, err := h.bookingService.Complete(uint(bookingID), userID, req)
 	if err != nil {
@@ -253,7 +280,12 @@ func (h *BookingHandler) NoShow(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	bookingID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	bookingID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid booking ID",
+		})
+	}
 
 	booking, err := h.bookingService.MarkNoShow(uint(bookingID), userID)
 	if err != nil {
@@ -270,7 +302,12 @@ func (h *BookingHandler) NoShow(c *fiber.Ctx) error {
 // GetSlots returns available slots for a service on a given date
 // GET /api/services/:id/slots
 func (h *BookingHandler) GetSlots(c *fiber.Ctx) error {
-	serviceID, _ := strconv.ParseUint(c.Params("id"), 10, 32)
+	serviceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
 
 	date := c.Query("date")
 	if date == "" {

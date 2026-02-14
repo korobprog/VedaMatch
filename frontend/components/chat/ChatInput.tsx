@@ -4,7 +4,6 @@ import {
     TouchableOpacity,
     TextInput,
     Text,
-    KeyboardAvoidingView,
     Platform,
     StyleSheet,
     Alert,
@@ -12,6 +11,7 @@ import {
     Vibration,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from '@react-native-community/blur';
 import { MENU_OPTIONS, FRIEND_MENU_OPTIONS } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
@@ -32,6 +32,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     onMenuOption,
 }) => {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const {
         handleSendMessage,
         handleStopRequest,
@@ -182,10 +183,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-            style={[styles.inputWrapper, { backgroundColor: 'transparent' }]}
+        <View
+            style={[styles.inputWrapper, { backgroundColor: 'transparent', paddingBottom: 4 }]}
         >
             {/* Menu Pop-up */}
             {showMenu && (
@@ -339,14 +338,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 onSend={onLockedSend}
                 onCancel={onLockedCancel}
             />
-        </KeyboardAvoidingView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     inputWrapper: {
         paddingHorizontal: 16,
-        paddingVertical: 10,
+        paddingTop: 10,
     },
     inputContainer: {
         flexDirection: 'row',

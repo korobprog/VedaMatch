@@ -18,11 +18,22 @@ func GetUserID(c *fiber.Ctx) uint {
 }
 
 func requireAdmin(c *fiber.Ctx) error {
+	if middleware.GetUserID(c) == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	role := middleware.GetUserRole(c)
 	if role != "admin" && role != "superadmin" {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Admin access required"})
 	}
 	return nil
+}
+
+func requireCharityUserID(c *fiber.Ctx) (uint, error) {
+	userID := GetUserID(c)
+	if userID == 0 {
+		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	return userID, nil
 }
 
 type CharityHandler struct {
@@ -37,7 +48,10 @@ func NewCharityHandler(service *services.CharityService) *CharityHandler {
 
 // CreateOrganization
 func (h *CharityHandler) CreateOrganization(c *fiber.Ctx) error {
-	userID := GetUserID(c) // Use internal helper or middleware helper
+	userID, authErr := requireCharityUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	var req models.CreateOrganizationRequest
 
 	if err := c.BodyParser(&req); err != nil {
@@ -68,7 +82,10 @@ func (h *CharityHandler) GetOrganizations(c *fiber.Ctx) error {
 
 // CreateProject
 func (h *CharityHandler) CreateProject(c *fiber.Ctx) error {
-	userID := GetUserID(c)
+	userID, authErr := requireCharityUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	var req models.CreateProjectRequest
 
 	if err := c.BodyParser(&req); err != nil {
@@ -97,7 +114,10 @@ func (h *CharityHandler) GetProjects(c *fiber.Ctx) error {
 
 // Donate
 func (h *CharityHandler) Donate(c *fiber.Ctx) error {
-	userID := GetUserID(c)
+	userID, authErr := requireCharityUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	var req models.DonateRequest
 
 	if err := c.BodyParser(&req); err != nil {
@@ -120,7 +140,10 @@ func (h *CharityHandler) Donate(c *fiber.Ctx) error {
 
 // RefundDonation returns donation within 24 hours
 func (h *CharityHandler) RefundDonation(c *fiber.Ctx) error {
-	userID := GetUserID(c)
+	userID, authErr := requireCharityUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	donationID, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid donation ID"})
@@ -136,7 +159,10 @@ func (h *CharityHandler) RefundDonation(c *fiber.Ctx) error {
 
 // GetMyDonations returns user's donation history
 func (h *CharityHandler) GetMyDonations(c *fiber.Ctx) error {
-	userID := GetUserID(c)
+	userID, authErr := requireCharityUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 	status := c.Query("status") // Optional filter: pending, confirmed, refunded
 
 	donations, err := h.Service.GetUserDonations(userID, status)
@@ -226,7 +252,10 @@ func (h *CharityHandler) GetProjectEvidence(c *fiber.Ctx) error {
 
 // UploadEvidence uploads a new evidence report
 func (h *CharityHandler) UploadEvidence(c *fiber.Ctx) error {
-	userID := GetUserID(c)
+	userID, authErr := requireCharityUserID(c)
+	if authErr != nil {
+		return authErr
+	}
 
 	// Parse request body
 	type UploadEvidenceRequest struct {
@@ -335,7 +364,9 @@ func (h *CharityHandler) RejectOrganization(c *fiber.Ctx) error {
 		Reason string `json:"reason"`
 	}
 	var req RejectRequest
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
 
 	var org models.CharityOrganization
 	if err := database.DB.First(&org, orgID).Error; err != nil {
@@ -413,7 +444,9 @@ func (h *CharityHandler) RejectProject(c *fiber.Ctx) error {
 		Reason string `json:"reason"`
 	}
 	var req RejectRequest
-	c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
 
 	var project models.CharityProject
 	if err := database.DB.First(&project, projectID).Error; err != nil {
@@ -433,6 +466,9 @@ func (h *CharityHandler) RejectProject(c *fiber.Ctx) error {
 
 // GetCharityStats returns charity dashboard statistics
 func (h *CharityHandler) GetCharityStats(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
 	var stats struct {
 		TotalOrganizations   int64 `json:"totalOrganizations"`
 		PendingOrganizations int64 `json:"pendingOrganizations"`
@@ -444,14 +480,30 @@ func (h *CharityHandler) GetCharityStats(c *fiber.Ctx) error {
 		PendingDonations     int64 `json:"pendingDonations"`
 	}
 
-	database.DB.Model(&models.CharityOrganization{}).Count(&stats.TotalOrganizations)
-	database.DB.Model(&models.CharityOrganization{}).Where("status = ?", models.OrgStatusPending).Count(&stats.PendingOrganizations)
-	database.DB.Model(&models.CharityProject{}).Count(&stats.TotalProjects)
-	database.DB.Model(&models.CharityProject{}).Where("status = ?", models.ProjectStatusActive).Count(&stats.ActiveProjects)
-	database.DB.Model(&models.CharityProject{}).Where("status = ?", models.ProjectStatusModeration).Count(&stats.PendingProjects)
-	database.DB.Model(&models.CharityDonation{}).Count(&stats.TotalDonations)
-	database.DB.Model(&models.CharityDonation{}).Select("COALESCE(SUM(amount), 0)").Row().Scan(&stats.TotalRaised)
-	database.DB.Model(&models.CharityDonation{}).Where("status = ?", models.DonationStatusPending).Count(&stats.PendingDonations)
+	if err := database.DB.Model(&models.CharityOrganization{}).Count(&stats.TotalOrganizations).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
+	if err := database.DB.Model(&models.CharityOrganization{}).Where("status = ?", models.OrgStatusPending).Count(&stats.PendingOrganizations).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
+	if err := database.DB.Model(&models.CharityProject{}).Count(&stats.TotalProjects).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
+	if err := database.DB.Model(&models.CharityProject{}).Where("status = ?", models.ProjectStatusActive).Count(&stats.ActiveProjects).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
+	if err := database.DB.Model(&models.CharityProject{}).Where("status = ?", models.ProjectStatusModeration).Count(&stats.PendingProjects).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
+	if err := database.DB.Model(&models.CharityDonation{}).Count(&stats.TotalDonations).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
+	if err := database.DB.Model(&models.CharityDonation{}).Select("COALESCE(SUM(amount), 0)").Row().Scan(&stats.TotalRaised); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
+	if err := database.DB.Model(&models.CharityDonation{}).Where("status = ?", models.DonationStatusPending).Count(&stats.PendingDonations).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load charity stats"})
+	}
 
 	return c.JSON(stats)
 }

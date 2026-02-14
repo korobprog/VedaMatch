@@ -48,6 +48,8 @@ import { getMediaUrl } from '../../../utils/url';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { BalancePill } from '../../../components/wallet/BalancePill';
+import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {
@@ -216,9 +218,13 @@ export default function ServiceDetailScreen() {
                     <TouchableOpacity style={styles.headerCircleButton} onPress={() => navigation.goBack()}>
                         <ArrowLeft size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerCircleButton} onPress={handleShare}>
-                        <Share2 size={20} color={colors.textPrimary} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <AssistantChatButton size={36} />
+                        <BalancePill size="small" lightMode={true} />
+                        <TouchableOpacity style={styles.headerCircleButton} onPress={handleShare}>
+                            <Share2 size={20} color={colors.textPrimary} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 <ScrollView

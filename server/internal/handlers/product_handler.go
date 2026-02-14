@@ -308,6 +308,11 @@ func (h *ProductHandler) CreateProduct(c *fiber.Ctx) error {
 			"error": "Price cannot be negative",
 		})
 	}
+	if req.MaxBonusLkmPercent < 0 || req.MaxBonusLkmPercent > 100 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "maxBonusLkmPercent must be between 0 and 100",
+		})
+	}
 
 	product, err := h.productService.CreateProduct(shop.ID, req)
 	if err != nil {
@@ -357,6 +362,11 @@ func (h *ProductHandler) UpdateProduct(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+		})
+	}
+	if req.MaxBonusLkmPercent != nil && (*req.MaxBonusLkmPercent < 0 || *req.MaxBonusLkmPercent > 100) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "maxBonusLkmPercent must be between 0 and 100",
 		})
 	}
 

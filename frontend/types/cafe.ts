@@ -80,6 +80,7 @@ export interface Dish {
     type: DishType;
     price: number;
     oldPrice: number | null;
+    maxBonusLkmPercent?: number;
     imageUrl: string;
     thumbUrl: string;
     calories: number | null;

@@ -24,7 +24,6 @@ import {
     Search,
     Briefcase,
     PlusCircle,
-    Wallet,
     History,
     Users,
     Star,
@@ -43,12 +42,13 @@ import {
     ServiceFilters,
     getServices,
 } from '../../../services/serviceService';
-import { useWallet } from '../../../context/WalletContext';
 import ServiceCard from './components/ServiceCard';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
+import { BalancePill } from '../../../components/wallet/BalancePill';
+import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 
 const { width } = Dimensions.get('window');
 
@@ -90,7 +90,6 @@ interface ServicesHomeScreenProps {
 
 const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const navigation = useNavigation<any>();
-    const { formattedBalance } = useWallet();
     const { user } = useUser();
     const { isDarkMode } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
@@ -213,10 +212,6 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         navigation.navigate('IncomingBookings');
     };
 
-    const handleWallet = () => {
-        navigation.navigate('Wallet');
-    };
-
     const handleChannels = () => {
         navigation.navigate('ChannelsHub');
     };
@@ -245,15 +240,13 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                         >
                             Маркетплейс
                         </Text>
-                        <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>Услуги и специалисты</Text>
+                        <Text style={[styles.headerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>Услуги и специалисты</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.walletButton} onPress={handleWallet}>
-                        <View style={styles.walletInnerGlass}>
-                            <Wallet size={14} color="#FFFFFF" />
-                            <Text style={[styles.walletBalanceGlass, { color: '#FFFFFF' }]}>{formattedBalance}</Text>
-                        </View>
-                    </TouchableOpacity>
+                    <View style={styles.headerActions}>
+                        <AssistantChatButton />
+                        <BalancePill size="small" lightMode={true} />
+                    </View>
                 </View>
             </ImageBackground>
 
@@ -452,35 +445,40 @@ const styles = StyleSheet.create({
     },
     bannerOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
     },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: '800',
+        fontSize: 30,
+        fontWeight: '900',
         fontFamily: 'Cinzel-Bold',
-        letterSpacing: 1,
+        letterSpacing: 2,
         textShadowColor: 'rgba(0, 0, 0, 0.6)',
         textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 8,
+        textShadowRadius: 12,
     },
     headerSubtitle: {
-        fontSize: 10,
-        fontWeight: '600',
+        fontSize: 12,
+        fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 2,
-        marginTop: 2,
-        textShadowColor: 'rgba(0, 0, 0, 0.4)',
+        letterSpacing: 4,
+        marginTop: 4,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
         textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 4,
+        textShadowRadius: 6,
     },
     backButton: {
         width: 44,

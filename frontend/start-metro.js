@@ -28,9 +28,9 @@ const isPortTaken = (port) => new Promise((resolve, reject) => {
   }
 
   // Устанавливаем переменные окружения
-  process.env.PORT = '8081';
-  process.env.REACT_NATIVE_PACKAGER_PORT = '8081';
-  process.env.RCT_METRO_PORT = '8081';
+  process.env.PORT = '8082';
+  process.env.REACT_NATIVE_PACKAGER_PORT = '8082';
+  process.env.RCT_METRO_PORT = '8082';
 
   startMetro();
 })();
@@ -41,14 +41,14 @@ function startMetro() {
 
   // Pass any arguments from the command line (like --reset-cache) to the react-native start command
   const args = process.argv.slice(2);
-  const metro = spawn('npx', ['react-native', 'start', ...args], {
+  const metro = spawn('npx', ['react-native', 'start', '--port', '8082', ...args], {
     stdio: 'inherit',
     shell: true,
     env: {
       ...process.env,
-      PORT: '8081',
-      REACT_NATIVE_PACKAGER_PORT: '8081',
-      RCT_METRO_PORT: '8081'
+      PORT: '8082',
+      REACT_NATIVE_PACKAGER_PORT: '8082',
+      RCT_METRO_PORT: '8082'
     }
   });
 
