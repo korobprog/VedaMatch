@@ -19,9 +19,14 @@ import App from './App';
 import './i18n';
 import { name as appName } from './app.json';
 
-setBackgroundMessageHandler(getMessaging(), async remoteMessage => {
-  await notificationService.handleBackgroundMessage(remoteMessage);
-});
+try {
+  const messaging = getMessaging();
+  setBackgroundMessageHandler(messaging, async remoteMessage => {
+    await notificationService.handleBackgroundMessage(remoteMessage);
+  });
+} catch (error) {
+  console.warn('[Push] Background handler was not initialized:', error);
+}
 
 AppRegistry.registerComponent(appName, () => App);
 import TrackPlayer from 'react-native-track-player';
