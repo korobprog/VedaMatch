@@ -163,6 +163,7 @@ out/server/server_linux
 .env.backup
 
 server/.env
+*firebase-adminsdk-*.json
 
 # Binaries and Executables
 *.exe

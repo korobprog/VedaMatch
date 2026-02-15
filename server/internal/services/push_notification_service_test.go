@@ -28,6 +28,34 @@ func TestClassifyFCMError(t *testing.T) {
 	require.Equal(t, errorTypeUnknown, classifyFCMError("SomethingElse"))
 }
 
+func TestNormalizeFCMSenderMode(t *testing.T) {
+	require.Equal(t, fcmSenderModeAuto, normalizeFCMSenderMode(""))
+	require.Equal(t, fcmSenderModeAuto, normalizeFCMSenderMode("something"))
+	require.Equal(t, fcmSenderModeLegacy, normalizeFCMSenderMode("legacy"))
+	require.Equal(t, fcmSenderModeV1, normalizeFCMSenderMode("v1"))
+}
+
+func TestClassifyFCMV1Error(t *testing.T) {
+	require.Equal(t, errorTypePermanent, classifyFCMV1Error(404, "NOT_FOUND", "UNREGISTERED", "Requested entity was not found."))
+	require.Equal(t, errorTypeTransient, classifyFCMV1Error(503, "UNAVAILABLE", "", "service unavailable"))
+	require.Equal(t, errorTypeConfig, classifyFCMV1Error(401, "UNAUTHENTICATED", "", "auth issue"))
+	require.Equal(t, errorTypeUnknown, classifyFCMV1Error(400, "INVALID_ARGUMENT", "INVALID_ARGUMENT", "Bad request payload"))
+}
+
+func TestLoadFCMV1ServiceAccountInlineJSON(t *testing.T) {
+	raw := `{
+		"project_id": "demo-project",
+		"private_key": "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
+		"client_email": "firebase-adminsdk@demo-project.iam.gserviceaccount.com",
+		"token_uri": "https://oauth2.googleapis.com/token"
+	}`
+	cfg, format, err := loadFCMV1ServiceAccount(raw)
+	require.NoError(t, err)
+	require.Equal(t, "inline_json", format)
+	require.Equal(t, "demo-project", cfg.ProjectID)
+	require.Equal(t, "firebase-adminsdk@demo-project.iam.gserviceaccount.com", cfg.ClientEmail)
+}
+
 func TestClassifyExpoError(t *testing.T) {
 	require.Equal(t, errorTypePermanent, classifyExpoError("DeviceNotRegistered"))
 	require.Equal(t, errorTypeTransient, classifyExpoError("MessageRateExceeded"))

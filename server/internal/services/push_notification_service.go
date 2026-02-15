@@ -11,6 +11,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -20,12 +21,17 @@ import (
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 
+	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
 const (
 	providerFCM  = "fcm"
 	providerExpo = "expo"
+
+	fcmSenderModeAuto   = "auto"
+	fcmSenderModeLegacy = "legacy"
+	fcmSenderModeV1     = "v1"
 
 	deliveryStatusSuccess = "success"
 	deliveryStatusRetry   = "retry"
@@ -36,6 +42,11 @@ const (
 	errorTypeTransient = "transient"
 	errorTypeConfig    = "config"
 	errorTypeUnknown   = "unknown"
+
+	fcmV1Scope         = "https://www.googleapis.com/auth/firebase.messaging"
+	fcmV1DefaultToken  = "https://oauth2.googleapis.com/token"
+	fcmV1AccessSkew    = 60 * time.Second
+	fcmV1TokenLifespan = 55 * time.Minute
 )
 
 // PushNotificationService handles sending push notifications
@@ -51,6 +62,11 @@ type PushNotificationService struct {
 	fcmKeyCached   string
 	fcmKeySource   string
 	fcmKeyCachedAt time.Time
+
+	fcmV1TokenMu     sync.Mutex
+	fcmV1Token       string
+	fcmV1TokenExpiry time.Time
+	fcmV1TokenIssuer string
 
 	retryMaxAttempts int
 	retryBaseDelay   time.Duration
@@ -115,6 +131,54 @@ type fcmBatchResponse struct {
 		MessageID string `json:"message_id"`
 		Error     string `json:"error"`
 	} `json:"results"`
+}
+
+type fcmV1ServiceAccount struct {
+	ProjectID   string `json:"project_id"`
+	PrivateKey  string `json:"private_key"`
+	ClientEmail string `json:"client_email"`
+	TokenURI    string `json:"token_uri"`
+}
+
+type fcmV1AccessTokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int64  `json:"expires_in"`
+}
+
+type fcmV1ErrorEnvelope struct {
+	Error struct {
+		Code    int                      `json:"code"`
+		Message string                   `json:"message"`
+		Status  string                   `json:"status"`
+		Details []map[string]interface{} `json:"details"`
+	} `json:"error"`
+}
+
+type FCMRuntimeStatus struct {
+	SenderMode             string `json:"senderMode"`
+	SenderModeSource       string `json:"senderModeSource"`
+	ActiveSender           string `json:"activeSender"`
+	LegacyConfigured       bool   `json:"legacyConfigured"`
+	LegacyKeySource        string `json:"legacyKeySource"`
+	V1Configured           bool   `json:"v1Configured"`
+	V1CredentialSource     string `json:"v1CredentialSource"`
+	V1CredentialFormat     string `json:"v1CredentialFormat"`
+	V1ProjectIDSource      string `json:"v1ProjectIdSource"`
+	V1ProjectID            string `json:"v1ProjectId,omitempty"`
+	V1TokenURI             string `json:"v1TokenUri,omitempty"`
+	V1ConfigurationIssue   string `json:"v1ConfigurationIssue,omitempty"`
+	HasAvailableFCMSender  bool   `json:"hasAvailableFcmSender"`
+	PreferredSenderPlanned string `json:"preferredSenderPlanned,omitempty"`
+}
+
+type fcmV1ResolvedConfig struct {
+	ProjectID        string
+	ProjectIDSource  string
+	CredentialSource string
+	CredentialFormat string
+	TokenURI         string
+	ServiceAccount   fcmV1ServiceAccount
 }
 
 type expoPushMessage struct {
@@ -186,13 +250,7 @@ func (s *PushNotificationService) ResolveFCMServerKey() (string, string) {
 	s.fcmKeyMu.RUnlock()
 
 	key := ""
-	dbValue := ""
-	if s.db != nil {
-		var setting models.SystemSetting
-		if err := s.db.Where("key = ?", "FCM_SERVER_KEY").First(&setting).Error; err == nil {
-			dbValue = setting.Value
-		}
-	}
+	dbValue := s.resolveSettingValue("FCM_SERVER_KEY")
 	envKey := strings.TrimSpace(os.Getenv("FCM_SERVER_KEY"))
 	if envKey == "" {
 		envKey = strings.TrimSpace(s.fcmEnvKey)
@@ -208,12 +266,133 @@ func (s *PushNotificationService) ResolveFCMServerKey() (string, string) {
 	return key, source
 }
 
+// ResolveFCMSenderMode returns sender mode and source with DB>ENV priority.
+func (s *PushNotificationService) ResolveFCMSenderMode() (string, string) {
+	if s == nil {
+		return fcmSenderModeAuto, "default"
+	}
+
+	raw, source := s.resolveSettingOrEnv("FCM_SENDER_MODE")
+	mode := normalizeFCMSenderMode(raw)
+	if source == "none" {
+		source = "default"
+	}
+	return mode, source
+}
+
+// ResolveFCMV1Config returns parsed v1 config with DB>ENV priority.
+func (s *PushNotificationService) ResolveFCMV1Config() (fcmV1ResolvedConfig, error) {
+	var cfg fcmV1ResolvedConfig
+	if s == nil {
+		return cfg, errors.New("push service is nil")
+	}
+
+	rawCreds, credSource := s.resolveSettingOrEnv("GOOGLE_APPLICATION_CREDENTIALS")
+	if strings.TrimSpace(rawCreds) == "" {
+		rawCreds, credSource = s.resolveSettingOrEnv("FIREBASE_SERVICE_ACCOUNT_JSON")
+	}
+	if strings.TrimSpace(rawCreds) == "" {
+		return cfg, errors.New("missing GOOGLE_APPLICATION_CREDENTIALS")
+	}
+
+	serviceAccount, credentialFormat, err := loadFCMV1ServiceAccount(rawCreds)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.ServiceAccount = serviceAccount
+	cfg.CredentialSource = credSource
+	cfg.CredentialFormat = credentialFormat
+
+	projectID, projectSource := s.resolveSettingOrEnv("FIREBASE_PROJECT_ID")
+	if strings.TrimSpace(projectID) == "" {
+		projectID, projectSource = s.resolveSettingOrEnv("FCM_PROJECT_ID")
+	}
+	if strings.TrimSpace(projectID) == "" {
+		projectID = strings.TrimSpace(serviceAccount.ProjectID)
+		if projectID != "" {
+			projectSource = "service_account"
+		}
+	}
+	if projectID == "" {
+		return cfg, errors.New("missing FIREBASE_PROJECT_ID (and project_id in service account)")
+	}
+	cfg.ProjectID = projectID
+	cfg.ProjectIDSource = projectSource
+
+	tokenURI := strings.TrimSpace(serviceAccount.TokenURI)
+	if tokenURI == "" {
+		tokenURI = fcmV1DefaultToken
+	}
+	cfg.TokenURI = tokenURI
+
+	if strings.TrimSpace(serviceAccount.ClientEmail) == "" {
+		return cfg, errors.New("service account client_email is required")
+	}
+	if strings.TrimSpace(serviceAccount.PrivateKey) == "" {
+		return cfg, errors.New("service account private_key is required")
+	}
+
+	return cfg, nil
+}
+
+func (s *PushNotificationService) GetFCMRuntimeStatus() FCMRuntimeStatus {
+	mode, modeSource := s.ResolveFCMSenderMode()
+	legacyKey, legacySource := s.ResolveFCMServerKey()
+	status := FCMRuntimeStatus{
+		SenderMode:       mode,
+		SenderModeSource: modeSource,
+		LegacyConfigured: legacyKey != "",
+		LegacyKeySource:  legacySource,
+	}
+
+	v1cfg, v1err := s.ResolveFCMV1Config()
+	if v1err == nil {
+		status.V1Configured = true
+		status.V1CredentialSource = v1cfg.CredentialSource
+		status.V1CredentialFormat = v1cfg.CredentialFormat
+		status.V1ProjectIDSource = v1cfg.ProjectIDSource
+		status.V1ProjectID = v1cfg.ProjectID
+		status.V1TokenURI = v1cfg.TokenURI
+	} else {
+		status.V1ConfigurationIssue = v1err.Error()
+	}
+
+	switch mode {
+	case fcmSenderModeLegacy:
+		status.PreferredSenderPlanned = fcmSenderModeLegacy
+		if status.LegacyConfigured {
+			status.ActiveSender = fcmSenderModeLegacy
+		}
+	case fcmSenderModeV1:
+		status.PreferredSenderPlanned = fcmSenderModeV1
+		if status.V1Configured {
+			status.ActiveSender = fcmSenderModeV1
+		}
+	default:
+		status.PreferredSenderPlanned = fcmSenderModeAuto
+		if status.V1Configured {
+			status.ActiveSender = fcmSenderModeV1
+		} else if status.LegacyConfigured {
+			status.ActiveSender = fcmSenderModeLegacy
+		}
+	}
+
+	status.HasAvailableFCMSender = status.ActiveSender != ""
+	return status
+}
+
 func (s *PushNotificationService) InvalidateFCMCache() {
 	s.fcmKeyMu.Lock()
 	s.fcmKeyCached = ""
 	s.fcmKeySource = "none"
 	s.fcmKeyCachedAt = time.Time{}
 	s.fcmKeyMu.Unlock()
+
+	s.fcmV1TokenMu.Lock()
+	s.fcmV1Token = ""
+	s.fcmV1TokenExpiry = time.Time{}
+	s.fcmV1TokenIssuer = ""
+	s.fcmV1TokenMu.Unlock()
 }
 
 // UpsertUserDeviceToken registers (or re-activates) a user device token.
@@ -754,6 +933,36 @@ func (s *PushNotificationService) sendProviderWithRetry(provider string, targets
 }
 
 func (s *PushNotificationService) sendFCMAttempt(targets []pushTokenTarget, message PushMessage, attempt int, finalAttempt bool) ([]pushTokenTarget, error) {
+	mode, modeSource := s.ResolveFCMSenderMode()
+	mode = normalizeFCMSenderMode(mode)
+
+	switch mode {
+	case fcmSenderModeLegacy:
+		return s.sendFCMLegacyAttempt(targets, message, attempt, finalAttempt)
+	case fcmSenderModeV1:
+		cfg, err := s.ResolveFCMV1Config()
+		if err != nil {
+			wrapped := fmt.Errorf("fcm v1 is not configured: %w", err)
+			for _, target := range targets {
+				s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeConfig, "missing_fcm_v1_config", attempt, 0)
+				s.bumpTokenFailCount(target.Token)
+			}
+			log.Printf("[PUSH] FCM sender mode=%s source=%s: %v", mode, modeSource, wrapped)
+			return nil, wrapped
+		}
+		return s.sendFCMV1Attempt(cfg, targets, message, attempt, finalAttempt)
+	default:
+		// auto: prefer v1 when fully configured, otherwise fallback to legacy.
+		cfg, err := s.ResolveFCMV1Config()
+		if err == nil {
+			return s.sendFCMV1Attempt(cfg, targets, message, attempt, finalAttempt)
+		}
+		log.Printf("[PUSH] FCM auto mode fallback to legacy: v1 unavailable (%v)", err)
+		return s.sendFCMLegacyAttempt(targets, message, attempt, finalAttempt)
+	}
+}
+
+func (s *PushNotificationService) sendFCMLegacyAttempt(targets []pushTokenTarget, message PushMessage, attempt int, finalAttempt bool) ([]pushTokenTarget, error) {
 	key, source := s.ResolveFCMServerKey()
 	if key == "" {
 		err := errors.New("fcm key is not configured")
@@ -904,6 +1113,196 @@ func (s *PushNotificationService) sendFCMAttempt(targets []pushTokenTarget, mess
 	}
 
 	return retryTargets, lastErr
+}
+
+func (s *PushNotificationService) sendFCMV1Attempt(cfg fcmV1ResolvedConfig, targets []pushTokenTarget, message PushMessage, attempt int, finalAttempt bool) ([]pushTokenTarget, error) {
+	accessToken, err := s.getFCMV1AccessToken(cfg)
+	if err != nil {
+		wrapped := fmt.Errorf("failed to obtain fcm v1 access token: %w", err)
+		for _, target := range targets {
+			s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeConfig, "fcm_v1_auth_failed", attempt, 0)
+			s.bumpTokenFailCount(target.Token)
+		}
+		return nil, wrapped
+	}
+
+	endpoint := fmt.Sprintf("https://fcm.googleapis.com/v1/projects/%s/messages:send", url.PathEscape(cfg.ProjectID))
+	var retryTargets []pushTokenTarget
+	var lastErr error
+
+	for _, target := range targets {
+		payload := buildFCMV1SendRequest(target.Token, message)
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to marshal fcm v1 payload: %w", err)
+			s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeUnknown, "marshal_error", attempt, 0)
+			s.bumpTokenFailCount(target.Token)
+			continue
+		}
+
+		statusCode, responseBody, latency, requestErr := s.sendFCMV1Request(endpoint, accessToken, jsonData)
+		if statusCode == http.StatusUnauthorized {
+			s.invalidateFCMV1TokenCache()
+			freshToken, tokenErr := s.getFCMV1AccessToken(cfg)
+			if tokenErr == nil {
+				accessToken = freshToken
+				statusCode, responseBody, latency, requestErr = s.sendFCMV1Request(endpoint, accessToken, jsonData)
+			} else {
+				lastErr = fmt.Errorf("fcm v1 token refresh failed: %w", tokenErr)
+			}
+		}
+
+		if requestErr != nil {
+			lastErr = fmt.Errorf("fcm v1 request failed: %w", requestErr)
+			if finalAttempt {
+				s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeTransient, "transport_error", attempt, latency)
+				s.bumpTokenFailCount(target.Token)
+				continue
+			}
+			s.recordDeliveryEvent(target, message, deliveryStatusRetry, errorTypeTransient, "transport_error", attempt, latency)
+			retryTargets = append(retryTargets, target)
+			continue
+		}
+
+		if statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices {
+			s.recordDeliveryEvent(target, message, deliveryStatusSuccess, "", "", attempt, latency)
+			s.markTokenDeliverySuccess(target.Token)
+			continue
+		}
+
+		statusText, fcmErrorCode, providerMessage := parseFCMV1Error(responseBody)
+		normalizedCode := normalizeFCMV1ErrorCode(statusCode, statusText, fcmErrorCode)
+		class := classifyFCMV1Error(statusCode, statusText, fcmErrorCode, providerMessage)
+		lastErr = fmt.Errorf("fcm v1 returned status=%d code=%s", statusCode, normalizedCode)
+
+		switch class {
+		case errorTypePermanent:
+			s.recordDeliveryEvent(target, message, deliveryStatusInvalid, errorTypePermanent, normalizedCode, attempt, latency)
+			s.invalidateToken(target.Token)
+		case errorTypeConfig:
+			s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeConfig, normalizedCode, attempt, latency)
+			s.bumpTokenFailCount(target.Token)
+		case errorTypeTransient:
+			if finalAttempt {
+				s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeTransient, normalizedCode, attempt, latency)
+				s.bumpTokenFailCount(target.Token)
+				continue
+			}
+			s.recordDeliveryEvent(target, message, deliveryStatusRetry, errorTypeTransient, normalizedCode, attempt, latency)
+			retryTargets = append(retryTargets, target)
+		default:
+			if finalAttempt {
+				s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeUnknown, normalizedCode, attempt, latency)
+				s.bumpTokenFailCount(target.Token)
+				continue
+			}
+			s.recordDeliveryEvent(target, message, deliveryStatusRetry, errorTypeUnknown, normalizedCode, attempt, latency)
+			retryTargets = append(retryTargets, target)
+		}
+	}
+
+	return retryTargets, lastErr
+}
+
+func (s *PushNotificationService) sendFCMV1Request(endpoint string, accessToken string, payload []byte) (int, []byte, time.Duration, error) {
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewBuffer(payload))
+	if err != nil {
+		return 0, nil, 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	startedAt := time.Now()
+	resp, err := s.httpClient.Do(req)
+	latency := time.Since(startedAt)
+	if err != nil {
+		return 0, nil, latency, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, body, latency, nil
+}
+
+func (s *PushNotificationService) getFCMV1AccessToken(cfg fcmV1ResolvedConfig) (string, error) {
+	now := time.Now()
+
+	s.fcmV1TokenMu.Lock()
+	defer s.fcmV1TokenMu.Unlock()
+
+	if s.fcmV1Token != "" &&
+		s.fcmV1TokenIssuer == cfg.ServiceAccount.ClientEmail &&
+		now.Add(fcmV1AccessSkew).Before(s.fcmV1TokenExpiry) {
+		return s.fcmV1Token, nil
+	}
+
+	signingToken := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iss":   cfg.ServiceAccount.ClientEmail,
+		"scope": fcmV1Scope,
+		"aud":   cfg.TokenURI,
+		"iat":   now.Unix(),
+		"exp":   now.Add(fcmV1TokenLifespan).Unix(),
+	})
+
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(cfg.ServiceAccount.PrivateKey))
+	if err != nil {
+		return "", fmt.Errorf("invalid service account private key: %w", err)
+	}
+
+	assertion, err := signingToken.SignedString(privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign jwt assertion: %w", err)
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
+	form.Set("assertion", assertion)
+
+	req, err := http.NewRequest(http.MethodPost, cfg.TokenURI, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("failed to build oauth request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("oauth transport error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		statusText, fcmErrorCode, _ := parseFCMV1Error(body)
+		normalizedCode := normalizeFCMV1ErrorCode(resp.StatusCode, statusText, fcmErrorCode)
+		return "", fmt.Errorf("oauth token request failed: %s", normalizedCode)
+	}
+
+	var parsed fcmV1AccessTokenResponse
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", fmt.Errorf("failed to parse oauth token response: %w", err)
+	}
+	accessToken := strings.TrimSpace(parsed.AccessToken)
+	if accessToken == "" {
+		return "", errors.New("oauth response missing access_token")
+	}
+
+	expiresIn := parsed.ExpiresIn
+	if expiresIn <= 0 {
+		expiresIn = int64(fcmV1TokenLifespan.Seconds())
+	}
+
+	s.fcmV1Token = accessToken
+	s.fcmV1TokenIssuer = cfg.ServiceAccount.ClientEmail
+	s.fcmV1TokenExpiry = now.Add(time.Duration(expiresIn) * time.Second)
+	return s.fcmV1Token, nil
+}
+
+func (s *PushNotificationService) invalidateFCMV1TokenCache() {
+	s.fcmV1TokenMu.Lock()
+	s.fcmV1Token = ""
+	s.fcmV1TokenIssuer = ""
+	s.fcmV1TokenExpiry = time.Time{}
+	s.fcmV1TokenMu.Unlock()
 }
 
 func (s *PushNotificationService) sendExpoAttempt(targets []pushTokenTarget, message PushMessage, attempt int, finalAttempt bool) ([]pushTokenTarget, error) {
@@ -1440,6 +1839,179 @@ func normalizePlatform(platform string) string {
 	default:
 		return "unknown"
 	}
+}
+
+func normalizeFCMSenderMode(raw string) string {
+	mode := strings.TrimSpace(strings.ToLower(raw))
+	switch mode {
+	case fcmSenderModeLegacy, fcmSenderModeV1:
+		return mode
+	default:
+		return fcmSenderModeAuto
+	}
+}
+
+func buildFCMV1SendRequest(token string, message PushMessage) map[string]interface{} {
+	payload := map[string]interface{}{
+		"message": map[string]interface{}{
+			"token": token,
+		},
+	}
+
+	messagePart := payload["message"].(map[string]interface{})
+	if len(message.Data) > 0 {
+		messagePart["data"] = message.Data
+	}
+
+	notification := map[string]string{}
+	if title := strings.TrimSpace(message.Title); title != "" {
+		notification["title"] = title
+	}
+	if body := strings.TrimSpace(message.Body); body != "" {
+		notification["body"] = body
+	}
+	if image := strings.TrimSpace(message.ImageURL); image != "" {
+		notification["image"] = image
+	}
+	if len(notification) > 0 {
+		messagePart["notification"] = notification
+	}
+
+	androidPriority := "NORMAL"
+	apnsPriority := "5"
+	switch strings.TrimSpace(strings.ToLower(message.Priority)) {
+	case "high", "max", "urgent":
+		androidPriority = "HIGH"
+		apnsPriority = "10"
+	}
+
+	messagePart["android"] = map[string]interface{}{
+		"priority": androidPriority,
+	}
+	messagePart["apns"] = map[string]interface{}{
+		"headers": map[string]string{
+			"apns-priority": apnsPriority,
+		},
+	}
+
+	return payload
+}
+
+func parseFCMV1Error(body []byte) (status string, fcmErrorCode string, message string) {
+	var parsed fcmV1ErrorEnvelope
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", "", strings.TrimSpace(string(body))
+	}
+
+	status = strings.TrimSpace(parsed.Error.Status)
+	message = strings.TrimSpace(parsed.Error.Message)
+	for _, detail := range parsed.Error.Details {
+		rawCode, ok := detail["errorCode"]
+		if !ok {
+			continue
+		}
+		code, ok := rawCode.(string)
+		if !ok {
+			continue
+		}
+		code = strings.TrimSpace(code)
+		if code != "" {
+			fcmErrorCode = code
+			break
+		}
+	}
+	return status, fcmErrorCode, message
+}
+
+func normalizeFCMV1ErrorCode(httpStatus int, status string, fcmErrorCode string) string {
+	if code := strings.TrimSpace(strings.ToUpper(fcmErrorCode)); code != "" {
+		return code
+	}
+	if s := strings.TrimSpace(strings.ToUpper(status)); s != "" {
+		return s
+	}
+	return fmt.Sprintf("HTTP_%d", httpStatus)
+}
+
+func classifyFCMV1Error(httpStatus int, status string, fcmErrorCode string, providerMessage string) string {
+	s := strings.TrimSpace(strings.ToUpper(status))
+	code := strings.TrimSpace(strings.ToUpper(fcmErrorCode))
+	msg := strings.TrimSpace(strings.ToLower(providerMessage))
+
+	switch code {
+	case "UNREGISTERED":
+		return errorTypePermanent
+	case "SENDER_ID_MISMATCH", "THIRD_PARTY_AUTH_ERROR":
+		return errorTypeConfig
+	case "UNAVAILABLE", "INTERNAL", "QUOTA_EXCEEDED":
+		return errorTypeTransient
+	case "INVALID_ARGUMENT":
+		if strings.Contains(msg, "registration token") {
+			return errorTypePermanent
+		}
+	}
+
+	switch s {
+	case "UNAUTHENTICATED", "PERMISSION_DENIED":
+		return errorTypeConfig
+	case "UNAVAILABLE", "RESOURCE_EXHAUSTED", "DEADLINE_EXCEEDED", "INTERNAL", "ABORTED":
+		return errorTypeTransient
+	case "INVALID_ARGUMENT":
+		if strings.Contains(msg, "registration token") {
+			return errorTypePermanent
+		}
+	}
+
+	switch httpStatus {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return errorTypeConfig
+	case http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return errorTypeTransient
+	}
+	return errorTypeUnknown
+}
+
+func loadFCMV1ServiceAccount(raw string) (fcmV1ServiceAccount, string, error) {
+	var cfg fcmV1ServiceAccount
+	input := strings.TrimSpace(raw)
+	if input == "" {
+		return cfg, "", errors.New("service account source is empty")
+	}
+
+	var data []byte
+	format := "file_path"
+	if strings.HasPrefix(input, "{") {
+		format = "inline_json"
+		data = []byte(input)
+	} else {
+		content, err := os.ReadFile(input)
+		if err != nil {
+			return cfg, format, fmt.Errorf("failed to read service account file: %w", err)
+		}
+		data = content
+	}
+
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return cfg, format, fmt.Errorf("failed to parse service account json: %w", err)
+	}
+	return cfg, format, nil
+}
+
+func (s *PushNotificationService) resolveSettingValue(key string) string {
+	if s == nil || s.db == nil {
+		return ""
+	}
+	var setting models.SystemSetting
+	if err := s.db.Where("key = ?", key).First(&setting).Error; err != nil {
+		return ""
+	}
+	return strings.TrimSpace(setting.Value)
+}
+
+func (s *PushNotificationService) resolveSettingOrEnv(key string) (string, string) {
+	dbValue := s.resolveSettingValue(key)
+	envValue := strings.TrimSpace(os.Getenv(key))
+	return resolveSettingOrEnv(dbValue, envValue)
 }
 
 func classifyFCMError(errorCode string) string {

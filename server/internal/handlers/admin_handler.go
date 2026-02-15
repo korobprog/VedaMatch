@@ -377,7 +377,7 @@ func (h *AdminHandler) SendTestPush(c *fiber.Ctx) error {
 	}
 
 	pushService := services.GetPushService()
-	fcmKey, keySource := pushService.ResolveFCMServerKey()
+	runtimeStatus := pushService.GetFCMRuntimeStatus()
 
 	title := strings.TrimSpace(body.Title)
 	if title == "" {
@@ -420,38 +420,78 @@ func (h *AdminHandler) SendTestPush(c *fiber.Ctx) error {
 		target = "token"
 		if err := pushService.SendToTokens([]string{token}, pushMessage); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"ok":            false,
-				"error":         err.Error(),
-				"target":        target,
-				"fcmConfigured": fcmKey != "",
-				"fcmKeySource":  keySource,
+				"ok":                      false,
+				"error":                   err.Error(),
+				"target":                  target,
+				"fcmConfigured":           runtimeStatus.HasAvailableFCMSender,
+				"fcmKeySource":            runtimeStatus.LegacyKeySource,
+				"fcmSenderMode":           runtimeStatus.SenderMode,
+				"fcmSenderModeSource":     runtimeStatus.SenderModeSource,
+				"fcmActiveSender":         runtimeStatus.ActiveSender,
+				"fcmLegacyConfigured":     runtimeStatus.LegacyConfigured,
+				"fcmV1Configured":         runtimeStatus.V1Configured,
+				"fcmV1CredentialSource":   runtimeStatus.V1CredentialSource,
+				"fcmV1CredentialFormat":   runtimeStatus.V1CredentialFormat,
+				"fcmV1ProjectIdSource":    runtimeStatus.V1ProjectIDSource,
+				"fcmV1ProjectId":          runtimeStatus.V1ProjectID,
+				"fcmV1ConfigurationIssue": runtimeStatus.V1ConfigurationIssue,
 			})
 		}
 		return c.JSON(fiber.Map{
-			"ok":            true,
-			"target":        target,
-			"fcmConfigured": fcmKey != "",
-			"fcmKeySource":  keySource,
+			"ok":                      true,
+			"target":                  target,
+			"fcmConfigured":           runtimeStatus.HasAvailableFCMSender,
+			"fcmKeySource":            runtimeStatus.LegacyKeySource,
+			"fcmSenderMode":           runtimeStatus.SenderMode,
+			"fcmSenderModeSource":     runtimeStatus.SenderModeSource,
+			"fcmActiveSender":         runtimeStatus.ActiveSender,
+			"fcmLegacyConfigured":     runtimeStatus.LegacyConfigured,
+			"fcmV1Configured":         runtimeStatus.V1Configured,
+			"fcmV1CredentialSource":   runtimeStatus.V1CredentialSource,
+			"fcmV1CredentialFormat":   runtimeStatus.V1CredentialFormat,
+			"fcmV1ProjectIdSource":    runtimeStatus.V1ProjectIDSource,
+			"fcmV1ProjectId":          runtimeStatus.V1ProjectID,
+			"fcmV1ConfigurationIssue": runtimeStatus.V1ConfigurationIssue,
 		})
 	}
 
 	if err := pushService.SendToUser(targetUserID, pushMessage); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"ok":            false,
-			"error":         err.Error(),
-			"target":        target,
-			"userId":        targetUserID,
-			"fcmConfigured": fcmKey != "",
-			"fcmKeySource":  keySource,
+			"ok":                      false,
+			"error":                   err.Error(),
+			"target":                  target,
+			"userId":                  targetUserID,
+			"fcmConfigured":           runtimeStatus.HasAvailableFCMSender,
+			"fcmKeySource":            runtimeStatus.LegacyKeySource,
+			"fcmSenderMode":           runtimeStatus.SenderMode,
+			"fcmSenderModeSource":     runtimeStatus.SenderModeSource,
+			"fcmActiveSender":         runtimeStatus.ActiveSender,
+			"fcmLegacyConfigured":     runtimeStatus.LegacyConfigured,
+			"fcmV1Configured":         runtimeStatus.V1Configured,
+			"fcmV1CredentialSource":   runtimeStatus.V1CredentialSource,
+			"fcmV1CredentialFormat":   runtimeStatus.V1CredentialFormat,
+			"fcmV1ProjectIdSource":    runtimeStatus.V1ProjectIDSource,
+			"fcmV1ProjectId":          runtimeStatus.V1ProjectID,
+			"fcmV1ConfigurationIssue": runtimeStatus.V1ConfigurationIssue,
 		})
 	}
 
 	return c.JSON(fiber.Map{
-		"ok":            true,
-		"target":        target,
-		"userId":        targetUserID,
-		"fcmConfigured": fcmKey != "",
-		"fcmKeySource":  keySource,
+		"ok":                      true,
+		"target":                  target,
+		"userId":                  targetUserID,
+		"fcmConfigured":           runtimeStatus.HasAvailableFCMSender,
+		"fcmKeySource":            runtimeStatus.LegacyKeySource,
+		"fcmSenderMode":           runtimeStatus.SenderMode,
+		"fcmSenderModeSource":     runtimeStatus.SenderModeSource,
+		"fcmActiveSender":         runtimeStatus.ActiveSender,
+		"fcmLegacyConfigured":     runtimeStatus.LegacyConfigured,
+		"fcmV1Configured":         runtimeStatus.V1Configured,
+		"fcmV1CredentialSource":   runtimeStatus.V1CredentialSource,
+		"fcmV1CredentialFormat":   runtimeStatus.V1CredentialFormat,
+		"fcmV1ProjectIdSource":    runtimeStatus.V1ProjectIDSource,
+		"fcmV1ProjectId":          runtimeStatus.V1ProjectID,
+		"fcmV1ConfigurationIssue": runtimeStatus.V1ConfigurationIssue,
 	})
 }
 
@@ -473,19 +513,31 @@ func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to calculate push health"})
 	}
 
-	fcmKey, keySource := pushService.ResolveFCMServerKey()
+	runtimeStatus := pushService.GetFCMRuntimeStatus()
 	return c.JSON(fiber.Map{
-		"windowHours":           summary.WindowHours,
-		"delivery_success_rate": summary.DeliverySuccessRate,
-		"invalid_token_rate":    summary.InvalidTokenRate,
-		"retry_rate":            summary.RetryRate,
-		"latency_p95":           summary.LatencyP95,
-		"total_events":          summary.TotalEvents,
-		"success_events":        summary.SuccessEvents,
-		"invalid_events":        summary.InvalidEvents,
-		"retry_events":          summary.RetryEvents,
-		"fcmConfigured":         fcmKey != "",
-		"fcmKeySource":          keySource,
+		"windowHours":             summary.WindowHours,
+		"delivery_success_rate":   summary.DeliverySuccessRate,
+		"invalid_token_rate":      summary.InvalidTokenRate,
+		"retry_rate":              summary.RetryRate,
+		"latency_p95":             summary.LatencyP95,
+		"total_events":            summary.TotalEvents,
+		"success_events":          summary.SuccessEvents,
+		"invalid_events":          summary.InvalidEvents,
+		"retry_events":            summary.RetryEvents,
+		"fcmConfigured":           runtimeStatus.HasAvailableFCMSender,
+		"fcmKeySource":            runtimeStatus.LegacyKeySource,
+		"fcmSenderMode":           runtimeStatus.SenderMode,
+		"fcmSenderModeSource":     runtimeStatus.SenderModeSource,
+		"fcmActiveSender":         runtimeStatus.ActiveSender,
+		"fcmLegacyConfigured":     runtimeStatus.LegacyConfigured,
+		"fcmLegacyKeySource":      runtimeStatus.LegacyKeySource,
+		"fcmV1Configured":         runtimeStatus.V1Configured,
+		"fcmV1CredentialSource":   runtimeStatus.V1CredentialSource,
+		"fcmV1CredentialFormat":   runtimeStatus.V1CredentialFormat,
+		"fcmV1ProjectIdSource":    runtimeStatus.V1ProjectIDSource,
+		"fcmV1ProjectId":          runtimeStatus.V1ProjectID,
+		"fcmV1TokenUri":           runtimeStatus.V1TokenURI,
+		"fcmV1ConfigurationIssue": runtimeStatus.V1ConfigurationIssue,
 	})
 }
 

@@ -131,6 +131,22 @@ func SeedSystemSettings() {
 			Key:   "CHANNELS_PROMOTED_INSERT_EVERY",
 			Value: "4",
 		},
+		{
+			Key:   "FCM_SENDER_MODE",
+			Value: "auto",
+		},
+		{
+			Key:   "GOOGLE_APPLICATION_CREDENTIALS",
+			Value: "",
+		},
+		{
+			Key:   "FIREBASE_PROJECT_ID",
+			Value: "",
+		},
+		{
+			Key:   "FIREBASE_SERVICE_ACCOUNT_JSON",
+			Value: "",
+		},
 	}
 
 	for _, s := range settings {
