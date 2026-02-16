@@ -791,7 +791,17 @@ export default {
         locationDetected: 'Location detected',
         locationDetectionFailed: 'Failed to detect location. Check GPS permission.',
         detectingLocation: 'Detecting location...',
-        requiredFieldsForDating: 'To activate your dating profile, you must fill in all fields, including city and astrological data.'
+        requiredFieldsForDating: 'To activate your dating profile, you must fill in all fields, including city and astrological data.',
+        emailPlaceholder: 'email@example.com',
+        passwordPlaceholder: '••••••••',
+        inviteCodePlaceholder: 'Enter code if you have one',
+        namePlaceholder: 'e.g., Ivan Ivanov',
+        spiritualNamePlaceholder: 'e.g., Das Anu Das',
+        enterCityName: 'Enter City Name',
+        selectTradition: 'Select Tradition',
+        mentorPlaceholder: 'Current Shiksha/Diksha Guru',
+        selectYogaStyle: 'Select Yoga Style',
+        selectGuna: 'Select Guna',
     },
     settings: {
         title: 'Portal',
@@ -847,6 +857,8 @@ export default {
         profile: 'Profile',
         devLogin: 'Quick Login (DEV)',
         logout: 'Logout',
+        emailPlaceholder: 'Email Address',
+        passwordPlaceholder: 'Password',
     },
     contacts: {
         sendMessage: 'Send Message',

@@ -26,6 +26,7 @@ export const KeyboardAwareContainer: React.FC<KeyboardAwareContainerProps> = ({
   enabled = true,
 }) => {
   const insets = useSafeAreaInsets();
+  const resolvedBehavior = behavior ?? (Platform.OS === 'ios' ? 'padding' : undefined);
   const keyboardVerticalOffset =
     Platform.OS === 'ios' ? (useTopInset ? insets.top : 0) + extraOffset : 0;
 
@@ -33,7 +34,7 @@ export const KeyboardAwareContainer: React.FC<KeyboardAwareContainerProps> = ({
     <KeyboardAvoidingView
       style={style}
       enabled={enabled}
-      behavior={Platform.OS === 'ios' ? behavior ?? 'padding' : undefined}
+      behavior={resolvedBehavior}
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
       {children}

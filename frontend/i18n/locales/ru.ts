@@ -791,7 +791,17 @@ export default {
         locationDetected: 'Локация определена',
         locationDetectionFailed: 'Не удалось определить локацию. Проверьте разрешение на геолокацию.',
         detectingLocation: 'Определение локации...',
-        requiredFieldsForDating: 'Для активации профиля в Союзе необходимо заполнить все поля, включая город и астрологические данные.'
+        requiredFieldsForDating: 'Для активации профиля в Союзе необходимо заполнить все поля, включая город и астрологические данные.',
+        emailPlaceholder: 'email@example.com',
+        passwordPlaceholder: '••••••••',
+        inviteCodePlaceholder: 'Введите код, если он есть',
+        namePlaceholder: 'напр. Иван Иванов',
+        spiritualNamePlaceholder: 'напр. Дас Ану Дас',
+        enterCityName: 'Введите название города',
+        selectTradition: 'Выберите традицию',
+        mentorPlaceholder: 'Ваш Шикша/Дикша Гуру',
+        selectYogaStyle: 'Выберите стиль йоги',
+        selectGuna: 'Выберите гуну',
     },
     settings: {
         title: 'Портал',
@@ -847,6 +857,8 @@ export default {
         profile: 'Профиль',
         devLogin: 'Быстрый вход (DEV)',
         logout: 'Выйти',
+        emailPlaceholder: 'Email адрес',
+        passwordPlaceholder: 'Пароль',
     },
     contacts: {
         sendMessage: 'Отправить сообщение',

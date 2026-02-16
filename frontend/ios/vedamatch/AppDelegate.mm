@@ -13,7 +13,7 @@
 
   // Configure Metro bundler port (8082 instead of default 8081) only in DEBUG
 #if DEBUG
-  [[RCTBundleURLProvider sharedSettings] setJsLocation:@"192.168.1.70:8082"];
+  [[RCTBundleURLProvider sharedSettings] setJsLocation:@"localhost:8082"];
 #endif
 
   return [super application:application

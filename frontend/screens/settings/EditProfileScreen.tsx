@@ -18,6 +18,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useSettings as usePortalSettings } from '../../context/SettingsContext';
 import DatePicker from 'react-native-date-picker';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { API_PATH } from '../../config/api.config';
@@ -51,6 +52,7 @@ const INTENTION_OPTIONS = [
 
 export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const { user, login } = useUser();
     const { fetchCountries, fetchCities } = useLocation();
     const { isDarkMode: isPortalDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
@@ -359,233 +361,244 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-                {/* Header - Monolithic Design */}
-                <View style={styles.header}>
-                    <LinearGradient
-                        colors={['rgba(0,0,0,0.5)', 'transparent']}
-                        style={StyleSheet.absoluteFill}
-                    />
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-                        <Text style={[styles.headerButtonText, { color: '#F8FAFC', opacity: 0.8 }]}>{t('common.cancel') || 'Cancel'}</Text>
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>{t('profile.datingProfile')}</Text>
-                    <TouchableOpacity onPress={handleSave} style={styles.headerButton} disabled={saving}>
-                        {saving ? (
-                            <ActivityIndicator size="small" color={roleColors.accent} />
-                        ) : (
-                            <Text style={[styles.headerButtonText, { color: roleColors.accent, fontWeight: '800' }]}>{t('common.save') || 'Save'}</Text>
-                        )}
-                    </TouchableOpacity>
-                </View>
-
-                <RoleSelectionSection
-                    selectedRole={role}
-                    onSelectRole={setRole}
-                    autoOpenHint={!user?.isProfileComplete}
-                />
-
-                <KeyboardAwareContainer style={styles.content}>
-                <ScrollView
-                    style={styles.content}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
+                <KeyboardAwareContainer
+                    style={{ flex: 1 }}
+                    behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+                    useTopInset={false}
                 >
-
-
-                    <View style={styles.switchRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.label}>{t('settings.proMode')}</Text>
-                            <Text style={styles.helperText}>
-                                {t('settings.proModeDesc')}
-                            </Text>
+                    <View style={{ flex: 1 }}>
+                        {/* Header - Monolithic Design */}
+                        <View style={styles.header}>
+                            <LinearGradient
+                                colors={['rgba(0,0,0,0.5)', 'transparent']}
+                                style={StyleSheet.absoluteFill}
+                            />
+                            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+                                <Text style={[styles.headerButtonText, { color: '#F8FAFC', opacity: 0.8 }]}>{t('common.cancel') || 'Cancel'}</Text>
+                            </TouchableOpacity>
+                            <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>{t('profile.datingProfile')}</Text>
+                            <TouchableOpacity onPress={handleSave} style={styles.headerButton} disabled={saving}>
+                                {saving ? (
+                                    <ActivityIndicator size="small" color={roleColors.accent} />
+                                ) : (
+                                    <Text style={[styles.headerButtonText, { color: roleColors.accent, fontWeight: '800' }]}>{t('common.save') || 'Save'}</Text>
+                                )}
+                            </TouchableOpacity>
                         </View>
-                        <Switch
-                            value={godModeEnabled}
-                            onValueChange={setGodModeEnabled}
-                            trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
-                            thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
-                        />
-                    </View>
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            contentContainerStyle={[
+                                styles.content,
+                                { paddingBottom: Math.max(insets.bottom + 140, 180) },
+                            ]}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="always"
+                            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                            nestedScrollEnabled
+                            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                        >
+                            <RoleSelectionSection
+                                selectedRole={role}
+                                onSelectRole={setRole}
+                                autoOpenHint={!user?.isProfileComplete}
+                            />
 
-                    {/* Enable Toggle */}
-                    <View style={styles.switchRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.label}>
-                                {t('dating.enableProfile') || 'Enable Union Profile'}
-                            </Text>
-                            <Text style={styles.helperText}>Видимость вашего профиля в Союзе</Text>
-                        </View>
-                        <Switch
-                            value={datingEnabled}
-                            onValueChange={setDatingEnabled}
-                            trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
-                            thumbColor={datingEnabled ? '#fff' : '#f4f3f4'}
-                        />
-                    </View>
 
-                    {/* Tip Box & Photo Management - Only shown when dating enabled */}
-                    {datingEnabled && (
-                        <>
-                            <View style={styles.tipBox}>
-                                <Text style={styles.tipText}>
-                                    💡 {t('profile.photoTip') || 'Загружайте свои лучшие фотографии в галерею, чтобы другие пользователи могли просматривать их в слайд-шоу.'}
-                                </Text>
+                            <View style={styles.switchRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.label}>{t('settings.proMode')}</Text>
+                                    <Text style={styles.helperText}>
+                                        {t('settings.proModeDesc')}
+                                    </Text>
+                                </View>
+                                <Switch
+                                    value={godModeEnabled}
+                                    onValueChange={setGodModeEnabled}
+                                    trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
+                                    thumbColor={godModeEnabled ? '#fff' : '#f4f3f4'}
+                                />
                             </View>
 
-                            <TouchableOpacity
-                                style={styles.managePhotosBtn}
-                                onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
-                            >
-                                <Text style={styles.managePhotosText}>{t('dating.managePhotos')}</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
+                            {/* Enable Toggle */}
+                            <View style={styles.switchRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.label}>
+                                        {t('dating.enableProfile') || 'Enable Union Profile'}
+                                    </Text>
+                                    <Text style={styles.helperText}>Видимость вашего профиля в Союзе</Text>
+                                </View>
+                                <Switch
+                                    value={datingEnabled}
+                                    onValueChange={setDatingEnabled}
+                                    trackColor={{ false: roleColors.border, true: roleColors.accentSoft }}
+                                    thumbColor={datingEnabled ? '#fff' : '#f4f3f4'}
+                                />
+                            </View>
 
-                    {/* Main Profile Fields */}
-                    <View style={styles.section}>
-                        <Text style={styles.label}>{t('registration.city') || 'Current City'}</Text>
-                        <View style={{ position: 'relative', zIndex: 100 }}>
-                            <TextInput
-                                style={styles.input}
-                                value={city}
-                                onChangeText={searchCities}
-                                placeholder={t('registration.selectCity')}
-                                placeholderTextColor={theme.subText}
-                                onFocus={() => city.length >= 2 && setShowCitySuggestions(citySuggestions.length > 0)}
-                            />
-                            {showCitySuggestions && (
-                                <View style={styles.suggestionsContainer}>
-                                    {citySuggestions.map((suggestion, index) => (
+                            {/* Tip Box & Photo Management - Only shown when dating enabled */}
+                            {datingEnabled && (
+                                <>
+                                    <View style={styles.tipBox}>
+                                        <Text style={styles.tipText}>
+                                            💡 {t('profile.photoTip') || 'Загружайте свои лучшие фотографии в галерею, чтобы другие пользователи могли просматривать их в слайд-шоу.'}
+                                        </Text>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={styles.managePhotosBtn}
+                                        onPress={() => user?.ID && navigation.navigate('MediaLibrary', { userId: user.ID })}
+                                    >
+                                        <Text style={styles.managePhotosText}>{t('dating.managePhotos')}</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
+
+                            {/* Main Profile Fields */}
+                            <View style={styles.section}>
+                                <Text style={styles.label}>{t('registration.city') || 'Current City'}</Text>
+                                <View style={{ position: 'relative', zIndex: 100 }}>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={city}
+                                        onChangeText={searchCities}
+                                        placeholder={t('registration.selectCity')}
+                                        placeholderTextColor={theme.subText}
+                                        onFocus={() => city.length >= 2 && setShowCitySuggestions(citySuggestions.length > 0)}
+                                    />
+                                    {showCitySuggestions && (
+                                        <View style={styles.suggestionsContainer}>
+                                            {citySuggestions.map((suggestion, index) => (
+                                                <TouchableOpacity
+                                                    key={index}
+                                                    style={styles.suggestionItem}
+                                                    onPress={() => handleCitySelect(suggestion)}
+                                                >
+                                                    <Text style={{ color: '#F8FAFC', fontSize: 15 }}>{suggestion.city}</Text>
+                                                    <Text style={{ color: 'rgba(248,250,252,0.6)', fontSize: 12 }}>{suggestion.country}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+                                </View>
+
+                                <Text style={styles.label}>{t('dating.yatra')}</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={yatra}
+                                    onChangeText={setYatra}
+                                    placeholder={t('dating.yatraPlaceholder')}
+                                    placeholderTextColor="rgba(248,250,252,0.4)"
+                                />
+
+                                <Text style={styles.label}>{t('dating.timezone')}</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={timezone}
+                                    onChangeText={setTimezone}
+                                    placeholder={t('dating.timezonePlaceholder')}
+                                    placeholderTextColor="rgba(248,250,252,0.4)"
+                                />
+
+                                <Text style={styles.label}>{t('dating.bio') || 'About Me (Bio)'}</Text>
+                                <TextInput
+                                    style={styles.textArea}
+                                    value={bio}
+                                    onChangeText={setBio}
+                                    placeholder={t('dating.bioPlaceholder')}
+                                    placeholderTextColor="rgba(248,250,252,0.4)"
+                                    multiline
+                                    numberOfLines={4}
+                                />
+
+                                <Text style={styles.label}>{t('dating.interests') || 'Interests'}</Text>
+                                <TextInput
+                                    style={styles.textArea}
+                                    value={interests}
+                                    onChangeText={setInterests}
+                                    placeholder={t('dating.interestsPlaceholder')}
+                                    placeholderTextColor="rgba(248,250,252,0.4)"
+                                    multiline
+                                />
+
+                                {/* Intentions / Goals */}
+                                <Text style={styles.label}>{t('dating.goals')}</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+                                    {INTENTION_OPTIONS.map((opt) => (
                                         <TouchableOpacity
-                                            key={index}
-                                            style={styles.suggestionItem}
-                                            onPress={() => handleCitySelect(suggestion)}
+                                            key={opt.key}
+                                            style={[
+                                                styles.chip,
+                                                intentions.includes(opt.key) && { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
+                                            ]}
+                                            onPress={() => toggleIntention(opt.key)}
                                         >
-                                            <Text style={{ color: '#F8FAFC', fontSize: 15 }}>{suggestion.city}</Text>
-                                            <Text style={{ color: 'rgba(248,250,252,0.6)', fontSize: 12 }}>{suggestion.country}</Text>
+                                            <Text style={{ color: intentions.includes(opt.key) ? roleColors.accent : roleColors.textSecondary, fontWeight: '600' }}>
+                                                {t(`dating.intentions.${opt.key}`)}
+                                            </Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
-                            )}
-                        </View>
 
-                        <Text style={styles.label}>{t('dating.yatra')}</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={yatra}
-                            onChangeText={setYatra}
-                            placeholder={t('dating.yatraPlaceholder')}
-                            placeholderTextColor="rgba(248,250,252,0.4)"
-                        />
+                                {/* Business Section (Conditional) */}
+                                {intentions.includes('business') && (
+                                    <View style={{ marginBottom: 15, padding: 15, backgroundColor: roleColors.accentSoft, borderRadius: 12, borderWidth: 1, borderColor: roleColors.accent }}>
+                                        <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 5, color: roleColors.accent }]}>{t('dating.businessProfile')}</Text>
 
-                        <Text style={styles.label}>{t('dating.timezone')}</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={timezone}
-                            onChangeText={setTimezone}
-                            placeholder={t('dating.timezonePlaceholder')}
-                            placeholderTextColor="rgba(248,250,252,0.4)"
-                        />
+                                        <Text style={[styles.label, { marginTop: 10 }]}>{t('dating.skills')}</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={skills}
+                                            onChangeText={setSkills}
+                                            placeholder={t('dating.skillsPlaceholder')}
+                                            placeholderTextColor="rgba(248,250,252,0.4)"
+                                        />
 
-                        <Text style={styles.label}>{t('dating.bio') || 'About Me (Bio)'}</Text>
-                        <TextInput
-                            style={styles.textArea}
-                            value={bio}
-                            onChangeText={setBio}
-                            placeholder={t('dating.bioPlaceholder')}
-                            placeholderTextColor="rgba(248,250,252,0.4)"
-                            multiline
-                            numberOfLines={4}
-                        />
+                                        <Text style={styles.label}>{t('dating.industry')}</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={industry}
+                                            onChangeText={setIndustry}
+                                            placeholder={t('dating.industryPlaceholder')}
+                                            placeholderTextColor="rgba(248,250,252,0.4)"
+                                        />
+                                    </View>
+                                )}
 
-                        <Text style={styles.label}>{t('dating.interests') || 'Interests'}</Text>
-                        <TextInput
-                            style={styles.textArea}
-                            value={interests}
-                            onChangeText={setInterests}
-                            placeholder={t('dating.interestsPlaceholder')}
-                            placeholderTextColor="rgba(248,250,252,0.4)"
-                            multiline
-                        />
-
-                        {/* Intentions / Goals */}
-                        <Text style={styles.label}>{t('dating.goals')}</Text>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-                            {INTENTION_OPTIONS.map((opt) => (
+                                <Text style={styles.label}>{t('dating.madh') || 'Tradition (Madh)'}</Text>
                                 <TouchableOpacity
-                                    key={opt.key}
-                                    style={[
-                                        styles.chip,
-                                        intentions.includes(opt.key) && { backgroundColor: roleColors.accentSoft, borderColor: roleColors.accent }
-                                    ]}
-                                    onPress={() => toggleIntention(opt.key)}
+                                    style={[styles.input, { justifyContent: 'center' }]}
+                                    onPress={() => setShowMadhPicker(true)}
                                 >
-                                    <Text style={{ color: intentions.includes(opt.key) ? roleColors.accent : roleColors.textSecondary, fontWeight: '600' }}>
-                                        {t(`dating.intentions.${opt.key}`)}
+                                    <Text style={{ color: madh ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
+                                        {madh || t('dating.selectTradition')}
                                     </Text>
                                 </TouchableOpacity>
-                            ))}
-                        </View>
 
-                        {/* Business Section (Conditional) */}
-                        {intentions.includes('business') && (
-                            <View style={{ marginBottom: 15, padding: 15, backgroundColor: roleColors.accentSoft, borderRadius: 12, borderWidth: 1, borderColor: roleColors.accent }}>
-                                <Text style={[styles.sectionTitle, { fontSize: 16, marginBottom: 5, color: roleColors.accent }]}>{t('dating.businessProfile')}</Text>
+                                <Text style={styles.label}>{t('dating.yogaStyle') || 'Yoga Style'}</Text>
+                                <TouchableOpacity
+                                    style={[styles.input, { justifyContent: 'center' }]}
+                                    onPress={() => setShowYogaPicker(true)}
+                                >
+                                    <Text style={{ color: yogaStyle ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
+                                        {yogaStyle || t('dating.selectStyle')}
+                                    </Text>
+                                </TouchableOpacity>
 
-                                <Text style={[styles.label, { marginTop: 10 }]}>{t('dating.skills')}</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={skills}
-                                    onChangeText={setSkills}
-                                    placeholder={t('dating.skillsPlaceholder')}
-                                    placeholderTextColor="rgba(248,250,252,0.4)"
-                                />
-
-                                <Text style={styles.label}>{t('dating.industry')}</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={industry}
-                                    onChangeText={setIndustry}
-                                    placeholder={t('dating.industryPlaceholder')}
-                                    placeholderTextColor="rgba(248,250,252,0.4)"
-                                />
+                                <Text style={styles.label}>{t('dating.guna') || 'Mode of Nature (Guna)'}</Text>
+                                <TouchableOpacity
+                                    style={[styles.input, { justifyContent: 'center' }]}
+                                    onPress={() => setShowGunaPicker(true)}
+                                >
+                                    <Text style={{ color: guna ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
+                                        {guna || t('dating.selectGuna')}
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
-                        )}
 
-                        <Text style={styles.label}>{t('dating.madh') || 'Tradition (Madh)'}</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { justifyContent: 'center' }]}
-                            onPress={() => setShowMadhPicker(true)}
-                        >
-                            <Text style={{ color: madh ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
-                                {madh || t('dating.selectTradition')}
-                            </Text>
-                        </TouchableOpacity>
-
-                        <Text style={styles.label}>{t('dating.yogaStyle') || 'Yoga Style'}</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { justifyContent: 'center' }]}
-                            onPress={() => setShowYogaPicker(true)}
-                        >
-                            <Text style={{ color: yogaStyle ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
-                                {yogaStyle || t('dating.selectStyle')}
-                            </Text>
-                        </TouchableOpacity>
-
-                        <Text style={styles.label}>{t('dating.guna') || 'Mode of Nature (Guna)'}</Text>
-                        <TouchableOpacity
-                            style={[styles.input, { justifyContent: 'center' }]}
-                            onPress={() => setShowGunaPicker(true)}
-                        >
-                            <Text style={{ color: guna ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
-                                {guna || t('dating.selectGuna')}
-                            </Text>
-                        </TouchableOpacity>
+                            {/* Extra Space */}
+                            <View style={{ height: 40 }} />
+                        </ScrollView>
                     </View>
-
-                    {/* Extra Space */}
-                    <View style={{ height: 40 }} />
-                </ScrollView>
                 </KeyboardAwareContainer>
             </View>
 
@@ -684,7 +697,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     content: {
-        flex: 1,
         padding: 16,
     },
     section: {

@@ -59,7 +59,7 @@ func main() {
 	database.SeedDemoAds()
 
 	// Seed map test data (users, shops, ads with coordinates)
-	// database.SeedMapTestData()
+	database.SeedMapTestData()
 
 	// Initialize Services
 	services.InitScheduler()
@@ -964,7 +964,7 @@ func main() {
 	app.Static("/uploads", "./uploads")
 
 	// Start Server
-	port := resolveListenPort("8081")
+	port := resolveListenPort("8000")
 	log.Printf("Server starting on port %s", port)
 	log.Fatal(app.Listen(port))
 }

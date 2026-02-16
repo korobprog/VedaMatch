@@ -990,6 +990,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                         onChangeText={setInputText}
                         placeholder={t('chat.placeholder')}
                         placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
+                        textContentType="none"
+                        autoComplete="off"
+                        importantForAutofill="no"
                     />
                     <TouchableOpacity
                         activeOpacity={0.88}

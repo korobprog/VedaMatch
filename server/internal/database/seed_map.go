@@ -1,9 +1,12 @@
 package database
 
 import (
+	"fmt"
 	"log"
 	"rag-agent-server/internal/models"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // SeedMapTestData seeds test data for the map feature
@@ -11,33 +14,52 @@ func SeedMapTestData() {
 	log.Println("[Seed] Checking map test data...")
 
 	// 1. Prepare Users (always ensures they have coordinates)
+	// Default password for all test users: password123
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	pass := string(hashedPassword)
+
 	testUsers := []models.User{
-		{KarmicName: "Андрей Тестов", SpiritualName: "Адитья Дас", Email: "aditya.test@vedamatch.ru", Country: "Россия", City: "Москва", Latitude: floatPtr(55.7558), Longitude: floatPtr(37.6173), Identity: "devotee", DatingEnabled: true},
-		{KarmicName: "Мария Иванова", SpiritualName: "Малати Деви Даси", Email: "malati.test@vedamatch.ru", Country: "Россия", City: "Санкт-Петербург", Latitude: floatPtr(59.9343), Longitude: floatPtr(30.3351), Identity: "devotee", DatingEnabled: true},
-		{KarmicName: "Дмитрий Петров", SpiritualName: "Дханешвара Дас", Email: "dhaneshvara.test@vedamatch.ru", Country: "Россия", City: "Екатеринбург", Latitude: floatPtr(56.8389), Longitude: floatPtr(60.6057), Identity: "yoga_teacher"},
-		{KarmicName: "Елена Сидорова", SpiritualName: "Экатерина Деви Даси", Email: "ekaterina.test@vedamatch.ru", Country: "Россия", City: "Новосибирск", Latitude: floatPtr(55.0084), Longitude: floatPtr(82.9357), Identity: "devotee", DatingEnabled: true},
-		{KarmicName: "Сергей Козлов", SpiritualName: "Шьямасундара Дас", Email: "shyam.test@vedamatch.ru", Country: "Россия", City: "Казань", Latitude: floatPtr(55.7961), Longitude: floatPtr(49.1064), Identity: "yoga_teacher"},
+		{KarmicName: "Андрей Тестов", SpiritualName: "Адитья Дас", Email: "aditya.test@vedamatch.ru", Password: pass, Country: "Россия", City: "Москва", Latitude: floatPtr(55.7558), Longitude: floatPtr(37.6173), Identity: "devotee", DatingEnabled: true, IsProfileComplete: true},
+		{KarmicName: "Мария Иванова", SpiritualName: "Малати Деви Даси", Email: "malati.test@vedamatch.ru", Password: pass, Country: "Россия", City: "Санкт-Петербург", Latitude: floatPtr(59.9343), Longitude: floatPtr(30.3351), Identity: "devotee", DatingEnabled: true, IsProfileComplete: true},
+		{KarmicName: "Дмитрий Петров", SpiritualName: "Дханешвара Дас", Email: "dhaneshvara.test@vedamatch.ru", Password: pass, Country: "Россия", City: "Екатеринбург", Latitude: floatPtr(56.8389), Longitude: floatPtr(60.6057), Identity: "yoga_teacher", IsProfileComplete: true},
+		{KarmicName: "Елена Сидорова", SpiritualName: "Экатерина Деви Даси", Email: "ekaterina.test@vedamatch.ru", Password: pass, Country: "Россия", City: "Новосибирск", Latitude: floatPtr(55.0084), Longitude: floatPtr(82.9357), Identity: "devotee", DatingEnabled: true, IsProfileComplete: true},
+		{KarmicName: "Сергей Козлов", SpiritualName: "Шьямасундара Дас", Email: "shyam.test@vedamatch.ru", Password: pass, Country: "Россия", City: "Казань", Latitude: floatPtr(55.7961), Longitude: floatPtr(49.1064), Identity: "yoga_teacher", IsProfileComplete: true},
+		{KarmicName: "Иван Магазинов", SpiritualName: "Ишвара Дас", Email: "shop.test@vedamatch.ru", Password: pass, Country: "Россия", City: "Москва", Latitude: floatPtr(55.7612), Longitude: floatPtr(37.6140), Identity: "devotee", IsProfileComplete: true, Role: "user"},
 	}
 
 	createdUserIDs := make([]uint, 0)
 	for _, u := range testUsers {
 		var existing models.User
 		if err := DB.Where("email = ?", u.Email).First(&existing).Error; err == nil {
-			// Update existing user with coordinates if they don't have them
+			// Update existing user with coordinates and password if they don't have them
+			updates := make(map[string]interface{})
 			if existing.Latitude == nil || existing.Longitude == nil {
-				existing.Latitude = u.Latitude
-				existing.Longitude = u.Longitude
-				DB.Save(&existing)
-				log.Printf("[Seed] Updated test user coordinates: %s", u.SpiritualName)
+				updates["latitude"] = u.Latitude
+				updates["longitude"] = u.Longitude
+			}
+			if existing.Password == "" {
+				updates["password"] = u.Password
+			}
+			if !existing.IsProfileComplete {
+				updates["is_profile_complete"] = true
+			}
+			if len(updates) > 0 {
+				DB.Model(&existing).Updates(updates)
+				log.Printf("[Seed] Updated test user: %s", u.SpiritualName)
 			}
 			createdUserIDs = append(createdUserIDs, existing.ID)
 		} else {
 			// Create new user
+			u.InviteCode = fmt.Sprintf("TEST%d", u.ID) // Safer invite code
+			if u.ID == 0 {
+				// ID is 0 before creation, use a count or something else
+				u.InviteCode = fmt.Sprintf("TEST%d", time.Now().UnixNano()%10000)
+			}
 			if err := DB.Create(&u).Error; err != nil {
 				log.Printf("[Seed] Error creating user %s: %v", u.Email, err)
 			} else {
 				createdUserIDs = append(createdUserIDs, u.ID)
-				log.Printf("[Seed] Created test user: %s", u.SpiritualName)
+				log.Printf("[Seed] Created test user: %s (password: password123)", u.SpiritualName)
 			}
 		}
 	}

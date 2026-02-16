@@ -287,7 +287,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                             <Animated.View style={[styles.inputContainer, emailInputStyle]}>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Email Address"
+                                    placeholder={t('auth.emailPlaceholder')}
                                     placeholderTextColor="rgba(107, 91, 83, 0.6)"
                                     value={email}
                                     onChangeText={setEmail}
@@ -301,7 +301,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                             <Animated.View style={[styles.inputContainer, passwordInputStyle]}>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Password"
+                                    placeholder={t('auth.passwordPlaceholder')}
                                     placeholderTextColor="rgba(107, 91, 83, 0.6)"
                                     value={password}
                                     onChangeText={setPassword}

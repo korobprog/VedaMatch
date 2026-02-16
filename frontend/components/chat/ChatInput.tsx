@@ -322,6 +322,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             value={draftText}
                             onChangeText={handleTextChange}
                             onSubmitEditing={onSendPress}
+                            textContentType="none"
+                            autoComplete="off"
+                            importantForAutofill="no"
                             multiline
                             blurOnSubmit={false}
                             onFocus={() => setIsFocused(true)}
