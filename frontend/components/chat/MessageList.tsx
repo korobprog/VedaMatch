@@ -6,7 +6,6 @@ import {
     Text,
     Image,
     StyleSheet,
-    useColorScheme,
     Dimensions,
     TouchableOpacity,
     Alert,
@@ -21,9 +20,11 @@ import { FileText, File, Download, Music, Video, Image as ImageIcon, MapPin, Ext
 import Markdown from 'react-native-markdown-display';
 import { useTranslation } from 'react-i18next';
 import { ChatImage } from '../ChatImage';
-import { Message, COLORS, AssistantSource } from './ChatConstants';
+import { Message, AssistantSource } from './ChatConstants';
 import { useChat } from '../../context/ChatContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { WebView } from 'react-native-webview';
 import { mediaService } from '../../services/mediaService';
 import { AudioPlayer } from './AudioPlayer';
@@ -49,9 +50,18 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
     const { t, i18n } = useTranslation();
     const { messages, isLoading, isTyping, recipientUser, deleteMessage, isUploading } = useChat();
-    const { assistantType } = useSettings();
-    const isDarkMode = useColorScheme() === 'dark';
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { user } = useUser();
+    const { assistantType, isDarkMode, portalBackgroundType } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const isPhotoBg = portalBackgroundType === 'image';
+    const theme = {
+        accent: colors.accent,
+        primary: colors.accent,
+        text: isPhotoBg ? '#F8FAFC' : colors.textPrimary,
+        subText: isPhotoBg ? 'rgba(248,250,252,0.78)' : colors.textSecondary,
+        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+        botBubble: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated,
+    };
     const flatListRef = useRef<FlatList>(null);
     const lastContentHeightRef = useRef(0);
     const autoScrollFrameRef = useRef<number | null>(null);
@@ -261,9 +271,9 @@ export const MessageList: React.FC<MessageListProps> = ({
         if (rawItem.type === 'header') {
             return (
                 <View style={styles.dateHeader}>
-                    <View style={[styles.dateLine, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
-                    <Text style={[styles.dateText, { color: 'rgba(248,250,252,0.7)' }]}>{rawItem.title}</Text>
-                    <View style={[styles.dateLine, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
+                    <View style={[styles.dateLine, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
+                    <Text style={[styles.dateText, { color: theme.subText }]}>{rawItem.title}</Text>
+                    <View style={[styles.dateLine, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : theme.borderColor }]} />
                 </View>
             );
         }
@@ -279,8 +289,8 @@ export const MessageList: React.FC<MessageListProps> = ({
             {
                 backgroundColor: 'transparent',
                 borderColor: isUser
-                    ? 'rgba(255, 183, 77, 0.4)' // Gold tint for user
-                    : 'rgba(255, 255, 255, 0.18)',
+                    ? (isPhotoBg ? 'rgba(255,255,255,0.34)' : colors.accent)
+                    : theme.borderColor,
                 borderWidth: 1.2,
                 overflow: 'hidden' as const,
             }
@@ -288,20 +298,22 @@ export const MessageList: React.FC<MessageListProps> = ({
 
         const bubbleShadowStyle = isUser ? styles.userGlassShadow : styles.botGlassShadow;
         const glassTint = isUser
-            ? 'rgba(255, 183, 77, 0.08)' // Subtle gold for user
-            : 'rgba(255, 255, 255, 0.06)';
+            ? (isPhotoBg ? 'rgba(15,23,42,0.44)' : colors.accentSoft)
+            : (isPhotoBg ? 'rgba(255,255,255,0.09)' : (isDarkMode ? 'rgba(15,23,42,0.3)' : 'rgba(255,255,255,0.45)'));
 
         const Content = () => {
             if (item.uploading) {
                 return (
                     <View style={bubbleShadowStyle}>
                         <View style={bubbleStyle}>
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType={isDarkMode ? 'dark' : 'light'}
-                                blurAmount={20}
-                                reducedTransparencyFallbackColor="transparent"
-                            />
+                            {(isPhotoBg || isDarkMode) && (
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType={isDarkMode ? 'dark' : 'light'}
+                                    blurAmount={20}
+                                    reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                                />
+                            )}
                             <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
                             <View style={styles.uploadingContainer}>
                                 <ActivityIndicator size="small" color={theme.primary} />
@@ -321,8 +333,11 @@ export const MessageList: React.FC<MessageListProps> = ({
                     ) : item.type === 'audio' && item.content ? (
                         <AudioPlayer url={item.content} duration={item.duration} isDarkMode={isDarkMode} />
                     ) : (item.type === 'document' || item.type === 'file') && item.content ? (
-                        <TouchableOpacity onPress={() => openDocument(item.content!, item.fileName)} style={styles.documentCard}>
-                            <View style={[styles.documentIconContainer, { backgroundColor: theme.primary + '20' }]}>
+                        <TouchableOpacity
+                            onPress={() => openDocument(item.content!, item.fileName)}
+                            style={[styles.documentCard, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface, borderColor: theme.borderColor }]}
+                        >
+                            <View style={[styles.documentIconContainer, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : colors.accentSoft }]}>
                                 {getFileIcon(item.fileName || '')}
                             </View>
                             <View style={styles.documentInfo}>
@@ -331,8 +346,10 @@ export const MessageList: React.FC<MessageListProps> = ({
                                     <Text style={[styles.documentSize, { color: theme.subText }]}>
                                         {item.fileSize ? mediaService.formatFileSize(item.fileSize) : 'File'}
                                     </Text>
-                                    <View style={styles.extensionBadge}>
-                                        <Text style={styles.extensionText}>{(item.fileName?.split('.').pop() || 'FILE').toUpperCase()}</Text>
+                                    <View style={[styles.extensionBadge, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.18)' : colors.accentSoft }]}>
+                                        <Text style={[styles.extensionText, { color: theme.subText }]}>
+                                            {(item.fileName?.split('.').pop() || 'FILE').toUpperCase()}
+                                        </Text>
                                     </View>
                                 </View>
                             </View>
@@ -443,12 +460,14 @@ export const MessageList: React.FC<MessageListProps> = ({
             return (
                 <View style={bubbleShadowStyle}>
                     <View style={bubbleStyle}>
-                        <BlurView
-                            style={StyleSheet.absoluteFill}
-                            blurType={isDarkMode ? 'dark' : 'light'}
-                            blurAmount={20}
-                            reducedTransparencyFallbackColor="transparent"
-                        />
+                        {(isPhotoBg || isDarkMode) && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType={isDarkMode ? 'dark' : 'light'}
+                                blurAmount={20}
+                                reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                            />
+                        )}
                         <View style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
                         {innerContent}
                     </View>
@@ -524,16 +543,16 @@ export const MessageList: React.FC<MessageListProps> = ({
 const styles = StyleSheet.create({
     chatContainer: { flex: 1 },
     overlay: { flex: 1 },
-    listContent: { paddingTop: 6, paddingHorizontal: 16, paddingBottom: 40 },
+    listContent: { paddingTop: 8, paddingHorizontal: 14, paddingBottom: 44 },
     messageRow: { marginBottom: 12, flexDirection: 'row', width: '100%', alignItems: 'flex-end' },
     userRow: { justifyContent: 'flex-end' },
     botRow: { justifyContent: 'flex-start' },
     bubble: {
-        borderRadius: 20,
+        borderRadius: 18,
         maxWidth: '85%',
         minWidth: 100, // Ensure enough space for short text + time
-        paddingVertical: 8,
-        paddingHorizontal: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 13,
     },
     userBubble: {
         borderBottomRightRadius: 4,
@@ -564,14 +583,14 @@ const styles = StyleSheet.create({
     statusBox: { flexDirection: 'row', alignItems: 'center', padding: 12 },
     statusText: { marginLeft: 8, fontSize: 13 },
     messageImage: { width: 240, height: 240, borderRadius: 12, marginBottom: 4 },
-    documentCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 12, padding: 8, marginVertical: 4, width: 250 },
+    documentCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 8, marginVertical: 4, width: 250, borderWidth: 1 },
     documentIconContainer: { width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
     documentInfo: { flex: 1, marginRight: 8 },
     documentMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
     documentName: { fontSize: 13, fontWeight: '600' },
     documentSize: { fontSize: 11 },
-    extensionBadge: { marginLeft: 6, paddingHorizontal: 4, paddingVertical: 1, backgroundColor: 'rgba(128,128,128,0.2)', borderRadius: 4 },
-    extensionText: { fontSize: 8, fontWeight: 'bold', color: '#666' },
+    extensionBadge: { marginLeft: 6, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+    extensionText: { fontSize: 8, fontWeight: 'bold' },
     downloadBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
     navButton: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center' },
     navButtonText: { fontSize: 13, fontWeight: 'bold' },

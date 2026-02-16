@@ -8,7 +8,7 @@ import { RootStackParamList } from '../types/navigation';
 import { useSettings as usePortalSettings } from '../context/SettingsContext';
 import { useChat } from '../context/ChatContext';
 import { useUser } from '../context/UserContext';
-import { COLORS } from '../components/chat/ChatConstants';
+import { useRoleTheme } from '../hooks/useRoleTheme';
 import { ChatHeader } from '../components/chat/ChatHeader';
 import { MessageList } from '../components/chat/MessageList';
 import { ChatInput } from '../components/chat/ChatInput';
@@ -24,7 +24,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
     const { handleMenuOption, recipientUser, setShowMenu, showMenu } = useChat();
     const { user: currentUser } = useUser();
     const { t } = useTranslation();
-    const theme = isDarkMode ? COLORS.dark : COLORS.light;
+    const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
     const insets = useSafeAreaInsets();
     const overlayOpacity = useRef(new Animated.Value(0)).current;
     const isImageBackground = portalBackgroundType === 'image' && Boolean(portalBackground);
@@ -131,7 +131,11 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                         onPress={() => setShowMenu(false)}
                     >
                         <LinearGradient
-                            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.85)']}
+                            colors={
+                                isImageBackground
+                                    ? ['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.78)']
+                                    : ['rgba(0,0,0,0)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.35)']
+                            }
                             style={StyleSheet.absoluteFill}
                         />
                     </TouchableOpacity>
@@ -200,12 +204,12 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
                     resizeMode="cover"
                     fadeDuration={0}
                 >
-                    <View style={styles.imageOverlay}>
+                    <View style={[styles.imageOverlay, { backgroundColor: 'rgba(7,12,23,0.38)' }]}>
                         {content}
                     </View>
                 </ImageBackground>
             ) : (
-                <View style={[styles.container, { backgroundColor: theme.background }]}>
+                <View style={[styles.container, { backgroundColor: colors.background }]}>
                     {content}
                 </View>
             )}
@@ -219,11 +223,10 @@ const styles = StyleSheet.create({
     },
     imageOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.45)',
     },
     messagesWrap: {
         flex: 1,
-        marginTop: 4,
+        marginTop: 6,
     },
     overlayWrapper: {
         ...StyleSheet.absoluteFillObject,

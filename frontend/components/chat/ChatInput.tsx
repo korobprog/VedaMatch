@@ -18,6 +18,7 @@ import { useChat } from '../../context/ChatContext';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { Image } from 'react-native';
 import { getMediaUrl } from '../../utils/url';
 import { mediaService } from '../../services/mediaService';
@@ -45,9 +46,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     } = useChat();
     const { sendTypingIndicator } = useWebSocket();
     const { user: currentUser } = useUser();
-    const { vTheme } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const longPressTriggeredRef = useRef(false);
+    const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
+    const isPhotoBg = portalBackgroundType === 'image';
 
     const {
         isRecording,
@@ -164,6 +167,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }, []);
 
     const showSendButton = (draftText.length > 0 || isFocused) && !isRecording;
+    const panelBg = isPhotoBg ? 'rgba(15,23,42,0.58)' : colors.surfaceElevated;
+    const panelBorder = isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border;
+    const inputBg = isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface;
+    const inputBorder = isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border;
+    const inputColor = isPhotoBg ? '#F8FAFC' : colors.textPrimary;
+    const placeholderColor = isPhotoBg ? 'rgba(248,250,252,0.72)' : colors.textSecondary;
+    const iconColor = isPhotoBg ? 'rgba(248,250,252,0.88)' : colors.textSecondary;
 
     const getMenuIcon = (option: string, color: string) => {
         switch (option) {
@@ -188,19 +198,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         >
             {/* Menu Pop-up */}
             {showMenu && (
-                <View style={[styles.menuPopup, { backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(255,183,77,0.3)' }]}>
+                <View style={[styles.menuPopup, { backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated, borderColor: panelBorder }]}>
                     <BlurView
                         style={StyleSheet.absoluteFill}
-                        blurType="dark"
+                        blurType={isDarkMode ? 'dark' : 'light'}
                         blurAmount={20}
+                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated}
                     />
                     <View
                         style={[
                             styles.menuHeader,
-                            { borderBottomWidth: 1, borderBottomColor: 'rgba(255,183,77,0.2)' }
+                            { borderBottomWidth: 1, borderBottomColor: panelBorder }
                         ]}
                     >
-                        <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }} numberOfLines={1}>
+                        <Text style={{ color: inputColor, fontSize: 16, fontWeight: '700' }} numberOfLines={1}>
                             {recipientUser ? (recipientUser.spiritualName || recipientUser.karmicName) : t('chat.newChat')}
                         </Text>
                     </View>
@@ -213,14 +224,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             option === 'contacts.clearHistory';
 
                         const isDestructive = option.includes('block') || option.includes('report') || option.includes('clearHistory');
-                        const itemColor = isDestructive ? '#F87171' : '#F8FAFC';
+                        const itemColor = isDestructive
+                            ? '#F87171'
+                            : (isPhotoBg ? '#F8FAFC' : colors.textPrimary);
 
                         return (
                             <TouchableOpacity
                                 key={option}
                                 style={[
                                     styles.menuItem,
-                                    index < array.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.16)' },
+                                    index < array.length - 1 && {
+                                        borderBottomWidth: 0.5,
+                                        borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : panelBorder,
+                                    },
                                     !isImplemented && { opacity: 0.5 }
                                 ]}
                                 onPress={() => {
@@ -257,14 +273,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <View style={[
                 styles.inputContainer,
                 {
-                    backgroundColor: 'rgba(15,23,42,0.65)',
-                    borderColor: 'rgba(255,255,255,0.2)'
+                    backgroundColor: panelBg,
+                    borderColor: panelBorder,
                 }
             ]}>
                 <BlurView
                     style={StyleSheet.absoluteFill}
-                    blurType="dark"
+                    blurType={isDarkMode ? 'dark' : 'light'}
                     blurAmount={15}
+                    reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
                 />
                 {isRecording ? (
                     // Spacer to maintain height, but content hidden
@@ -274,26 +291,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         <TouchableOpacity
                             style={styles.plusButton}
                             onPress={() => setShowMenu(!showMenu)}
+                            activeOpacity={0.86}
                         >
                             {recipientUser ? (
                                 avatarUrl ? (
                                     <Image source={{ uri: avatarUrl }} style={styles.miniAvatar} />
                                 ) : (
-                                    <View style={[styles.miniAvatar, { backgroundColor: vTheme.colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                                    <View style={[styles.miniAvatar, { backgroundColor: colors.accent, justifyContent: 'center', alignItems: 'center' }]}>
                                         <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
                                             {(recipientUser.spiritualName || recipientUser.karmicName || '?')[0]}
                                         </Text>
                                     </View>
                                 )
                             ) : (
-                                <Text style={[styles.plusText, { color: 'rgba(248,250,252,0.8)' }]}>•••</Text>
+                                <Text style={[styles.plusText, { color: iconColor }]}>•••</Text>
                             )}
                         </TouchableOpacity>
 
                         <TextInput
-                            style={[styles.input, { color: '#F8FAFC' }]}
+                            style={[
+                                styles.input,
+                                {
+                                    color: inputColor,
+                                    backgroundColor: inputBg,
+                                    borderColor: inputBorder,
+                                },
+                            ]}
                             placeholder={t('chat.placeholder')}
-                            placeholderTextColor="rgba(248,250,252,0.66)"
+                            placeholderTextColor={placeholderColor}
                             value={draftText}
                             onChangeText={handleTextChange}
                             onSubmitEditing={onSendPress}
@@ -311,24 +336,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         onPress={onSendPress}
                         onLongPress={onSendLongPress}
                         delayLongPress={350}
-                        style={styles.sendButton}
+                        style={[styles.sendButton, styles.primaryButton, { backgroundColor: colors.accent, borderColor: isPhotoBg ? 'rgba(255,255,255,0.36)' : 'transparent' }]}
                         disabled={false} // Unblocked isUploading
+                        activeOpacity={0.86}
                     >
                         {isUploading ? (
-                            <ActivityIndicator size="small" color="#FFB74D" />
+                            <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : isLoading ? (
-                            <View style={{ width: 14, height: 14, backgroundColor: '#FFB74D', borderRadius: 2 }} />
+                            <View style={{ width: 14, height: 14, backgroundColor: '#FFFFFF', borderRadius: 2 }} />
                         ) : (
-                            <Send size={24} color="#FFB74D" />
+                            <Send size={20} color="#FFFFFF" />
                         )}
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
                         onPress={onMicPress}
-                        style={styles.sendButton}
+                        style={[styles.sendButton, styles.secondaryButton, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface, borderColor: panelBorder }]}
                         activeOpacity={0.8}
                     >
-                        <Mic size={24} color={isRecording ? '#F87171' : '#F8FAFC'} />
+                        <Mic size={20} color={isRecording ? '#F87171' : (isPhotoBg ? '#F8FAFC' : colors.textPrimary)} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -344,25 +370,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
 const styles = StyleSheet.create({
     inputWrapper: {
-        paddingHorizontal: 16,
-        paddingTop: 10,
+        paddingHorizontal: 12,
+        paddingTop: 8,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 26,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        minHeight: 48,
+        borderRadius: 22,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        minHeight: 56,
         borderWidth: 1,
         shadowColor: '#000',
         shadowOpacity: 0.12,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 2 },
         elevation: 3,
+        overflow: 'hidden',
     },
     plusButton: {
-        padding: 8,
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     plusText: {
         fontSize: 20,
@@ -370,10 +401,10 @@ const styles = StyleSheet.create({
     },
     menuPopup: {
         position: 'absolute',
-        bottom: 80,
-        left: 12,
-        width: 240,
-        borderRadius: 16,
+        bottom: 86,
+        left: 8,
+        width: 254,
+        borderRadius: 18,
         borderWidth: 1,
         overflow: 'hidden',
         shadowColor: "#000",
@@ -401,16 +432,28 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 16,
-        lineHeight: 22,
-        paddingTop: Platform.OS === 'ios' ? 8 : 4,
-        paddingBottom: Platform.OS === 'ios' ? 8 : 4,
-        paddingHorizontal: 8,
+        lineHeight: 20,
+        paddingTop: Platform.OS === 'ios' ? 9 : 7,
+        paddingBottom: Platform.OS === 'ios' ? 9 : 7,
+        paddingHorizontal: 12,
         textAlignVertical: 'center',
         maxHeight: 120,
+        borderWidth: 1,
+        borderRadius: 16,
     },
     sendButton: {
-        padding: 8,
-        marginLeft: 4,
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 6,
+    },
+    primaryButton: {
+        borderWidth: 1,
+    },
+    secondaryButton: {
+        borderWidth: 1,
     },
     sendButtonText: {
         fontSize: 24,

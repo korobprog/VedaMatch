@@ -14,6 +14,8 @@ import { getMediaUrl } from '../../utils/url';
 import { BalancePill } from '../wallet/BalancePill';
 import { useNavigation } from '@react-navigation/native';
 import { useSettings } from '../../context/SettingsContext';
+import { useUser } from '../../context/UserContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 
 interface ChatHeaderProps {
     title: string;
@@ -30,7 +32,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
     const navigation = useNavigation<any>();
     const { recipientUser } = useChat();
-    const { isDarkMode } = useSettings();
+    const { user } = useUser();
+    const { isDarkMode, portalBackgroundType } = useSettings();
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
+    const isPhotoBg = portalBackgroundType === 'image';
+    const titleColor = isPhotoBg ? '#F8FAFC' : colors.textPrimary;
+    const subTitleColor = isPhotoBg ? 'rgba(248,250,252,0.82)' : colors.textSecondary;
+    const headerBg = isPhotoBg ? 'rgba(15,23,42,0.64)' : colors.surfaceElevated;
+    const headerBorder = isPhotoBg ? 'rgba(255,255,255,0.22)' : colors.border;
+    const iconColor = isPhotoBg ? '#F8FAFC' : colors.textPrimary;
+    const iconButtonBg = isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface;
 
     const displayTitle = recipientUser
         ? (recipientUser.spiritualName || recipientUser.karmicName)
@@ -45,17 +56,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
     return (
         <View style={styles.shell}>
-            <View style={styles.header}>
+            <View style={[styles.header, { borderColor: headerBorder }]}>
                 <BlurView
                     style={StyleSheet.absoluteFill}
-                    blurType="dark"
+                    blurType={isDarkMode ? 'dark' : 'light'}
                     blurAmount={18}
-                    reducedTransparencyFallbackColor="rgba(15,23,42,0.95)"
+                    reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated}
                 />
                 <View style={[
                     StyleSheet.absoluteFill,
                     {
-                        backgroundColor: 'rgba(15,23,42,0.65)',
+                        backgroundColor: headerBg,
                     }
                 ]} />
 
@@ -63,34 +74,34 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     {recipientUser ? (
                         <View style={styles.leftGroup}>
                             <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
-                                <ChevronLeft color="#F8FAFC" size={21} />
+                                <ChevronLeft color={iconColor} size={21} />
                             </TouchableOpacity>
 
-                            <View style={[styles.avatarContainer, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+                            <View style={[styles.avatarContainer, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.accentSoft }]}>
                                 {recipientUser.avatarUrl && getMediaUrl(recipientUser.avatarUrl) ? (
                                     <Image
                                         source={{ uri: getMediaUrl(recipientUser.avatarUrl)! }}
                                         style={styles.avatar}
                                     />
                                 ) : (
-                                    <Text style={{ fontSize: 15, color: '#F8FAFC' }}>
+                                    <Text style={{ fontSize: 15, color: titleColor }}>
                                         {(recipientUser.spiritualName?.[0] || recipientUser.karmicName?.[0] || '?').toUpperCase()}
                                     </Text>
                                 )}
                             </View>
                         </View>
                     ) : (
-                        <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton}>
-                            <Menu color="#F8FAFC" size={20} />
+                        <TouchableOpacity onPress={onSettingsPress} style={styles.menuButton} activeOpacity={0.86}>
+                            <Menu color={iconColor} size={20} />
                         </TouchableOpacity>
                     )}
 
                     <View style={styles.titleContainer}>
                         {recipientUser ? (
                             <View>
-                                <Text style={[styles.title, { color: '#F8FAFC' }]} numberOfLines={1}>{displayTitle}</Text>
+                                <Text style={[styles.title, { color: titleColor }]} numberOfLines={1}>{displayTitle}</Text>
                                 {!!subTitle && (
-                                    <Text style={[styles.subTitle, { color: 'rgba(248,250,252,0.82)' }]} numberOfLines={1}>
+                                    <Text style={[styles.subTitle, { color: subTitleColor }]} numberOfLines={1}>
                                         {subTitle}
                                     </Text>
                                 )}
@@ -99,21 +110,27 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                             <TouchableOpacity
                                 onPress={() => navigation.navigate('Portal')}
                                 activeOpacity={0.8}
-                                style={styles.aiTitleWrap}
+                                style={[
+                                    styles.aiTitleWrap,
+                                    {
+                                        backgroundColor: isPhotoBg ? 'rgba(255, 183, 77, 0.15)' : colors.accentSoft,
+                                        borderColor: isPhotoBg ? 'rgba(255, 183, 77, 0.35)' : colors.border,
+                                    },
+                                ]}
                             >
-                                <Sparkles size={12} color="#FFB74D" />
-                                <Text style={[styles.aiTitle, { color: '#F8FAFC' }]}>AI-чат</Text>
+                                <Sparkles size={12} color={isPhotoBg ? '#FFB74D' : colors.accent} />
+                                <Text style={[styles.aiTitle, { color: titleColor }]}>AI-чат</Text>
                             </TouchableOpacity>
                         )}
                     </View>
 
                     <View style={styles.rightActions}>
                         <View style={{ marginRight: recipientUser ? 10 : 0 }}>
-                            <BalancePill size="small" />
+                            <BalancePill size="small" lightMode={isPhotoBg || isDarkMode} />
                         </View>
                         {recipientUser && onCallPress && (
-                            <TouchableOpacity onPress={onCallPress} style={styles.actionButton}>
-                                <Phone color="#F8FAFC" size={18} />
+                            <TouchableOpacity onPress={onCallPress} style={[styles.actionButton, { backgroundColor: iconButtonBg, borderColor: headerBorder }]} activeOpacity={0.86}>
+                                <Phone color={iconColor} size={18} />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -134,8 +151,7 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 8 : 5,
         borderRadius: 14,
         overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'transparent',
+        borderWidth: 1.2,
     },
     headerContent: {
         flex: 1,
@@ -177,11 +193,19 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     backButton: {
-        padding: 3,
-        marginRight: 3,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 4,
     },
     menuButton: {
-        padding: 4,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
         marginRight: 4,
     },
     avatarContainer: {
@@ -203,12 +227,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     actionButton: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.18)',
+        borderWidth: 1,
     },
     aiBalanceContainer: {
         alignItems: 'flex-end',
