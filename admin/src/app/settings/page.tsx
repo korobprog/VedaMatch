@@ -52,6 +52,16 @@ interface SettingsState {
     VK_API_VERSION: string;
     TELEGRAM_BOT_TOKEN: string;
     FCM_SERVER_KEY: string;
+    SUPPORT_TELEGRAM_BOT_TOKEN: string;
+    SUPPORT_TELEGRAM_WEBHOOK_SECRET: string;
+    SUPPORT_TELEGRAM_OPERATOR_CHAT_ID: string;
+    SUPPORT_DOWNLOAD_IOS_URL: string;
+    SUPPORT_DOWNLOAD_ANDROID_URL: string;
+    SUPPORT_CHANNEL_URL: string;
+    SUPPORT_AI_ENABLED: string;
+    SUPPORT_AI_CONFIDENCE_THRESHOLD: string;
+    SUPPORT_AI_ESCALATION_KEYWORDS: string;
+    SUPPORT_LANG_MODE: string;
     GEMINI_CORPUS_ID?: string;
     [key: string]: string | undefined;
 }
@@ -74,6 +84,16 @@ const DEFAULT_SETTINGS: SettingsState = {
     VK_API_VERSION: '5.199',
     TELEGRAM_BOT_TOKEN: '',
     FCM_SERVER_KEY: '',
+    SUPPORT_TELEGRAM_BOT_TOKEN: '',
+    SUPPORT_TELEGRAM_WEBHOOK_SECRET: '',
+    SUPPORT_TELEGRAM_OPERATOR_CHAT_ID: '',
+    SUPPORT_DOWNLOAD_IOS_URL: '',
+    SUPPORT_DOWNLOAD_ANDROID_URL: '',
+    SUPPORT_CHANNEL_URL: '',
+    SUPPORT_AI_ENABLED: 'true',
+    SUPPORT_AI_CONFIDENCE_THRESHOLD: '0.55',
+    SUPPORT_AI_ESCALATION_KEYWORDS: 'оператор,не помогло,жалоба,support,human',
+    SUPPORT_LANG_MODE: 'auto_ru_en',
     GEMINI_CORPUS_ID: '',
 };
 
@@ -541,6 +561,138 @@ export default function SettingsPage() {
                                                     4. Posts are processed by AI for summarization and translation
                                                 </p>
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        {activeTab === 'Notifications' && (
+                            <section className="space-y-6">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <MessageCircle className="w-5 h-5 text-cyan-500" /> Support Telegram Bot
+                                </h2>
+                                <p className="text-sm text-[var(--muted-foreground)]">
+                                    Configure support bot, operator chat routing, and start-screen buttons.
+                                </p>
+
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-2xl border border-cyan-500/20 space-y-3">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Support Bot Token</label>
+                                            <input
+                                                type="password"
+                                                value={settings.SUPPORT_TELEGRAM_BOT_TOKEN || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_TELEGRAM_BOT_TOKEN: e.target.value })}
+                                                placeholder="Token from @BotFather"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-cyan-500/20"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Webhook Secret</label>
+                                            <input
+                                                type="password"
+                                                value={settings.SUPPORT_TELEGRAM_WEBHOOK_SECRET || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_TELEGRAM_WEBHOOK_SECRET: e.target.value })}
+                                                placeholder="Any random secret string"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-cyan-500/20"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Operator Chat ID</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_TELEGRAM_OPERATOR_CHAT_ID || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_TELEGRAM_OPERATOR_CHAT_ID: e.target.value })}
+                                                placeholder="-100xxxxxxxxxx"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-cyan-500/20 font-mono"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-gradient-to-r from-indigo-500/10 to-violet-500/10 rounded-2xl border border-indigo-500/20 space-y-3">
+                                        <p className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Start Buttons Links</p>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">iOS Download URL</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_DOWNLOAD_IOS_URL || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_DOWNLOAD_IOS_URL: e.target.value })}
+                                                placeholder="https://apps.apple.com/..."
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Android Download URL</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_DOWNLOAD_ANDROID_URL || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_DOWNLOAD_ANDROID_URL: e.target.value })}
+                                                placeholder="https://play.google.com/..."
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Channel URL</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_CHANNEL_URL || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_CHANNEL_URL: e.target.value })}
+                                                placeholder="https://t.me/your_channel"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-2xl border border-amber-500/20 space-y-3">
+                                        <p className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Text AI Routing</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">AI Enabled</label>
+                                                <select
+                                                    value={settings.SUPPORT_AI_ENABLED || 'true'}
+                                                    onChange={(e) => setSettings({ ...settings, SUPPORT_AI_ENABLED: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                                                >
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Confidence Threshold</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.SUPPORT_AI_CONFIDENCE_THRESHOLD || '0.55'}
+                                                    onChange={(e) => setSettings({ ...settings, SUPPORT_AI_CONFIDENCE_THRESHOLD: e.target.value })}
+                                                    placeholder="0.55"
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Escalation Keywords (comma-separated)</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_AI_ESCALATION_KEYWORDS || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_AI_ESCALATION_KEYWORDS: e.target.value })}
+                                                placeholder="оператор,не помогло,жалоба,support,human"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Language Mode</label>
+                                            <select
+                                                value={settings.SUPPORT_LANG_MODE || 'auto_ru_en'}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_LANG_MODE: e.target.value })}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                                            >
+                                                <option value="auto_ru_en">auto_ru_en</option>
+                                                <option value="ru">ru</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>

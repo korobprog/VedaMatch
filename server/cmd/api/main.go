@@ -206,6 +206,7 @@ func main() {
 	videoCircleHandler := handlers.NewVideoCircleHandler()
 	pathTrackerHandler := handlers.NewPathTrackerHandler()
 	channelHandler := handlers.NewChannelHandler()
+	supportHandler := handlers.NewSupportHandler()
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -218,6 +219,7 @@ func main() {
 	// Auth Routes (Public)
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
+	api.Post("/integrations/telegram/support/webhook", supportHandler.TelegramWebhook)
 
 	// Library Routes
 	library := api.Group("/library")
@@ -547,6 +549,16 @@ func main() {
 	admin.Put("/yatra/templates/:id", yatraAdminHandler.UpdateTemplate)
 	admin.Delete("/yatra/templates/:id", yatraAdminHandler.DeleteTemplate)
 	admin.Post("/yatra/broadcast", yatraAdminHandler.BroadcastEmail)
+
+	// Support Bot Management
+	admin.Get("/support/conversations", supportHandler.ListConversations)
+	admin.Get("/support/conversations/:id/messages", supportHandler.GetConversationMessages)
+	admin.Post("/support/conversations/:id/resolve", supportHandler.ResolveConversation)
+	admin.Post("/support/send-direct", supportHandler.SendDirect)
+	admin.Get("/support/faq", supportHandler.ListFAQ)
+	admin.Post("/support/faq", supportHandler.CreateFAQ)
+	admin.Put("/support/faq/:id", supportHandler.UpdateFAQ)
+	admin.Delete("/support/faq/:id", supportHandler.DeleteFAQ)
 
 	// Register Video Routes (new HLS video platform)
 	handlers.RegisterVideoRoutes(app)

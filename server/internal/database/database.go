@@ -80,6 +80,10 @@ func Connect() {
 		&models.Document{}, &models.Chunk{},
 		&models.ChatSession{}, &models.ChatMessage{},
 		&models.AssistantDocument{}, &models.DomainSyncState{},
+		// Telegram support models
+		&models.SupportContact{}, &models.SupportConversation{},
+		&models.SupportMessage{}, &models.SupportOperatorRelay{},
+		&models.SupportFAQItem{}, &models.SupportTelegramUpdate{},
 		// Cafe models
 		&models.Cafe{}, &models.CafeStaff{}, &models.CafeTable{},
 		&models.CafeReview{}, &models.WaiterCall{},

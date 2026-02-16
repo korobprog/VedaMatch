@@ -47,6 +47,22 @@ func getSystemSettingOrEnv(key string) string {
 	return os.Getenv(key)
 }
 
+func isSensitiveSystemSettingKey(key string) bool {
+	if key == "API_OPEN_AI" || key == "POLZA_API_KEY" || key == "OPENROUTER_API_KEY" {
+		return true
+	}
+	if strings.HasPrefix(key, "GEMINI_API_KEY") {
+		return true
+	}
+	if key == "TELEGRAM_BOT_TOKEN" || key == "VK_API_TOKEN" {
+		return true
+	}
+	if key == "SUPPORT_TELEGRAM_BOT_TOKEN" || key == "SUPPORT_TELEGRAM_WEBHOOK_SECRET" {
+		return true
+	}
+	return false
+}
+
 func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
@@ -285,6 +301,10 @@ func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 
 	settingsMap := make(map[string]string)
 	for _, s := range settings {
+		if isSensitiveSystemSettingKey(s.Key) && s.Value != "" {
+			settingsMap[s.Key] = strings.Repeat("*", len(s.Value))
+			continue
+		}
 		settingsMap[s.Key] = s.Value
 	}
 
@@ -349,6 +369,14 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 			os.Setenv(k, v)
 		}
 		if k == "GEMINI_CORPUS_ID" {
+			os.Setenv(k, v)
+		}
+		if strings.HasPrefix(k, "SUPPORT_TELEGRAM_") ||
+			strings.HasPrefix(k, "SUPPORT_AI_") ||
+			k == "SUPPORT_LANG_MODE" ||
+			k == "SUPPORT_DOWNLOAD_IOS_URL" ||
+			k == "SUPPORT_DOWNLOAD_ANDROID_URL" ||
+			k == "SUPPORT_CHANNEL_URL" {
 			os.Setenv(k, v)
 		}
 	}

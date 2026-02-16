@@ -147,6 +147,46 @@ func SeedSystemSettings() {
 			Key:   "FIREBASE_SERVICE_ACCOUNT_JSON",
 			Value: "",
 		},
+		{
+			Key:   "SUPPORT_TELEGRAM_BOT_TOKEN",
+			Value: "",
+		},
+		{
+			Key:   "SUPPORT_TELEGRAM_WEBHOOK_SECRET",
+			Value: "",
+		},
+		{
+			Key:   "SUPPORT_TELEGRAM_OPERATOR_CHAT_ID",
+			Value: "",
+		},
+		{
+			Key:   "SUPPORT_DOWNLOAD_IOS_URL",
+			Value: "",
+		},
+		{
+			Key:   "SUPPORT_DOWNLOAD_ANDROID_URL",
+			Value: "",
+		},
+		{
+			Key:   "SUPPORT_CHANNEL_URL",
+			Value: "",
+		},
+		{
+			Key:   "SUPPORT_AI_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "SUPPORT_AI_CONFIDENCE_THRESHOLD",
+			Value: "0.55",
+		},
+		{
+			Key:   "SUPPORT_AI_ESCALATION_KEYWORDS",
+			Value: "оператор,не помогло,жалоба,support,human",
+		},
+		{
+			Key:   "SUPPORT_LANG_MODE",
+			Value: "auto_ru_en",
+		},
 	}
 
 	for _, s := range settings {
