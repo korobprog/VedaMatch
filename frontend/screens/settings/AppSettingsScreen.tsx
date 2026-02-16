@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
-import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Wallet, Users, ChevronRight } from 'lucide-react-native';
+import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Wallet, Users, ChevronRight, LifeBuoy } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { SLIDESHOW_INTERVALS } from '../../config/wallpaperPresets';
 import { useSettings } from '../../context/SettingsContext';
@@ -458,6 +458,31 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             </Text>
                         </View>
                         <ChevronRight size={20} color="#22C55E" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.actionButton,
+                            { backgroundColor: 'rgba(37,99,235,0.1)', borderColor: 'rgba(37,99,235,0.3)' }
+                        ]}
+                        activeOpacity={0.88}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            navigation.navigate('SupportHome', { entryPoint: 'settings' });
+                        }}
+                    >
+                        <View style={styles.actionContent}>
+                            <View style={themedStyles.rowCenterGap8}>
+                                <LifeBuoy size={20} color="#2563EB" />
+                                <Text style={[styles.actionTitle, { color: vTheme.colors.text }]}>
+                                    Поддержка
+                                </Text>
+                            </View>
+                            <Text style={[styles.actionDescription, { color: vTheme.colors.textSecondary }]}>
+                                Открыть Telegram или создать обращение в приложении
+                            </Text>
+                        </View>
+                        <ChevronRight size={20} color="#2563EB" />
                     </TouchableOpacity>
                         </>
                     )}

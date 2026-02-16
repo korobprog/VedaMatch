@@ -52,3 +52,15 @@ func BuildSupportScreenshotKey(chatID int64, messageID int64, fileName string) s
 	}
 	return fmt.Sprintf("support/screenshots/%d/%d_%d%s", chatID, time.Now().Unix(), messageID, ext)
 }
+
+func BuildSupportUploadKey(scope string, fileName string) string {
+	ext := strings.ToLower(filepath.Ext(fileName))
+	if ext == "" {
+		ext = ".jpg"
+	}
+	cleanScope := strings.TrimSpace(strings.Trim(filepath.Clean(scope), "/"))
+	if cleanScope == "" || cleanScope == "." {
+		cleanScope = "tickets"
+	}
+	return fmt.Sprintf("support/uploads/%s/%d%s", cleanScope, time.Now().UnixNano(), ext)
+}

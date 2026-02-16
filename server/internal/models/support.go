@@ -13,6 +13,13 @@ const (
 	SupportConversationStatusResolved SupportConversationStatus = "resolved"
 )
 
+type SupportConversationChannel string
+
+const (
+	SupportConversationChannelTelegram SupportConversationChannel = "telegram"
+	SupportConversationChannelInApp    SupportConversationChannel = "in_app"
+)
+
 type SupportMessageType string
 
 const (
@@ -52,14 +59,25 @@ type SupportContact struct {
 // SupportConversation is an active or resolved support thread for a contact.
 type SupportConversation struct {
 	gorm.Model
-	ContactID           uint                      `json:"contactId" gorm:"index;not null"`
+	ContactID           *uint                     `json:"contactId,omitempty" gorm:"index"`
 	Contact             SupportContact            `json:"contact,omitempty"`
+	AppUserID           *uint                     `json:"appUserId,omitempty" gorm:"index;uniqueIndex:idx_support_client_request"`
+	AppUser             User                      `json:"appUser,omitempty"`
+	Channel             SupportConversationChannel `json:"channel" gorm:"type:varchar(20);index;default:'telegram'"`
+	TicketNumber        *string                   `json:"ticketNumber,omitempty" gorm:"size:64;uniqueIndex"`
+	Subject             string                    `json:"subject" gorm:"size:255"`
+	RequesterName       string                    `json:"requesterName" gorm:"size:255"`
+	RequesterContact    string                    `json:"requesterContact" gorm:"size:255;index;uniqueIndex:idx_support_client_request"`
+	ClientRequestID     *string                   `json:"clientRequestId,omitempty" gorm:"size:128;index;uniqueIndex:idx_support_client_request"`
+	EntryPoint          string                    `json:"entryPoint" gorm:"size:100;index"`
 	Status              SupportConversationStatus `json:"status" gorm:"type:varchar(20);index;default:'open'"`
 	TelegramChatID      int64                     `json:"telegramChatId" gorm:"index;not null"`
 	LastMessageAt       *time.Time                `json:"lastMessageAt"`
 	LastMessagePreview  string                    `json:"lastMessagePreview" gorm:"type:text"`
 	EscalatedToOperator bool                      `json:"escalatedToOperator" gorm:"default:false"`
 	EscalatedAt         *time.Time                `json:"escalatedAt"`
+	LastUserReadAt      *time.Time                `json:"lastUserReadAt"`
+	FirstResponseAt     *time.Time                `json:"firstResponseAt"`
 	ResolvedAt          *time.Time                `json:"resolvedAt"`
 	ResolvedBy          *uint                     `json:"resolvedBy"`
 }
@@ -77,6 +95,7 @@ type SupportMessage struct {
 	MediaURL          string                  `json:"mediaUrl" gorm:"type:varchar(1024)"`
 	MimeType          string                  `json:"mimeType" gorm:"type:varchar(255)"`
 	FileSize          int64                   `json:"fileSize"`
+	IsReadByUser      bool                    `json:"isReadByUser" gorm:"default:false;index"`
 	TelegramChatID    int64                   `json:"telegramChatId" gorm:"index"`
 	TelegramMessageID int64                   `json:"telegramMessageId" gorm:"index"`
 	SentAt            time.Time               `json:"sentAt" gorm:"index"`

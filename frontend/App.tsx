@@ -19,6 +19,12 @@ import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
 import { AppSettingsScreen } from './screens/settings/AppSettingsScreen';
 import { EditProfileScreen } from './screens/settings/EditProfileScreen';
+import {
+  SupportHomeScreen,
+  SupportTicketFormScreen,
+  SupportInboxScreen,
+  SupportConversationScreen,
+} from './screens/support';
 // KrishnaAssistant - only used in Portal header
 import { ContactProfileScreen } from './screens/portal/contacts/ContactProfileScreen';
 import { SettingsDrawer } from './SettingsDrawer';
@@ -328,6 +334,10 @@ const AppContent = () => {
                   <Stack.Screen name="CallScreen" component={CallScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="Plans" component={PlansScreen} />
                   <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+                  <Stack.Screen name="SupportHome" component={SupportHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SupportTicketForm" component={SupportTicketFormScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SupportInbox" component={SupportInboxScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SupportConversation" component={SupportConversationScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="EditProfile" component={EditProfileScreen} />
                   <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
                   <Stack.Screen
@@ -459,6 +469,8 @@ const AppContent = () => {
                 <Stack.Group>
                   <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
                   <Stack.Screen name="Registration" component={RegistrationScreen} />
+                  <Stack.Screen name="SupportHome" component={SupportHomeScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="SupportTicketForm" component={SupportTicketFormScreen} options={{ headerShown: false }} />
                 </Stack.Group>
               )}
             </Stack.Navigator>

@@ -95,7 +95,8 @@ func (s *memorySupportStore) EnsureOpenConversation(contact *models.SupportConta
 	s.nextConversationID++
 	conversation := &models.SupportConversation{
 		Model:          gorm.Model{ID: s.nextConversationID},
-		ContactID:      contact.ID,
+		ContactID:      &contact.ID,
+		Channel:        models.SupportConversationChannelTelegram,
 		Status:         models.SupportConversationStatusOpen,
 		TelegramChatID: chatID,
 		LastMessageAt:  &now,
@@ -103,6 +104,15 @@ func (s *memorySupportStore) EnsureOpenConversation(contact *models.SupportConta
 	s.conversationsByID[conversation.ID] = conversation
 	s.openConversationByContact[contact.ID] = conversation.ID
 	return conversation, nil
+}
+
+func (s *memorySupportStore) GetConversationByID(conversationID uint) (*models.SupportConversation, error) {
+	conversation := s.conversationsByID[conversationID]
+	if conversation == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	copyConversation := *conversation
+	return &copyConversation, nil
 }
 
 func (s *memorySupportStore) AddMessage(message *models.SupportMessage) error {
@@ -145,6 +155,17 @@ func (s *memorySupportStore) MarkConversationEscalated(conversationID uint, now 
 	}
 	conv.EscalatedToOperator = true
 	conv.EscalatedAt = &now
+	return nil
+}
+
+func (s *memorySupportStore) MarkConversationFirstResponse(conversationID uint, now time.Time) error {
+	conv := s.conversationsByID[conversationID]
+	if conv == nil {
+		return gorm.ErrRecordNotFound
+	}
+	if conv.FirstResponseAt == nil {
+		conv.FirstResponseAt = &now
+	}
 	return nil
 }
 
@@ -629,5 +650,95 @@ func TestSupportSmoke_ManyScreenshotsThenText(t *testing.T) {
 	}
 	if !gotAutoReply {
 		t.Fatalf("expected auto reply to be sent after screenshot burst")
+	}
+}
+
+func TestSupportInAppRelay_OperatorReplyCreatesInAppMessageAndRelay(t *testing.T) {
+	store := newMemorySupportStore()
+	client := newFakeTelegramClient()
+	ai := &fakeSupportAIResponder{}
+	storage := &fakeMediaStorage{}
+
+	service := NewTelegramSupportServiceWithDeps(
+		store,
+		client,
+		storage,
+		ai,
+		newSettingsProvider(map[string]string{
+			"SUPPORT_TELEGRAM_OPERATOR_CHAT_ID": "777",
+		}),
+	)
+
+	appUserID := uint(901)
+	conversationID := uint(1)
+	store.conversationsByID[conversationID] = &models.SupportConversation{
+		Model:     gorm.Model{ID: conversationID},
+		AppUserID: &appUserID,
+		Channel:   models.SupportConversationChannelInApp,
+		Status:    models.SupportConversationStatusOpen,
+		LastMessageAt: func() *time.Time {
+			now := time.Now().UTC()
+			return &now
+		}(),
+	}
+	store.relaysByOperatorMsg["777:1001"] = &models.SupportOperatorRelay{
+		Model:             gorm.Model{ID: 1},
+		ConversationID:    conversationID,
+		OperatorChatID:    777,
+		OperatorMessageID: 1001,
+		UserChatID:        0,
+		UserTelegramID:    0,
+		RelayKind:         "inapp_user_message",
+	}
+
+	update := &TelegramUpdate{
+		UpdateID: 5001,
+		Message: &TelegramMessage{
+			MessageID: 2001,
+			Date:      time.Now().Unix(),
+			Text:      "Проверили, можете повторить вход.",
+			Chat: &TelegramChat{
+				ID:   777,
+				Type: "supergroup",
+			},
+			ReplyToMessage: &TelegramMessage{
+				MessageID: 1001,
+			},
+		},
+	}
+
+	if err := service.ProcessUpdate(context.Background(), update); err != nil {
+		t.Fatalf("operator in-app reply failed: %v", err)
+	}
+
+	var outbound *models.SupportMessage
+	for _, id := range store.messageOrder {
+		msg := store.messages[id]
+		if msg.ConversationID == conversationID &&
+			msg.Direction == models.SupportMessageDirectionOutbound &&
+			msg.Source == models.SupportMessageSourceOperator {
+			outbound = msg
+			break
+		}
+	}
+	if outbound == nil {
+		t.Fatalf("expected outbound in-app support message")
+	}
+	if !strings.Contains(outbound.Text, "повторить вход") {
+		t.Fatalf("unexpected outbound text: %q", outbound.Text)
+	}
+
+	relayKey := "777:2001"
+	createdRelay := store.relaysByOperatorMsg[relayKey]
+	if createdRelay == nil {
+		t.Fatalf("expected in-app operator relay %s to be created", relayKey)
+	}
+	if createdRelay.RelayKind != "inapp_operator_reply" {
+		t.Fatalf("expected relay kind inapp_operator_reply, got %s", createdRelay.RelayKind)
+	}
+
+	conv := store.conversationsByID[conversationID]
+	if conv == nil || conv.FirstResponseAt == nil {
+		t.Fatalf("expected first response timestamp to be set")
 	}
 }

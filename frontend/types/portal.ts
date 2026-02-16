@@ -66,6 +66,7 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'channels', label: 'Каналы', icon: 'Radio', color: '#0EA5A4' },
     { id: 'news', label: 'Новости', icon: 'Newspaper', color: '#6B5B53' },
     { id: 'map', label: 'Карта', icon: 'Map', color: '#7C3AED' },
+    { id: 'support', label: 'Поддержка', icon: 'LifeBuoy', color: '#2563EB' },
     { id: 'history', label: 'История', icon: 'MessageSquare', color: '#6B7280' },
     { id: 'settings', label: 'Настройки', icon: 'Settings', color: '#6B7280' },
     { id: 'travel', label: 'Путешествия', icon: 'Compass', color: '#FF9500' },

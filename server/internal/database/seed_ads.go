@@ -45,7 +45,7 @@ func SeedDemoAds() {
 			Status:       models.AdStatusActive,
 			ExpiresAt:    time.Now().AddDate(0, 0, 30).Format(time.RFC3339),
 			Photos: []models.AdPhoto{
-				{PhotoURL: "https://rvlautoai.ru/uploads/demo/spiritual_books.png", Position: 0},
+				{PhotoURL: "https://vedamatch.ru/uploads/travel/mayapur_temple.jpg", Position: 0},
 			},
 		},
 		{
@@ -63,7 +63,7 @@ func SeedDemoAds() {
 			Status:       models.AdStatusActive,
 			ExpiresAt:    time.Now().AddDate(0, 0, 30).Format(time.RFC3339),
 			Photos: []models.AdPhoto{
-				{PhotoURL: "https://rvlautoai.ru/uploads/demo/cozy_room.png", Position: 0},
+				{PhotoURL: "https://vedamatch.ru/uploads/travel/guest_house_room.jpg", Position: 0},
 			},
 		},
 		{
@@ -78,7 +78,7 @@ func SeedDemoAds() {
 			Status:      models.AdStatusActive,
 			ExpiresAt:   time.Now().AddDate(0, 0, 30).Format(time.RFC3339),
 			Photos: []models.AdPhoto{
-				{PhotoURL: "https://rvlautoai.ru/uploads/demo/yoga_mat.png", Position: 0},
+				{PhotoURL: "https://vedamatch.ru/uploads/travel/room.jpg", Position: 0},
 			},
 		},
 		{

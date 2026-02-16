@@ -55,9 +55,16 @@ interface SettingsState {
     SUPPORT_TELEGRAM_BOT_TOKEN: string;
     SUPPORT_TELEGRAM_WEBHOOK_SECRET: string;
     SUPPORT_TELEGRAM_OPERATOR_CHAT_ID: string;
+    SUPPORT_TELEGRAM_BOT_URL: string;
     SUPPORT_DOWNLOAD_IOS_URL: string;
     SUPPORT_DOWNLOAD_ANDROID_URL: string;
     SUPPORT_CHANNEL_URL: string;
+    SUPPORT_APP_ENTRY_ENABLED: string;
+    SUPPORT_APP_ENTRY_ROLLOUT_PERCENT: string;
+    SUPPORT_SLA_TEXT_RU: string;
+    SUPPORT_SLA_TEXT_EN: string;
+    SUPPORT_AUTO_REPLY_RU: string;
+    SUPPORT_AUTO_REPLY_EN: string;
     SUPPORT_AI_ENABLED: string;
     SUPPORT_AI_CONFIDENCE_THRESHOLD: string;
     SUPPORT_AI_ESCALATION_KEYWORDS: string;
@@ -87,9 +94,16 @@ const DEFAULT_SETTINGS: SettingsState = {
     SUPPORT_TELEGRAM_BOT_TOKEN: '',
     SUPPORT_TELEGRAM_WEBHOOK_SECRET: '',
     SUPPORT_TELEGRAM_OPERATOR_CHAT_ID: '',
+    SUPPORT_TELEGRAM_BOT_URL: '',
     SUPPORT_DOWNLOAD_IOS_URL: '',
     SUPPORT_DOWNLOAD_ANDROID_URL: '',
     SUPPORT_CHANNEL_URL: '',
+    SUPPORT_APP_ENTRY_ENABLED: 'false',
+    SUPPORT_APP_ENTRY_ROLLOUT_PERCENT: '10',
+    SUPPORT_SLA_TEXT_RU: 'AI отвечает сразу, оператор в рабочее время — до 4 часов.',
+    SUPPORT_SLA_TEXT_EN: 'AI replies instantly, operator response during business hours is within 4 hours.',
+    SUPPORT_AUTO_REPLY_RU: 'Спасибо! Мы получили обращение и уже работаем над ответом.',
+    SUPPORT_AUTO_REPLY_EN: 'Thanks! We received your request and are already working on a response.',
     SUPPORT_AI_ENABLED: 'true',
     SUPPORT_AI_CONFIDENCE_THRESHOLD: '0.55',
     SUPPORT_AI_ESCALATION_KEYWORDS: 'оператор,не помогло,жалоба,support,human',
@@ -608,6 +622,85 @@ export default function SettingsPage() {
                                                 onChange={(e) => setSettings({ ...settings, SUPPORT_TELEGRAM_OPERATOR_CHAT_ID: e.target.value })}
                                                 placeholder="-100xxxxxxxxxx"
                                                 className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-cyan-500/20 font-mono"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Public Telegram Bot URL</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_TELEGRAM_BOT_URL || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_TELEGRAM_BOT_URL: e.target.value })}
+                                                placeholder="https://t.me/your_support_bot"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-cyan-500/20"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-2xl border border-emerald-500/20 space-y-3">
+                                        <p className="text-sm font-bold uppercase text-[var(--muted-foreground)]">In-App Entry Rollout</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">App Entry Enabled</label>
+                                                <select
+                                                    value={settings.SUPPORT_APP_ENTRY_ENABLED || 'false'}
+                                                    onChange={(e) => setSettings({ ...settings, SUPPORT_APP_ENTRY_ENABLED: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                >
+                                                    <option value="false">false</option>
+                                                    <option value="true">true</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Rollout Percent</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.SUPPORT_APP_ENTRY_ROLLOUT_PERCENT || '10'}
+                                                    onChange={(e) => setSettings({ ...settings, SUPPORT_APP_ENTRY_ROLLOUT_PERCENT: e.target.value })}
+                                                    placeholder="10"
+                                                    className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">SLA Text RU</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_SLA_TEXT_RU || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_SLA_TEXT_RU: e.target.value })}
+                                                placeholder="AI отвечает сразу, оператор в рабочее время — до 4 часов."
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">SLA Text EN</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_SLA_TEXT_EN || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_SLA_TEXT_EN: e.target.value })}
+                                                placeholder="AI replies instantly, operator response during business hours is within 4 hours."
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Auto Reply RU</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_AUTO_REPLY_RU || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_AUTO_REPLY_RU: e.target.value })}
+                                                placeholder="Спасибо! Мы получили обращение и уже работаем над ответом."
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">Auto Reply EN</label>
+                                            <input
+                                                type="text"
+                                                value={settings.SUPPORT_AUTO_REPLY_EN || ''}
+                                                onChange={(e) => setSettings({ ...settings, SUPPORT_AUTO_REPLY_EN: e.target.value })}
+                                                placeholder="Thanks! We received your request and are already working on a response."
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-3 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
                                             />
                                         </div>
                                     </div>

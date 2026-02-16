@@ -160,6 +160,10 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "SUPPORT_TELEGRAM_BOT_URL",
+			Value: "",
+		},
+		{
 			Key:   "SUPPORT_DOWNLOAD_IOS_URL",
 			Value: "",
 		},
@@ -186,6 +190,30 @@ func SeedSystemSettings() {
 		{
 			Key:   "SUPPORT_LANG_MODE",
 			Value: "auto_ru_en",
+		},
+		{
+			Key:   "SUPPORT_APP_ENTRY_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "SUPPORT_APP_ENTRY_ROLLOUT_PERCENT",
+			Value: "10",
+		},
+		{
+			Key:   "SUPPORT_SLA_TEXT_RU",
+			Value: "AI отвечает сразу, оператор в рабочее время — до 4 часов.",
+		},
+		{
+			Key:   "SUPPORT_SLA_TEXT_EN",
+			Value: "AI replies instantly, operator response during business hours is within 4 hours.",
+		},
+		{
+			Key:   "SUPPORT_AUTO_REPLY_RU",
+			Value: "Спасибо! Мы получили обращение и уже работаем над ответом.",
+		},
+		{
+			Key:   "SUPPORT_AUTO_REPLY_EN",
+			Value: "Thanks! We received your request and are already working on a response.",
 		},
 	}
 

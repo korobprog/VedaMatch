@@ -343,7 +343,14 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     : '';
             Alert.alert(
                 'Error',
-                errorMessage || 'Operation failed. Please try again.'
+                errorMessage || 'Operation failed. Please try again.',
+                [
+                    { text: 'Close', style: 'cancel' },
+                    {
+                        text: 'Support',
+                        onPress: () => navigation.navigate('SupportHome', { entryPoint: 'register' }),
+                    },
+                ]
             );
         } finally {
             if (requestId === latestSubmitRequestRef.current && isMountedRef.current) {
@@ -801,14 +808,25 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             </TouchableOpacity>
 
                             {phase === 'initial' && (
-                                <TouchableOpacity
-                                    style={{ marginTop: 24, alignItems: 'center' }}
-                                    onPress={() => navigation.navigate('Login')}
-                                >
-                                    <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
-                                        Already have an account? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Login</Text>
-                                    </Text>
-                                </TouchableOpacity>
+                                <>
+                                    <TouchableOpacity
+                                        style={{ marginTop: 24, alignItems: 'center' }}
+                                        onPress={() => navigation.navigate('Login')}
+                                    >
+                                        <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
+                                            Already have an account? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Login</Text>
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={{ marginTop: 12, alignItems: 'center' }}
+                                        onPress={() => navigation.navigate('SupportHome', { entryPoint: 'register' })}
+                                    >
+                                        <Text style={{ color: 'rgba(248,250,252,0.7)' }}>
+                                            Нужна помощь с регистрацией? <Text style={{ color: roleColors.accent, fontWeight: 'bold' }}>Поддержка</Text>
+                                        </Text>
+                                    </TouchableOpacity>
+                                </>
                             )}
 
                         </ScrollView>

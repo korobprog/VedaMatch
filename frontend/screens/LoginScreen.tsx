@@ -158,7 +158,17 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         } catch (error: any) {
             console.warn('Login failure:', error.message);
             const msg = error.response?.data?.error || t('login_failed');
-            Alert.alert(t('error'), msg);
+            Alert.alert(
+                t('error'),
+                msg,
+                [
+                    { text: t('common.close') || 'Закрыть', style: 'cancel' },
+                    {
+                        text: 'Поддержка',
+                        onPress: () => navigation.navigate('SupportHome', { entryPoint: 'login' }),
+                    },
+                ]
+            );
         } finally {
             setLoading(false);
         }
@@ -370,6 +380,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                     New to VedaMatch? <Text style={styles.registerBold}>Create Account</Text>
                                 </Text>
                             </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.supportLink}
+                                onPress={() => navigation.navigate('SupportHome', { entryPoint: 'login' })}
+                            >
+                                <Text style={styles.supportLinkText}>
+                                    Не получается войти? Связаться с поддержкой
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </Animated.View>
                 </ScrollView>
@@ -529,6 +548,15 @@ const styles = StyleSheet.create({
     registerBold: {
         color: ModernVedicTheme.colors.primary,
         fontWeight: '700',
+    },
+    supportLink: {
+        marginTop: 14,
+        alignItems: 'center',
+    },
+    supportLinkText: {
+        color: ModernVedicTheme.colors.textSecondary,
+        fontSize: 13,
+        opacity: 0.85,
     },
     eyeButton: {
         padding: 4,

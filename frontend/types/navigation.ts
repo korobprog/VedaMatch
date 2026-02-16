@@ -16,6 +16,10 @@ export type RootStackParamList = {
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;
     ContactProfile: { userId: number };
     AppSettings: undefined;
+    SupportHome: { entryPoint?: string; conversationId?: number } | undefined;
+    SupportTicketForm: { entryPoint?: string } | undefined;
+    SupportInbox: undefined;
+    SupportConversation: { conversationId: number };
     EditProfile: undefined;
     RoomChat: { roomId: number, roomName: string, isYatraChat?: boolean };
     MediaLibrary: { userId: number; readOnly?: boolean };

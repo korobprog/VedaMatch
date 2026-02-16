@@ -14,10 +14,12 @@ type SupportStore interface {
 	UpsertContactFromTelegram(user *TelegramUser, chat *TelegramChat, now time.Time) (*models.SupportContact, error)
 	TouchContactUserMessage(contactID uint, now time.Time) error
 	EnsureOpenConversation(contact *models.SupportContact, chatID int64, now time.Time) (*models.SupportConversation, error)
+	GetConversationByID(conversationID uint) (*models.SupportConversation, error)
 	AddMessage(message *models.SupportMessage) error
 	UpdateMessageMedia(messageID uint, mediaURL string, mimeType string, fileSize int64) error
 	UpdateConversationActivity(conversationID uint, preview string, now time.Time) error
 	MarkConversationEscalated(conversationID uint, now time.Time) error
+	MarkConversationFirstResponse(conversationID uint, now time.Time) error
 	CreateRelay(relay *models.SupportOperatorRelay) error
 	FindRelay(operatorChatID int64, operatorMessageID int64) (*models.SupportOperatorRelay, error)
 	ResolveConversation(conversationID uint, now time.Time) error
@@ -123,12 +125,21 @@ func (s *GormSupportStore) EnsureOpenConversation(contact *models.SupportContact
 	}
 
 	conversation = models.SupportConversation{
-		ContactID:      contact.ID,
+		ContactID:      &contact.ID,
+		Channel:        models.SupportConversationChannelTelegram,
 		Status:         models.SupportConversationStatusOpen,
 		TelegramChatID: chatID,
 		LastMessageAt:  &now,
 	}
 	if err := s.db.Create(&conversation).Error; err != nil {
+		return nil, err
+	}
+	return &conversation, nil
+}
+
+func (s *GormSupportStore) GetConversationByID(conversationID uint) (*models.SupportConversation, error) {
+	var conversation models.SupportConversation
+	if err := s.db.First(&conversation, conversationID).Error; err != nil {
 		return nil, err
 	}
 	return &conversation, nil
@@ -162,6 +173,12 @@ func (s *GormSupportStore) MarkConversationEscalated(conversationID uint, now ti
 		"escalated_at":          &now,
 		"last_message_at":       &now,
 	}).Error
+}
+
+func (s *GormSupportStore) MarkConversationFirstResponse(conversationID uint, now time.Time) error {
+	return s.db.Model(&models.SupportConversation{}).
+		Where("id = ? AND first_response_at IS NULL", conversationID).
+		Update("first_response_at", &now).Error
 }
 
 func (s *GormSupportStore) CreateRelay(relay *models.SupportOperatorRelay) error {

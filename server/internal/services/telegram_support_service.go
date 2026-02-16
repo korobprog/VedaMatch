@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -349,6 +350,9 @@ func (s *TelegramSupportService) handleOperatorMessage(ctx context.Context, msg 
 	}
 
 	now := s.nowUTC()
+	if relay.UserChatID == 0 || strings.HasPrefix(strings.ToLower(strings.TrimSpace(relay.RelayKind)), "inapp_") {
+		return s.handleOperatorMessageForInApp(ctx, relay, msg, now)
+	}
 
 	if len(msg.Photo) > 0 {
 		copiedID, err := s.client.CopyMessage(ctx, relay.UserChatID, operatorChatID, msg.MessageID)
@@ -433,7 +437,11 @@ func (s *TelegramSupportService) handleOperatorResolve(ctx context.Context, msg 
 	}
 
 	_, _ = s.client.SendMessage(ctx, operatorChatID, "Conversation resolved", TelegramSendMessageOptions{})
-	_, _ = s.client.SendMessage(ctx, relay.UserChatID, "Диалог поддержки завершен. При необходимости напишите снова.", TelegramSendMessageOptions{})
+	if relay.UserChatID != 0 {
+		_, _ = s.client.SendMessage(ctx, relay.UserChatID, "Диалог поддержки завершен. При необходимости напишите снова.", TelegramSendMessageOptions{})
+	} else {
+		s.pushInAppSupportUpdate(relay.ConversationID, "Диалог поддержки завершен. При необходимости создайте новое обращение.")
+	}
 	return nil
 }
 
@@ -455,7 +463,10 @@ func (s *TelegramSupportService) sendTextToUserFromOperator(ctx context.Context,
 	if err := s.store.AddMessage(outbound); err != nil {
 		return err
 	}
-	return s.store.UpdateConversationActivity(conversationID, s.preview(text), now)
+	if err := s.store.UpdateConversationActivity(conversationID, s.preview(text), now); err != nil {
+		return err
+	}
+	return s.store.MarkConversationFirstResponse(conversationID, now)
 }
 
 func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversationID uint, chatID int64) error {
@@ -523,7 +534,10 @@ func (s *TelegramSupportService) sendAndPersistText(ctx context.Context, convers
 		return err
 	}
 
-	return s.store.UpdateConversationActivity(conversationID, s.preview(outbound.Text), now)
+	if err := s.store.UpdateConversationActivity(conversationID, s.preview(outbound.Text), now); err != nil {
+		return err
+	}
+	return s.store.MarkConversationFirstResponse(conversationID, now)
 }
 
 func (s *TelegramSupportService) escalateToOperator(
@@ -768,4 +782,124 @@ func (s *TelegramSupportService) SendDirectMessage(ctx context.Context, chatID i
 	}
 	_, err := s.client.SendMessage(ctx, chatID, strings.TrimSpace(text), TelegramSendMessageOptions{})
 	return err
+}
+
+func (s *TelegramSupportService) handleOperatorMessageForInApp(
+	ctx context.Context,
+	relay *models.SupportOperatorRelay,
+	msg *TelegramMessage,
+	now time.Time,
+) error {
+	if relay == nil || msg == nil {
+		return nil
+	}
+
+	if len(msg.Photo) > 0 {
+		caption := strings.TrimSpace(msg.Caption)
+		outbound := &models.SupportMessage{
+			ConversationID: relay.ConversationID,
+			Direction:      models.SupportMessageDirectionOutbound,
+			Source:         models.SupportMessageSourceOperator,
+			Type:           models.SupportMessageTypeImage,
+			Caption:        caption,
+			TelegramChatID: msg.Chat.ID,
+			SentAt:         now,
+		}
+		if err := s.store.AddMessage(outbound); err != nil {
+			return err
+		}
+		supportMessageID := outbound.ID
+		if err := s.store.CreateRelay(&models.SupportOperatorRelay{
+			ConversationID:    relay.ConversationID,
+			SupportMessageID:  &supportMessageID,
+			OperatorChatID:    msg.Chat.ID,
+			OperatorMessageID: msg.MessageID,
+			UserChatID:        0,
+			UserTelegramID:    0,
+			RelayKind:         "inapp_operator_reply",
+		}); err != nil {
+			log.Printf("[Support] create in-app operator reply relay failed: %v", err)
+		}
+		if err := s.store.UpdateConversationActivity(relay.ConversationID, s.preview("[operator image] "+caption), now); err != nil {
+			return err
+		}
+		if err := s.store.MarkConversationFirstResponse(relay.ConversationID, now); err != nil {
+			return err
+		}
+		s.pushInAppSupportUpdate(relay.ConversationID, "Оператор отправил вложение в обращение поддержки.")
+		return nil
+	}
+
+	operatorText := strings.TrimSpace(msg.Text)
+	if operatorText == "" {
+		operatorText = strings.TrimSpace(msg.Caption)
+	}
+	if operatorText == "" {
+		return nil
+	}
+
+	outbound := &models.SupportMessage{
+		ConversationID: relay.ConversationID,
+		Direction:      models.SupportMessageDirectionOutbound,
+		Source:         models.SupportMessageSourceOperator,
+		Type:           models.SupportMessageTypeText,
+		Text:           operatorText,
+		TelegramChatID: msg.Chat.ID,
+		SentAt:         now,
+	}
+	if err := s.store.AddMessage(outbound); err != nil {
+		return err
+	}
+	supportMessageID := outbound.ID
+	if err := s.store.CreateRelay(&models.SupportOperatorRelay{
+		ConversationID:    relay.ConversationID,
+		SupportMessageID:  &supportMessageID,
+		OperatorChatID:    msg.Chat.ID,
+		OperatorMessageID: msg.MessageID,
+		UserChatID:        0,
+		UserTelegramID:    0,
+		RelayKind:         "inapp_operator_reply",
+	}); err != nil {
+		log.Printf("[Support] create in-app operator reply relay failed: %v", err)
+	}
+	if err := s.store.UpdateConversationActivity(relay.ConversationID, s.preview(operatorText), now); err != nil {
+		return err
+	}
+	if err := s.store.MarkConversationFirstResponse(relay.ConversationID, now); err != nil {
+		return err
+	}
+	s.pushInAppSupportUpdate(relay.ConversationID, operatorText)
+	return nil
+}
+
+func (s *TelegramSupportService) pushInAppSupportUpdate(conversationID uint, body string) {
+	conversation, err := s.store.GetConversationByID(conversationID)
+	if err != nil {
+		log.Printf("[Support] push update: failed to load conversation %d: %v", conversationID, err)
+		return
+	}
+	if conversation.AppUserID == nil || *conversation.AppUserID == 0 {
+		return
+	}
+
+	paramsRaw, _ := json.Marshal(map[string]interface{}{
+		"conversationId": conversationID,
+	})
+	push := GetPushService()
+	if push == nil {
+		return
+	}
+	if err := push.SendToUser(*conversation.AppUserID, PushMessage{
+		Title: "Поддержка VedaMatch",
+		Body:  strings.TrimSpace(body),
+		Data: map[string]string{
+			"type":           "support_update",
+			"screen":         "SupportHome",
+			"params":         string(paramsRaw),
+			"conversationId": strconv.FormatUint(uint64(conversationID), 10),
+		},
+		Priority: "high",
+	}); err != nil {
+		log.Printf("[Support] push update failed for user %d: %v", *conversation.AppUserID, err)
+	}
 }

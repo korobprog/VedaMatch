@@ -14,6 +14,7 @@ import {
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import {
     Bell,
@@ -49,6 +50,7 @@ import { BalancePill } from '../../components/wallet/BalancePill';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 import { RootStackParamList } from '../../types/navigation';
+import { supportService } from '../../services/supportService';
 
 // Assistant avatar images
 import peacockAssistant from '../../assets/peacockAssistant.png';
@@ -96,6 +98,36 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         : null;
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
+    const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+    const [supportEntryEnabled, setSupportEntryEnabled] = useState(true);
+
+    const refreshSupportMeta = useCallback(async () => {
+        try {
+            const config = await supportService.getConfig();
+            setSupportEntryEnabled(!!(config?.appEntryEnabled && config?.appEntryEligible));
+        } catch (error) {
+            console.warn('[Portal] failed to load support config:', error);
+            setSupportEntryEnabled(true);
+        }
+
+        if (!user?.ID) {
+            setSupportUnreadCount(0);
+            return;
+        }
+        try {
+            const payload = await supportService.getUnreadCount();
+            setSupportUnreadCount(payload?.unreadCount || 0);
+        } catch (error) {
+            console.warn('[Portal] failed to load support unread count:', error);
+            setSupportUnreadCount(0);
+        }
+    }, [user?.ID]);
+
+    useFocusEffect(
+        useCallback(() => {
+            refreshSupportMeta();
+        }, [refreshSupportMeta])
+    );
 
     // Determine effective background values
     const effectiveBg = isSlideshowEnabled ? activeWallpaper : portalBackground;
@@ -259,6 +291,14 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('ServicesHome');
             return;
         }
+        if (serviceId === 'support') {
+            if (!supportEntryEnabled) {
+                Alert.alert('Поддержка', 'Встроенная поддержка пока недоступна для вашего аккаунта.');
+                return;
+            }
+            navigation.navigate('SupportHome', { entryPoint: 'portal' });
+            return;
+        }
         if (serviceId === 'video_circles') {
             navigation.navigate('VideoCirclesScreen');
             return;
@@ -277,7 +317,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
 
         const isSeeker = (user?.role || 'user') === 'user';
-        const seekerAllowedWithoutProfile = ['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles', 'channels'];
+        const seekerAllowedWithoutProfile = ['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'support', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles', 'channels'];
         const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
 
         if (!user?.isProfileComplete && !canUseWithoutCompleteProfile) {
@@ -297,7 +337,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         if (SERVICE_TABS.has(serviceId as ServiceTab)) {
             setActiveTab(serviceId as ServiceTab);
         }
-    }, [user, navigation, setIsMenuOpen]);
+    }, [supportEntryEnabled, user, navigation, setIsMenuOpen]);
 
     const renderContent = () => {
         const backToGrid = () => setActiveTab(null);
@@ -522,6 +562,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         roleHighlights={roleDescriptor?.heroServices || []}
                         godModeEnabled={!!user?.godModeEnabled}
                         activeMathLabel={godModeFilters.find((f) => f.mathId === activeMathId)?.mathName}
+                        serviceBadges={{ support: supportUnreadCount }}
+                        hiddenServiceIds={supportEntryEnabled ? [] : ['support']}
                     />
                 </View>
 

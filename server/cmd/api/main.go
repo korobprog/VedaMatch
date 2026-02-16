@@ -313,6 +313,9 @@ func main() {
 	api.Post("/channels/:id/posts/:postId/cta-click", middleware.OptionalAuth(), channelHandler.TrackCTAClick)
 	api.Post("/channels/promoted-ads/:adId/click", middleware.OptionalAuth(), channelHandler.TrackPromotedAdClick)
 	api.Get("/channels/:id/showcases", middleware.OptionalAuth(), channelHandler.ListShowcases)
+	api.Get("/support/config", middleware.OptionalAuth(), supportHandler.GetPublicConfig)
+	api.Post("/support/uploads", middleware.OptionalAuth(), supportHandler.UploadAttachment)
+	api.Post("/support/tickets", middleware.OptionalAuth(), supportHandler.CreateTicket)
 
 	// Public Yatra Travel Routes (Spiritual Pilgrimage Service)
 	// IMPORTANT: Must be registered BEFORE protected group
@@ -337,6 +340,13 @@ func main() {
 
 	// Public News Item (Must come after specified routes like subscriptions/favorites)
 	api.Get("/news/:id", newsHandler.GetNewsItem)
+
+	// Protected Support Routes (in-app tickets)
+	protected.Get("/support/tickets", supportHandler.ListMyTickets)
+	protected.Get("/support/tickets/:id/messages", supportHandler.GetMyTicketMessages)
+	protected.Post("/support/tickets/:id/messages", supportHandler.PostMyTicketMessage)
+	protected.Post("/support/tickets/:id/read", supportHandler.MarkMyTicketRead)
+	protected.Get("/support/unread-count", supportHandler.GetMyUnreadCount)
 
 	// Admin Routes (Protected - should ideally have middleware)
 	admin := api.Group("/admin", middleware.Protected(), middleware.AdminProtected())
@@ -551,6 +561,7 @@ func main() {
 	admin.Post("/yatra/broadcast", yatraAdminHandler.BroadcastEmail)
 
 	// Support Bot Management
+	admin.Get("/support/metrics", supportHandler.GetSupportMetrics)
 	admin.Get("/support/conversations", supportHandler.ListConversations)
 	admin.Get("/support/conversations/:id/messages", supportHandler.GetConversationMessages)
 	admin.Post("/support/conversations/:id/resolve", supportHandler.ResolveConversation)

@@ -30,6 +30,15 @@ export const linking: LinkingOptions<RootStackParamList> = {
             // Direct access to Invite Friends screen (for logged in users)
             InviteFriends: 'invite-friends',
             Wallet: 'wallet',
+            SupportHome: 'support',
+            SupportTicketForm: 'support/ticket',
+            SupportInbox: 'support/inbox',
+            SupportConversation: {
+                path: 'support/conversation/:conversationId',
+                parse: {
+                    conversationId: (id: string) => Number(id),
+                },
+            },
         },
     },
 };

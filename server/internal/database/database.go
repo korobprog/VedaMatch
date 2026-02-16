@@ -138,6 +138,11 @@ func Connect() {
 		ON channel_posts (channel_id)
 		WHERE is_pinned = true`)
 
+	// Backfill support conversation channel for legacy rows created before channel field existed.
+	DB.Exec(`UPDATE support_conversations
+		SET channel = 'telegram'
+		WHERE channel IS NULL OR channel = ''`)
+
 	// Hybrid RAG assistant indexes (FTS + de-dup upsert key)
 	DB.Exec(`ALTER TABLE assistant_documents
 		ADD COLUMN IF NOT EXISTS search_vector tsvector
