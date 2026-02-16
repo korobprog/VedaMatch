@@ -9,7 +9,6 @@ import {
     Image,
     Alert,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -23,6 +22,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 type CreateYatraScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateYatra'>;
 
@@ -188,10 +188,7 @@ const CreateYatraScreen = () => {
     }
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.container}
-        >
+        <KeyboardAwareContainer style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={colors.textPrimary} />
@@ -199,7 +196,7 @@ const CreateYatraScreen = () => {
                 <Text style={styles.headerTitle}>{isEditing ? 'Редактировать Тур' : 'Создать Новый Тур'}</Text>
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 {/* Cover Image */}
                 <TouchableOpacity
                     style={styles.coverUpload}
@@ -374,7 +371,7 @@ const CreateYatraScreen = () => {
                     )}
                 </TouchableOpacity>
             </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAwareContainer>
     );
 };
 

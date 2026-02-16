@@ -13,6 +13,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 type RouteParams = {
     Checkout: {
@@ -188,7 +189,8 @@ export const CheckoutScreen: React.FC = () => {
     return (
         <ProtectedScreen>
             <View style={styles.screen}>
-                <ScrollView contentContainerStyle={styles.container}>
+                <KeyboardAwareContainer style={{ flex: 1 }}>
+                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                     <Text style={styles.headerTitle}>
                         Checkout
                     </Text>
@@ -465,6 +467,7 @@ export const CheckoutScreen: React.FC = () => {
                         )}
                     </TouchableOpacity>
                 </ScrollView>
+                </KeyboardAwareContainer>
             </View>
         </ProtectedScreen>
     );

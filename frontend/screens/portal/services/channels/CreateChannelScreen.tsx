@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -17,6 +18,7 @@ import { channelService } from '../../../../services/channelService';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
+import { KeyboardAwareContainer } from '../../../../components/ui/KeyboardAwareContainer';
 
 export default function CreateChannelScreen() {
   const navigation = useNavigation<any>();
@@ -65,7 +67,12 @@ export default function CreateChannelScreen() {
           <View style={styles.headerPlaceholder} />
         </View>
 
-        <View style={styles.form}>
+        <KeyboardAwareContainer style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.form}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.label}>Название</Text>
           <TextInput
             value={title}
@@ -107,7 +114,8 @@ export default function CreateChannelScreen() {
               <Text style={styles.createButtonText}>Создать канал</Text>
             )}
           </TouchableOpacity>
-        </View>
+        </ScrollView>
+        </KeyboardAwareContainer>
       </SafeAreaView>
     </LinearGradient>
   );

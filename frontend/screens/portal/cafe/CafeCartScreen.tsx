@@ -46,6 +46,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 import { RootStackParamList } from '../../../types/navigation';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 interface CafeTable {
     id: number;
@@ -274,7 +275,13 @@ const CafeCartScreen: React.FC = () => {
                 </TouchableOpacity>
             </SafeAreaView>
 
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <KeyboardAwareContainer style={{ flex: 1 }}>
+            <ScrollView
+                style={styles.scrollView}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+            >
                 {/* Cafe & Order Type */}
                 <View style={styles.sectionGlass}>
                     <View style={styles.cafeHeader}>
@@ -497,6 +504,7 @@ const CafeCartScreen: React.FC = () => {
 
                 <View style={styles.footerSpacer} />
             </ScrollView>
+            </KeyboardAwareContainer>
 
             <View style={styles.footerContainer}>
                 <TouchableOpacity

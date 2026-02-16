@@ -7,7 +7,6 @@ import {
     TextInput,
     TouchableOpacity,
     SafeAreaView,
-    KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
     Image,
@@ -33,6 +32,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { Video, ArrowLeft, ArrowRight, Settings, UserPlus, Send, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react-native';
 import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 import { BalancePill } from '../../../components/wallet/BalancePill';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
@@ -571,10 +571,8 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : colors.background }]}>
-            <KeyboardAvoidingView
+            <KeyboardAwareContainer
                 style={styles.container}
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
-                keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             >
 
                 {isCallActive && (
@@ -857,6 +855,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 data={messages}
                                 keyExtractor={item => item.id}
                                 renderItem={renderMessage}
+                                keyboardShouldPersistTaps="handled"
                                 contentContainerStyle={styles.list}
                                 ListEmptyComponent={
                                     <View style={[
@@ -921,7 +920,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                         <Send size={20} color="#fff" />
                     </TouchableOpacity>
                 </View>
-            </KeyboardAvoidingView >
+            </KeyboardAwareContainer>
 
             <InviteFriendModal
                 visible={inviteVisible}

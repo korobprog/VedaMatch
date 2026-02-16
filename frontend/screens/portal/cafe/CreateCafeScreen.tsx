@@ -9,7 +9,6 @@ import {
     Image,
     Alert,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Switch,
 } from 'react-native';
@@ -24,6 +23,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 const CreateCafeScreen = () => {
     const navigation = useNavigation<any>();
@@ -226,11 +226,12 @@ const CreateCafeScreen = () => {
                 <View style={{ width: 44 }} />
             </SafeAreaView>
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={{ flex: 1 }}
-            >
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareContainer style={{ flex: 1 }}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
                     {/* Media Section */}
                     <View style={styles.mediaContainer}>
                         <TouchableOpacity
@@ -445,7 +446,7 @@ const CreateCafeScreen = () => {
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAwareContainer>
         </View>
     );
 };

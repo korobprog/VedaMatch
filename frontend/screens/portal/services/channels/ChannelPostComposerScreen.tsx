@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,6 +18,7 @@ import { ChannelPostCTAType } from '../../../../types/channel';
 import { useUser } from '../../../../context/UserContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
+import { KeyboardAwareContainer } from '../../../../components/ui/KeyboardAwareContainer';
 
 type RouteParams = {
   ChannelPostComposer: {
@@ -159,7 +161,12 @@ export default function ChannelPostComposerScreen() {
           <View style={styles.headerPlaceholder} />
         </View>
 
-        <View style={styles.form}>
+        <KeyboardAwareContainer style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.form}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.label}>Текст поста</Text>
           <TextInput
             value={content}
@@ -239,7 +246,8 @@ export default function ChannelPostComposerScreen() {
           <TouchableOpacity style={styles.primaryBtn} onPress={() => createPost('publish')} disabled={submitting}>
             {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.primaryBtnText}>Опубликовать</Text>}
           </TouchableOpacity>
-        </View>
+        </ScrollView>
+        </KeyboardAwareContainer>
       </SafeAreaView>
     </LinearGradient>
   );

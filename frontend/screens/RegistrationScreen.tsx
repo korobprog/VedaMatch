@@ -48,6 +48,7 @@ import { PickerContainer } from '../components/registration/PickerContainer';
 import { PickerItem } from '../components/registration/PickerItem';
 import { AvatarUploader } from '../components/registration/AvatarUploader';
 import { RadioGroup } from '../components/registration/RadioGroup';
+import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer';
 
 const DIET_OPTIONS = ['Vegan', 'Vegetarian', 'Prasad'];
 const GENDER_OPTIONS = ['Male', 'Female'];
@@ -421,7 +422,12 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     )}
                 </View>
 
-                <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+                <KeyboardAwareContainer style={{ flex: 1 }}>
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
                     <View style={styles.logoHeaderContainer}>
                         <View style={styles.logoWrapper}>
                             <Image
@@ -806,6 +812,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     )}
 
                 </ScrollView>
+                </KeyboardAwareContainer>
             </View>
         </View>
     );

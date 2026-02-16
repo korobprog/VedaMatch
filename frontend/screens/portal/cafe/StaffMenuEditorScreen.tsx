@@ -12,8 +12,6 @@ import {
     TextInput,
     Switch,
     Modal,
-    KeyboardAvoidingView,
-    Platform,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -41,6 +39,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 const StaffMenuEditorScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -357,7 +356,11 @@ const StaffMenuEditorScreen: React.FC = () => {
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={styles.scrollView}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
                 {filteredCategories.map((category, index) => (
                     <View key={`cat-${category.id || index}`} style={styles.categorySection}>
                         <TouchableOpacity
@@ -422,10 +425,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                     activeOpacity={1}
                     onPress={() => setCategoryModalVisible(false)}
                 >
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                        style={styles.modalContent}
-                    >
+                    <KeyboardAwareContainer style={styles.modalContent} useTopInset={false}>
                         <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
                             <View style={styles.modalHeader}>
                                 <Text style={styles.modalTitle}>{t('cafe.menu.addCategory')}</Text>
@@ -448,7 +448,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                                 <Text style={styles.modalButtonText}>{t('common.save')}</Text>
                             </TouchableOpacity>
                         </TouchableOpacity>
-                    </KeyboardAvoidingView>
+                    </KeyboardAwareContainer>
                 </TouchableOpacity>
             </Modal>
 
@@ -464,10 +464,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                     activeOpacity={1}
                     onPress={() => setDishModalVisible(false)}
                 >
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                        style={styles.modalContent}
-                    >
+                    <KeyboardAwareContainer style={styles.modalContent} useTopInset={false}>
                         <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
                             <View style={styles.modalHeader}>
                                 <Text style={styles.modalTitle}>{t('cafe.menu.addDish')}</Text>
@@ -475,7 +472,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                                     <X size={24} color={colors.textPrimary} />
                                 </TouchableOpacity>
                             </View>
-                            <ScrollView>
+                            <ScrollView keyboardShouldPersistTaps="handled">
                                 <TextInput
                                     style={styles.modalInput}
                                     placeholder={t('cafe.dish.name')}
@@ -507,7 +504,7 @@ const StaffMenuEditorScreen: React.FC = () => {
                                 </TouchableOpacity>
                             </ScrollView>
                         </TouchableOpacity>
-                    </KeyboardAvoidingView>
+                    </KeyboardAwareContainer>
                 </TouchableOpacity>
             </Modal>
         </View>

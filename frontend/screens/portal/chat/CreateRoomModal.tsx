@@ -25,6 +25,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 interface CreateRoomModalProps {
     visible: boolean;
@@ -203,6 +204,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
+                <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
                 <Animated.View
                     style={[
                         styles.modalContent,
@@ -216,7 +218,11 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                         },
                     ]}
                 >
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingBottom: 20 }}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         <Text style={[styles.modalTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.createRoom')}</Text>
 
                         <Text style={[styles.sectionTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary, marginTop: 10 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
@@ -446,6 +452,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                         </View>
                     </ScrollView>
                 </Animated.View>
+                </KeyboardAwareContainer>
             </View>
         </Modal>
     );

@@ -14,6 +14,7 @@ import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../../types/navigation';
 import { getMediaUrl } from '../../../utils/url';
 import { Plus, X, Search, Package, Image as ImageIcon, Camera } from 'lucide-react-native';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 export const CreateAdScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -118,7 +119,11 @@ export const CreateAdScreen: React.FC = () => {
     return (
         <ProtectedScreen>
             <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1a1a1a' : colors.background }}>
-                <ScrollView contentContainerStyle={styles.container}>
+                <KeyboardAwareContainer style={{ flex: 1 }}>
+                <ScrollView
+                    contentContainerStyle={styles.container}
+                    keyboardShouldPersistTaps="handled"
+                >
                     <Text style={[styles.headerTitle, { color: isDarkMode ? '#fff' : colors.text }]}>{t('ads.create.title')}</Text>
 
                     <AdTabSwitcher activeTab={adType} onTabChange={setAdType} />
@@ -194,6 +199,7 @@ export const CreateAdScreen: React.FC = () => {
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.publishText}>{adId ? 'Save Changes' : t('ads.create.publish')}</Text>}
                     </TouchableOpacity>
                 </ScrollView>
+                </KeyboardAwareContainer>
             </View>
         </ProtectedScreen>
     );

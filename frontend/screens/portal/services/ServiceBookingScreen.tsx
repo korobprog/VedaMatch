@@ -11,8 +11,6 @@ import {
     TextInput,
     Alert,
     ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,6 +34,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 type RouteParams = {
     params: {
@@ -339,11 +338,12 @@ export default function ServiceBookingScreen() {
                     </View>
                 </View>
 
-                <KeyboardAvoidingView
-                    style={styles.content}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                >
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <KeyboardAwareContainer style={styles.content}>
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.scrollContent}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         {/* Immersive Service Overview */}
                         <View style={styles.serviceOverview}>
                             <View style={styles.serviceHeaderInfo}>
@@ -453,7 +453,7 @@ export default function ServiceBookingScreen() {
 
                         <View style={{ height: 160 }} />
                     </ScrollView>
-                </KeyboardAvoidingView>
+                </KeyboardAwareContainer>
 
                 {/* Fixed Premium CTA */}
                 <View style={styles.footerCTA}>

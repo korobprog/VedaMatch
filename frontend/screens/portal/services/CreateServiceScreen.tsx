@@ -12,8 +12,6 @@ import {
     Alert,
     ActivityIndicator,
     Image,
-    KeyboardAvoidingView,
-    Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,6 +58,7 @@ import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 import { RootStackParamList } from '../../../types/navigation';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {
@@ -411,11 +410,14 @@ export default function CreateServiceScreen() {
                         <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
-                    <KeyboardAvoidingView
+                    <KeyboardAwareContainer
                         style={styles.content}
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     >
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                        <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={styles.scrollContent}
+                            keyboardShouldPersistTaps="handled"
+                        >
                             {/* Immersive Cover Section */}
                             <TouchableOpacity style={styles.coverSection} onPress={handlePickImage} activeOpacity={0.9}>
                                 {coverImageUrl ? (
@@ -709,7 +711,7 @@ export default function CreateServiceScreen() {
 
                             <View style={{ height: 60 }} />
                         </ScrollView>
-                    </KeyboardAvoidingView>
+                    </KeyboardAwareContainer>
                 )}
             </SafeAreaView>
         </LinearGradient>

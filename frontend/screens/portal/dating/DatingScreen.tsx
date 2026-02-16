@@ -38,6 +38,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import type { UserContact } from '../../../services/contactService';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 import {
     BarChart2,
     Filter,
@@ -1131,12 +1132,13 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showFilters} transparent animationType="slide">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
+                            <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
                             <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax85]}>
                                 <View style={styles.modalHeader}>
                                     <Text style={styles.modalTitle}>{t('dating.filters')}</Text>
                                 </View>
 
-                                <ScrollView showsVerticalScrollIndicator={false}>
+                                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                                     {mode === 'business' && (
                                         <>
                                             <Text style={styles.filterLabel}>{t('dating.skills')}</Text>
@@ -1249,6 +1251,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                 </TouchableOpacity>
                             </LinearGradient>
+                            </KeyboardAwareContainer>
                         </View>
                     </Modal>
 
@@ -1293,6 +1296,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                     <Modal visible={showCityPicker} transparent animationType="fade">
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
+                            <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
                             <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax80]}>
                                 <View style={styles.modalHeader}>
                                     <Text style={styles.modalTitle}>{t('dating.selectCity')}</Text>
@@ -1328,6 +1332,7 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                                     <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                 </TouchableOpacity>
                             </LinearGradient>
+                            </KeyboardAwareContainer>
                         </View>
                     </Modal>
 

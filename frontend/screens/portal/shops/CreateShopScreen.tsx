@@ -14,6 +14,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 import {
     Store,
     Image as ImageIcon,
@@ -233,7 +234,8 @@ export const CreateShopScreen: React.FC = () => {
     return (
         <ProtectedScreen>
             <View style={styles.screen}>
-                <ScrollView contentContainerStyle={styles.container}>
+                <KeyboardAwareContainer style={{ flex: 1 }}>
+                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                     <Text style={styles.headerTitle}>
                         {t('market.shop.create') || 'Create Your Shop'}
                     </Text>
@@ -470,6 +472,7 @@ export const CreateShopScreen: React.FC = () => {
                         {t('market.shop.disclaimer') || 'Your shop will be reviewed by moderators before becoming active.'}
                     </Text>
                 </ScrollView>
+                </KeyboardAwareContainer>
             </View>
         </ProtectedScreen>
     );

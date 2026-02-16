@@ -23,6 +23,7 @@ import { datingService } from '../../../services/datingService';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditDatingProfile'>;
 
@@ -301,6 +302,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                 </TouchableOpacity>
             </View>
 
+            <KeyboardAwareContainer style={{ flex: 1 }}>
             <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
                 <View style={styles.content}>
                     <View style={styles.switchRow}>
@@ -554,9 +556,11 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                     <View style={{ height: 40 }} />
                 </View>
             </ScrollView>
+            </KeyboardAwareContainer>
 
             {/* City Search Modal */}
             <Modal visible={citySearchModal} animationType="slide">
+                <KeyboardAwareContainer style={{ flex: 1 }} useTopInset={false}>
                 <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
                     <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
                         <TouchableOpacity onPress={() => setCitySearchModal(false)}>
@@ -592,6 +596,7 @@ export const EditDatingProfileScreen: React.FC<Props> = ({ navigation, route }) 
                         keyboardShouldPersistTaps="always"
                     />
                 </SafeAreaView>
+                </KeyboardAwareContainer>
             </Modal>
             {/* Madh Selection Modal */}
             <Modal

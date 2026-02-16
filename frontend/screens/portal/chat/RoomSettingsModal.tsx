@@ -25,6 +25,7 @@ import { getMediaUrl } from '../../../utils/url';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 interface RoomSettingsModalProps {
     visible: boolean;
@@ -422,6 +423,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
+                <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
                 <Animated.View
                     style={[
                         styles.modalContent,
@@ -481,6 +483,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                         <ScrollView
                             showsVerticalScrollIndicator={false}
                             contentContainerStyle={{ paddingBottom: 20 }}
+                            keyboardShouldPersistTaps="handled"
                         >
                             {/* Image Selection Section */}
                             <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary, textAlign: 'center', marginBottom: 12 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
@@ -854,6 +857,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                         </ScrollView>
                     )}
                 </Animated.View>
+                </KeyboardAwareContainer>
             </View>
         </Modal>
     );

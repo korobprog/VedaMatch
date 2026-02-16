@@ -23,6 +23,7 @@ import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 import { contactService, UserContact } from '../../../../services/contactService';
 import { marketService } from '../../../../services/marketService';
 import { CATEGORY_LABELS } from '../../../../services/serviceService';
+import { KeyboardAwareContainer } from '../../../../components/ui/KeyboardAwareContainer';
 
 type RouteParams = {
   ChannelManage: {
@@ -652,7 +653,8 @@ export default function ChannelManageScreen() {
           <View style={styles.headerPlaceholder} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <KeyboardAwareContainer style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.sectionTitle}>Брендирование</Text>
           <TextInput
             value={description}
@@ -1005,6 +1007,7 @@ export default function ChannelManageScreen() {
             </View>
           )}
         </ScrollView>
+        </KeyboardAwareContainer>
       </SafeAreaView>
     </LinearGradient>
   );

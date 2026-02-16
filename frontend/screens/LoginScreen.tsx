@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     Dimensions,
-    KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
     Image,
@@ -33,6 +32,7 @@ import axios from 'axios';
 import { API_PATH, APP_ENV } from '../config/api.config';
 import { ModernVedicTheme } from '../theme/ModernVedicTheme';
 import DeviceInfo from 'react-native-device-info';
+import { KeyboardAwareContainer } from '../components/ui/KeyboardAwareContainer';
 
 const { width, height } = Dimensions.get('window');
 
@@ -264,10 +264,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 />
             </Animated.View>
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.keyboardView}
-            >
+            <KeyboardAwareContainer style={styles.keyboardView}>
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
@@ -376,7 +373,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                         </View>
                     </Animated.View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </KeyboardAwareContainer>
         </View>
     );
 };

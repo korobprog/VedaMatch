@@ -9,7 +9,6 @@ import {
     Image,
     Alert,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Switch
 } from 'react-native';
@@ -24,6 +23,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 type CreateShelterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateShelter'>;
 
@@ -187,10 +187,7 @@ const CreateShelterScreen = () => {
     }
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.container}
-        >
+        <KeyboardAwareContainer style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={colors.textPrimary} />
@@ -198,7 +195,7 @@ const CreateShelterScreen = () => {
                 <Text style={styles.headerTitle}>{isEditing ? 'Редактировать Жилье' : 'Добавить Жилье'}</Text>
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 {/* Cover Image */}
                 <TouchableOpacity
                     style={styles.coverUpload}
@@ -364,7 +361,7 @@ const CreateShelterScreen = () => {
                     )}
                 </TouchableOpacity>
             </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAwareContainer>
     );
 };
 

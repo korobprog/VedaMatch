@@ -15,6 +15,7 @@ import { getMediaUrl } from '../../../utils/url';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 const parseVariantAttributes = (raw?: string): Record<string, string> => {
     if (!raw || raw === 'undefined' || raw === 'null') {
@@ -438,7 +439,8 @@ export const ProductEditScreen: React.FC = () => {
     return (
         <ProtectedScreen>
             <View style={{ flex: 1, backgroundColor: colors.background }}>
-                <ScrollView contentContainerStyle={styles.container}>
+                <KeyboardAwareContainer style={{ flex: 1 }}>
+                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                     <Text style={[styles.headerTitle, { color: textPrimary }]}>
                         {isEditing ? t('market.product.edit') : t('market.product.add')}
                     </Text>
@@ -749,10 +751,12 @@ export const ProductEditScreen: React.FC = () => {
                         )}
                     </TouchableOpacity>
                 </ScrollView>
+                </KeyboardAwareContainer>
 
                 {/* Variant Modal */}
                 <Modal visible={showVariantModal} transparent animationType="slide">
                     <View style={styles.modalOverlay}>
+                        <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
                         <View style={[styles.modalContent, { backgroundColor: surface }]}>
                             <Text style={[styles.modalTitle, { color: textPrimary }]}>
                                 {editingVariantIndex !== null ? t('market.product.editVariant') : t('market.product.addVariant')}
@@ -810,6 +814,7 @@ export const ProductEditScreen: React.FC = () => {
                                 </TouchableOpacity>
                             </View>
                         </View>
+                        </KeyboardAwareContainer>
                     </View>
                 </Modal>
             </View>

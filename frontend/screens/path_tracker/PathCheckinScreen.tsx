@@ -9,6 +9,7 @@ import { pathTrackerService } from '../../services/pathTrackerService';
 import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -49,7 +50,12 @@ export const PathCheckinScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
+    <KeyboardAwareContainer style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={styles.header}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -125,7 +131,8 @@ export const PathCheckinScreen: React.FC = () => {
       <TouchableOpacity style={[styles.submit, { backgroundColor: colors.accent }]} onPress={submit} disabled={loading}>
         <Text style={styles.submitText}>{loading ? t('common.loading') : t('pathTracker.submitCheckin')}</Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAwareContainer>
   );
 };
 
@@ -161,4 +168,3 @@ const styles = StyleSheet.create({
   submit: { borderRadius: 12, alignItems: 'center', paddingVertical: 14 },
   submitText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
-

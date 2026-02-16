@@ -36,6 +36,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RoleSelectionSection } from '../../components/roles/RoleSelectionSection';
 import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
@@ -383,7 +384,12 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     autoOpenHint={!user?.isProfileComplete}
                 />
 
-                <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+                <KeyboardAwareContainer style={styles.content}>
+                <ScrollView
+                    style={styles.content}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
 
 
                     <View style={styles.switchRow}>
@@ -580,6 +586,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                     {/* Extra Space */}
                     <View style={{ height: 40 }} />
                 </ScrollView>
+                </KeyboardAwareContainer>
             </View>
 
             {/* Pickers */}

@@ -20,6 +20,7 @@ import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 interface InviteFriendModalProps {
     visible: boolean;
@@ -262,6 +263,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
+                <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
                 <View style={[styles.modalContent, { backgroundColor: vTheme.colors.background }]}>
                     <View style={styles.headerRow}>
                         <TouchableOpacity onPress={onClose} style={styles.headerIcon}>
@@ -293,6 +295,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                             data={filteredFriends}
                             keyExtractor={item => item.ID.toString()}
                             renderItem={renderItem}
+                            keyboardShouldPersistTaps="handled"
                             ListEmptyComponent={
                                 <View style={styles.emptyContainer}>
                                     <Text style={{ color: vTheme.colors.textSecondary }}>
@@ -304,6 +307,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                         />
                     )}
                 </View>
+                </KeyboardAwareContainer>
             </View>
         </Modal>
     );

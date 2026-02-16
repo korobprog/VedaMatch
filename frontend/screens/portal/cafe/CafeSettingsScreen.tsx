@@ -37,6 +37,7 @@ import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
+import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 
 const CafeSettingsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -150,7 +151,13 @@ const CafeSettingsScreen: React.FC = () => {
                 </TouchableOpacity>
             </SafeAreaView>
 
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <KeyboardAwareContainer style={{ flex: 1 }}>
+            <ScrollView
+                style={styles.scrollView}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+            >
                 <View style={styles.glassSection}>
                     <View style={styles.sectionHeader}>
                         <SettingsIcon size={18} color={colors.accent} />
@@ -191,6 +198,7 @@ const CafeSettingsScreen: React.FC = () => {
 
                 <View style={{ height: 40 }} />
             </ScrollView>
+            </KeyboardAwareContainer>
         </View>
     );
 };

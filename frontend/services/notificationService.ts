@@ -2,6 +2,9 @@ import {
     getMessaging,
     requestPermission,
     getToken,
+    getAPNSToken,
+    registerDeviceForRemoteMessages,
+    isDeviceRegisteredForRemoteMessages,
     onMessage,
     onNotificationOpenedApp,
     getInitialNotification,
@@ -80,6 +83,16 @@ export const notificationService = {
     getFcmToken: async () => {
         try {
             const messaging = getMessagingInstance();
+
+            if (Platform.OS === 'ios' && !isDeviceRegisteredForRemoteMessages(messaging)) {
+                await registerDeviceForRemoteMessages(messaging);
+            }
+
+            if (Platform.OS === 'ios') {
+                const apnsToken = await getAPNSToken(messaging);
+                logPushTelemetry('apns_token_state', { hasToken: !!apnsToken });
+            }
+
             const fcmToken = await getToken(messaging);
             if (fcmToken) {
                 await AsyncStorage.setItem('pushToken', fcmToken);
