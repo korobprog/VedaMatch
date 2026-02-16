@@ -25,10 +25,41 @@ const fetcher = (url: string) => api.get(url).then(res => res.data);
 // Simple blacklisted words for demo moderation
 const BLACKLIST = ['porn', 'sexy', 'money', 'crypto', 'scam', 'dating site', '18+', 'drugs', 'weapons'];
 
+const getApiOrigin = (): string => String(api.defaults.baseURL || '').replace(/\/api(?:\/.*)?$/, '');
+
+const resolveMediaUrl = (rawUrl?: string | null): string => {
+    if (!rawUrl) return '';
+
+    const trimmedUrl = rawUrl.trim();
+    if (!trimmedUrl) return '';
+
+    const httpIndex = trimmedUrl.indexOf('http://');
+    const httpsIndex = trimmedUrl.indexOf('https://');
+    const protocolIndexes = [httpIndex, httpsIndex].filter((index) => index >= 0);
+    const firstProtocolIndex = protocolIndexes.length > 0 ? Math.min(...protocolIndexes) : -1;
+    const normalizedUrl = firstProtocolIndex > 0 ? trimmedUrl.slice(firstProtocolIndex) : trimmedUrl;
+
+    if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
+        return normalizedUrl;
+    }
+
+    if (normalizedUrl.startsWith('//')) {
+        return `https:${normalizedUrl}`;
+    }
+
+    const apiOrigin = getApiOrigin();
+    if (!apiOrigin) {
+        return normalizedUrl;
+    }
+
+    return normalizedUrl.startsWith('/') ? `${apiOrigin}${normalizedUrl}` : `${apiOrigin}/${normalizedUrl}`;
+};
+
 export default function DatingManagementPage() {
     const [search, setSearch] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [selectedProfile, setSelectedProfile] = useState<any>(null);
+    const selectedAvatarUrl = resolveMediaUrl(selectedProfile?.avatarUrl);
 
     const { data: profiles, error, mutate } = useSWR(
         `/admin/dating/profiles?search=${search}`,
@@ -100,6 +131,7 @@ export default function DatingManagementPage() {
                     {profiles.map((user: any) => {
                         const suspicious = isSuspicious(user.bio) || isSuspicious(user.interests);
                         const flagged = user.isFlagged;
+                        const avatarUrl = resolveMediaUrl(user.avatarUrl);
 
                         return (
                             <motion.div
@@ -125,8 +157,8 @@ export default function DatingManagementPage() {
 
                                 <div className="flex items-start gap-4">
                                     <div className="w-16 h-16 bg-[var(--secondary)] rounded-2xl flex items-center justify-center font-bold text-2xl text-[var(--primary)] border border-[var(--border)] overflow-hidden shrink-0">
-                                        {user.avatarUrl ? (
-                                            <img src={`${api.defaults.baseURL?.replace('/api', '')}${user.avatarUrl}`} alt="" className="w-full h-full object-cover" />
+                                        {avatarUrl ? (
+                                            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                         ) : (
                                             user.spiritualName?.[0] || user.karmicName?.[0] || '?'
                                         )}
@@ -211,8 +243,8 @@ export default function DatingManagementPage() {
                                 </button>
                                 <div className="absolute -bottom-12 left-8 p-1 bg-[var(--card)] rounded-3xl border-4 border-[var(--card)]">
                                     <div className="w-24 h-24 bg-[var(--secondary)] rounded-2xl flex items-center justify-center text-4xl overflow-hidden">
-                                        {selectedProfile.avatarUrl ? (
-                                            <img src={`${api.defaults.baseURL?.replace('/api', '')}${selectedProfile.avatarUrl}`} alt="" className="w-full h-full object-cover" />
+                                        {selectedAvatarUrl ? (
+                                            <img src={selectedAvatarUrl} alt="" className="w-full h-full object-cover" />
                                         ) : '👤'}
                                     </div>
                                 </div>

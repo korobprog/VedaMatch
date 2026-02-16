@@ -17,6 +17,30 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   turbopack: {},
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "s3.firstvds.ru",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "s3.twcstorage.ru",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "vedamatch.ru",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "api.vedamatch.ru",
+        pathname: "/**",
+      },
+    ],
+  },
 };
 
 export default process.env.NODE_ENV === "development" ? nextConfig : withPWA(nextConfig);

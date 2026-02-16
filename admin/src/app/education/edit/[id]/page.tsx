@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getApiBaseURL } from '@/lib/api';
 import { useRouter, useParams } from 'next/navigation';
 import { Plus, ChevronDown, ChevronRight, Trash2, HelpCircle } from 'lucide-react';
 
@@ -68,7 +69,7 @@ export default function EditCoursePage() {
 
   const fetchCourse = async () => {
     try {
-      const res = await fetch(`http://localhost:8081/api/education/courses/${courseId}`);
+      const res = await fetch(`${getApiBaseURL()}/education/courses/${courseId}`);
       if (res.ok) {
         const data = await res.json();
         const isStandardOrg = MADH_OPTIONS.some(opt => opt.id === data.organization);
@@ -87,7 +88,7 @@ export default function EditCoursePage() {
           // For now, let's fetch questions for each module
           const modulesWithQuestions = await Promise.all(data.modules.map(async (mod: any) => {
             const token = localStorage.getItem('token') || (localStorage.getItem('admin_data') ? JSON.parse(localStorage.getItem('admin_data')!).token : '');
-            const qRes = await fetch(`http://localhost:8081/api/admin/education/modules/${mod.ID}/exams`, {
+            const qRes = await fetch(`${getApiBaseURL()}/admin/education/modules/${mod.ID}/exams`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             const questions = qRes.ok ? await qRes.json() : [];
@@ -126,7 +127,7 @@ export default function EditCoursePage() {
 
     try {
       const token = localStorage.getItem('token') || (localStorage.getItem('admin_data') ? JSON.parse(localStorage.getItem('admin_data')!).token : '');
-      const res = await fetch(`http://localhost:8081/api/admin/education/courses/${courseId}`, {
+      const res = await fetch(`${getApiBaseURL()}/admin/education/courses/${courseId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -150,7 +151,7 @@ export default function EditCoursePage() {
   const handleAddModule = async () => {
     try {
       const token = localStorage.getItem('token') || (localStorage.getItem('admin_data') ? JSON.parse(localStorage.getItem('admin_data')!).token : '');
-      const res = await fetch('http://localhost:8081/api/admin/education/modules', {
+      const res = await fetch(`${getApiBaseURL()}/admin/education/modules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +177,7 @@ export default function EditCoursePage() {
       if (!newQuestion.text || newQuestion.options.length < 2) return;
 
       const token = localStorage.getItem('token') || (localStorage.getItem('admin_data') ? JSON.parse(localStorage.getItem('admin_data')!).token : '');
-      const res = await fetch('http://localhost:8081/api/admin/education/questions', {
+      const res = await fetch(`${getApiBaseURL()}/admin/education/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

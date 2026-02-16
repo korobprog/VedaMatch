@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
+import { getApiBaseURL } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 interface EducationCourse {
@@ -24,7 +25,7 @@ export default function EducationPage() {
   const fetchCourses = async () => {
     try {
       const token = localStorage.getItem('token') || (localStorage.getItem('admin_data') ? JSON.parse(localStorage.getItem('admin_data')!).token : '');
-      const res = await fetch('http://localhost:8081/api/admin/education/courses', {
+      const res = await fetch(`${getApiBaseURL()}/admin/education/courses`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

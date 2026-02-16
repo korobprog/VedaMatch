@@ -1,10 +1,23 @@
 import axios from 'axios';
 
+const normalizeApiBaseURL = (rawBaseURL: string): string => {
+    const trimmedBaseURL = rawBaseURL.trim().replace(/\/+$/, '');
+    if (!trimmedBaseURL) {
+        return trimmedBaseURL;
+    }
+
+    if (trimmedBaseURL.endsWith('/api') || trimmedBaseURL.includes('/api/')) {
+        return trimmedBaseURL;
+    }
+
+    return `${trimmedBaseURL}/api`;
+};
+
 // Функция для определения baseURL
-const getBaseURL = (): string => {
+export const getApiBaseURL = (): string => {
     // Если переменная окружения установлена, используем её
     if (process.env.NEXT_PUBLIC_API_URL) {
-        return process.env.NEXT_PUBLIC_API_URL;
+        return normalizeApiBaseURL(process.env.NEXT_PUBLIC_API_URL);
     }
 
     // Если мы в браузере, определяем URL на основе текущего домена
@@ -27,7 +40,7 @@ const getBaseURL = (): string => {
 };
 
 const api = axios.create({
-    baseURL: getBaseURL(),
+    baseURL: getApiBaseURL(),
 });
 
 // Add a request interceptor to add the auth headers if needed

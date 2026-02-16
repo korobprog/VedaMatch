@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getAuthToken } from '@/lib/auth';
@@ -20,7 +22,7 @@ export function TimeTrendsChart() {
 
     const fetchData = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/trends?months=12`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/analytics/trends?months=12`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
@@ -46,7 +48,7 @@ export function TimeTrendsChart() {
     }
 
     return (
-        <ResponsiveContainer width="100%" height={350}>
+        <ResponsiveContainer width="100%" height={350} minWidth={0}>
             <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />

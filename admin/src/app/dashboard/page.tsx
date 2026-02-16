@@ -316,8 +316,8 @@ export default function DashboardPage() {
                         <h2 className="text-xl font-bold">Path Tracker Trend (14d)</h2>
                         <p className="text-sm text-[var(--muted-foreground)]">Assigned/completed steps and completion rate by day</p>
                     </div>
-                    <div className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="min-h-[280px]">
+                        <ResponsiveContainer width="100%" height={280} minWidth={0}>
                             <LineChart data={trackerAnalytics?.trend || []}>
                                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
                                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
@@ -338,8 +338,8 @@ export default function DashboardPage() {
                         <h2 className="text-xl font-bold">A/B Bucket Compare</h2>
                         <p className="text-sm text-[var(--muted-foreground)]">control vs weekly_summary_v1 completion rate</p>
                     </div>
-                    <div className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="min-h-[280px]">
+                        <ResponsiveContainer width="100%" height={280} minWidth={0}>
                             <BarChart data={trackerAnalytics?.bucketComparison || []}>
                                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
                                 <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />

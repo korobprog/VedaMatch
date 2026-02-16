@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getApiBaseURL } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 const MADH_OPTIONS = [
@@ -41,7 +42,7 @@ export default function CreateCoursePage() {
 
     try {
       const token = localStorage.getItem('token') || (localStorage.getItem('admin_data') ? JSON.parse(localStorage.getItem('admin_data')!).token : '');
-      const res = await fetch('http://localhost:8081/api/admin/education/courses', {
+      const res = await fetch(`${getApiBaseURL()}/admin/education/courses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

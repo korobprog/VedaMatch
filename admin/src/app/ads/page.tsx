@@ -22,6 +22,40 @@ import api from '@/lib/api';
 
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
+const getApiOrigin = (): string => String(api.defaults.baseURL || '').replace(/\/api(?:\/.*)?$/, '');
+
+const resolveMediaUrl = (rawUrl?: string | null): string => {
+    if (!rawUrl) return '';
+
+    const trimmedUrl = rawUrl.trim();
+    if (!trimmedUrl) return '';
+
+    const httpIndex = trimmedUrl.indexOf('http://');
+    const httpsIndex = trimmedUrl.indexOf('https://');
+    const protocolIndexes = [httpIndex, httpsIndex].filter((index) => index >= 0);
+    const firstProtocolIndex = protocolIndexes.length > 0 ? Math.min(...protocolIndexes) : -1;
+    const normalizedUrl = firstProtocolIndex > 0 ? trimmedUrl.slice(firstProtocolIndex) : trimmedUrl;
+
+    if (/^https?:\/\/rvlautoai\.ru\/uploads\//i.test(normalizedUrl)) {
+        return '';
+    }
+
+    if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
+        return normalizedUrl;
+    }
+
+    if (normalizedUrl.startsWith('//')) {
+        return `https:${normalizedUrl}`;
+    }
+
+    const apiOrigin = getApiOrigin();
+    if (!apiOrigin) {
+        return normalizedUrl;
+    }
+
+    return normalizedUrl.startsWith('/') ? `${apiOrigin}${normalizedUrl}` : `${apiOrigin}/${normalizedUrl}`;
+};
+
 const statusColors: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     active: 'bg-green-100 text-green-800 border-green-200',
@@ -186,92 +220,96 @@ export default function AdsPage() {
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
                                 <AnimatePresence>
-                                    {ads.map((ad: any) => (
-                                        <motion.tr
-                                            key={ad.ID}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            className="hover:bg-[var(--secondary)]/50 transition-colors"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 bg-[var(--secondary)] rounded-xl flex items-center justify-center overflow-hidden border border-[var(--border)]">
-                                                        {ad.photos && ad.photos.length > 0 ? (
-                                                            <img src={ad.photos[0].photoUrl} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <ImageIcon className="w-5 h-5 text-[var(--muted-foreground)]" />
+                                    {ads.map((ad: any) => {
+                                        const previewPhotoUrl = resolveMediaUrl(ad.photos?.[0]?.photoUrl);
+
+                                        return (
+                                            <motion.tr
+                                                key={ad.ID}
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                className="hover:bg-[var(--secondary)]/50 transition-colors"
+                                            >
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-12 h-12 bg-[var(--secondary)] rounded-xl flex items-center justify-center overflow-hidden border border-[var(--border)]">
+                                                            {previewPhotoUrl ? (
+                                                                <img src={previewPhotoUrl} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <ImageIcon className="w-5 h-5 text-[var(--muted-foreground)]" />
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-sm line-clamp-1">{ad.title}</p>
+                                                            <p className="text-xs text-[var(--muted-foreground)]">{ad.city} • {ad.adType}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <p className="text-sm">{ad.author?.spiritualName || ad.author?.karmicName || 'Unknown'}</p>
+                                                    <p className="text-xs text-[var(--muted-foreground)]">ID: {ad.userId}</p>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-xs font-medium bg-[var(--secondary)] px-2 py-1 rounded-lg">
+                                                        {ad.category}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border ${statusColors[ad.status] || ''}`}>
+                                                        {statusIcons[ad.status]}
+                                                        {ad.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {ad.status === 'pending' && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleUpdateStatus(ad.ID, 'active')}
+                                                                    disabled={actionLoading === ad.ID.toString()}
+                                                                    className="p-2 rounded-lg text-green-600 hover:bg-green-50 transition-all disabled:opacity-30"
+                                                                    title="Approve"
+                                                                >
+                                                                    <CheckCircle className="w-5 h-5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setRejectModal({ id: ad.ID, open: true })}
+                                                                    disabled={actionLoading === ad.ID.toString()}
+                                                                    className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-all disabled:opacity-30"
+                                                                    title="Reject"
+                                                                >
+                                                                    <XCircle className="w-5 h-5" />
+                                                                </button>
+                                                            </>
                                                         )}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold text-sm line-clamp-1">{ad.title}</p>
-                                                        <p className="text-xs text-[var(--muted-foreground)]">{ad.city} • {ad.adType}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm">{ad.author?.spiritualName || ad.author?.karmicName || 'Unknown'}</p>
-                                                <p className="text-xs text-[var(--muted-foreground)]">ID: {ad.userId}</p>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-xs font-medium bg-[var(--secondary)] px-2 py-1 rounded-lg">
-                                                    {ad.category}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border ${statusColors[ad.status] || ''}`}>
-                                                    {statusIcons[ad.status]}
-                                                    {ad.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {ad.status === 'pending' && (
-                                                        <>
+                                                        {ad.status === 'active' && (
                                                             <button
-                                                                onClick={() => handleUpdateStatus(ad.ID, 'active')}
+                                                                onClick={() => handleUpdateStatus(ad.ID, 'archived')}
                                                                 disabled={actionLoading === ad.ID.toString()}
-                                                                className="p-2 rounded-lg text-green-600 hover:bg-green-50 transition-all disabled:opacity-30"
-                                                                title="Approve"
+                                                                className="p-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-30"
+                                                                title="Archive"
                                                             >
-                                                                <CheckCircle className="w-5 h-5" />
+                                                                <Archive className="w-5 h-5" />
                                                             </button>
-                                                            <button
-                                                                onClick={() => setRejectModal({ id: ad.ID, open: true })}
-                                                                disabled={actionLoading === ad.ID.toString()}
-                                                                className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-all disabled:opacity-30"
-                                                                title="Reject"
-                                                            >
-                                                                <XCircle className="w-5 h-5" />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                    {ad.status === 'active' && (
+                                                        )}
                                                         <button
-                                                            onClick={() => handleUpdateStatus(ad.ID, 'archived')}
+                                                            onClick={() => handleDelete(ad.ID)}
                                                             disabled={actionLoading === ad.ID.toString()}
-                                                            className="p-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-30"
-                                                            title="Archive"
+                                                            className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-all disabled:opacity-30"
+                                                            title="Delete"
                                                         >
-                                                            <Archive className="w-5 h-5" />
+                                                            {actionLoading === ad.ID.toString() ? (
+                                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="w-5 h-5" />
+                                                            )}
                                                         </button>
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleDelete(ad.ID)}
-                                                        disabled={actionLoading === ad.ID.toString()}
-                                                        className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-all disabled:opacity-30"
-                                                        title="Delete"
-                                                    >
-                                                        {actionLoading === ad.ID.toString() ? (
-                                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                                        ) : (
-                                                            <Trash2 className="w-5 h-5" />
-                                                        )}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </motion.tr>
-                                    ))}
+                                                    </div>
+                                                </td>
+                                            </motion.tr>
+                                        );
+                                    })}
                                 </AnimatePresence>
                             </tbody>
                         </table>
