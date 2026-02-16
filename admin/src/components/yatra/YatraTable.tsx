@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { YatraStatusBadge } from './YatraStatusBadge';
@@ -63,7 +65,7 @@ export function YatraTable({ filters, onPageChange }: YatraTableProps) {
             params.append('page', filters.page.toString());
             params.append('limit', '20');
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra?${params}`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },

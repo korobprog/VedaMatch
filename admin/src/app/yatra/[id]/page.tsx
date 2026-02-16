@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -61,7 +63,7 @@ export default function YatraDetailPage() {
 
     const fetchYatra = async () => {
         try {
-            const yatraRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/yatra/${params.id}`, {
+            const yatraRes = await fetch(`${getApiBaseURL()}/yatra/${params.id}`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
@@ -71,7 +73,7 @@ export default function YatraDetailPage() {
             const yatraData = await yatraRes.json();
             setYatra(yatraData);
 
-            const participantsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/${params.id}/participants`, {
+            const participantsRes = await fetch(`${getApiBaseURL()}/admin/yatra/${params.id}/participants`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
@@ -95,7 +97,7 @@ export default function YatraDetailPage() {
         if (!reason) return;
 
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/${params.id}/participants/${participantId}`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/${params.id}/participants/${participantId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,

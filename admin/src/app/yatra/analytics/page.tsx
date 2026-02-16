@@ -1,4 +1,6 @@
 'use client';
+
+import { getApiBaseURL } from '@/lib/api';
 import { getAuthToken } from '@/lib/auth';
 
 import { useState, useEffect } from 'react';
@@ -30,14 +32,14 @@ export default function AnalyticsPage() {
     const fetchData = async () => {
         try {
             // Fetch average metrics
-            const metricsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/metrics`, {
+            const metricsRes = await fetch(`${getApiBaseURL()}/admin/yatra/analytics/metrics`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
             });
 
             // Fetch status distribution
-            const distRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/distribution`, {
+            const distRes = await fetch(`${getApiBaseURL()}/admin/yatra/analytics/distribution`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },

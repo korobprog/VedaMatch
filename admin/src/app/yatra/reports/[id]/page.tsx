@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -41,7 +43,7 @@ export default function ReportDetailPage() {
 
     const fetchReport = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra-reports/${params.id}`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra-reports/${params.id}`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
@@ -67,7 +69,7 @@ export default function ReportDetailPage() {
 
         setProcessing(true);
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra-reports/${params.id}/resolve`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra-reports/${params.id}/resolve`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
@@ -96,7 +98,7 @@ export default function ReportDetailPage() {
 
         setProcessing(true);
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra-reports/${params.id}/dismiss`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra-reports/${params.id}/dismiss`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,

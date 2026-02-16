@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { getAuthToken } from '@/lib/auth';
 
@@ -20,7 +22,7 @@ export function GeographySummary() {
 
     const fetchData = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/geography?limit=10`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/analytics/geography?limit=10`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },

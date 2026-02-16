@@ -1,4 +1,6 @@
 'use client';
+
+import { getApiBaseURL } from '@/lib/api';
 import { getAuthToken } from '@/lib/auth';
 
 import { useState, useEffect } from 'react';
@@ -44,7 +46,7 @@ export default function TemplatesPage() {
 
     const fetchTemplates = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/templates`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/templates`, {
                 headers: { Authorization: `Bearer ${getAuthToken()}` },
             });
             if (response.ok) {
@@ -63,8 +65,8 @@ export default function TemplatesPage() {
         e.preventDefault();
         try {
             const url = editingTemplate
-                ? `${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/templates/${editingTemplate.id}`
-                : `${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/templates`;
+                ? `${getApiBaseURL()}/admin/yatra/templates/${editingTemplate.id}`
+                : `${getApiBaseURL()}/admin/yatra/templates`;
 
             const method = editingTemplate ? 'PUT' : 'POST';
 
@@ -91,7 +93,7 @@ export default function TemplatesPage() {
     const handleDelete = async (id: number) => {
         if (!confirm('Are you sure you want to delete this template?')) return;
         try {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/templates/${id}`, {
+            await fetch(`${getApiBaseURL()}/admin/yatra/templates/${id}`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${getAuthToken()}` },
             });

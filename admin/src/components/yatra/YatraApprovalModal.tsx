@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState } from 'react';
 import { getAuthToken } from '@/lib/auth';
 
@@ -18,7 +20,7 @@ export function YatraApprovalModal({ yatra, actionType, onClose }: YatraApproval
         setLoading(true);
 
         try {
-            const endpoint = `${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/${yatra.id}/${actionType}`;
+            const endpoint = `${getApiBaseURL()}/admin/yatra/${yatra.id}/${actionType}`;
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {

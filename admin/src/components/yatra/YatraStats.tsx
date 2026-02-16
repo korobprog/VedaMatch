@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { getAuthToken } from '@/lib/auth';
 
@@ -31,7 +33,7 @@ export function YatraStats() {
                 return;
             }
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/stats`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/stats`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },

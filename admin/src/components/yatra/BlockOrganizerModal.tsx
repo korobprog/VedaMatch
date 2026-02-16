@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState } from 'react';
 import { getAuthToken } from '@/lib/auth';
 
@@ -25,7 +27,7 @@ export function BlockOrganizerModal({ organizerId, organizerName, onClose }: Blo
 
         setProcessing(true);
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers/${organizerId}/block`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/organizers/${organizerId}/block`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,

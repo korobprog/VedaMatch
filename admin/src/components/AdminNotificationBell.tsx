@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import Link from 'next/link';
@@ -56,7 +58,7 @@ export function AdminNotificationBell() {
             if (!token) return;
 
             // Use pending status to get unread ones primarily, but we'll sort them
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/notifications`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
@@ -79,7 +81,7 @@ export function AdminNotificationBell() {
             const token = getAuthToken();
             if (!token) return;
 
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications/${id}/read`, {
+            await fetch(`${getApiBaseURL()}/admin/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

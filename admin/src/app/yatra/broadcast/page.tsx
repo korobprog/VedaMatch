@@ -1,4 +1,6 @@
 'use client';
+
+import { getApiBaseURL } from '@/lib/api';
 import { getAuthToken } from '@/lib/auth';
 
 import { useState, useEffect } from 'react';
@@ -24,7 +26,7 @@ export default function BroadcastPage() {
 
     const fetchTemplates = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/templates`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/templates`, {
                 headers: { Authorization: `Bearer ${getAuthToken()}` },
             });
             if (response.ok) {
@@ -44,7 +46,7 @@ export default function BroadcastPage() {
 
         setSending(true);
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/broadcast`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/broadcast`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

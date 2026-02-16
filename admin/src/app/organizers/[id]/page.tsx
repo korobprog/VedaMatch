@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -53,7 +55,7 @@ export default function OrganizerDetailPage() {
     const fetchData = async () => {
         try {
             // Fetch organizer stats
-            const statsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers/${params.id}/stats`, {
+            const statsRes = await fetch(`${getApiBaseURL()}/admin/organizers/${params.id}/stats`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
@@ -64,7 +66,7 @@ export default function OrganizerDetailPage() {
             setStats(statsData);
 
             // Fetch organizer's yatras
-            const yatrasRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra?organizer_id=${params.id}`, {
+            const yatrasRes = await fetch(`${getApiBaseURL()}/admin/yatra?organizer_id=${params.id}`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
@@ -85,7 +87,7 @@ export default function OrganizerDetailPage() {
         if (!confirm('Are you sure you want to unblock this organizer?')) return;
 
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers/${params.id}/block`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/organizers/${params.id}/block`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,

@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getAuthToken } from '@/lib/auth';
@@ -33,7 +35,7 @@ export default function ReportsPage() {
             const params = new URLSearchParams();
             if (filter !== 'all') params.append('status', filter);
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra-reports?${params}`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra-reports?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },

@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -87,7 +89,7 @@ export default function EditYatraPage() {
 
     const fetchYatra = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/yatra/${params.id}`, {
+            const response = await fetch(`${getApiBaseURL()}/yatra/${params.id}`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },
@@ -129,7 +131,7 @@ export default function EditYatraPage() {
         setError(null);
 
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/${params.id}`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/yatra/${params.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,

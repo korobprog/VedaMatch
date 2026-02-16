@@ -1,4 +1,6 @@
 'use client';
+
+import { getApiBaseURL } from '@/lib/api';
 import { getAuthToken } from '@/lib/auth';
 
 import { useState, useEffect } from 'react';
@@ -42,7 +44,7 @@ export default function OrganizersPage() {
             if (filters.minYatras) params.append('min_yatras', filters.minYatras);
             params.append('page', filters.page.toString());
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/organizers?${params}`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/organizers?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                 },

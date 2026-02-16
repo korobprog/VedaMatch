@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getAuthToken } from '@/lib/auth';
@@ -28,7 +30,7 @@ export function TopOrganizersTable() {
         setLoading(true);
         try {
             const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/admin/yatra/analytics/top-organizers?order_by=${orderBy}&limit=10`,
+                `${getApiBaseURL()}/admin/yatra/analytics/top-organizers?order_by=${orderBy}&limit=10`,
                 {
                     headers: {
                         'Authorization': `Bearer ${getAuthToken()}`,

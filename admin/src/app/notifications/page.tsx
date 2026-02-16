@@ -1,5 +1,7 @@
 'use client';
 
+import { getApiBaseURL } from '@/lib/api';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthToken } from '../../lib/auth';
@@ -47,7 +49,7 @@ export default function NotificationsPage() {
         setLoading(true);
         try {
             const token = getAuthToken();
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications?page=${page}&limit=20`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/notifications?page=${page}&limit=20`, {
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
                 },
@@ -68,7 +70,7 @@ export default function NotificationsPage() {
         try {
             const token = getAuthToken();
             if (!token) return;
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/push/health?window_hours=24`, {
+            const response = await fetch(`${getApiBaseURL()}/admin/push/health?window_hours=24`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
@@ -84,7 +86,7 @@ export default function NotificationsPage() {
     const markAsRead = async (id: number) => {
         try {
             const token = getAuthToken();
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/notifications/${id}/read`, {
+            await fetch(`${getApiBaseURL()}/admin/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
