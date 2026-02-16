@@ -164,6 +164,9 @@ out/server/server_linux
 
 server/.env
 *firebase-adminsdk-*.json
+GoogleService-Info.plist
+frontend/GoogleService-Info.plist
+frontend/ios/vedamatch/GoogleService-Info.plist
 
 # Binaries and Executables
 *.exe

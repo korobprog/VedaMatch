@@ -35,6 +35,20 @@ export API_OPEN_AI="ваш_api_ключ"
 
 Для получения API ключа: @FreeApiLLMbot в Telegram
 
+### Firebase iOS (GoogleService-Info.plist)
+
+Файл `ios/vedamatch/GoogleService-Info.plist` содержит публичные идентификаторы Firebase и должен использовать только ограниченный API key.
+
+1. Скачайте актуальный `GoogleService-Info.plist` из Firebase Console.
+2. Создайте локальный файл из шаблона:
+   ```bash
+   cp frontend/ios/vedamatch/GoogleService-Info.plist.example frontend/ios/vedamatch/GoogleService-Info.plist
+   ```
+3. Замените значения в `frontend/ios/vedamatch/GoogleService-Info.plist` на актуальные из Firebase Console.
+4. В GCP обязательно задайте ограничения для API key:
+   - Application restrictions: iOS app (bundle id приложения).
+   - API restrictions: только нужные Firebase/Google API.
+
 Настройки моделей можно изменить в `config/models.config.ts`
 
 ### Режимы работы (Production/Development)

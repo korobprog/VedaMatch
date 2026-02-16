@@ -2,12 +2,20 @@
 import requests
 import json
 import time
+import os
 
 BASE_URL = "https://mute-waterfall-ef1e.makstreid.workers.dev"
 
+def mask_key(api_key):
+    if not api_key:
+        return "<missing>"
+    if len(api_key) <= 8:
+        return "*" * len(api_key)
+    return f"{api_key[:4]}...{api_key[-4:]}"
+
 def test_gemini_key(key_name, api_key):
     print(f"\n🔍 Проверка ключа: {key_name}")
-    print(f"   Ключ: {api_key}")
+    print(f"   Ключ: {mask_key(api_key)}")
     
     url = f"{BASE_URL}/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
@@ -60,11 +68,24 @@ def main():
     print(f"🌐 Прокси URL: {BASE_URL}")
     print("=" * 60)
     
-    # Тестируем первый ключ
-    test_gemini_key("GEMINI", "AIzaSyC0420ZkneTFWOxigmee1q5o3Qt9x7chDU")
-    
-    # Тестируем второй ключ
-    test_gemini_key("GEMINI2", "AIzaSyB3qPUq9Y5FEYjnb70Lol7GOBaBVupz0SY")
+    key_1 = os.getenv("GEMINI_TEST_KEY_1", "").strip()
+    key_2 = os.getenv("GEMINI_TEST_KEY_2", "").strip()
+
+    if not key_1 and not key_2:
+        print("❌ Не заданы GEMINI_TEST_KEY_1 / GEMINI_TEST_KEY_2")
+        print("   Пример запуска:")
+        print("   GEMINI_TEST_KEY_1='your-key' GEMINI_TEST_KEY_2='your-key' python3 server/test_keys.py")
+        return
+
+    if key_1:
+        test_gemini_key("GEMINI_TEST_KEY_1", key_1)
+    else:
+        print("⚠️ GEMINI_TEST_KEY_1 не задан, пропускаю")
+
+    if key_2:
+        test_gemini_key("GEMINI_TEST_KEY_2", key_2)
+    else:
+        print("⚠️ GEMINI_TEST_KEY_2 не задан, пропускаю")
     
     print("=" * 60)
     print("✨ Тестирование завершено")

@@ -110,7 +110,7 @@
           "parameters": [
             {
               "name": "key",
-              "value": "AIzaSyC2ObRpfHRwbA00PTZPS6WdZ8tYHW2KFqE"
+              "value": "REPLACE_WITH_GEMINI_API_KEY"
             }
           ]
         },
@@ -144,7 +144,7 @@
           "parameters": [
             {
               "name": "key",
-              "value": "AIzaSyC2ObRpfHRwbA00PTZPS6WdZ8tYHW2KFqE"
+              "value": "REPLACE_WITH_GEMINI_API_KEY"
             }
           ]
         },
@@ -194,7 +194,7 @@
           "parameters": [
             {
               "name": "key",
-              "value": "AIzaSyC2ObRpfHRwbA00PTZPS6WdZ8tYHW2KFqE"
+              "value": "REPLACE_WITH_GEMINI_API_KEY"
             }
           ]
         },

@@ -14,6 +14,7 @@ import {
     Alert,
     ScrollView,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -57,6 +58,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const { addListener } = useWebSocket();
     const isPhotoBg = portalBackgroundType === 'image';
+    const headerCardBg = isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surfaceElevated;
+    const headerCardBorder = isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border;
+    const headerIconColor = isPhotoBg ? '#FFFFFF' : colors.textPrimary;
 
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputText, setInputText] = useState('');
@@ -301,9 +305,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 <View style={{ maxWidth: '70%', alignItems: 'center' }}>
                     <Text
                         style={{
-                            fontSize: 17,
-                            fontWeight: '700',
-                            color: vTheme.colors.text,
+                            fontSize: 18,
+                            fontWeight: '800',
+                            color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
                             fontFamily: vTheme.typography.header.fontFamily
                         }}
                         numberOfLines={1}
@@ -316,28 +320,59 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 <TouchableOpacity
                     onPress={() => navigation.goBack()}
                     style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
-                        backgroundColor: vTheme.colors.surface,
+                        width: 42,
+                        height: 42,
+                        borderRadius: 21,
+                        backgroundColor: headerCardBg,
                         justifyContent: 'center',
                         alignItems: 'center',
                         marginLeft: 8,
                         borderWidth: 1,
-                        borderColor: vTheme.colors.divider,
+                        borderColor: headerCardBorder,
                         ...vTheme.shadows.soft
                     }}
+                    activeOpacity={0.86}
                 >
-                    <ChevronLeft size={22} color={vTheme.colors.primary} />
+                    <ChevronLeft size={22} color={headerIconColor} />
                 </TouchableOpacity>
             ),
-            headerStyle: {
-                backgroundColor: vTheme.colors.background,
-            },
+            headerStyle: { backgroundColor: 'transparent' },
             headerTitleAlign: 'center',
             headerShadowVisible: false,
+            headerBackground: () => (
+                <View
+                    style={[
+                        StyleSheet.absoluteFill,
+                        {
+                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.55)' : colors.surfaceElevated,
+                            borderBottomWidth: 1,
+                            borderBottomColor: headerCardBorder,
+                        },
+                    ]}
+                >
+                    {(isPhotoBg || isDarkMode) && (
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType={isDarkMode ? 'dark' : 'light'}
+                            blurAmount={14}
+                            reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                        />
+                    )}
+                </View>
+            ),
         });
-    }, [navigation, roomName, vTheme]);
+    }, [
+        colors.surfaceElevated,
+        colors.textPrimary,
+        headerCardBg,
+        headerCardBorder,
+        headerIconColor,
+        isDarkMode,
+        isPhotoBg,
+        navigation,
+        roomName,
+        vTheme,
+    ]);
 
     // Update header buttons based on room type (separate effect to react to roomDetails changes)
     useEffect(() => {
@@ -346,7 +381,20 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
         navigation.setOptions({
             headerRight: () => (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, gap: 10 }}>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginRight: 8,
+                        gap: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        backgroundColor: headerCardBg,
+                        borderColor: headerCardBorder,
+                    }}
+                >
                     <BalancePill size="small" lightMode={false} />
                     {!isYatraChatRoom && (
                         <TouchableOpacity
@@ -355,15 +403,16 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 width: 38,
                                 height: 38,
                                 borderRadius: 19,
-                                backgroundColor: vTheme.colors.surface,
+                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface,
                                 justifyContent: 'center',
                                 alignItems: 'center',
                                 borderWidth: 1,
-                                borderColor: vTheme.colors.divider,
+                                borderColor: headerCardBorder,
                                 ...vTheme.shadows.soft
                             }}
+                            activeOpacity={0.86}
                         >
-                            <UserPlus size={20} color={vTheme.colors.primary} />
+                            <UserPlus size={18} color={headerIconColor} />
                         </TouchableOpacity>
                     )}
                     <TouchableOpacity
@@ -372,20 +421,31 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             width: 38,
                             height: 38,
                             borderRadius: 19,
-                            backgroundColor: vTheme.colors.surface,
+                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface,
                             justifyContent: 'center',
                             alignItems: 'center',
                             borderWidth: 1,
-                            borderColor: vTheme.colors.divider,
+                            borderColor: headerCardBorder,
                             ...vTheme.shadows.soft
                         }}
+                        activeOpacity={0.86}
                     >
-                        <Settings size={20} color={vTheme.colors.primary} />
+                        <Settings size={18} color={headerIconColor} />
                     </TouchableOpacity>
                 </View>
             )
         });
-    }, [navigation, roomDetails, isYatraChat, vTheme]);
+    }, [
+        colors.surface,
+        headerCardBg,
+        headerCardBorder,
+        headerIconColor,
+        isPhotoBg,
+        isYatraChat,
+        navigation,
+        roomDetails,
+        vTheme,
+    ]);
 
     const handleNextVerse = async () => {
         if (!roomDetails || !versesInChapter) return;
@@ -508,19 +568,27 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         const isAudio = item.type === 'audio';
         const isImage = item.type === 'image';
         const isDocument = item.type === 'document';
+        const bubbleBg = item.isMe
+            ? (isPhotoBg ? 'rgba(15,23,42,0.56)' : colors.accentSoft)
+            : (isPhotoBg ? 'rgba(255,255,255,0.18)' : colors.surfaceElevated);
+        const bubbleBorder = item.isMe
+            ? (isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.accent)
+            : (isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border);
+        const messageColor = item.isMe
+            ? (isPhotoBg ? '#FFFFFF' : colors.textPrimary)
+            : (isPhotoBg ? '#FFFFFF' : colors.textPrimary);
+        const timeColor = isPhotoBg ? 'rgba(255,255,255,0.82)' : colors.textSecondary;
 
         return (
             <View style={[
                 styles.messageBubble,
                 item.isMe ? styles.myMessage : styles.otherMessage,
                 {
-                    backgroundColor: item.isMe
-                        ? (isPhotoBg ? 'rgba(255,255,255,0.2)' : colors.accentSoft)
-                        : (isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surfaceElevated),
-                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : colors.border,
+                    backgroundColor: bubbleBg,
+                    borderColor: bubbleBorder,
                 }
             ]}>
-                {!item.isMe && <Text style={[styles.senderName, { color: isPhotoBg ? '#FFFFFF' : colors.accent }]}>{item.sender}</Text>}
+                {!item.isMe && <Text style={[styles.senderName, { color: isPhotoBg ? 'rgba(255,255,255,0.92)' : colors.accent }]}>{item.sender}</Text>}
 
                 {isAudio ? (
                     <AudioPlayer
@@ -556,15 +624,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     >
                         <Text style={{ fontSize: 20, marginRight: 8 }}>📄</Text>
                         <View>
-                            <Text style={[styles.messageText, { color: theme.text }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
-                            <Text style={{ color: theme.subText, fontSize: 10 }}>{mediaService.formatFileSize(item.fileSize ?? 0)}</Text>
+                            <Text style={[styles.messageText, { color: messageColor }]} numberOfLines={1}>{item.fileName || 'Document'}</Text>
+                            <Text style={{ color: timeColor, fontSize: 10 }}>{mediaService.formatFileSize(item.fileSize ?? 0)}</Text>
                         </View>
                     </TouchableOpacity>
                 ) : (
-                    <Text style={[styles.messageText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{item.content}</Text>
+                    <Text style={[styles.messageText, { color: messageColor }]}>{item.content}</Text>
                 )}
 
-                <Text style={[styles.timeText, { color: isPhotoBg ? 'rgba(255,255,255,0.8)' : colors.textSecondary }]}>{item.time}</Text>
+                <Text style={[styles.timeText, { color: timeColor }]}>{item.time}</Text>
             </View>
         );
     };
@@ -789,20 +857,32 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     <View style={[
                         styles.minimalHeader,
                         {
-                            backgroundColor: vTheme.colors.surface,
-                            borderBottomWidth: 1,
-                            borderBottomColor: vTheme.colors.divider,
-                            paddingHorizontal: 20,
-                            paddingVertical: 18,
+                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated,
+                            borderWidth: 1,
+                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border,
+                            borderRadius: 22,
+                            marginHorizontal: 14,
+                            marginTop: 12,
+                            marginBottom: 10,
+                            paddingHorizontal: 16,
+                            paddingVertical: 14,
                             flexDirection: 'row',
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             ...vTheme.shadows.soft
                         }
                     ]}>
+                        {(isPhotoBg || isDarkMode) && (
+                            <BlurView
+                                style={[StyleSheet.absoluteFill, { borderRadius: 22 }]}
+                                blurType={isDarkMode ? 'dark' : 'light'}
+                                blurAmount={12}
+                                reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                            />
+                        )}
                         <View style={{ flex: 1, marginRight: 16 }}>
                             <Text style={[styles.bookTitle, {
-                                color: vTheme.colors.primary,
+                                color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
                                 fontSize: 18,
                                 marginBottom: 2
                             }]} numberOfLines={1}>
@@ -810,7 +890,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             </Text>
                             {roomDetails?.description ? (
                                 <Text style={{
-                                    color: vTheme.colors.textSecondary,
+                                    color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary,
                                     fontSize: 13,
                                     lineHeight: 16
                                 }} numberOfLines={2}>
@@ -824,13 +904,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 style={[
                                     styles.joinCallBtn,
                                     {
-                                        backgroundColor: vTheme.colors.primary,
-                                        borderRadius: 25,
-                                        paddingHorizontal: 20,
+                                        backgroundColor: colors.accent,
+                                        borderRadius: 999,
+                                        paddingHorizontal: 18,
                                         paddingVertical: 10,
                                         flexDirection: 'row',
                                         alignItems: 'center',
                                         gap: 8,
+                                        borderWidth: isPhotoBg ? 1 : 0,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.4)' : 'transparent',
                                         ...vTheme.shadows.soft
                                     }
                                 ]}
@@ -882,11 +964,19 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     style={[
                         styles.inputContainer,
                         {
-                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.5)' : colors.surfaceElevated,
+                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.58)' : colors.surfaceElevated,
                             borderTopColor: isPhotoBg ? 'rgba(255,255,255,0.25)' : colors.border,
                         }
                     ]}
                 >
+                    {(isPhotoBg || isDarkMode) && (
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType={isDarkMode ? 'dark' : 'light'}
+                            blurAmount={12}
+                            reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.72)' : colors.surfaceElevated}
+                        />
+                    )}
                     <TextInput
                         style={[
                             styles.input,
@@ -913,6 +1003,8 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             styles.sendButton,
                             {
                                 backgroundColor: colors.accent,
+                                borderWidth: isPhotoBg ? 1 : 0,
+                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.35)' : 'transparent',
                                 opacity: inputText.trim() && !sending ? 1 : 0.7,
                             }
                         ]}
@@ -946,15 +1038,16 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     minimalHeader: {
         width: '100%',
-        zIndex: 10,
+        zIndex: 8,
+        overflow: 'hidden',
     },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     list: { padding: 16 },
     messageBubble: {
         maxWidth: '80%',
-        padding: 12,
-        borderRadius: 16,
-        marginBottom: 8,
+        padding: 13,
+        borderRadius: 18,
+        marginBottom: 10,
         borderWidth: 1,
     },
     myMessage: {
@@ -972,6 +1065,7 @@ const styles = StyleSheet.create({
     },
     messageText: {
         fontSize: 16,
+        lineHeight: 22,
     },
     timeText: {
         fontSize: 10,
@@ -991,10 +1085,13 @@ const styles = StyleSheet.create({
     },
     inputContainer: {
         flexDirection: 'row',
-        padding: 12,
+        paddingHorizontal: 12,
+        paddingTop: 10,
+        paddingBottom: Platform.OS === 'ios' ? 12 : 10,
         alignItems: 'center',
         borderTopWidth: 1,
         gap: 10,
+        overflow: 'hidden',
     },
     input: {
         flex: 1,
@@ -1008,7 +1105,7 @@ const styles = StyleSheet.create({
     sendButton: {
         width: 44,
         height: 44,
-        borderRadius: 14,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
     },
