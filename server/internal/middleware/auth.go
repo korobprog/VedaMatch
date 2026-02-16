@@ -5,6 +5,7 @@ import (
 	"os"
 	"rag-agent-server/internal/models"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -13,6 +14,12 @@ import (
 // Protected verifies the JWT token
 func Protected() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Telegram support webhook must stay public: Telegram cannot send JWT auth headers.
+		path := strings.TrimSuffix(c.Path(), "/")
+		if path == "/api/integrations/telegram/support/webhook" {
+			return c.Next()
+		}
+
 		tokenString := c.Get("Authorization")
 
 		// Fallback to query parameter (e.g., for WebSockets)
