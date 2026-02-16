@@ -910,46 +910,22 @@ func main() {
 
 	// WebSocket Route
 	api.Use("/ws", func(c *fiber.Ctx) error {
-		if fiberwebsocket.IsWebSocketUpgrade(c) {
-			jwtSecret := os.Getenv("JWT_SECRET")
-			if jwtSecret == "" {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Server auth not configured"})
-			}
-
-			// Extract token from query parameter "token"
-			tokenString := c.Query("token")
-			if tokenString == "" {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing token"})
-			}
-
-			// Parse and validate token
-			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-				}
-				return []byte(jwtSecret), nil
-			})
-
-			if err != nil || !token.Valid {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
-			}
-
-			// Extract claims
-			claims, ok := token.Claims.(jwt.MapClaims)
-			if !ok {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid claims"})
-			}
-
-			// Store user ID in locals for the upgrade handler
-			userIdFloat, ok := claims["userId"].(float64)
-			if !ok {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid user ID in token"})
-			}
-			c.Locals("userId", uint(userIdFloat))
-
-			return c.Next()
+		if !fiberwebsocket.IsWebSocketUpgrade(c) {
+			return c.SendStatus(fiber.StatusUpgradeRequired)
 		}
-		return c.SendStatus(fiber.StatusUpgradeRequired)
+
+		tokenString := c.Query("token")
+		if strings.TrimSpace(tokenString) == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing token"})
+		}
+
+		claims, err := middleware.ParseAccessToken(tokenString)
+		if err != nil || claims == nil || claims.UserID == 0 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
+		}
+
+		c.Locals("userId", claims.UserID)
+		return c.Next()
 	})
 
 	api.Get("/ws/:id", fiberwebsocket.New(func(c *fiberwebsocket.Conn) {

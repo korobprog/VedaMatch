@@ -355,7 +355,7 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {portalBackgroundType === 'image' && portalBackground && (
+            {portalBackgroundType === 'image' && !!portalBackground && (
                 <ImageBackground source={{ uri: portalBackground }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             )}
             <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>

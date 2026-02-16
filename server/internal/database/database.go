@@ -49,7 +49,7 @@ func Connect() {
 	// Auto Migrate - Stage 2: All other tables
 	err = DB.AutoMigrate(
 		// Core models
-		&models.User{}, &models.Friend{}, &models.Message{}, &models.Block{},
+		&models.User{}, &models.AuthSession{}, &models.Friend{}, &models.Message{}, &models.Block{},
 		&models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{},
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
 		&models.ChannelPromotedAdImpression{},
@@ -137,6 +137,14 @@ func Connect() {
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_single_pinned_post
 		ON channel_posts (channel_id)
 		WHERE is_pinned = true`)
+
+	// Message history pagination indexes
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_room_id_id_desc
+		ON messages (room_id, id DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_id_desc
+		ON messages (sender_id, recipient_id, id DESC)`)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_recipient_sender_id_desc
+		ON messages (recipient_id, sender_id, id DESC)`)
 
 	// Backfill support conversation channel for legacy rows created before channel field existed.
 	DB.Exec(`UPDATE support_conversations

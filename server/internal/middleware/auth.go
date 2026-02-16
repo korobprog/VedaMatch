@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"rag-agent-server/internal/models"
@@ -10,6 +11,127 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+type AccessClaims struct {
+	UserID    uint
+	UserRole  string
+	SessionID uint
+}
+
+func parseBearerToken(raw string) string {
+	token := strings.TrimSpace(raw)
+	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+		token = strings.TrimSpace(token[7:])
+	}
+	return token
+}
+
+func parseUintClaim(claims jwt.MapClaims, key string) (uint, bool) {
+	value, exists := claims[key]
+	if !exists || value == nil {
+		return 0, false
+	}
+
+	switch v := value.(type) {
+	case float64:
+		if v <= 0 {
+			return 0, false
+		}
+		return uint(v), true
+	case int:
+		if v <= 0 {
+			return 0, false
+		}
+		return uint(v), true
+	case int64:
+		if v <= 0 {
+			return 0, false
+		}
+		return uint(v), true
+	case uint:
+		if v == 0 {
+			return 0, false
+		}
+		return v, true
+	case string:
+		parsed, err := strconv.ParseUint(strings.TrimSpace(v), 10, 64)
+		if err != nil || parsed == 0 {
+			return 0, false
+		}
+		return uint(parsed), true
+	default:
+		return 0, false
+	}
+}
+
+func parseStringClaim(claims jwt.MapClaims, key string) string {
+	value, exists := claims[key]
+	if !exists || value == nil {
+		return ""
+	}
+	asString, _ := value.(string)
+	return strings.TrimSpace(asString)
+}
+
+func jwtSecret() (string, error) {
+	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if secret == "" {
+		return "", fmt.Errorf("JWT_SECRET not configured")
+	}
+	return secret, nil
+}
+
+func ParseAccessToken(tokenString string) (*AccessClaims, error) {
+	tokenString = parseBearerToken(tokenString)
+	if tokenString == "" {
+		return nil, fmt.Errorf("missing token")
+	}
+
+	secret, err := jwtSecret()
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(secret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid claims")
+	}
+
+	userID, ok := parseUintClaim(claims, "userId")
+	if !ok {
+		return nil, fmt.Errorf("missing userId claim")
+	}
+
+	userRole := parseStringClaim(claims, "role")
+	if userRole == "" {
+		userRole = models.RoleUser
+	}
+
+	sessionID, _ := parseUintClaim(claims, "sessionId")
+	return &AccessClaims{
+		UserID:    userID,
+		UserRole:  userRole,
+		SessionID: sessionID,
+	}, nil
+}
+
+func applyAccessClaims(c *fiber.Ctx, claims *AccessClaims) {
+	if claims == nil {
+		return
+	}
+	c.Locals("userID", claims.UserID)
+	c.Locals("userRole", claims.UserRole)
+	if claims.SessionID > 0 {
+		c.Locals("sessionID", claims.SessionID)
+	}
+}
 
 // Protected verifies the JWT token
 func Protected() fiber.Handler {
@@ -34,62 +156,14 @@ func Protected() fiber.Handler {
 			})
 		}
 
-		// Debug log
-		displayLen := 10
-		if len(tokenString) < displayLen {
-			displayLen = len(tokenString)
-		}
-		log.Printf("[Auth] Debug: Received token starting with %s", tokenString[:displayLen])
-
-		// Remove "Bearer " prefix
-		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
-			tokenString = tokenString[7:]
-		}
-
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			log.Println("[Auth] JWT_SECRET not configured")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Server configuration error",
-			})
-		}
-
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
-		})
-
-		if err != nil || !token.Valid {
+		claims, err := ParseAccessToken(tokenString)
+		if err != nil {
 			log.Printf("[Auth] Invalid token: %v", err)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid or expired token",
 			})
 		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			log.Println("[Auth] Invalid token claims")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token",
-			})
-		}
-
-		userId := claims["userId"]
-		if userId == nil {
-			log.Println("[Auth] Missing userId in token")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token",
-			})
-		}
-
-		// Store userID in context
-		c.Locals("userID", userId)
-
-		// Store userRole in context (if present in token)
-		if role, ok := claims["role"].(string); ok {
-			c.Locals("userRole", role)
-		} else {
-			c.Locals("userRole", models.RoleUser) // Default role
-		}
+		applyAccessClaims(c, claims)
 
 		return c.Next()
 	}
@@ -108,35 +182,12 @@ func OptionalAuth() fiber.Handler {
 			return c.Next()
 		}
 
-		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
-			tokenString = tokenString[7:]
-		}
-
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
+		claims, err := ParseAccessToken(tokenString)
+		if err != nil {
 			return c.Next()
 		}
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
-		})
-		if err != nil || !token.Valid {
-			return c.Next()
-		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			return c.Next()
-		}
-
-		if userId := claims["userId"]; userId != nil {
-			c.Locals("userID", userId)
-		}
-		if role, ok := claims["role"].(string); ok {
-			c.Locals("userRole", role)
-		} else {
-			c.Locals("userRole", models.RoleUser)
-		}
+		applyAccessClaims(c, claims)
 
 		return c.Next()
 	}
@@ -150,10 +201,55 @@ func GetUserID(c *fiber.Ctx) uint {
 	}
 
 	switch v := userID.(type) {
+	case uint:
+		return v
+	case int:
+		if v <= 0 {
+			return 0
+		}
+		return uint(v)
+	case int64:
+		if v <= 0 {
+			return 0
+		}
+		return uint(v)
 	case float64:
 		return uint(v)
 	case string:
 		id, _ := strconv.ParseUint(v, 10, 64)
+		return uint(id)
+	default:
+		return 0
+	}
+}
+
+// GetSessionID extracts sessionID from context.
+func GetSessionID(c *fiber.Ctx) uint {
+	sessionID := c.Locals("sessionID")
+	if sessionID == nil {
+		return 0
+	}
+
+	switch v := sessionID.(type) {
+	case uint:
+		return v
+	case int:
+		if v <= 0 {
+			return 0
+		}
+		return uint(v)
+	case int64:
+		if v <= 0 {
+			return 0
+		}
+		return uint(v)
+	case float64:
+		if v <= 0 {
+			return 0
+		}
+		return uint(v)
+	case string:
+		id, _ := strconv.ParseUint(strings.TrimSpace(v), 10, 64)
 		return uint(id)
 	default:
 		return 0

@@ -31,6 +31,8 @@ const (
 )
 
 var telegramContactPattern = regexp.MustCompile(`^@[A-Za-z0-9_]{4,32}$`)
+var androidVersionPattern = regexp.MustCompile(`(?i)android[\s/]+([0-9][0-9._]*)`)
+var iosVersionPattern = regexp.MustCompile(`(?i)\bos ([0-9_]+)`)
 
 type SupportHandler struct {
 	service        *services.TelegramSupportService
@@ -54,12 +56,36 @@ type supportCreateTicketRequest struct {
 	AttachmentURL      string `json:"attachmentUrl"`
 	AttachmentMimeType string `json:"attachmentMimeType"`
 	ClientRequestID    string `json:"clientRequestId"`
+	DevicePlatform     string `json:"devicePlatform"`
+	DeviceOS           string `json:"deviceOs"`
+	DeviceOSVersion    string `json:"deviceOsVersion"`
+	DeviceModel        string `json:"deviceModel"`
+	AppVersion         string `json:"appVersion"`
+	AppBuild           string `json:"appBuild"`
+	UserAgent          string `json:"userAgent"`
 }
 
 type supportAddMessageRequest struct {
 	Message            string `json:"message"`
 	AttachmentURL      string `json:"attachmentUrl"`
 	AttachmentMimeType string `json:"attachmentMimeType"`
+	DevicePlatform     string `json:"devicePlatform"`
+	DeviceOS           string `json:"deviceOs"`
+	DeviceOSVersion    string `json:"deviceOsVersion"`
+	DeviceModel        string `json:"deviceModel"`
+	AppVersion         string `json:"appVersion"`
+	AppBuild           string `json:"appBuild"`
+	UserAgent          string `json:"userAgent"`
+}
+
+type supportClientContext struct {
+	Platform    string
+	OS          string
+	OSVersion   string
+	DeviceModel string
+	AppVersion  string
+	AppBuild    string
+	UserAgent   string
 }
 
 type supportConversationListItem struct {
@@ -236,6 +262,146 @@ func containsCyrillic(text string) bool {
 	return false
 }
 
+func trimSupportClientContext(ctx supportClientContext) supportClientContext {
+	ctx.Platform = strings.TrimSpace(strings.ToLower(ctx.Platform))
+	ctx.OS = strings.TrimSpace(strings.ToLower(ctx.OS))
+	ctx.OSVersion = strings.TrimSpace(ctx.OSVersion)
+	ctx.DeviceModel = strings.TrimSpace(ctx.DeviceModel)
+	ctx.AppVersion = strings.TrimSpace(ctx.AppVersion)
+	ctx.AppBuild = strings.TrimSpace(ctx.AppBuild)
+	ctx.UserAgent = strings.TrimSpace(ctx.UserAgent)
+	return ctx
+}
+
+func (h *SupportHandler) buildSupportClientContext(c *fiber.Ctx, seed supportClientContext) supportClientContext {
+	ctx := trimSupportClientContext(seed)
+
+	headerUA := strings.TrimSpace(c.Get("User-Agent"))
+	if ctx.UserAgent == "" {
+		ctx.UserAgent = headerUA
+	}
+	lowerUA := strings.ToLower(headerUA)
+
+	if ctx.Platform == "" {
+		switch {
+		case strings.Contains(lowerUA, "android"):
+			ctx.Platform = "android"
+		case strings.Contains(lowerUA, "iphone"), strings.Contains(lowerUA, "ipad"), strings.Contains(lowerUA, "ios"):
+			ctx.Platform = "ios"
+		case strings.Contains(lowerUA, "mozilla"), strings.Contains(lowerUA, "safari"), strings.Contains(lowerUA, "chrome"):
+			ctx.Platform = "web"
+		}
+	}
+
+	if ctx.OS == "" {
+		switch {
+		case strings.Contains(lowerUA, "android"):
+			ctx.OS = "android"
+		case strings.Contains(lowerUA, "iphone"), strings.Contains(lowerUA, "ipad"), strings.Contains(lowerUA, "ios"):
+			ctx.OS = "ios"
+		case strings.Contains(lowerUA, "windows"):
+			ctx.OS = "windows"
+		case strings.Contains(lowerUA, "mac os"), strings.Contains(lowerUA, "macintosh"):
+			ctx.OS = "macos"
+		case strings.Contains(lowerUA, "linux"):
+			ctx.OS = "linux"
+		}
+	}
+
+	if ctx.OSVersion == "" && headerUA != "" {
+		if match := androidVersionPattern.FindStringSubmatch(headerUA); len(match) > 1 {
+			ctx.OSVersion = strings.TrimSpace(match[1])
+		} else if match := iosVersionPattern.FindStringSubmatch(headerUA); len(match) > 1 {
+			ctx.OSVersion = strings.ReplaceAll(strings.TrimSpace(match[1]), "_", ".")
+		}
+	}
+
+	ctx.DeviceModel = truncateSupportField(ctx.DeviceModel, 120)
+	ctx.AppVersion = truncateSupportField(ctx.AppVersion, 64)
+	ctx.AppBuild = truncateSupportField(ctx.AppBuild, 64)
+	ctx.UserAgent = truncateSupportField(ctx.UserAgent, 320)
+	return ctx
+}
+
+func truncateSupportField(value string, maxLen int) string {
+	value = strings.TrimSpace(value)
+	if maxLen <= 0 || value == "" {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) <= maxLen {
+		return value
+	}
+	return string(runes[:maxLen])
+}
+
+func (ctx supportClientContext) hasAny() bool {
+	return ctx.Platform != "" ||
+		ctx.OS != "" ||
+		ctx.OSVersion != "" ||
+		ctx.DeviceModel != "" ||
+		ctx.AppVersion != "" ||
+		ctx.AppBuild != "" ||
+		ctx.UserAgent != ""
+}
+
+func (ctx supportClientContext) toOperatorLines() []string {
+	if !ctx.hasAny() {
+		return nil
+	}
+	lines := make([]string, 0, 7)
+	if ctx.Platform != "" {
+		lines = append(lines, "device_platform: "+ctx.Platform)
+	}
+	if ctx.OS != "" {
+		lines = append(lines, "device_os: "+ctx.OS)
+	}
+	if ctx.OSVersion != "" {
+		lines = append(lines, "device_os_version: "+ctx.OSVersion)
+	}
+	if ctx.DeviceModel != "" {
+		lines = append(lines, "device_model: "+ctx.DeviceModel)
+	}
+	if ctx.AppVersion != "" {
+		lines = append(lines, "app_version: "+ctx.AppVersion)
+	}
+	if ctx.AppBuild != "" {
+		lines = append(lines, "app_build: "+ctx.AppBuild)
+	}
+	if ctx.UserAgent != "" {
+		lines = append(lines, "user_agent: "+ctx.UserAgent)
+	}
+	return lines
+}
+
+func buildSupportAIInput(userText string, ctx supportClientContext) string {
+	clean := strings.TrimSpace(userText)
+	if !ctx.hasAny() {
+		return clean
+	}
+
+	lines := []string{clean, "", "Client context:"}
+	if ctx.Platform != "" {
+		lines = append(lines, "platform="+ctx.Platform)
+	}
+	if ctx.OS != "" {
+		lines = append(lines, "os="+ctx.OS)
+	}
+	if ctx.OSVersion != "" {
+		lines = append(lines, "os_version="+ctx.OSVersion)
+	}
+	if ctx.DeviceModel != "" {
+		lines = append(lines, "device_model="+ctx.DeviceModel)
+	}
+	if ctx.AppVersion != "" {
+		lines = append(lines, "app_version="+ctx.AppVersion)
+	}
+	if ctx.AppBuild != "" {
+		lines = append(lines, "app_build="+ctx.AppBuild)
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
 func (h *SupportHandler) buildTicketNumber() string {
 	for i := 0; i < 6; i++ {
 		now := time.Now().UTC()
@@ -362,7 +528,7 @@ func (h *SupportHandler) createOutboundInAppMessage(conversationID uint, source 
 		Update("first_response_at", &now).Error
 }
 
-func (h *SupportHandler) buildInAppOperatorText(conversation *models.SupportConversation, userText string, attachmentURL string) string {
+func (h *SupportHandler) buildInAppOperatorText(conversation *models.SupportConversation, userText string, attachmentURL string, clientCtx supportClientContext) string {
 	ticket := ""
 	if conversation.TicketNumber != nil {
 		ticket = *conversation.TicketNumber
@@ -395,6 +561,7 @@ func (h *SupportHandler) buildInAppOperatorText(conversation *models.SupportConv
 	if strings.TrimSpace(attachmentURL) != "" {
 		lines = append(lines, "attachment_url: "+strings.TrimSpace(attachmentURL))
 	}
+	lines = append(lines, clientCtx.toOperatorLines()...)
 	lines = append(lines, "Reply to this message to answer user in app.")
 	return strings.Join(lines, "\n")
 }
@@ -405,6 +572,7 @@ func (h *SupportHandler) escalateInAppConversation(
 	inbound *models.SupportMessage,
 	userText string,
 	attachmentURL string,
+	clientCtx supportClientContext,
 	ackText string,
 ) error {
 	if conversation == nil {
@@ -413,7 +581,7 @@ func (h *SupportHandler) escalateInAppConversation(
 	now := time.Now().UTC()
 	operatorChatID := h.getOperatorChatID()
 	if operatorChatID != 0 && h.telegramClient != nil {
-		metaText := h.buildInAppOperatorText(conversation, userText, attachmentURL)
+		metaText := h.buildInAppOperatorText(conversation, userText, attachmentURL, clientCtx)
 		metaMessageID, sendErr := h.telegramClient.SendMessage(ctx.UserContext(), operatorChatID, metaText, services.TelegramSendMessageOptions{})
 		if sendErr == nil {
 			var supportMessageID *uint
@@ -453,6 +621,7 @@ func (h *SupportHandler) routeInAppMessage(
 	inbound *models.SupportMessage,
 	userText string,
 	attachmentURL string,
+	clientCtx supportClientContext,
 ) error {
 	text := strings.TrimSpace(userText)
 	if text == "" {
@@ -462,6 +631,7 @@ func (h *SupportHandler) routeInAppMessage(
 			inbound,
 			text,
 			attachmentURL,
+			clientCtx,
 			"Скриншот получен. Передаем обращение оператору, ответ придет в приложении.",
 		)
 	}
@@ -473,6 +643,7 @@ func (h *SupportHandler) routeInAppMessage(
 			inbound,
 			text,
 			attachmentURL,
+			clientCtx,
 			"Передаем вопрос оператору. Ответ придет в приложении.",
 		)
 	}
@@ -484,13 +655,15 @@ func (h *SupportHandler) routeInAppMessage(
 			inbound,
 			text,
 			attachmentURL,
+			clientCtx,
 			"Передаем вопрос оператору. Ответ придет в приложении.",
 		)
 	}
 
+	aiInput := buildSupportAIInput(text, clientCtx)
 	reply, confidence, err := h.aiResponder.GenerateReply(
 		ctx.UserContext(),
-		text,
+		aiInput,
 		h.detectInAppLanguage(conversation, text),
 	)
 	if err != nil {
@@ -500,6 +673,7 @@ func (h *SupportHandler) routeInAppMessage(
 			inbound,
 			text,
 			attachmentURL,
+			clientCtx,
 			"Не удалось дать точный авто-ответ. Передаем вопрос оператору.",
 		)
 	}
@@ -510,6 +684,7 @@ func (h *SupportHandler) routeInAppMessage(
 			inbound,
 			text,
 			attachmentURL,
+			clientCtx,
 			"Для точного ответа подключаем оператора.",
 		)
 	}
@@ -527,8 +702,9 @@ func (h *SupportHandler) preview(text string) string {
 	if clean == "" {
 		return ""
 	}
-	if len(clean) > 300 {
-		return clean[:300]
+	runes := []rune(clean)
+	if len(runes) > 300 {
+		return string(runes[:300])
 	}
 	return clean
 }
@@ -729,7 +905,15 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.EntryPoint = strings.TrimSpace(strings.ToLower(req.EntryPoint))
 	req.AttachmentURL = strings.TrimSpace(req.AttachmentURL)
+	req.AttachmentMimeType = strings.TrimSpace(req.AttachmentMimeType)
 	req.ClientRequestID = strings.TrimSpace(req.ClientRequestID)
+	req.DevicePlatform = strings.TrimSpace(req.DevicePlatform)
+	req.DeviceOS = strings.TrimSpace(req.DeviceOS)
+	req.DeviceOSVersion = strings.TrimSpace(req.DeviceOSVersion)
+	req.DeviceModel = strings.TrimSpace(req.DeviceModel)
+	req.AppVersion = strings.TrimSpace(req.AppVersion)
+	req.AppBuild = strings.TrimSpace(req.AppBuild)
+	req.UserAgent = strings.TrimSpace(req.UserAgent)
 
 	if req.Subject == "" {
 		req.Subject = "Support request"
@@ -777,6 +961,16 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 			}
 		}
 	}
+
+	clientCtx := h.buildSupportClientContext(c, supportClientContext{
+		Platform:    req.DevicePlatform,
+		OS:          req.DeviceOS,
+		OSVersion:   req.DeviceOSVersion,
+		DeviceModel: req.DeviceModel,
+		AppVersion:  req.AppVersion,
+		AppBuild:    req.AppBuild,
+		UserAgent:   req.UserAgent,
+	})
 
 	now := time.Now().UTC()
 	ticketNumber := h.buildTicketNumber()
@@ -853,7 +1047,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update support conversation"})
 	}
 
-	if err := h.routeInAppMessage(c, &conversation, inbound, req.Message, req.AttachmentURL); err != nil {
+	if err := h.routeInAppMessage(c, &conversation, inbound, req.Message, req.AttachmentURL, clientCtx); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -981,6 +1175,13 @@ func (h *SupportHandler) PostMyTicketMessage(c *fiber.Ctx) error {
 	req.Message = strings.TrimSpace(req.Message)
 	req.AttachmentURL = strings.TrimSpace(req.AttachmentURL)
 	req.AttachmentMimeType = strings.TrimSpace(req.AttachmentMimeType)
+	req.DevicePlatform = strings.TrimSpace(req.DevicePlatform)
+	req.DeviceOS = strings.TrimSpace(req.DeviceOS)
+	req.DeviceOSVersion = strings.TrimSpace(req.DeviceOSVersion)
+	req.DeviceModel = strings.TrimSpace(req.DeviceModel)
+	req.AppVersion = strings.TrimSpace(req.AppVersion)
+	req.AppBuild = strings.TrimSpace(req.AppBuild)
+	req.UserAgent = strings.TrimSpace(req.UserAgent)
 	if req.Message == "" && req.AttachmentURL == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "message or attachment is required"})
 	}
@@ -1032,7 +1233,17 @@ func (h *SupportHandler) PostMyTicketMessage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update ticket"})
 	}
 
-	if err := h.routeInAppMessage(c, conversation, inbound, req.Message, req.AttachmentURL); err != nil {
+	clientCtx := h.buildSupportClientContext(c, supportClientContext{
+		Platform:    req.DevicePlatform,
+		OS:          req.DeviceOS,
+		OSVersion:   req.DeviceOSVersion,
+		DeviceModel: req.DeviceModel,
+		AppVersion:  req.AppVersion,
+		AppBuild:    req.AppBuild,
+		UserAgent:   req.UserAgent,
+	})
+
+	if err := h.routeInAppMessage(c, conversation, inbound, req.Message, req.AttachmentURL, clientCtx); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

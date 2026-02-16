@@ -18,6 +18,12 @@ const (
 	MetricBookingsFromChannelTotal   = "bookings_from_channel_total"
 	MetricPromotedAdsServedTotal     = "promoted_ads_served_total"
 	MetricPromotedAdsClickedTotal    = "promoted_ads_clicked_total"
+
+	MetricAuthRefreshSuccess = "auth_refresh_success"
+	MetricAuthRefreshFail    = "auth_refresh_fail"
+	MetricChatHistoryLatency = "chat_history_latency"
+	MetricRAGLiteTimeout     = "rag_lite_timeout"
+	MetricPushSendFail       = "push_send_fail"
 )
 
 type MetricsService struct {

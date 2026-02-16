@@ -396,7 +396,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {portalBackgroundType === 'image' && portalBackground && (
+            {portalBackgroundType === 'image' && !!portalBackground && (
                 <ImageBackground source={{ uri: portalBackground }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             )}
             <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
@@ -635,7 +635,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                                 >
                                                     <Text style={{ color: city ? theme.inputText : theme.subText }}>{city || (country ? t('registration.selectCity') : t('registration.selectCountry'))}</Text>
                                                 </TouchableOpacity>
-                                                {country && (
+                                                {!!country && (
                                                     <TouchableOpacity
                                                         style={[styles.input, { width: 50, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center' }]}
                                                         onPress={() => setCityInputMode(true)}

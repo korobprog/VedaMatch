@@ -192,7 +192,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         color={portalBackgroundType === 'image' ? '#ffffff' : service.color}
                         strokeWidth={2}
                     />
-                    {badge && badge > 0 && (
+                    {badge != null && badge > 0 && (
                         <View style={[styles.badge, { backgroundColor: '#EF4444' }]}>
                             <Text style={styles.badgeText}>
                                 {badge > 99 ? '99+' : badge}
