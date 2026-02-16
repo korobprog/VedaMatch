@@ -742,3 +742,135 @@ func TestSupportInAppRelay_OperatorReplyCreatesInAppMessageAndRelay(t *testing.T
 		t.Fatalf("expected first response timestamp to be set")
 	}
 }
+
+func TestSupportTextHighConfidence_DoesNotEscalate(t *testing.T) {
+	store := newMemorySupportStore()
+	client := newFakeTelegramClient()
+	ai := &fakeSupportAIResponder{reply: "Автоответ готов.", confidence: 0.95}
+	storage := &fakeMediaStorage{}
+
+	service := NewTelegramSupportServiceWithDeps(
+		store,
+		client,
+		storage,
+		ai,
+		newSettingsProvider(map[string]string{
+			"SUPPORT_TELEGRAM_OPERATOR_CHAT_ID": "777",
+			"SUPPORT_AI_ENABLED":                "true",
+			"SUPPORT_AI_CONFIDENCE_THRESHOLD":   "0.55",
+		}),
+	)
+
+	update := &TelegramUpdate{
+		UpdateID: 7001,
+		Message: &TelegramMessage{
+			MessageID: 9001,
+			Date:      time.Now().Unix(),
+			Text:      "Как обновить профиль?",
+			From: &TelegramUser{
+				ID:           123,
+				FirstName:    "User",
+				LanguageCode: "ru",
+			},
+			Chat: &TelegramChat{
+				ID:   123,
+				Type: "private",
+			},
+		},
+	}
+
+	if err := service.ProcessUpdate(context.Background(), update); err != nil {
+		t.Fatalf("process update failed: %v", err)
+	}
+	if ai.calls != 1 {
+		t.Fatalf("expected one AI call, got %d", ai.calls)
+	}
+	if len(client.copyCalls) != 0 {
+		t.Fatalf("expected no escalation copy calls, got %d", len(client.copyCalls))
+	}
+
+	var conv *models.SupportConversation
+	for _, c := range store.conversationsByID {
+		conv = c
+		break
+	}
+	if conv == nil {
+		t.Fatalf("conversation not created")
+	}
+	if conv.EscalatedToOperator {
+		t.Fatalf("expected conversation not escalated")
+	}
+
+	var foundAutoReply bool
+	for _, sent := range client.sentMessages {
+		if sent.ChatID == 123 && strings.Contains(sent.Text, "Автоответ") {
+			foundAutoReply = true
+			break
+		}
+	}
+	if !foundAutoReply {
+		t.Fatalf("expected AI auto reply in chat")
+	}
+}
+
+func TestSupportTextLowConfidence_EscalatesToOperator(t *testing.T) {
+	store := newMemorySupportStore()
+	client := newFakeTelegramClient()
+	ai := &fakeSupportAIResponder{reply: "Не уверен", confidence: 0.2}
+	storage := &fakeMediaStorage{}
+
+	service := NewTelegramSupportServiceWithDeps(
+		store,
+		client,
+		storage,
+		ai,
+		newSettingsProvider(map[string]string{
+			"SUPPORT_TELEGRAM_OPERATOR_CHAT_ID": "777",
+			"SUPPORT_AI_ENABLED":                "true",
+			"SUPPORT_AI_CONFIDENCE_THRESHOLD":   "0.55",
+		}),
+	)
+
+	update := &TelegramUpdate{
+		UpdateID: 7002,
+		Message: &TelegramMessage{
+			MessageID: 9002,
+			Date:      time.Now().Unix(),
+			Text:      "Не могу войти в аккаунт",
+			From: &TelegramUser{
+				ID:           124,
+				FirstName:    "User",
+				LanguageCode: "ru",
+			},
+			Chat: &TelegramChat{
+				ID:   124,
+				Type: "private",
+			},
+		},
+	}
+
+	if err := service.ProcessUpdate(context.Background(), update); err != nil {
+		t.Fatalf("process update failed: %v", err)
+	}
+	if ai.calls != 1 {
+		t.Fatalf("expected one AI call, got %d", ai.calls)
+	}
+	if len(client.copyCalls) == 0 {
+		t.Fatalf("expected escalation copy call to operator chat")
+	}
+	if client.copyCalls[0].ToChatID != 777 {
+		t.Fatalf("expected escalation to operator chat 777, got %d", client.copyCalls[0].ToChatID)
+	}
+
+	var conv *models.SupportConversation
+	for _, c := range store.conversationsByID {
+		conv = c
+		break
+	}
+	if conv == nil {
+		t.Fatalf("conversation not created")
+	}
+	if !conv.EscalatedToOperator {
+		t.Fatalf("expected conversation to be escalated")
+	}
+}

@@ -139,6 +139,24 @@ func (h *SupportHandler) getOperatorChatID() int64 {
 	return id
 }
 
+func (h *SupportHandler) supportInAppTicketAllowed(userID uint, ip string) bool {
+	telegramBotURL := strings.TrimSpace(getSupportSetting("SUPPORT_TELEGRAM_BOT_URL"))
+	channelURL := strings.TrimSpace(getSupportSetting("SUPPORT_CHANNEL_URL"))
+	hasTelegramChannel := telegramBotURL != "" || channelURL != ""
+	if !hasTelegramChannel {
+		// Fallback ticket must stay available when Telegram is not configured.
+		return true
+	}
+
+	appEntryEnabled := parseSupportBool(getSupportSetting("SUPPORT_APP_ENTRY_ENABLED"), false)
+	if !appEntryEnabled {
+		return false
+	}
+
+	rolloutPercent := parseSupportInt(getSupportSetting("SUPPORT_APP_ENTRY_ROLLOUT_PERCENT"), 10, 0, 100)
+	return h.isRolloutEligible(userID, ip, rolloutPercent)
+}
+
 func (h *SupportHandler) aiEnabled() bool {
 	raw := strings.ToLower(strings.TrimSpace(getSupportSetting("SUPPORT_AI_ENABLED")))
 	if raw == "" {
@@ -301,6 +319,16 @@ func isValidSupportContact(value string) bool {
 		return false
 	}
 	return strings.TrimSpace(addr.Address) != ""
+}
+
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "duplicate") ||
+		strings.Contains(lower, "unique constraint") ||
+		strings.Contains(lower, "unique violation")
 }
 
 func (h *SupportHandler) createOutboundInAppMessage(conversationID uint, source models.SupportMessageSource, text string, now time.Time) error {
@@ -617,6 +645,10 @@ func (h *SupportHandler) GetPublicConfig(c *fiber.Ctx) error {
 // POST /api/support/uploads
 func (h *SupportHandler) UploadAttachment(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if !h.supportInAppTicketAllowed(userID, c.IP()) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "in-app support is not available for this account yet"})
+	}
+
 	if userID == 0 {
 		bucket := "support_upload:" + strings.TrimSpace(c.IP())
 		if !h.rateLimiter.allow(bucket, supportUploadRateLimit, supportUploadRateWindow) {
@@ -675,6 +707,10 @@ func (h *SupportHandler) UploadAttachment(c *fiber.Ctx) error {
 // POST /api/support/tickets
 func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
+	if !h.supportInAppTicketAllowed(userID, c.IP()) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "in-app support is not available for this account yet"})
+	}
+
 	if userID == 0 {
 		bucket := "support_ticket:" + strings.TrimSpace(c.IP())
 		if !h.rateLimiter.allow(bucket, supportTicketRateLimit, supportTicketRateWindow) {
@@ -769,6 +805,21 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		LastUserReadAt:   &now,
 	}
 	if err := database.DB.Create(&conversation).Error; err != nil {
+		if isUniqueViolation(err) && req.ClientRequestID != "" {
+			query := database.DB.Where("channel = ? AND client_request_id = ?", models.SupportConversationChannelInApp, req.ClientRequestID)
+			if userID > 0 {
+				query = query.Where("app_user_id = ?", userID)
+			} else {
+				query = query.Where("requester_contact = ?", req.Contact)
+			}
+			var existing models.SupportConversation
+			if fetchErr := query.First(&existing).Error; fetchErr == nil {
+				return c.JSON(fiber.Map{
+					"conversation": existing,
+					"idempotent":   true,
+				})
+			}
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create support conversation"})
 	}
 
