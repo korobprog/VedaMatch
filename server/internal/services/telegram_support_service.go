@@ -463,7 +463,16 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 		return errors.New("telegram support client is not configured")
 	}
 
-	message := "Welcome to VedaMatch support.\nChoose an option below or send your question."
+	message := strings.Join([]string{
+		"Добро пожаловать в поддержку VedaMatch.",
+		"",
+		"Как пользоваться чатом:",
+		"1. Опишите вопрос одним сообщением.",
+		"2. При необходимости прикрепите скриншот.",
+		"3. Оператор ответит здесь, просто отвечайте в этом же чате.",
+		"",
+		"Кнопки ниже: ссылки на приложения и наш канал.",
+	}, "\n")
 	replyMarkup := s.buildStartButtons()
 
 	messageID, err := s.client.SendMessage(ctx, chatID, message, TelegramSendMessageOptions{
@@ -584,9 +593,9 @@ func (s *TelegramSupportService) buildStartButtons() map[string]interface{} {
 		})
 	}
 
-	addButton("Download iOS", s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
-	addButton("Download Android", s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
-	addButton("Our Channel", s.getSetting("SUPPORT_CHANNEL_URL"))
+	addButton(s.buttonLabel("SUPPORT_DOWNLOAD_IOS_TEXT", "Скачать iOS"), s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
+	addButton(s.buttonLabel("SUPPORT_DOWNLOAD_ANDROID_TEXT", "Скачать Android"), s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
+	addButton(s.buttonLabel("SUPPORT_CHANNEL_TEXT", "Наш канал"), s.getSetting("SUPPORT_CHANNEL_URL"))
 
 	if len(rows) == 0 {
 		return nil
@@ -594,6 +603,14 @@ func (s *TelegramSupportService) buildStartButtons() map[string]interface{} {
 	return map[string]interface{}{
 		"inline_keyboard": rows,
 	}
+}
+
+func (s *TelegramSupportService) buttonLabel(settingKey, fallback string) string {
+	label := strings.TrimSpace(s.getSetting(settingKey))
+	if label == "" {
+		return fallback
+	}
+	return label
 }
 
 func (s *TelegramSupportService) buildOperatorTechText(conversationID uint, telegramChatID int64, now time.Time, caption string, mediaURL string) string {

@@ -189,8 +189,9 @@ type fakeTelegramClient struct {
 }
 
 type fakeSentMessage struct {
-	ChatID int64
-	Text   string
+	ChatID  int64
+	Text    string
+	Options TelegramSendMessageOptions
 }
 
 type fakeCopyCall struct {
@@ -213,8 +214,8 @@ func (c *fakeTelegramClient) nextID() int64 {
 	return c.nextMessageID
 }
 
-func (c *fakeTelegramClient) SendMessage(_ context.Context, chatID int64, text string, _ TelegramSendMessageOptions) (int64, error) {
-	c.sentMessages = append(c.sentMessages, fakeSentMessage{ChatID: chatID, Text: text})
+func (c *fakeTelegramClient) SendMessage(_ context.Context, chatID int64, text string, options TelegramSendMessageOptions) (int64, error) {
+	c.sentMessages = append(c.sentMessages, fakeSentMessage{ChatID: chatID, Text: text, Options: options})
 	return c.nextID(), nil
 }
 
@@ -362,6 +363,97 @@ func TestSupportPhotoFlow_DoesNotCallAI(t *testing.T) {
 	}
 	if !foundImage {
 		t.Fatalf("expected inbound image support message")
+	}
+}
+
+func TestSupportStartMessage_IncludesUsageGuide(t *testing.T) {
+	store := newMemorySupportStore()
+	client := newFakeTelegramClient()
+	ai := &fakeSupportAIResponder{}
+	storage := &fakeMediaStorage{}
+
+	service := NewTelegramSupportServiceWithDeps(
+		store,
+		client,
+		storage,
+		ai,
+		newSettingsProvider(map[string]string{
+			"SUPPORT_DOWNLOAD_IOS_URL":     "https://apps.apple.com/app/id123",
+			"SUPPORT_DOWNLOAD_ANDROID_URL": "https://play.google.com/store/apps/details?id=app",
+			"SUPPORT_CHANNEL_URL":          "https://t.me/vedamatch",
+		}),
+	)
+
+	update := &TelegramUpdate{
+		UpdateID: 21,
+		Message: &TelegramMessage{
+			MessageID: 501,
+			Date:      time.Now().Unix(),
+			Text:      "/start",
+			From: &TelegramUser{
+				ID:           77,
+				FirstName:    "Starter",
+				LanguageCode: "ru",
+			},
+			Chat: &TelegramChat{
+				ID:   77,
+				Type: "private",
+			},
+		},
+	}
+
+	if err := service.ProcessUpdate(context.Background(), update); err != nil {
+		t.Fatalf("start update failed: %v", err)
+	}
+
+	var gotGuide bool
+	for _, sent := range client.sentMessages {
+		if sent.ChatID != 77 {
+			continue
+		}
+		if strings.Contains(sent.Text, "Как пользоваться чатом:") &&
+			strings.Contains(sent.Text, "1. Опишите вопрос одним сообщением.") &&
+			strings.Contains(sent.Text, "2. При необходимости прикрепите скриншот.") {
+			gotGuide = true
+			break
+		}
+	}
+	if !gotGuide {
+		t.Fatalf("expected /start message to include usage guide")
+	}
+
+	var hasRuButtons bool
+	for _, sent := range client.sentMessages {
+		if sent.ChatID != 77 || sent.Options.ReplyMarkup == nil {
+			continue
+		}
+		rawRows, ok := sent.Options.ReplyMarkup["inline_keyboard"]
+		if !ok {
+			continue
+		}
+		rows, ok := rawRows.([][]map[string]string)
+		if !ok {
+			continue
+		}
+		var buttonTexts []string
+		for _, row := range rows {
+			for _, button := range row {
+				buttonTexts = append(buttonTexts, button["text"])
+			}
+		}
+		hasRuButtons = strings.Contains(strings.Join(buttonTexts, "|"), "Скачать iOS") &&
+			strings.Contains(strings.Join(buttonTexts, "|"), "Скачать Android") &&
+			strings.Contains(strings.Join(buttonTexts, "|"), "Наш канал")
+		if hasRuButtons {
+			break
+		}
+	}
+	if !hasRuButtons {
+		t.Fatalf("expected /start buttons to be in russian")
+	}
+
+	if ai.calls != 0 {
+		t.Fatalf("expected AI not to be called for /start, got %d", ai.calls)
 	}
 }
 
