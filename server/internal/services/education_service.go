@@ -1,6 +1,7 @@
 package services
 
 import (
+	"log"
 	"rag-agent-server/internal/models"
 	"time"
 
@@ -127,7 +128,7 @@ func (s *EducationService) SubmitExamAttempt(userID uint, moduleID uint, answers
 	if passed {
 		status = "completed"
 	}
-	
+
 	progress := models.UserModuleProgress{
 		UserID:          userID,
 		ModuleID:        moduleID,
@@ -135,8 +136,18 @@ func (s *EducationService) SubmitExamAttempt(userID uint, moduleID uint, answers
 		ProgressPercent: 100, // For a module exam, completion is 100%
 		LastAccessedAt:  time.Now(),
 	}
-	
+
 	s.db.Where("user_id = ? AND module_id = ?", userID, moduleID).Assign(progress).FirstOrCreate(&progress)
+
+	// Non-blocking tutor weak-topic signal update from exam result.
+	if s.db != nil && userID != 0 {
+		go func(uid, mid uint, sc, total int, isPassed bool) {
+			tutorService := NewEducationTutorService(s.db)
+			if err := tutorService.UpsertExamSignal(uid, mid, sc, total, isPassed); err != nil {
+				log.Printf("[EducationService] tutor exam signal warning user=%d module=%d err=%v", uid, mid, err)
+			}
+		}(userID, moduleID, score, totalPoints, passed)
+	}
 
 	return attempt, nil
 }

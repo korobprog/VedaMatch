@@ -1122,6 +1122,12 @@ func (s *DomainAssistantService) syncEducation(ctx context.Context, since time.T
 		sourceID := strconv.FormatUint(uint64(course.ID), 10)
 		if !course.IsPublished {
 			s.deleteDocumentLogged("education", "course", sourceID, "ru", models.VisibilityScopePublic, 0)
+			var moduleIDs []uint
+			if err := s.db.Model(&models.EducationModule{}).Where("course_id = ?", course.ID).Pluck("id", &moduleIDs).Error; err == nil {
+				for _, moduleID := range moduleIDs {
+					s.deleteDocumentLogged("education", "module", strconv.FormatUint(uint64(moduleID), 10), "ru", models.VisibilityScopePublic, 0)
+				}
+			}
 			continue
 		}
 
@@ -1141,6 +1147,44 @@ func (s *DomainAssistantService) syncEducation(ctx context.Context, since time.T
 			Title:           course.Title,
 			Content:         content,
 			SourceURL:       fmt.Sprintf("/education/courses/%d", course.ID),
+			Language:        "ru",
+			VisibilityScope: models.VisibilityScopePublic,
+			UserID:          0,
+			Metadata:        meta,
+		})
+	}
+
+	var modules []models.EducationModule
+	if err := s.db.Where("updated_at >= ?", since).Find(&modules).Error; err != nil {
+		return err
+	}
+	for _, module := range modules {
+		sourceID := strconv.FormatUint(uint64(module.ID), 10)
+		var course models.EducationCourse
+		if err := s.db.Select("id", "title", "organization", "is_published").Where("id = ?", module.CourseID).First(&course).Error; err != nil {
+			s.deleteDocumentLogged("education", "module", sourceID, "ru", models.VisibilityScopePublic, 0)
+			continue
+		}
+		if !course.IsPublished {
+			s.deleteDocumentLogged("education", "module", sourceID, "ru", models.VisibilityScopePublic, 0)
+			continue
+		}
+
+		content := fmt.Sprintf("Модуль: %s. Курс: %s. Порядок: %d. Организация: %s. Описание: %s.",
+			module.Title, course.Title, module.Order, course.Organization, normalizeWhitespace(module.Description))
+		meta := map[string]interface{}{
+			"courseId":     module.CourseID,
+			"courseTitle":  course.Title,
+			"organization": course.Organization,
+			"moduleOrder":  module.Order,
+		}
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
+			Domain:          "education",
+			SourceType:      "module",
+			SourceID:        sourceID,
+			Title:           module.Title,
+			Content:         content,
+			SourceURL:       fmt.Sprintf("/education/courses/%d#module-%d", module.CourseID, module.ID),
 			Language:        "ru",
 			VisibilityScope: models.VisibilityScopePublic,
 			UserID:          0,

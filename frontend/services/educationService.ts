@@ -4,7 +4,13 @@ import {
     EducationCourse, 
     EducationModule, 
     ExamQuestion, 
-    UserExamAttempt 
+    UserExamAttempt,
+    TutorTurnRequest,
+    TutorTurnResponse,
+    TutorWeakTopicsResponse,
+    TutorMemoryScope,
+    TutorMemoryClearResponse,
+    TutorStatusResponse,
 } from '../types/education';
 import { getGodModeQueryParams } from './godModeService';
 import { getAccessToken } from './authSessionService';
@@ -67,6 +73,57 @@ class EducationService {
             return response.data;
         } catch (error) {
             console.error(`Error submitting exam for module ${moduleId}:`, error);
+            throw error;
+        }
+    }
+
+    // Protected: AI Tutor Turn
+    async tutorTurn(payload: TutorTurnRequest): Promise<TutorTurnResponse> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.post(`${API_PATH}/education/tutor/turn`, payload, { headers });
+            return response.data;
+        } catch (error) {
+            console.error('Error executing AI tutor turn:', error);
+            throw error;
+        }
+    }
+
+    // Protected: AI Tutor feature status
+    async getTutorStatus(): Promise<TutorStatusResponse> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.get(`${API_PATH}/education/tutor/status`, { headers });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching AI tutor status:', error);
+            throw error;
+        }
+    }
+
+    // Protected: AI Tutor weak topics snapshot
+    async getTutorWeakTopics(): Promise<TutorWeakTopicsResponse> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.get(`${API_PATH}/education/tutor/weak-topics`, { headers });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching AI tutor weak topics:', error);
+            throw error;
+        }
+    }
+
+    // Protected: AI Tutor memory cleanup
+    async clearTutorMemory(scope: TutorMemoryScope = 'all'): Promise<TutorMemoryClearResponse> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.delete(`${API_PATH}/education/tutor/memory`, {
+                headers,
+                params: { scope },
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error clearing AI tutor memory:', error);
             throw error;
         }
     }

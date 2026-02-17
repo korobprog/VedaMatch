@@ -99,6 +99,7 @@ import { MapGeoapifyScreen } from './screens/portal/map/MapGeoapifyScreen';
 import { EducationHomeScreen } from './screens/portal/education/EducationHomeScreen';
 import { CourseDetailsScreen } from './screens/portal/education/CourseDetailsScreen';
 import { ExamTrainerScreen } from './screens/portal/education/ExamTrainerScreen';
+import { AITutorScreen } from './screens/portal/education/AITutorScreen';
 
 import {
   CafeListScreen,
@@ -434,6 +435,7 @@ const AppContent = () => {
                   <Stack.Screen name="EducationHome" component={EducationHomeScreen} options={{ headerShown: true, title: 'Обучение' }} />
                   <Stack.Screen name="CourseDetails" component={CourseDetailsScreen} options={{ headerShown: true, title: 'Курс' }} />
                   <Stack.Screen name="ExamTrainer" component={ExamTrainerScreen} options={{ headerShown: true, title: 'Тренажер' }} />
+                  <Stack.Screen name="AITutor" component={AITutorScreen} options={{ headerShown: true, title: t('education.aiTutor.title') }} />
 
                   {/* Multimedia Routes */}
                   <Stack.Screen name="MultimediaHub" component={MultimediaHubScreen} />

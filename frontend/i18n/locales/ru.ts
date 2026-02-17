@@ -644,7 +644,26 @@ export default {
         questionInfo: 'Вопрос {{current}} из {{total}}',
         source: 'Источник',
         next: 'Далее',
-        finish: 'Завершить'
+        finish: 'Завершить',
+        aiTutor: {
+            ctaTitle: 'AI Tutor',
+            ctaSubtitle: 'Персональный помощник по модулям с источниками',
+            title: 'AI Tutor',
+            subtitle: 'Объясняет темы и подбирает ответ только по данным Education',
+            inputPlaceholder: 'Спросите по теме модуля или экзамена...',
+            emptyTitle: 'Начните диалог с AI Tutor',
+            emptySubtitle: 'Ответы строятся на ваших учебных данных и материалах курса.',
+            weakTopicsTitle: 'Слабые темы',
+            noWeakTopics: 'Слабые темы пока не обнаружены.',
+            clearMemoryTitle: 'Очистить память AI Tutor',
+            clearMemoryDescription: 'Будут удалены сохраненные воспоминания и слабые темы.',
+            clearMemoryAction: 'Очистить память',
+            memoryCleared: 'Память AI Tutor очищена.',
+            clearMemoryError: 'Не удалось очистить память AI Tutor',
+            turnError: 'Не удалось получить ответ от AI Tutor',
+            disabledTitle: 'AI Tutor временно недоступен',
+            disabledSubtitle: 'Функция выключена администратором. Попробуйте позже.',
+        },
     },
 
     chat: {

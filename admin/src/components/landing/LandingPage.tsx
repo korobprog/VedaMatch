@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { HeroSection } from './HeroSection';
 import { FeaturesSection } from './FeaturesSection';
 import { ScrollSection } from './ScrollSection';
+import { TeamSection } from './TeamSection';
 import { motion } from 'framer-motion';
 import { LogOut, User as UserIcon, Grid, ArrowRight, MessageCircle } from 'lucide-react';
 
@@ -95,6 +96,7 @@ export default function LandingPage() {
             <main>
                 <HeroSection />
                 <FeaturesSection />
+                <TeamSection />
 
                 {/* Community Section */}
                 <section className="py-24 bg-[#faf9f6] relative overflow-hidden">

@@ -73,6 +73,8 @@ func main() {
 	services.StartNewsScheduler()
 	// Start Room Notification Scheduler
 	services.StartRoomNotificationScheduler()
+	// Start Education Tutor retention scheduler (memory cleanup by retention policy)
+	services.StartEducationTutorRetentionScheduler()
 
 	// Start Booking Reminder Worker
 	workers.StartBookingReminderWorker()
@@ -213,6 +215,7 @@ func main() {
 	productHandler := handlers.NewProductHandler()
 	orderHandler := handlers.NewOrderHandler()
 	educationHandler := handlers.NewEducationHandler(services.NewEducationService(database.DB))
+	educationTutorHandler := handlers.NewEducationTutorHandler(services.NewEducationTutorService(database.DB))
 	turnHandler := handlers.NewTurnHandler()
 	userHandler := handlers.NewUserHandler()
 	mapHandler := handlers.NewMapHandler()
@@ -395,6 +398,7 @@ func main() {
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
 	admin.Post("/push/test", adminHandler.SendTestPush)
 	admin.Get("/push/health", adminHandler.GetPushHealth)
+	admin.Get("/education/tutor/metrics", adminHandler.GetEducationTutorMetrics)
 	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)
 
 	// RAG Management
@@ -608,6 +612,10 @@ func main() {
 	// Education Routes (Protected)
 	protected.Get("/education/modules/:moduleId/exams", educationHandler.GetModuleExams)
 	protected.Post("/education/modules/:moduleId/submit", educationHandler.SubmitExam)
+	protected.Get("/education/tutor/status", educationTutorHandler.GetStatus)
+	protected.Post("/education/tutor/turn", educationTutorHandler.TutorTurn)
+	protected.Get("/education/tutor/weak-topics", educationTutorHandler.GetWeakTopics)
+	protected.Delete("/education/tutor/memory", educationTutorHandler.ClearMemory)
 
 	protected.Put("/update-profile", authHandler.UpdateProfile)
 	protected.Put("/update-push-token", authHandler.UpdatePushToken)

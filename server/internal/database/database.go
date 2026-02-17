@@ -76,6 +76,8 @@ func Connect() {
 		&models.EducationCourse{}, &models.EducationModule{},
 		&models.ExamQuestion{}, &models.AnswerOption{},
 		&models.UserExamAttempt{}, &models.UserModuleProgress{},
+		&models.EducationWeakTopic{},
+		&models.EducationTutorLatencyEvent{},
 		// RAG models
 		&models.Document{}, &models.Chunk{},
 		&models.ChatSession{}, &models.ChatMessage{},

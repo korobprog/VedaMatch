@@ -19,11 +19,22 @@ const (
 	MetricPromotedAdsServedTotal     = "promoted_ads_served_total"
 	MetricPromotedAdsClickedTotal    = "promoted_ads_clicked_total"
 
-	MetricAuthRefreshSuccess = "auth_refresh_success"
-	MetricAuthRefreshFail    = "auth_refresh_fail"
-	MetricChatHistoryLatency = "chat_history_latency"
-	MetricRAGLiteTimeout     = "rag_lite_timeout"
-	MetricPushSendFail       = "push_send_fail"
+	MetricAuthRefreshSuccess                 = "auth_refresh_success"
+	MetricAuthRefreshFail                    = "auth_refresh_fail"
+	MetricChatHistoryLatency                 = "chat_history_latency"
+	MetricRAGLiteTimeout                     = "rag_lite_timeout"
+	MetricPushSendFail                       = "push_send_fail"
+	MetricEduTutorTurnTotal                  = "edu_tutor_turn_total"
+	MetricEduTutorNoDataTotal                = "edu_tutor_no_data_total"
+	MetricEduTutorExtractorFailTotal         = "edu_tutor_extractor_fail_total"
+	MetricEduTutorMemoryUpsertTotal          = "edu_tutor_memory_upsert_total"
+	MetricEduTutorRetentionCleanupTotal      = "edu_tutor_retention_cleanup_total"
+	MetricEduTutorRetentionCleanupErrorTotal = "edu_tutor_retention_cleanup_error_total"
+	MetricEduTutorRetentionDocsDeletedTotal  = "edu_tutor_retention_docs_deleted_total"
+	MetricEduTutorRetentionWeakDeletedTotal  = "edu_tutor_retention_weak_deleted_total"
+	MetricEduTutorTurnLatencyMsTotal         = "edu_tutor_turn_latency_ms_total"
+	MetricEduTutorRetrievalLatencyMsTotal    = "edu_tutor_retrieval_latency_ms_total"
+	MetricEduTutorRetrievalErrorTotal        = "edu_tutor_retrieval_error_total"
 )
 
 type MetricsService struct {

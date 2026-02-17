@@ -7,7 +7,7 @@ import {
     RefreshControl,
     ScrollView,
 } from 'react-native';
-import { Book, ChevronRight, Sparkles, GraduationCap } from 'lucide-react-native';
+import { Book, ChevronRight, Sparkles, GraduationCap, Brain } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
@@ -33,16 +33,29 @@ export const EducationHomeScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isTutorEnabled, setIsTutorEnabled] = useState(false);
 
     const loadCourses = async () => {
         try {
             setError(null);
             if (!refreshing) setLoading(true);
-            const data = await educationService.getCourses();
-            setCourses(data);
-        } catch (error) {
-            console.error('Error loading courses:', error);
-            setError(t('education.loadError'));
+            const [coursesResult, tutorStatusResult] = await Promise.allSettled([
+                educationService.getCourses(),
+                educationService.getTutorStatus(),
+            ]);
+
+            if (tutorStatusResult.status === 'fulfilled') {
+                setIsTutorEnabled(Boolean(tutorStatusResult.value?.enabled));
+            } else {
+                setIsTutorEnabled(false);
+            }
+
+            if (coursesResult.status === 'fulfilled') {
+                setCourses(coursesResult.value);
+            } else {
+                console.error('Error loading courses:', coursesResult.reason);
+                setError(t('education.loadError'));
+            }
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -138,6 +151,38 @@ export const EducationHomeScreen: React.FC = () => {
                 <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>{t('education.title')}</Text>
                 <Text style={[styles.headerSub, { color: roleColors.textSecondary }]}>{t('education.subtitle')}</Text>
             </View>
+
+            {isTutorEnabled && (
+                <View style={styles.section}>
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={[
+                            styles.tutorCard,
+                            {
+                                backgroundColor: roleColors.surfaceElevated,
+                                borderColor: roleColors.border,
+                            },
+                        ]}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            navigation.navigate('AITutor');
+                        }}
+                    >
+                        <View style={[styles.tutorIconWrap, { backgroundColor: roleColors.accentSoft }]}>
+                            <Brain size={20} color={roleColors.accent} />
+                        </View>
+                        <View style={styles.tutorTextWrap}>
+                            <Text style={[styles.tutorTitle, { color: roleColors.textPrimary }]}>{t('education.aiTutor.ctaTitle')}</Text>
+                            <Text style={[styles.tutorSub, { color: roleColors.textSecondary }]}>
+                                {t('education.aiTutor.ctaSubtitle')}
+                            </Text>
+                        </View>
+                        <View style={[styles.chevronWrap, { borderColor: roleColors.border }]}>
+                            <ChevronRight size={15} color={roleColors.textSecondary} />
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {filteredCourses.length > 0 && (
                 <View style={styles.section}>
@@ -235,6 +280,34 @@ const styles = StyleSheet.create({
     },
     section: {
         padding: 20,
+    },
+    tutorCard: {
+        flexDirection: 'row',
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 14,
+        alignItems: 'center',
+    },
+    tutorIconWrap: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tutorTextWrap: {
+        flex: 1,
+        marginLeft: 12,
+        marginRight: 8,
+    },
+    tutorTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    tutorSub: {
+        marginTop: 4,
+        fontSize: 13,
+        lineHeight: 18,
     },
     sectionTitle: {
         fontSize: 22,

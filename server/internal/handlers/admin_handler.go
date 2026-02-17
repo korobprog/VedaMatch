@@ -618,6 +618,20 @@ func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
 	})
 }
 
+func (h *AdminHandler) GetEducationTutorMetrics(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	windowHours := parseAdminQueryInt(c.Query("window_hours"), 24, 1, 24*30)
+	summary, err := services.GetEducationTutorService().GetLatencySummary(time.Duration(windowHours) * time.Hour)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to calculate tutor metrics"})
+	}
+
+	return c.JSON(summary)
+}
+
 // RAG Management Methods
 
 func (h *AdminHandler) ListGeminiCorpora(c *fiber.Ctx) error {

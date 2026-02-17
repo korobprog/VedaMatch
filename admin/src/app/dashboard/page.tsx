@@ -10,6 +10,7 @@ import {
     ShieldCheck,
     TrendingUp,
     Activity,
+    Brain,
     ArrowUpRight,
     ArrowDownRight
 } from 'lucide-react';
@@ -37,12 +38,14 @@ export default function DashboardPage() {
     const [retryBusyId, setRetryBusyId] = useState<number | null>(null);
     const [bulkRetryBusy, setBulkRetryBusy] = useState(false);
     const [alertsPage, setAlertsPage] = useState(1);
+    const [tutorWindowHours, setTutorWindowHours] = useState(24);
     const alertsPageSize = 12;
 
     const { data: stats, error } = useSWR('/admin/stats', fetcher);
     const { data: trackerMetrics } = useSWR('/admin/path-tracker/metrics', fetcher);
     const { data: trackerAnalytics } = useSWR('/admin/path-tracker/analytics?days=14', fetcher);
     const { data: trackerOps } = useSWR('/admin/path-tracker/ops', fetcher);
+    const { data: tutorMetrics } = useSWR(`/admin/education/tutor/metrics?window_hours=${tutorWindowHours}`, fetcher);
     const alertsKey = `/admin/path-tracker/alerts?page=${alertsPage}&pageSize=${alertsPageSize}&status=${encodeURIComponent(alertStatusFilter)}&type=${encodeURIComponent(alertTypeFilter)}&sortBy=${encodeURIComponent(alertSortBy)}&sortDir=${encodeURIComponent(alertSortDir)}`;
     const { data: trackerAlerts, mutate: mutateTrackerAlerts } = useSWR(alertsKey, fetcher);
 
@@ -277,6 +280,61 @@ export default function DashboardPage() {
                     <p className="text-sm text-[var(--muted-foreground)]">
                         Users with steps: <span className="font-semibold text-[var(--foreground)]">{trackerMetrics?.usersWithSteps || 0}</span>
                     </p>
+                </div>
+            </div>
+
+            <div className="bg-[var(--card)] p-8 rounded-3xl border border-[var(--border)] shadow-sm space-y-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-xl font-bold">AI Tutor Metrics</h2>
+                        <p className="text-sm text-[var(--muted-foreground)]">Education tutor performance ({tutorWindowHours === 24 ? 'last 24h' : 'last 7d'})</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="inline-flex items-center rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setTutorWindowHours(24)}
+                                className={`px-3 py-1.5 text-xs rounded-lg transition-all ${tutorWindowHours === 24
+                                    ? 'bg-[var(--primary)] text-white'
+                                    : 'text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+                                    }`}
+                            >
+                                24h
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTutorWindowHours(168)}
+                                className={`px-3 py-1.5 text-xs rounded-lg transition-all ${tutorWindowHours === 168
+                                    ? 'bg-[var(--primary)] text-white'
+                                    : 'text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+                                    }`}
+                            >
+                                7d
+                            </button>
+                        </div>
+                        <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-500 flex items-center justify-center">
+                            <Brain className="w-6 h-6" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Turn p95</p>
+                        <p className="text-2xl font-bold mt-2">{Number(tutorMetrics?.turn_latency_p95 || 0).toFixed(0)} ms</p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Retrieval p95</p>
+                        <p className="text-2xl font-bold mt-2">{Number(tutorMetrics?.retrieval_latency_p95 || 0).toFixed(0)} ms</p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Turns</p>
+                        <p className="text-2xl font-bold mt-2">{Number(tutorMetrics?.turn_count || 0).toFixed(0)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--background)]/40">
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">No-data Rate</p>
+                        <p className="text-2xl font-bold mt-2">{Number(tutorMetrics?.no_data_rate || 0).toFixed(2)}%</p>
+                    </div>
                 </div>
             </div>
 

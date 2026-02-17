@@ -644,7 +644,26 @@ export default {
         questionInfo: 'Question {{current}} of {{total}}',
         source: 'Source',
         next: 'Next',
-        finish: 'Finish'
+        finish: 'Finish',
+        aiTutor: {
+            ctaTitle: 'AI Tutor',
+            ctaSubtitle: 'Personal tutor for modules with cited sources',
+            title: 'AI Tutor',
+            subtitle: 'Explains topics using Education data only',
+            inputPlaceholder: 'Ask about a module topic or exam...',
+            emptyTitle: 'Start a dialog with AI Tutor',
+            emptySubtitle: 'Replies are built from your study data and course materials.',
+            weakTopicsTitle: 'Weak topics',
+            noWeakTopics: 'No weak topics detected yet.',
+            clearMemoryTitle: 'Clear AI Tutor memory',
+            clearMemoryDescription: 'Saved memories and weak topics will be deleted.',
+            clearMemoryAction: 'Clear memory',
+            memoryCleared: 'AI Tutor memory cleared.',
+            clearMemoryError: 'Failed to clear AI Tutor memory',
+            turnError: 'Failed to get AI Tutor response',
+            disabledTitle: 'AI Tutor is temporarily unavailable',
+            disabledSubtitle: 'This feature is disabled by administrator. Please try later.',
+        },
     },
 
     chat: {

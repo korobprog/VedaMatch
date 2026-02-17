@@ -120,6 +120,30 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "EDU_TUTOR_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "EDU_TUTOR_MEMORY_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "EDU_TUTOR_EXTRACTOR_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "EDU_TUTOR_RETENTION_DAYS",
+			Value: "180",
+		},
+		{
+			Key:   "EDU_TUTOR_RETENTION_SWEEP_MINUTES",
+			Value: "360",
+		},
+		{
+			Key:   "EDU_TUTOR_ALLOWED_DOMAINS",
+			Value: "education",
+		},
+		{
 			Key:   "CHANNELS_PROMOTED_DAILY_CAP",
 			Value: "3",
 		},

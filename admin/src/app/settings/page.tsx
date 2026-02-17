@@ -69,8 +69,26 @@ interface SettingsState {
     SUPPORT_AI_CONFIDENCE_THRESHOLD: string;
     SUPPORT_AI_ESCALATION_KEYWORDS: string;
     SUPPORT_LANG_MODE: string;
+    EDU_TUTOR_ENABLED: string;
+    EDU_TUTOR_MEMORY_ENABLED: string;
+    EDU_TUTOR_EXTRACTOR_ENABLED: string;
+    EDU_TUTOR_RETENTION_DAYS: string;
+    EDU_TUTOR_RETENTION_SWEEP_MINUTES: string;
+    EDU_TUTOR_ALLOWED_DOMAINS: string;
     GEMINI_CORPUS_ID?: string;
     [key: string]: string | undefined;
+}
+
+interface TutorMetricsState {
+    window_hours: number;
+    turn_count: number;
+    retrieval_count: number;
+    turn_latency_p95: number;
+    retrieval_latency_p95: number;
+    turn_latency_avg: number;
+    retrieval_latency_avg: number;
+    no_data_turns: number;
+    no_data_rate: number;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -108,6 +126,12 @@ const DEFAULT_SETTINGS: SettingsState = {
     SUPPORT_AI_CONFIDENCE_THRESHOLD: '0.55',
     SUPPORT_AI_ESCALATION_KEYWORDS: 'оператор,не помогло,жалоба,support,human',
     SUPPORT_LANG_MODE: 'auto_ru_en',
+    EDU_TUTOR_ENABLED: 'true',
+    EDU_TUTOR_MEMORY_ENABLED: 'true',
+    EDU_TUTOR_EXTRACTOR_ENABLED: 'true',
+    EDU_TUTOR_RETENTION_DAYS: '180',
+    EDU_TUTOR_RETENTION_SWEEP_MINUTES: '360',
+    EDU_TUTOR_ALLOWED_DOMAINS: 'education',
     GEMINI_CORPUS_ID: '',
 };
 
@@ -117,6 +141,8 @@ export default function SettingsPage() {
     const [success, setSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
     const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
+    const [loadingTutorMetrics, setLoadingTutorMetrics] = useState(false);
+    const [tutorMetrics, setTutorMetrics] = useState<TutorMetricsState | null>(null);
 
     useEffect(() => {
         const data = localStorage.getItem('admin_data');
@@ -131,12 +157,31 @@ export default function SettingsPage() {
         fetchSettings();
     }, []);
 
+    useEffect(() => {
+        if (activeTab === 'Database & RAG') {
+            fetchTutorMetrics();
+        }
+    }, [activeTab]);
+
     const fetchSettings = async () => {
         try {
             const res = await api.get('/admin/settings');
             setSettings(prev => ({ ...prev, ...(res.data as Partial<SettingsState>) }));
         } catch (err) {
             console.error('Failed to fetch settings', err);
+        }
+    };
+
+    const fetchTutorMetrics = async (windowHours: number = 24) => {
+        setLoadingTutorMetrics(true);
+        try {
+            const res = await api.get(`/admin/education/tutor/metrics?window_hours=${windowHours}`);
+            setTutorMetrics(res.data as TutorMetricsState);
+        } catch (err) {
+            console.error('Failed to fetch tutor metrics', err);
+            setTutorMetrics(null);
+        } finally {
+            setLoadingTutorMetrics(false);
         }
     };
 
@@ -959,6 +1004,111 @@ export default function SettingsPage() {
                                             </div>
                                             <div className="w-12 h-6 bg-emerald-500 rounded-full relative cursor-pointer">
                                                 <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-[var(--secondary)] rounded-2xl space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-violet-100 rounded-lg">
+                                                    <Brain className="w-4 h-4 text-violet-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold">Education AI Tutor</p>
+                                                    <p className="text-xs text-[var(--muted-foreground)]">Feature flags and retention policy</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => fetchTutorMetrics(tutorMetrics?.window_hours || 24)}
+                                                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:opacity-90 transition-opacity"
+                                            >
+                                                {loadingTutorMetrics ? 'Loading...' : 'Refresh Metrics'}
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">EDU_TUTOR_ENABLED</label>
+                                                <select
+                                                    value={settings.EDU_TUTOR_ENABLED || 'true'}
+                                                    onChange={(e) => setSettings({ ...settings, EDU_TUTOR_ENABLED: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-violet-500/20"
+                                                >
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">EDU_TUTOR_MEMORY_ENABLED</label>
+                                                <select
+                                                    value={settings.EDU_TUTOR_MEMORY_ENABLED || 'true'}
+                                                    onChange={(e) => setSettings({ ...settings, EDU_TUTOR_MEMORY_ENABLED: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-violet-500/20"
+                                                >
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">EDU_TUTOR_EXTRACTOR_ENABLED</label>
+                                                <select
+                                                    value={settings.EDU_TUTOR_EXTRACTOR_ENABLED || 'true'}
+                                                    onChange={(e) => setSettings({ ...settings, EDU_TUTOR_EXTRACTOR_ENABLED: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-violet-500/20"
+                                                >
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">EDU_TUTOR_ALLOWED_DOMAINS</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.EDU_TUTOR_ALLOWED_DOMAINS || 'education'}
+                                                    onChange={(e) => setSettings({ ...settings, EDU_TUTOR_ALLOWED_DOMAINS: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-violet-500/20"
+                                                    placeholder="education"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">EDU_TUTOR_RETENTION_DAYS</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.EDU_TUTOR_RETENTION_DAYS || '180'}
+                                                    onChange={(e) => setSettings({ ...settings, EDU_TUTOR_RETENTION_DAYS: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-violet-500/20"
+                                                    placeholder="180"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">EDU_TUTOR_RETENTION_SWEEP_MINUTES</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.EDU_TUTOR_RETENTION_SWEEP_MINUTES || '360'}
+                                                    onChange={(e) => setSettings({ ...settings, EDU_TUTOR_RETENTION_SWEEP_MINUTES: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-violet-500/20"
+                                                    placeholder="360"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="p-3 rounded-xl bg-[var(--background)] border border-[var(--border)]">
+                                                <p className="text-[10px] uppercase font-bold text-[var(--muted-foreground)]">Turn p95</p>
+                                                <p className="text-lg font-bold">{tutorMetrics?.turn_latency_p95 ?? 0} ms</p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-[var(--background)] border border-[var(--border)]">
+                                                <p className="text-[10px] uppercase font-bold text-[var(--muted-foreground)]">Retrieval p95</p>
+                                                <p className="text-lg font-bold">{tutorMetrics?.retrieval_latency_p95 ?? 0} ms</p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-[var(--background)] border border-[var(--border)]">
+                                                <p className="text-[10px] uppercase font-bold text-[var(--muted-foreground)]">Turn Count</p>
+                                                <p className="text-lg font-bold">{tutorMetrics?.turn_count ?? 0}</p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-[var(--background)] border border-[var(--border)]">
+                                                <p className="text-[10px] uppercase font-bold text-[var(--muted-foreground)]">No Data Rate</p>
+                                                <p className="text-lg font-bold">{(tutorMetrics?.no_data_rate ?? 0).toFixed(2)}%</p>
                                             </div>
                                         </div>
                                     </div>
