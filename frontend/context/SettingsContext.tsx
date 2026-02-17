@@ -8,6 +8,7 @@ import { VedicLightTheme, VedicDarkTheme } from '../theme/ModernVedicTheme';
 import { getPresetUris, DEFAULT_SLIDESHOW_INTERVAL } from '../config/wallpaperPresets';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type PortalIconStyle = 'default' | 'colored';
 
 interface Model {
     id: string;
@@ -55,6 +56,8 @@ interface SettingsContextType {
     addWallpaperSlide: (uri: string) => Promise<void>;
     removeWallpaperSlide: (uri: string) => Promise<void>;
     activeWallpaper: string;
+    portalIconStyle: PortalIconStyle;
+    setPortalIconStyle: (style: PortalIconStyle) => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -76,6 +79,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [portalBackground, setPortalBackgroundState] = useState<string>(defaultBgImage);
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
+    const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('default');
 
     // Wallpaper slideshow state
     const [wallpaperSlides, setWallpaperSlides] = useState<string[]>(getPresetUris());
@@ -200,6 +204,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                     setAssistantTypeState('feather2');
                 }
 
+                const savedIconStyle = await AsyncStorage.getItem('portal_icon_style');
+                if (savedIconStyle === 'default' || savedIconStyle === 'colored') {
+                    setPortalIconStyleState(savedIconStyle);
+                }
+
                 // Wallpaper slideshow settings
                 const savedSlides = await AsyncStorage.getItem('wallpaper_slides');
                 if (savedSlides) {
@@ -268,6 +277,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             await AsyncStorage.setItem('assistant_type', type);
         } catch (e) {
             console.error('Failed to save assistant type', e);
+        }
+    };
+
+    const setPortalIconStyle = async (style: PortalIconStyle) => {
+        setPortalIconStyleState(style);
+        try {
+            await AsyncStorage.setItem('portal_icon_style', style);
+        } catch (e) {
+            console.error('Failed to save portal icon style', e);
         }
     };
 
@@ -405,6 +423,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             addWallpaperSlide,
             removeWallpaperSlide,
             activeWallpaper,
+            portalIconStyle,
+            setPortalIconStyle,
         }}>
             {children}
         </SettingsContext.Provider>

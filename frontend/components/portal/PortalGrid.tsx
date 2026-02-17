@@ -161,6 +161,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const [scrollContainerHeight, setScrollContainerHeight] = useState(
         Dimensions.get('window').height * 0.55
     );
+    const [widgetsHeight, setWidgetsHeight] = useState(0);
     const scrollHandler = useAnimatedScrollHandler({
         onScroll: (event) => {
             scrollY.value = event.contentOffset.y;
@@ -196,8 +197,8 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const quickAccess = useMemo(() => layout.quickAccess ?? [], [layout.quickAccess]);
     const highlightedServices = useMemo(() => new Set(roleHighlights), [roleHighlights]);
     const dockEdgeMaskColor = portalBackgroundType === 'image'
-        ? (isDarkMode ? 'rgba(8,13,20,0.62)' : 'rgba(34,48,69,0.46)')
-        : (isDarkMode ? 'rgba(8,13,20,0.82)' : 'rgba(241,245,251,0.94)');
+        ? (isDarkMode ? 'rgba(8,13,20,0.25)' : 'rgba(34,48,69,0.18)')
+        : (isDarkMode ? 'rgba(8,13,20,0.35)' : 'rgba(241,245,251,0.4)');
     const dockInnerStrokeColor = portalBackgroundType === 'image'
         ? 'rgba(255,255,255,0.2)'
         : (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.7)');
@@ -658,14 +659,18 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 style={styles.gridContainer}
             >
                 {widgets.length > 0 && (
-                    <View style={styles.widgetsContainer}>
+                    <View
+                        style={styles.widgetsContainer}
+                        onLayout={(e) => setWidgetsHeight(e.nativeEvent.layout.height)}
+                        pointerEvents="box-none"
+                    >
                         {widgets.map(renderWidget)}
                     </View>
                 )}
 
                 <Animated.ScrollView
                     style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={[styles.scrollContent, widgetsHeight > 0 && { paddingTop: widgetsHeight + 8 }]}
                     showsVerticalScrollIndicator={false}
                     onScroll={scrollHandler}
                     scrollEventThrottle={16}
@@ -833,16 +838,21 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
-        paddingBottom: 160, // Extra space to scroll above the floating dock
+        paddingBottom: 90, // Reduced: icons scroll closer to dock, cylinder curls them before clipping
     },
     scrollPressable: {
         flex: 1,
     },
     widgetsContainer: {
+        position: 'absolute',
+        top: 0,
+        left: GRID_PADDING,
+        right: GRID_PADDING,
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'center',
-        marginBottom: 16,
+        zIndex: 10,
+        paddingBottom: 8,
     },
     grid: {
         flexDirection: 'column',

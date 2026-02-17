@@ -106,7 +106,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
     mathBadge,
     onRemove,
 }) => {
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
     const rotation = useSharedValue(0);
     const scale = useSharedValue(1);
 
@@ -172,13 +172,17 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: portalBackgroundType === 'image'
-                                ? 'rgba(30,30,30,0.45)'
-                                : isDarkMode
-                                    ? `${service.color}25`
-                                    : `${service.color}15`,
-                            borderColor: portalBackgroundType === 'image' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
-                            borderWidth: roleHighlight ? 2 : portalBackgroundType === 'image' ? 1.5 : 1,
+                            backgroundColor: portalIconStyle === 'colored'
+                                ? service.color
+                                : portalBackgroundType === 'image'
+                                    ? 'rgba(30,30,30,0.45)'
+                                    : isDarkMode
+                                        ? `${service.color}25`
+                                        : `${service.color}15`,
+                            borderColor: portalIconStyle === 'colored'
+                                ? 'rgba(255,255,255,0.25)'
+                                : portalBackgroundType === 'image' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
+                            borderWidth: roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'colored' ? 1.5 : 1,
                             shadowColor: roleHighlight ? service.color : 'transparent',
                             shadowOpacity: roleHighlight ? 0.35 : 0,
                             shadowRadius: roleHighlight ? 8 : 0,
@@ -189,7 +193,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                 >
                     <IconComponent
                         size={sizeConfig.icon}
-                        color={portalBackgroundType === 'image' ? '#ffffff' : service.color}
+                        color={portalIconStyle === 'colored' || portalBackgroundType === 'image' ? '#ffffff' : service.color}
                         strokeWidth={2}
                     />
                     {badge != null && badge > 0 && (
@@ -199,6 +203,11 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                             </Text>
                         </View>
                     )}
+                    {mathBadge ? (
+                        <View style={styles.proBadge}>
+                            <Text style={styles.proBadgeText}>PRO</Text>
+                        </View>
+                    ) : null}
                 </View>
                 {showLabel && (
                     <>
@@ -246,11 +255,6 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                                 {service.label}
                             </Text>
                         </View>
-                        {mathBadge ? (
-                            <View style={styles.mathBadge}>
-                                <Text style={styles.mathBadgeText} numberOfLines={1}>{mathBadge}</Text>
-                            </View>
-                        ) : null}
                     </>
                 )}
 
@@ -342,6 +346,24 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 9,
         textAlign: 'center',
+    },
+    proBadge: {
+        position: 'absolute',
+        bottom: 2,
+        right: 2,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        borderRadius: 5,
+        paddingHorizontal: 3,
+        paddingVertical: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    proBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 6,
+        fontWeight: '800',
+        letterSpacing: 0.2,
+        lineHeight: 10,
     },
     deleteButton: {
         position: 'absolute',
