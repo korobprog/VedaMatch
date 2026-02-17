@@ -67,6 +67,29 @@ func TestRouteDomains(t *testing.T) {
 	}
 }
 
+func TestRouteDomains_AvoidsShortKeywordSubstringFalsePositives(t *testing.T) {
+	svc := &DomainAssistantService{}
+	got, hasIntent := svc.routeDomains("Как построить roadmap команды?", nil)
+	if hasIntent {
+		t.Fatalf("expected hasIntent=false for substring-only short keyword match, got domains=%v", got)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected no routed domains, got %v", got)
+	}
+}
+
+func TestContainsDomainKeywordDA_ShortAsciiRequiresTokenBoundary(t *testing.T) {
+	if containsDomainKeywordDA("roadmap planning", "map") {
+		t.Fatalf("expected no match for short keyword inside larger token")
+	}
+	if !containsDomainKeywordDA("show map markers", "map") {
+		t.Fatalf("expected token-boundary match for short keyword")
+	}
+	if !containsDomainKeywordDA("latest ad now", "ad") {
+		t.Fatalf("expected short ascii keyword token match")
+	}
+}
+
 func TestFuseRRF(t *testing.T) {
 	docA := models.AssistantDocument{ID: uuid.New(), Title: "A"}
 	docB := models.AssistantDocument{ID: uuid.New(), Title: "B"}

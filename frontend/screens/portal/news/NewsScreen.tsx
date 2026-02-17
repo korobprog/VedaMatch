@@ -8,6 +8,9 @@ import {
     Image,
     ActivityIndicator,
     RefreshControl,
+    LayoutAnimation,
+    UIManager,
+    Platform,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { newsService, NewsItem } from '../../../services/newsService';
@@ -33,6 +36,7 @@ import {
 import { useSettings } from '../../../context/SettingsContext';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../../context/UserContext';
+import { GodModeFiltersPanel } from '../../../components/portal/god-mode/GodModeFiltersPanel';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 
@@ -45,19 +49,15 @@ const CATEGORIES = [
     { id: 'wellness', label: 'Здоровье', labelEn: 'Wellness' },
 ];
 
-const MADH_FILTERS = [
-    { id: '', label: 'Все мадхи', labelEn: 'All Mathas' },
-    { id: 'iskcon', label: 'ISKCON', labelEn: 'ISKCON' },
-    { id: 'gaudiya', label: 'Gaudiya Math', labelEn: 'Gaudiya Math' },
-    { id: 'srivaishnava', label: 'Sri Vaishnava', labelEn: 'Sri Vaishnava' },
-    { id: 'vedic', label: 'VedicWorld', labelEn: 'VedicWorld' },
-];
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export const NewsScreen = () => {
     const { i18n } = useTranslation();
     const { isDarkMode } = useSettings();
     const navigation = useNavigation();
-    const { user } = useUser();
+    const { user, activeMathId, godModeFilters, setActiveMath } = useUser();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const styles = React.useMemo(() => createStyles(colors), [colors]);
     const lang = i18n.language === 'en' ? 'en' : 'ru';
@@ -98,6 +98,10 @@ export const NewsScreen = () => {
         inFlightPagesRef.current.add(pageNum);
         const requestId = ++latestLoadRequestRef.current;
 
+        const effectiveMadh = user?.godModeEnabled
+            ? (activeMathId || undefined)
+            : (user?.madh || undefined);
+
         try {
             if (pageNum === 1) {
                 setLoading(true);
@@ -111,7 +115,7 @@ export const NewsScreen = () => {
                 limit: 10,
                 lang,
                 category: selectedCategory || undefined,
-                madh: selectedMadh || undefined,
+                madh: effectiveMadh,
                 personalized: personalized // Pass preference
             });
 
@@ -177,7 +181,7 @@ export const NewsScreen = () => {
 
     useEffect(() => {
         loadNews(1, true);
-    }, [loadNews]);
+    }, [loadNews, activeMathId]); // Reload when activeMathId changes in Pro Mode
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -263,69 +267,7 @@ export const NewsScreen = () => {
     };
 
     const renderCategoryPills = () => (
-        <View style={[styles.categoriesContainer, { backgroundColor: colors.background }]}>
-            {/* Personalized Toggle */}
-            <View style={styles.personalizedToggleContainer}>
-                <TouchableOpacity
-                    onPress={() => setPersonalized(true)}
-                    style={[
-                        styles.toggleButton,
-                        personalized && { backgroundColor: colors.accent, borderColor: colors.accent }
-                    ]}
-                >
-                    <Rss size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.toggleText, { color: colors.textPrimary }]}>
-                        {lang === 'en' ? 'My Feed' : 'Моя лента'}
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    onPress={() => setPersonalized(false)}
-                    style={[
-                        styles.toggleButton,
-                        !personalized && { backgroundColor: colors.surfaceElevated, borderColor: colors.border }
-                    ]}
-                >
-                    <Globe size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.toggleText, { color: colors.textPrimary }]}>
-                        {lang === 'en' ? 'All' : 'Все'}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Organizations/Mathas Filter */}
-            <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={MADH_FILTERS}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.categoriesList}
-                style={{ marginBottom: 8 }}
-                renderItem={({ item }) => (
-                    <TouchableOpacity
-                        onPress={() => handleMadhSelect(item.id)}
-                        style={[
-                            styles.categoryPill,
-                            {
-                                backgroundColor: selectedMadh === item.id
-                                    ? colors.accent
-                                    : colors.surface,
-                                borderColor: selectedMadh === item.id
-                                    ? colors.accent
-                                    : colors.border
-                            }
-                        ]}
-                    >
-                        {item.id === '' && <Building2 size={14} color={colors.textPrimary} style={{ marginRight: 6 }} />}
-                        <Text style={[
-                            styles.categoryPillText,
-                            { color: colors.textPrimary }
-                        ]}>
-                            {lang === 'en' ? item.labelEn : item.label}
-                        </Text>
-                    </TouchableOpacity>
-                )}
-            />
-
+        <View style={[styles.categoriesContainer, { backgroundColor: colors.background, paddingTop: 4 }]}>
             {/* Regular Categories Filter */}
             <FlatList
                 horizontal
@@ -544,7 +486,80 @@ export const NewsScreen = () => {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <GodModeStatusBanner />
+            {/* 1. PRO Filter Panel / Fixed Math Info (Topmost) */}
+            <View style={{ marginTop: 12 }}>
+                {user?.godModeEnabled ? (
+                    <GodModeFiltersPanel
+                        filters={godModeFilters}
+                        activeMathId={activeMathId || undefined}
+                        onSelectMath={setActiveMath}
+                    />
+                ) : (
+                    user?.madh && (
+                        <View style={styles.fixedMadhContainer}>
+                            <Building2 size={14} color={colors.textSecondary} />
+                            <Text style={[styles.fixedMadhText, { color: colors.textSecondary }]}>
+                                {user.madh}
+                            </Text>
+                        </View>
+                    )
+                )}
+            </View>
+
+            {/* 2. Personalized Feed Toggle (Below PRO) */}
+            <View style={[styles.personalizedToggleContainer, { marginTop: 4, marginBottom: 8 }]}>
+                <TouchableOpacity
+                    onPress={() => {
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        setPersonalized(!personalized);
+                    }}
+                    style={[
+                        styles.toggleButton,
+                        personalized
+                            ? {
+                                backgroundColor: colors.accent,
+                                borderColor: colors.accent,
+                                shadowColor: colors.accent,
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 4,
+                                elevation: 3,
+                            }
+                            : { backgroundColor: colors.surface, borderColor: colors.border }
+                    ]}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Rss
+                            size={14}
+                            color={personalized ? colors.textPrimary : colors.textSecondary}
+                            style={{ marginRight: 6 }}
+                        />
+                        <Text style={[
+                            styles.toggleText,
+                            { color: personalized ? colors.textPrimary : colors.textSecondary }
+                        ]}>
+                            {lang === 'en' ? 'My Feed' : 'Моя лента'}
+                        </Text>
+                        {personalized && (
+                            <View style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: 2 }}>
+                                <Sun size={10} color={colors.textPrimary} fill={colors.textPrimary} />
+                            </View>
+                        )}
+                    </View>
+                </TouchableOpacity>
+                <Text style={{
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    marginLeft: 4,
+                    alignSelf: 'center',
+                    opacity: personalized ? 1 : 0.5
+                }}>
+                    {personalized
+                        ? (lang === 'en' ? 'Personalized' : 'Персонально')
+                        : (lang === 'en' ? 'General' : 'Общая')}
+                </Text>
+            </View>
+
             {renderCategoryPills()}
             <FlatList
                 data={news}
@@ -847,6 +862,18 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
     },
     retryButtonText: {
         color: colors.textPrimary,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    fixedMadhContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        gap: 8,
+        marginBottom: 4,
+    },
+    fixedMadhText: {
         fontSize: 14,
         fontWeight: '600',
     },

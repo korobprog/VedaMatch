@@ -29,6 +29,8 @@ export default {
             week: 'Неделя',
             month: 'Месяц',
         },
+        selectAll: 'Выбрать все',
+        deselectAll: 'Снять выделение',
     },
     map: {
         location_error: 'Ошибка определения местоположения',
@@ -707,6 +709,7 @@ export default {
         noHistory: 'История пуста',
         newChatBtn: 'Новый чат',
         deleteConfirm: 'Вы уверены, что хотите удалить этот чат?',
+        deleteMultipleConfirm: 'Удалить выбранные чаты?',
         noRooms: 'Комнаты не найдены',
         noDescription: 'Нет описания',
         createRoom: 'Создать комнату',
@@ -1069,6 +1072,10 @@ export default {
             йог: 'Йог',
             преданный: 'Преданный'
         },
+        godMode: {
+            title: 'Режим PRO: фильтры матхов',
+            viewingMath: 'Вы видите матх {{name}}',
+        },
         change_role: 'Изменить роль',
         priority_services_hint: 'Этим сервисам вы получите приоритет в портале:',
         filters: {
@@ -1097,7 +1104,9 @@ export default {
             holy_places: 'Святые места',
             group_tours: 'Групповые туры',
             temple_updates: 'Новости храмов',
-            festival_reports: 'Отчёты с фестивалей'
+            festival_reports: 'Отчёты с фестивалей',
+            prasadam: 'Прасад',
+            family_events: 'Семейные встречи'
         }
     },
     services: {

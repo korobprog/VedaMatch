@@ -76,6 +76,14 @@ func applyPortalRoleAndGodMode(user *models.User, role string, godModeEnabled bo
 	user.GodModeEnabled = godModeEnabled
 }
 
+func resolveGodModeForUpdate(currentValue bool, requestedValue bool, currentRole string) bool {
+	currentRole = strings.TrimSpace(strings.ToLower(currentRole))
+	if models.IsAdminRole(currentRole) {
+		return requestedValue
+	}
+	return currentValue
+}
+
 func sanitizeUsers(users []models.User) {
 	for i := range users {
 		users[i].Password = ""
@@ -626,7 +634,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.IsProfileComplete = true
 	// Preserve privileged flags and avoid accidental role downgrades when role is omitted/invalid.
 	user.Role = resolveProfileRoleForUpdate(user.Role, updateData.Role)
-	user.GodModeEnabled = updateData.GodModeEnabled
+	// Non-admin users are never allowed to escalate GodMode through profile payload.
+	user.GodModeEnabled = resolveGodModeForUpdate(user.GodModeEnabled, updateData.GodModeEnabled, user.Role)
 
 	// Handle coordinates
 	if updateData.Latitude != nil && updateData.Longitude != nil {

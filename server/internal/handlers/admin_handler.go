@@ -96,6 +96,14 @@ func parseAdminQueryInt(raw string, fallback int, min int, max int) int {
 	return value
 }
 
+func parsePositiveAdminParamInt(c *fiber.Ctx, key string, invalidMessage string) (int, error) {
+	value, err := c.ParamsInt(key)
+	if err != nil || value <= 0 {
+		return 0, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": invalidMessage})
+	}
+	return value, nil
+}
+
 func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
@@ -931,9 +939,9 @@ func (h *AdminHandler) GetUserWallet(c *fiber.Ctx) error {
 		return err
 	}
 
-	userID, err := c.ParamsInt("userId")
+	userID, err := parsePositiveAdminParamInt(c, "userId", "Invalid user ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+		return err
 	}
 
 	walletService := services.NewWalletService()
@@ -952,9 +960,9 @@ func (h *AdminHandler) GetUserTransactions(c *fiber.Ctx) error {
 		return err
 	}
 
-	userID, err := c.ParamsInt("userId")
+	userID, err := parsePositiveAdminParamInt(c, "userId", "Invalid user ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+		return err
 	}
 
 	filters := models.TransactionFilters{
@@ -981,9 +989,9 @@ func (h *AdminHandler) ActivateUserPendingBalance(c *fiber.Ctx) error {
 		return err
 	}
 
-	userIDParam, err := c.ParamsInt("userId")
+	userIDParam, err := parsePositiveAdminParamInt(c, "userId", "Invalid user ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+		return err
 	}
 	userID := uint(userIDParam)
 

@@ -65,3 +65,9 @@ func TestAvatarFileValidators(t *testing.T) {
 	require.True(t, isAllowedAvatarContentType(" IMAGE/WEBP "))
 	require.False(t, isAllowedAvatarContentType("application/json"))
 }
+
+func TestResolveGodModeForUpdate(t *testing.T) {
+	require.Equal(t, true, resolveGodModeForUpdate(true, false, models.RoleUser))
+	require.Equal(t, false, resolveGodModeForUpdate(false, true, models.RoleDevotee))
+	require.Equal(t, true, resolveGodModeForUpdate(false, true, models.RoleAdmin))
+}

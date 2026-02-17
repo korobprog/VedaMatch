@@ -1876,7 +1876,7 @@ func (s *DomainAssistantService) routeDomains(query string, explicit []string) (
 	for _, domain := range routingDomainOrder {
 		keywords := domainKeywords[domain]
 		for _, kw := range keywords {
-			if strings.Contains(q, kw) {
+			if containsDomainKeywordDA(q, kw) {
 				domains = append(domains, domain)
 				break
 			}
@@ -1889,6 +1889,37 @@ func (s *DomainAssistantService) routeDomains(query string, explicit []string) (
 	}
 
 	return uniqueStrings(domains), len(domains) > 0
+}
+
+func containsDomainKeywordDA(query, keyword string) bool {
+	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
+	normalizedKeyword := strings.ToLower(strings.TrimSpace(keyword))
+	if normalizedQuery == "" || normalizedKeyword == "" {
+		return false
+	}
+
+	if !requiresExactASCIITokenMatchDA(normalizedKeyword) {
+		return strings.Contains(normalizedQuery, normalizedKeyword)
+	}
+
+	for _, token := range tokenPattern.FindAllString(normalizedQuery, -1) {
+		if token == normalizedKeyword {
+			return true
+		}
+	}
+	return false
+}
+
+func requiresExactASCIITokenMatchDA(keyword string) bool {
+	if len(keyword) > 3 {
+		return false
+	}
+	for _, r := range keyword {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *DomainAssistantService) allowedDomainSet() map[string]bool {

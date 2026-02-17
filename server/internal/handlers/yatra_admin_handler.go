@@ -39,6 +39,27 @@ func parseYatraAdminBoolQuery(value string) bool {
 	}
 }
 
+func parsePositiveYatraAdminParamUint(c *fiber.Ctx, key string, invalidMessage string) (uint, error) {
+	value, err := strconv.ParseUint(strings.TrimSpace(c.Params(key)), 10, 32)
+	if err != nil || value == 0 {
+		return 0, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": invalidMessage})
+	}
+	return uint(value), nil
+}
+
+func parseOptionalPositiveYatraAdminQueryUint(c *fiber.Ctx, key string) *uint {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || value == 0 {
+		return nil
+	}
+	parsed := uint(value)
+	return &parsed
+}
+
 func requireYatraAdminUserID(c *fiber.Ctx) (uint, error) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -133,16 +154,16 @@ func (h *YatraAdminHandler) UpdateTemplate(c *fiber.Ctx) error {
 	if _, err := requireYatraAdminUserID(c); err != nil {
 		return err
 	}
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid template ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid template ID"})
+		return err
 	}
 	var req models.ModerationTemplateUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
-	template, err := h.templateService.UpdateTemplate(uint(id), &req)
+	template, err := h.templateService.UpdateTemplate(id, &req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -155,11 +176,11 @@ func (h *YatraAdminHandler) DeleteTemplate(c *fiber.Ctx) error {
 	if _, err := requireYatraAdminUserID(c); err != nil {
 		return err
 	}
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid template ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid template ID"})
+		return err
 	}
-	if err := h.templateService.DeleteTemplate(uint(id)); err != nil {
+	if err := h.templateService.DeleteTemplate(id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Template deleted"})
@@ -214,11 +235,8 @@ func (h *YatraAdminHandler) GetAllYatras(c *fiber.Ctx) error {
 	filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
 	filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
 
-	if c.Query("organizer_id") != "" {
-		if orgID, err := strconv.ParseUint(c.Query("organizer_id"), 10, 32); err == nil {
-			orgIDUint := uint(orgID)
-			filters.OrganizerID = &orgIDUint
-		}
+	if organizerID := parseOptionalPositiveYatraAdminQueryUint(c, "organizer_id"); organizerID != nil {
+		filters.OrganizerID = organizerID
 	}
 
 	yatras, total, err := h.yatraAdminService.GetAllYatras(filters)
@@ -256,9 +274,9 @@ func (h *YatraAdminHandler) ApproveYatra(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	yatraID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid yatra ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+		return err
 	}
 
 	var req struct {
@@ -268,7 +286,7 @@ func (h *YatraAdminHandler) ApproveYatra(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	if err := h.yatraAdminService.ApproveYatra(uint(yatraID), adminID, req.Notes); err != nil {
+	if err := h.yatraAdminService.ApproveYatra(yatraID, adminID, req.Notes); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -282,9 +300,9 @@ func (h *YatraAdminHandler) RejectYatra(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	yatraID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid yatra ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+		return err
 	}
 
 	var req struct {
@@ -294,7 +312,7 @@ func (h *YatraAdminHandler) RejectYatra(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Reason is required"})
 	}
 
-	if err := h.yatraAdminService.RejectYatra(uint(yatraID), adminID, req.Reason); err != nil {
+	if err := h.yatraAdminService.RejectYatra(yatraID, adminID, req.Reason); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -308,9 +326,9 @@ func (h *YatraAdminHandler) ForceCancelYatra(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	yatraID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid yatra ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+		return err
 	}
 
 	var req struct {
@@ -320,7 +338,7 @@ func (h *YatraAdminHandler) ForceCancelYatra(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Reason is required"})
 	}
 
-	if err := h.yatraAdminService.ForceCancelYatra(uint(yatraID), adminID, req.Reason); err != nil {
+	if err := h.yatraAdminService.ForceCancelYatra(yatraID, adminID, req.Reason); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -334,9 +352,9 @@ func (h *YatraAdminHandler) UpdateYatra(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	yatraID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid yatra ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+		return err
 	}
 
 	var updates map[string]interface{}
@@ -344,7 +362,7 @@ func (h *YatraAdminHandler) UpdateYatra(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	yatra, err := h.yatraAdminService.UpdateYatra(uint(yatraID), adminID, updates)
+	yatra, err := h.yatraAdminService.UpdateYatra(yatraID, adminID, updates)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -358,12 +376,12 @@ func (h *YatraAdminHandler) GetYatraParticipants(c *fiber.Ctx) error {
 	if _, err := requireYatraAdminUserID(c); err != nil {
 		return err
 	}
-	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	yatraID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid yatra ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+		return err
 	}
 
-	participants, err := h.yatraAdminService.GetYatraParticipants(uint(yatraID))
+	participants, err := h.yatraAdminService.GetYatraParticipants(yatraID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get participants"})
 	}
@@ -378,13 +396,13 @@ func (h *YatraAdminHandler) RemoveParticipant(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	yatraID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid yatra ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+		return err
 	}
-	participantID, err := strconv.ParseUint(c.Params("participantId"), 10, 32)
+	participantID, err := parsePositiveYatraAdminParamUint(c, "participantId", "Invalid participant ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid participant ID"})
+		return err
 	}
 
 	var req struct {
@@ -394,7 +412,7 @@ func (h *YatraAdminHandler) RemoveParticipant(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	if err := h.yatraAdminService.RemoveParticipant(uint(yatraID), uint(participantID), adminID, req.Reason); err != nil {
+	if err := h.yatraAdminService.RemoveParticipant(yatraID, participantID, adminID, req.Reason); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -436,12 +454,12 @@ func (h *YatraAdminHandler) GetOrganizerStats(c *fiber.Ctx) error {
 	if _, err := requireYatraAdminUserID(c); err != nil {
 		return err
 	}
-	userID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	userID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid user ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+		return err
 	}
 
-	stats, err := h.organizerAdminService.GetOrganizerStats(uint(userID))
+	stats, err := h.organizerAdminService.GetOrganizerStats(userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get stats"})
 	}
@@ -456,9 +474,9 @@ func (h *YatraAdminHandler) BlockOrganizer(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	userID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	userID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid user ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+		return err
 	}
 
 	var req models.OrganizerBlockCreateRequest
@@ -466,7 +484,7 @@ func (h *YatraAdminHandler) BlockOrganizer(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	if err := h.organizerAdminService.BlockOrganizer(uint(userID), adminID, req.Reason, req.Duration); err != nil {
+	if err := h.organizerAdminService.BlockOrganizer(userID, adminID, req.Reason, req.Duration); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -480,12 +498,12 @@ func (h *YatraAdminHandler) UnblockOrganizer(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	userID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	userID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid user ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+		return err
 	}
 
-	if err := h.organizerAdminService.UnblockOrganizer(uint(userID), adminID); err != nil {
+	if err := h.organizerAdminService.UnblockOrganizer(userID, adminID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -507,11 +525,8 @@ func (h *YatraAdminHandler) GetReports(c *fiber.Ctx) error {
 		Limit:      parseBoundedQueryInt(c, "limit", 20, 1, 200),
 	}
 
-	if c.Query("target_id") != "" {
-		if id, err := strconv.ParseUint(c.Query("target_id"), 10, 32); err == nil {
-			idUint := uint(id)
-			filters.TargetID = &idUint
-		}
+	if targetID := parseOptionalPositiveYatraAdminQueryUint(c, "target_id"); targetID != nil {
+		filters.TargetID = targetID
 	}
 
 	reports, total, err := h.reportService.GetAllReports(filters)
@@ -533,12 +548,12 @@ func (h *YatraAdminHandler) GetReport(c *fiber.Ctx) error {
 	if _, err := requireYatraAdminUserID(c); err != nil {
 		return err
 	}
-	reportID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	reportID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid report ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid report ID"})
+		return err
 	}
 
-	report, err := h.reportService.GetReport(uint(reportID))
+	report, err := h.reportService.GetReport(reportID)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get report"})
@@ -556,9 +571,9 @@ func (h *YatraAdminHandler) UpdateReport(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	reportID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	reportID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid report ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid report ID"})
+		return err
 	}
 
 	var req models.YatraReportUpdateRequest
@@ -566,7 +581,7 @@ func (h *YatraAdminHandler) UpdateReport(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	report, err := h.reportService.UpdateReport(uint(reportID), adminID, req)
+	report, err := h.reportService.UpdateReport(reportID, adminID, req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -581,9 +596,9 @@ func (h *YatraAdminHandler) ResolveReport(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	reportID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	reportID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid report ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid report ID"})
+		return err
 	}
 
 	var req struct {
@@ -593,7 +608,7 @@ func (h *YatraAdminHandler) ResolveReport(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	if err := h.reportService.ResolveReport(uint(reportID), adminID, req.Notes); err != nil {
+	if err := h.reportService.ResolveReport(reportID, adminID, req.Notes); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -607,9 +622,9 @@ func (h *YatraAdminHandler) DismissReport(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	reportID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	reportID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid report ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid report ID"})
+		return err
 	}
 
 	var req struct {
@@ -619,7 +634,7 @@ func (h *YatraAdminHandler) DismissReport(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	if err := h.reportService.DismissReport(uint(reportID), adminID, req.Reason); err != nil {
+	if err := h.reportService.DismissReport(reportID, adminID, req.Reason); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -726,12 +741,12 @@ func (h *YatraAdminHandler) MarkNotificationRead(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	notifID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	notifID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid notification ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid notification ID"})
+		return err
 	}
 
-	if err := h.notificationService.MarkAsRead(uint(notifID), adminID); err != nil {
+	if err := h.notificationService.MarkAsRead(notifID, adminID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -747,9 +762,9 @@ func (h *YatraAdminHandler) CreateYatraReport(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	yatraID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	yatraID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid yatra ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
+		return err
 	}
 
 	var req struct {
@@ -762,7 +777,7 @@ func (h *YatraAdminHandler) CreateYatraReport(c *fiber.Ctx) error {
 
 	reportReq := models.YatraReportCreateRequest{
 		TargetType:  models.ReportTargetYatra,
-		TargetID:    uint(yatraID),
+		TargetID:    yatraID,
 		Reason:      req.Reason,
 		Description: req.Description,
 	}
@@ -782,9 +797,9 @@ func (h *YatraAdminHandler) CreateOrganizerReport(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	organizerID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	organizerID, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid organizer ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid organizer ID"})
+		return err
 	}
 
 	var req struct {
@@ -797,7 +812,7 @@ func (h *YatraAdminHandler) CreateOrganizerReport(c *fiber.Ctx) error {
 
 	reportReq := models.YatraReportCreateRequest{
 		TargetType:  models.ReportTargetOrganizer,
-		TargetID:    uint(organizerID),
+		TargetID:    organizerID,
 		Reason:      req.Reason,
 		Description: req.Description,
 	}

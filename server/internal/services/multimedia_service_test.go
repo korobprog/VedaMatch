@@ -23,6 +23,15 @@ func TestSanitizeUploadFolder(t *testing.T) {
 	if _, err := sanitizeUploadFolder("uploads\\nested"); err == nil {
 		t.Fatalf("expected error for windows-style path separator")
 	}
+	if _, err := sanitizeUploadFolder("./uploads"); err == nil {
+		t.Fatalf("expected error for dot-segment folder")
+	}
+	if _, err := sanitizeUploadFolder("uploads//nested"); err == nil {
+		t.Fatalf("expected error for empty path segment")
+	}
+	if _, err := sanitizeUploadFolder("media/my folder"); err == nil {
+		t.Fatalf("expected error for folder with whitespace in segment")
+	}
 }
 
 func TestNormalizeLimit(t *testing.T) {

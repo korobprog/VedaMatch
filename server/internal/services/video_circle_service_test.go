@@ -51,6 +51,7 @@ func TestCalculateVideoCircleTotalPages(t *testing.T) {
 		{name: "exact division", total: 100, limit: 20, want: 5},
 		{name: "with remainder", total: 101, limit: 20, want: 6},
 		{name: "invalid limit", total: 10, limit: 0, want: 1},
+		{name: "very large total", total: int64(^uint(0) >> 1), limit: 1, want: int(int64(^uint(0) >> 1))},
 	}
 
 	for _, tc := range tests {
@@ -72,5 +73,8 @@ func TestRemainingSecondsUntil(t *testing.T) {
 	}
 	if got := remainingSecondsUntil(now.Add(-1*time.Second), now); got != 0 {
 		t.Fatalf("expected 0 seconds for past time, got %d", got)
+	}
+	if got := remainingSecondsUntil(now.Add(1500*time.Millisecond), now); got != 2 {
+		t.Fatalf("expected ceil rounding to 2 seconds, got %d", got)
 	}
 }

@@ -1,6 +1,12 @@
 package handlers
 
-import "testing"
+import (
+	"encoding/json"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gofiber/fiber/v2"
+)
 
 func TestValidateAdminCredentials(t *testing.T) {
 	tests := []struct {
@@ -78,5 +84,39 @@ func TestIsSensitiveSystemSettingKey(t *testing.T) {
 	}
 	if isSensitiveSystemSettingKey("PUBLIC_SITE_NAME") {
 		t.Fatalf("expected PUBLIC_SITE_NAME to be non-sensitive")
+	}
+}
+
+func TestParsePositiveAdminParamInt(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:userId", func(c *fiber.Ctx) error {
+		value, err := parsePositiveAdminParamInt(c, "userId", "Invalid user ID")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"userId": value})
+	})
+
+	reqValid := httptest.NewRequest("GET", "/5", nil)
+	respValid, err := app.Test(reqValid)
+	if err != nil {
+		t.Fatalf("valid request failed: %v", err)
+	}
+	defer respValid.Body.Close()
+	var payload map[string]int
+	if err := json.NewDecoder(respValid.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if payload["userId"] != 5 {
+		t.Fatalf("expected userId=5, got %d", payload["userId"])
+	}
+
+	reqZero := httptest.NewRequest("GET", "/0", nil)
+	respZero, err := app.Test(reqZero)
+	if err != nil {
+		t.Fatalf("zero request failed: %v", err)
+	}
+	if respZero.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400 for zero userId, got %d", respZero.StatusCode)
 	}
 }

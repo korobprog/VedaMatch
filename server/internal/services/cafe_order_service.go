@@ -113,6 +113,41 @@ func calculateCafeOrderTotalPages(total int64, limit int) int {
 	return int(quotient)
 }
 
+func clampCafeOrderLimit(limit, fallback, maxLimit int) int {
+	if limit < 1 || (maxLimit > 0 && limit > maxLimit) {
+		return fallback
+	}
+	return limit
+}
+
+func calculateCafeOrderPaginationOffset(page, limit int) int {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		return 0
+	}
+
+	pageIndex := int64(page - 1)
+	limit64 := int64(limit)
+	maxInt := int64(^uint(0) >> 1)
+	if pageIndex > 0 && pageIndex > maxInt/limit64 {
+		return int(maxInt)
+	}
+	return int(pageIndex * limit64)
+}
+
+func clampCafeOrderInt64ToInt(value int64) int {
+	maxInt := int64(^uint(0) >> 1)
+	if value > maxInt {
+		return int(maxInt)
+	}
+	if value < -maxInt-1 {
+		return -int(maxInt) - 1
+	}
+	return int(value)
+}
+
 // NewCafeOrderService creates a new cafe order service instance
 func NewCafeOrderService(db *gorm.DB, dishService *DishService) *CafeOrderService {
 	return &CafeOrderService{
@@ -516,11 +551,8 @@ func (s *CafeOrderService) ListOrders(filters models.CafeOrderFilters) (*models.
 	if page < 1 {
 		page = 1
 	}
-	limit := filters.Limit
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
-	offset := (page - 1) * limit
+	limit := clampCafeOrderLimit(filters.Limit, 20, 100)
+	offset := calculateCafeOrderPaginationOffset(page, limit)
 
 	// Sorting
 	switch filters.Sort {
@@ -900,11 +932,11 @@ func (s *CafeOrderService) GetOrderStats(cafeID uint) (*models.CafeOrderStatsRes
 	}
 
 	return &models.CafeOrderStatsResponse{
-		TodayOrders:   int(todayOrders),
+		TodayOrders:   clampCafeOrderInt64ToInt(todayOrders),
 		TodayRevenue:  todayRevenue,
-		PendingOrders: int(pendingOrders),
+		PendingOrders: clampCafeOrderInt64ToInt(pendingOrders),
 		AvgPrepTime:   avgPrepTime,
-		TotalOrders:   int(totalOrders),
+		TotalOrders:   clampCafeOrderInt64ToInt(totalOrders),
 		TotalRevenue:  totalRevenue,
 	}, nil
 }
@@ -913,9 +945,7 @@ func (s *CafeOrderService) GetOrderStats(cafeID uint) (*models.CafeOrderStatsRes
 
 // GetCustomerOrderHistory returns order history for a customer
 func (s *CafeOrderService) GetCustomerOrderHistory(customerID uint, limit int) ([]models.CafeOrderResponse, error) {
-	if limit <= 0 {
-		limit = 10
-	}
+	limit = clampCafeOrderLimit(limit, 10, 100)
 
 	var orders []models.CafeOrder
 	err := s.db.Where("customer_id = ?", customerID).

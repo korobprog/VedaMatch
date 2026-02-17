@@ -306,11 +306,23 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const removeWallpaperSlide = useCallback(async (uri: string) => {
         setWallpaperSlides(prev => {
-            const updated = prev.filter(s => s !== uri);
+            const filtered = prev.filter(s => s !== uri);
+            const fallbackSlides = getPresetUris();
+            const updated = filtered.length > 0 ? filtered : fallbackSlides;
+
             AsyncStorage.setItem('wallpaper_slides', JSON.stringify(updated)).catch(console.error);
+            setCurrentSlideIndex(prevIdx => (updated.length > 0 ? prevIdx % updated.length : 0));
+
+            if (!isSlideshowEnabled && portalBackground === uri && updated[0]) {
+                setPortalBackgroundState(updated[0]);
+                setPortalBackgroundType('image');
+                AsyncStorage.setItem('portal_background', updated[0]).catch(console.error);
+                AsyncStorage.setItem('portal_background_type', 'image').catch(console.error);
+            }
+
             return updated;
         });
-    }, []);
+    }, [isSlideshowEnabled, portalBackground]);
 
     // Slideshow timer effect
     useEffect(() => {

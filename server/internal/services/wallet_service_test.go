@@ -432,6 +432,25 @@ func TestCalculateTotalPages(t *testing.T) {
 	}
 }
 
+func TestCalculateWalletPaginationOffset(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateWalletPaginationOffset(2, 20); got != 20 {
+		t.Fatalf("expected offset=20, got %d", got)
+	}
+	if got := calculateWalletPaginationOffset(0, 20); got != 0 {
+		t.Fatalf("expected offset=0 for invalid page, got %d", got)
+	}
+	if got := calculateWalletPaginationOffset(10, 0); got != 0 {
+		t.Fatalf("expected offset=0 for invalid limit, got %d", got)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if got := calculateWalletPaginationOffset(maxInt, 2); got != maxInt {
+		t.Fatalf("expected clamped offset=%d, got %d", maxInt, got)
+	}
+}
+
 func TestAllocationFromExistingSpendTransaction(t *testing.T) {
 	t.Parallel()
 

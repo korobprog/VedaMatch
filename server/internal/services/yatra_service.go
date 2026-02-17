@@ -325,7 +325,7 @@ func (s *YatraService) ListYatras(filters models.YatraFilters) ([]models.Yatra, 
 	if limit < 1 || limit > 50 {
 		limit = 20
 	}
-	offset := (page - 1) * limit
+	offset := calculateYatraPaginationOffset(page, limit)
 
 	var yatras []models.Yatra
 	err := query.Preload("Organizer").
@@ -653,6 +653,41 @@ func calculateYatraMarkerTruncated(total int64, returned int) int {
 	return int(diff)
 }
 
+func clampYatraInt64ToInt(value int64) int {
+	maxInt := int64(^uint(0) >> 1)
+	if value > maxInt {
+		return int(maxInt)
+	}
+	if value < -maxInt-1 {
+		return -int(maxInt) - 1
+	}
+	return int(value)
+}
+
+func calculateYatraPaginationOffset(page, limit int) int {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		return 0
+	}
+
+	pageIndex := int64(page - 1)
+	limit64 := int64(limit)
+	maxInt := int64(^uint(0) >> 1)
+	if pageIndex > 0 && pageIndex > maxInt/limit64 {
+		return int(maxInt)
+	}
+	return int(pageIndex * limit64)
+}
+
+func isYatraAtCapacity(approvedCount int64, maxParticipants int) bool {
+	if maxParticipants <= 0 {
+		return true
+	}
+	return approvedCount >= int64(maxParticipants)
+}
+
 func isRatingInRange(value, min, max int) bool {
 	return value >= min && value <= max
 }
@@ -743,7 +778,7 @@ func (s *YatraService) JoinYatra(yatraID uint, userID uint, req models.YatraJoin
 			Count(&approvedCount).Error; err != nil {
 			return err
 		}
-		if int(approvedCount) >= yatra.MaxParticipants {
+		if isYatraAtCapacity(approvedCount, yatra.MaxParticipants) {
 			if err := tx.Model(&models.Yatra{}).Where("id = ? AND status = ?", yatraID, models.YatraStatusOpen).
 				Update("status", models.YatraStatusFull).Error; err != nil {
 				return err
@@ -801,7 +836,7 @@ func (s *YatraService) ApproveParticipant(yatraID uint, participantID uint, orga
 			Count(&approvedCount).Error; err != nil {
 			return err
 		}
-		if int(approvedCount) >= yatra.MaxParticipants {
+		if isYatraAtCapacity(approvedCount, yatra.MaxParticipants) {
 			if err := tx.Model(&models.Yatra{}).Where("id = ? AND status = ?", yatraID, models.YatraStatusOpen).
 				Update("status", models.YatraStatusFull).Error; err != nil {
 				return err
@@ -967,11 +1002,11 @@ func (s *YatraService) updateParticipantCount(yatraID uint) {
 	// Keep status in sync with capacity.
 	var yatra models.Yatra
 	if err := s.db.First(&yatra, yatraID).Error; err == nil {
-		if int(count) >= yatra.MaxParticipants && yatra.Status == models.YatraStatusOpen {
+		if isYatraAtCapacity(count, yatra.MaxParticipants) && yatra.Status == models.YatraStatusOpen {
 			if err := s.db.Model(&yatra).Update("status", models.YatraStatusFull).Error; err != nil {
 				log.Printf("[YatraService] Failed to mark yatra full yatra_id=%d: %v", yatraID, err)
 			}
-		} else if int(count) < yatra.MaxParticipants && yatra.Status == models.YatraStatusFull {
+		} else if !isYatraAtCapacity(count, yatra.MaxParticipants) && yatra.Status == models.YatraStatusFull {
 			if err := s.db.Model(&yatra).Update("status", models.YatraStatusOpen).Error; err != nil {
 				log.Printf("[YatraService] Failed to reopen yatra yatra_id=%d: %v", yatraID, err)
 			}
@@ -1106,7 +1141,7 @@ func (s *YatraService) GetYatraReviews(yatraID uint, page, limit int) ([]models.
 	if limit < 1 || limit > 50 {
 		limit = 10
 	}
-	offset := (page - 1) * limit
+	offset := calculateYatraPaginationOffset(page, limit)
 
 	// Fetch reviews with author
 	err := s.db.Where("yatra_id = ?", yatraID).
@@ -1198,7 +1233,7 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 		Count(&organizedCompleted).Error; err != nil {
 		return nil, err
 	}
-	stats.OrganizedCount = int(organizedCompleted)
+	stats.OrganizedCount = clampYatraInt64ToInt(organizedCompleted)
 
 	// If no organized yatras, also count open/full ones
 	if stats.OrganizedCount == 0 {
@@ -1208,7 +1243,7 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 			Count(&totalCount).Error; err != nil {
 			return nil, err
 		}
-		stats.OrganizedCount = int(totalCount)
+		stats.OrganizedCount = clampYatraInt64ToInt(totalCount)
 	}
 
 	// Get average rating from reviews of user's yatras
@@ -1245,7 +1280,7 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 		Count(&participantCount).Error; err != nil {
 		return nil, err
 	}
-	stats.TotalParticipants = int(participantCount)
+	stats.TotalParticipants = clampYatraInt64ToInt(participantCount)
 
 	// Count recommendations
 	var recommendCount int64
@@ -1255,7 +1290,7 @@ func (s *YatraService) GetOrganizerStats(userID uint) (*models.OrganizerStats, e
 		Count(&recommendCount).Error; err != nil {
 		return nil, err
 	}
-	stats.Recommendations = int(recommendCount)
+	stats.Recommendations = clampYatraInt64ToInt(recommendCount)
 
 	return stats, nil
 }

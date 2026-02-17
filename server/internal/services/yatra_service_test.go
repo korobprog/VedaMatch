@@ -273,3 +273,49 @@ func TestCalculateYatraMarkerTruncated(t *testing.T) {
 		t.Fatalf("expected clamped truncated=%d, got %d", maxInt, got)
 	}
 }
+
+func TestCalculateYatraPaginationOffset(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateYatraPaginationOffset(2, 20); got != 20 {
+		t.Fatalf("expected offset=20, got %d", got)
+	}
+	if got := calculateYatraPaginationOffset(0, 20); got != 0 {
+		t.Fatalf("expected offset=0 for invalid page, got %d", got)
+	}
+	if got := calculateYatraPaginationOffset(10, 0); got != 0 {
+		t.Fatalf("expected offset=0 for invalid limit, got %d", got)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if got := calculateYatraPaginationOffset(maxInt, 2); got != maxInt {
+		t.Fatalf("expected clamped offset=%d, got %d", maxInt, got)
+	}
+}
+
+func TestClampYatraInt64ToInt(t *testing.T) {
+	t.Parallel()
+
+	if got := clampYatraInt64ToInt(42); got != 42 {
+		t.Fatalf("expected 42, got %d", got)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if got := clampYatraInt64ToInt(math.MaxInt64); got != maxInt {
+		t.Fatalf("expected clamped max=%d, got %d", maxInt, got)
+	}
+}
+
+func TestIsYatraAtCapacity(t *testing.T) {
+	t.Parallel()
+
+	if !isYatraAtCapacity(10, 10) {
+		t.Fatalf("expected exact capacity to be full")
+	}
+	if isYatraAtCapacity(9, 10) {
+		t.Fatalf("expected below capacity to be not full")
+	}
+	if !isYatraAtCapacity(1, 0) {
+		t.Fatalf("expected non-positive max participants to be treated as full")
+	}
+}

@@ -1070,6 +1070,10 @@ export default {
             йог: 'Yogi',
             преданный: 'Devotee',
         },
+        godMode: {
+            title: 'PRO Mode: Math Filters',
+            viewingMath: 'Viewing math {{name}}',
+        },
         change_role: 'Change Role',
         priority_services_hint: 'You will receive priority in these services within the portal:',
         filters: {
@@ -1098,7 +1102,9 @@ export default {
             holy_places: 'Holy Places',
             group_tours: 'Group Tours',
             temple_updates: 'Temple Updates',
-            festival_reports: 'Festival Reports'
+            festival_reports: 'Festival Reports',
+            prasadam: 'Prasadam',
+            family_events: 'Family Events'
         }
     },
     services: {

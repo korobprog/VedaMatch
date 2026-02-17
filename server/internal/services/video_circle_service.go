@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"net/url"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
@@ -33,7 +32,17 @@ func remainingSecondsUntil(expiresAt, now time.Time) int {
 	if remaining <= 0 {
 		return 0
 	}
-	return int(math.Ceil(remaining.Seconds()))
+
+	seconds := int64(remaining / time.Second)
+	if remaining%time.Second != 0 {
+		seconds++
+	}
+
+	maxInt := int64(^uint(0) >> 1)
+	if seconds > maxInt {
+		return int(maxInt)
+	}
+	return int(seconds)
 }
 
 func calculateVideoCircleTotalPages(total int64, limit int) int {
@@ -43,8 +52,13 @@ func calculateVideoCircleTotalPages(total int64, limit int) int {
 	if total <= 0 {
 		return 1
 	}
-	totalPages := int((total + int64(limit) - 1) / int64(limit))
-	return totalPages
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
+	maxInt := int64(^uint(0) >> 1)
+	if totalPages > maxInt {
+		return int(maxInt)
+	}
+	return int(totalPages)
 }
 
 type VideoCircleService struct {

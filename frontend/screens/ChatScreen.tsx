@@ -30,10 +30,10 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     const isImageBackground = portalBackgroundType === 'image' && Boolean(portalBackground);
     const backgroundSource = useMemo(() => {
         if (!isImageBackground || !portalBackground) return undefined;
-        return {
-            uri: portalBackground,
-            cache: 'force-cache' as const,
-        };
+        const isRemoteUri = /^https?:\/\//i.test(portalBackground);
+        return isRemoteUri
+            ? { uri: portalBackground, cache: 'force-cache' as const }
+            : { uri: portalBackground };
     }, [isImageBackground, portalBackground]);
 
     useEffect(() => {

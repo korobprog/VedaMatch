@@ -69,7 +69,19 @@ const SERVICE_TABS = new Set<ServiceTab>([
 const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     useTranslation();
     const { user, roleDescriptor, godModeFilters, activeMathId, setActiveMath } = useUser();
-    const { vTheme, isDarkMode, setIsMenuOpen, portalBackground, portalBackgroundType, activeWallpaper, isSlideshowEnabled, assistantType } = useSettings();
+    const {
+        vTheme,
+        isDarkMode,
+        setIsMenuOpen,
+        portalBackground,
+        portalBackgroundType,
+        activeWallpaper,
+        isSlideshowEnabled,
+        assistantType,
+        removeWallpaperSlide,
+        wallpaperSlides,
+        setPortalBackground,
+    } = useSettings();
     const { handleNewChat } = useChat();
 
     // Animations for assistant button
@@ -131,7 +143,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const [displayedBg, setDisplayedBg] = useState(effectiveBg);
     const [nextBg, setNextBg] = useState<string | null>(null);
+    const [displayedImageFailed, setDisplayedImageFailed] = useState(false);
     const isTransitioning = useRef(false);
+    const failedWallpaperSetRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         if (!isSlideshowEnabled || effectiveBg === displayedBg || isTransitioning.current) return;
@@ -176,13 +190,42 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         }
     }, [isSlideshowEnabled, effectiveBg, fadeAnim]);
 
+    useEffect(() => {
+        setDisplayedImageFailed(false);
+    }, [displayedBg]);
+
+    const handleWallpaperLoadError = useCallback((failedUri?: string | null) => {
+        if (!failedUri) return;
+        if (failedWallpaperSetRef.current.has(failedUri)) return;
+        failedWallpaperSetRef.current.add(failedUri);
+
+        if (wallpaperSlides.includes(failedUri)) {
+            removeWallpaperSlide(failedUri).catch((error) => {
+                console.warn('[Portal] failed to remove broken wallpaper slide:', error);
+            });
+            return;
+        }
+
+        if (!isSlideshowEnabled && failedUri === portalBackground && wallpaperSlides[0]) {
+            setPortalBackground(wallpaperSlides[0], 'image').catch((error) => {
+                console.warn('[Portal] failed to apply fallback wallpaper:', error);
+            });
+        }
+    }, [wallpaperSlides, removeWallpaperSlide, isSlideshowEnabled, portalBackground, setPortalBackground]);
+
     const backgroundImageSource = useMemo(() => {
         if (!isImageBackground || !displayedBg) return undefined;
-        return { uri: displayedBg, cache: 'force-cache' as const };
+        const isRemoteUri = /^https?:\/\//i.test(displayedBg);
+        return isRemoteUri
+            ? { uri: displayedBg, cache: 'force-cache' as const }
+            : { uri: displayedBg };
     }, [isImageBackground, displayedBg]);
     const nextBgSource = useMemo(() => {
         if (!nextBg) return undefined;
-        return { uri: nextBg, cache: 'force-cache' as const };
+        const isRemoteUri = /^https?:\/\//i.test(nextBg);
+        return isRemoteUri
+            ? { uri: nextBg, cache: 'force-cache' as const }
+            : { uri: nextBg };
     }, [nextBg]);
     const gradientColors = useMemo(() => {
         if (!isGradientBackground || !effectiveBg) return undefined;
@@ -190,7 +233,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     }, [isGradientBackground, effectiveBg]);
 
     const renderWithBackground = useCallback((children: React.ReactNode) => {
-        if (isImageBackground && backgroundImageSource) {
+        if (isImageBackground && backgroundImageSource && !displayedImageFailed) {
             return (
                 <View style={styles.container}>
                     <ImageBackground
@@ -198,6 +241,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         style={StyleSheet.absoluteFill}
                         resizeMode="cover"
                         fadeDuration={0}
+                        onError={() => {
+                            setDisplayedImageFailed(true);
+                            handleWallpaperLoadError(displayedBg);
+                        }}
                     />
                     {nextBgSource && (
                         <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
@@ -206,6 +253,12 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 style={StyleSheet.absoluteFill}
                                 resizeMode="cover"
                                 fadeDuration={0}
+                                onError={() => {
+                                    handleWallpaperLoadError(nextBg);
+                                    setNextBg(null);
+                                    fadeAnim.setValue(1);
+                                    isTransitioning.current = false;
+                                }}
                             />
                         </Animated.View>
                     )}
@@ -234,7 +287,20 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                 {children}
             </View>
         );
-    }, [isImageBackground, backgroundImageSource, nextBgSource, fadeAnim, isGradientBackground, gradientColors, effectiveBg, vTheme.colors.background]);
+    }, [
+        isImageBackground,
+        backgroundImageSource,
+        displayedImageFailed,
+        handleWallpaperLoadError,
+        displayedBg,
+        nextBgSource,
+        nextBg,
+        fadeAnim,
+        isGradientBackground,
+        gradientColors,
+        effectiveBg,
+        vTheme.colors.background,
+    ]);
 
     useEffect(() => {
         const initialTab = route.params?.initialTab;

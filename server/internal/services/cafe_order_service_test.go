@@ -74,6 +74,52 @@ func TestCalculateCafeOrderTotalPages(t *testing.T) {
 	}
 }
 
+func TestClampCafeOrderLimit(t *testing.T) {
+	t.Parallel()
+
+	if got := clampCafeOrderLimit(0, 10, 100); got != 10 {
+		t.Fatalf("expected fallback limit=10, got %d", got)
+	}
+	if got := clampCafeOrderLimit(101, 10, 100); got != 10 {
+		t.Fatalf("expected fallback for too large limit, got %d", got)
+	}
+	if got := clampCafeOrderLimit(50, 10, 100); got != 50 {
+		t.Fatalf("expected valid limit=50, got %d", got)
+	}
+}
+
+func TestCalculateCafeOrderPaginationOffset(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateCafeOrderPaginationOffset(2, 20); got != 20 {
+		t.Fatalf("expected offset=20, got %d", got)
+	}
+	if got := calculateCafeOrderPaginationOffset(0, 20); got != 0 {
+		t.Fatalf("expected offset=0 for invalid page, got %d", got)
+	}
+	if got := calculateCafeOrderPaginationOffset(10, 0); got != 0 {
+		t.Fatalf("expected offset=0 for invalid limit, got %d", got)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if got := calculateCafeOrderPaginationOffset(maxInt, 2); got != maxInt {
+		t.Fatalf("expected clamped offset=%d, got %d", maxInt, got)
+	}
+}
+
+func TestClampCafeOrderInt64ToInt(t *testing.T) {
+	t.Parallel()
+
+	if got := clampCafeOrderInt64ToInt(42); got != 42 {
+		t.Fatalf("expected 42, got %d", got)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if got := clampCafeOrderInt64ToInt(math.MaxInt64); got != maxInt {
+		t.Fatalf("expected clamped max=%d, got %d", maxInt, got)
+	}
+}
+
 func TestIsOrderNumberConflict(t *testing.T) {
 	t.Parallel()
 

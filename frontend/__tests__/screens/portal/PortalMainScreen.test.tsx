@@ -70,8 +70,7 @@ describe('PortalMainScreen', () => {
       />
     );
 
-    expect(getByText('Режим PRO: фильтры матхов')).toBeTruthy();
+    expect(getByText('PRO')).toBeTruthy();
     expect(getByText('Gauranga Math')).toBeTruthy();
-    expect(getByText('kirtan')).toBeTruthy();
   });
 });

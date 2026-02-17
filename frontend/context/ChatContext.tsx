@@ -52,6 +52,7 @@ interface ChatContextType {
     stopRecording: () => Promise<void>;
     cancelRecording: () => Promise<void>;
     deleteMessage: (messageId: string) => Promise<void>;
+    deleteChats: (ids: string[]) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -125,7 +126,24 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 if (savedHistory && savedHistory !== 'undefined' && savedHistory !== 'null') {
                     const parsed = JSON.parse(savedHistory);
                     if (Array.isArray(parsed)) {
-                        setHistory(parsed as ChatHistory[]);
+                        // Migrate titles from default "History" to first word of first message
+                        const migrated = (parsed as ChatHistory[]).map(item => {
+                            const defaultTitles = [t('chat.history'), 'История чатов', 'Chat History'];
+                            if (defaultTitles.includes(item.title) || !item.title) {
+                                const firstUserMsg = item.messages.find(m => m.sender === 'user')?.text;
+                                if (firstUserMsg) {
+                                    const trimmed = firstUserMsg.trim();
+                                    const firstWord = trimmed.split(/\s+/)[0];
+                                    let newTitle = firstWord;
+                                    if (trimmed.length > firstWord.length) {
+                                        newTitle += '...';
+                                    }
+                                    return { ...item, title: newTitle };
+                                }
+                            }
+                            return item;
+                        });
+                        setHistory(migrated);
                     } else {
                         setHistory([]);
                     }
@@ -172,10 +190,21 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     // Create new session
                     chatId = Date.now().toString();
                     setCurrentChatId(chatId);
-                    const firstUserMsg = messages.find(m => m.sender === 'user')?.text || t('chat.history');
+                    const firstUserMsg = messages.find(m => m.sender === 'user')?.text;
+                    let displayTitle = t('chat.history');
+
+                    if (firstUserMsg) {
+                        const trimmed = firstUserMsg.trim();
+                        const firstWord = trimmed.split(/\s+/)[0];
+                        displayTitle = firstWord;
+                        if (trimmed.length > firstWord.length) {
+                            displayTitle += '...';
+                        }
+                    }
+
                     const newChat: ChatHistory = {
                         id: chatId,
-                        title: firstUserMsg.slice(0, 30) + (firstUserMsg.length > 30 ? '...' : ''),
+                        title: displayTitle,
                         messages: messages,
                         timestamp: Date.now()
                     };
@@ -186,8 +215,25 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                 if (chatId) {
                     const index = updatedHistory.findIndex(h => h.id === chatId);
                     if (index !== -1) {
+                        const existingChat = updatedHistory[index];
+                        let updatedTitle = existingChat.title;
+
+                        // Update title if it's still the default one
+                        if (!updatedTitle || updatedTitle === t('chat.history')) {
+                            const firstUserMsg = messages.find(m => m.sender === 'user')?.text;
+                            if (firstUserMsg) {
+                                const trimmed = firstUserMsg.trim();
+                                const firstWord = trimmed.split(/\s+/)[0];
+                                updatedTitle = firstWord;
+                                if (trimmed.length > firstWord.length) {
+                                    updatedTitle += '...';
+                                }
+                            }
+                        }
+
                         updatedHistory[index] = {
-                            ...updatedHistory[index],
+                            ...existingChat,
+                            title: updatedTitle,
                             messages: messages,
                             timestamp: Date.now()
                         };
@@ -649,6 +695,33 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const deleteChats = async (ids: string[]) => {
+        const updated = history.filter(h => !ids.includes(h.id));
+        setHistory(updated);
+
+        // If current chat is in the deleted list, reset it
+        if (currentChatId && ids.includes(currentChatId)) {
+            const assistantName = assistantType === 'feather2' ? "Перо 2" : (assistantType === 'feather' ? "Мудрое Перо" : "Кришна Дас");
+            setMessages([{
+                id: `welcome_${Date.now()}`,
+                text: `${assistantName}. ${t('chat.welcome')}`,
+                sender: 'bot',
+            }]);
+            setCurrentChatId(null);
+            setRecipientId(null);
+            setRecipientUser(null);
+            setP2PNextBeforeId(null);
+            setHasOlderMessages(false);
+            setIsLoadingOlderMessages(false);
+        }
+
+        try {
+            await AsyncStorage.setItem('chat_history', JSON.stringify(updated));
+        } catch (e) {
+            console.error('Failed to delete history', e);
+        }
+    };
+
     const handleSendMedia = async (media: MediaFile) => {
         if (!currentUser?.ID) return;
 
@@ -860,6 +933,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
                     Alert.alert('Error', 'Could not delete message');
                 }
             },
+            deleteChats,
         }}>
             {children}
         </ChatContext.Provider>

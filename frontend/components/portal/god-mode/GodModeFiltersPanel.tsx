@@ -1,6 +1,21 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  LayoutAnimation,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  UIManager,
+  View,
+} from 'react-native';
+import { ChevronDown } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { MathFilter } from '../../../types/portalBlueprint';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface GodModeFiltersPanelProps {
   filters: MathFilter[];
@@ -13,31 +28,78 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
   activeMathId,
   onSelectMath,
 }) => {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+
   if (!filters || filters.length === 0) return null;
 
   const active = filters.find((f) => f.mathId === activeMathId) || filters[0];
 
+  const toggleExpanded = () => {
+    LayoutAnimation.configureNext(
+      LayoutAnimation.create(250, 'easeInEaseOut', 'opacity'),
+    );
+    setExpanded((prev) => !prev);
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Режим PRO: фильтры матхов</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mathRow}>
-        {filters.map((item) => {
-          const selected = item.mathId === active.mathId;
-          return (
-            <Pressable
-              key={item.mathId}
-              onPress={() => onSelectMath(item.mathId)}
-              style={[styles.mathChip, selected && styles.mathChipSelected]}
-            >
-              <Text style={[styles.mathChipText, selected && styles.mathChipTextSelected]}>
-                {item.mathName}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      <Text style={styles.caption}>Вы видите матх {active.mathName}</Text>
-      <Text style={styles.filtersText}>{active.filters.join(', ')}</Text>
+      {/* Header row — always visible, tap to toggle */}
+      <Pressable onPress={toggleExpanded} style={styles.headerRow}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.proLabel}>PRO</Text>
+          <Text style={styles.activeMathName} numberOfLines={1}>
+            {active.mathName}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.chevronWrapper,
+            expanded && styles.chevronRotated,
+          ]}
+        >
+          <ChevronDown size={16} color="#6B7280" />
+        </View>
+      </Pressable>
+
+      {/* Expandable content */}
+      {expanded && (
+        <View style={styles.expandedContent}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.mathRow}
+          >
+            {filters.map((item) => {
+              const selected = item.mathId === active.mathId;
+              return (
+                <Pressable
+                  key={item.mathId}
+                  onPress={() => onSelectMath(item.mathId)}
+                  style={[styles.mathChip, selected && styles.mathChipSelected]}
+                >
+                  <Text
+                    style={[
+                      styles.mathChipText,
+                      selected && styles.mathChipTextSelected,
+                    ]}
+                  >
+                    {item.mathName}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Text style={styles.caption}>
+            {t('portal.godMode.viewingMath', { name: active.mathName })}
+          </Text>
+          <Text style={styles.filtersText}>
+            {active.filters
+              .map((f) => t(`portal.filters.${f}`, f))
+              .join(', ')}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -48,14 +110,52 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    padding: 12,
+    marginHorizontal: 12,
     marginBottom: 12,
+    overflow: 'hidden',
   },
-  title: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  proLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    backgroundColor: '#111827',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+    letterSpacing: 0.5,
+  },
+  activeMathName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
+  },
+  chevronWrapper: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chevronRotated: {
+    transform: [{ rotate: '180deg' }],
+  },
+  expandedContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
   },
   mathRow: {
     gap: 8,

@@ -43,10 +43,34 @@ func sanitizeUploadFolder(folder string) (string, error) {
 	if folder == "" {
 		return "", fmt.Errorf("folder is required")
 	}
-	if strings.Contains(folder, "..") || strings.HasPrefix(folder, "/") || strings.Contains(folder, "\\") {
+	if strings.HasPrefix(folder, "/") || strings.Contains(folder, "\\") {
 		return "", fmt.Errorf("invalid folder")
 	}
-	return strings.Trim(folder, "/"), nil
+	folder = strings.Trim(folder, "/")
+	if folder == "" {
+		return "", fmt.Errorf("folder is required")
+	}
+
+	segments := strings.Split(folder, "/")
+	cleanSegments := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		segment = strings.TrimSpace(segment)
+		if segment == "" || segment == "." || segment == ".." {
+			return "", fmt.Errorf("invalid folder")
+		}
+		for _, r := range segment {
+			if (r >= 'a' && r <= 'z') ||
+				(r >= 'A' && r <= 'Z') ||
+				(r >= '0' && r <= '9') ||
+				r == '-' || r == '_' || r == '.' {
+				continue
+			}
+			return "", fmt.Errorf("invalid folder")
+		}
+		cleanSegments = append(cleanSegments, segment)
+	}
+
+	return strings.Join(cleanSegments, "/"), nil
 }
 
 func normalizeLimit(limit int) int {

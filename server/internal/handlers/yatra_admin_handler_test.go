@@ -72,6 +72,122 @@ func TestParseYatraAdminBoolQuery(t *testing.T) {
 	}
 }
 
+func TestParsePositiveYatraAdminParamUint(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:id", func(c *fiber.Ctx) error {
+		id, err := parsePositiveYatraAdminParamUint(c, "id", "Invalid ID")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"id": id})
+	})
+
+	t.Run("valid positive id", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/42", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != fiber.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+
+		var payload map[string]uint
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode failed: %v", err)
+		}
+		if payload["id"] != 42 {
+			t.Fatalf("expected id=42, got %d", payload["id"])
+		}
+	})
+
+	t.Run("zero id is rejected", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/0", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("non numeric id is rejected", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/abc", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestParseOptionalPositiveYatraAdminQueryUint(t *testing.T) {
+	app := fiber.New()
+	app.Get("/", func(c *fiber.Ctx) error {
+		targetID := parseOptionalPositiveYatraAdminQueryUint(c, "target_id")
+		if targetID == nil {
+			return c.JSON(fiber.Map{"hasTargetID": false})
+		}
+		return c.JSON(fiber.Map{"hasTargetID": true, "targetID": *targetID})
+	})
+
+	t.Run("positive query value", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/?target_id=7", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var payload map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode failed: %v", err)
+		}
+		if hasTargetID, ok := payload["hasTargetID"].(bool); !ok || !hasTargetID {
+			t.Fatalf("expected hasTargetID=true, got %+v", payload["hasTargetID"])
+		}
+	})
+
+	t.Run("zero query value ignored", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/?target_id=0", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var payload map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode failed: %v", err)
+		}
+		if hasTargetID, ok := payload["hasTargetID"].(bool); !ok || hasTargetID {
+			t.Fatalf("expected hasTargetID=false, got %+v", payload["hasTargetID"])
+		}
+	})
+
+	t.Run("invalid query value ignored", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/?target_id=abc", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var payload map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode failed: %v", err)
+		}
+		if hasTargetID, ok := payload["hasTargetID"].(bool); !ok || hasTargetID {
+			t.Fatalf("expected hasTargetID=false, got %+v", payload["hasTargetID"])
+		}
+	})
+}
+
 func TestRequireYatraReporterUserID_AllowsAuthenticatedUser(t *testing.T) {
 	app := fiber.New()
 	app.Get("/", func(c *fiber.Ctx) error {

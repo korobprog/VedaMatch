@@ -81,6 +81,23 @@ func calculateTotalPages(total int64, limit int) int {
 	return int(quotient)
 }
 
+func calculateWalletPaginationOffset(page, limit int) int {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		return 0
+	}
+
+	pageIndex := int64(page - 1)
+	limit64 := int64(limit)
+	maxInt := int64(^uint(0) >> 1)
+	if pageIndex > 0 && pageIndex > maxInt/limit64 {
+		return int(maxInt)
+	}
+	return int(pageIndex * limit64)
+}
+
 func calculateSpendAllocation(amount, regularBalance, bonusBalance int, opts SpendOptions) (SpendAllocation, error) {
 	if amount <= 0 {
 		return SpendAllocation{}, errors.New("amount must be positive")
@@ -557,7 +574,7 @@ func (s *WalletService) GetTransactions(userID uint, filters models.TransactionF
 	if limit < 1 || limit > 100 {
 		limit = 20
 	}
-	offset := (page - 1) * limit
+	offset := calculateWalletPaginationOffset(page, limit)
 
 	// Fetch transactions
 	var transactions []models.WalletTransaction

@@ -107,6 +107,23 @@ func calculateProductTotalPages(total int64, limit int) int {
 	return int(quotient)
 }
 
+func calculateProductPaginationOffset(page, limit int) int {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		return 0
+	}
+
+	pageIndex := int64(page - 1)
+	limit64 := int64(limit)
+	maxInt := int64(^uint(0) >> 1)
+	if pageIndex > 0 && pageIndex > maxInt/limit64 {
+		return int(maxInt)
+	}
+	return int(pageIndex * limit64)
+}
+
 func normalizeProductFiltersForQuery(filters models.ProductFilters) models.ProductFilters {
 	filters.Category = normalizeProductCategory(filters.Category)
 	filters.ProductType = normalizeProductType(filters.ProductType)
@@ -465,7 +482,7 @@ func (s *ProductService) GetProductsByShop(shopID uint, page, limit int) (*model
 	if limit < 1 || limit > 50 {
 		limit = 20
 	}
-	offset := (page - 1) * limit
+	offset := calculateProductPaginationOffset(page, limit)
 
 	var products []models.Product
 	if err := query.
@@ -546,7 +563,7 @@ func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.Pro
 	if limit < 1 || limit > 50 {
 		limit = 20
 	}
-	offset := (page - 1) * limit
+	offset := calculateProductPaginationOffset(page, limit)
 
 	// Sorting
 	switch filters.Sort {
@@ -916,7 +933,7 @@ func (s *ProductService) GetReviews(productID uint, page, limit int) ([]models.P
 	if limit < 1 || limit > 50 {
 		limit = 10
 	}
-	offset := (page - 1) * limit
+	offset := calculateProductPaginationOffset(page, limit)
 
 	var reviews []models.ProductReview
 	var total int64
