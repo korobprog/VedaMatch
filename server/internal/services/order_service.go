@@ -70,6 +70,17 @@ func moneyToLKM(amount float64) int {
 	return int(math.Round(amount))
 }
 
+func calculateOrderTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		return 1
+	}
+	return totalPages
+}
+
 // CreateOrder creates a new order from cart items
 func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) (*models.Order, error) {
 	if len(req.Items) == 0 {
@@ -114,9 +125,11 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 		var variantName, sku, imageURL string
 
 		if cartItem.VariantID != nil {
+			variantFound := false
 			// Find variant
 			for _, v := range product.Variants {
 				if v.ID == *cartItem.VariantID {
+					variantFound = true
 					if v.Price != nil {
 						unitPrice = *v.Price
 					} else {
@@ -131,6 +144,10 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 					imageURL = v.ImageURL
 					break
 				}
+			}
+			if !variantFound {
+				tx.Rollback()
+				return nil, fmt.Errorf("variant %d not found for product %d", *cartItem.VariantID, product.ID)
 			}
 		} else {
 			unitPrice = product.BasePrice
@@ -289,7 +306,7 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 			shouldTriggerReferralActivation = true
 		}
 
-		now := time.Now()
+		now := time.Now().UTC()
 		paymentUpdates := map[string]interface{}{
 			"is_paid":          true,
 			"paid_at":          now,
@@ -301,7 +318,8 @@ func (s *OrderService) CreateOrder(buyerID uint, req models.OrderCreateRequest) 
 			return nil, err
 		}
 		order.IsPaid = true
-		order.PaidAt = &now
+		paidAt := now
+		order.PaidAt = &paidAt
 		order.RegularLkmPaid = paymentAllocation.RegularAmount
 		order.BonusLkmPaid = paymentAllocation.BonusAmount
 	}
@@ -422,8 +440,8 @@ func (s *OrderService) getOrders(filters models.OrderFilters) (*models.OrderList
 	if filters.SourceChannelID != nil {
 		query = query.Where("source_channel_id = ?", *filters.SourceChannelID)
 	}
-	if filters.Search != "" {
-		query = query.Where("order_number ILIKE ?", "%"+filters.Search+"%")
+	if search := strings.TrimSpace(filters.Search); search != "" {
+		query = query.Where("order_number ILIKE ?", "%"+search+"%")
 	}
 
 	var total int64
@@ -481,7 +499,7 @@ func (s *OrderService) getOrders(filters models.OrderFilters) (*models.OrderList
 		responses = append(responses, resp)
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	totalPages := calculateOrderTotalPages(total, limit)
 
 	return &models.OrderListResponse{
 		Orders:     responses,
@@ -508,7 +526,7 @@ func (s *OrderService) UpdateOrderStatus(orderID uint, sellerID uint, status mod
 		return nil, ErrInvalidOrderStatus
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"status": status,
 	}
@@ -520,7 +538,9 @@ func (s *OrderService) UpdateOrderStatus(orderID uint, sellerID uint, status mod
 		updates["shipped_at"] = now
 		// Deduct stock on shipment
 		for _, item := range order.Items {
-			s.productService.DeductStock(item.ProductID, item.VariantID, item.Quantity)
+			if err := s.productService.DeductStock(item.ProductID, item.VariantID, item.Quantity); err != nil {
+				return nil, err
+			}
 		}
 	case models.OrderStatusDelivered:
 		updates["delivered_at"] = now
@@ -559,7 +579,7 @@ func (s *OrderService) CancelOrder(orderID uint, userID uint, reason string) (*m
 			return errors.New("order cannot be cancelled at this stage")
 		}
 
-		now := time.Now()
+		now := time.Now().UTC()
 		updates := map[string]interface{}{
 			"status":        models.OrderStatusCancelled,
 			"cancelled_at":  now,
@@ -610,7 +630,7 @@ func (s *OrderService) CancelOrder(orderID uint, userID uint, reason string) (*m
 
 // MarkNotificationSent marks that seller was notified
 func (s *OrderService) MarkNotificationSent(orderID uint) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	return database.DB.Model(&models.Order{}).Where("id = ?", orderID).
 		Updates(map[string]interface{}{
 			"notification_sent":    true,
@@ -620,7 +640,7 @@ func (s *OrderService) MarkNotificationSent(orderID uint) error {
 
 // Helper: generate unique order number
 func (s *OrderService) generateOrderNumber() string {
-	now := time.Now()
+	now := time.Now().UTC()
 	return fmt.Sprintf("SM-%s-%d", now.Format("20060102"), now.UnixNano()%100000)
 }
 

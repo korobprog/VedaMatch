@@ -109,6 +109,34 @@ func parseYatraDateRange(startDate, endDate string) (time.Time, time.Time, error
 	return startParsed, endParsed, nil
 }
 
+func isFiniteFloat64(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func isValidLatitude(value float64) bool {
+	return isFiniteFloat64(value) && value >= -90 && value <= 90
+}
+
+func isValidLongitude(value float64) bool {
+	return isFiniteFloat64(value) && value >= -180 && value <= 180
+}
+
+func validateOptionalCoordinates(startLat, startLng, endLat, endLng *float64) error {
+	if startLat != nil && !isValidLatitude(*startLat) {
+		return errors.New("invalid start latitude")
+	}
+	if startLng != nil && !isValidLongitude(*startLng) {
+		return errors.New("invalid start longitude")
+	}
+	if endLat != nil && !isValidLatitude(*endLat) {
+		return errors.New("invalid end latitude")
+	}
+	if endLng != nil && !isValidLongitude(*endLng) {
+		return errors.New("invalid end longitude")
+	}
+	return nil
+}
+
 // ==================== YATRA CRUD ====================
 
 // CreateYatra creates a new yatra/tour
@@ -166,6 +194,9 @@ func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateReque
 			endLat = &geocoded.Latitude
 			endLng = &geocoded.Longitude
 		}
+	}
+	if err := validateOptionalCoordinates(startLat, startLng, endLat, endLng); err != nil {
+		return nil, err
 	}
 
 	yatra := &models.Yatra{
@@ -452,6 +483,30 @@ func sanitizeYatraUpdates(raw map[string]interface{}, current models.Yatra) (map
 		return nil, err
 	}
 
+	startLat := current.StartLatitude
+	if rawStartLat, ok := sanitized["start_latitude"]; ok {
+		value := rawStartLat.(float64)
+		startLat = &value
+	}
+	startLng := current.StartLongitude
+	if rawStartLng, ok := sanitized["start_longitude"]; ok {
+		value := rawStartLng.(float64)
+		startLng = &value
+	}
+	endLat := current.EndLatitude
+	if rawEndLat, ok := sanitized["end_latitude"]; ok {
+		value := rawEndLat.(float64)
+		endLat = &value
+	}
+	endLng := current.EndLongitude
+	if rawEndLng, ok := sanitized["end_longitude"]; ok {
+		value := rawEndLng.(float64)
+		endLng = &value
+	}
+	if err := validateOptionalCoordinates(startLat, startLng, endLat, endLng); err != nil {
+		return nil, err
+	}
+
 	return sanitized, nil
 }
 
@@ -514,19 +569,28 @@ func parseIntFromAny(value interface{}) (int, bool) {
 func parseFloatFromAny(value interface{}) (float64, bool) {
 	switch typed := value.(type) {
 	case float64:
+		if !isFiniteFloat64(typed) {
+			return 0, false
+		}
 		return typed, true
 	case float32:
-		return float64(typed), true
+		return parseFloatFromAny(float64(typed))
 	case string:
 		trimmed := strings.TrimSpace(typed)
 		if trimmed == "" {
 			return 0, false
 		}
 		parsed, err := strconv.ParseFloat(trimmed, 64)
-		return parsed, err == nil
+		if err != nil || !isFiniteFloat64(parsed) {
+			return 0, false
+		}
+		return parsed, true
 	case json.Number:
 		parsed, err := typed.Float64()
-		return parsed, err == nil
+		if err != nil || !isFiniteFloat64(parsed) {
+			return 0, false
+		}
+		return parsed, true
 	case int:
 		return float64(typed), true
 	case int32:

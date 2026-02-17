@@ -2,6 +2,8 @@ package services
 
 import (
 	"testing"
+
+	"rag-agent-server/internal/models"
 )
 
 // ==================== calculateSpendAllocation ====================
@@ -412,6 +414,92 @@ func TestCalculateTotalPages(t *testing.T) {
 			t.Parallel()
 			if got := calculateTotalPages(tc.total, tc.limit); got != tc.want {
 				t.Fatalf("calculateTotalPages(%d, %d) = %d, want %d", tc.total, tc.limit, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAllocationFromExistingSpendTransaction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		existing        models.WalletTransaction
+		requestedAmount int
+		wantRegular     int
+		wantBonus       int
+		wantTotal       int
+		wantErr         bool
+	}{
+		{
+			name: "matching amount",
+			existing: models.WalletTransaction{
+				Amount:      100,
+				BonusAmount: 40,
+			},
+			requestedAmount: 100,
+			wantRegular:     60,
+			wantBonus:       40,
+			wantTotal:       100,
+		},
+		{
+			name: "different requested amount is rejected",
+			existing: models.WalletTransaction{
+				Amount:      100,
+				BonusAmount: 40,
+			},
+			requestedAmount: 90,
+			wantErr:         true,
+		},
+		{
+			name: "negative existing bonus is clamped",
+			existing: models.WalletTransaction{
+				Amount:      50,
+				BonusAmount: -5,
+			},
+			requestedAmount: 50,
+			wantRegular:     50,
+			wantBonus:       0,
+			wantTotal:       50,
+		},
+		{
+			name: "existing bonus above amount is clamped",
+			existing: models.WalletTransaction{
+				Amount:      30,
+				BonusAmount: 50,
+			},
+			requestedAmount: 30,
+			wantRegular:     0,
+			wantBonus:       30,
+			wantTotal:       30,
+		},
+		{
+			name: "invalid existing amount",
+			existing: models.WalletTransaction{
+				Amount:      0,
+				BonusAmount: 0,
+			},
+			requestedAmount: 0,
+			wantErr:         true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := allocationFromExistingSpendTransaction(tc.existing, tc.requestedAmount)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.RegularAmount != tc.wantRegular || got.BonusAmount != tc.wantBonus || got.TotalAmount != tc.wantTotal {
+				t.Fatalf("unexpected allocation: %+v", got)
 			}
 		})
 	}

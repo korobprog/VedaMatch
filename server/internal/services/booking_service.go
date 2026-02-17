@@ -41,6 +41,17 @@ func isVedaMatchService(service *models.Service) (bool, error) {
 	return strings.EqualFold(owner.Role, models.RoleSuperadmin), nil
 }
 
+func calculateBookingTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		return 1
+	}
+	return totalPages
+}
+
 // NewBookingService creates a new booking service
 func NewBookingService(walletService *WalletService, serviceService *ServiceService, referralService *ReferralService) *BookingService {
 	return &BookingService{
@@ -60,7 +71,8 @@ func (s *BookingService) Create(serviceID, clientID uint, req models.BookingCrea
 	if req.ScheduledAt.IsZero() {
 		return nil, errors.New("scheduled_at is required")
 	}
-	if req.ScheduledAt.Before(time.Now()) {
+	nowUTC := time.Now().UTC()
+	if req.ScheduledAt.UTC().Before(nowUTC) {
 		return nil, errors.New("cannot create booking in the past")
 	}
 
@@ -266,7 +278,7 @@ func (s *BookingService) Confirm(bookingID, ownerID uint, req models.BookingActi
 		return nil, errors.New("booking is not pending")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"status":        models.BookingStatusConfirmed,
 		"confirmed_at":  &now,
@@ -351,7 +363,7 @@ func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingAction
 		return nil, errors.New("booking cannot be cancelled")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"status":       models.BookingStatusCancelled,
 		"cancelled_at": &now,
@@ -438,7 +450,7 @@ func (s *BookingService) Complete(bookingID, ownerID uint, req models.BookingAct
 		return nil, errors.New("booking must be confirmed first")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"status":        models.BookingStatusCompleted,
 		"completed_at":  &now,
@@ -583,14 +595,12 @@ func (s *BookingService) GetMyBookings(clientID uint, filters models.BookingFilt
 		return nil, err
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return &models.BookingListResponse{
 		Bookings:   bookings,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
-		TotalPages: totalPages,
+		TotalPages: calculateBookingTotalPages(total, limit),
 	}, nil
 }
 
@@ -660,14 +670,12 @@ func (s *BookingService) GetIncomingBookings(ownerID uint, filters models.Bookin
 		return nil, err
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return &models.BookingListResponse{
 		Bookings:   bookings,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
-		TotalPages: totalPages,
+		TotalPages: calculateBookingTotalPages(total, limit),
 	}, nil
 }
 
@@ -689,8 +697,8 @@ func (s *BookingService) GetUpcoming(ownerID uint) (*models.UpcomingBookingsResp
 		return response, nil
 	}
 
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	tomorrow := today.Add(24 * time.Hour)
 	dayAfterTomorrow := tomorrow.Add(24 * time.Hour)
 	endOfWeek := today.Add(7 * 24 * time.Hour)

@@ -109,6 +109,7 @@ func TestSettingInt(t *testing.T) {
 		"int":    int(7),
 		"int64":  int64(9),
 		"number": json.Number("11"),
+		"string": " 13 ",
 		"bad":    "oops",
 	}
 
@@ -124,10 +125,27 @@ func TestSettingInt(t *testing.T) {
 	if got := settingInt(settings, "number", 1); got != 11 {
 		t.Fatalf("number -> %d, want 11", got)
 	}
+	if got := settingInt(settings, "string", 1); got != 13 {
+		t.Fatalf("string -> %d, want 13", got)
+	}
 	if got := settingInt(settings, "bad", 3); got != 3 {
 		t.Fatalf("bad -> %d, want fallback 3", got)
 	}
 	if got := settingInt(settings, "missing", 4); got != 4 {
 		t.Fatalf("missing -> %d, want fallback 4", got)
+	}
+}
+
+func TestCalculateServiceTotalPages(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateServiceTotalPages(0, 20); got != 1 {
+		t.Fatalf("expected min 1 page, got %d", got)
+	}
+	if got := calculateServiceTotalPages(101, 20); got != 6 {
+		t.Fatalf("expected 6 pages, got %d", got)
+	}
+	if got := calculateServiceTotalPages(10, 0); got != 1 {
+		t.Fatalf("expected fallback page count 1, got %d", got)
 	}
 }

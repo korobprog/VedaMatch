@@ -339,6 +339,7 @@ func (s *DomainAssistantService) BuildAssistantContext(ctx context.Context, req 
 	if topK <= 0 {
 		topK = defaultHybridTopK
 	}
+	explicitRequested := len(req.Domains) > 0
 
 	routedDomains, hasDomainIntent := s.routeDomains(query, req.Domains)
 	allowedSet := s.allowedDomainSet()
@@ -350,7 +351,7 @@ func (s *DomainAssistantService) BuildAssistantContext(ctx context.Context, req 
 	}
 
 	if len(selected) == 0 {
-		if req.StrictRouting {
+		if req.StrictRouting || explicitRequested {
 			return &DomainContextResponse{
 				AssistantContext: AssistantContext{
 					Domains:         []string{},
@@ -650,6 +651,9 @@ func (s *DomainAssistantService) syncDomain(ctx context.Context, domain string, 
 		return s.syncCafe(ctx, since)
 	case "charity":
 		return s.syncCharity(ctx, since)
+	case "private":
+		// Reserved wave2 namespace: no sync pipeline yet.
+		return nil
 	default:
 		return fmt.Errorf("%w: %s", ErrUnknownAssistantDomain, domain)
 	}
@@ -1815,7 +1819,8 @@ func (s *DomainAssistantService) routeDomains(query string, explicit []string) (
 				domains = append(domains, n)
 			}
 		}
-		return uniqueStrings(domains), true
+		domains = uniqueStrings(domains)
+		return domains, len(domains) > 0
 	}
 
 	q := strings.ToLower(normalizeWhitespace(query))

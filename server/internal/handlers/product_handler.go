@@ -21,11 +21,14 @@ type ProductHandler struct {
 	shopService    *services.ShopService
 }
 
-func parsePositiveIntQuery(c *fiber.Ctx, key string, defaultValue int) int {
-	raw := c.Query(key, strconv.Itoa(defaultValue))
+func parsePositiveIntQuery(c *fiber.Ctx, key string, defaultValue int, maxValue int) int {
+	raw := strings.TrimSpace(c.Query(key, strconv.Itoa(defaultValue)))
 	val, err := strconv.Atoi(raw)
 	if err != nil || val <= 0 {
 		return defaultValue
+	}
+	if maxValue > 0 && val > maxValue {
+		return maxValue
 	}
 	return val
 }
@@ -129,8 +132,8 @@ func (h *ProductHandler) GetProducts(c *fiber.Ctx) error {
 	}
 
 	// Parse pagination
-	filters.Page = parsePositiveIntQuery(c, "page", 1)
-	filters.Limit = parsePositiveIntQuery(c, "limit", 20)
+	filters.Page = parsePositiveIntQuery(c, "page", 1, 100000)
+	filters.Limit = parsePositiveIntQuery(c, "limit", 20, 50)
 
 	// Parse price filters
 	if minPrice := c.Query("minPrice"); minPrice != "" {
@@ -248,8 +251,8 @@ func (h *ProductHandler) GetShopProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	page := parsePositiveIntQuery(c, "page", 1)
-	limit := parsePositiveIntQuery(c, "limit", 20)
+	page := parsePositiveIntQuery(c, "page", 1, 100000)
+	limit := parsePositiveIntQuery(c, "limit", 20, 50)
 
 	result, err := h.productService.GetProductsByShop(uint(id), page, limit)
 	if err != nil {
@@ -469,8 +472,8 @@ func (h *ProductHandler) GetMyProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	page := parsePositiveIntQuery(c, "page", 1)
-	limit := parsePositiveIntQuery(c, "limit", 20)
+	page := parsePositiveIntQuery(c, "page", 1, 100000)
+	limit := parsePositiveIntQuery(c, "limit", 20, 50)
 
 	result, err := h.productService.GetProductsByShop(shop.ID, page, limit)
 	if err != nil {
@@ -631,8 +634,8 @@ func (h *ProductHandler) GetProductReviews(c *fiber.Ctx) error {
 		})
 	}
 
-	page := parsePositiveIntQuery(c, "page", 1)
-	limit := parsePositiveIntQuery(c, "limit", 10)
+	page := parsePositiveIntQuery(c, "page", 1, 100000)
+	limit := parsePositiveIntQuery(c, "limit", 10, 50)
 
 	reviews, total, err := h.productService.GetReviews(uint(productID), page, limit)
 	if err != nil {

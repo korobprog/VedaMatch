@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CafeOrderService handles cafe order-related operations
@@ -23,6 +24,53 @@ func isValidCafePaymentMethod(method string) bool {
 	switch method {
 	case "", "cash", "card_terminal", "lkm":
 		return true
+	default:
+		return false
+	}
+}
+
+func isValidCafeOrderStatus(status models.CafeOrderStatus) bool {
+	switch status {
+	case models.CafeOrderStatusNew,
+		models.CafeOrderStatusConfirmed,
+		models.CafeOrderStatusPreparing,
+		models.CafeOrderStatusReady,
+		models.CafeOrderStatusServed,
+		models.CafeOrderStatusDelivering,
+		models.CafeOrderStatusCompleted,
+		models.CafeOrderStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
+func canTransitionCafeOrderStatus(current, next models.CafeOrderStatus, orderType models.CafeOrderType) bool {
+	if current == next {
+		return true
+	}
+	if current == models.CafeOrderStatusCompleted || current == models.CafeOrderStatusCancelled {
+		return false
+	}
+
+	switch current {
+	case models.CafeOrderStatusNew:
+		return next == models.CafeOrderStatusConfirmed || next == models.CafeOrderStatusCancelled
+	case models.CafeOrderStatusConfirmed:
+		return next == models.CafeOrderStatusPreparing || next == models.CafeOrderStatusCancelled
+	case models.CafeOrderStatusPreparing:
+		return next == models.CafeOrderStatusReady || next == models.CafeOrderStatusCancelled
+	case models.CafeOrderStatusReady:
+		switch orderType {
+		case models.CafeOrderTypeDineIn:
+			return next == models.CafeOrderStatusServed || next == models.CafeOrderStatusCancelled
+		case models.CafeOrderTypeDelivery:
+			return next == models.CafeOrderStatusDelivering || next == models.CafeOrderStatusCancelled
+		default:
+			return next == models.CafeOrderStatusCompleted || next == models.CafeOrderStatusCancelled
+		}
+	case models.CafeOrderStatusServed, models.CafeOrderStatusDelivering:
+		return next == models.CafeOrderStatusCompleted || next == models.CafeOrderStatusCancelled
 	default:
 		return false
 	}
@@ -579,16 +627,7 @@ func (s *CafeOrderService) GetActiveOrders(cafeID uint) (*models.ActiveOrdersRes
 
 // UpdateOrderStatus updates the status of an order
 func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrderStatus, staffUserID uint) error {
-	switch status {
-	case models.CafeOrderStatusNew,
-		models.CafeOrderStatusConfirmed,
-		models.CafeOrderStatusPreparing,
-		models.CafeOrderStatusReady,
-		models.CafeOrderStatusServed,
-		models.CafeOrderStatusDelivering,
-		models.CafeOrderStatusCompleted,
-		models.CafeOrderStatusCancelled:
-	default:
+	if !isValidCafeOrderStatus(status) {
 		return errors.New("invalid order status")
 	}
 
@@ -617,18 +656,22 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 	}
 
 	var order models.CafeOrder
+	changed := false
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
-		updateResult := tx.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(updates)
-		if updateResult.Error != nil {
-			return updateResult.Error
-		}
-		if updateResult.RowsAffected == 0 {
-			return gorm.ErrRecordNotFound
-		}
-
-		if err := tx.First(&order, orderID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, orderID).Error; err != nil {
 			return err
 		}
+		if !canTransitionCafeOrderStatus(order.Status, status, order.OrderType) {
+			return errors.New("invalid order status transition")
+		}
+		if order.Status == status {
+			return nil
+		}
+
+		if err := tx.Model(&order).Updates(updates).Error; err != nil {
+			return err
+		}
+		changed = true
 
 		// If completed/cancelled and was dine-in, free the table.
 		if status == models.CafeOrderStatusCompleted || status == models.CafeOrderStatusCancelled {
@@ -653,6 +696,10 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	if !changed {
+		return nil
 	}
 
 	// Send WebSocket notification after successful commit.

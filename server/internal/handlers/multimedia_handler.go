@@ -29,7 +29,13 @@ func requireMultimediaUserID(c *fiber.Ctx) (uint, error) {
 }
 
 func boundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
-	value := c.QueryInt(key, def)
+	value := def
+	raw := strings.TrimSpace(c.Query(key))
+	if raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			value = parsed
+		}
+	}
 	if value < min {
 		return min
 	}

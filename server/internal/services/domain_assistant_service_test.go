@@ -171,3 +171,44 @@ func TestShouldFallbackToILike(t *testing.T) {
 		})
 	}
 }
+
+func TestRouteDomainsExplicitEmptyNoIntent(t *testing.T) {
+	svc := &DomainAssistantService{}
+	got, hasIntent := svc.routeDomains("ignored", []string{"   ", "\t"})
+	if hasIntent {
+		t.Fatalf("expected hasIntent=false for empty explicit values")
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected no domains, got %v", got)
+	}
+}
+
+func TestBuildAssistantContextExplicitUnknownNoFallback(t *testing.T) {
+	t.Setenv("RAG_ALLOWED_DOMAINS", "market,services,news")
+
+	svc := &DomainAssistantService{rrfK: defaultHybridRRFK}
+	resp, err := svc.BuildAssistantContext(context.Background(), DomainContextRequest{
+		Query:   "Любой вопрос",
+		Domains: []string{"unknown_domain"},
+		TopK:    5,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resp.Domains) != 0 {
+		t.Fatalf("expected no selected domains for unknown explicit domain, got %v", resp.Domains)
+	}
+	if resp.RetrieverPath != "router" {
+		t.Fatalf("retriever path=%q, want router", resp.RetrieverPath)
+	}
+	if !resp.NeedsDomainData {
+		t.Fatalf("expected NeedsDomainData=true for explicit domain request")
+	}
+}
+
+func TestSyncDomainPrivateNoop(t *testing.T) {
+	svc := &DomainAssistantService{}
+	if err := svc.syncDomain(context.Background(), "private", time.Now().UTC()); err != nil {
+		t.Fatalf("private domain sync should be noop, got error: %v", err)
+	}
+}

@@ -201,20 +201,14 @@ func (h *YatraAdminHandler) GetAllYatras(c *fiber.Ctx) error {
 		IncludeCompleted: c.Query("include_completed") == "true",
 		ReportedOnly:     c.Query("reported_only") == "true",
 	}
+	filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
+	filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
 
 	if c.Query("organizer_id") != "" {
 		if orgID, err := strconv.ParseUint(c.Query("organizer_id"), 10, 32); err == nil {
 			orgIDUint := uint(orgID)
 			filters.OrganizerID = &orgIDUint
 		}
-	}
-
-	if c.Query("page") != "" {
-		filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
-	}
-
-	if c.Query("limit") != "" {
-		filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
 	}
 
 	yatras, total, err := h.yatraAdminService.GetAllYatras(filters)
@@ -227,6 +221,7 @@ func (h *YatraAdminHandler) GetAllYatras(c *fiber.Ctx) error {
 		"yatras": yatras,
 		"total":  total,
 		"page":   filters.Page,
+		"limit":  filters.Limit,
 	})
 }
 
@@ -407,21 +402,9 @@ func (h *YatraAdminHandler) GetOrganizers(c *fiber.Ctx) error {
 	filters := services.OrganizerFilters{
 		BlockedOnly: c.Query("blocked_only") == "true",
 		TopRated:    c.Query("top_rated") == "true",
-		MinYatras:   0,
-	}
-
-	if c.Query("min_yatras") != "" {
-		if min, err := strconv.Atoi(c.Query("min_yatras")); err == nil {
-			filters.MinYatras = min
-		}
-	}
-
-	if c.Query("page") != "" {
-		filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
-	}
-
-	if c.Query("limit") != "" {
-		filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
+		MinYatras:   parseBoundedQueryInt(c, "min_yatras", 0, 0, 1000000),
+		Page:        parseBoundedQueryInt(c, "page", 1, 1, 100000),
+		Limit:       parseBoundedQueryInt(c, "limit", 20, 1, 200),
 	}
 
 	organizers, total, err := h.organizerAdminService.GetOrganizers(filters)
@@ -433,6 +416,7 @@ func (h *YatraAdminHandler) GetOrganizers(c *fiber.Ctx) error {
 		"organizers": organizers,
 		"total":      total,
 		"page":       filters.Page,
+		"limit":      filters.Limit,
 	})
 }
 
@@ -509,6 +493,8 @@ func (h *YatraAdminHandler) GetReports(c *fiber.Ctx) error {
 	filters := models.YatraReportFilters{
 		Status:     models.YatraReportStatus(c.Query("status")),
 		TargetType: models.YatraReportTargetType(c.Query("target_type")),
+		Page:       parseBoundedQueryInt(c, "page", 1, 1, 100000),
+		Limit:      parseBoundedQueryInt(c, "limit", 20, 1, 200),
 	}
 
 	if c.Query("target_id") != "" {
@@ -516,14 +502,6 @@ func (h *YatraAdminHandler) GetReports(c *fiber.Ctx) error {
 			idUint := uint(id)
 			filters.TargetID = &idUint
 		}
-	}
-
-	if c.Query("page") != "" {
-		filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
-	}
-
-	if c.Query("limit") != "" {
-		filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
 	}
 
 	reports, total, err := h.reportService.GetAllReports(filters)
@@ -535,6 +513,7 @@ func (h *YatraAdminHandler) GetReports(c *fiber.Ctx) error {
 		"reports": reports,
 		"total":   total,
 		"page":    filters.Page,
+		"limit":   filters.Limit,
 	})
 }
 

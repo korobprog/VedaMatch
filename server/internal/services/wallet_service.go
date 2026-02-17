@@ -107,6 +107,29 @@ func calculateSpendAllocation(amount, regularBalance, bonusBalance int, opts Spe
 	return allocation, nil
 }
 
+func allocationFromExistingSpendTransaction(existing models.WalletTransaction, requestedAmount int) (SpendAllocation, error) {
+	if existing.Amount <= 0 {
+		return SpendAllocation{}, errors.New("invalid existing spend transaction amount")
+	}
+	if requestedAmount != existing.Amount {
+		return SpendAllocation{}, errors.New("dedup key already used with different amount")
+	}
+
+	bonus := existing.BonusAmount
+	if bonus < 0 {
+		bonus = 0
+	}
+	if bonus > existing.Amount {
+		bonus = existing.Amount
+	}
+
+	return SpendAllocation{
+		TotalAmount:   existing.Amount,
+		BonusAmount:   bonus,
+		RegularAmount: existing.Amount - bonus,
+	}, nil
+}
+
 func isDuplicateKeyError(err error) bool {
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return true
@@ -167,6 +190,25 @@ func (s *WalletService) getOrCreateWalletTx(tx *gorm.DB, userID uint) (*models.W
 		return nil, err
 	}
 
+	return &wallet, nil
+}
+
+func (s *WalletService) getOrCreateLockedWalletTx(tx *gorm.DB, userID uint) (*models.Wallet, error) {
+	var wallet models.Wallet
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", userID).First(&wallet).Error; err == nil {
+		return &wallet, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	if _, err := s.getOrCreateWalletTx(tx, userID); err != nil {
+		return nil, err
+	}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+		return nil, err
+	}
 	return &wallet, nil
 }
 
@@ -280,18 +322,9 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		// Lock sender's wallet to prevent concurrent overspend.
-		var fromWallet models.Wallet
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("user_id = ?", fromUserID).First(&fromWallet).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				createdWallet, createErr := s.getOrCreateWalletTx(tx, fromUserID)
-				if createErr != nil {
-					return createErr
-				}
-				fromWallet = *createdWallet
-			} else {
-				return err
-			}
+		fromWallet, err := s.getOrCreateLockedWalletTx(tx, fromUserID)
+		if err != nil {
+			return err
 		}
 
 		if fromWallet.Balance < amount {
@@ -299,22 +332,14 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 		}
 
 		// Lock receiver's wallet (or create if doesn't exist).
-		var toWallet models.Wallet
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("user_id = ?", toUserID).First(&toWallet).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			createdWallet, createErr := s.getOrCreateWalletTx(tx, toUserID)
-			if createErr != nil {
-				return createErr
-			}
-			toWallet = *createdWallet
-		} else if err != nil {
+		toWallet, err := s.getOrCreateLockedWalletTx(tx, toUserID)
+		if err != nil {
 			return err
 		}
 
 		// Debit from sender
 		newFromBalance := fromWallet.Balance - amount
-		if err := tx.Model(&fromWallet).Updates(map[string]interface{}{
+		if err := tx.Model(fromWallet).Updates(map[string]interface{}{
 			"balance":     newFromBalance,
 			"total_spent": fromWallet.TotalSpent + amount,
 		}).Error; err != nil {
@@ -323,7 +348,7 @@ func (s *WalletService) Transfer(fromUserID, toUserID uint, amount int, descript
 
 		// Credit to receiver
 		newToBalance := toWallet.Balance + amount
-		if err := tx.Model(&toWallet).Updates(map[string]interface{}{
+		if err := tx.Model(toWallet).Updates(map[string]interface{}{
 			"balance":      newToBalance,
 			"total_earned": toWallet.TotalEarned + amount,
 		}).Error; err != nil {
@@ -633,27 +658,22 @@ func (s *WalletService) SpendWithOptions(userID uint, amount int, dedupKey strin
 }
 
 func (s *WalletService) spendTxWithOptions(tx *gorm.DB, userID uint, amount int, dedupKey string, description string, opts SpendOptions) (SpendAllocation, bool, error) {
-	var wallet models.Wallet
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if _, createErr := s.getOrCreateWalletTx(tx, userID); createErr != nil {
-				return SpendAllocation{}, false, createErr
-			}
-			if lockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("user_id = ?", userID).First(&wallet).Error; lockErr != nil {
-				return SpendAllocation{}, false, lockErr
-			}
-		} else {
-			return SpendAllocation{}, false, err
-		}
+	wallet, err := s.getOrCreateLockedWalletTx(tx, userID)
+	if err != nil {
+		return SpendAllocation{}, false, err
 	}
 
 	if dedupKey != "" {
 		var existing models.WalletTransaction
-		if err := tx.Where("wallet_id = ? AND dedup_key = ?", wallet.ID, dedupKey).First(&existing).Error; err == nil {
+		if err := tx.Where("wallet_id = ? AND dedup_key = ? AND type = ?",
+			wallet.ID, dedupKey, models.TransactionTypeDebit).
+			First(&existing).Error; err == nil {
+			allocation, allocErr := allocationFromExistingSpendTransaction(existing, amount)
+			if allocErr != nil {
+				return SpendAllocation{}, false, allocErr
+			}
 			log.Printf("[Wallet] Duplicate spend blocked: wallet=%d dedup=%s", wallet.ID, dedupKey)
-			return SpendAllocation{TotalAmount: amount, BonusAmount: existing.BonusAmount, RegularAmount: amount - existing.BonusAmount}, true, nil
+			return allocation, true, nil
 		} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return SpendAllocation{}, false, err
 		}
@@ -669,7 +689,7 @@ func (s *WalletService) spendTxWithOptions(tx *gorm.DB, userID uint, amount int,
 
 	newBalance := wallet.Balance - allocation.RegularAmount
 	newBonusBalance := wallet.BonusBalance - allocation.BonusAmount
-	if err := tx.Model(&wallet).Updates(map[string]interface{}{
+	if err := tx.Model(wallet).Updates(map[string]interface{}{
 		"balance":       newBalance,
 		"bonus_balance": newBonusBalance,
 		"total_spent":   wallet.TotalSpent + amount,
@@ -978,34 +998,13 @@ func (s *WalletService) ReleaseFundsWithSplit(userID uint, regularAmount int, bo
 		}
 
 		// Credit to provider
-		var toWallet models.Wallet
-		err := tx.Where("user_id = ?", toUserID).First(&toWallet).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Create wallet for provider if doesn't exist
-			toWallet = models.Wallet{
-				UserID:             &toUserID,
-				Type:               models.WalletTypePersonal,
-				Balance:            0,
-				BonusBalance:       0,
-				PendingBalance:     0,
-				FrozenBalance:      0,
-				FrozenBonusBalance: 0,
-			}
-			if err := tx.Create(&toWallet).Error; err != nil {
-				if isDuplicateKeyError(err) {
-					if getErr := tx.Where("user_id = ?", toUserID).First(&toWallet).Error; getErr != nil {
-						return getErr
-					}
-				} else {
-					return err
-				}
-			}
-		} else if err != nil {
+		toWallet, err := s.getOrCreateLockedWalletTx(tx, toUserID)
+		if err != nil {
 			return err
 		}
 
 		newToBalance := toWallet.Balance + totalAmount
-		if err := tx.Model(&toWallet).Updates(map[string]interface{}{
+		if err := tx.Model(toWallet).Updates(map[string]interface{}{
 			"balance":      newToBalance,
 			"total_earned": toWallet.TotalEarned + totalAmount,
 		}).Error; err != nil {

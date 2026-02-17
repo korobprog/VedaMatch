@@ -32,6 +32,23 @@ func requireYatraUserID(c *fiber.Ctx) (uint, error) {
 	return userID, nil
 }
 
+func parseBoundedYatraQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
+	value := def
+	raw := strings.TrimSpace(c.Query(key))
+	if raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			value = parsed
+		}
+	}
+	if value < min {
+		return min
+	}
+	if max > 0 && value > max {
+		return max
+	}
+	return value
+}
+
 // NewYatraHandler creates a new yatra handler instance
 func NewYatraHandler() *YatraHandler {
 	mapService := services.NewMapService(database.DB)
@@ -94,6 +111,8 @@ func (h *YatraHandler) ListYatras(c *fiber.Ctx) error {
 		City:     c.Query("city"),
 		Language: c.Query("language"),
 		Search:   c.Query("search"),
+		Page:     parseBoundedYatraQueryInt(c, "page", 1, 1, 100000),
+		Limit:    parseBoundedYatraQueryInt(c, "limit", 20, 1, 200),
 	}
 
 	if c.Query("theme") != "" {
@@ -108,17 +127,6 @@ func (h *YatraHandler) ListYatras(c *fiber.Ctx) error {
 	if c.Query("start_before") != "" {
 		filters.StartBefore = c.Query("start_before")
 	}
-	if c.Query("page") != "" {
-		if page, err := strconv.Atoi(c.Query("page")); err == nil {
-			filters.Page = page
-		}
-	}
-	if c.Query("limit") != "" {
-		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
-			filters.Limit = limit
-		}
-	}
-
 	yatras, total, err := h.yatraService.ListYatras(filters)
 	if err != nil {
 		log.Printf("[YatraHandler] Error listing yatras: %v", err)
@@ -129,6 +137,7 @@ func (h *YatraHandler) ListYatras(c *fiber.Ctx) error {
 		"yatras": yatras,
 		"total":  total,
 		"page":   filters.Page,
+		"limit":  filters.Limit,
 	})
 }
 
@@ -378,6 +387,8 @@ func (h *YatraHandler) ListShelters(c *fiber.Ctx) error {
 	filters := models.ShelterFilters{
 		City:   c.Query("city"),
 		Search: c.Query("search"),
+		Page:   parseBoundedYatraQueryInt(c, "page", 1, 1, 100000),
+		Limit:  parseBoundedYatraQueryInt(c, "limit", 20, 1, 200),
 	}
 
 	if c.Query("type") != "" {
@@ -405,17 +416,6 @@ func (h *YatraHandler) ListShelters(c *fiber.Ctx) error {
 			filters.RadiusKm = &defaultRadius
 		}
 	}
-	if c.Query("page") != "" {
-		if page, err := strconv.Atoi(c.Query("page")); err == nil {
-			filters.Page = page
-		}
-	}
-	if c.Query("limit") != "" {
-		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
-			filters.Limit = limit
-		}
-	}
-
 	shelters, total, err := h.shelterService.ListShelters(filters)
 	if err != nil {
 		log.Printf("[YatraHandler] Error listing shelters: %v", err)
@@ -426,6 +426,7 @@ func (h *YatraHandler) ListShelters(c *fiber.Ctx) error {
 		"shelters": shelters,
 		"total":    total,
 		"page":     filters.Page,
+		"limit":    filters.Limit,
 	})
 }
 
@@ -525,14 +526,8 @@ func (h *YatraHandler) GetShelterReviews(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid shelter ID"})
 	}
 
-	page := 1
-	limit := 10
-	if p, err := strconv.Atoi(c.Query("page")); err == nil {
-		page = p
-	}
-	if l, err := strconv.Atoi(c.Query("limit")); err == nil {
-		limit = l
-	}
+	page := parseBoundedYatraQueryInt(c, "page", 1, 1, 100000)
+	limit := parseBoundedYatraQueryInt(c, "limit", 10, 1, 100)
 
 	reviews, total, err := h.shelterService.GetShelterReviews(uint(shelterID), page, limit)
 	if err != nil {
@@ -543,6 +538,7 @@ func (h *YatraHandler) GetShelterReviews(c *fiber.Ctx) error {
 		"reviews": reviews,
 		"total":   total,
 		"page":    page,
+		"limit":   limit,
 	})
 }
 
@@ -593,7 +589,7 @@ func (h *YatraHandler) UploadPhoto(c *fiber.Ctx) error {
 		if err == nil {
 			defer fileContent.Close()
 			ext := filepath.Ext(file.Filename)
-			fileName := fmt.Sprintf("travel/%s/u%d_%d%s", uploadType, userID, time.Now().Unix(), ext)
+			fileName := fmt.Sprintf("travel/%s/u%d_%d%s", uploadType, userID, time.Now().UnixNano(), ext)
 			contentType := file.Header.Get("Content-Type")
 
 			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
@@ -610,7 +606,7 @@ func (h *YatraHandler) UploadPhoto(c *fiber.Ctx) error {
 	}
 
 	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("%s_u%d_%d%s", uploadType, userID, time.Now().Unix(), ext)
+	filename := fmt.Sprintf("%s_u%d_%d%s", uploadType, userID, time.Now().UnixNano(), ext)
 	filePath := filepath.Join(uploadsDir, filename)
 
 	if err := c.SaveFile(file, filePath); err != nil {
@@ -631,14 +627,8 @@ func (h *YatraHandler) GetYatraReviews(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid yatra ID"})
 	}
 
-	page := 1
-	limit := 10
-	if p, err := strconv.Atoi(c.Query("page")); err == nil && p > 0 {
-		page = p
-	}
-	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 {
-		limit = l
-	}
+	page := parseBoundedYatraQueryInt(c, "page", 1, 1, 100000)
+	limit := parseBoundedYatraQueryInt(c, "limit", 10, 1, 100)
 
 	reviews, total, avgRating, err := h.yatraService.GetYatraReviews(uint(yatraID), page, limit)
 	if err != nil {
@@ -650,6 +640,7 @@ func (h *YatraHandler) GetYatraReviews(c *fiber.Ctx) error {
 		"total":         total,
 		"averageRating": avgRating,
 		"page":          page,
+		"limit":         limit,
 	})
 }
 

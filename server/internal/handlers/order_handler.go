@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
@@ -114,10 +115,8 @@ func (h *OrderHandler) GetMyOrders(c *fiber.Ctx) error {
 		filters.SourceChannelID = sourceChannelID
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
-	filters.Page = page
-	filters.Limit = limit
+	filters.Page = parseOrderQueryInt(c, "page", 1, 1, 100000)
+	filters.Limit = parseOrderQueryInt(c, "limit", 20, 1, 50)
 
 	result, err := h.orderService.GetBuyerOrders(userID, filters)
 	if err != nil {
@@ -259,10 +258,8 @@ func (h *OrderHandler) GetSellerOrders(c *fiber.Ctx) error {
 		filters.SourceChannelID = sourceChannelID
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
-	filters.Page = page
-	filters.Limit = limit
+	filters.Page = parseOrderQueryInt(c, "page", 1, 1, 100000)
+	filters.Limit = parseOrderQueryInt(c, "limit", 20, 1, 50)
 
 	result, err := h.orderService.GetSellerOrders(userID, filters)
 	if err != nil {
@@ -426,7 +423,7 @@ func (h *OrderHandler) notifySellerAboutOrder(order *models.Order) {
 }
 
 func parseOptionalUintQuery(c *fiber.Ctx, key string) *uint {
-	value := c.Query(key)
+	value := strings.TrimSpace(c.Query(key))
 	if value == "" {
 		return nil
 	}
@@ -436,4 +433,23 @@ func parseOptionalUintQuery(c *fiber.Ctx, key string) *uint {
 	}
 	result := uint(parsed)
 	return &result
+}
+
+func parseOrderQueryInt(c *fiber.Ctx, key string, defaultValue, min, max int) int {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return defaultValue
+	}
+	if parsed < min {
+		return min
+	}
+	if max > 0 && parsed > max {
+		return max
+	}
+	return parsed
 }

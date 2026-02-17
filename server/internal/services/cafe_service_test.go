@@ -39,7 +39,11 @@ func TestValidateCafeUpdateNumericFields(t *testing.T) {
 	validMinOrder := 300.0
 	validFee := 100.0
 	validPrep := 30
+	validLat := 55.75
+	validLng := 37.61
 	validReq := models.CafeUpdateRequest{
+		Latitude:        &validLat,
+		Longitude:       &validLng,
 		DeliveryRadiusM: &validRadius,
 		MinOrderAmount:  &validMinOrder,
 		DeliveryFee:     &validFee,
@@ -67,5 +71,15 @@ func TestValidateCafeUpdateNumericFields(t *testing.T) {
 	zeroPrep := 0
 	if err := validateCafeUpdateNumericFields(models.CafeUpdateRequest{AvgPrepTime: &zeroPrep}); err == nil {
 		t.Fatalf("expected non-positive avg prep time error")
+	}
+
+	invalidLat := 95.0
+	if err := validateCafeUpdateNumericFields(models.CafeUpdateRequest{Latitude: &invalidLat}); err == nil {
+		t.Fatalf("expected invalid latitude error")
+	}
+
+	invalidLng := -190.0
+	if err := validateCafeUpdateNumericFields(models.CafeUpdateRequest{Longitude: &invalidLng}); err == nil {
+		t.Fatalf("expected invalid longitude error")
 	}
 }

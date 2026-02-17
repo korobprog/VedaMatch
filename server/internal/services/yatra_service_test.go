@@ -122,6 +122,12 @@ func TestParseFloatFromAny(t *testing.T) {
 	if _, ok := parseFloatFromAny("bad"); ok {
 		t.Fatalf("invalid float string should be rejected")
 	}
+	if _, ok := parseFloatFromAny(math.NaN()); ok {
+		t.Fatalf("NaN should be rejected")
+	}
+	if _, ok := parseFloatFromAny("Inf"); ok {
+		t.Fatalf("Inf should be rejected")
+	}
 }
 
 func TestParseYatraDateFromAny(t *testing.T) {
@@ -177,6 +183,46 @@ func TestSanitizeYatraUpdatesThemeValidation(t *testing.T) {
 
 	if _, err := sanitizeYatraUpdates(map[string]interface{}{"theme": "unknown"}, current); err == nil {
 		t.Fatalf("expected error for unknown theme")
+	}
+}
+
+func TestSanitizeYatraUpdatesCoordinateValidation(t *testing.T) {
+	t.Parallel()
+
+	current := models.Yatra{
+		StartDate:       time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+		EndDate:         time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+		MaxParticipants: 20,
+		MinParticipants: 1,
+	}
+
+	if _, err := sanitizeYatraUpdates(map[string]interface{}{"start_latitude": 120.0}, current); err == nil {
+		t.Fatalf("expected invalid start latitude error")
+	}
+	if _, err := sanitizeYatraUpdates(map[string]interface{}{"end_longitude": -181.0}, current); err == nil {
+		t.Fatalf("expected invalid end longitude error")
+	}
+}
+
+func TestValidateOptionalCoordinates(t *testing.T) {
+	t.Parallel()
+
+	startLat := 55.75
+	startLng := 37.61
+	endLat := 59.93
+	endLng := 30.31
+	if err := validateOptionalCoordinates(&startLat, &startLng, &endLat, &endLng); err != nil {
+		t.Fatalf("expected valid coordinates, got error: %v", err)
+	}
+
+	invalidLat := 95.0
+	if err := validateOptionalCoordinates(&invalidLat, &startLng, nil, nil); err == nil {
+		t.Fatalf("expected invalid latitude error")
+	}
+
+	invalidLng := -190.0
+	if err := validateOptionalCoordinates(nil, &invalidLng, nil, nil); err == nil {
+		t.Fatalf("expected invalid longitude error")
 	}
 }
 

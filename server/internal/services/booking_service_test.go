@@ -30,3 +30,17 @@ func TestNormalizeBookingSource(t *testing.T) {
 		})
 	}
 }
+
+func TestCalculateBookingTotalPages(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateBookingTotalPages(0, 20); got != 1 {
+		t.Fatalf("expected min total pages 1, got %d", got)
+	}
+	if got := calculateBookingTotalPages(101, 20); got != 6 {
+		t.Fatalf("expected total pages 6, got %d", got)
+	}
+	if got := calculateBookingTotalPages(10, 0); got != 1 {
+		t.Fatalf("expected fallback total pages 1 for invalid limit, got %d", got)
+	}
+}

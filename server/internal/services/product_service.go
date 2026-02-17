@@ -837,7 +837,7 @@ func (s *ProductService) AddReview(userID, productID uint, req models.ReviewCrea
 	var verified bool
 	var order models.Order
 	err := database.DB.Joins("JOIN order_items ON order_items.order_id = orders.id").
-		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.status = ?", userID, productID, models.OrderStatusCompleted).
+		Where("orders.buyer_id = ? AND order_items.product_id = ? AND orders.status = ?", userID, productID, models.OrderStatusCompleted).
 		First(&order).Error
 	if err == nil {
 		verified = true
@@ -980,6 +980,6 @@ func (s *ProductService) generateSlug(name string) string {
 	}
 
 	// Add timestamp for uniqueness
-	slug = fmt.Sprintf("%s-%d", slug, time.Now().Unix())
+	slug = fmt.Sprintf("%s-%d", slug, time.Now().UTC().UnixNano())
 	return slug
 }

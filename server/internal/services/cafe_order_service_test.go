@@ -1,6 +1,10 @@
 package services
 
-import "testing"
+import (
+	"testing"
+
+	"rag-agent-server/internal/models"
+)
 
 func TestNormalizeCafeOrderItemStatus(t *testing.T) {
 	t.Parallel()
@@ -68,6 +72,49 @@ func TestIsOrderNumberConflict(t *testing.T) {
 	}
 	if isOrderNumberConflict(assertErr("some random error")) {
 		t.Fatalf("unexpected conflict classification")
+	}
+}
+
+func TestIsValidCafeOrderStatus(t *testing.T) {
+	t.Parallel()
+
+	if !isValidCafeOrderStatus(models.CafeOrderStatusReady) {
+		t.Fatalf("ready status should be valid")
+	}
+	if isValidCafeOrderStatus(models.CafeOrderStatus("unknown")) {
+		t.Fatalf("unknown status should be invalid")
+	}
+}
+
+func TestCanTransitionCafeOrderStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		current   models.CafeOrderStatus
+		next      models.CafeOrderStatus
+		orderType models.CafeOrderType
+		want      bool
+	}{
+		{name: "new to confirmed", current: models.CafeOrderStatusNew, next: models.CafeOrderStatusConfirmed, orderType: models.CafeOrderTypeTakeaway, want: true},
+		{name: "new to completed not allowed", current: models.CafeOrderStatusNew, next: models.CafeOrderStatusCompleted, orderType: models.CafeOrderTypeTakeaway, want: false},
+		{name: "ready dine in to served", current: models.CafeOrderStatusReady, next: models.CafeOrderStatusServed, orderType: models.CafeOrderTypeDineIn, want: true},
+		{name: "ready dine in to completed blocked", current: models.CafeOrderStatusReady, next: models.CafeOrderStatusCompleted, orderType: models.CafeOrderTypeDineIn, want: false},
+		{name: "ready delivery to delivering", current: models.CafeOrderStatusReady, next: models.CafeOrderStatusDelivering, orderType: models.CafeOrderTypeDelivery, want: true},
+		{name: "ready takeaway to completed", current: models.CafeOrderStatusReady, next: models.CafeOrderStatusCompleted, orderType: models.CafeOrderTypeTakeaway, want: true},
+		{name: "delivering to completed", current: models.CafeOrderStatusDelivering, next: models.CafeOrderStatusCompleted, orderType: models.CafeOrderTypeDelivery, want: true},
+		{name: "completed cannot transition", current: models.CafeOrderStatusCompleted, next: models.CafeOrderStatusCancelled, orderType: models.CafeOrderTypeTakeaway, want: false},
+		{name: "same status idempotent", current: models.CafeOrderStatusPreparing, next: models.CafeOrderStatusPreparing, orderType: models.CafeOrderTypeTakeaway, want: true},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := canTransitionCafeOrderStatus(tc.current, tc.next, tc.orderType); got != tc.want {
+				t.Fatalf("transition %s -> %s (%s) = %v, want %v", tc.current, tc.next, tc.orderType, got, tc.want)
+			}
+		})
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 
@@ -29,13 +30,22 @@ func NewSeriesHandler() *SeriesHandler {
 	}
 }
 
+func isSeriesAdminRequest(c *fiber.Ctx) bool {
+	return models.IsAdminRole(middleware.GetUserRole(c))
+}
+
 // ==================== SERIES ====================
 
 // GetAllSeries returns all series with seasons count
 func (h *SeriesHandler) GetAllSeries(c *fiber.Ctx) error {
 	var series []models.Series
+	isAdmin := isSeriesAdminRequest(c)
 
-	err := h.db.Preload("Seasons").Order("sort_order ASC, title ASC").Find(&series).Error
+	query := h.db.Preload("Seasons").Order("sort_order ASC, title ASC")
+	if !isAdmin {
+		query = query.Where("is_active = ?", true)
+	}
+	err := query.Find(&series).Error
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -46,12 +56,22 @@ func (h *SeriesHandler) GetAllSeries(c *fiber.Ctx) error {
 // GetSeriesDetails returns a series with all seasons and episodes
 func (h *SeriesHandler) GetSeriesDetails(c *fiber.Ctx) error {
 	id := c.Params("id")
+	isAdmin := isSeriesAdminRequest(c)
+
+	query := h.db.Model(&models.Series{})
+	if !isAdmin {
+		query = query.Where("is_active = ?", true)
+	}
 
 	var series models.Series
-	err := h.db.Preload("Seasons", func(db *gorm.DB) *gorm.DB {
+	err := query.Preload("Seasons", func(db *gorm.DB) *gorm.DB {
 		return db.Order("seasons.number ASC")
 	}).Preload("Seasons.Episodes", func(db *gorm.DB) *gorm.DB {
-		return db.Order("episodes.number ASC")
+		ordered := db.Order("episodes.number ASC")
+		if !isAdmin {
+			ordered = ordered.Where("episodes.is_active = ?", true)
+		}
+		return ordered
 	}).First(&series, id).Error
 
 	if err != nil {
@@ -61,9 +81,11 @@ func (h *SeriesHandler) GetSeriesDetails(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "Series not found"})
 	}
 
-	// Increment view count
-	if err := h.db.Model(&series).Update("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
-		log.Printf("[SeriesHandler] Failed to increment series view_count for %s: %v", id, err)
+	// Count only public views in stats.
+	if !isAdmin {
+		if err := h.db.Model(&series).Update("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
+			log.Printf("[SeriesHandler] Failed to increment series view_count for %s: %v", id, err)
+		}
 	}
 
 	// Presign URLs for private S3 access

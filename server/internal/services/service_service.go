@@ -86,9 +86,25 @@ func settingInt(settings map[string]interface{}, key string, fallback int) int {
 		if parsed, err := v.Int64(); err == nil {
 			return int(parsed)
 		}
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(v))
+		if err == nil {
+			return parsed
+		}
 	}
 
 	return fallback
+}
+
+func calculateServiceTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		return 1
+	}
+	return totalPages
 }
 
 // Create creates a new service
@@ -330,14 +346,12 @@ func (s *ServiceService) List(filters models.ServiceFilters) (*models.ServiceLis
 		return nil, err
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return &models.ServiceListResponse{
 		Services:   services,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
-		TotalPages: totalPages,
+		TotalPages: calculateServiceTotalPages(total, limit),
 	}, nil
 }
 

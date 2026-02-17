@@ -295,6 +295,23 @@ func newSettingsProvider(values map[string]string) func(string) string {
 	}
 }
 
+func TestNormalizeTelegramOutgoingText(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeTelegramOutgoingText("  hello  "); got != "hello" {
+		t.Fatalf("trimmed text = %q, want hello", got)
+	}
+	if got := normalizeTelegramOutgoingText("   "); got != "" {
+		t.Fatalf("blank text should normalize to empty, got %q", got)
+	}
+
+	long := strings.Repeat("й", telegramMaxMessageRunes+25)
+	gotLong := normalizeTelegramOutgoingText(long)
+	if utf8.RuneCountInString(gotLong) != telegramMaxMessageRunes {
+		t.Fatalf("normalized long text rune length = %d, want %d", utf8.RuneCountInString(gotLong), telegramMaxMessageRunes)
+	}
+}
+
 func TestSupportPhotoFlow_DoesNotCallAI(t *testing.T) {
 	store := newMemorySupportStore()
 	client := newFakeTelegramClient()

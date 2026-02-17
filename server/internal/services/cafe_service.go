@@ -38,6 +38,12 @@ func calculateCafeTotalPages(total int64, limit int) int {
 }
 
 func validateCafeUpdateNumericFields(req models.CafeUpdateRequest) error {
+	if req.Latitude != nil && !isValidLatitude(*req.Latitude) {
+		return errors.New("invalid latitude")
+	}
+	if req.Longitude != nil && !isValidLongitude(*req.Longitude) {
+		return errors.New("invalid longitude")
+	}
 	if req.DeliveryRadiusM != nil && *req.DeliveryRadiusM < 0 {
 		return errors.New("delivery radius cannot be negative")
 	}
@@ -104,6 +110,12 @@ func (s *CafeService) CreateCafe(ownerID uint, ownerRole string, req models.Cafe
 				lng = &geocoded.Longitude
 			}
 		}
+	}
+	if lat != nil && !isValidLatitude(*lat) {
+		return nil, errors.New("invalid latitude")
+	}
+	if lng != nil && !isValidLongitude(*lng) {
+		return nil, errors.New("invalid longitude")
 	}
 
 	cafe := &models.Cafe{
@@ -829,7 +841,7 @@ func (s *CafeService) generateSlug(name string, excludeCafeID ...uint) string {
 		}
 		if err := query.Count(&count).Error; err != nil {
 			log.Printf("[CafeService] failed to check slug uniqueness for %q: %v", slug, err)
-			return fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix())
+			return fmt.Sprintf("%s-%d", baseSlug, time.Now().UTC().UnixNano())
 		}
 		if count == 0 {
 			break

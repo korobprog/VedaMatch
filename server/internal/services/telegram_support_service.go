@@ -64,6 +64,8 @@ type TelegramSupportService struct {
 	now              func() time.Time
 }
 
+const telegramMaxMessageRunes = 4096
+
 func NewTelegramSupportService(db *gorm.DB) *TelegramSupportService {
 	svc := &TelegramSupportService{
 		store:        NewGormSupportStore(db),
@@ -409,7 +411,13 @@ func (s *TelegramSupportService) handleOperatorDirectSend(ctx context.Context, t
 		return nil
 	}
 
-	_, err = s.client.SendMessage(ctx, chatID, strings.TrimSpace(parts[2]), TelegramSendMessageOptions{})
+	outgoingText := normalizeTelegramOutgoingText(parts[2])
+	if outgoingText == "" {
+		s.sendMessageBestEffort(ctx, operatorChatID, "Text is required")
+		return nil
+	}
+
+	_, err = s.client.SendMessage(ctx, chatID, outgoingText, TelegramSendMessageOptions{})
 	if err != nil {
 		s.sendMessageBestEffort(ctx, operatorChatID, "Direct send failed: "+err.Error())
 		return nil
@@ -451,7 +459,12 @@ func (s *TelegramSupportService) handleOperatorResolve(ctx context.Context, msg 
 }
 
 func (s *TelegramSupportService) sendTextToUserFromOperator(ctx context.Context, conversationID uint, chatID int64, text string, now time.Time) error {
-	messageID, err := s.client.SendMessage(ctx, chatID, text, TelegramSendMessageOptions{})
+	outgoingText := normalizeTelegramOutgoingText(text)
+	if outgoingText == "" {
+		return errors.New("text is required")
+	}
+
+	messageID, err := s.client.SendMessage(ctx, chatID, outgoingText, TelegramSendMessageOptions{})
 	if err != nil {
 		return err
 	}
@@ -460,7 +473,7 @@ func (s *TelegramSupportService) sendTextToUserFromOperator(ctx context.Context,
 		Direction:         models.SupportMessageDirectionOutbound,
 		Source:            models.SupportMessageSourceOperator,
 		Type:              models.SupportMessageTypeText,
-		Text:              text,
+		Text:              outgoingText,
 		TelegramChatID:    chatID,
 		TelegramMessageID: messageID,
 		SentAt:            now,
@@ -468,7 +481,7 @@ func (s *TelegramSupportService) sendTextToUserFromOperator(ctx context.Context,
 	if err := s.store.AddMessage(outbound); err != nil {
 		return err
 	}
-	if err := s.store.UpdateConversationActivity(conversationID, s.preview(text), now); err != nil {
+	if err := s.store.UpdateConversationActivity(conversationID, s.preview(outgoingText), now); err != nil {
 		return err
 	}
 	return s.store.MarkConversationFirstResponse(conversationID, now)
@@ -519,8 +532,13 @@ func (s *TelegramSupportService) sendAndPersistText(ctx context.Context, convers
 	if s.client == nil {
 		return errors.New("telegram support client is not configured")
 	}
+	outgoingText := normalizeTelegramOutgoingText(text)
+	if outgoingText == "" {
+		return errors.New("text is required")
+	}
+
 	now := s.nowUTC()
-	messageID, err := s.client.SendMessage(ctx, chatID, strings.TrimSpace(text), TelegramSendMessageOptions{})
+	messageID, err := s.client.SendMessage(ctx, chatID, outgoingText, TelegramSendMessageOptions{})
 	if err != nil {
 		return err
 	}
@@ -530,7 +548,7 @@ func (s *TelegramSupportService) sendAndPersistText(ctx context.Context, convers
 		Direction:         models.SupportMessageDirectionOutbound,
 		Source:            source,
 		Type:              models.SupportMessageTypeText,
-		Text:              strings.TrimSpace(text),
+		Text:              outgoingText,
 		TelegramChatID:    chatID,
 		TelegramMessageID: messageID,
 		SentAt:            now,
@@ -757,7 +775,11 @@ func (s *TelegramSupportService) sendMessageBestEffort(ctx context.Context, chat
 		log.Printf("[Support] send message skipped: client is not configured")
 		return
 	}
-	if _, err := s.client.SendMessage(ctx, chatID, text, TelegramSendMessageOptions{}); err != nil {
+	outgoingText := normalizeTelegramOutgoingText(text)
+	if outgoingText == "" {
+		return
+	}
+	if _, err := s.client.SendMessage(ctx, chatID, outgoingText, TelegramSendMessageOptions{}); err != nil {
 		log.Printf("[Support] send message to chat %d failed: %v", chatID, err)
 	}
 }
@@ -809,11 +831,24 @@ func (s *TelegramSupportService) SendDirectMessage(ctx context.Context, chatID i
 	if chatID == 0 {
 		return errors.New("chat id is required")
 	}
-	if strings.TrimSpace(text) == "" {
+	outgoingText := normalizeTelegramOutgoingText(text)
+	if outgoingText == "" {
 		return errors.New("text is required")
 	}
-	_, err := s.client.SendMessage(ctx, chatID, strings.TrimSpace(text), TelegramSendMessageOptions{})
+	_, err := s.client.SendMessage(ctx, chatID, outgoingText, TelegramSendMessageOptions{})
 	return err
+}
+
+func normalizeTelegramOutgoingText(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) <= telegramMaxMessageRunes {
+		return text
+	}
+	return string(runes[:telegramMaxMessageRunes])
 }
 
 func (s *TelegramSupportService) handleOperatorMessageForInApp(

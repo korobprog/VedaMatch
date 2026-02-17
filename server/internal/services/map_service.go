@@ -35,8 +35,34 @@ func NewMapService(db *gorm.DB) *MapService {
 	}
 }
 
+func validateMapBoundingBox(bbox models.MapBoundingBox) error {
+	if !isFiniteFloat64(bbox.LatMin) || !isFiniteFloat64(bbox.LatMax) || !isFiniteFloat64(bbox.LngMin) || !isFiniteFloat64(bbox.LngMax) {
+		return fmt.Errorf("invalid bounding box coordinates")
+	}
+	if bbox.LatMin > bbox.LatMax || bbox.LngMin > bbox.LngMax {
+		return fmt.Errorf("invalid bounding box range")
+	}
+	if bbox.LatMin < -90 || bbox.LatMax > 90 {
+		return fmt.Errorf("invalid latitude range")
+	}
+	if bbox.LngMin < -180 || bbox.LngMax > 180 {
+		return fmt.Errorf("invalid longitude range")
+	}
+	return nil
+}
+
 // GetMarkers retrieves markers for the given bounding box and categories
 func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarkersResponse, error) {
+	if err := validateMapBoundingBox(req.MapBoundingBox); err != nil {
+		return nil, err
+	}
+	if req.UserLat != nil && req.UserLng != nil {
+		if !isValidLatitude(*req.UserLat) || !isValidLongitude(*req.UserLng) {
+			return nil, fmt.Errorf("invalid user coordinates")
+		}
+	}
+
+	filteredCategoriesProvided := len(req.Categories) > 0
 	var markers []models.MapMarker
 	limit := req.Limit
 	if limit <= 0 || limit > 2000 {
@@ -47,6 +73,12 @@ func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarker
 	// Calculate limits per category
 	categoryCount := len(req.Categories)
 	if categoryCount == 0 {
+		if filteredCategoriesProvided {
+			return &models.MapMarkersResponse{
+				Markers: []models.MapMarker{},
+				Total:   0,
+			}, nil
+		}
 		// Default to all categories
 		req.Categories = []models.MarkerType{
 			models.MarkerTypeUser,

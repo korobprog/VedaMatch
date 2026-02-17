@@ -126,3 +126,54 @@ func TestOrderHandler_GetSellerOrders_InvalidSourcePostIDIgnored(t *testing.T) {
 		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
 	}
 }
+
+func TestOrderHandler_GetMyOrders_BoundedPaging(t *testing.T) {
+	app := fiber.New()
+	handler := NewOrderHandlerWithService(&mockOrderService{
+		getBuyerOrdersFn: func(buyerID uint, filters models.OrderFilters) (*models.OrderListResponse, error) {
+			if filters.Page != 1 {
+				t.Fatalf("page=%d, want=1 for invalid input", filters.Page)
+			}
+			if filters.Limit != 50 {
+				t.Fatalf("limit=%d, want=50 due max clamp", filters.Limit)
+			}
+			return &models.OrderListResponse{Orders: []models.OrderResponse{}, Page: filters.Page, TotalPages: 1}, nil
+		},
+	})
+
+	app.Get("/orders/my", func(c *fiber.Ctx) error {
+		c.Locals("userID", "10")
+		return handler.GetMyOrders(c)
+	})
+
+	req := httptest.NewRequest("GET", "/orders/my?page=bad&limit=500", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestParseOptionalUintQuery_TrimsWhitespace(t *testing.T) {
+	app := fiber.New()
+
+	var parsed *uint
+	app.Get("/parse", func(c *fiber.Ctx) error {
+		parsed = parseOptionalUintQuery(c, "sourcePostId")
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/parse?sourcePostId=%20%2042%20", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+	if parsed == nil || *parsed != 42 {
+		t.Fatalf("parsed=%v, want=42", parsed)
+	}
+}

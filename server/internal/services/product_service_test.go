@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
 	"rag-agent-server/internal/models"
@@ -145,5 +146,25 @@ func TestCalculateProductTotalPages(t *testing.T) {
 				t.Fatalf("total=%d limit=%d => %d, want %d", tc.total, tc.limit, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestGenerateProductSlug(t *testing.T) {
+	t.Parallel()
+
+	svc := &ProductService{}
+	got := svc.generateSlug("  Test Product!  ")
+	if !strings.HasPrefix(got, "test-product-") {
+		t.Fatalf("slug prefix = %q, want test-product-*", got)
+	}
+}
+
+func TestGenerateProductSlugFallback(t *testing.T) {
+	t.Parallel()
+
+	svc := &ProductService{}
+	got := svc.generateSlug("!!!")
+	if !strings.HasPrefix(got, "product-") {
+		t.Fatalf("fallback slug prefix = %q, want product-*", got)
 	}
 }

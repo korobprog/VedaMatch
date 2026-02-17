@@ -59,6 +59,20 @@ func normalizeLimit(limit int) int {
 	return limit
 }
 
+func calculateMultimediaTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(total) / limit
+	if int(total)%limit > 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	return totalPages
+}
+
 func NewMultimediaService() *MultimediaService {
 	service := &MultimediaService{
 		db:        database.DB,
@@ -103,6 +117,7 @@ func NewMultimediaService() *MultimediaService {
 // --- Categories ---
 
 func (s *MultimediaService) GetCategories(mediaType string) ([]models.MediaCategory, error) {
+	mediaType = strings.TrimSpace(mediaType)
 	var categories []models.MediaCategory
 	query := s.db.Where("is_active = ?", true).Order("sort_order ASC, name ASC")
 
@@ -218,10 +233,7 @@ func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, e
 		return nil, err
 	}
 
-	totalPages := int(total) / filter.Limit
-	if int(total)%filter.Limit > 0 {
-		totalPages++
-	}
+	totalPages := calculateMultimediaTotalPages(total, filter.Limit)
 
 	return &TrackListResponse{
 		Tracks:     tracks,
@@ -247,7 +259,7 @@ func (s *MultimediaService) GetTrackByID(id uint) (*models.MediaTrack, error) {
 }
 
 func (s *MultimediaService) CreateTrack(track *models.MediaTrack) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	track.PublishedAt = &now
 	return s.db.Create(track).Error
 }
@@ -277,6 +289,7 @@ func (s *MultimediaService) DeleteTrack(id uint) error {
 // --- Radio Stations ---
 
 func (s *MultimediaService) GetRadioStations(madh string) ([]models.RadioStation, error) {
+	madh = strings.TrimSpace(madh)
 	var stations []models.RadioStation
 	query := s.db.Where("is_active = ?", true).Order("sort_order ASC, name ASC")
 
@@ -366,7 +379,7 @@ func (s *MultimediaService) CheckRadioStatus() {
 				}
 			}
 
-			now := time.Now()
+			now := time.Now().UTC()
 			if err := s.db.Model(station).Updates(map[string]interface{}{
 				"status":          status,
 				"last_checked_at": &now,
@@ -382,6 +395,7 @@ func (s *MultimediaService) CheckRadioStatus() {
 // --- TV Channels ---
 
 func (s *MultimediaService) GetTVChannels(madh string) ([]models.TVChannel, error) {
+	madh = strings.TrimSpace(madh)
 	var channels []models.TVChannel
 	query := s.db.Where("is_active = ?", true).Order("sort_order ASC, name ASC")
 
@@ -449,7 +463,7 @@ func (s *MultimediaService) ReviewSuggestion(id uint, status string, adminNote s
 		return errors.New("invalid suggestion status")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	tx := s.db.Model(&models.UserMediaSuggestion{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":         status,
 		"admin_note":     strings.TrimSpace(adminNote),

@@ -67,3 +67,76 @@ func TestHaversineDistance(t *testing.T) {
 		t.Fatalf("distance between different points must be positive, got %f", d)
 	}
 }
+
+func TestValidateMapBoundingBox(t *testing.T) {
+	t.Parallel()
+
+	valid := models.MapBoundingBox{
+		LatMin: 55.0,
+		LatMax: 56.0,
+		LngMin: 37.0,
+		LngMax: 38.0,
+	}
+	if err := validateMapBoundingBox(valid); err != nil {
+		t.Fatalf("expected valid bbox, got error: %v", err)
+	}
+
+	invalidRange := models.MapBoundingBox{
+		LatMin: 56.0,
+		LatMax: 55.0,
+		LngMin: 37.0,
+		LngMax: 38.0,
+	}
+	if err := validateMapBoundingBox(invalidRange); err == nil {
+		t.Fatalf("expected invalid range error")
+	}
+
+	invalidLat := models.MapBoundingBox{
+		LatMin: -95.0,
+		LatMax: 55.0,
+		LngMin: 37.0,
+		LngMax: 38.0,
+	}
+	if err := validateMapBoundingBox(invalidLat); err == nil {
+		t.Fatalf("expected invalid latitude error")
+	}
+}
+
+func TestGetMarkersUnknownCategoriesReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	svc := &MapService{}
+	resp, err := svc.GetMarkers(models.MapMarkersRequest{
+		MapBoundingBox: models.MapBoundingBox{
+			LatMin: 55.0,
+			LatMax: 56.0,
+			LngMin: 37.0,
+			LngMax: 38.0,
+		},
+		Categories: []models.MarkerType{"unknown"},
+		Limit:      100,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Total != 0 || len(resp.Markers) != 0 {
+		t.Fatalf("expected empty response for unknown categories, got total=%d markers=%d", resp.Total, len(resp.Markers))
+	}
+}
+
+func TestGetMarkersInvalidBoundingBox(t *testing.T) {
+	t.Parallel()
+
+	svc := &MapService{}
+	_, err := svc.GetMarkers(models.MapMarkersRequest{
+		MapBoundingBox: models.MapBoundingBox{
+			LatMin: 91.0,
+			LatMax: 92.0,
+			LngMin: 37.0,
+			LngMax: 38.0,
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected bbox validation error")
+	}
+}

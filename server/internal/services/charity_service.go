@@ -90,7 +90,7 @@ func (s *CharityService) CreateOrganization(userID uint, req models.CreateOrgani
 
 // UpdateOrganizationStatus (Admin only)
 func (s *CharityService) UpdateOrganizationStatus(orgID uint, status models.OrganizationStatus, adminID uint) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"status": status,
 	}
@@ -166,7 +166,7 @@ func (s *CharityService) CreateProject(userID uint, req models.CreateProjectRequ
 
 // UpdateProjectStatus (Admin only)
 func (s *CharityService) UpdateProjectStatus(projectID uint, status models.ProjectStatus, adminID uint) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"status": status,
 	}
@@ -216,6 +216,8 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 	var response models.DonateResponse
 
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		nowUTC := time.Now().UTC()
+
 		// 1. Get Project and Organization
 		var project models.CharityProject
 		if err := tx.Preload("Organization").First(&project, req.ProjectID).Error; err != nil {
@@ -235,7 +237,7 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		}
 
 		// Check if project end date has passed
-		if project.EndDate != nil && time.Now().After(*project.EndDate) {
+		if project.EndDate != nil && nowUTC.After(project.EndDate.UTC()) {
 			return errors.New("project fundraising period has ended")
 		}
 
@@ -359,7 +361,7 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		}
 
 		// Set 24-hour refund window
-		refundDeadline := time.Now().Add(24 * time.Hour)
+		refundDeadline := nowUTC.Add(24 * time.Hour)
 
 		donation := models.CharityDonation{
 			DonorUserID:      donorUserID,
@@ -474,7 +476,7 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		}
 
 		// 4. Check refund deadline
-		if donation.CanRefundUntil == nil || time.Now().After(*donation.CanRefundUntil) {
+		if donation.CanRefundUntil == nil || time.Now().UTC().After(donation.CanRefundUntil.UTC()) {
 			return errors.New("refund period has expired (24 hours)")
 		}
 
@@ -540,7 +542,7 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		}
 
 		// 7. Update donation status
-		now := time.Now()
+		now := time.Now().UTC()
 		if err := tx.Model(&donation).Updates(map[string]interface{}{
 			"status":      models.DonationStatusRefunded,
 			"refunded_at": &now,
@@ -650,7 +652,7 @@ func (s *CharityService) CreateEvidence(userID uint, projectID uint, evidenceTyp
 	}
 
 	// Update project last evidence date
-	if err := database.DB.Model(&project).Update("last_evidence_at", time.Now()).Error; err != nil {
+	if err := database.DB.Model(&project).Update("last_evidence_at", time.Now().UTC()).Error; err != nil {
 		return nil, err
 	}
 
@@ -717,5 +719,5 @@ func generateSlug(title string) string {
 	}
 
 	// Add timestamp for uniqueness
-	return fmt.Sprintf("%s-%d", slug, time.Now().Unix())
+	return fmt.Sprintf("%s-%d", slug, time.Now().UTC().UnixNano())
 }

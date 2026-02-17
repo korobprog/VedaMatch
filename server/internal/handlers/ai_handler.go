@@ -20,6 +20,21 @@ import (
 
 type AiHandler struct{}
 
+const (
+	defaultSchedulerIntervalMinutes = 60
+	maxSchedulerIntervalMinutes     = 24 * 60
+)
+
+func normalizeSchedulerInterval(minutes int) int {
+	if minutes < 1 {
+		return defaultSchedulerIntervalMinutes
+	}
+	if minutes > maxSchedulerIntervalMinutes {
+		return maxSchedulerIntervalMinutes
+	}
+	return minutes
+}
+
 func NewAiHandler() *AiHandler {
 	return &AiHandler{}
 }
@@ -68,7 +83,7 @@ func (h *AiHandler) SyncModels(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to decode API response"})
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	newCount := 0
 	updatedCount := 0
 
@@ -147,12 +162,12 @@ func (h *AiHandler) GetAdminModels(c *fiber.Ctx) error {
 	var aiModels []models.AiModel
 	query := database.DB.Order("category asc, model_id asc")
 
-	category := c.Query("category")
+	category := strings.TrimSpace(c.Query("category"))
 	if category != "" {
 		query = query.Where("category = ?", category)
 	}
 
-	search := c.Query("search")
+	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
 		query = query.Where("model_id LIKE ? OR name LIKE ?", "%"+search+"%", "%"+search+"%")
 	}
@@ -321,6 +336,7 @@ func (h *AiHandler) HandleSchedule(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 	}
+	req.IntervalMinutes = normalizeSchedulerInterval(req.IntervalMinutes)
 
 	// Persist settings
 	if err := database.DB.Assign(models.SystemSetting{Value: fmt.Sprintf("%d", req.IntervalMinutes)}).
@@ -415,12 +431,13 @@ func (h *AiHandler) RestoreScheduler() {
 	}
 
 	var intervalSetting models.SystemSetting
-	intervalMinutes := 60 // Default
+	intervalMinutes := defaultSchedulerIntervalMinutes // Default
 	if err := database.DB.Where("key = ?", "scheduler_interval").First(&intervalSetting).Error; err == nil {
 		if val, err := strconv.Atoi(intervalSetting.Value); err == nil {
 			intervalMinutes = val
 		}
 	}
+	intervalMinutes = normalizeSchedulerInterval(intervalMinutes)
 
 	log.Printf("[Scheduler] Restoring state: Enabled, Interval=%d minutes", intervalMinutes)
 	task := func() {
@@ -534,11 +551,12 @@ func (h *AiHandler) GetGeminiKeyStatus(c *fiber.Ctx) error {
 	resetTimeStr := nextMidnight.UTC().Format(time.RFC3339)
 
 	for i, ki := range keys {
+		testedAt := time.Now().UTC().Format(time.RFC3339)
 		status := GeminiKeyStatus{
 			Index:          i,
 			KeyPrefix:      maskKey(ki.key),
 			KeyName:        ki.name,
-			TestedAt:       time.Now().Format(time.RFC3339),
+			TestedAt:       testedAt,
 			ResetInMinutes: minutesUntilReset,
 			ResetTime:      resetTimeStr,
 		}
