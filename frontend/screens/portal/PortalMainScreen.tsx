@@ -99,17 +99,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
-    const [supportEntryEnabled, setSupportEntryEnabled] = useState(true);
 
-    const refreshSupportMeta = useCallback(async () => {
-        try {
-            const config = await supportService.getConfig();
-            setSupportEntryEnabled(!!(config?.appEntryEnabled && config?.appEntryEligible));
-        } catch (error) {
-            console.warn('[Portal] failed to load support config:', error);
-            setSupportEntryEnabled(true);
-        }
-
+    const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID) {
             setSupportUnreadCount(0);
             return;
@@ -125,8 +116,8 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
     useFocusEffect(
         useCallback(() => {
-            refreshSupportMeta();
-        }, [refreshSupportMeta])
+            refreshSupportUnread();
+        }, [refreshSupportUnread])
     );
 
     // Determine effective background values
@@ -292,10 +283,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             return;
         }
         if (serviceId === 'support') {
-            if (!supportEntryEnabled) {
-                Alert.alert('Поддержка', 'Встроенная поддержка пока недоступна для вашего аккаунта.');
-                return;
-            }
             navigation.navigate('SupportHome', { entryPoint: 'portal' });
             return;
         }
@@ -337,7 +324,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         if (SERVICE_TABS.has(serviceId as ServiceTab)) {
             setActiveTab(serviceId as ServiceTab);
         }
-    }, [supportEntryEnabled, user, navigation, setIsMenuOpen]);
+    }, [user, navigation, setIsMenuOpen]);
 
     const renderContent = () => {
         const backToGrid = () => setActiveTab(null);
@@ -563,7 +550,6 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         godModeEnabled={!!user?.godModeEnabled}
                         activeMathLabel={godModeFilters.find((f) => f.mathId === activeMathId)?.mathName}
                         serviceBadges={{ support: supportUnreadCount }}
-                        hiddenServiceIds={supportEntryEnabled ? [] : ['support']}
                     />
                 </View>
 

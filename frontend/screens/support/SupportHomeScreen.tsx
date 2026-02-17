@@ -9,6 +9,7 @@ import {
     Alert,
     Linking,
 } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
@@ -108,9 +109,25 @@ export const SupportHomeScreen: React.FC<Props> = ({ navigation, route }) => {
         });
     };
 
+    const handleBackPress = () => {
+        if (isLoggedIn) {
+            navigation.navigate('Portal');
+            return;
+        }
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        navigation.navigate('Login');
+    };
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
+                <TouchableOpacity style={styles.backButton} onPress={handleBackPress} activeOpacity={0.8}>
+                    <ArrowLeft size={18} color="#0F172A" />
+                    <Text style={styles.backButtonText}>Назад</Text>
+                </TouchableOpacity>
                 <Text style={styles.title}>Поддержка VedaMatch</Text>
                 <Text style={styles.subtitle}>
                     Техпроблемы, навигация по продукту и фидбек по улучшениям.
@@ -181,6 +198,18 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingHorizontal: 20,
         paddingTop: 20,
+    },
+    backButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        gap: 6,
+        marginBottom: 10,
+    },
+    backButtonText: {
+        color: '#0F172A',
+        fontSize: 15,
+        fontWeight: '700',
     },
     title: {
         fontSize: 26,

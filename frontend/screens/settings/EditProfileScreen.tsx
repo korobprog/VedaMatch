@@ -32,12 +32,12 @@ import {
     GUNAS,
     IDENTITY_OPTIONS
 } from '../../constants/DatingConstants';
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RoleSelectionSection } from '../../components/roles/RoleSelectionSection';
 import { PortalRole } from '../../types/portalBlueprint';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
+import { authorizedAxiosRequest } from '../../services/authSessionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
@@ -138,9 +138,9 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             if (isMountedRef.current) {
                 setLoading(true);
             }
-            const token = await AsyncStorage.getItem('token');
-            const response = await axios.get(`${API_PATH}/contacts`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await authorizedAxiosRequest<any[]>({
+                method: 'GET',
+                url: `${API_PATH}/contacts`,
             });
             if (requestId !== latestLoadRequestRef.current || !isMountedRef.current) {
                 return;
@@ -243,9 +243,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 longitude
             };
 
-            const token = await AsyncStorage.getItem('token');
-            const response = await axios.put(`${API_PATH}/update-profile`, profileData, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await authorizedAxiosRequest<{ user: any }>({
+                method: 'PUT',
+                url: `${API_PATH}/update-profile`,
+                data: profileData,
             });
             if (requestId !== latestSaveRequestRef.current || !isMountedRef.current) {
                 return;

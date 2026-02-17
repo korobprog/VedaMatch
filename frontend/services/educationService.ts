@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
     EducationCourse, 
     EducationModule, 
@@ -8,22 +7,18 @@ import {
     UserExamAttempt 
 } from '../types/education';
 import { getGodModeQueryParams } from './godModeService';
+import { getAccessToken } from './authSessionService';
 
 class EducationService {
     private async getHeaders() {
-        let token = await AsyncStorage.getItem('token');
-        if (!token || token === 'undefined' || token === 'null') {
-            token = await AsyncStorage.getItem('userToken');
-        }
-
-        const authHeader = (token && token !== 'undefined' && token !== 'null')
-            ? `Bearer ${token}`
-            : '';
-
-        return {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json'
+        const token = await getAccessToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
         };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        return headers;
     }
 
     // Public Course List

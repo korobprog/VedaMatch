@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useUser } from './UserContext';
 import { WebSocketService } from '../services/websocketService';
 import { webRTCService } from '../services/webRTCService';
+import { refreshAuthTokens } from '../services/authSessionService';
 
 interface WebSocketContextType {
     addListener: (listener: (msg: any) => void) => () => void;
@@ -25,12 +26,19 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                     }
                     listenersRef.current.forEach(listener => listener(msg));
                 },
-                () => {
-                    console.error('[WebSocketContext] Auth failure detected, logging out...');
-                    logout();
+                async () => {
+                    const refreshed = await refreshAuthTokens();
+                    if (refreshed?.accessToken) {
+                        console.log('[WebSocketContext] WS auth recovered via refresh');
+                        return true;
+                    }
+
+                    console.error('[WebSocketContext] Auth refresh failed, logging out...');
+                    await logout();
+                    return false;
                 }
             );
-            wsServiceRef.current.connect();
+            void wsServiceRef.current.connect();
             webRTCService.setWebSocketService(wsServiceRef.current);
         }
 
@@ -40,7 +48,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 wsServiceRef.current = null;
             }
         };
-    }, [user?.ID]);
+    }, [user?.ID, logout]);
 
     const addListener = (listener: (msg: any) => void) => {
         listenersRef.current.add(listener);

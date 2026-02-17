@@ -39,6 +39,9 @@ interface ChatContextType {
     recipientId: number | null;
     recipientUser: UserContact | null;
     setChatRecipient: (user: UserContact | null) => void;
+    loadOlderMessages: () => Promise<void>;
+    hasOlderMessages: boolean;
+    isLoadingOlderMessages: boolean;
     isTyping: boolean;
     handleSendMedia: (media: MediaFile) => Promise<void>;
     isUploading: boolean;
@@ -60,6 +63,33 @@ const getErrorMessage = (error: unknown): string => {
     return 'Unknown error';
 };
 
+const normalizeP2PMessage = (m: any, currentUserId: number): Message => ({
+    id: (m.id || m.ID || Date.now()).toString(),
+    text: m.content || '',
+    sender: (m.senderId === currentUserId ? 'user' : 'other') as 'user' | 'other',
+    type: m.type || 'text',
+    content: m.content,
+    fileName: m.fileName,
+    fileSize: m.fileSize,
+    duration: m.duration,
+    createdAt: m.createdAt || m.CreatedAt,
+});
+
+const dedupeMessagesById = (items: Message[]): Message[] => {
+    const seen = new Set<string>();
+    const deduped: Message[] = [];
+
+    for (const item of items) {
+        if (!item?.id || seen.has(item.id)) {
+            continue;
+        }
+        seen.add(item.id);
+        deduped.push(item);
+    }
+
+    return deduped;
+};
+
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const { t } = useTranslation();
     const { currentModel, currentProvider, isAutoMagicEnabled, assistantType } = useSettings();
@@ -71,6 +101,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const [currentChatId, setCurrentChatId] = useState<string | null>(null);
     const [recipientId, setRecipientId] = useState<number | null>(null);
     const [recipientUser, setRecipientUser] = useState<UserContact | null>(null);
+    const [p2pNextBeforeId, setP2PNextBeforeId] = useState<number | null>(null);
+    const [hasOlderMessages, setHasOlderMessages] = useState(false);
+    const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -179,35 +212,72 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     // Load P2P messages when recipient changes
     useEffect(() => {
         if (recipientId && currentUser?.ID) {
+            let isActive = true;
             const loadP2PMessages = async () => {
                 try {
                     setIsLoading(true);
                     const currentRecipientId = recipientId;
                     const currentUserId = currentUser?.ID;
                     if (!currentRecipientId || !currentUserId) return;
-                    const p2pMessages = await messageService.getMessages(currentUserId, currentRecipientId);
-                    const formattedMessages: Message[] = p2pMessages.map(m => ({
-                        id: (m.id || m.ID || Date.now()).toString(),
-                        text: m.content || '',
-                        sender: (m.senderId === currentUser.ID ? 'user' : 'other') as 'user' | 'other',
-                        type: m.type || 'text',
-                        content: m.content,
-                        fileName: m.fileName,
-                        fileSize: m.fileSize,
-                        duration: m.duration,
-                        createdAt: m.createdAt || m.CreatedAt
-                    }));
-                    setMessages(formattedMessages);
+
+                    const page = await messageService.getMessagesHistory(currentRecipientId, 30);
+                    const formattedMessages: Message[] = page.items.map(m => normalizeP2PMessage(m, currentUserId));
+
+                    if (!isActive) return;
+                    setMessages(dedupeMessagesById(formattedMessages));
+                    setHasOlderMessages(page.hasMore);
+                    setP2PNextBeforeId(page.nextBeforeId ?? null);
                 } catch (e: unknown) {
                     console.error('Failed to load P2P messages', e);
-                    Alert.alert('Error loading messages', getErrorMessage(e));
+                    if (isActive) {
+                        Alert.alert('Error loading messages', getErrorMessage(e));
+                    }
                 } finally {
-                    setIsLoading(false);
+                    if (isActive) {
+                        setIsLoading(false);
+                    }
                 }
             };
-            loadP2PMessages();
+            void loadP2PMessages();
+
+            return () => {
+                isActive = false;
+            };
         }
+
+        setP2PNextBeforeId(null);
+        setHasOlderMessages(false);
+        setIsLoadingOlderMessages(false);
+
+        return;
     }, [recipientId, currentUser?.ID]);
+
+    const loadOlderMessages = async () => {
+        const currentUserId = currentUser?.ID;
+        if (!recipientId || !currentUserId || isLoadingOlderMessages || !hasOlderMessages) {
+            return;
+        }
+
+        const beforeId = p2pNextBeforeId;
+        if (!beforeId || beforeId <= 0) {
+            setHasOlderMessages(false);
+            return;
+        }
+
+        setIsLoadingOlderMessages(true);
+        try {
+            const page = await messageService.getMessagesHistory(recipientId, 30, beforeId);
+            const olderMessages = page.items.map((m) => normalizeP2PMessage(m, currentUserId));
+
+            setMessages(prev => dedupeMessagesById([...olderMessages, ...prev]));
+            setHasOlderMessages(page.hasMore);
+            setP2PNextBeforeId(page.nextBeforeId ?? null);
+        } catch (error) {
+            console.error('Failed to load older messages', error);
+        } finally {
+            setIsLoadingOlderMessages(false);
+        }
+    };
 
     // WebSocket Listener for real-time messages
     useEffect(() => {
@@ -293,11 +363,17 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         if (!user) {
             setRecipientId(null);
             setRecipientUser(null);
+            setP2PNextBeforeId(null);
+            setHasOlderMessages(false);
+            setIsLoadingOlderMessages(false);
             handleNewChat();
             return;
         }
         setRecipientId(user.ID);
         setRecipientUser(user);
+        setP2PNextBeforeId(null);
+        setHasOlderMessages(false);
+        setIsLoadingOlderMessages(false);
         setCurrentChatId(null); // Clear AI chat context
         setMessages([]); // Clear previous messages immediately
     };
@@ -499,6 +575,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         setMessages([systemMsg]);
         setRecipientId(null);
         setRecipientUser(null);
+        setP2PNextBeforeId(null);
+        setHasOlderMessages(false);
+        setIsLoadingOlderMessages(false);
     };
 
     const handleNewChat = () => {
@@ -526,6 +605,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         });
         setRecipientId(null);
         setRecipientUser(null);
+        setP2PNextBeforeId(null);
+        setHasOlderMessages(false);
+        setIsLoadingOlderMessages(false);
         setShowMenu(false);
     };
 
@@ -536,6 +618,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             setCurrentChatId(chat.id);
             setRecipientId(null);
             setRecipientUser(null);
+            setP2PNextBeforeId(null);
+            setHasOlderMessages(false);
+            setIsLoadingOlderMessages(false);
         }
     };
 
@@ -553,6 +638,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             setCurrentChatId(null);
             setRecipientId(null);
             setRecipientUser(null);
+            setP2PNextBeforeId(null);
+            setHasOlderMessages(false);
+            setIsLoadingOlderMessages(false);
         }
         try {
             await AsyncStorage.setItem('chat_history', JSON.stringify(updated));
@@ -725,6 +813,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             recipientId,
             recipientUser,
             setChatRecipient,
+            loadOlderMessages,
+            hasOlderMessages,
+            isLoadingOlderMessages,
             isTyping,
             handleSendMedia,
             isUploading,

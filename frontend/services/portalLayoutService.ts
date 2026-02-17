@@ -5,6 +5,7 @@ import { PortalLayout, PortalFolder, PortalItem, PortalPage, PortalWidget, creat
 import { API_PATH } from '../config/api.config';
 import { FALLBACK_PORTAL_BLUEPRINTS } from '../constants/portalRoles';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
+import { getAccessToken } from './authSessionService';
 
 
 const STORAGE_KEY = 'portal_layout';
@@ -51,14 +52,11 @@ const scheduleSyncToServer = (layout: PortalLayout) => {
 
 // Get auth headers helper
 const getAuthHeaders = async () => {
-    let token = await AsyncStorage.getItem('token');
-    if (!token || token === 'undefined' || token === 'null') {
-        token = await AsyncStorage.getItem('userToken');
-    }
+    const token = await getAccessToken();
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
     };
-    if (token && token !== 'undefined' && token !== 'null') {
+    if (token) {
         headers.Authorization = `Bearer ${token}`;
     }
     return headers;
@@ -545,4 +543,3 @@ export const reorderWidgets = (
     newLayout.pages[pageIndex].widgets = widgets;
     return newLayout;
 };
-

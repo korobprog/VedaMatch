@@ -11,6 +11,7 @@ import {
     RefreshControl,
     Image,
     Alert,
+    Platform,
 } from 'react-native';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import { RootStackParamList } from '../../types/navigation';
 import { supportService, SupportConversation, SupportMessage } from '../../services/supportService';
 import { useUser } from '../../context/UserContext';
 import { API_BASE_URL } from '../../config/api.config';
+import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SupportConversation'>;
 
@@ -188,7 +190,11 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.container}>
+            <KeyboardAwareContainer
+                style={styles.container}
+                behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+                useTopInset={false}
+            >
                 <View style={styles.header}>
                     <View>
                         <Text style={styles.title}>{ticket?.ticketNumber || `#${conversationId}`}</Text>
@@ -211,6 +217,8 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                         data={messages}
                         keyExtractor={(item) => String(item.ID)}
                         contentContainerStyle={styles.listContent}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
                         renderItem={({ item }) => {
                             const outbound = item.direction === 'outbound';
@@ -262,7 +270,7 @@ export const SupportConversationScreen: React.FC<Props> = ({ route, navigation }
                         {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.sendButtonText}>Отпр.</Text>}
                     </TouchableOpacity>
                 </View>
-            </View>
+            </KeyboardAwareContainer>
         </SafeAreaView>
     );
 };

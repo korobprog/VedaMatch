@@ -18,7 +18,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	fiberwebsocket "github.com/gofiber/websocket/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -104,10 +103,33 @@ func main() {
 			}
 
 			code := fiber.StatusInternalServerError
+			message := strings.TrimSpace(err.Error())
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
+				if strings.TrimSpace(e.Message) != "" {
+					message = strings.TrimSpace(e.Message)
+				}
 			}
-			return c.Status(code).JSON(fiber.Map{"error": err.Error()})
+			if message == "" {
+				message = "Internal server error"
+			}
+
+			requestID := middleware.GetRequestID(c)
+			if requestID == "" {
+				requestID = strings.TrimSpace(c.Get("X-Request-ID"))
+			}
+
+			errorCode := middleware.GetErrorCode(c)
+			if errorCode == "" {
+				errorCode = errorCodeFromStatus(code)
+				middleware.SetErrorCode(c, errorCode)
+			}
+
+			return c.Status(code).JSON(fiber.Map{
+				"error":     message,
+				"errorCode": errorCode,
+				"requestId": requestID,
+			})
 		},
 	})
 
@@ -119,7 +141,9 @@ func main() {
 		AllowCredentials: true,
 	}))
 
+	app.Use(middleware.RequestID())
 	app.Use(logger.New())
+	app.Use(middleware.ErrorLog())
 
 	// Universal Links & App Links support
 	app.Get("/.well-known/apple-app-site-association", func(c *fiber.Ctx) error {
@@ -219,6 +243,8 @@ func main() {
 	// Auth Routes (Public)
 	api.Post("/register", authHandler.Register)
 	api.Post("/login", authHandler.Login)
+	api.Post("/auth/refresh", authHandler.Refresh)
+	api.Post("/auth/logout", middleware.OptionalAuth(), authHandler.Logout)
 	api.Post("/integrations/telegram/support/webhook", supportHandler.TelegramWebhook)
 
 	// Library Routes
@@ -576,6 +602,7 @@ func main() {
 
 	// Other Protected Routes
 	protected.Post("/messages", messageHandler.SendMessage)
+	protected.Get("/messages/history", messageHandler.GetMessagesHistory)
 	protected.Get("/messages/:userId/:recipientId", messageHandler.GetMessages)
 
 	// Education Routes (Protected)
@@ -1011,4 +1038,37 @@ func resolveListenPort(defaultPort string) string {
 		return ":" + defaultPort
 	}
 	return fmt.Sprintf(":%d", portNumber)
+}
+
+func errorCodeFromStatus(status int) string {
+	switch status {
+	case fiber.StatusBadRequest:
+		return "bad_request"
+	case fiber.StatusUnauthorized:
+		return "unauthorized"
+	case fiber.StatusForbidden:
+		return "forbidden"
+	case fiber.StatusNotFound:
+		return "not_found"
+	case fiber.StatusConflict:
+		return "conflict"
+	case fiber.StatusTooManyRequests:
+		return "rate_limited"
+	case fiber.StatusInternalServerError:
+		return "internal_error"
+	case fiber.StatusBadGateway:
+		return "bad_gateway"
+	case fiber.StatusServiceUnavailable:
+		return "service_unavailable"
+	case fiber.StatusGatewayTimeout:
+		return "gateway_timeout"
+	default:
+		if status >= 500 {
+			return "server_error"
+		}
+		if status >= 400 {
+			return "client_error"
+		}
+		return ""
+	}
 }

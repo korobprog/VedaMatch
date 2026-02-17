@@ -11,7 +11,6 @@ import {
     Alert,
     TextInput,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
 import { X, Link2, UserPlus, ShieldCheck, UserMinus, Search, User as UserIcon } from 'lucide-react-native';
@@ -21,6 +20,7 @@ import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
+import { authorizedFetch } from '../../../services/authSessionService';
 
 interface InviteFriendModalProps {
     visible: boolean;
@@ -44,12 +44,9 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const fetchFriends = async () => {
         if (!user) return;
         try {
-            const token = await AsyncStorage.getItem('token');
-            const authHeader = { 'Authorization': `Bearer ${token}` };
-
             const [friendsResponse, membersResponse] = await Promise.all([
-                fetch(`${API_PATH}/friends`, { headers: authHeader }),
-                fetch(`${API_PATH}/rooms/${roomId}/members`, { headers: authHeader })
+                authorizedFetch(`${API_PATH}/friends`),
+                authorizedFetch(`${API_PATH}/rooms/${roomId}/members`)
             ]);
 
             if (friendsResponse.ok) {
@@ -84,12 +81,10 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleInvite = async (friendId: number) => {
         setInvitingId(friendId);
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/invite`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms/invite`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     roomId: roomId,
@@ -100,9 +95,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             if (response.ok) {
                 Alert.alert(t('common.success'), t('chat.invite') + ' ' + t('common.success'));
                 // Refetch members to get proper data
-                const membersResponse = await fetch(`${API_PATH}/rooms/${roomId}/members`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const membersResponse = await authorizedFetch(`${API_PATH}/rooms/${roomId}/members`);
                 if (membersResponse.ok) {
                     const members = await membersResponse.json();
                     setRoomMembers(members);
@@ -123,12 +116,10 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleRemove = async (friendId: number) => {
         setInvitingId(friendId);
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/remove`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms/remove`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     roomId: roomId,
@@ -153,12 +144,10 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const handleMakeAdmin = async (friendId: number) => {
         setInvitingId(friendId);
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/role`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms/role`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     roomId: roomId,

@@ -26,6 +26,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
+import { authorizedFetch } from '../../../services/authSessionService';
 
 interface RoomSettingsModalProps {
     visible: boolean;
@@ -128,10 +129,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     const fetchSettings = useCallback(async () => {
         const requestId = ++latestSettingsRequestRef.current;
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}`);
             if (response.ok) {
                 const currentRoom = await response.json();
                 if (!isMountedRef.current || requestId !== latestSettingsRequestRef.current) {
@@ -239,12 +237,10 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             setSaving(true);
         }
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/${roomId}/settings`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/settings`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(updates),
             });
@@ -327,7 +323,6 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             if (isMountedRef.current) {
                 setUploadingImage(true);
             }
-            const token = await AsyncStorage.getItem('token');
             const formData = new FormData();
             formData.append('image', {
                 uri: asset.uri,
@@ -335,11 +330,8 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                 name: asset.fileName || 'room_image.jpg',
             } as any);
 
-            const response = await fetch(`${API_PATH}/rooms/${roomId}/image`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/image`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
                 body: formData,
             });
 
@@ -392,7 +384,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             setSummaryLoading(true);
         }
         try {
-            const response = await fetch(`${API_PATH}/rooms/${roomId}/summary`);
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/summary`);
             const data = await response.json();
             if (response.ok) {
                 if (isMountedRef.current) {

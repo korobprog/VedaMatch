@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_PATH } from '../config/api.config';
+import { authorizedFetch, getAccessToken } from './authSessionService';
 
 export type SupportConversationStatus = 'open' | 'resolved';
 export type SupportConversationChannel = 'telegram' | 'in_app';
@@ -69,10 +69,7 @@ export interface AddSupportMessagePayload {
 }
 
 const getToken = async (): Promise<string> => {
-    let token = await AsyncStorage.getItem('token');
-    if (!token || token === 'undefined' || token === 'null') {
-        token = await AsyncStorage.getItem('userToken');
-    }
+    const token = await getAccessToken();
     if (!token || token === 'undefined' || token === 'null') {
         return '';
     }
@@ -103,7 +100,7 @@ const parseJsonSafe = async (response: Response): Promise<any> => {
 };
 
 const requestJson = async (url: string, init: RequestInit = {}): Promise<any> => {
-    const response = await fetch(url, init);
+    const response = await authorizedFetch(url, init);
     const payload = await parseJsonSafe(response);
     if (!response.ok) {
         const message = payload?.error || payload?.message || `Request failed: ${response.status}`;

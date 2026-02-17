@@ -10,7 +10,7 @@ try {
 import { getModelConfig, ModelConfig } from '../config/models.config';
 
 import { API_PATH } from '../config/api.config';
-import { getAuthHeaders } from './contactService';
+import { authorizedFetch } from './authSessionService';
 
 // Fallback if API_PATH is somehow still missing in some contexts
 const SAFE_API_PATH = typeof API_PATH !== 'undefined' ? API_PATH : 'http://localhost:8081/api';
@@ -107,11 +107,10 @@ export const sendMessage = async (
 
     // Попробуем прямой fetch
     try {
-      const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${SAFE_API_PATH}/v1/chat/completions`, {
+      const response = await authorizedFetch(`${SAFE_API_PATH}/v1/chat/completions`, {
         method: 'POST',
         headers: {
-          ...authHeaders,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
         signal: options.signal,
@@ -227,12 +226,9 @@ export const getAvailableModels = async (provider?: string): Promise<any> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const authHeaders = await getAuthHeaders();
-    const response = await fetch(url, {
+    const response = await authorizedFetch(url, {
       method: 'GET',
-      headers: {
-        ...authHeaders,
-      },
+      headers: {},
       signal: controller.signal
     });
     clearTimeout(timeoutId);

@@ -7,9 +7,8 @@ import {
 } from 'react-native-webrtc';
 import { WebSocketService } from './websocketService';
 import { API_PATH } from '../config/api.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import InCallManager from 'react-native-incall-manager';
+import { authorizedAxiosRequest, getAccessToken } from './authSessionService';
 
 let configuration: any = {
     iceServers: [
@@ -81,18 +80,19 @@ class WebRTCService {
 
     async fetchTurnCredentials() {
         try {
-            const token = await AsyncStorage.getItem('token');
+            const token = await getAccessToken();
             if (!token) {
                 console.log('No auth token, using fallback STUN');
                 return;
             }
 
             console.log('Fetching TURN credentials from:', `${API_PATH}/turn-credentials`);
-            const response = await axios.get(`${API_PATH}/turn-credentials`, {
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await authorizedAxiosRequest<{ iceServers?: any[] }>({
+                url: `${API_PATH}/turn-credentials`,
+                method: 'GET',
             });
 
-            if (response.data && response.data.iceServers) {
+            if (response.data?.iceServers && Array.isArray(response.data.iceServers)) {
                 console.warn(`[WebRTC] Fetched ${response.data.iceServers.length} ICE Servers from API`);
                 configuration = { iceServers: response.data.iceServers };
             }

@@ -1,5 +1,6 @@
 import { API_PATH } from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authorizedFetch, getAccessToken } from './authSessionService';
 
 export interface UserContact {
     ID: number;
@@ -26,7 +27,7 @@ export interface PushTokenRegisterPayload {
 }
 
 const getAuthToken = async () => {
-    return await AsyncStorage.getItem('token');
+    return await getAccessToken();
 };
 
 export const getAuthHeaders = async (isJson = true) => {
@@ -42,7 +43,7 @@ export const getAuthHeaders = async (isJson = true) => {
 
 const legacyUpdatePushToken = async (pushToken: string) => {
     const headers = await getAuthHeaders();
-    await fetch(`${API_PATH}/update-push-token`, {
+    await authorizedFetch(`${API_PATH}/update-push-token`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ pushToken }),
@@ -54,7 +55,7 @@ export const contactService = {
     getContacts: async (): Promise<UserContact[]> => {
         const headers = await getAuthHeaders();
         console.log('[ContactService] Fetching contacts using headers:', JSON.stringify(headers));
-        const response = await fetch(`${API_PATH}/contacts`, { headers });
+        const response = await authorizedFetch(`${API_PATH}/contacts`, { headers });
         if (response.status === 401) {
             console.error('[ContactService] Unauthorized: Session expired or invalid token');
             // We could trigger a logout here if we had access to context, 
@@ -68,14 +69,14 @@ export const contactService = {
     getFriends: async (userId: number): Promise<UserContact[]> => {
         const headers = await getAuthHeaders();
         // The endpoint /friends uses the user ID from the token, so we don't need userId in the path.
-        const response = await fetch(`${API_PATH}/friends`, { headers });
+        const response = await authorizedFetch(`${API_PATH}/friends`, { headers });
         if (!response.ok) throw new Error('Failed to fetch friends');
         return response.json();
     },
 
     addFriend: async (userId: number, friendId: number) => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/friends/add`, {
+        const response = await authorizedFetch(`${API_PATH}/friends/add`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ userId, friendId }),
@@ -86,7 +87,7 @@ export const contactService = {
 
     removeFriend: async (userId: number, friendId: number) => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/friends/remove`, {
+        const response = await authorizedFetch(`${API_PATH}/friends/remove`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ userId, friendId }),
@@ -96,7 +97,7 @@ export const contactService = {
 
     uploadAvatar: async (userId: number, formData: FormData) => {
         const headers = await getAuthHeaders(false);
-        const response = await fetch(`${API_PATH}/upload-avatar`, { // Route is /upload-avatar in main.go, not /upload-avatar/:userId
+        const response = await authorizedFetch(`${API_PATH}/upload-avatar`, { // Route is /upload-avatar in main.go, not /upload-avatar/:userId
             method: 'POST',
             headers,
             body: formData,
@@ -107,7 +108,7 @@ export const contactService = {
 
     sendHeartbeat: async (userId: number) => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/heartbeat`, {
+        const response = await authorizedFetch(`${API_PATH}/heartbeat`, {
             method: 'POST',
             headers
         });
@@ -122,7 +123,7 @@ export const contactService = {
 
     registerPushToken: async (payload: PushTokenRegisterPayload) => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/push-tokens/register`, {
+        const response = await authorizedFetch(`${API_PATH}/push-tokens/register`, {
             method: 'POST',
             headers,
             body: JSON.stringify(payload),
@@ -139,7 +140,7 @@ export const contactService = {
 
     unregisterPushToken: async (payload: { token?: string; deviceId?: string }) => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/push-tokens/unregister`, {
+        const response = await authorizedFetch(`${API_PATH}/push-tokens/unregister`, {
             method: 'POST',
             headers,
             body: JSON.stringify(payload),
@@ -152,14 +153,14 @@ export const contactService = {
 
     getBlockedUsers: async (userId: number): Promise<UserContact[]> => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/blocks`, { headers });
+        const response = await authorizedFetch(`${API_PATH}/blocks`, { headers });
         if (!response.ok) throw new Error('Failed to fetch blocked users');
         return response.json();
     },
 
     blockUser: async (userId: number, blockedId: number) => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/blocks/add`, {
+        const response = await authorizedFetch(`${API_PATH}/blocks/add`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ userId, blockedId }),
@@ -170,7 +171,7 @@ export const contactService = {
 
     unblockUser: async (userId: number, blockedId: number) => {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/blocks/remove`, {
+        const response = await authorizedFetch(`${API_PATH}/blocks/remove`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ userId, blockedId }),
@@ -182,7 +183,7 @@ export const contactService = {
     getUserById: async (userId: number): Promise<UserContact | null> => {
         try {
             const headers = await getAuthHeaders();
-            const response = await fetch(`${API_PATH}/users/${userId}`, { headers });
+            const response = await authorizedFetch(`${API_PATH}/users/${userId}`, { headers });
             if (!response.ok) {
                 console.error(`Failed to fetch user ${userId}: ${response.status}`);
                 return null;

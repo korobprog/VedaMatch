@@ -6,8 +6,8 @@ import "time"
 type AuthSession struct {
 	ID uint `json:"id" gorm:"primaryKey"`
 
-	UserID uint   `json:"userId" gorm:"not null;index"`
-	User   *User  `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	UserID   uint   `json:"userId" gorm:"not null;index"`
+	User     *User  `json:"user,omitempty" gorm:"foreignKey:UserID"`
 	DeviceID string `json:"deviceId,omitempty" gorm:"type:varchar(128);index"`
 
 	RefreshTokenHash string `json:"-" gorm:"type:char(64);not null;uniqueIndex"`

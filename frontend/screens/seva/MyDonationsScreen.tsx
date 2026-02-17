@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl, SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChevronLeft, CalendarDays, CheckCircle2, XCircle, Clock } from 'lucide-react-native';
 import { CharityDonation } from '../../types/charity';
 import { charityService } from '../../services/charityService';
@@ -19,10 +18,7 @@ const MyDonationsScreen: React.FC = () => {
     const loadDonations = async () => {
         setLoading(true);
         try {
-            const token = await AsyncStorage.getItem('token');
-            if (!token) return;
-
-            const data = await charityService.getMyDonations(token);
+            const data = await charityService.getMyDonations();
             setDonations(data);
         } catch (e) {
             console.error('Failed to load donations:', e);
@@ -48,10 +44,7 @@ const MyDonationsScreen: React.FC = () => {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            const token = await AsyncStorage.getItem('token');
-                            if (!token) return;
-
-                            await charityService.refundDonation(token, donationId);
+                            await charityService.refundDonation(undefined, donationId);
                             Alert.alert("Успешно", "Средства возвращены на ваш кошелек");
                             loadDonations(); // Refresh list
                         } catch (error: any) {

@@ -35,6 +35,7 @@ import { RootStackParamList } from '../types/navigation';
 import { API_PATH } from '../config/api.config';
 import { contactService } from '../services/contactService';
 import DeviceInfo from 'react-native-device-info';
+import { authorizedAxiosRequest, getAccessToken, saveAuthTokens } from '../services/authSessionService';
 import { RoleSelectionSection } from '../components/roles/RoleSelectionSection';
 import { PortalRole } from '../types/portalBlueprint';
 import { useSettings as usePortalSettings } from '../context/SettingsContext';
@@ -255,12 +256,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     deviceId
                 });
                 const user = response.data.user;
-                const token = response.data.token;
 
                 await AsyncStorage.setItem('user', JSON.stringify(user));
-                if (token) {
-                    await AsyncStorage.setItem('token', token);
-                }
+                await saveAuthTokens(response.data);
                 if (requestId !== latestSubmitRequestRef.current || !isMountedRef.current) {
                     return;
                 }
@@ -293,16 +291,19 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 };
 
                 console.log('Sending profile data:', JSON.stringify(profileData, null, 2));
-                const token = await AsyncStorage.getItem('token');
+                const token = await getAccessToken();
                 if (!token || token === 'undefined' || token === 'null') {
                     throw new Error('Auth token is missing. Please sign in again.');
                 }
-                const response = await axios.put(`${API_PATH}/update-profile`, profileData, {
+                const response = await authorizedAxiosRequest<{ user: any }>({
+                    url: `${API_PATH}/update-profile`,
+                    method: 'PUT',
                     headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                        'Content-Type': 'application/json',
+                    },
+                    data: profileData,
                 });
-                const updatedUser = response.data.user;
+                const updatedUser = response.data?.user;
 
                 // Upload avatar if selected
                 if (avatar) {

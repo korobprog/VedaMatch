@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
@@ -56,6 +57,24 @@ func sanitizeUsers(users []models.User) {
 	for i := range users {
 		users[i].Password = ""
 	}
+}
+
+func buildTokenPairResponse(message string, user models.User, sessionID uint, accessToken string, accessTokenExpiresAt time.Time, refreshToken string, refreshTokenExpiresAt time.Time) fiber.Map {
+	response := fiber.Map{
+		"message": message,
+		"token":   accessToken, // Legacy compatibility for existing clients.
+		"user":    user,
+	}
+
+	if sessionID > 0 {
+		response["accessToken"] = accessToken
+		response["refreshToken"] = refreshToken
+		response["accessTokenExpiresAt"] = accessTokenExpiresAt.UTC().Format(time.RFC3339)
+		response["refreshTokenExpiresAt"] = refreshTokenExpiresAt.UTC().Format(time.RFC3339)
+		response["sessionId"] = sessionID
+	}
+
+	return response
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
@@ -116,30 +135,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate JWT token
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		log.Println("[AUTH] JWT_SECRET not configured")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Server configuration error",
-		})
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userId": user.ID,
-		"email":  user.Email,
-		"role":   user.Role,
-		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
-	})
-
-	tokenString, err := token.SignedString([]byte(secret))
-	if err != nil {
-		log.Printf("[AUTH] Failed to generate token: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not generate token",
-		})
-	}
-
+	authNow := time.Now().UTC()
 	user.Password = ""
 
 	// Create wallet for the new user (initial 0 Active / 50 Pending LKM)
@@ -155,6 +151,58 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			log.Printf("[AUTH] Failed to link referral for user %d: %v", user.ID, err)
 			// Don't fail registration, just log
 		}
+	}
+
+	if config.AuthRefreshV1Enabled() {
+		session, refreshToken, sessionErr := createAuthSession(user.ID, registerData.DeviceID, authNow)
+		if sessionErr != nil {
+			log.Printf("[AUTH] Failed to create auth session: %v", sessionErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create auth session",
+			})
+		}
+
+		accessToken, accessExpiresAt, tokenErr := buildAccessToken(user, session.ID, authNow)
+		if tokenErr != nil {
+			log.Printf("[AUTH] Failed to generate access token: %v", tokenErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not generate token",
+			})
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(buildTokenPairResponse(
+			"User registered successfully",
+			user,
+			session.ID,
+			accessToken,
+			accessExpiresAt,
+			refreshToken,
+			session.ExpiresAt,
+		))
+	}
+
+	// Legacy auth flow when refresh sessions are disabled.
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Println("[AUTH] JWT_SECRET not configured")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Server configuration error",
+		})
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userId": user.ID,
+		"email":  user.Email,
+		"role":   user.Role,
+		"exp":    authNow.Add(time.Hour * 24 * 7).Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		log.Printf("[AUTH] Failed to generate token: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not generate token",
+		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -216,7 +264,36 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	user.Password = ""
 
-	// Generate JWT token
+	authNow := time.Now().UTC()
+	if config.AuthRefreshV1Enabled() {
+		session, refreshToken, sessionErr := createAuthSession(user.ID, loginData.DeviceID, authNow)
+		if sessionErr != nil {
+			log.Printf("[AUTH] Failed to create auth session: %v", sessionErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create auth session",
+			})
+		}
+
+		accessToken, accessExpiresAt, tokenErr := buildAccessToken(user, session.ID, authNow)
+		if tokenErr != nil {
+			log.Printf("[AUTH] Failed to generate access token: %v", tokenErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not generate token",
+			})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(buildTokenPairResponse(
+			"Login successful",
+			user,
+			session.ID,
+			accessToken,
+			accessExpiresAt,
+			refreshToken,
+			session.ExpiresAt,
+		))
+	}
+
+	// Legacy auth flow when refresh sessions are disabled.
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		log.Println("[AUTH] JWT_SECRET not configured")
@@ -229,7 +306,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		"userId": user.ID,
 		"email":  user.Email,
 		"role":   user.Role,
-		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+		"exp":    authNow.Add(time.Hour * 24 * 7).Unix(),
 	})
 
 	tokenString, err := token.SignedString([]byte(secret))
@@ -244,6 +321,170 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		"message": "Login successful",
 		"token":   tokenString,
 		"user":    user,
+	})
+}
+
+func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
+	if !config.AuthRefreshV1Enabled() {
+		middleware.SetErrorCode(c, "auth_refresh_disabled")
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "refresh endpoint is disabled",
+		})
+	}
+
+	var req struct {
+		RefreshToken string `json:"refreshToken"`
+		SessionID    uint   `json:"sessionId"`
+		DeviceID     string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		middleware.SetErrorCode(c, "auth_refresh_bad_json")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" {
+		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
+		middleware.SetErrorCode(c, "auth_refresh_missing_token")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "refreshToken is required",
+		})
+	}
+
+	now := time.Now().UTC()
+	refreshHash := hashRefreshToken(refreshToken)
+
+	var session models.AuthSession
+	if err := database.DB.Where("refresh_token_hash = ?", refreshHash).First(&session).Error; err != nil {
+		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
+		middleware.SetErrorCode(c, "auth_refresh_invalid_token")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid refresh token",
+		})
+	}
+
+	if req.SessionID > 0 && req.SessionID != session.ID {
+		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
+		middleware.SetErrorCode(c, "auth_refresh_invalid_session")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid session",
+		})
+	}
+
+	if session.RevokedAt != nil || !session.ExpiresAt.After(now) {
+		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
+		middleware.SetErrorCode(c, "auth_refresh_expired")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Refresh session expired",
+		})
+	}
+
+	var user models.User
+	if err := database.DB.First(&user, session.UserID).Error; err != nil {
+		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
+		middleware.SetErrorCode(c, "auth_refresh_user_not_found")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Session user not found",
+		})
+	}
+	if user.IsBlocked {
+		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
+		middleware.SetErrorCode(c, "auth_refresh_user_blocked")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User is blocked",
+		})
+	}
+
+	newRefreshToken, err := rotateAuthSession(&session, req.DeviceID, now)
+	if err != nil {
+		log.Printf("[AUTH] Failed to rotate refresh session %d: %v", session.ID, err)
+		middleware.SetErrorCode(c, "auth_refresh_rotate_failed")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not rotate refresh session",
+		})
+	}
+
+	accessToken, accessExpiresAt, err := buildAccessToken(user, session.ID, now)
+	if err != nil {
+		log.Printf("[AUTH] Failed to generate rotated access token: %v", err)
+		middleware.SetErrorCode(c, "auth_refresh_access_token_failed")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not generate token",
+		})
+	}
+
+	user.Password = ""
+	_ = services.GetMetricsService().Increment(services.MetricAuthRefreshSuccess, 1)
+
+	return c.Status(fiber.StatusOK).JSON(buildTokenPairResponse(
+		"Token refreshed",
+		user,
+		session.ID,
+		accessToken,
+		accessExpiresAt,
+		newRefreshToken,
+		session.ExpiresAt,
+	))
+}
+
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	if !config.AuthRefreshV1Enabled() {
+		return c.JSON(fiber.Map{"ok": true})
+	}
+
+	var req struct {
+		RefreshToken string `json:"refreshToken"`
+		SessionID    uint   `json:"sessionId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		middleware.SetErrorCode(c, "auth_logout_bad_json")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	sessionID := req.SessionID
+	if sessionID == 0 {
+		sessionID = middleware.GetSessionID(c)
+	}
+
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" && sessionID == 0 {
+		middleware.SetErrorCode(c, "auth_logout_missing_subject")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "sessionId or refreshToken is required",
+		})
+	}
+
+	userID := middleware.GetUserID(c)
+	now := time.Now().UTC()
+
+	query := database.DB.Model(&models.AuthSession{}).Where("revoked_at IS NULL")
+	if userID > 0 {
+		query = query.Where("user_id = ?", userID)
+	}
+	if refreshToken != "" {
+		query = query.Where("refresh_token_hash = ?", hashRefreshToken(refreshToken))
+	} else {
+		query = query.Where("id = ?", sessionID)
+	}
+
+	result := query.Updates(map[string]interface{}{
+		"revoked_at": now,
+		"updated_at": now,
+	})
+	if result.Error != nil {
+		middleware.SetErrorCode(c, "auth_logout_revoke_failed")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not revoke session",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"ok":      true,
+		"revoked": result.RowsAffected,
 	})
 }
 

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
@@ -19,6 +18,7 @@ import { RootStackParamList } from '../../../types/navigation';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { useSettings } from '../../../context/SettingsContext';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
+import { authorizedFetch } from '../../../services/authSessionService';
 
 const EMOJI_MAP: any = {
     'krishna': '🕉️',
@@ -61,10 +61,7 @@ export const PortalChatScreen: React.FC = () => {
         }
 
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await authorizedFetch(`${API_PATH}/rooms`);
             if (response.ok) {
                 const data = await response.json();
                 setRooms(data);

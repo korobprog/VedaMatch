@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
@@ -20,11 +23,13 @@ import (
 
 type ChatHandler struct {
 	domainAssistant *services.DomainAssistantService
+	ragPipeline     *services.RAGPipelineService
 }
 
 func NewChatHandler() *ChatHandler {
 	return &ChatHandler{
 		domainAssistant: services.GetDomainAssistantService(),
+		ragPipeline:     services.NewRAGPipelineService(database.DB),
 	}
 }
 
@@ -74,6 +79,35 @@ func (h *ChatHandler) HandleChat(c *fiber.Ctx) error {
 
 	lastUserMessage := extractLastUserMessage(messagesInterface)
 	var assistantContext *services.DomainContextResponse
+
+	// 0.4 RAG-lite marketplace retrieval with hard timeout and safe fallback.
+	if config.RAGLiteMarketEnabled() && isMarketplaceIntent(lastUserMessage) && h.ragPipeline != nil {
+		ragStarted := time.Now()
+		ragStatus := "empty"
+
+		retrievalCtx, cancel := context.WithTimeout(context.Background(), 1200*time.Millisecond)
+		products, err := h.ragPipeline.SearchProducts(retrievalCtx, lastUserMessage, 3)
+		cancel()
+
+		switch {
+		case err == nil && len(products) > 0:
+			ragStatus = "used"
+			marketContext := buildRAGLiteMarketContext(products)
+			if marketContext != "" {
+				messagesInterface = prependSystemMessage(messagesInterface, marketContext)
+				body["messages"] = messagesInterface
+			}
+		case err == nil && len(products) == 0:
+			ragStatus = "empty"
+		case errors.Is(err, context.DeadlineExceeded) || errors.Is(retrievalCtx.Err(), context.DeadlineExceeded):
+			ragStatus = "timeout"
+			_ = services.GetMetricsService().Increment(services.MetricRAGLiteTimeout, 1)
+		default:
+			ragStatus = "error"
+		}
+
+		log.Printf("[Chat] rag_lite_status=%s latency_ms=%d", ragStatus, time.Since(ragStarted).Milliseconds())
+	}
 
 	// 0.5 Domain Assistant hybrid retrieval (MVP public scope).
 	if h.domainAssistant != nil &&
@@ -376,4 +410,53 @@ func prependSystemMessage(messages []interface{}, systemPrompt string) []interfa
 	result = append(result, systemMessage)
 	result = append(result, messages...)
 	return result
+}
+
+func isMarketplaceIntent(text string) bool {
+	text = strings.ToLower(strings.TrimSpace(text))
+	if text == "" {
+		return false
+	}
+
+	keywords := []string{
+		"купить", "цена", "стоимость", "товар", "магазин", "заказать", "прайс",
+		"наличие", "доставка", "маркет", "marketplace", "product", "products",
+		"buy", "price", "shop", "order", "catalog",
+	}
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func buildRAGLiteMarketContext(products []services.SearchResult) string {
+	if len(products) == 0 {
+		return ""
+	}
+
+	lines := []string{
+		"Marketplace context (RAG-lite):",
+		"Use these hints only if relevant to user request.",
+	}
+
+	for i, product := range products {
+		if i >= 3 {
+			break
+		}
+		content := strings.TrimSpace(product.Chunk.Content)
+		if content == "" {
+			continue
+		}
+		if len([]rune(content)) > 220 {
+			content = string([]rune(content)[:220]) + "..."
+		}
+		lines = append(lines, fmt.Sprintf("- %s", content))
+	}
+
+	if len(lines) <= 2 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
 }

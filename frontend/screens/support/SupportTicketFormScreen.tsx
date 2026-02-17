@@ -10,12 +10,14 @@ import {
     Alert,
     ScrollView,
     Image,
+    Platform,
 } from 'react-native';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { supportService } from '../../services/supportService';
 import { useUser } from '../../context/UserContext';
+import { KeyboardAwareContainer } from '../../components/ui/KeyboardAwareContainer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SupportTicketForm'>;
 
@@ -115,7 +117,19 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
             navigation.replace('SupportHome', { entryPoint });
         } catch (error: any) {
             const messageText = error?.message || 'Не удалось создать обращение.';
-            Alert.alert('Поддержка', messageText);
+            const isAuthIssue = String(messageText).toLowerCase().includes('auth') || String(messageText).toLowerCase().includes('unauthorized');
+            if (isAuthIssue) {
+                Alert.alert(
+                    'Поддержка',
+                    'Сессия истекла. Войдите заново, чтобы обращение сохранилось в "Мои обращения".',
+                    [
+                        { text: 'Отмена', style: 'cancel' },
+                        { text: 'Войти', onPress: () => navigation.navigate('Login') },
+                    ]
+                );
+            } else {
+                Alert.alert('Поддержка', messageText);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -123,9 +137,19 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                <Text style={styles.title}>Создать обращение</Text>
-                <Text style={styles.subtitle}>Опишите проблему, и мы ответим в приложении.</Text>
+            <KeyboardAwareContainer
+                style={styles.container}
+                behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+                useTopInset={false}
+            >
+                <ScrollView
+                    style={styles.container}
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                >
+                    <Text style={styles.title}>Создать обращение</Text>
+                    <Text style={styles.subtitle}>Опишите проблему, и мы ответим в приложении.</Text>
 
                 <View style={styles.field}>
                     <Text style={styles.label}>Тема</Text>
@@ -193,19 +217,20 @@ export const SupportTicketFormScreen: React.FC<Props> = ({ navigation, route }) 
                     </View>
                 ) : null}
 
-                <TouchableOpacity
-                    style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-                    onPress={submit}
-                    disabled={submitting}
-                    activeOpacity={0.9}
-                >
-                    {submitting ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                        <Text style={styles.submitButtonText}>Отправить обращение</Text>
-                    )}
-                </TouchableOpacity>
-            </ScrollView>
+                    <TouchableOpacity
+                        style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+                        onPress={submit}
+                        disabled={submitting}
+                        activeOpacity={0.9}
+                    >
+                        {submitting ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.submitButtonText}>Отправить обращение</Text>
+                        )}
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAwareContainer>
         </SafeAreaView>
     );
 };

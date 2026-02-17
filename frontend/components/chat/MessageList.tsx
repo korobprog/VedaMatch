@@ -49,7 +49,17 @@ export const MessageList: React.FC<MessageListProps> = ({
     onNavigateToMap,
 }) => {
     const { t, i18n } = useTranslation();
-    const { messages, isLoading, isTyping, recipientUser, deleteMessage, isUploading } = useChat();
+    const {
+        messages,
+        isLoading,
+        isTyping,
+        recipientUser,
+        deleteMessage,
+        isUploading,
+        hasOlderMessages,
+        isLoadingOlderMessages,
+        loadOlderMessages,
+    } = useChat();
     const { user } = useUser();
     const { assistantType, isDarkMode, portalBackgroundType } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
@@ -63,8 +73,9 @@ export const MessageList: React.FC<MessageListProps> = ({
         botBubble: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated,
     };
     const flatListRef = useRef<FlatList>(null);
-    const lastContentHeightRef = useRef(0);
     const autoScrollFrameRef = useRef<number | null>(null);
+    const listSnapshotRef = useRef<{ firstId?: string; lastId?: string; length: number }>({ length: 0 });
+    const loadingOlderGuardRef = useRef(false);
 
     useEffect(() => {
         return () => {
@@ -75,6 +86,12 @@ export const MessageList: React.FC<MessageListProps> = ({
     }, []);
 
     useEffect(() => {
+        if (!isLoadingOlderMessages) {
+            loadingOlderGuardRef.current = false;
+        }
+    }, [isLoadingOlderMessages]);
+
+    useEffect(() => {
         const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
         const sub = Keyboard.addListener(showEvent, () => {
             setTimeout(() => {
@@ -83,6 +100,35 @@ export const MessageList: React.FC<MessageListProps> = ({
         });
         return () => sub.remove();
     }, []);
+
+    useEffect(() => {
+        const nextFirstId = messages[0]?.id;
+        const nextLastId = messages[messages.length - 1]?.id;
+        const prev = listSnapshotRef.current;
+
+        const isInitialLoad = prev.length === 0 && messages.length > 0;
+        const appendedNewMessage =
+            messages.length > prev.length &&
+            !!prev.lastId &&
+            nextLastId !== prev.lastId;
+
+        listSnapshotRef.current = {
+            firstId: nextFirstId,
+            lastId: nextLastId,
+            length: messages.length,
+        };
+
+        if (isLoadingOlderMessages || (!isInitialLoad && !appendedNewMessage)) {
+            return;
+        }
+
+        if (autoScrollFrameRef.current !== null) {
+            cancelAnimationFrame(autoScrollFrameRef.current);
+        }
+        autoScrollFrameRef.current = requestAnimationFrame(() => {
+            flatListRef.current?.scrollToEnd({ animated: !isUploading });
+        });
+    }, [messages, isLoadingOlderMessages, isUploading]);
 
     const formatMessageTime = (dateStr?: string) => {
         if (!dateStr) return '';
@@ -495,16 +541,22 @@ export const MessageList: React.FC<MessageListProps> = ({
         );
     };
 
-    const handleContentSizeChange = (_width: number, height: number) => {
-        if (Math.abs(height - lastContentHeightRef.current) < 2) return;
-        lastContentHeightRef.current = height;
-
-        if (autoScrollFrameRef.current !== null) {
-            cancelAnimationFrame(autoScrollFrameRef.current);
+    const handleListScroll = ({ nativeEvent }: any) => {
+        if (!hasOlderMessages || isLoadingOlderMessages || !recipientUser) {
+            return;
         }
 
-        autoScrollFrameRef.current = requestAnimationFrame(() => {
-            flatListRef.current?.scrollToEnd({ animated: !isUploading });
+        if (nativeEvent?.contentOffset?.y > 80) {
+            return;
+        }
+
+        if (loadingOlderGuardRef.current) {
+            return;
+        }
+
+        loadingOlderGuardRef.current = true;
+        void loadOlderMessages().finally(() => {
+            loadingOlderGuardRef.current = false;
         });
     };
 
@@ -519,7 +571,19 @@ export const MessageList: React.FC<MessageListProps> = ({
                     contentContainerStyle={styles.listContent}
                     keyboardDismissMode="none"
                     keyboardShouldPersistTaps="always"
-                    onContentSizeChange={handleContentSizeChange}
+                    onScroll={handleListScroll}
+                    scrollEventThrottle={16}
+                    maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
+                    ListHeaderComponent={
+                        isLoadingOlderMessages ? (
+                            <View style={styles.historyLoader}>
+                                <ActivityIndicator size="small" color={theme.primary} />
+                                <Text style={[styles.historyLoaderText, { color: theme.subText }]}>
+                                    {t('common.loading') || 'Загрузка...'}
+                                </Text>
+                            </View>
+                        ) : null
+                    }
                 />
                 {isLoading && (
                     <View style={styles.statusBox}>
@@ -544,6 +608,17 @@ const styles = StyleSheet.create({
     chatContainer: { flex: 1 },
     overlay: { flex: 1 },
     listContent: { paddingTop: 8, paddingHorizontal: 14, paddingBottom: 44 },
+    historyLoader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 8,
+        gap: 8,
+    },
+    historyLoaderText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
     messageRow: { marginBottom: 12, flexDirection: 'row', width: '100%', alignItems: 'flex-end' },
     userRow: { justifyContent: 'flex-end' },
     botRow: { justifyContent: 'flex-start' },

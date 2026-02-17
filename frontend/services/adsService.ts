@@ -1,24 +1,19 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
 import { Ad, AdFilters, AdFormData, CategoryConfig } from '../types/ads';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getGodModeQueryParams } from './godModeService';
+import { authorizedAxiosRequest, getAccessToken } from './authSessionService';
 
 class AdsService {
     private async getHeaders() {
-        let token = await AsyncStorage.getItem('token');
-        if (!token || token === 'undefined' || token === 'null') {
-            token = await AsyncStorage.getItem('userToken');
-        }
-
-        const authHeader = (token && token !== 'undefined' && token !== 'null')
-            ? `Bearer ${token}`
-            : '';
-
-        return {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json'
+        const token = await getAccessToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
         };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        return headers;
     }
 
     async getAds(filters?: AdFilters): Promise<{ ads: Ad[], total: number, page: number, totalPages: number }> {
@@ -143,7 +138,6 @@ class AdsService {
 
     async uploadPhoto(asset: any): Promise<string> {
         try {
-            const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
             const formData = new FormData();
             formData.append('photo', {
                 uri: asset.uri,
@@ -151,11 +145,13 @@ class AdsService {
                 name: asset.fileName || `photo_${Date.now()}.jpg`
             } as any);
 
-            const response = await axios.post(`${API_PATH}/ads/upload-photo`, formData, {
+            const response = await authorizedAxiosRequest<{ url: string }>({
+                url: `${API_PATH}/ads/upload-photo`,
+                method: 'POST',
+                data: formData,
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
+                    'Content-Type': 'multipart/form-data',
+                },
             });
             return response.data.url;
         } catch (error) {

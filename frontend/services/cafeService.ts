@@ -1,5 +1,4 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_PATH } from '../config/api.config';
 import {
     Cafe, CafeFilters, CafeCategory, Dish, DishFilters,
@@ -9,6 +8,7 @@ import {
     MenuResponse, QRCodeScanResult, WaiterCallReason, WaiterCall
 } from '../types/cafe';
 import { getGodModeQueryParams } from './godModeService';
+import { getAccessToken } from './authSessionService';
 
 interface UploadAsset {
     uri?: string;
@@ -43,19 +43,14 @@ class CafeService {
     }
 
     private async getHeaders() {
-        let token = await AsyncStorage.getItem('token');
-        if (!token || token === 'undefined' || token === 'null') {
-            token = await AsyncStorage.getItem('userToken');
-        }
-
-        const authHeader = (token && token !== 'undefined' && token !== 'null')
-            ? `Bearer ${token}`
-            : '';
-
-        return {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json'
+        const token = await getAccessToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
         };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        return headers;
     }
 
     // ==================== CAFE ENDPOINTS ====================

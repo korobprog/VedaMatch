@@ -156,6 +156,7 @@ import { PathTrackerHomeScreen, PathCheckinScreen, PathStepScreen, PathReflectio
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
+import { crashReportingService } from './services/crashReportingService';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 import { navigationRef } from './navigation/navigationRef';
@@ -183,6 +184,35 @@ const AppContent = () => {
 
   // Use WebSocket to listen for incoming WebRTC calls
   const { addListener } = useWebSocket();
+
+  React.useEffect(() => {
+    crashReportingService.configureReleaseTags();
+    crashReportingService.logBreadcrumb('app_bootstrap');
+
+    const globalAny: any = global as any;
+    const errorUtils = globalAny?.ErrorUtils;
+    if (!errorUtils?.getGlobalHandler || !errorUtils?.setGlobalHandler) {
+      return;
+    }
+
+    const defaultHandler = errorUtils.getGlobalHandler();
+    errorUtils.setGlobalHandler((error: unknown, isFatal?: boolean) => {
+      crashReportingService.recordError(error, isFatal ? 'fatal_js' : 'js_error');
+      if (typeof defaultHandler === 'function') {
+        defaultHandler(error, isFatal);
+      }
+    });
+
+    return () => {
+      if (typeof defaultHandler === 'function') {
+        errorUtils.setGlobalHandler(defaultHandler);
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    crashReportingService.setUserContext(user?.ID ?? null);
+  }, [user?.ID]);
 
   React.useEffect(() => {
     // 1. Setup VoIP (CallKeep)

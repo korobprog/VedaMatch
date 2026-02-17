@@ -27,7 +27,7 @@ import {
 } from '../services/portalLayoutService';
 import { useUser } from './UserContext';
 
-const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles']);
+const SEEKER_ALLOWED_WITHOUT_PROFILE = new Set(['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'support', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles']);
 const SEEKER_LOCKED_FOLDER_NAME = 'Откроется после профиля';
 const SEEKER_LOCKED_FOLDER_ID = 'folder-seeker-locked';
 const VALID_SERVICE_IDS = new Set(DEFAULT_SERVICES.map((s) => s.id));

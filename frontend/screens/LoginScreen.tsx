@@ -153,8 +153,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 deviceId
             });
 
-            const { user, token } = response.data;
-            await login(user, token);
+            const { user } = response.data;
+            await login(user, response.data);
         } catch (error: any) {
             console.warn('Login failure:', error.message);
             const msg = error.response?.data?.error || t('login_failed');
@@ -208,7 +208,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             })).data;
 
             let user = response.user;
-            const token = response.token;
+            const token = response.accessToken || response.token;
 
             // Update profile if inconsistent
             if (!user.isProfileComplete) {
@@ -217,7 +217,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 })).data.user;
             }
 
-            await login(user, token);
+            await login(user, response);
         } catch (error: any) {
             // 2. If Login fails, Try Register
             try {
@@ -233,9 +233,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 })).data;
 
                 const user = loginRes.user;
-                const token = loginRes.token;
-
-                await login(user, token);
+                await login(user, loginRes);
             } catch (regError: any) {
                 const errorMsg = regError.response?.data?.error || regError.message;
                 Alert.alert('Dev Error', `Failed to create/login dev user: ${errorMsg}`);

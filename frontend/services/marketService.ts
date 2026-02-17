@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     Shop,
     ShopFormData,
@@ -16,22 +15,18 @@ import {
     OrderStatus,
 } from '../types/market';
 import { getGodModeQueryParams } from './godModeService';
+import { authorizedFetch, getAccessToken } from './authSessionService';
 
 class MarketService {
     private async getHeaders() {
-        let token = await AsyncStorage.getItem('token');
-        if (!token || token === 'undefined' || token === 'null') {
-            token = await AsyncStorage.getItem('userToken');
-        }
-
-        const authHeader = (token && token !== 'undefined' && token !== 'null')
-            ? `Bearer ${token}`
-            : '';
-
-        return {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json'
+        const token = await getAccessToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
         };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        return headers;
     }
 
     private async uploadFile(endpoint: string, file: any): Promise<string> {
@@ -43,17 +38,9 @@ class MarketService {
                 name: file.fileName || `image_${Date.now()}.jpg`,
             } as any);
 
-            let token = await AsyncStorage.getItem('token');
-            if (!token || token === 'undefined' || token === 'null') {
-                token = await AsyncStorage.getItem('userToken');
-            }
-
-            const response = await fetch(`${API_PATH}${endpoint}`, {
+            const response = await authorizedFetch(`${API_PATH}${endpoint}`, {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                },
             });
 
             if (!response.ok) {

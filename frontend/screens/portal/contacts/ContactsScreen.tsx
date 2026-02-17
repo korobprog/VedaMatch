@@ -6,7 +6,6 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { contactService, UserContact } from '../../../services/contactService';
 import { API_PATH } from '../../../config/api.config';
@@ -16,6 +15,7 @@ import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
+import { authorizedAxiosRequest } from '../../../services/authSessionService';
 
 export const ContactsScreen: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -88,9 +88,9 @@ export const ContactsScreen: React.FC = () => {
 
             // Try to get cities from API, fallback to contacts
             try {
-                const token = await contactService.getAuthToken();
-                const response = await axios.get(`${API_PATH}/dating/cities`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await authorizedAxiosRequest<string[]>({
+                    method: 'GET',
+                    url: `${API_PATH}/dating/cities`,
                 });
                 if (response.data && response.data.length > 0) {
                     if (requestId === latestFetchRequestRef.current && isMountedRef.current) {

@@ -47,7 +47,6 @@ interface PortalGridProps {
     godModeEnabled?: boolean;
     activeMathLabel?: string;
     serviceBadges?: Record<string, number>;
-    hiddenServiceIds?: string[];
 }
 
 export const PortalGrid: React.FC<PortalGridProps> = ({
@@ -57,7 +56,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     godModeEnabled = false,
     activeMathLabel,
     serviceBadges = {},
-    hiddenServiceIds = [],
 }) => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
@@ -105,7 +103,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const widgets = useMemo(() => page?.widgets ?? [], [page]);
     const quickAccess = useMemo(() => layout.quickAccess ?? [], [layout.quickAccess]);
     const highlightedServices = useMemo(() => new Set(roleHighlights), [roleHighlights]);
-    const hiddenServices = useMemo(() => new Set(hiddenServiceIds), [hiddenServiceIds]);
 
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
@@ -311,7 +308,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         } else {
             const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
             if (!service) return null;
-            if (hiddenServices.has(service.id)) return null;
             pressHandler = () => handleServicePress(item.serviceId);
             component = (
                 <View
@@ -363,7 +359,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         godModeEnabled,
         activeMathLabel,
         serviceBadges,
-        hiddenServices,
         deleteFolder,
         deleteGridItem,
     ]);
@@ -372,7 +367,6 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const renderDockItem = useCallback((item: PortalItem) => {
         const service = DEFAULT_SERVICES.find(s => s.id === item.serviceId);
         if (!service) return null;
-        if (hiddenServices.has(service.id)) return null;
 
         return (
             <DraggablePortalItem
@@ -404,7 +398,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 </View>
             </DraggablePortalItem>
         );
-    }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode, highlightedServices, godModeEnabled, activeMathLabel, serviceBadges, hiddenServices]);
+    }, [isEditMode, layout.iconSize, handleDragStart, handleDragEnd, onServicePress, setEditMode, highlightedServices, godModeEnabled, activeMathLabel, serviceBadges]);
 
     // Render widget
     const renderWidget = useCallback((widget: { id: string; type: 'clock' | 'calendar' | 'circles_quick' | 'circles_panel'; size: string }) => {

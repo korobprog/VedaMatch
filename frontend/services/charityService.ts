@@ -1,6 +1,7 @@
 import { CharityDonation, CharityEvidence, CharityOrganization, CharityProject, DonateRequest, DonateResponse } from '../types/charity';
 import { API_PATH } from '../config/api.config';
 import { getGodModeQueryParams } from './godModeService';
+import { authorizedFetch } from './authSessionService';
 
 class CharityService {
     private async get(endpoint: string, token?: string) {
@@ -15,22 +16,26 @@ class CharityService {
         const separator = endpoint.includes('?') ? '&' : '?';
         const url = godModeParams.math ? `${API_PATH}${endpoint}${separator}math=${encodeURIComponent(godModeParams.math)}` : `${API_PATH}${endpoint}`;
 
-        const response = await fetch(url, {
+        const response = await authorizedFetch(url, {
             method: "GET",
             headers
+        }, {
+            skipAuth: Boolean(token),
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
     }
 
-    private async post(endpoint: string, token: string, body: any) {
-        const response = await fetch(`${API_PATH}${endpoint}`, {
+    private async post(endpoint: string, token: string | undefined, body: any) {
+        const response = await authorizedFetch(`${API_PATH}${endpoint}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(body),
+        }, {
+            skipAuth: Boolean(token),
         });
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -59,17 +64,17 @@ class CharityService {
     }
 
     // --- Donation ---
-    async donate(token: string, req: DonateRequest): Promise<DonateResponse> {
+    async donate(token: string | undefined, req: DonateRequest): Promise<DonateResponse> {
         return this.post('/charity/donate', token, req);
     }
 
-    async getMyDonations(token: string, status?: string): Promise<CharityDonation[]> {
+    async getMyDonations(token?: string, status?: string): Promise<CharityDonation[]> {
         const endpoint = status ? `/charity/my-donations?status=${status}` : '/charity/my-donations';
         const result = await this.get(endpoint, token);
         return result.donations || [];
     }
 
-    async refundDonation(token: string, donationId: number): Promise<void> {
+    async refundDonation(token: string | undefined, donationId: number): Promise<void> {
         return this.post(`/charity/refund/${donationId}`, token, {});
     }
 
@@ -79,7 +84,7 @@ class CharityService {
         return result.evidence || [];
     }
 
-    async uploadEvidence(token: string, data: {
+    async uploadEvidence(token: string | undefined, data: {
         projectId: number;
         type: string;
         title?: string;

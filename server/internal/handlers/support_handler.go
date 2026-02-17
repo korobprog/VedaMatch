@@ -735,12 +735,38 @@ func (h *SupportHandler) pushSupportStatusUpdate(conversationID uint, body strin
 	})
 }
 
+func loadSupportUserEmail(userID uint) string {
+	if userID == 0 {
+		return ""
+	}
+	var user models.User
+	if err := database.DB.Select("email").First(&user, userID).Error; err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(user.Email))
+}
+
 func (h *SupportHandler) loadConversationForUser(userID uint, conversationID uint) (*models.SupportConversation, error) {
 	var conversation models.SupportConversation
-	if err := database.DB.
-		Where("id = ? AND app_user_id = ? AND channel = ?", conversationID, userID, models.SupportConversationChannelInApp).
-		First(&conversation).Error; err != nil {
+	userEmail := loadSupportUserEmail(userID)
+	query := database.DB.
+		Where("id = ? AND channel = ?", conversationID, models.SupportConversationChannelInApp)
+	if userEmail != "" {
+		query = query.Where("(app_user_id = ? OR (app_user_id IS NULL AND LOWER(requester_contact) = ?))", userID, userEmail)
+	} else {
+		query = query.Where("app_user_id = ?", userID)
+	}
+	if err := query.First(&conversation).Error; err != nil {
 		return nil, err
+	}
+
+	// If user accessed an old guest ticket created with matching requester contact, bind ownership.
+	if conversation.AppUserID == nil {
+		_ = database.DB.Model(&models.SupportConversation{}).
+			Where("id = ? AND app_user_id IS NULL", conversation.ID).
+			Update("app_user_id", userID).Error
+		boundUserID := userID
+		conversation.AppUserID = &boundUserID
 	}
 	return &conversation, nil
 }
@@ -824,6 +850,9 @@ func (h *SupportHandler) UploadAttachment(c *fiber.Ctx) error {
 	if !h.supportInAppTicketAllowed(userID, c.IP()) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "in-app support is not available for this account yet"})
 	}
+	if userID == 0 && (strings.TrimSpace(c.Get("Authorization")) != "" || strings.TrimSpace(c.Query("token")) != "") {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid auth token"})
+	}
 
 	if userID == 0 {
 		bucket := "support_upload:" + strings.TrimSpace(c.IP())
@@ -885,6 +914,9 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	if !h.supportInAppTicketAllowed(userID, c.IP()) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "in-app support is not available for this account yet"})
+	}
+	if userID == 0 && (strings.TrimSpace(c.Get("Authorization")) != "" || strings.TrimSpace(c.Query("token")) != "") {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid auth token"})
 	}
 
 	if userID == 0 {
@@ -1071,9 +1103,15 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 	page := parseSupportInt(c.Query("page"), 1, 1, 100000)
 	limit := parseSupportInt(c.Query("limit"), 20, 1, 100)
 	status := strings.TrimSpace(strings.ToLower(c.Query("status")))
+	userEmail := loadSupportUserEmail(userID)
 
 	query := database.DB.Model(&models.SupportConversation{}).
-		Where("app_user_id = ? AND channel = ?", userID, models.SupportConversationChannelInApp)
+		Where("channel = ?", models.SupportConversationChannelInApp)
+	if userEmail != "" {
+		query = query.Where("(app_user_id = ? OR (app_user_id IS NULL AND LOWER(requester_contact) = ?))", userID, userEmail)
+	} else {
+		query = query.Where("app_user_id = ?", userID)
+	}
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -1299,11 +1337,19 @@ func (h *SupportHandler) GetMyUnreadCount(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	userEmail := loadSupportUserEmail(userID)
+
+	query := database.DB.Model(&models.SupportMessage{}).
+		Joins("JOIN support_conversations ON support_conversations.id = support_messages.conversation_id").
+		Where("support_conversations.channel = ?", models.SupportConversationChannelInApp)
+	if userEmail != "" {
+		query = query.Where("(support_conversations.app_user_id = ? OR (support_conversations.app_user_id IS NULL AND LOWER(support_conversations.requester_contact) = ?))", userID, userEmail)
+	} else {
+		query = query.Where("support_conversations.app_user_id = ?", userID)
+	}
 
 	var count int64
-	if err := database.DB.Model(&models.SupportMessage{}).
-		Joins("JOIN support_conversations ON support_conversations.id = support_messages.conversation_id").
-		Where("support_conversations.app_user_id = ? AND support_conversations.channel = ?", userID, models.SupportConversationChannelInApp).
+	if err := query.
 		Where("support_messages.direction = ? AND support_messages.is_read_by_user = ?", models.SupportMessageDirectionOutbound, false).
 		Count(&count).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count unread messages"})

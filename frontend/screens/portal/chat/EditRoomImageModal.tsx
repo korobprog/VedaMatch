@@ -13,9 +13,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSettings } from '../../../context/SettingsContext';
+import { authorizedFetch } from '../../../services/authSessionService';
 
 interface EditRoomImageModalProps {
     visible: boolean;
@@ -94,13 +94,9 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
                 type,
             } as any);
 
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/${roomId}/image`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/image`, {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
             });
 
             if (response.ok) {
@@ -122,12 +118,10 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
     const handleSavePreset = async () => {
         setUploading(true);
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     imageUrl: selectedPreset,

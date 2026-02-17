@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     View,
     Text,
@@ -26,6 +25,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
+import { authorizedFetch } from '../../../services/authSessionService';
 
 interface CreateRoomModalProps {
     visible: boolean;
@@ -90,12 +90,10 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
 
         setLoading(true);
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms`, {
+            const response = await authorizedFetch(`${API_PATH}/rooms`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     name,
@@ -120,11 +118,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                         name: 'room_image.jpg',
                     } as any);
 
-                    await fetch(`${API_PATH}/rooms/${newRoom.ID}/image`, {
+                    await authorizedFetch(`${API_PATH}/rooms/${newRoom.ID}/image`, {
                         method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        },
                         body: formData,
                     });
                 }

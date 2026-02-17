@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 import { contactService } from '../services/contactService';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
+import { clearAuthTokens, getAccessToken, logoutAuthSession, saveAuthTokens } from '../services/authSessionService';
 
 interface UserProfile {
     karmicName: string;
@@ -33,7 +34,7 @@ interface UserContextType {
     roleDescriptor: PortalBlueprint | null;
     godModeFilters: MathFilter[];
     activeMathId: string | null;
-    login: (profile: UserProfile, token?: string) => Promise<void>;
+    login: (profile: UserProfile, authPayload?: any) => Promise<void>;
     logout: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
     setRoleDescriptor: (descriptor: PortalBlueprint | null) => void;
@@ -110,7 +111,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const loadUser = async () => {
         try {
             const savedUser = await AsyncStorage.getItem('user');
-            const savedToken = await AsyncStorage.getItem('token');
+            const savedToken = await getAccessToken();
             const savedActiveMath = await AsyncStorage.getItem('active_math_id');
 
             if (savedUser && savedUser !== 'undefined' && savedUser !== 'null' &&
@@ -135,21 +136,28 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const login = async (profile: UserProfile, token?: string) => {
-        if (token) {
-            await AsyncStorage.setItem('token', token);
+    const login = async (profile: UserProfile, authPayload?: any) => {
+        if (typeof authPayload === 'string' && authPayload.trim()) {
+            await saveAuthTokens({ accessToken: authPayload, token: authPayload });
+        } else if (authPayload && typeof authPayload === 'object') {
+            await saveAuthTokens(authPayload);
         }
         await AsyncStorage.setItem('user', JSON.stringify(profile));
         setUser(profile);
     };
 
     const logout = async () => {
+        try {
+            await logoutAuthSession();
+        } catch (error) {
+            console.warn('[UserContext] Failed to sync logout session:', error);
+        }
         setUser(null);
         setRoleDescriptor(null);
         setGodModeFilters([]);
         setActiveMathId(null);
+        await clearAuthTokens();
         await AsyncStorage.removeItem('user');
-        await AsyncStorage.removeItem('token');
         console.log('[UserContext] Session cleared (Logged out)');
     };
 

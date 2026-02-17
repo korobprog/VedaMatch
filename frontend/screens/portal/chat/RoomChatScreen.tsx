@@ -34,6 +34,7 @@ import { Video, ArrowLeft, ArrowRight, Settings, UserPlus, Send, ChevronLeft, Ch
 import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
+import { authorizedFetch } from '../../../services/authSessionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
@@ -138,10 +139,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const fetchRoomDetails = useCallback(async () => {
         const requestId = ++latestRoomRequestRef.current;
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/rooms/${roomId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}`);
             if (response.ok) {
                 const currentRoom = await response.json();
                 if (requestId !== latestRoomRequestRef.current || !isMountedRef.current) {
@@ -193,16 +191,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         fetchVerse(roomDetails.bookCode, chapter, verse, roomDetails.language || 'ru');
 
         try {
-            const token = await AsyncStorage.getItem('token');
             // Also save locally for the user's history
             const lastReadKey = `last_read_${roomDetails.bookCode}_${user?.ID || 'guest'}`;
             await AsyncStorage.setItem(lastReadKey, verse.toString());
 
-            await fetch(`${API_PATH}/rooms/${roomId}`, {
+            await authorizedFetch(`${API_PATH}/rooms/${roomId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({ currentChapter: chapter, currentVerse: verse })
             });
@@ -221,10 +217,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             return;
         }
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await authorizedFetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`);
             if (response.ok) {
                 const data = await response.json();
                 const formattedMessages = data
@@ -507,12 +500,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         setInputText('');
 
         try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await fetch(`${API_PATH}/messages`, {
+            const response = await authorizedFetch(`${API_PATH}/messages`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(newMessage),
             });

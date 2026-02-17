@@ -1,6 +1,6 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_PATH } from '../config/api.config';
+import { getAccessToken } from './authSessionService';
 import {
   Channel,
   ChannelBrandingUpdateRequest,
@@ -21,17 +21,14 @@ import {
 
 class ChannelService {
   private async getHeaders() {
-    let token = await AsyncStorage.getItem('token');
-    if (!token || token === 'undefined' || token === 'null') {
-      token = await AsyncStorage.getItem('userToken');
-    }
-
-    const authHeader = token && token !== 'undefined' && token !== 'null' ? `Bearer ${token}` : '';
-
-    return {
-      Authorization: authHeader,
+    const token = await getAccessToken();
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
   }
 
   async getFeed(params: { page?: number; limit?: number; search?: string; channelId?: number } = {}): Promise<ChannelFeedResponse> {

@@ -19,9 +19,9 @@ import LinearGradient from 'react-native-linear-gradient';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
-export const ChatScreen: React.FC<Props> = ({ navigation }) => {
+export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     const { setIsMenuOpen, isDarkMode, portalBackground, portalBackgroundType } = usePortalSettings();
-    const { handleMenuOption, recipientUser, setShowMenu, showMenu } = useChat();
+    const { handleMenuOption, recipientUser, setShowMenu, showMenu, setChatRecipient } = useChat();
     const { user: currentUser } = useUser();
     const { t } = useTranslation();
     const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
@@ -73,6 +73,46 @@ export const ChatScreen: React.FC<Props> = ({ navigation }) => {
         if (!isImageBackground || !portalBackground || !portalBackground.startsWith('http')) return;
         Image.prefetch(portalBackground).catch(() => { });
     }, [isImageBackground, portalBackground]);
+
+    useEffect(() => {
+        const targetUserId = route.params?.userId;
+        if (!targetUserId || !currentUser?.ID || targetUserId === currentUser.ID) {
+            return;
+        }
+        if (recipientUser?.ID === targetUserId) {
+            return;
+        }
+
+        let isActive = true;
+        const fallbackName = route.params?.name?.trim() || `User ${targetUserId}`;
+
+        const bindRecipient = async () => {
+            const contact = await contactService.getUserById(targetUserId);
+            if (!isActive) return;
+
+            if (contact) {
+                setChatRecipient(contact);
+                return;
+            }
+
+            setChatRecipient({
+                ID: targetUserId,
+                karmicName: fallbackName,
+                spiritualName: route.params?.name?.trim() || '',
+                email: '',
+                avatarUrl: '',
+                lastSeen: '',
+                identity: '',
+                city: '',
+                country: '',
+            });
+        };
+
+        void bindRecipient();
+        return () => {
+            isActive = false;
+        };
+    }, [route.params?.userId, route.params?.name, currentUser?.ID, recipientUser?.ID]);
 
     const handleBlockUser = () => {
         if (!currentUser?.ID || !recipientUser?.ID) return;

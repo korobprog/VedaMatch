@@ -38,6 +38,7 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
     const [tickets, setTickets] = useState<SupportConversation[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadError, setLoadError] = useState('');
 
     const load = useCallback(async (silent: boolean) => {
         if (!silent) {
@@ -49,9 +50,12 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const response = await supportService.listMyTickets(1, 50);
             setTickets(response?.tickets || []);
+            setLoadError('');
         } catch (error) {
             console.warn('[SupportInbox] failed to load tickets:', error);
             setTickets([]);
+            const message = error instanceof Error ? error.message : 'Не удалось загрузить обращения.';
+            setLoadError(message || 'Не удалось загрузить обращения.');
         } finally {
             if (!silent) {
                 setLoading(false);
@@ -95,6 +99,17 @@ export const SupportInboxScreen: React.FC<Props> = ({ navigation }) => {
                         <Text style={styles.newButtonText}>Новое</Text>
                     </TouchableOpacity>
                 </View>
+
+                {loadError ? (
+                    <View style={styles.errorBox}>
+                        <Text style={styles.errorText}>{loadError}</Text>
+                        {loadError.toLowerCase().includes('unauthorized') || loadError.toLowerCase().includes('auth') ? (
+                            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.errorAction} activeOpacity={0.85}>
+                                <Text style={styles.errorActionText}>Войти заново</Text>
+                            </TouchableOpacity>
+                        ) : null}
+                    </View>
+                ) : null}
 
                 {loading ? (
                     <View style={styles.center}>
@@ -183,6 +198,28 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 13,
+    },
+    errorBox: {
+        marginBottom: 10,
+        backgroundColor: '#FEF2F2',
+        borderColor: '#FECACA',
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 10,
+    },
+    errorText: {
+        color: '#991B1B',
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    errorAction: {
+        marginTop: 6,
+        alignSelf: 'flex-start',
+    },
+    errorActionText: {
+        color: '#1D4ED8',
+        fontSize: 13,
+        fontWeight: '700',
     },
     center: {
         flex: 1,

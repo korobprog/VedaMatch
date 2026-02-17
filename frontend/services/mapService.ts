@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_PATH } from '../config/api.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAccessToken } from './authSessionService';
 
 // Types for Map Service
 export type MarkerType = 'user' | 'shop' | 'ad' | 'cafe';
@@ -93,19 +93,14 @@ export interface MarkerConfig {
 
 class MapService {
     private async getHeaders() {
-        let token = await AsyncStorage.getItem('token');
-        if (!token || token === 'undefined' || token === 'null') {
-            token = await AsyncStorage.getItem('userToken');
-        }
-
-        const authHeader = (token && token !== 'undefined' && token !== 'null')
-            ? `Bearer ${token}`
-            : '';
-
-        return {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json'
+        const token = await getAccessToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
         };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        return headers;
     }
 
     /**

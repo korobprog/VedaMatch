@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, Alert, SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChevronLeft, Wallet as WalletIcon } from 'lucide-react-native';
 import { CharityProject } from '../../types/charity';
 import { charityService } from '../../services/charityService';
@@ -18,7 +17,6 @@ const SevaHubScreen: React.FC = () => {
     const [projects, setProjects] = useState<CharityProject[]>([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [token, setToken] = useState<string | null>(null);
 
     // Donate Modal State
     const [donateModalVisible, setDonateModalVisible] = useState(false);
@@ -34,10 +32,8 @@ const SevaHubScreen: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const userToken = await AsyncStorage.getItem('token');
-            setToken(userToken);
             await Promise.all([
-                loadProjects(userToken),
+                loadProjects(),
                 refreshWallet()
             ]);
         } catch (e) {
@@ -47,9 +43,9 @@ const SevaHubScreen: React.FC = () => {
         }
     };
 
-    const loadProjects = async (userToken: string | null) => {
+    const loadProjects = async () => {
         try {
-            const data = await charityService.getProjects(userToken || undefined);
+            const data = await charityService.getProjects();
             setProjects(data);
         } catch (e) {
             console.error('Failed to load projects:', e);
@@ -59,10 +55,8 @@ const SevaHubScreen: React.FC = () => {
     const onRefresh = async () => {
         setRefreshing(true);
         try {
-            const userToken = await AsyncStorage.getItem('token');
-            setToken(userToken);
             await Promise.all([
-                loadProjects(userToken),
+                loadProjects(),
                 refreshWallet()
             ]);
         } catch (e) {
@@ -78,13 +72,13 @@ const SevaHubScreen: React.FC = () => {
     };
 
     const handleDonate = async (amount: number, tips: boolean, isAnonymous: boolean, message: string) => {
-        if (!selectedProject || !token) {
+        if (!selectedProject) {
             Alert.alert("Authentication Required", "Please login to donate.");
             return;
         }
 
         try {
-            await charityService.donate(token, {
+            await charityService.donate(undefined, {
                 projectId: selectedProject.id,
                 amount,
                 isAnonymous,

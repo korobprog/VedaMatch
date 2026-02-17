@@ -3,11 +3,14 @@ package handlers
 import (
 	"fmt"
 	"log"
+	"rag-agent-server/internal/config"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"rag-agent-server/internal/websocket"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -30,6 +33,13 @@ func NewMessageHandler(aiService *services.AiChatService, hub *websocket.Hub, wa
 }
 
 func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	var msg models.Message
 	if err := c.BodyParser(&msg); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -37,9 +47,11 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 		})
 	}
 
-	if msg.SenderID == 0 || (msg.RecipientID == 0 && msg.RoomID == 0) || msg.Content == "" {
+	msg.SenderID = userID
+	msg.Content = strings.TrimSpace(msg.Content)
+	if (msg.RecipientID == 0 && msg.RoomID == 0) || msg.Content == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "SenderID, Content and either RecipientID or RoomID are required",
+			"error": "Content and either RecipientID or RoomID are required",
 		})
 	}
 
@@ -54,12 +66,6 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 
 	// If AI is enabled, charge 1 LKM per message
 	if aiEnabled && h.walletService != nil {
-		// Get user ID from JWT (prefer JWT over body for security)
-		userID := middleware.GetUserID(c)
-		if userID == 0 {
-			userID = msg.SenderID // Fallback to message sender
-		}
-
 		// Generate idempotent key: userID + timestamp + first 20 chars of content
 		contentHash := msg.Content
 		if len(contentHash) > 20 {
@@ -93,6 +99,30 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not save message",
 		})
+	}
+
+	// P2P push notifications are non-blocking and must not rollback saved message on failure.
+	if config.PushP2PEnabled() && msg.RoomID == 0 && msg.RecipientID != 0 {
+		go func(saved models.Message) {
+			pushMessage := services.PushMessage{
+				Title:    "Новое сообщение",
+				Body:     strings.TrimSpace(saved.Content),
+				Priority: "high",
+				Data: map[string]string{
+					"type":      "new_message",
+					"messageId": fmt.Sprintf("%d", saved.ID),
+					"senderId":  fmt.Sprintf("%d", saved.SenderID),
+					"chatType":  "p2p",
+				},
+			}
+			if pushMessage.Body == "" {
+				pushMessage.Body = "Вам пришло новое сообщение"
+			}
+			if err := services.GetPushService().SendToUser(saved.RecipientID, pushMessage); err != nil {
+				_ = services.GetMetricsService().Increment(services.MetricPushSendFail, 1)
+				log.Printf("[Message] P2P push failed message_id=%d recipient_id=%d error=%v", saved.ID, saved.RecipientID, err)
+			}
+		}(msg)
 	}
 
 	// Broadcast via WebSocket
@@ -200,8 +230,20 @@ func (h *MessageHandler) GetRoomSummary(c *fiber.Ctx) error {
 }
 
 func (h *MessageHandler) GetMessages(c *fiber.Ctx) error {
-	userId := c.Params("userId")
-	recipientId := c.Params("recipientId")
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	recipientID, err := strconv.ParseUint(strings.TrimSpace(c.Params("recipientId")), 10, 64)
+	if err != nil || recipientID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid recipient ID",
+		})
+	}
+
 	roomId := c.Query("roomId")
 
 	query := database.DB.Order("created_at asc")
@@ -209,7 +251,7 @@ func (h *MessageHandler) GetMessages(c *fiber.Ctx) error {
 		query = query.Where("room_id = ?", roomId)
 	} else {
 		query = query.Where("(sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)",
-			userId, recipientId, recipientId, userId)
+			userID, recipientID, recipientID, userID)
 	}
 
 	var messages []models.Message
@@ -220,4 +262,135 @@ func (h *MessageHandler) GetMessages(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(messages)
+}
+
+func (h *MessageHandler) GetMessagesHistory(c *fiber.Ctx) error {
+	if !config.ChatHistoryV2Enabled() {
+		middleware.SetErrorCode(c, "chat_history_disabled")
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "history endpoint is disabled",
+		})
+	}
+
+	startedAt := time.Now()
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		middleware.SetErrorCode(c, "chat_history_unauthorized")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	peerUserID, peerProvided, err := parseOptionalPositiveUint(c.Query("peerUserId"))
+	if err != nil {
+		middleware.SetErrorCode(c, "chat_history_invalid_peer")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid peerUserId",
+		})
+	}
+	roomID, roomProvided, err := parseOptionalPositiveUint(c.Query("roomId"))
+	if err != nil {
+		middleware.SetErrorCode(c, "chat_history_invalid_room")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid roomId",
+		})
+	}
+
+	if !peerProvided && !roomProvided {
+		middleware.SetErrorCode(c, "chat_history_missing_target")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "peerUserId or roomId is required",
+		})
+	}
+	if peerProvided && roomProvided {
+		middleware.SetErrorCode(c, "chat_history_ambiguous_target")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "peerUserId and roomId are mutually exclusive",
+		})
+	}
+
+	beforeID, beforeProvided, err := parseOptionalPositiveUint(c.Query("beforeId"))
+	if err != nil {
+		middleware.SetErrorCode(c, "chat_history_invalid_before")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid beforeId",
+		})
+	}
+
+	limit := c.QueryInt("limit", 30)
+	if limit <= 0 {
+		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	query := database.DB.Model(&models.Message{})
+	if roomProvided {
+		query = query.Where("room_id = ?", roomID)
+	} else {
+		query = query.Where(
+			"(sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)",
+			userID, peerUserID, peerUserID, userID,
+		)
+	}
+	if beforeProvided {
+		query = query.Where("id < ?", beforeID)
+	}
+
+	var descItems []models.Message
+	if err := query.Order("id DESC").Limit(limit + 1).Find(&descItems).Error; err != nil {
+		middleware.SetErrorCode(c, "chat_history_query_failed")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not fetch messages history",
+		})
+	}
+
+	hasMore := len(descItems) > limit
+	if hasMore {
+		descItems = descItems[:limit]
+	}
+
+	items := reverseMessages(descItems)
+	var nextBeforeID *uint
+	if hasMore && len(items) > 0 {
+		oldestID := items[0].ID
+		nextBeforeID = &oldestID
+	}
+
+	latencyMs := time.Since(startedAt).Milliseconds()
+	if latencyMs <= 0 {
+		latencyMs = 1
+	}
+	_ = services.GetMetricsService().Increment(services.MetricChatHistoryLatency, latencyMs)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"items":        items,
+		"hasMore":      hasMore,
+		"nextBeforeId": nextBeforeID,
+	})
+}
+
+func parseOptionalPositiveUint(raw string) (uint, bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false, nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || value == 0 {
+		return 0, false, fmt.Errorf("invalid positive uint")
+	}
+	return uint(value), true, nil
+}
+
+func reverseMessages(items []models.Message) []models.Message {
+	if len(items) <= 1 {
+		return items
+	}
+
+	reversed := make([]models.Message, len(items))
+	for i := range items {
+		reversed[len(items)-1-i] = items[i]
+	}
+	return reversed
 }
