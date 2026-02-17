@@ -11,7 +11,7 @@ const { spawn, execSync } = require('child_process');
 const net = require('net');
 
 const BACKEND_PORT = 8000;
-const METRO_PORT = 8081;
+const METRO_PORT = 8082;
 
 // Check if a port is in use (by trying to connect to it)
 const isPortInUse = (port) => new Promise((resolve) => {

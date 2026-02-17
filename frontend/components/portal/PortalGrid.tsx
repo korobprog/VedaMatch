@@ -15,9 +15,15 @@ import { BlurView } from '@react-native-community/blur';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, {
+    SharedValue,
     runOnJS,
     FadeIn,
     FadeOut,
+    useSharedValue,
+    useAnimatedScrollHandler,
+    useAnimatedStyle,
+    interpolate,
+    Extrapolation,
 } from 'react-native-reanimated';
 import LinearGradient from 'react-native-linear-gradient';
 import { Plus, FolderPlus, LayoutGrid } from 'lucide-react-native';
@@ -39,6 +45,71 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_COLUMNS = 4;
 const GRID_PADDING = 4;
 const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2) / GRID_COLUMNS;
+const ESTIMATED_ROW_HEIGHT = 115;
+const DOCK_OVERLAP = 120; // Dock bar height + bottom spacing that covers scroll area
+
+interface CylinderRowProps {
+    rowIndex: number;
+    scrollY: SharedValue<number>;
+    containerHeight: number;
+    children: React.ReactNode;
+}
+
+const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY, containerHeight, children }) => {
+    const animatedStyle = useAnimatedStyle(() => {
+        if (containerHeight <= 0) {
+            return { transform: [{ perspective: 1000 }] };
+        }
+        // Effective visible area excludes dock overlap at bottom
+        const effectiveHeight = containerHeight - DOCK_OVERLAP;
+        const itemY = rowIndex * ESTIMATED_ROW_HEIGHT;
+        const visibleY = itemY - scrollY.value;
+        const itemCenter = visibleY + ESTIMATED_ROW_HEIGHT / 2;
+        const viewCenter = effectiveHeight / 2;
+        const distFromCenter = itemCenter - viewCenter;
+        const halfRange = effectiveHeight / 2;
+        const normalizedDist = halfRange > 0 ? distFromCenter / halfRange : 0;
+        const absNorm = Math.abs(normalizedDist);
+
+        if (absNorm < 0.5) {
+            return { transform: [{ perspective: 1000 }] };
+        }
+
+        const rotateX = interpolate(
+            normalizedDist,
+            [-1.3, -0.5, 0, 0.5, 1.3],
+            [55, 0, 0, 0, -55],
+            Extrapolation.CLAMP
+        );
+        const scaleVal = interpolate(
+            absNorm,
+            [0.5, 0.9, 1.3],
+            [1, 0.85, 0.65],
+            Extrapolation.CLAMP
+        );
+        const opacityVal = interpolate(
+            absNorm,
+            [0.5, 0.9, 1.3],
+            [1, 0.6, 0.0],
+            Extrapolation.CLAMP
+        );
+
+        return {
+            transform: [
+                { perspective: 1000 },
+                { rotateX: `${rotateX}deg` },
+                { scale: scaleVal },
+            ],
+            opacity: opacityVal,
+        };
+    });
+
+    return (
+        <Animated.View style={[{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'flex-start' }, animatedStyle]}>
+            {children}
+        </Animated.View>
+    );
+});
 
 interface PortalGridProps {
     onServicePress: (serviceId: string) => void;
@@ -84,6 +155,18 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     const [showFolderModal, setShowFolderModal] = useState(false);
     const [showNewFolderInput, setShowNewFolderInput] = useState(false);
     const [isDraggingItem, setIsDraggingItem] = useState(false);
+
+    // Cylinder scroll effect state
+    const scrollY = useSharedValue(0);
+    const [scrollContainerHeight, setScrollContainerHeight] = useState(
+        Dimensions.get('window').height * 0.55
+    );
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (event) => {
+            scrollY.value = event.contentOffset.y;
+        },
+    });
+
     const itemLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
     const itemRefs = useRef<Record<string, View | null>>({});
     const widgetRefs = useRef<Record<string, View | null>>({});
@@ -100,9 +183,24 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
     const page = layout.pages[currentPage];
     const items = useMemo(() => page?.items ?? [], [page]);
+
+    // Group items into rows for cylinder effect
+    const itemRows = useMemo(() => {
+        const rows: (PortalItem | PortalFolderType)[][] = [];
+        for (let i = 0; i < items.length; i += GRID_COLUMNS) {
+            rows.push(items.slice(i, i + GRID_COLUMNS));
+        }
+        return rows;
+    }, [items]);
     const widgets = useMemo(() => page?.widgets ?? [], [page]);
     const quickAccess = useMemo(() => layout.quickAccess ?? [], [layout.quickAccess]);
     const highlightedServices = useMemo(() => new Set(roleHighlights), [roleHighlights]);
+    const dockEdgeMaskColor = portalBackgroundType === 'image'
+        ? (isDarkMode ? 'rgba(8,13,20,0.62)' : 'rgba(34,48,69,0.46)')
+        : (isDarkMode ? 'rgba(8,13,20,0.82)' : 'rgba(241,245,251,0.94)');
+    const dockInnerStrokeColor = portalBackgroundType === 'image'
+        ? 'rgba(255,255,255,0.2)'
+        : (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.7)');
 
     // Handle long press on background to enter edit mode
     const handleLongPress = useCallback(() => {
@@ -569,6 +667,9 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     style={styles.scrollView}
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
+                    onScroll={scrollHandler}
+                    scrollEventThrottle={16}
+                    onLayout={(e) => setScrollContainerHeight(e.nativeEvent.layout.height)}
                 >
                     <Pressable
                         onLongPress={handleLongPress}
@@ -580,7 +681,16 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                             onLayout={handleGridLayout}
                             style={styles.grid}
                         >
-                            {items.map(renderItem)}
+                            {itemRows.map((row, rowIndex) => (
+                                <CylinderRow
+                                    key={`row-${rowIndex}`}
+                                    rowIndex={rowIndex}
+                                    scrollY={scrollY}
+                                    containerHeight={scrollContainerHeight}
+                                >
+                                    {row.map(item => renderItem(item))}
+                                </CylinderRow>
+                            ))}
                         </View>
                     </Pressable>
                 </Animated.ScrollView>
@@ -640,6 +750,37 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     blurAmount={12}
                     reducedTransparencyFallbackColor="transparent"
                     pointerEvents="none"
+                />
+                <View
+                    pointerEvents="none"
+                    style={[
+                        styles.dockInnerBevel,
+                        { borderColor: dockInnerStrokeColor },
+                    ]}
+                />
+                <LinearGradient
+                    pointerEvents="none"
+                    colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
+                    style={styles.dockTopEdgeFade}
+                />
+                <LinearGradient
+                    pointerEvents="none"
+                    colors={['rgba(0,0,0,0)', dockEdgeMaskColor]}
+                    style={styles.dockBottomEdgeFade}
+                />
+                <LinearGradient
+                    pointerEvents="none"
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                    colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
+                    style={styles.dockLeftEdgeFade}
+                />
+                <LinearGradient
+                    pointerEvents="none"
+                    start={{ x: 1, y: 0.5 }}
+                    end={{ x: 0, y: 0.5 }}
+                    colors={[dockEdgeMaskColor, 'rgba(0,0,0,0)']}
+                    style={styles.dockRightEdgeFade}
                 />
                 <View
                     ref={dockRef}
@@ -704,11 +845,9 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     grid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
-        backgroundColor: 'transparent', // Fix shadow warning
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        backgroundColor: 'transparent',
     },
     quickAccessDock: {
         position: 'absolute',
@@ -734,8 +873,8 @@ const styles = StyleSheet.create({
     },
     dockItems: {
         position: 'absolute',
-        top: 0,
-        bottom: 0,
+        top: 2,
+        bottom: 2,
         left: 20,
         right: 20,
         flexDirection: 'row',
@@ -747,7 +886,41 @@ const styles = StyleSheet.create({
         height: 60,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: Platform.OS === 'android' ? 4 : 0, // Уменьшили для центровки
+        paddingTop: 0,
+    },
+    dockInnerBevel: {
+        ...StyleSheet.absoluteFillObject,
+        borderWidth: 1,
+        borderRadius: 38,
+        opacity: 0.9,
+    },
+    dockTopEdgeFade: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 14,
+    },
+    dockBottomEdgeFade: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 14,
+    },
+    dockLeftEdgeFade: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        width: 14,
+    },
+    dockRightEdgeFade: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 14,
     },
     emptyDockSlot: {
         width: 60,

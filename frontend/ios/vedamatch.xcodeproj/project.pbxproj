@@ -13,8 +13,8 @@
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
 		20561BF82FC5D9E8EFFFDAD4 /* Pods_vedamatch_vedamatchTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DFD4124B31E3F6200DFD96FD /* Pods_vedamatch_vedamatchTests.framework */; };
 		59432680CC0E769005099D86 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
-		A1B2C3D4E5F60718293A4B5C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5061728394A5B6C /* GoogleService-Info.plist */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		A1B2C3D4E5F60718293A4B5C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5061728394A5B6C /* GoogleService-Info.plist */; };
 		C46FDAB41B047A223F251201 /* Pods_vedamatch.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 337224F4750C8D02402C3323 /* Pods_vedamatch.framework */; };
 /* End PBXBuildFile section */
 
@@ -39,13 +39,13 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = vedamatch/Info.plist; sourceTree = "<group>"; };
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = vedamatch/main.m; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = vedamatch/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		B1C2D3E4F5061728394A5B6C /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "vedamatch/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		337224F4750C8D02402C3323 /* Pods_vedamatch.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_vedamatch.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B4392A12AC88292D35C810B /* Pods-vedamatch.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vedamatch.debug.xcconfig"; path = "Target Support Files/Pods-vedamatch/Pods-vedamatch.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-vedamatch.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vedamatch.release.xcconfig"; path = "Target Support Files/Pods-vedamatch/Pods-vedamatch.release.xcconfig"; sourceTree = "<group>"; };
 		5B7EB9410499542E8C5724F5 /* Pods-vedamatch-vedamatchTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vedamatch-vedamatchTests.debug.xcconfig"; path = "Target Support Files/Pods-vedamatch-vedamatchTests/Pods-vedamatch-vedamatchTests.debug.xcconfig"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = vedamatch/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		89C6BE57DB24E9ADA2F236DE /* Pods-vedamatch-vedamatchTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-vedamatch-vedamatchTests.release.xcconfig"; path = "Target Support Files/Pods-vedamatch-vedamatchTests/Pods-vedamatch-vedamatchTests.release.xcconfig"; sourceTree = "<group>"; };
+		B1C2D3E4F5061728394A5B6C /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "vedamatch/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		DFD4124B31E3F6200DFD96FD /* Pods_vedamatch_vedamatchTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_vedamatch_vedamatchTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */

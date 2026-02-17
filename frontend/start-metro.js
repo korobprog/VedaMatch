@@ -21,8 +21,8 @@ const isPortTaken = (port) => new Promise((resolve, reject) => {
 });
 
 (async () => {
-  if (await isPortTaken(8081)) {
-    console.log('⚠️  Порт 8081 уже занят. Предполагаем, что Metro Bundler уже запущен.');
+  if (await isPortTaken(8082)) {
+    console.log('⚠️  Порт 8082 уже занят. Предполагаем, что Metro Bundler уже запущен.');
     console.log('✅  Пропускаем запуск Metro.');
     process.exit(0);
   }

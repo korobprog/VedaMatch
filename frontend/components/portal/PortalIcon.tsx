@@ -154,7 +154,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
 
     return (
         <Animated.View
-            style={[styles.container, animatedStyle]}
+            style={[styles.container, !showLabel && styles.containerCompact, animatedStyle]}
             onLayout={onLayout}
         >
             <Pressable
@@ -275,6 +275,9 @@ const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
         marginVertical: 8,
+    },
+    containerCompact: {
+        marginVertical: 0,
     },
     pressable: {
         alignItems: 'center',
