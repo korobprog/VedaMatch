@@ -23,6 +23,36 @@ type CafeService struct {
 
 var ErrWaiterCallNotFound = errors.New("waiter call not found")
 
+func calculateCafeTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(total) / limit
+	if int(total)%limit > 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	return totalPages
+}
+
+func validateCafeUpdateNumericFields(req models.CafeUpdateRequest) error {
+	if req.DeliveryRadiusM != nil && *req.DeliveryRadiusM < 0 {
+		return errors.New("delivery radius cannot be negative")
+	}
+	if req.MinOrderAmount != nil && *req.MinOrderAmount < 0 {
+		return errors.New("min order amount cannot be negative")
+	}
+	if req.DeliveryFee != nil && *req.DeliveryFee < 0 {
+		return errors.New("delivery fee cannot be negative")
+	}
+	if req.AvgPrepTime != nil && *req.AvgPrepTime <= 0 {
+		return errors.New("avg prep time must be greater than zero")
+	}
+	return nil
+}
+
 // NewCafeService creates a new cafe service instance
 func NewCafeService(db *gorm.DB, mapService *MapService) *CafeService {
 	return &CafeService{
@@ -263,16 +293,11 @@ func (s *CafeService) ListCafes(filters models.CafeFilters) (*models.CafeListRes
 		}
 	}
 
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
-	}
-
 	return &models.CafeListResponse{
 		Cafes:      responses,
 		Total:      total,
 		Page:       page,
-		TotalPages: totalPages,
+		TotalPages: calculateCafeTotalPages(total, limit),
 	}, nil
 }
 
@@ -308,6 +333,10 @@ func (s *CafeService) GetMyCafe(userID uint) (*models.Cafe, error) {
 
 // UpdateCafe updates a cafe
 func (s *CafeService) UpdateCafe(cafeID uint, req models.CafeUpdateRequest) (*models.Cafe, error) {
+	if err := validateCafeUpdateNumericFields(req); err != nil {
+		return nil, err
+	}
+
 	var cafe models.Cafe
 	if err := s.db.First(&cafe, cafeID).Error; err != nil {
 		return nil, err
@@ -320,7 +349,7 @@ func (s *CafeService) UpdateCafe(cafeID uint, req models.CafeUpdateRequest) (*mo
 			return nil, errors.New("cafe name cannot be empty")
 		}
 		updates["name"] = trimmed
-		updates["slug"] = s.generateSlug(trimmed)
+		updates["slug"] = s.generateSlug(trimmed, cafe.ID)
 	}
 	if req.Description != nil {
 		updates["description"] = strings.TrimSpace(*req.Description)
@@ -482,7 +511,7 @@ func (s *CafeService) GetTables(cafeID uint) ([]models.CafeTable, error) {
 
 	for i := range tables {
 		var reservation models.TableReservation
-		now := time.Now()
+		now := time.Now().UTC()
 		// Find next confirmed reservation starting after now
 		if err := s.db.Where("table_id = ? AND start_time > ? AND status = ?", tables[i].ID, now, "confirmed").
 			Order("start_time asc").First(&reservation).Error; err == nil {
@@ -582,7 +611,7 @@ func (s *CafeService) GetTableByQRCode(qrCodeID string) (*models.QRCodeScanRespo
 
 	// Fetch upcoming reservation for this table
 	var reservation models.TableReservation
-	now := time.Now()
+	now := time.Now().UTC()
 	if err := s.db.Where("table_id = ? AND start_time > ? AND status = ?", table.ID, now, "confirmed").
 		Order("start_time asc").First(&reservation).Error; err == nil {
 		table.UpcomingReservation = &reservation
@@ -681,7 +710,7 @@ func (s *CafeService) GetActiveWaiterCalls(cafeID uint) ([]models.WaiterCall, er
 
 // AcknowledgeWaiterCall acknowledges a waiter call
 func (s *CafeService) AcknowledgeWaiterCall(callID uint, staffUserID uint) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	tx := s.db.Model(&models.WaiterCall{}).
 		Where("id = ? AND status = ?", callID, models.WaiterCallStatusPending).
 		Updates(map[string]interface{}{
@@ -700,7 +729,7 @@ func (s *CafeService) AcknowledgeWaiterCall(callID uint, staffUserID uint) error
 
 // CompleteWaiterCall completes a waiter call
 func (s *CafeService) CompleteWaiterCall(callID uint) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	tx := s.db.Model(&models.WaiterCall{}).
 		Where("id = ? AND status IN ?", callID, []models.WaiterCallStatus{models.WaiterCallStatusPending, models.WaiterCallStatusAcknowledged}).
 		Updates(map[string]interface{}{
@@ -774,7 +803,7 @@ func (s *CafeService) IsCafeOwner(cafeID, userID uint) bool {
 
 // ===== Helpers =====
 
-func (s *CafeService) generateSlug(name string) string {
+func (s *CafeService) generateSlug(name string, excludeCafeID ...uint) string {
 	// Simple slug generation
 	slug := strings.ToLower(strings.TrimSpace(name))
 	slug = strings.ReplaceAll(slug, " ", "-")
@@ -794,7 +823,11 @@ func (s *CafeService) generateSlug(name string) string {
 	counter := 1
 	for {
 		var count int64
-		if err := s.db.Model(&models.Cafe{}).Where("slug = ?", slug).Count(&count).Error; err != nil {
+		query := s.db.Model(&models.Cafe{}).Where("slug = ?", slug)
+		if len(excludeCafeID) > 0 && excludeCafeID[0] != 0 {
+			query = query.Where("id <> ?", excludeCafeID[0])
+		}
+		if err := query.Count(&count).Error; err != nil {
 			log.Printf("[CafeService] failed to check slug uniqueness for %q: %v", slug, err)
 			return fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix())
 		}

@@ -3,6 +3,8 @@ package handlers
 import (
 	"strings"
 	"testing"
+
+	"rag-agent-server/internal/models"
 )
 
 func TestIsValidSupportContact(t *testing.T) {
@@ -84,6 +86,67 @@ func TestBuildSupportAIInput_IncludesClientContext(t *testing.T) {
 	}
 	if !strings.Contains(input, "app_version=1.5.0") {
 		t.Fatalf("expected app version in ai input, got %q", input)
+	}
+}
+
+func TestParseSupportInt_TrimsInput(t *testing.T) {
+	got := parseSupportInt(" 42 ", 1, 1, 100)
+	if got != 42 {
+		t.Fatalf("expected 42, got %d", got)
+	}
+}
+
+func TestNormalizeSupportFAQPayload(t *testing.T) {
+	normalized, err := normalizeSupportFAQPayload(models.SupportFAQItem{
+		Question: "  Как восстановить пароль?  ",
+		Answer:   "  Через экран логина  ",
+		Keywords: "  пароль,вход  ",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if normalized.Question != "Как восстановить пароль?" {
+		t.Fatalf("unexpected question: %q", normalized.Question)
+	}
+	if normalized.Answer != "Через экран логина" {
+		t.Fatalf("unexpected answer: %q", normalized.Answer)
+	}
+	if normalized.Keywords != "пароль,вход" {
+		t.Fatalf("unexpected keywords: %q", normalized.Keywords)
+	}
+
+	if _, err := normalizeSupportFAQPayload(models.SupportFAQItem{Question: " ", Answer: "x"}); err == nil {
+		t.Fatalf("expected validation error for empty question")
+	}
+	if _, err := normalizeSupportFAQPayload(models.SupportFAQItem{Question: "x", Answer: " "}); err == nil {
+		t.Fatalf("expected validation error for empty answer")
+	}
+}
+
+func TestValidateSupportDirectPayload(t *testing.T) {
+	if _, err := validateSupportDirectPayload(0, "hello"); err == nil {
+		t.Fatalf("expected error for empty chatID")
+	}
+	if _, err := validateSupportDirectPayload(123, "   "); err == nil {
+		t.Fatalf("expected error for empty text")
+	}
+
+	text, err := validateSupportDirectPayload(123, "  ping  ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if text != "ping" {
+		t.Fatalf("expected trimmed text, got %q", text)
+	}
+}
+
+func TestLoadSupportUnreadCountsEmpty(t *testing.T) {
+	counts, err := loadSupportUnreadCounts(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(counts) != 0 {
+		t.Fatalf("expected empty counts map, got %d items", len(counts))
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,9 @@ func TestResolveSettingOrEnvPriority(t *testing.T) {
 
 func TestClassifyFCMError(t *testing.T) {
 	require.Equal(t, errorTypePermanent, classifyFCMError("NotRegistered"))
+	require.Equal(t, errorTypePermanent, classifyFCMError(" not_registered "))
 	require.Equal(t, errorTypeTransient, classifyFCMError("Unavailable"))
+	require.Equal(t, errorTypeTransient, classifyFCMError("internal_server_error"))
 	require.Equal(t, errorTypeUnknown, classifyFCMError("SomethingElse"))
 }
 
@@ -79,6 +82,12 @@ func TestNormalizeAndDedupTargets(t *testing.T) {
 	require.Equal(t, providerExpo, targets[0].Provider)
 }
 
+func TestNormalizeProviderCaseInsensitiveTokenPrefix(t *testing.T) {
+	require.Equal(t, providerExpo, normalizeProvider("", "exponentpushtoken[abc]"))
+	require.Equal(t, providerExpo, normalizeProvider("", " EXPOPUSHTOKEN[xyz] "))
+	require.Equal(t, providerFCM, normalizeProvider("", "fcm_token_123"))
+}
+
 func TestNextRetryDelayBackoff(t *testing.T) {
 	svc := &PushNotificationService{
 		retryBaseDelay: 100 * time.Millisecond,
@@ -88,4 +97,17 @@ func TestNextRetryDelayBackoff(t *testing.T) {
 	d2 := svc.nextRetryDelay(2)
 	require.Greater(t, d1, time.Duration(0))
 	require.Greater(t, d2, d1)
+}
+
+func TestTruncatePushBodyRuneAware(t *testing.T) {
+	input := "Привет мир"
+	out := truncatePushBody(input, 6)
+	require.True(t, utf8.ValidString(out))
+	require.Equal(t, "Привет...", out)
+
+	short := truncatePushBody("ok", 10)
+	require.Equal(t, "ok", short)
+
+	emptyLimit := truncatePushBody("hello", 0)
+	require.Equal(t, "...", emptyLimit)
 }

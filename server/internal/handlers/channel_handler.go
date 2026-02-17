@@ -81,7 +81,7 @@ func (h *ChannelHandler) CreateChannel(c *fiber.Ctx) error {
 
 	channel, err := h.service.CreateChannel(userID, req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return respondChannelError(c, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(channel)
@@ -92,8 +92,8 @@ func (h *ChannelHandler) ListPublicChannels(c *fiber.Ctx) error {
 		return err
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := parseQueryIntWithDefault(c, "page", 1)
+	limit := parseQueryIntWithDefault(c, "limit", 20)
 	search := strings.TrimSpace(c.Query("search"))
 
 	result, err := h.service.ListPublicChannels(services.ChannelListFilters{
@@ -102,7 +102,7 @@ func (h *ChannelHandler) ListPublicChannels(c *fiber.Ctx) error {
 		Limit:  limit,
 	})
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respondChannelError(c, err)
 	}
 	return c.JSON(result)
 }
@@ -117,8 +117,8 @@ func (h *ChannelHandler) ListMyChannels(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := parseQueryIntWithDefault(c, "page", 1)
+	limit := parseQueryIntWithDefault(c, "limit", 20)
 	search := strings.TrimSpace(c.Query("search"))
 
 	result, err := h.service.ListMyChannels(userID, services.ChannelListFilters{
@@ -127,7 +127,7 @@ func (h *ChannelHandler) ListMyChannels(c *fiber.Ctx) error {
 		Limit:  limit,
 	})
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respondChannelError(c, err)
 	}
 	return c.JSON(result)
 }
@@ -155,7 +155,10 @@ func (h *ChannelHandler) getChannelWithViewer(c *fiber.Ctx, viewerID uint) error
 		return respondChannelError(c, err)
 	}
 
-	role, _ := h.service.GetViewerRole(channel.ID, viewerID)
+	role, err := h.service.GetViewerRole(channel.ID, viewerID)
+	if err != nil {
+		return respondChannelError(c, err)
+	}
 	return c.JSON(fiber.Map{
 		"channel":    channel,
 		"viewerRole": role,
@@ -386,8 +389,8 @@ func (h *ChannelHandler) listPostsWithViewer(c *fiber.Ctx, viewerID uint) error 
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channel ID"})
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := parseQueryIntWithDefault(c, "page", 1)
+	limit := parseQueryIntWithDefault(c, "limit", 20)
 	includeDraft := c.QueryBool("includeDraft", false)
 
 	response, role, err := h.service.ListPosts(channelID, viewerID, page, limit, includeDraft)
@@ -579,13 +582,7 @@ func (h *ChannelHandler) TrackPromotedAdClick(c *fiber.Ctx) error {
 
 	viewerID := middleware.GetUserID(c)
 	if err := h.service.TrackPromotedAdClick(adID, viewerID); err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "not found") {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
-		}
-		if strings.Contains(strings.ToLower(err.Error()), "invalid") {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respondChannelError(c, err)
 	}
 
 	return c.JSON(fiber.Map{"success": true})
@@ -597,8 +594,8 @@ func (h *ChannelHandler) GetFeed(c *fiber.Ctx) error {
 	}
 
 	viewerID := middleware.GetUserID(c)
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page := parseQueryIntWithDefault(c, "page", 1)
+	limit := parseQueryIntWithDefault(c, "limit", 20)
 	search := strings.TrimSpace(c.Query("search"))
 	filters := services.ChannelFeedFilters{
 		Search:   search,
@@ -618,7 +615,7 @@ func (h *ChannelHandler) GetFeed(c *fiber.Ctx) error {
 
 	feed, err := h.service.GetFeed(filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return respondChannelError(c, err)
 	}
 
 	return c.JSON(feed)
@@ -816,7 +813,20 @@ func parseUintParam(c *fiber.Ctx, key string) (uint, error) {
 	return uint(value), nil
 }
 
+func parseQueryIntWithDefault(c *fiber.Ctx, key string, def int) int {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return def
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return def
+	}
+	return value
+}
+
 func respondChannelError(c *fiber.Ctx, err error) error {
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	switch {
 	case errors.Is(err, services.ErrChannelsDisabled):
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
@@ -826,8 +836,12 @@ func respondChannelError(c *fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, services.ErrInvalidPayload), errors.Is(err, services.ErrInvalidPostStatus):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	case strings.Contains(msg, "not found"):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	case strings.Contains(msg, "forbidden"), strings.Contains(msg, "not authorized"), strings.Contains(msg, "unauthorized"):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	default:
-		if strings.Contains(strings.ToLower(err.Error()), "invalid") || strings.Contains(strings.ToLower(err.Error()), "required") {
+		if strings.Contains(msg, "invalid") || strings.Contains(msg, "required") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

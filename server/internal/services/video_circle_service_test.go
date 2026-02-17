@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"rag-agent-server/internal/models"
 )
@@ -36,5 +37,37 @@ func TestNormalizeS3Key(t *testing.T) {
 
 	if got := normalizeS3Key(s3Service, "videos/2/thumb.jpg"); got != "videos/2/thumb.jpg" {
 		t.Fatalf("unexpected key for plain key: %s", got)
+	}
+}
+
+func TestCalculateVideoCircleTotalPages(t *testing.T) {
+	tests := []struct {
+		name  string
+		total int64
+		limit int
+		want  int
+	}{
+		{name: "zero total", total: 0, limit: 20, want: 1},
+		{name: "exact division", total: 100, limit: 20, want: 5},
+		{name: "with remainder", total: 101, limit: 20, want: 6},
+		{name: "invalid limit", total: 10, limit: 0, want: 1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := calculateVideoCircleTotalPages(tc.total, tc.limit); got != tc.want {
+				t.Fatalf("calculateVideoCircleTotalPages(%d, %d) = %d, want %d", tc.total, tc.limit, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRemainingSecondsUntil(t *testing.T) {
+	now := time.Now().UTC()
+	if got := remainingSecondsUntil(now.Add(30*time.Second), now); got != 30 {
+		t.Fatalf("expected 30 seconds, got %d", got)
+	}
+	if got := remainingSecondsUntil(now.Add(-1*time.Second), now); got != 0 {
+		t.Fatalf("expected 0 seconds for past time, got %d", got)
 	}
 }

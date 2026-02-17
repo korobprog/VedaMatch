@@ -29,12 +29,30 @@ func isValidCafePaymentMethod(method string) bool {
 }
 
 func isValidOrderItemStatus(status string) bool {
-	switch status {
+	switch normalizeCafeOrderItemStatus(status) {
 	case "pending", "preparing", "ready", "cancelled":
 		return true
 	default:
 		return false
 	}
+}
+
+func normalizeCafeOrderItemStatus(status string) string {
+	return strings.ToLower(strings.TrimSpace(status))
+}
+
+func calculateCafeOrderTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(total) / limit
+	if int(total)%limit > 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	return totalPages
 }
 
 // NewCafeOrderService creates a new cafe order service instance
@@ -204,7 +222,7 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	orderNumber := s.generateOrderNumber(req.CafeID)
 
 	// Calculate estimated ready time
-	estimatedReadyAt := time.Now().Add(time.Duration(cafe.AvgPrepTime) * time.Minute)
+	estimatedReadyAt := time.Now().UTC().Add(time.Duration(cafe.AvgPrepTime) * time.Minute)
 
 	order := &models.CafeOrder{
 		OrderNumber:       orderNumber,
@@ -238,7 +256,7 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 
 		// If dine-in, update table status
 		if req.OrderType == models.CafeOrderTypeDineIn && req.TableID != nil {
-			now := time.Now()
+			now := time.Now().UTC()
 			updateResult := tx.Model(&models.CafeTable{}).
 				Where("id = ? AND cafe_id = ? AND is_occupied = ?", *req.TableID, req.CafeID, false).
 				Updates(map[string]interface{}{
@@ -289,7 +307,7 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 				shouldTriggerReferralActivation = true
 			}
 
-			now := time.Now()
+			now := time.Now().UTC()
 			if err := tx.Model(order).Updates(map[string]interface{}{
 				"is_paid":          true,
 				"paid_at":          now,
@@ -305,7 +323,13 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 		}
 
 		// Increment dish order counts
-		s.dishService.IncrementDishOrders(dishIDs)
+		if len(dishIDs) > 0 {
+			if err := tx.Model(&models.Dish{}).
+				Where("id IN ?", dishIDs).
+				UpdateColumn("orders_count", gorm.Expr("orders_count + 1")).Error; err != nil {
+				return err
+			}
+		}
 
 		return nil
 	}
@@ -487,16 +511,11 @@ func (s *CafeOrderService) ListOrders(filters models.CafeOrderFilters) (*models.
 		}
 	}
 
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
-	}
-
 	return &models.CafeOrderListResponse{
 		Orders:     responses,
 		Total:      total,
 		Page:       page,
-		TotalPages: totalPages,
+		TotalPages: calculateCafeOrderTotalPages(total, limit),
 	}, nil
 }
 
@@ -573,7 +592,7 @@ func (s *CafeOrderService) UpdateOrderStatus(orderID uint, status models.CafeOrd
 		return errors.New("invalid order status")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{"status": status}
 
 	switch status {
@@ -648,7 +667,7 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 	if reason == "" {
 		reason = "cancelled"
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var order models.CafeOrder
@@ -680,6 +699,9 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 				return err
 			}
 			orderUpdates["is_paid"] = false
+			orderUpdates["paid_at"] = nil
+			orderUpdates["regular_lkm_paid"] = 0
+			orderUpdates["bonus_lkm_paid"] = 0
 		}
 
 		// Update order
@@ -716,7 +738,16 @@ func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error 
 	if !isValidCafePaymentMethod(paymentMethod) {
 		return errors.New("invalid payment method")
 	}
-	now := time.Now()
+
+	var order models.CafeOrder
+	if err := s.db.Select("id", "status").First(&order, orderID).Error; err != nil {
+		return err
+	}
+	if order.Status == models.CafeOrderStatusCancelled {
+		return errors.New("cancelled order cannot be marked as paid")
+	}
+
+	now := time.Now().UTC()
 	updateResult := s.db.Model(&models.CafeOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
 		"is_paid":        true,
 		"paid_at":        now,
@@ -735,13 +766,13 @@ func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error 
 
 // UpdateItemStatus updates the status of an order item
 func (s *CafeOrderService) UpdateItemStatus(itemID uint, status string) error {
-	status = strings.TrimSpace(status)
+	status = normalizeCafeOrderItemStatus(status)
 	if !isValidOrderItemStatus(status) {
 		return errors.New("invalid item status")
 	}
 	updates := map[string]interface{}{"status": status}
 	if status == "ready" {
-		now := time.Now()
+		now := time.Now().UTC()
 		updates["prepared_at"] = &now
 	}
 	result := s.db.Model(&models.CafeOrderItem{}).Where("id = ?", itemID).Updates(updates)
@@ -758,7 +789,7 @@ func (s *CafeOrderService) UpdateItemStatus(itemID uint, status string) error {
 
 // GetOrderStats returns order statistics for a cafe
 func (s *CafeOrderService) GetOrderStats(cafeID uint) (*models.CafeOrderStatsResponse, error) {
-	today := time.Now().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	var todayOrders int64
 	var todayRevenue float64
@@ -915,7 +946,7 @@ func (s *CafeOrderService) RepeatOrder(customerID, previousOrderID uint) (*model
 
 func (s *CafeOrderService) generateOrderNumber(cafeID uint) string {
 	// Format: CAFE-ID-YYMMDD-XXXX
-	now := time.Now()
+	now := time.Now().UTC()
 	dateStr := now.Format("060102")
 
 	// Get today's order count for this cafe

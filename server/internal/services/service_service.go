@@ -10,6 +10,7 @@ import (
 	"rag-agent-server/internal/models"
 	"strconv"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -29,6 +30,65 @@ func isValidServiceStatus(status models.ServiceStatus) bool {
 	default:
 		return false
 	}
+}
+
+func validateTimeRangeHHMM(startTime, endTime string) (string, string, error) {
+	startTime = strings.TrimSpace(startTime)
+	endTime = strings.TrimSpace(endTime)
+
+	startParsed, err := time.Parse("15:04", startTime)
+	if err != nil {
+		return "", "", errors.New("timeStart must be in HH:MM format")
+	}
+	endParsed, err := time.Parse("15:04", endTime)
+	if err != nil {
+		return "", "", errors.New("timeEnd must be in HH:MM format")
+	}
+	if !endParsed.After(startParsed) {
+		return "", "", errors.New("timeEnd must be after timeStart")
+	}
+
+	return startTime, endTime, nil
+}
+
+func validateDayOfWeek(day int) error {
+	if day < 0 || day > 6 {
+		return fmt.Errorf("day_of_week out of range: %d", day)
+	}
+	return nil
+}
+
+func normalizeTimezone(timezone string) (string, error) {
+	timezone = strings.TrimSpace(timezone)
+	if timezone == "" {
+		return "Europe/Moscow", nil
+	}
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return "", fmt.Errorf("invalid timezone: %s", timezone)
+	}
+	return timezone, nil
+}
+
+func settingInt(settings map[string]interface{}, key string, fallback int) int {
+	val, ok := settings[key]
+	if !ok {
+		return fallback
+	}
+
+	switch v := val.(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case json.Number:
+		if parsed, err := v.Int64(); err == nil {
+			return int(parsed)
+		}
+	}
+
+	return fallback
 }
 
 // Create creates a new service
@@ -315,6 +375,15 @@ func (s *ServiceService) AddTariff(serviceID, ownerID uint, req models.TariffCre
 	if req.Price < 0 {
 		return nil, errors.New("tariff price must be non-negative")
 	}
+	if req.DurationMinutes < 0 {
+		return nil, errors.New("durationMinutes must be non-negative")
+	}
+	if req.SessionsCount < 0 {
+		return nil, errors.New("sessionsCount must be non-negative")
+	}
+	if req.ValidityDays < 0 {
+		return nil, errors.New("validityDays must be non-negative")
+	}
 	if req.MaxBonusLkmPercent < 0 || req.MaxBonusLkmPercent > 100 {
 		return nil, errors.New("maxBonusLkmPercent must be between 0 and 100")
 	}
@@ -338,16 +407,17 @@ func (s *ServiceService) AddTariff(serviceID, ownerID uint, req models.TariffCre
 		tariff.SessionsCount = 1
 	}
 
-	// If this is the default, unset other defaults
-	if tariff.IsDefault {
-		if err := database.DB.Model(&models.ServiceTariff{}).
-			Where("service_id = ?", serviceID).
-			Update("is_default", false).Error; err != nil {
-			return nil, err
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// Keep "only one default tariff per service" atomic.
+		if tariff.IsDefault {
+			if err := tx.Model(&models.ServiceTariff{}).
+				Where("service_id = ?", serviceID).
+				Update("is_default", false).Error; err != nil {
+				return err
+			}
 		}
-	}
-
-	if err := database.DB.Create(&tariff).Error; err != nil {
+		return tx.Create(&tariff).Error
+	}); err != nil {
 		return nil, err
 	}
 
@@ -396,26 +466,27 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 		updates["max_bonus_lkm_percent"] = *req.MaxBonusLkmPercent
 	}
 	if req.DurationMinutes != nil {
+		if *req.DurationMinutes < 0 {
+			return nil, errors.New("durationMinutes must be non-negative")
+		}
 		updates["duration_minutes"] = *req.DurationMinutes
 	}
 	if req.SessionsCount != nil {
+		if *req.SessionsCount < 1 {
+			return nil, errors.New("sessionsCount must be at least 1")
+		}
 		updates["sessions_count"] = *req.SessionsCount
 	}
 	if req.ValidityDays != nil {
+		if *req.ValidityDays < 0 {
+			return nil, errors.New("validityDays must be non-negative")
+		}
 		updates["validity_days"] = *req.ValidityDays
 	}
 	if req.Includes != nil {
 		updates["includes"] = strings.TrimSpace(*req.Includes)
 	}
 	if req.IsDefault != nil {
-		if *req.IsDefault {
-			// Unset other defaults first
-			if err := database.DB.Model(&models.ServiceTariff{}).
-				Where("service_id = ?", tariff.ServiceID).
-				Update("is_default", false).Error; err != nil {
-				return nil, err
-			}
-		}
 		updates["is_default"] = *req.IsDefault
 	}
 	if req.IsActive != nil {
@@ -425,16 +496,32 @@ func (s *ServiceService) UpdateTariff(tariffID, ownerID uint, req models.TariffU
 		updates["sort_order"] = *req.SortOrder
 	}
 
-	if len(updates) > 0 {
-		if err := database.DB.Model(&tariff).Updates(updates).Error; err != nil {
-			return nil, err
-		}
+	if len(updates) == 0 {
+		return &tariff, nil
 	}
 
-	if err := database.DB.First(&tariff, tariffID).Error; err != nil {
+	var updated models.ServiceTariff
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if req.IsDefault != nil && *req.IsDefault {
+			if err := tx.Model(&models.ServiceTariff{}).
+				Where("service_id = ?", tariff.ServiceID).
+				Update("is_default", false).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Model(&models.ServiceTariff{}).
+			Where("id = ?", tariffID).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+
+		return tx.First(&updated, tariffID).Error
+	}); err != nil {
 		return nil, err
 	}
-	return &tariff, nil
+
+	return &updated, nil
 }
 
 // DeleteTariff soft-deletes a tariff
@@ -463,16 +550,62 @@ func (s *ServiceService) AddSchedule(serviceID, ownerID uint, req models.Schedul
 		return nil, errors.New("not authorized")
 	}
 
+	startTime, endTime, err := validateTimeRangeHHMM(req.TimeStart, req.TimeEnd)
+	if err != nil {
+		return nil, err
+	}
+	if req.MaxParticipants < 0 {
+		return nil, errors.New("maxParticipants must be non-negative")
+	}
+	if req.SlotDuration < 0 {
+		return nil, errors.New("slotDuration must be non-negative")
+	}
+	if req.BufferMinutes < 0 {
+		return nil, errors.New("bufferMinutes must be non-negative")
+	}
+
+	var dayOfWeek *int
+	if req.DayOfWeek != nil {
+		day := *req.DayOfWeek
+		if err := validateDayOfWeek(day); err != nil {
+			return nil, err
+		}
+		dayOfWeek = &day
+	}
+
+	req.SpecificDate = strings.TrimSpace(req.SpecificDate)
+	var specificDate *time.Time
+	if req.SpecificDate != "" {
+		parsedDate, err := time.Parse("2006-01-02", req.SpecificDate)
+		if err != nil {
+			return nil, errors.New("specificDate must be in YYYY-MM-DD format")
+		}
+		specificDate = &parsedDate
+	}
+
+	if dayOfWeek == nil && specificDate == nil {
+		return nil, errors.New("dayOfWeek or specificDate is required")
+	}
+	if dayOfWeek != nil && specificDate != nil {
+		return nil, errors.New("provide either dayOfWeek or specificDate, not both")
+	}
+
+	timezone, err := normalizeTimezone(req.Timezone)
+	if err != nil {
+		return nil, err
+	}
+
 	schedule := models.ServiceSchedule{
 		ServiceID:       serviceID,
-		DayOfWeek:       req.DayOfWeek,
-		TimeStart:       req.TimeStart,
-		TimeEnd:         req.TimeEnd,
+		DayOfWeek:       dayOfWeek,
+		SpecificDate:    specificDate,
+		TimeStart:       startTime,
+		TimeEnd:         endTime,
 		MaxParticipants: req.MaxParticipants,
 		SlotDuration:    req.SlotDuration,
 		BufferMinutes:   req.BufferMinutes,
 		IsActive:        true,
-		Timezone:        req.Timezone,
+		Timezone:        timezone,
 	}
 
 	if schedule.MaxParticipants == 0 {
@@ -480,9 +613,6 @@ func (s *ServiceService) AddSchedule(serviceID, ownerID uint, req models.Schedul
 	}
 	if schedule.SlotDuration == 0 {
 		schedule.SlotDuration = 60
-	}
-	if schedule.Timezone == "" {
-		schedule.Timezone = "Europe/Moscow"
 	}
 
 	if err := database.DB.Create(&schedule).Error; err != nil {
@@ -516,7 +646,6 @@ func (s *ServiceService) DeleteSchedule(scheduleID, ownerID uint) error {
 	return database.DB.Model(&schedule).Update("is_active", false).Error
 }
 
-// Publish changes service status to active
 // Publish changes service status to active
 func (s *ServiceService) Publish(serviceID, ownerID uint) error {
 	var service models.Service
@@ -559,16 +688,19 @@ func (s *ServiceService) GetWeeklySchedule(serviceID uint) (*models.WeeklySchedu
 	if service.Settings != "" {
 		var settings map[string]interface{}
 		if err := json.Unmarshal([]byte(service.Settings), &settings); err == nil {
-			if val, ok := settings["slotDuration"].(float64); ok {
-				response.SlotDuration = int(val)
-			}
-			if val, ok := settings["breakBetween"].(float64); ok {
-				response.BreakBetween = int(val)
-			}
-			if val, ok := settings["maxBookingsPerDay"].(float64); ok {
-				response.MaxBookingsPerDay = int(val)
-			}
+			response.SlotDuration = settingInt(settings, "slotDuration", response.SlotDuration)
+			response.BreakBetween = settingInt(settings, "breakBetween", response.BreakBetween)
+			response.MaxBookingsPerDay = settingInt(settings, "maxBookingsPerDay", response.MaxBookingsPerDay)
 		}
+	}
+	if response.SlotDuration <= 0 {
+		response.SlotDuration = 60
+	}
+	if response.BreakBetween < 0 {
+		response.BreakBetween = 0
+	}
+	if response.MaxBookingsPerDay < 0 {
+		response.MaxBookingsPerDay = 0
 	}
 
 	// Group slots by day
@@ -603,8 +735,13 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 	if service.OwnerID != ownerID {
 		return errors.New("not authorized")
 	}
+	if req.BreakBetween != nil && *req.BreakBetween < 0 {
+		return errors.New("breakBetween must be non-negative")
+	}
+	if req.MaxBookingsPerDay != nil && *req.MaxBookingsPerDay < 0 {
+		return errors.New("maxBookingsPerDay must be non-negative")
+	}
 
-	// 1. Update settings
 	settings := make(map[string]interface{})
 	if service.Settings != "" {
 		if err := json.Unmarshal([]byte(service.Settings), &settings); err != nil {
@@ -612,48 +749,36 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 		}
 	}
 
-	// Defaults if not provided
-	slotDuration := 60
-	if req.BreakBetween != nil {
-		settings["breakBetween"] = *req.BreakBetween
-	}
-	if req.MaxBookingsPerDay != nil {
-		settings["maxBookingsPerDay"] = *req.MaxBookingsPerDay
-	}
-
-	// Try to get slot duration from existing settings or use default
-	if val, ok := settings["slotDuration"].(float64); ok {
-		slotDuration = int(val)
+	slotDuration := settingInt(settings, "slotDuration", 60)
+	if slotDuration <= 0 {
+		slotDuration = 60
 	}
 	settings["slotDuration"] = slotDuration
 
-	// But we need to update it if it changes (based on logic, usually duration is per slot)
-	// For now, let's assume all slots have same duration based on first slot or req
-	// The request doesn't pass slotDuration explicitly in root, but it is used for calculation
+	bufferMinutes := settingInt(settings, "breakBetween", 0)
+	if req.BreakBetween != nil {
+		bufferMinutes = *req.BreakBetween
+	}
+	if bufferMinutes < 0 {
+		bufferMinutes = 0
+	}
+	settings["breakBetween"] = bufferMinutes
 
-	settingsBytes, err := json.Marshal(settings)
+	maxBookingsPerDay := settingInt(settings, "maxBookingsPerDay", 0)
+	if req.MaxBookingsPerDay != nil {
+		maxBookingsPerDay = *req.MaxBookingsPerDay
+	}
+	if maxBookingsPerDay < 0 {
+		maxBookingsPerDay = 0
+	}
+	settings["maxBookingsPerDay"] = maxBookingsPerDay
+
+	defaultTimezone, err := normalizeTimezone("")
 	if err != nil {
 		return err
 	}
-	if err := database.DB.Model(&service).Update("settings", string(settingsBytes)).Error; err != nil {
-		return err
-	}
 
-	// 2. Deactivate all existing weekly schedules
-	if err := database.DB.Model(&models.ServiceSchedule{}).
-		Where("service_id = ? AND day_of_week IS NOT NULL", serviceID).
-		Update("is_active", false).Error; err != nil {
-		return err
-	}
-
-	// 3. Create new schedules
-	var bufferMinutes int
-	if req.BreakBetween != nil {
-		bufferMinutes = *req.BreakBetween
-	} else if val, ok := settings["breakBetween"].(float64); ok {
-		bufferMinutes = int(val)
-	}
-
+	schedulesToCreate := make([]models.ServiceSchedule, 0)
 	for dayStr, config := range req.WeeklySlots {
 		if !config.Enabled {
 			continue
@@ -663,32 +788,53 @@ func (s *ServiceService) UpdateWeeklySchedule(serviceID, ownerID uint, req model
 		if err != nil {
 			return err
 		}
-		if dayInt < 0 || dayInt > 6 {
-			return fmt.Errorf("day_of_week out of range: %d", dayInt)
+		if err := validateDayOfWeek(dayInt); err != nil {
+			return err
 		}
 
 		for _, slot := range config.Slots {
-			// Calculate duration from start/end
-			// For simplicity, we just save start/end
-			// Ideally we should validate times
+			startTime, endTime, err := validateTimeRangeHHMM(slot.StartTime, slot.EndTime)
+			if err != nil {
+				return fmt.Errorf("%s: %w", dayStr, err)
+			}
 
 			dayOfWeek := dayInt
-			schedule := models.ServiceSchedule{
+			schedulesToCreate = append(schedulesToCreate, models.ServiceSchedule{
 				ServiceID:     serviceID,
 				DayOfWeek:     &dayOfWeek,
-				TimeStart:     slot.StartTime,
-				TimeEnd:       slot.EndTime,
+				TimeStart:     startTime,
+				TimeEnd:       endTime,
 				SlotDuration:  slotDuration,
 				BufferMinutes: bufferMinutes,
 				IsActive:      true,
-			}
-			if err := database.DB.Create(&schedule).Error; err != nil {
-				return err
-			}
+				Timezone:      defaultTimezone,
+			})
 		}
 	}
 
-	return nil
+	settingsBytes, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&service).Update("settings", string(settingsBytes)).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.ServiceSchedule{}).
+			Where("service_id = ? AND day_of_week IS NOT NULL", serviceID).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
+
+		if len(schedulesToCreate) > 0 {
+			if err := tx.Create(&schedulesToCreate).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func parseServiceDayKey(dayStr string) (int, error) {

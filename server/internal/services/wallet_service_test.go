@@ -390,3 +390,29 @@ func TestSpendAllocationInvariants(t *testing.T) {
 		}
 	}
 }
+
+func TestCalculateTotalPages(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		total int64
+		limit int
+		want  int
+	}{
+		{name: "zero total keeps one page", total: 0, limit: 20, want: 1},
+		{name: "exact division", total: 100, limit: 20, want: 5},
+		{name: "with remainder", total: 101, limit: 20, want: 6},
+		{name: "invalid limit defaults to one page", total: 10, limit: 0, want: 1},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := calculateTotalPages(tc.total, tc.limit); got != tc.want {
+				t.Fatalf("calculateTotalPages(%d, %d) = %d, want %d", tc.total, tc.limit, got, tc.want)
+			}
+		})
+	}
+}

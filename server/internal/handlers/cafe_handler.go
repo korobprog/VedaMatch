@@ -3,7 +3,9 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/database"
@@ -43,6 +45,15 @@ func isAllowedCafeImageContentType(contentType string) bool {
 	return strings.HasPrefix(contentType, "image/")
 }
 
+func isValidDishType(dishType models.DishType) bool {
+	switch dishType {
+	case models.DishTypeFood, models.DishTypeDrink, models.DishTypeDessert, models.DishTypeSnack, models.DishTypeCombo:
+		return true
+	default:
+		return false
+	}
+}
+
 func safeImageExtension(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filepath.Base(filename)))
 	switch ext {
@@ -51,6 +62,23 @@ func safeImageExtension(filename string) string {
 	default:
 		return ".jpg"
 	}
+}
+
+func isCafeNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "not found")
+}
+
+func isBonusPercentValidationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "maxbonuslkmpercent")
 }
 
 func requireCafeUserID(c *fiber.Ctx) (uint, error) {
@@ -105,6 +133,28 @@ func (h *CafeHandler) UploadCafePhoto(c *fiber.Ctx) error {
 		})
 	}
 	ext := safeImageExtension(file.Filename)
+	opened, err := file.Open()
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Could not open upload",
+		})
+	}
+	sniffBuf := make([]byte, 512)
+	readN, readErr := opened.Read(sniffBuf)
+	_ = opened.Close()
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Could not read upload",
+		})
+	}
+	if readN > 0 {
+		contentType = http.DetectContentType(sniffBuf[:readN])
+	}
+	if !isAllowedCafeImageContentType(contentType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Only image uploads are allowed",
+		})
+	}
 
 	// 1. Try S3 Storage
 	s3Service := services.GetS3Service()
@@ -181,7 +231,7 @@ func (h *CafeHandler) GetMyCafe(c *fiber.Ctx) error {
 
 	cafe, err := h.cafeService.GetMyCafe(userID)
 	if err != nil {
-		if !strings.Contains(strings.ToLower(err.Error()), "not found") {
+		if !isCafeNotFoundError(err) {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get cafe", "hasCafe": false})
 		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Cafe not found", "hasCafe": false})
@@ -201,9 +251,6 @@ func (h *CafeHandler) GetCafe(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
 	}
 
-	// Increment views
-	h.cafeService.IncrementViews(uint(cafeID))
-
 	cafe, err := h.cafeService.GetCafe(uint(cafeID))
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -211,6 +258,7 @@ func (h *CafeHandler) GetCafe(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Cafe not found"})
 	}
+	h.cafeService.IncrementViews(uint(cafeID))
 
 	return c.JSON(cafe)
 }
@@ -673,7 +721,7 @@ func (h *CafeHandler) CreateDish(c *fiber.Ctx) error {
 
 	dish, err := h.dishService.CreateDish(uint(cafeID), req)
 	if err != nil {
-		if strings.Contains(err.Error(), "maxBonusLkmPercent") {
+		if isBonusPercentValidationError(err) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create dish"})
@@ -728,14 +776,20 @@ func (h *CafeHandler) ListDishes(c *fiber.Ctx) error {
 		Limit:  clampQueryInt(c, "limit", 20, 1, 100),
 	}
 
-	if c.Query("category_id") != "" {
-		if catID, err := strconv.ParseUint(c.Query("category_id"), 10, 32); err == nil {
-			catIDUint := uint(catID)
-			filters.CategoryID = &catIDUint
+	if rawCategoryID := strings.TrimSpace(c.Query("category_id")); rawCategoryID != "" {
+		catID, parseErr := strconv.ParseUint(rawCategoryID, 10, 32)
+		if parseErr != nil || catID == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid category_id"})
 		}
+		catIDUint := uint(catID)
+		filters.CategoryID = &catIDUint
 	}
-	if c.Query("type") != "" {
-		filters.Type = models.DishType(c.Query("type"))
+	if rawDishType := strings.ToLower(strings.TrimSpace(c.Query("type"))); rawDishType != "" {
+		dishType := models.DishType(rawDishType)
+		if !isValidDishType(dishType) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid dish type"})
+		}
+		filters.Type = dishType
 	}
 	if c.Query("vegetarian") == "true" {
 		v := true
@@ -787,7 +841,7 @@ func (h *CafeHandler) UpdateDish(c *fiber.Ctx) error {
 
 	dish, err := h.dishService.UpdateDish(uint(dishID), req)
 	if err != nil {
-		if strings.Contains(err.Error(), "maxBonusLkmPercent") {
+		if isBonusPercentValidationError(err) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update dish"})
@@ -956,6 +1010,13 @@ func (h *CafeHandler) AcknowledgeWaiterCall(c *fiber.Ctx) error {
 	if !h.hasStaffAccess(uint(cafeID), userID, nil) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
 	}
+	belongs, err := h.waiterCallBelongsToCafe(uint(cafeID), uint(callID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify waiter call"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Waiter call not found"})
+	}
 
 	if err := h.cafeService.AcknowledgeWaiterCall(uint(callID), userID); err != nil {
 		if errors.Is(err, services.ErrWaiterCallNotFound) {
@@ -985,6 +1046,13 @@ func (h *CafeHandler) CompleteWaiterCall(c *fiber.Ctx) error {
 
 	if !h.hasStaffAccess(uint(cafeID), userID, nil) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
+	}
+	belongs, err := h.waiterCallBelongsToCafe(uint(cafeID), uint(callID))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to verify waiter call"})
+	}
+	if !belongs {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Waiter call not found"})
 	}
 
 	if err := h.cafeService.CompleteWaiterCall(uint(callID)); err != nil {
@@ -1046,6 +1114,16 @@ func (h *CafeHandler) tableBelongsToCafe(cafeID, tableID uint) (bool, error) {
 	var count int64
 	if err := database.DB.Model(&models.CafeTable{}).
 		Where("id = ? AND cafe_id = ?", tableID, cafeID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (h *CafeHandler) waiterCallBelongsToCafe(cafeID, callID uint) (bool, error) {
+	var count int64
+	if err := database.DB.Model(&models.WaiterCall{}).
+		Where("id = ? AND cafe_id = ?", callID, cafeID).
 		Count(&count).Error; err != nil {
 		return false, err
 	}

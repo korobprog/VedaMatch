@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"log"
 	"net/http"
 	"net/mail"
 	"os"
@@ -762,9 +763,11 @@ func (h *SupportHandler) loadConversationForUser(userID uint, conversationID uin
 
 	// If user accessed an old guest ticket created with matching requester contact, bind ownership.
 	if conversation.AppUserID == nil {
-		_ = database.DB.Model(&models.SupportConversation{}).
+		if err := database.DB.Model(&models.SupportConversation{}).
 			Where("id = ? AND app_user_id IS NULL", conversation.ID).
-			Update("app_user_id", userID).Error
+			Update("app_user_id", userID).Error; err != nil {
+			log.Printf("[SUPPORT] failed to bind guest ticket to user conversation=%d user=%d: %v", conversation.ID, userID, err)
+		}
 		boundUserID := userID
 		conversation.AppUserID = &boundUserID
 	}
@@ -1080,7 +1083,8 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	}
 
 	if err := h.routeInAppMessage(c, &conversation, inbound, req.Message, req.AttachmentURL, clientCtx); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		log.Printf("[SUPPORT] failed to route ticket message conversation=%d: %v", conversation.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to route support message"})
 	}
 
 	if err := database.DB.First(&conversation, conversation.ID).Error; err != nil {
@@ -1130,16 +1134,20 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load tickets"})
 	}
 
+	conversationIDs := make([]uint, 0, len(conversations))
+	for _, conv := range conversations {
+		conversationIDs = append(conversationIDs, conv.ID)
+	}
+	unreadByConversation, unreadErr := loadSupportUnreadCounts(conversationIDs)
+	if unreadErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count unread messages"})
+	}
+
 	items := make([]supportConversationListItem, 0, len(conversations))
 	for _, conv := range conversations {
-		var unread int64
-		_ = database.DB.Model(&models.SupportMessage{}).
-			Where("conversation_id = ? AND direction = ? AND is_read_by_user = ?", conv.ID, models.SupportMessageDirectionOutbound, false).
-			Count(&unread).Error
-
 		items = append(items, supportConversationListItem{
 			SupportConversation: conv,
-			UnreadCount:         unread,
+			UnreadCount:         unreadByConversation[conv.ID],
 		})
 	}
 
@@ -1181,9 +1189,11 @@ func (h *SupportHandler) GetMyTicketMessages(c *fiber.Ctx) error {
 	}
 
 	var unread int64
-	_ = database.DB.Model(&models.SupportMessage{}).
+	if err := database.DB.Model(&models.SupportMessage{}).
 		Where("conversation_id = ? AND direction = ? AND is_read_by_user = ?", conversation.ID, models.SupportMessageDirectionOutbound, false).
-		Count(&unread).Error
+		Count(&unread).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count unread messages"})
+	}
 
 	return c.JSON(fiber.Map{
 		"ticket":      conversation,
@@ -1282,7 +1292,8 @@ func (h *SupportHandler) PostMyTicketMessage(c *fiber.Ctx) error {
 	})
 
 	if err := h.routeInAppMessage(c, conversation, inbound, req.Message, req.AttachmentURL, clientCtx); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		log.Printf("[SUPPORT] failed to route follow-up message conversation=%d: %v", conversation.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to route support message"})
 	}
 
 	if err := database.DB.First(conversation, conversation.ID).Error; err != nil {
@@ -1379,24 +1390,30 @@ func (h *SupportHandler) GetSupportMetrics(c *fiber.Ctx) error {
 	}
 
 	var openCount int64
-	_ = database.DB.Model(&models.SupportConversation{}).
+	if err := database.DB.Model(&models.SupportConversation{}).
 		Where("channel = ? AND created_at >= ? AND status = ?", models.SupportConversationChannelInApp, since, models.SupportConversationStatusOpen).
-		Count(&openCount).Error
+		Count(&openCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count open conversations"})
+	}
 
 	var resolvedCount int64
-	_ = database.DB.Model(&models.SupportConversation{}).
+	if err := database.DB.Model(&models.SupportConversation{}).
 		Where("channel = ? AND created_at >= ? AND status = ?", models.SupportConversationChannelInApp, since, models.SupportConversationStatusResolved).
-		Count(&resolvedCount).Error
+		Count(&resolvedCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to count resolved conversations"})
+	}
 
 	type frtRow struct {
 		CreatedAt       time.Time
 		FirstResponseAt *time.Time
 	}
 	var rows []frtRow
-	_ = database.DB.Model(&models.SupportConversation{}).
+	if err := database.DB.Model(&models.SupportConversation{}).
 		Select("created_at, first_response_at").
 		Where("channel = ? AND created_at >= ? AND first_response_at IS NOT NULL", models.SupportConversationChannelInApp, since).
-		Scan(&rows).Error
+		Scan(&rows).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load first response metrics"})
+	}
 
 	var frtValues []float64
 	var frtSum float64
@@ -1427,11 +1444,13 @@ func (h *SupportHandler) GetSupportMetrics(c *fiber.Ctx) error {
 		Count      int64
 	}
 	var byEntryPointRows []entryPointRow
-	_ = database.DB.Model(&models.SupportConversation{}).
+	if err := database.DB.Model(&models.SupportConversation{}).
 		Select("COALESCE(entry_point, 'unknown') AS entry_point, COUNT(*) AS count").
 		Where("channel = ? AND created_at >= ?", models.SupportConversationChannelInApp, since).
 		Group("entry_point").
-		Scan(&byEntryPointRows).Error
+		Scan(&byEntryPointRows).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load entry point metrics"})
+	}
 
 	entryPointCounts := make(map[string]int64, len(byEntryPointRows))
 	for _, row := range byEntryPointRows {
@@ -1508,6 +1527,14 @@ func (h *SupportHandler) GetConversationMessages(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conversation id"})
 	}
 
+	var conversation models.SupportConversation
+	if err := database.DB.Select("id").First(&conversation, uint(conversationID)).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "conversation not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load conversation"})
+	}
+
 	var messages []models.SupportMessage
 	if err := database.DB.Where("conversation_id = ?", uint(conversationID)).
 		Order("created_at ASC").
@@ -1568,8 +1595,12 @@ func (h *SupportHandler) SendDirect(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 	}
+	cleanText, validateErr := validateSupportDirectPayload(req.ChatID, req.Text)
+	if validateErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": validateErr.Error()})
+	}
 
-	if err := h.service.SendDirectMessage(c.UserContext(), req.ChatID, req.Text); err != nil {
+	if err := h.service.SendDirectMessage(c.UserContext(), req.ChatID, cleanText); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -1601,16 +1632,15 @@ func (h *SupportHandler) CreateFAQ(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 	}
-	req.Question = strings.TrimSpace(req.Question)
-	req.Answer = strings.TrimSpace(req.Answer)
-	if req.Question == "" || req.Answer == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "question and answer are required"})
+	normalized, normalizeErr := normalizeSupportFAQPayload(req)
+	if normalizeErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": normalizeErr.Error()})
 	}
 
-	if err := database.DB.Create(&req).Error; err != nil {
+	if err := database.DB.Create(&normalized).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create faq"})
 	}
-	return c.Status(fiber.StatusCreated).JSON(req)
+	return c.Status(fiber.StatusCreated).JSON(normalized)
 }
 
 // UpdateFAQ updates FAQ entry.
@@ -1637,13 +1667,17 @@ func (h *SupportHandler) UpdateFAQ(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 	}
+	normalized, normalizeErr := normalizeSupportFAQPayload(req)
+	if normalizeErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": normalizeErr.Error()})
+	}
 
 	updates := map[string]interface{}{
-		"question":  strings.TrimSpace(req.Question),
-		"answer":    strings.TrimSpace(req.Answer),
-		"keywords":  strings.TrimSpace(req.Keywords),
-		"priority":  req.Priority,
-		"is_active": req.IsActive,
+		"question":  normalized.Question,
+		"answer":    normalized.Answer,
+		"keywords":  normalized.Keywords,
+		"priority":  normalized.Priority,
+		"is_active": normalized.IsActive,
 	}
 	if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update faq"})
@@ -1680,8 +1714,9 @@ func (h *SupportHandler) DeleteFAQ(c *fiber.Ctx) error {
 
 func parseSupportInt(raw string, def int, min int, max int) int {
 	value := def
-	if strings.TrimSpace(raw) != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed != "" {
+		if parsed, err := strconv.Atoi(trimmed); err == nil {
 			value = parsed
 		}
 	}
@@ -1692,4 +1727,49 @@ func parseSupportInt(raw string, def int, min int, max int) int {
 		return max
 	}
 	return value
+}
+
+func normalizeSupportFAQPayload(req models.SupportFAQItem) (models.SupportFAQItem, error) {
+	req.Question = strings.TrimSpace(req.Question)
+	req.Answer = strings.TrimSpace(req.Answer)
+	req.Keywords = strings.TrimSpace(req.Keywords)
+	if req.Question == "" || req.Answer == "" {
+		return req, errors.New("question and answer are required")
+	}
+	return req, nil
+}
+
+func validateSupportDirectPayload(chatID int64, text string) (string, error) {
+	if chatID == 0 {
+		return "", errors.New("chatId is required")
+	}
+	cleanText := strings.TrimSpace(text)
+	if cleanText == "" {
+		return "", errors.New("text is required")
+	}
+	return cleanText, nil
+}
+
+func loadSupportUnreadCounts(conversationIDs []uint) (map[uint]int64, error) {
+	counts := make(map[uint]int64, len(conversationIDs))
+	if len(conversationIDs) == 0 {
+		return counts, nil
+	}
+
+	type unreadCountRow struct {
+		ConversationID uint
+		Count          int64
+	}
+	var rows []unreadCountRow
+	if err := database.DB.Model(&models.SupportMessage{}).
+		Select("conversation_id, COUNT(*) AS count").
+		Where("conversation_id IN ? AND direction = ? AND is_read_by_user = ?", conversationIDs, models.SupportMessageDirectionOutbound, false).
+		Group("conversation_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[row.ConversationID] = row.Count
+	}
+	return counts, nil
 }

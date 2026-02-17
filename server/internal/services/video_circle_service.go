@@ -27,6 +27,28 @@ const (
 	maxRepublishDurationMinute     = 24 * 60
 )
 
+func remainingSecondsUntil(expiresAt, now time.Time) int {
+	remaining := int(expiresAt.Sub(now).Seconds())
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+func calculateVideoCircleTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(total) / limit
+	if int(total)%limit > 0 {
+		totalPages++
+	}
+	if totalPages == 0 {
+		return 1
+	}
+	return totalPages
+}
+
 type VideoCircleService struct {
 	db     *gorm.DB
 	wallet *WalletService
@@ -164,7 +186,7 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 
 	// Keep active/expired states consistent for feed reads.
 	if err := s.db.Model(&models.VideoCircle{}).
-		Where("status = ? AND expires_at <= ?", models.VideoCircleStatusActive, time.Now()).
+		Where("status = ? AND expires_at <= ?", models.VideoCircleStatusActive, time.Now().UTC()).
 		Update("status", models.VideoCircleStatusExpired).Error; err != nil {
 		log.Printf("circle_list expire_sync_error=%v", err)
 	}
@@ -176,7 +198,7 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		params.Limit = 20
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	query := s.db.Model(&models.VideoCircle{}).Joins("JOIN users ON users.id = video_circles.author_id")
 	if params.ChannelID != nil {
 		channelService := NewChannelService()
@@ -269,10 +291,7 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 
 	items := make([]models.VideoCircleResponse, 0, len(circles))
 	for _, c := range circles {
-		remaining := int(c.ExpiresAt.Sub(now).Seconds())
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := remainingSecondsUntil(c.ExpiresAt, now)
 		items = append(items, models.VideoCircleResponse{
 			ID:                 c.ID,
 			AuthorID:           c.AuthorID,
@@ -294,18 +313,13 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		})
 	}
 
-	totalPages := int(total) / params.Limit
-	if int(total)%params.Limit > 0 {
-		totalPages++
-	}
-
 	log.Printf("circle_list user_id=%d role=%s total=%d page=%d", userID, role, total, params.Page)
 	return &models.VideoCircleListResponse{
 		Circles:    items,
 		Total:      total,
 		Page:       params.Page,
 		Limit:      params.Limit,
-		TotalPages: totalPages,
+		TotalPages: calculateVideoCircleTotalPages(total, params.Limit),
 	}, nil
 }
 
@@ -361,11 +375,12 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 		duration = maxCircleDurationSec
 	}
 
-	expiresAt := time.Now().Add(60 * time.Minute)
+	now := time.Now().UTC()
+	expiresAt := now.Add(60 * time.Minute)
 	if req.ExpiresAt != nil {
-		expiresAt = *req.ExpiresAt
+		expiresAt = req.ExpiresAt.UTC()
 	}
-	if !expiresAt.After(time.Now()) {
+	if !expiresAt.After(now) {
 		return nil, errors.New("expiresAt must be in the future")
 	}
 
@@ -410,10 +425,7 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 		return nil, err
 	}
 
-	remaining := int(circle.ExpiresAt.Sub(time.Now()).Seconds())
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := remainingSecondsUntil(circle.ExpiresAt, now)
 
 	return &models.VideoCircleResponse{
 		ID:                 circle.ID,
@@ -456,13 +468,10 @@ func (s *VideoCircleService) ListMyCircles(userID uint, page, limit int) (*model
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	items := make([]models.VideoCircleResponse, 0, len(circles))
 	for _, c := range circles {
-		remaining := int(c.ExpiresAt.Sub(now).Seconds())
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := remainingSecondsUntil(c.ExpiresAt, now)
 		items = append(items, models.VideoCircleResponse{
 			ID:                 c.ID,
 			AuthorID:           c.AuthorID,
@@ -484,17 +493,12 @@ func (s *VideoCircleService) ListMyCircles(userID uint, page, limit int) (*model
 		})
 	}
 
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
-	}
-
 	return &models.VideoCircleListResponse{
 		Circles:    items,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
-		TotalPages: totalPages,
+		TotalPages: calculateVideoCircleTotalPages(total, limit),
 	}, nil
 }
 
@@ -570,11 +574,8 @@ func (s *VideoCircleService) UpdateCircle(circleID, userID uint, role string, re
 	}
 	log.Printf("circle_update circle_id=%d actor_id=%d role=%s", circleID, userID, role)
 
-	now := time.Now()
-	remaining := int(circle.ExpiresAt.Sub(now).Seconds())
-	if remaining < 0 {
-		remaining = 0
-	}
+	now := time.Now().UTC()
+	remaining := remainingSecondsUntil(circle.ExpiresAt, now)
 
 	return &models.VideoCircleResponse{
 		ID:                 circle.ID,
@@ -621,7 +622,7 @@ func (s *VideoCircleService) RepublishCircle(circleID, userID uint, role string,
 		durationMinutes = maxRepublishDurationMinute
 	}
 
-	start := time.Now()
+	start := time.Now().UTC()
 	if circle.ExpiresAt.After(start) {
 		start = circle.ExpiresAt
 	}
@@ -636,10 +637,7 @@ func (s *VideoCircleService) RepublishCircle(circleID, userID uint, role string,
 		return nil, err
 	}
 
-	remaining := int(newExpires.Sub(time.Now()).Seconds())
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := remainingSecondsUntil(newExpires, time.Now().UTC())
 	log.Printf("circle_republish circle_id=%d actor_id=%d role=%s duration_min=%d", circleID, userID, role, durationMinutes)
 	return &models.VideoCircleResponse{
 		ID:                 circle.ID,
@@ -675,7 +673,7 @@ func (s *VideoCircleService) AddInteraction(circleID, userID uint, req models.Vi
 	likedByUser := false
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		var circle models.VideoCircle
-		now := time.Now()
+		now := time.Now().UTC()
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&circle, circleID).Error; err != nil {
 			return err
 		}
@@ -772,7 +770,7 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	}
 
 	var circle models.VideoCircle
-	now := time.Now()
+	now := time.Now().UTC()
 	if err := s.db.First(&circle, circleID).Error; err != nil {
 		return nil, err
 	}
@@ -824,7 +822,9 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	prevPremiumBoost := circle.PremiumBoostActive
 	defer func() {
 		if !success && charged > 0 {
-			_ = s.wallet.Refund(userID, charged, "Video circle boost rollback", nil)
+			if refundErr := s.wallet.Refund(userID, charged, "Video circle boost rollback", nil); refundErr != nil {
+				log.Printf("circle_boost rollback_refund_failed circle_id=%d user_id=%d charged=%d error=%v", circleID, userID, charged, refundErr)
+			}
 		}
 		if !success && boostApplied {
 			rollbackUpdates := map[string]interface{}{
@@ -874,10 +874,7 @@ func (s *VideoCircleService) ApplyBoost(circleID, userID uint, role string, req 
 	}
 
 	success = true
-	remaining := int(newExpires.Sub(now).Seconds())
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := remainingSecondsUntil(newExpires, now)
 
 	log.Printf("circle_boost circle_id=%d user_id=%d boost_type=%s charged=%d bypass=%t", circleID, userID, boostType, charged, isBypass)
 	return &models.VideoBoostResponse{
@@ -898,7 +895,7 @@ func (s *VideoCircleService) ExpireCirclesBatch(limit int) (int, error) {
 		limit = 100
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	var circles []models.VideoCircle
 	if err := s.db.Where("status = ? AND expires_at <= ?", models.VideoCircleStatusActive, now).
 		Order("expires_at ASC").
@@ -907,20 +904,26 @@ func (s *VideoCircleService) ExpireCirclesBatch(limit int) (int, error) {
 		return 0, err
 	}
 
+	expiredCount := 0
 	for _, circle := range circles {
-		if err := s.db.Model(&models.VideoCircle{}).
+		result := s.db.Model(&models.VideoCircle{}).
 			Where("id = ? AND status = ?", circle.ID, models.VideoCircleStatusActive).
-			Update("status", models.VideoCircleStatusExpired).Error; err != nil {
-			log.Printf("circle_expire circle_id=%d error=%v", circle.ID, err)
+			Update("status", models.VideoCircleStatusExpired)
+		if result.Error != nil {
+			log.Printf("circle_expire circle_id=%d error=%v", circle.ID, result.Error)
 			continue
 		}
+		if result.RowsAffected == 0 {
+			continue
+		}
+		expiredCount++
 		go s.CleanupExpiredS3(circle.ID)
 	}
 
-	if len(circles) > 0 {
-		log.Printf("circle_expire expired_count=%d", len(circles))
+	if expiredCount > 0 {
+		log.Printf("circle_expire expired_count=%d", expiredCount)
 	}
-	return len(circles), nil
+	return expiredCount, nil
 }
 
 func (s *VideoCircleService) CleanupExpiredS3(circleID uint) {

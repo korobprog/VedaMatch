@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"log"
@@ -31,6 +32,8 @@ const (
 
 var (
 	tokenPattern = regexp.MustCompile(`[\p{L}\p{N}]+`)
+	// ErrUnknownAssistantDomain indicates an unsupported domain sync target.
+	ErrUnknownAssistantDomain = errors.New("unknown assistant domain")
 
 	defaultMVPDomains = []string{
 		"market",
@@ -491,7 +494,7 @@ func (s *DomainAssistantService) GetSourceByID(id string, userID uint, includePr
 	}
 
 	if err := query.First(&doc).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if isRecordNotFound(err) {
 			return nil, fmt.Errorf("source not found")
 		}
 		return nil, err
@@ -595,7 +598,7 @@ func (s *DomainAssistantService) ensureDomainSynced(ctx context.Context, domain 
 
 	var state models.DomainSyncState
 	err := s.db.Where("domain = ?", domain).First(&state).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
+	if err != nil && !isRecordNotFound(err) {
 		return err
 	}
 
@@ -648,7 +651,19 @@ func (s *DomainAssistantService) syncDomain(ctx context.Context, domain string, 
 	case "charity":
 		return s.syncCharity(ctx, since)
 	default:
-		return nil
+		return fmt.Errorf("%w: %s", ErrUnknownAssistantDomain, domain)
+	}
+}
+
+func (s *DomainAssistantService) upsertDocumentLogged(ctx context.Context, doc models.AssistantDocument) {
+	if err := s.upsertDocument(ctx, doc); err != nil {
+		log.Printf("[DomainAssistant] upsert failed domain=%s sourceType=%s sourceID=%s: %v", doc.Domain, doc.SourceType, doc.SourceID, err)
+	}
+}
+
+func (s *DomainAssistantService) deleteDocumentLogged(domain, sourceType, sourceID, lang, visibility string, userID uint) {
+	if err := s.deleteDocument(domain, sourceType, sourceID, lang, visibility, userID); err != nil {
+		log.Printf("[DomainAssistant] delete failed domain=%s sourceType=%s sourceID=%s: %v", domain, sourceType, sourceID, err)
 	}
 }
 
@@ -660,7 +675,7 @@ func (s *DomainAssistantService) syncMarket(ctx context.Context, since time.Time
 	for _, shop := range shops {
 		sourceID := strconv.FormatUint(uint64(shop.ID), 10)
 		if shop.Status != models.ShopStatusActive {
-			_ = s.deleteDocument("market", "shop", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("market", "shop", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Магазин: %s. Категория: %s. Город: %s. Описание: %s. Рейтинг: %.1f.",
@@ -670,7 +685,7 @@ func (s *DomainAssistantService) syncMarket(ctx context.Context, since time.Time
 			"city":     shop.City,
 			"rating":   shop.Rating,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "market",
 			SourceType:      "shop",
 			SourceID:        sourceID,
@@ -691,7 +706,7 @@ func (s *DomainAssistantService) syncMarket(ctx context.Context, since time.Time
 	for _, p := range products {
 		sourceID := strconv.FormatUint(uint64(p.ID), 10)
 		if p.Status != models.ProductStatusActive {
-			_ = s.deleteDocument("market", "product", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("market", "product", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 
@@ -714,7 +729,7 @@ func (s *DomainAssistantService) syncMarket(ctx context.Context, since time.Time
 			"price":    price,
 			"currency": p.Currency,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "market",
 			SourceType:      "product",
 			SourceID:        sourceID,
@@ -739,7 +754,7 @@ func (s *DomainAssistantService) syncServices(ctx context.Context, since time.Ti
 	for _, svc := range servicesData {
 		sourceID := strconv.FormatUint(uint64(svc.ID), 10)
 		if svc.Status != models.ServiceStatusActive {
-			_ = s.deleteDocument("services", "service", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("services", "service", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Услуга: %s. Категория: %s. Тип расписания: %s. Канал: %s. Доступ: %s. Язык: %s. Описание: %s.",
@@ -750,7 +765,7 @@ func (s *DomainAssistantService) syncServices(ctx context.Context, since time.Ti
 			"channel":      string(svc.Channel),
 			"accessType":   string(svc.AccessType),
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "services",
 			SourceType:      "service",
 			SourceID:        sourceID,
@@ -771,7 +786,7 @@ func (s *DomainAssistantService) syncServices(ctx context.Context, since time.Ti
 	for _, t := range tariffs {
 		sourceID := strconv.FormatUint(uint64(t.ID), 10)
 		if !t.IsActive || t.Service == nil || t.Service.Status != models.ServiceStatusActive {
-			_ = s.deleteDocument("services", "tariff", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("services", "tariff", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Тариф: %s. Услуга: %s. Цена: %d %s. Длительность: %d минут. Сессий: %d. Валидность: %d дней. Включено: %s.",
@@ -782,7 +797,7 @@ func (s *DomainAssistantService) syncServices(ctx context.Context, since time.Ti
 			"currency":        t.Currency,
 			"durationMinutes": t.DurationMinutes,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "services",
 			SourceType:      "tariff",
 			SourceID:        sourceID,
@@ -803,7 +818,7 @@ func (s *DomainAssistantService) syncServices(ctx context.Context, since time.Ti
 	for _, sch := range schedules {
 		sourceID := strconv.FormatUint(uint64(sch.ID), 10)
 		if !sch.IsActive || sch.Service == nil || sch.Service.Status != models.ServiceStatusActive {
-			_ = s.deleteDocument("services", "schedule", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("services", "schedule", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 
@@ -827,7 +842,7 @@ func (s *DomainAssistantService) syncServices(ctx context.Context, since time.Ti
 			"timezone":        sch.Timezone,
 			"specificDate":    sch.SpecificDate,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "services",
 			SourceType:      "schedule",
 			SourceID:        sourceID,
@@ -853,7 +868,7 @@ func (s *DomainAssistantService) syncNews(ctx context.Context, since time.Time) 
 	for _, n := range items {
 		sourceID := strconv.FormatUint(uint64(n.ID), 10)
 		if n.Status != models.NewsItemStatusPublished {
-			_ = s.deleteDocument("news", "news_item", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("news", "news_item", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 
@@ -871,7 +886,7 @@ func (s *DomainAssistantService) syncNews(ctx context.Context, since time.Time) 
 			meta["sourceName"] = n.Source.Name
 		}
 
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "news",
 			SourceType:      "news_item",
 			SourceID:        sourceID,
@@ -897,7 +912,7 @@ func (s *DomainAssistantService) syncAds(ctx context.Context, since time.Time) e
 	for _, ad := range ads {
 		sourceID := strconv.FormatUint(uint64(ad.ID), 10)
 		if ad.Status != models.AdStatusActive {
-			_ = s.deleteDocument("ads", "ad", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("ads", "ad", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 
@@ -915,7 +930,7 @@ func (s *DomainAssistantService) syncAds(ctx context.Context, since time.Time) e
 			"adType":   string(ad.AdType),
 			"city":     ad.City,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "ads",
 			SourceType:      "ad",
 			SourceID:        sourceID,
@@ -940,7 +955,7 @@ func (s *DomainAssistantService) syncMap(ctx context.Context, since time.Time) e
 	for _, shop := range shops {
 		sourceID := "shop-" + strconv.FormatUint(uint64(shop.ID), 10)
 		if shop.Status != models.ShopStatusActive || shop.Latitude == nil || shop.Longitude == nil {
-			_ = s.deleteDocument("map", "marker_shop", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("map", "marker_shop", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Маркер карты (магазин): %s. Город: %s. Координаты: %.6f, %.6f. Категория: %s.",
@@ -950,7 +965,7 @@ func (s *DomainAssistantService) syncMap(ctx context.Context, since time.Time) e
 			"lng":        *shop.Longitude,
 			"markerType": "shop",
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "map",
 			SourceType:      "marker_shop",
 			SourceID:        sourceID,
@@ -971,7 +986,7 @@ func (s *DomainAssistantService) syncMap(ctx context.Context, since time.Time) e
 	for _, ad := range ads {
 		sourceID := "ad-" + strconv.FormatUint(uint64(ad.ID), 10)
 		if ad.Status != models.AdStatusActive || ad.Latitude == nil || ad.Longitude == nil {
-			_ = s.deleteDocument("map", "marker_ad", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("map", "marker_ad", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Маркер карты (объявление): %s. Город: %s. Координаты: %.6f, %.6f. Категория: %s.",
@@ -981,7 +996,7 @@ func (s *DomainAssistantService) syncMap(ctx context.Context, since time.Time) e
 			"lng":        *ad.Longitude,
 			"markerType": "ad",
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "map",
 			SourceType:      "marker_ad",
 			SourceID:        sourceID,
@@ -1002,7 +1017,7 @@ func (s *DomainAssistantService) syncMap(ctx context.Context, since time.Time) e
 	for _, cafe := range cafes {
 		sourceID := "cafe-" + strconv.FormatUint(uint64(cafe.ID), 10)
 		if cafe.Status != models.CafeStatusActive || cafe.Latitude == nil || cafe.Longitude == nil {
-			_ = s.deleteDocument("map", "marker_cafe", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("map", "marker_cafe", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Маркер карты (кафе): %s. Город: %s. Координаты: %.6f, %.6f. Описание: %s.",
@@ -1012,7 +1027,7 @@ func (s *DomainAssistantService) syncMap(ctx context.Context, since time.Time) e
 			"lng":        *cafe.Longitude,
 			"markerType": "cafe",
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "map",
 			SourceType:      "marker_cafe",
 			SourceID:        sourceID,
@@ -1041,7 +1056,7 @@ func (s *DomainAssistantService) syncLibrary(ctx context.Context, since time.Tim
 		meta := map[string]interface{}{
 			"bookCode": b.Code,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "library",
 			SourceType:      "book",
 			SourceID:        sourceID,
@@ -1076,7 +1091,7 @@ func (s *DomainAssistantService) syncLibrary(ctx context.Context, since time.Tim
 			"verse":     v.Verse,
 			"reference": v.VerseReference,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "library",
 			SourceType:      "verse",
 			SourceID:        sourceID,
@@ -1102,7 +1117,7 @@ func (s *DomainAssistantService) syncEducation(ctx context.Context, since time.T
 	for _, course := range courses {
 		sourceID := strconv.FormatUint(uint64(course.ID), 10)
 		if !course.IsPublished {
-			_ = s.deleteDocument("education", "course", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("education", "course", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 
@@ -1115,7 +1130,7 @@ func (s *DomainAssistantService) syncEducation(ctx context.Context, since time.T
 		meta := map[string]interface{}{
 			"organization": course.Organization,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "education",
 			SourceType:      "course",
 			SourceID:        sourceID,
@@ -1140,7 +1155,7 @@ func (s *DomainAssistantService) syncMultimedia(ctx context.Context, since time.
 	for _, t := range tracks {
 		sourceID := strconv.FormatUint(uint64(t.ID), 10)
 		if !t.IsActive {
-			_ = s.deleteDocument("multimedia", "track", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("multimedia", "track", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Медиа: %s. Исполнитель: %s. Тип: %s. Язык: %s. Традиция: %s. Описание: %s.",
@@ -1150,7 +1165,7 @@ func (s *DomainAssistantService) syncMultimedia(ctx context.Context, since time.
 			"madh":      t.Madh,
 			"language":  t.Language,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "multimedia",
 			SourceType:      "track",
 			SourceID:        sourceID,
@@ -1171,13 +1186,13 @@ func (s *DomainAssistantService) syncMultimedia(ctx context.Context, since time.
 	for _, r := range radios {
 		sourceID := strconv.FormatUint(uint64(r.ID), 10)
 		if !r.IsActive {
-			_ = s.deleteDocument("multimedia", "radio", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("multimedia", "radio", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Радио: %s. Язык: %s. Традиция: %s. Описание: %s.",
 			r.Name, languageOrDefault(r.Language, "ru"), r.Madh, normalizeWhitespace(r.Description))
 		meta := map[string]interface{}{"madh": r.Madh, "language": r.Language}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "multimedia",
 			SourceType:      "radio",
 			SourceID:        sourceID,
@@ -1198,13 +1213,13 @@ func (s *DomainAssistantService) syncMultimedia(ctx context.Context, since time.
 	for _, ch := range tv {
 		sourceID := strconv.FormatUint(uint64(ch.ID), 10)
 		if !ch.IsActive {
-			_ = s.deleteDocument("multimedia", "tv", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("multimedia", "tv", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("TV канал: %s. Традиция: %s. Описание: %s. Расписание: %s.",
 			ch.Name, ch.Madh, normalizeWhitespace(ch.Description), normalizeWhitespace(ch.Schedule))
 		meta := map[string]interface{}{"madh": ch.Madh}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "multimedia",
 			SourceType:      "tv",
 			SourceID:        sourceID,
@@ -1229,7 +1244,7 @@ func (s *DomainAssistantService) syncYatra(ctx context.Context, since time.Time)
 	for _, y := range yatras {
 		sourceID := strconv.FormatUint(uint64(y.ID), 10)
 		if y.Status != models.YatraStatusOpen && y.Status != models.YatraStatusFull && y.Status != models.YatraStatusActive && y.Status != models.YatraStatusCompleted {
-			_ = s.deleteDocument("yatra", "yatra", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("yatra", "yatra", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Ятра: %s. Тема: %s. Маршрут: %s - %s. Даты: %s по %s. Участников: %d/%d. Описание: %s.",
@@ -1240,7 +1255,7 @@ func (s *DomainAssistantService) syncYatra(ctx context.Context, since time.Time)
 			"theme":  y.Theme,
 			"status": y.Status,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "yatra",
 			SourceType:      "yatra",
 			SourceID:        sourceID,
@@ -1264,7 +1279,7 @@ func (s *DomainAssistantService) syncShelter(ctx context.Context, since time.Tim
 	for _, sh := range shelters {
 		sourceID := strconv.FormatUint(uint64(sh.ID), 10)
 		if sh.Status != models.ShelterStatusActive {
-			_ = s.deleteDocument("shelter", "shelter", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("shelter", "shelter", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Жилье: %s. Тип: %s. Город: %s. Рядом с: %s. Цена: %s. Вместимость: %d. Описание: %s.",
@@ -1273,7 +1288,7 @@ func (s *DomainAssistantService) syncShelter(ctx context.Context, since time.Tim
 			"type": sh.Type,
 			"city": sh.City,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "shelter",
 			SourceType:      "shelter",
 			SourceID:        sourceID,
@@ -1297,7 +1312,7 @@ func (s *DomainAssistantService) syncCafe(ctx context.Context, since time.Time) 
 	for _, c := range cafes {
 		sourceID := strconv.FormatUint(uint64(c.ID), 10)
 		if c.Status != models.CafeStatusActive {
-			_ = s.deleteDocument("cafe", "cafe", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("cafe", "cafe", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Кафе: %s. Город: %s. Адрес: %s. Описание: %s. Доставка: %t. Самовывоз: %t.",
@@ -1305,7 +1320,7 @@ func (s *DomainAssistantService) syncCafe(ctx context.Context, since time.Time) 
 		meta := map[string]interface{}{
 			"city": c.City,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "cafe",
 			SourceType:      "cafe",
 			SourceID:        sourceID,
@@ -1326,7 +1341,7 @@ func (s *DomainAssistantService) syncCafe(ctx context.Context, since time.Time) 
 	for _, d := range dishes {
 		sourceID := strconv.FormatUint(uint64(d.ID), 10)
 		if !d.IsActive || !d.IsAvailable {
-			_ = s.deleteDocument("cafe", "dish", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("cafe", "dish", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		categoryName := ""
@@ -1342,7 +1357,7 @@ func (s *DomainAssistantService) syncCafe(ctx context.Context, since time.Time) 
 			"vegetarian": d.IsVegetarian,
 			"vegan":      d.IsVegan,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "cafe",
 			SourceType:      "dish",
 			SourceID:        sourceID,
@@ -1367,7 +1382,7 @@ func (s *DomainAssistantService) syncCharity(ctx context.Context, since time.Tim
 	for _, org := range orgs {
 		sourceID := strconv.FormatUint(uint64(org.ID), 10)
 		if org.Status == models.OrgStatusDraft || org.Status == models.OrgStatusBlocked {
-			_ = s.deleteDocument("charity", "organization", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("charity", "organization", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Организация: %s. Город: %s, %s. Описание: %s. Trust score: %d.",
@@ -1377,7 +1392,7 @@ func (s *DomainAssistantService) syncCharity(ctx context.Context, since time.Tim
 			"city":    org.City,
 			"country": org.Country,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "charity",
 			SourceType:      "organization",
 			SourceID:        sourceID,
@@ -1398,7 +1413,7 @@ func (s *DomainAssistantService) syncCharity(ctx context.Context, since time.Tim
 	for _, p := range projects {
 		sourceID := strconv.FormatUint(uint64(p.ID), 10)
 		if p.Status != models.ProjectStatusActive {
-			_ = s.deleteDocument("charity", "project", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("charity", "project", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		orgName := ""
@@ -1412,7 +1427,7 @@ func (s *DomainAssistantService) syncCharity(ctx context.Context, since time.Tim
 			"goalAmount": p.GoalAmount,
 			"raised":     p.RaisedAmount,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "charity",
 			SourceType:      "project",
 			SourceID:        sourceID,
@@ -1433,12 +1448,12 @@ func (s *DomainAssistantService) syncCharity(ctx context.Context, since time.Tim
 	for _, e := range evidence {
 		sourceID := strconv.FormatUint(uint64(e.ID), 10)
 		if !e.IsApproved {
-			_ = s.deleteDocument("charity", "evidence", sourceID, "ru", models.VisibilityScopePublic, 0)
+			s.deleteDocumentLogged("charity", "evidence", sourceID, "ru", models.VisibilityScopePublic, 0)
 			continue
 		}
 		content := fmt.Sprintf("Отчет проекта %d: %s. Тип: %s. Описание: %s.", e.ProjectID, e.Title, e.Type, normalizeWhitespace(e.Description))
 		meta := map[string]interface{}{"projectId": e.ProjectID, "type": e.Type}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "charity",
 			SourceType:      "evidence",
 			SourceID:        sourceID,
@@ -1474,7 +1489,7 @@ func (s *DomainAssistantService) syncDatingForUser(ctx context.Context, userID u
 			"candidateId": u.ID,
 			"city":        u.City,
 		}
-		_ = s.upsertDocument(ctx, models.AssistantDocument{
+		s.upsertDocumentLogged(ctx, models.AssistantDocument{
 			Domain:          "dating",
 			SourceType:      "candidate",
 			SourceID:        sourceID,
@@ -1568,7 +1583,11 @@ func (s *DomainAssistantService) retrieveFTS(query string, domains []string, lim
 		Limit(limit)
 
 	if err := dbQuery.Find(&rows).Error; err != nil {
-		// Fallback to ILIKE if tsvector is unavailable.
+		if !shouldFallbackToILike(err) {
+			return nil, err
+		}
+
+		// Fallback to ILIKE only when full-text primitives are unavailable in current DB engine/schema.
 		rows = nil
 		like := "%" + query + "%"
 		fallbackQuery := s.db.Model(&models.AssistantDocument{}).
@@ -1944,18 +1963,40 @@ func uniqueStrings(values []string) []string {
 }
 
 func trimTo(s string, max int) string {
-	if max <= 0 || len(s) <= max {
+	if max <= 0 {
 		return s
 	}
-	return s[:max]
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max])
 }
 
 func makeSnippet(s string, max int) string {
 	s = normalizeWhitespace(s)
-	if max <= 0 || len(s) <= max {
+	if max <= 0 {
 		return s
 	}
-	return s[:max] + "..."
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "..."
+}
+
+func isRecordNotFound(err error) bool {
+	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+func shouldFallbackToILike(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "search_vector") ||
+		strings.Contains(lower, "plainto_tsquery") ||
+		strings.Contains(lower, "ts_rank")
 }
 
 func firstNonEmpty(values ...string) string {

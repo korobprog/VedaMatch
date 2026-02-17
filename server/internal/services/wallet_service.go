@@ -61,6 +61,20 @@ func minInt(a, b int) int {
 	return b
 }
 
+func calculateTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(total) / limit
+	if int(total)%limit > 0 {
+		totalPages++
+	}
+	if totalPages == 0 {
+		return 1
+	}
+	return totalPages
+}
+
 func calculateSpendAllocation(amount, regularBalance, bonusBalance int, opts SpendOptions) (SpendAllocation, error) {
 	if amount <= 0 {
 		return SpendAllocation{}, errors.New("amount must be positive")
@@ -359,7 +373,8 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 		description = "Bonus credited"
 	}
 
-	return database.DB.Transaction(func(tx *gorm.DB) error {
+	shouldSendPush := false
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
 		wallet, err := s.getOrCreateWalletTx(tx, userID)
 		if err != nil {
 			return err
@@ -392,13 +407,21 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 		// Also skip generic bonus notification for referrals, as ReferralService sends a more detailed one.
 		descLower := strings.ToLower(description)
 		if !strings.Contains(descLower, "welcome") && !strings.Contains(descLower, "реферальный") {
-			go func() {
-				GetPushService().SendWalletBonusReceived(userID, amount, description)
-			}()
+			shouldSendPush = true
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if shouldSendPush {
+		go func() {
+			GetPushService().SendWalletBonusReceived(userID, amount, description)
+		}()
+	}
+
+	return nil
 }
 
 // Refund refunds Лакшми to user's wallet
@@ -511,17 +534,12 @@ func (s *WalletService) GetTransactions(userID uint, filters models.TransactionF
 		return nil, err
 	}
 
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
-	}
-
 	return &models.TransactionListResponse{
 		Transactions: transactions,
 		Total:        total,
 		Page:         page,
 		Limit:        limit,
-		TotalPages:   totalPages,
+		TotalPages:   calculateTotalPages(total, limit),
 	}, nil
 }
 
@@ -533,8 +551,8 @@ func (s *WalletService) GetStats(userID uint) (*models.WalletStatsResponse, erro
 	}
 
 	// Calculate this month stats
-	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	now := time.Now().UTC()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	var thisMonthIn int
 	if err := database.DB.Model(&models.WalletTransaction{}).
@@ -769,7 +787,8 @@ func (s *WalletService) AdminSeize(adminID, userID uint, amount int, reason stri
 // ActivatePendingBalance unlocks pending balance (Welcome Bonus) to active
 // Called when user completes profile or performs qualifying action
 func (s *WalletService) ActivatePendingBalance(userID uint) error {
-	return database.DB.Transaction(func(tx *gorm.DB) error {
+	activatedAmount := 0
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var wallet models.Wallet
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ?", userID).First(&wallet).Error; err != nil {
@@ -807,15 +826,21 @@ func (s *WalletService) ActivatePendingBalance(userID uint) error {
 			return err
 		}
 
+		activatedAmount = pendingAmount
 		log.Printf("[Wallet] Activated %d pending LKM for user %d", pendingAmount, userID)
 
-		// Send Push Notification
-		go func() {
-			GetPushService().SendWalletBalanceActivated(userID, pendingAmount)
-		}()
-
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if activatedAmount > 0 {
+		go func() {
+			GetPushService().SendWalletBalanceActivated(userID, activatedAmount)
+		}()
+	}
+
+	return nil
 }
 
 // HoldFunds freezes funds for a booking (not spent yet)

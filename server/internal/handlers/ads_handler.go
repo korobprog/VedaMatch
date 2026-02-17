@@ -3,7 +3,10 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/database"
@@ -13,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -29,16 +33,42 @@ func NewAdsHandler() *AdsHandler {
 }
 
 func parsePagination(c *fiber.Ctx, maxLimit int) (page int, limit int, offset int) {
-	page, _ = strconv.Atoi(c.Query("page", "1"))
-	limit, _ = strconv.Atoi(c.Query("limit", "20"))
+	defaultLimit := 20
+	if maxLimit > 0 && defaultLimit > maxLimit {
+		defaultLimit = maxLimit
+	}
+	page = parseAdIntWithDefault(c.Query("page"), 1)
+	limit = parseAdIntWithDefault(c.Query("limit"), defaultLimit)
 	if page < 1 {
 		page = 1
 	}
-	if limit < 1 || limit > maxLimit {
+	if limit < 1 {
+		limit = defaultLimit
+	}
+	if maxLimit > 0 && limit > maxLimit {
 		limit = maxLimit
 	}
 	offset = (page - 1) * limit
 	return
+}
+
+func parseAdIntWithDefault(raw string, fallback int) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func hasMinRunes(value string, min int) bool {
+	if min <= 0 {
+		return true
+	}
+	return utf8.RuneCountInString(strings.TrimSpace(value)) >= min
 }
 
 func buildAdAuthor(user *models.User) *models.AdAuthor {
@@ -92,6 +122,15 @@ func isValidAdCategory(category models.AdCategory) bool {
 	}
 }
 
+func isValidAdStatus(status models.AdStatus) bool {
+	switch status {
+	case models.AdStatusPending, models.AdStatusActive, models.AdStatusRejected, models.AdStatusArchived:
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizeAdPhotoURLs(urls []string) []string {
 	if len(urls) == 0 {
 		return urls
@@ -129,32 +168,66 @@ func isDuplicateKeyError(err error) bool {
 		strings.Contains(msg, "duplicate entry")
 }
 
+func calculateAdTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		return 1
+	}
+	return totalPages
+}
+
 // GetAds returns a paginated list of ads with filters
 func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	page, limit, offset := parsePagination(c, 50)
 
 	query := database.DB.Model(&models.Ad{}).Preload("Photos").Preload("User")
 
-	// Only show active ads by default
-	status := c.Query("status", "active")
-	if status != "" && status != "all" {
+	isAdmin := middleware.GetUserID(c) != 0 && models.IsAdminRole(middleware.GetUserRole(c))
+
+	// Public feed is active-only; admin can request specific statuses.
+	status := strings.TrimSpace(strings.ToLower(c.Query("status", string(models.AdStatusActive))))
+	if status == "" {
+		status = string(models.AdStatusActive)
+	}
+	if !isAdmin {
+		status = string(models.AdStatusActive)
+	}
+	if status != "all" {
+		if !isValidAdStatus(models.AdStatus(status)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid status",
+			})
+		}
 		query = query.Where("status = ?", status)
 	}
 
 	// Filter by ad type
-	adType := c.Query("adType")
+	adType := strings.TrimSpace(c.Query("adType"))
 	if adType != "" {
+		if !isValidAdType(models.AdType(adType)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid ad type",
+			})
+		}
 		query = query.Where("ad_type = ?", adType)
 	}
 
 	// Filter by category
-	category := c.Query("category")
+	category := strings.TrimSpace(c.Query("category"))
 	if category != "" {
+		if !isValidAdCategory(models.AdCategory(category)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid category",
+			})
+		}
 		query = query.Where("category = ?", category)
 	}
 
 	// Filter by city
-	city := c.Query("city")
+	city := strings.TrimSpace(c.Query("city"))
 	if city != "" {
 		query = query.Where("city = ?", city)
 	}
@@ -215,20 +288,18 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check favorites for current user
-	userIDStr := c.Query("userId")
+	// Check favorites for current user from auth context only.
 	userFavorites := make(map[uint]struct{})
-	if userIDStr != "" {
-		if userID, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
-			var favorites []models.AdFavorite
-			if err := database.DB.Where("user_id = ?", userID).Find(&favorites).Error; err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Could not fetch user favorites",
-				})
-			}
-			for _, f := range favorites {
-				userFavorites[f.AdID] = struct{}{}
-			}
+	userID := middleware.GetUserID(c)
+	if userID != 0 {
+		var favorites []models.AdFavorite
+		if err := database.DB.Where("user_id = ?", userID).Find(&favorites).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch user favorites",
+			})
+		}
+		for _, f := range favorites {
+			userFavorites[f.AdID] = struct{}{}
 		}
 	}
 
@@ -244,13 +315,11 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 		}
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return c.JSON(models.AdListResponse{
 		Ads:        responses,
 		Total:      total,
 		Page:       page,
-		TotalPages: totalPages,
+		TotalPages: calculateAdTotalPages(total, limit),
 	})
 }
 
@@ -277,24 +346,20 @@ func (h *AdsHandler) GetAd(c *fiber.Ctx) error {
 
 	// Increment view count
 	if err := database.DB.Model(&ad).UpdateColumn("views_count", gorm.Expr("views_count + 1")).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not update ad views",
-		})
+		log.Printf("[ADS] could not update views for ad %d: %v", ad.ID, err)
 	}
 
 	// Check if favorited by current user
-	userIDStr := c.Query("userId")
 	isFavorite := false
-	if userIDStr != "" {
-		if userID, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
-			var count int64
-			if err := database.DB.Model(&models.AdFavorite{}).Where("user_id = ? AND ad_id = ?", userID, ad.ID).Count(&count).Error; err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Could not fetch favorite status",
-				})
-			}
-			isFavorite = count > 0
+	userID := middleware.GetUserID(c)
+	if userID != 0 {
+		var count int64
+		if err := database.DB.Model(&models.AdFavorite{}).Where("user_id = ? AND ad_id = ?", userID, ad.ID).Count(&count).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch favorite status",
+			})
 		}
+		isFavorite = count > 0
 	}
 
 	// Build author info
@@ -341,12 +406,12 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 	req.Email = strings.TrimSpace(req.Email)
 	req.Photos = normalizeAdPhotoURLs(req.Photos)
 
-	if req.Title == "" || len(req.Title) < 5 {
+	if req.Title == "" || !hasMinRunes(req.Title, 5) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Title must be at least 5 characters",
 		})
 	}
-	if req.Description == "" || len(req.Description) < 20 {
+	if req.Description == "" || !hasMinRunes(req.Description, 20) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Description must be at least 20 characters",
 		})
@@ -478,12 +543,12 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	req.Phone = strings.TrimSpace(req.Phone)
 	req.Email = strings.TrimSpace(req.Email)
 	req.Photos = normalizeAdPhotoURLs(req.Photos)
-	if req.Title == "" || len(req.Title) < 5 {
+	if req.Title == "" || !hasMinRunes(req.Title, 5) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Title must be at least 5 characters",
 		})
 	}
-	if req.Description == "" || len(req.Description) < 20 {
+	if req.Description == "" || !hasMinRunes(req.Description, 20) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Description must be at least 20 characters",
 		})
@@ -516,7 +581,13 @@ func (h *AdsHandler) UpdateAd(c *fiber.Ctx) error {
 	}
 
 	if req.Currency != "" {
-		updateMap["currency"] = strings.ToUpper(strings.TrimSpace(req.Currency))
+		normalizedCurrency := strings.ToUpper(strings.TrimSpace(req.Currency))
+		if normalizedCurrency == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Currency cannot be empty",
+			})
+		}
+		updateMap["currency"] = normalizedCurrency
 	}
 
 	if err := database.DB.Model(&ad).Updates(updateMap).Error; err != nil {
@@ -979,6 +1050,28 @@ func (h *AdsHandler) UploadAdPhoto(c *fiber.Ctx) error {
 			"error": "Only image uploads are allowed",
 		})
 	}
+	opened, err := file.Open()
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Could not open upload",
+		})
+	}
+	sniffBuf := make([]byte, 512)
+	readN, readErr := opened.Read(sniffBuf)
+	_ = opened.Close()
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Could not read upload",
+		})
+	}
+	if readN > 0 {
+		contentType = http.DetectContentType(sniffBuf[:readN])
+	}
+	if !isAllowedAdImageContentType(contentType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Only image uploads are allowed",
+		})
+	}
 
 	// 1. Try S3 Storage
 	s3Service := services.GetS3Service()
@@ -987,7 +1080,7 @@ func (h *AdsHandler) UploadAdPhoto(c *fiber.Ctx) error {
 		if err == nil {
 			defer fileContent.Close()
 			ext := filepath.Ext(file.Filename)
-			fileName := fmt.Sprintf("ads/u%d_%d%s", userID, time.Now().Unix(), ext)
+			fileName := fmt.Sprintf("ads/u%d_%d%s", userID, time.Now().UnixNano(), ext)
 
 			imageURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
@@ -1007,7 +1100,7 @@ func (h *AdsHandler) UploadAdPhoto(c *fiber.Ctx) error {
 	}
 
 	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("ads_u%d_%d%s", userID, time.Now().Unix(), ext)
+	filename := fmt.Sprintf("ads_u%d_%d%s", userID, time.Now().UnixNano(), ext)
 	filePath := filepath.Join(uploadsDir, filename)
 
 	if err := c.SaveFile(file, filePath); err != nil {
@@ -1148,30 +1241,43 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 
 // GetAdminAds returns all ads with admin filters (including pending/rejected)
 func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	page, limit, offset := parsePagination(c, 100)
 
 	query := database.DB.Model(&models.Ad{}).Preload("Photos").Preload("User")
 
 	// Filter by status (allow all statuses for admin)
-	status := c.Query("status")
+	status := strings.TrimSpace(strings.ToLower(c.Query("status")))
 	if status != "" && status != "all" {
+		if !isValidAdStatus(models.AdStatus(status)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid status"})
+		}
 		query = query.Where("status = ?", status)
 	}
 
 	// Filter by category
-	category := c.Query("category")
+	category := strings.TrimSpace(c.Query("category"))
 	if category != "" {
+		if !isValidAdCategory(models.AdCategory(category)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid category"})
+		}
 		query = query.Where("category = ?", category)
 	}
 
 	// Filter by ad type
-	adType := c.Query("adType")
+	adType := strings.TrimSpace(c.Query("adType"))
 	if adType != "" {
+		if !isValidAdType(models.AdType(adType)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad type"})
+		}
 		query = query.Where("ad_type = ?", adType)
 	}
 
 	// Search
-	search := c.Query("search")
+	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
 		searchPattern := "%" + search + "%"
 		query = query.Where("title ILIKE ? OR description ILIKE ?", searchPattern, searchPattern)
@@ -1214,12 +1320,16 @@ func (h *AdsHandler) GetAdminAds(c *fiber.Ctx) error {
 		"ads":        responses,
 		"total":      total,
 		"page":       page,
-		"totalPages": int(math.Ceil(float64(total) / float64(limit))),
+		"totalPages": calculateAdTotalPages(total, limit),
 	})
 }
 
 // UpdateAdStatus updates the status of an ad (approve/reject/archive)
 func (h *AdsHandler) UpdateAdStatus(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
@@ -1252,7 +1362,7 @@ func (h *AdsHandler) UpdateAdStatus(c *fiber.Ctx) error {
 	// Update ad
 	ad.Status = models.AdStatus(req.Status)
 	ad.ModerationComment = req.Comment
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().UTC().Format(time.RFC3339)
 	ad.ModeratedAt = &now
 
 	if err := database.DB.Save(&ad).Error; err != nil {
@@ -1268,6 +1378,10 @@ func (h *AdsHandler) UpdateAdStatus(c *fiber.Ctx) error {
 
 // AdminUpdateAd allows admin to edit any ad
 func (h *AdsHandler) AdminUpdateAd(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
@@ -1291,6 +1405,10 @@ func (h *AdsHandler) AdminUpdateAd(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Category = strings.TrimSpace(req.Category)
+	req.City = strings.TrimSpace(req.City)
 
 	// Update fields if provided
 	if req.Title != "" {
@@ -1300,6 +1418,9 @@ func (h *AdsHandler) AdminUpdateAd(c *fiber.Ctx) error {
 		ad.Description = req.Description
 	}
 	if req.Category != "" {
+		if !isValidAdCategory(models.AdCategory(req.Category)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid category"})
+		}
 		ad.Category = models.AdCategory(req.Category)
 	}
 	if req.Price > 0 {
@@ -1322,6 +1443,10 @@ func (h *AdsHandler) AdminUpdateAd(c *fiber.Ctx) error {
 
 // AdminDeleteAd permanently deletes an ad
 func (h *AdsHandler) AdminDeleteAd(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	adID, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ad ID"})
@@ -1358,6 +1483,10 @@ func (h *AdsHandler) AdminDeleteAd(c *fiber.Ctx) error {
 
 // GetAdminStats returns statistics for the admin dashboard
 func (h *AdsHandler) GetAdminStats(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
 	var totalAds, pendingAds, activeAds, rejectedAds, archivedAds int64
 
 	if err := database.DB.Model(&models.Ad{}).Count(&totalAds).Error; err != nil {

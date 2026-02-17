@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 )
@@ -873,4 +874,50 @@ func TestSupportTextLowConfidence_EscalatesToOperator(t *testing.T) {
 	if !conv.EscalatedToOperator {
 		t.Fatalf("expected conversation to be escalated")
 	}
+}
+
+func TestPreviewRuneAware(t *testing.T) {
+	service := &TelegramSupportService{}
+
+	input := strings.Repeat("Пр", 200) // 400 runes
+	output := service.preview(input)
+
+	if !utf8.ValidString(output) {
+		t.Fatalf("preview output must be valid UTF-8")
+	}
+	if utf8.RuneCountInString(output) != 300 {
+		t.Fatalf("preview rune length = %d, want 300", utf8.RuneCountInString(output))
+	}
+}
+
+func TestSelectBestPhoto(t *testing.T) {
+	t.Run("prefers largest file size", func(t *testing.T) {
+		photos := []TelegramPhotoSize{
+			{FileID: "a", FileSize: 100, Width: 100, Height: 100},
+			{FileID: "b", FileSize: 300, Width: 200, Height: 200},
+			{FileID: "c", FileSize: 200, Width: 300, Height: 300},
+		}
+		best := selectBestPhoto(photos)
+		if best == nil || best.FileID != "b" {
+			t.Fatalf("expected best file ID b, got %+v", best)
+		}
+	})
+
+	t.Run("falls back to dimensions when file size missing", func(t *testing.T) {
+		photos := []TelegramPhotoSize{
+			{FileID: "a", FileSize: 0, Width: 100, Height: 100},
+			{FileID: "b", FileSize: 0, Width: 250, Height: 250},
+			{FileID: "c", FileSize: 0, Width: 200, Height: 200},
+		}
+		best := selectBestPhoto(photos)
+		if best == nil || best.FileID != "b" {
+			t.Fatalf("expected best file ID b by dimensions, got %+v", best)
+		}
+	})
+
+	t.Run("returns nil for empty input", func(t *testing.T) {
+		if best := selectBestPhoto(nil); best != nil {
+			t.Fatalf("expected nil for empty photo list")
+		}
+	})
 }

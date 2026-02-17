@@ -992,7 +992,9 @@ func main() {
 	// Start Server
 	port := resolveListenPort("8000")
 	log.Printf("Server starting on port %s", port)
-	log.Fatal(app.Listen(port))
+	if err := app.Listen(port); err != nil {
+		log.Printf("Server stopped with error: %v", err)
+	}
 }
 
 func buildAllowedOrigins(defaults []string) ([]string, map[string]bool) {

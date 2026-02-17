@@ -25,6 +25,17 @@ func NewNewsHandler() *NewsHandler {
 	return &NewsHandler{}
 }
 
+func requireNewsAdmin(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	if !models.IsAdminRole(middleware.GetUserRole(c)) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	return nil
+}
+
 func boundedNewsQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	value := c.QueryInt(key, def)
 	if value < min {
@@ -65,6 +76,31 @@ func isValidNewsSourceMode(mode models.NewsSourceMode) bool {
 
 func parseNewsBoolQuery(value string) bool {
 	return strings.ToLower(strings.TrimSpace(value)) == "true"
+}
+
+func validateNewsSourceID(sourceID *uint) error {
+	if sourceID == nil || *sourceID == 0 {
+		return errors.New("Source ID is required")
+	}
+	return nil
+}
+
+func validateNewsFetchInterval(interval int) error {
+	if interval <= 0 {
+		return errors.New("Fetch interval must be positive")
+	}
+	return nil
+}
+
+func calculateNewsTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		return 1
+	}
+	return totalPages
 }
 
 // ==================== PUBLIC ENDPOINTS ====================
@@ -163,13 +199,11 @@ func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
 		responses[i] = item.ToResponse(lang)
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return c.JSON(models.NewsListResponse{
 		News:       responses,
 		Total:      total,
 		Page:       page,
-		TotalPages: totalPages,
+		TotalPages: calculateNewsTotalPages(total, limit),
 	})
 }
 
@@ -254,6 +288,10 @@ func (h *NewsHandler) GetLatestNews(c *fiber.Ctx) error {
 // GetAdminNews returns all news with filters (for admin panel)
 // GET /api/admin/news
 func (h *NewsHandler) GetAdminNews(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
 	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
 	status := strings.ToLower(strings.TrimSpace(c.Query("status", "")))
@@ -298,19 +336,21 @@ func (h *NewsHandler) GetAdminNews(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return c.JSON(fiber.Map{
 		"news":       newsItems,
 		"total":      total,
 		"page":       page,
-		"totalPages": totalPages,
+		"totalPages": calculateNewsTotalPages(total, limit),
 	})
 }
 
 // GetAdminNewsItem returns a single news item for editing
 // GET /api/admin/news/:id
 func (h *NewsHandler) GetAdminNewsItem(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
@@ -331,6 +371,10 @@ func (h *NewsHandler) GetAdminNewsItem(c *fiber.Ctx) error {
 // CreateNews creates a new news item
 // POST /api/admin/news
 func (h *NewsHandler) CreateNews(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	var req models.NewsItemCreateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
@@ -352,6 +396,9 @@ func (h *NewsHandler) CreateNews(c *fiber.Ctx) error {
 	if req.ContentRu == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Content is required"})
 	}
+	if err := validateNewsSourceID(req.SourceID); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	newsItem := models.NewsItem{
 		TitleRu:     req.TitleRu,
@@ -368,9 +415,15 @@ func (h *NewsHandler) CreateNews(c *fiber.Ctx) error {
 		ScheduledAt: req.ScheduledAt,
 	}
 
-	if req.SourceID != nil {
-		newsItem.SourceID = *req.SourceID
+	var sourceExists int64
+	if err := database.DB.Model(&models.NewsSource{}).Where("id = ?", *req.SourceID).Count(&sourceExists).Error; err != nil {
+		log.Printf("[ADMIN NEWS] Error validating source %d: %v", *req.SourceID, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to validate source"})
 	}
+	if sourceExists == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Source not found"})
+	}
+	newsItem.SourceID = *req.SourceID
 
 	if newsItem.Status == "" {
 		newsItem.Status = models.NewsItemStatusDraft
@@ -391,6 +444,10 @@ func (h *NewsHandler) CreateNews(c *fiber.Ctx) error {
 // UpdateNews updates an existing news item
 // PUT /api/admin/news/:id
 func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
@@ -418,6 +475,15 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 	req.ImageURL = strings.TrimSpace(req.ImageURL)
 	req.Tags = strings.TrimSpace(req.Tags)
 	req.Category = strings.TrimSpace(req.Category)
+	if req.TitleRu == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Title is required"})
+	}
+	if req.ContentRu == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Content is required"})
+	}
+	if req.SourceID != nil && *req.SourceID == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+	}
 
 	updates := map[string]interface{}{
 		"title_ru":     req.TitleRu,
@@ -440,6 +506,14 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 	}
 
 	if req.SourceID != nil {
+		var sourceExists int64
+		if err := database.DB.Model(&models.NewsSource{}).Where("id = ?", *req.SourceID).Count(&sourceExists).Error; err != nil {
+			log.Printf("[ADMIN NEWS] Error validating source %d: %v", *req.SourceID, err)
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to validate source"})
+		}
+		if sourceExists == 0 {
+			return c.Status(400).JSON(fiber.Map{"error": "Source not found"})
+		}
 		updates["source_id"] = *req.SourceID
 	}
 
@@ -461,6 +535,10 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 // DeleteNews deletes a news item
 // DELETE /api/admin/news/:id
 func (h *NewsHandler) DeleteNews(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
@@ -487,6 +565,10 @@ func (h *NewsHandler) DeleteNews(c *fiber.Ctx) error {
 // PublishNews publishes a news item
 // POST /api/admin/news/:id/publish
 func (h *NewsHandler) PublishNews(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
@@ -501,7 +583,7 @@ func (h *NewsHandler) PublishNews(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
-	now := c.Context().Time()
+	now := c.Context().Time().UTC()
 	updates := map[string]interface{}{
 		"status":       models.NewsItemStatusPublished,
 		"published_at": now,
@@ -530,9 +612,21 @@ func (h *NewsHandler) PublishNews(c *fiber.Ctx) error {
 // ProcessNewsAI triggers AI processing for a news item
 // POST /api/admin/news/:id/process
 func (h *NewsHandler) ProcessNewsAI(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
+	}
+	var newsItem models.NewsItem
+	if err := database.DB.Select("id").First(&newsItem, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "News not found"})
+		}
+		log.Printf("[ADMIN NEWS] Error loading news %d for AI processing: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch news"})
 	}
 
 	go func(newsID uint) {
@@ -550,6 +644,10 @@ func (h *NewsHandler) ProcessNewsAI(c *fiber.Ctx) error {
 // GetSources returns all news sources
 // GET /api/admin/news/sources
 func (h *NewsHandler) GetSources(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	page := boundedNewsQueryInt(c, "page", 1, 1, 100000)
 	limit := boundedNewsQueryInt(c, "limit", 20, 1, 100)
 	sourceType := strings.ToLower(strings.TrimSpace(c.Query("type", "")))
@@ -588,19 +686,21 @@ func (h *NewsHandler) GetSources(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch sources"})
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return c.JSON(models.NewsSourceListResponse{
 		Sources:    sources,
 		Total:      total,
 		Page:       page,
-		TotalPages: totalPages,
+		TotalPages: calculateNewsTotalPages(total, limit),
 	})
 }
 
 // GetSource returns a single news source
 // GET /api/admin/news/sources/:id
 func (h *NewsHandler) GetSource(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -620,6 +720,10 @@ func (h *NewsHandler) GetSource(c *fiber.Ctx) error {
 // CreateSource creates a new news source
 // POST /api/admin/news/sources
 func (h *NewsHandler) CreateSource(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	var req models.NewsSourceCreateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
@@ -693,6 +797,10 @@ func (h *NewsHandler) CreateSource(c *fiber.Ctx) error {
 // UpdateSource updates an existing news source
 // PUT /api/admin/news/sources/:id
 func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -741,10 +849,6 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 	if req.Mode != "" && !isValidNewsSourceMode(req.Mode) {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source mode"})
 	}
-	if req.FetchInterval < 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "Fetch interval must be positive"})
-	}
-
 	updates := map[string]interface{}{
 		"name":            req.Name,
 		"description":     req.Description,
@@ -763,6 +867,9 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 		updates["is_active"] = req.IsActive
 	}
 	if _, ok := rawFields["fetchInterval"]; ok {
+		if err := validateNewsFetchInterval(req.FetchInterval); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
 		updates["fetch_interval"] = req.FetchInterval
 	}
 	if _, ok := rawFields["mode"]; ok {
@@ -801,6 +908,10 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 // DeleteSource deletes a news source
 // DELETE /api/admin/news/sources/:id
 func (h *NewsHandler) DeleteSource(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -839,6 +950,10 @@ func (h *NewsHandler) DeleteSource(c *fiber.Ctx) error {
 // ToggleSourceActive toggles the active status of a source
 // POST /api/admin/news/sources/:id/toggle
 func (h *NewsHandler) ToggleSourceActive(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
@@ -865,14 +980,26 @@ func (h *NewsHandler) ToggleSourceActive(c *fiber.Ctx) error {
 // FetchSourceNow triggers immediate fetch of news from a source
 // POST /api/admin/news/sources/:id/fetch
 func (h *NewsHandler) FetchSourceNow(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
 	}
+	var source models.NewsSource
+	if err := database.DB.Select("id").First(&source, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Source not found"})
+		}
+		log.Printf("[ADMIN NEWS] Error loading source %d for fetch: %v", id, err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch source"})
+	}
 
 	if err := services.GetNewsScheduler().FetchSourceNow(uint(id)); err != nil {
 		log.Printf("[ADMIN NEWS] Error fetching source: %v", err)
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to start source fetch"})
 	}
 
 	log.Printf("[ADMIN NEWS] Triggered fetch for source ID: %d", id)
@@ -884,6 +1011,10 @@ func (h *NewsHandler) FetchSourceNow(c *fiber.Ctx) error {
 // GetNewsStats returns news statistics
 // GET /api/admin/news/stats
 func (h *NewsHandler) GetNewsStats(c *fiber.Ctx) error {
+	if err := requireNewsAdmin(c); err != nil {
+		return err
+	}
+
 	var stats models.NewsStatsResponse
 
 	// Total news

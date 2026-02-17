@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	ErrCheckinRequired = errors.New("daily checkin is required before generating a step")
-	ErrStepNotFound    = errors.New("daily step not found")
+	ErrCheckinRequired      = errors.New("daily checkin is required before generating a step")
+	ErrStepNotFound         = errors.New("daily step not found")
+	ErrInvalidUnlockService = errors.New("invalid unlock service")
 )
 
 type PathTrackerService struct {
@@ -484,7 +485,9 @@ func (s *PathTrackerService) RetryAlertEvent(alertID uint) (*PathTrackerAlertEve
 	webhookURL := strings.TrimSpace(s.getSystemSetting("PATH_TRACKER_ALERT_WEBHOOK_URL"))
 	payload := map[string]any{}
 	if raw := strings.TrimSpace(event.PayloadJSON); raw != "" {
-		_ = json.Unmarshal([]byte(raw), &payload)
+		if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+			log.Printf("[PathTracker][Alert] invalid payload json for event %d: %v", event.ID, err)
+		}
 	}
 	if len(payload) == 0 {
 		payload = map[string]any{
@@ -741,7 +744,10 @@ func (s *PathTrackerService) GenerateStep(userID uint) (*DailyStepView, error) {
 		log.Printf("[PathTracker] using template fallback user=%d role=%s date=%s", userID, role, dateLocal)
 	}
 
-	contentJSON, _ := json.Marshal(content)
+	contentJSON, err := json.Marshal(content)
+	if err != nil {
+		return nil, err
+	}
 	step := models.DailyStep{
 		UserID:            userID,
 		DateLocal:         dateLocal,
@@ -877,7 +883,9 @@ func (s *PathTrackerService) AssistantHelp(userID, stepID uint, requestType, mes
 		return nil, err
 	}
 	var content StepContent
-	_ = json.Unmarshal([]byte(step.ContentJSON), &content)
+	if err := json.Unmarshal([]byte(step.ContentJSON), &content); err != nil {
+		log.Printf("[PathTracker] assistant content decode failed for step %d: %v", step.ID, err)
+	}
 
 	reply := s.generateAssistantReply(step, content, requestType, message)
 	eventType := "assistant_help"
@@ -1017,7 +1025,9 @@ func (s *PathTrackerService) GetMetricsSummary() (*PathTrackerMetricsSummary, er
 		if row.FirstDate <= shiftDate(time.Now().UTC().Format("2006-01-02"), -1) {
 			summary.D1RetentionEligible++
 			var count int64
-			_ = s.db.Model(&models.DailyStep{}).Where("user_id = ? AND date_local = ?", row.UserID, d1).Count(&count).Error
+			if err := s.db.Model(&models.DailyStep{}).Where("user_id = ? AND date_local = ?", row.UserID, d1).Count(&count).Error; err != nil {
+				return nil, err
+			}
 			if count > 0 {
 				summary.D1RetainedUsers++
 			}
@@ -1025,7 +1035,9 @@ func (s *PathTrackerService) GetMetricsSummary() (*PathTrackerMetricsSummary, er
 		if row.FirstDate <= shiftDate(time.Now().UTC().Format("2006-01-02"), -7) {
 			summary.D7RetentionEligible++
 			var count int64
-			_ = s.db.Model(&models.DailyStep{}).Where("user_id = ? AND date_local = ?", row.UserID, d7).Count(&count).Error
+			if err := s.db.Model(&models.DailyStep{}).Where("user_id = ? AND date_local = ?", row.UserID, d7).Count(&count).Error; err != nil {
+				return nil, err
+			}
 			if count > 0 {
 				summary.D7RetainedUsers++
 			}
@@ -1364,7 +1376,9 @@ func (s *PathTrackerService) storeAlertEvent(payload map[string]any, deliverySta
 	if b, err := json.Marshal(payload); err == nil {
 		event.PayloadJSON = string(b)
 	}
-	_ = s.db.Create(&event).Error
+	if err := s.db.Create(&event).Error; err != nil {
+		log.Printf("[PathTracker][Alert] failed to store alert event type=%s: %v", event.AlertType, err)
+	}
 }
 
 func (s *PathTrackerService) BuildDailyCandidateSet(role string, minutes int, loadLevel string) []stepCandidate {
@@ -1602,11 +1616,14 @@ func (s *PathTrackerService) pickSuggestedService(role, loadLevel string, missed
 	}
 
 	var row models.PathTrackerUnlock
-	if err := s.db.Where("user_id = ? AND service_id = ?", userID, status.NextServiceID).First(&row).Error; err == nil {
+	if err := s.db.Where("user_id = ? AND LOWER(service_id) = ?", userID, status.NextServiceID).First(&row).Error; err == nil {
 		row.LastSuggestedDate = dateLocal
 		row.Role = normalizedRole
-		_ = s.db.Save(&row).Error
-	} else {
+		row.ServiceID = status.NextServiceID
+		if saveErr := s.db.Save(&row).Error; saveErr != nil {
+			log.Printf("[PathTracker] failed to update unlock suggestion user=%d service=%s: %v", userID, status.NextServiceID, saveErr)
+		}
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
 		row = models.PathTrackerUnlock{
 			UserID:            userID,
 			ServiceID:         status.NextServiceID,
@@ -1615,7 +1632,11 @@ func (s *PathTrackerService) pickSuggestedService(role, loadLevel string, missed
 			LastSuggestedDate: dateLocal,
 			OpenCount:         0,
 		}
-		_ = s.db.Create(&row).Error
+		if createErr := s.db.Create(&row).Error; createErr != nil {
+			log.Printf("[PathTracker] failed to create unlock suggestion user=%d service=%s: %v", userID, status.NextServiceID, createErr)
+		}
+	} else {
+		log.Printf("[PathTracker] failed to load unlock suggestion user=%d service=%s: %v", userID, status.NextServiceID, err)
 	}
 	return status.NextServiceID, suggestedServiceTitle(status.NextServiceID)
 }
@@ -1631,22 +1652,40 @@ func (s *PathTrackerService) GetUnlockStatus(userID uint, role string) (*PathTra
 		return nil, err
 	}
 
+	sequenceSet := make(map[string]struct{}, len(sequence))
+	for _, serviceID := range sequence {
+		sequenceSet[normalizeUnlockServiceID(serviceID)] = struct{}{}
+	}
+
 	unlockedSet := make(map[string]models.PathTrackerUnlock, len(unlockedRows))
-	unlockedList := make([]string, 0, len(unlockedRows))
 	for _, row := range unlockedRows {
-		id := strings.TrimSpace(row.ServiceID)
+		id := normalizeUnlockServiceID(row.ServiceID)
 		if id == "" {
 			continue
 		}
+		if _, allowed := sequenceSet[id]; !allowed {
+			continue
+		}
+		if _, exists := unlockedSet[id]; exists {
+			continue
+		}
 		unlockedSet[id] = row
-		unlockedList = append(unlockedList, id)
+	}
+
+	unlockedList := make([]string, 0, len(sequence))
+	for _, serviceID := range sequence {
+		id := normalizeUnlockServiceID(serviceID)
+		if _, ok := unlockedSet[id]; ok {
+			unlockedList = append(unlockedList, id)
+		}
 	}
 
 	nextID := ""
 	unlockedCount := 0
 	for _, serviceID := range sequence {
-		if _, ok := unlockedSet[serviceID]; !ok {
-			nextID = serviceID
+		id := normalizeUnlockServiceID(serviceID)
+		if _, ok := unlockedSet[id]; !ok {
+			nextID = id
 			break
 		}
 		unlockedCount++
@@ -1655,15 +1694,16 @@ func (s *PathTrackerService) GetUnlockStatus(userID uint, role string) (*PathTra
 		// When all unlocked, rotate gently by least recently opened service.
 		oldestDate := "9999-99-99"
 		for _, serviceID := range sequence {
-			row := unlockedSet[serviceID]
+			id := normalizeUnlockServiceID(serviceID)
+			row := unlockedSet[id]
 			date := strings.TrimSpace(row.LastOpenedDate)
 			if date == "" {
-				nextID = serviceID
+				nextID = id
 				break
 			}
 			if date < oldestDate {
 				oldestDate = date
-				nextID = serviceID
+				nextID = id
 			}
 		}
 	}
@@ -1678,9 +1718,12 @@ func (s *PathTrackerService) GetUnlockStatus(userID uint, role string) (*PathTra
 }
 
 func (s *PathTrackerService) MarkUnlockOpened(userID uint, serviceID string) error {
-	serviceID = strings.TrimSpace(strings.ToLower(serviceID))
+	serviceID = normalizeUnlockServiceID(serviceID)
 	if serviceID == "" {
-		return nil
+		return ErrInvalidUnlockService
+	}
+	if !isKnownUnlockServiceID(serviceID) {
+		return ErrInvalidUnlockService
 	}
 	_, dateLocal, _, err := s.resolveUserAndDate(userID, "")
 	if err != nil {
@@ -1688,7 +1731,8 @@ func (s *PathTrackerService) MarkUnlockOpened(userID uint, serviceID string) err
 	}
 
 	var row models.PathTrackerUnlock
-	if err := s.db.Where("user_id = ? AND service_id = ?", userID, serviceID).First(&row).Error; err == nil {
+	if err := s.db.Where("user_id = ? AND LOWER(service_id) = ?", userID, serviceID).First(&row).Error; err == nil {
+		row.ServiceID = serviceID
 		row.LastOpenedDate = dateLocal
 		row.OpenCount++
 		return s.db.Save(&row).Error
@@ -1722,10 +1766,12 @@ func (s *PathTrackerService) deriveLoadLevel(checkin models.DailyCheckin, state 
 	}
 
 	var recent []models.DailyStep
-	_ = s.db.Where("user_id = ? AND date_local < ?", userID, dateLocal).
+	if err := s.db.Where("user_id = ? AND date_local < ?", userID, dateLocal).
 		Order("date_local desc").
 		Limit(3).
-		Find(&recent).Error
+		Find(&recent).Error; err != nil {
+		log.Printf("[PathTracker] deriveLoadLevel recent query failed user=%d date=%s: %v", userID, dateLocal, err)
+	}
 	completed := 0
 	for _, st := range recent {
 		if st.Status == models.PathTrackerStepStatusCompleted {
@@ -1781,9 +1827,12 @@ func (s *PathTrackerService) ensureState(userID uint) models.PathTrackerState {
 
 func (s *PathTrackerService) ensureViewedEvent(stepID uint) {
 	var count int64
-	s.db.Model(&models.DailyStepEvent{}).
+	if err := s.db.Model(&models.DailyStepEvent{}).
 		Where("daily_step_id = ? AND event_type = ?", stepID, "viewed").
-		Count(&count)
+		Count(&count).Error; err != nil {
+		log.Printf("[PathTracker] ensureViewedEvent count failed step=%d: %v", stepID, err)
+		return
+	}
 	if count == 0 {
 		s.emitStepEvent(stepID, "viewed", map[string]any{"source": "today"})
 	}
@@ -1801,7 +1850,9 @@ func (s *PathTrackerService) emitStepEvent(stepID uint, eventType string, payloa
 		EventType:   eventType,
 		PayloadJSON: raw,
 	}
-	_ = s.db.Create(&event).Error
+	if err := s.db.Create(&event).Error; err != nil {
+		log.Printf("[PathTracker] emitStepEvent failed step=%d type=%s: %v", stepID, eventType, err)
+	}
 }
 
 func (s *PathTrackerService) resolveUserAndDate(userID uint, overrideTimezone string) (models.User, string, string, error) {
@@ -1809,14 +1860,13 @@ func (s *PathTrackerService) resolveUserAndDate(userID uint, overrideTimezone st
 	if err := s.db.First(&user, userID).Error; err != nil {
 		return user, "", "", err
 	}
-	timezone := strings.TrimSpace(overrideTimezone)
-	if timezone == "" {
-		timezone = strings.TrimSpace(user.Timezone)
-	}
-	if timezone == "" {
+	timezone := resolvePathTrackerTimezone(overrideTimezone, user.Timezone)
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
 		timezone = "UTC"
 	}
-	now := nowInTimezone(timezone)
+	now := time.Now().In(loc)
 	return user, now.Format("2006-01-02"), timezone, nil
 }
 
@@ -1860,12 +1910,14 @@ func (s *PathTrackerService) buildTrajectoryProfile(userID uint, dateLocal strin
 		Assigned  int64
 		Completed int64
 	}
-	_ = s.db.Raw(`
+	if err := s.db.Raw(`
 		SELECT COUNT(*) AS assigned,
 		       SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS completed
 		FROM daily_steps
 		WHERE user_id = ? AND date_local >= ? AND date_local <= ?
-	`, models.PathTrackerStepStatusCompleted, userID, fromDate, dateLocal).Scan(&row).Error
+	`, models.PathTrackerStepStatusCompleted, userID, fromDate, dateLocal).Scan(&row).Error; err != nil {
+		log.Printf("[PathTracker] buildTrajectoryProfile query failed user=%d date=%s: %v", userID, dateLocal, err)
+	}
 
 	rate := 0.0
 	if row.Assigned > 0 {
@@ -2035,12 +2087,21 @@ func pickCandidate(candidates []stepCandidate, userID uint, dateLocal string) st
 	return candidates[idx]
 }
 
-func nowInTimezone(timezone string) time.Time {
-	loc, err := time.LoadLocation(timezone)
-	if err != nil {
-		return time.Now().UTC()
+func resolvePathTrackerTimezone(overrideTimezone, userTimezone string) string {
+	candidates := []string{
+		strings.TrimSpace(overrideTimezone),
+		strings.TrimSpace(userTimezone),
+		"UTC",
 	}
-	return time.Now().In(loc)
+	for _, timezone := range candidates {
+		if timezone == "" {
+			continue
+		}
+		if _, err := time.LoadLocation(timezone); err == nil {
+			return timezone
+		}
+	}
+	return "UTC"
 }
 
 func normalizeRole(role string) string {
@@ -2137,7 +2198,7 @@ func extractDurationFromInstructions(instructions []string) int {
 }
 
 func suggestedServiceTitle(serviceID string) string {
-	switch serviceID {
+	switch normalizeUnlockServiceID(serviceID) {
 	case "multimedia":
 		return "Мультимедиа"
 	case "news":
@@ -2155,6 +2216,10 @@ func suggestedServiceTitle(serviceID string) string {
 	}
 }
 
+func normalizeUnlockServiceID(serviceID string) string {
+	return strings.TrimSpace(strings.ToLower(serviceID))
+}
+
 func unlockSequenceByRole(role string) []string {
 	switch normalizeRole(role) {
 	case models.RoleYogi:
@@ -2165,6 +2230,15 @@ func unlockSequenceByRole(role string) []string {
 		return []string{"education", "services", "multimedia", "news", "video_circles", "seva"}
 	default:
 		return []string{"multimedia", "news", "education", "services", "video_circles", "seva"}
+	}
+}
+
+func isKnownUnlockServiceID(serviceID string) bool {
+	switch normalizeUnlockServiceID(serviceID) {
+	case "multimedia", "news", "education", "services", "seva", "video_circles":
+		return true
+	default:
+		return false
 	}
 }
 

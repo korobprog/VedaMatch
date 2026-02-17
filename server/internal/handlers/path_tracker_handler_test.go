@@ -12,7 +12,8 @@ import (
 )
 
 type mockPathTrackerService struct {
-	enabled bool
+	enabled       bool
+	markUnlockErr error
 }
 
 func (m *mockPathTrackerService) IsEnabled() bool {
@@ -62,7 +63,7 @@ func (m *mockPathTrackerService) GetUnlockStatus(userID uint, role string) (*ser
 }
 
 func (m *mockPathTrackerService) MarkUnlockOpened(userID uint, serviceID string) error {
-	return nil
+	return m.markUnlockErr
 }
 
 func (m *mockPathTrackerService) SaveCheckin(userID uint, input services.CheckinInput) (*models.DailyCheckin, error) {
@@ -206,6 +207,28 @@ func TestPathTrackerUnlockOpenedSuccess(t *testing.T) {
 	}
 	if resp.StatusCode != fiber.StatusOK {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestPathTrackerUnlockOpenedInvalidService(t *testing.T) {
+	app := fiber.New()
+	handler := NewPathTrackerHandlerWithService(&mockPathTrackerService{
+		enabled:       true,
+		markUnlockErr: services.ErrInvalidUnlockService,
+	})
+	app.Post("/unlock-opened", func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		return handler.MarkUnlockOpened(c)
+	})
+
+	req := httptest.NewRequest("POST", "/unlock-opened", bytes.NewBufferString(`{"serviceId":"unknown"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusBadRequest)
 	}
 }
 

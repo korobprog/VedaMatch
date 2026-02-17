@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 )
@@ -308,6 +309,8 @@ func (s *TelegramSupportService) handleUserPhoto(
 		}); err != nil {
 			log.Printf("[Support] create relay for meta message failed: %v", err)
 		}
+	} else {
+		log.Printf("[Support] send operator meta message failed: %v", sendErr)
 	}
 
 	if err := s.store.MarkConversationEscalated(conversation.ID, now); err != nil {
@@ -325,7 +328,7 @@ func (s *TelegramSupportService) handleOperatorMessage(ctx context.Context, msg 
 
 	text := strings.TrimSpace(msg.Text)
 	if strings.HasPrefix(strings.ToLower(text), "/chatid") {
-		_, _ = s.client.SendMessage(ctx, operatorChatID, fmt.Sprintf("chat_id: %d", operatorChatID), TelegramSendMessageOptions{})
+		s.sendMessageBestEffort(ctx, operatorChatID, fmt.Sprintf("chat_id: %d", operatorChatID))
 		return nil
 	}
 
@@ -372,7 +375,9 @@ func (s *TelegramSupportService) handleOperatorMessage(ctx context.Context, msg 
 		if err := s.store.AddMessage(outbound); err != nil {
 			return err
 		}
-		_ = s.store.UpdateConversationActivity(relay.ConversationID, s.preview("[operator image] "+outbound.Caption), now)
+		if err := s.store.UpdateConversationActivity(relay.ConversationID, s.preview("[operator image] "+outbound.Caption), now); err != nil {
+			log.Printf("[Support] update conversation activity failed: %v", err)
+		}
 		return nil
 	}
 
@@ -394,23 +399,23 @@ func (s *TelegramSupportService) handleOperatorDirectSend(ctx context.Context, t
 
 	parts := strings.SplitN(strings.TrimSpace(text), " ", 3)
 	if len(parts) < 3 {
-		_, _ = s.client.SendMessage(ctx, operatorChatID, "Usage: /send <chat_id> <text>", TelegramSendMessageOptions{})
+		s.sendMessageBestEffort(ctx, operatorChatID, "Usage: /send <chat_id> <text>")
 		return nil
 	}
 
 	chatID, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		_, _ = s.client.SendMessage(ctx, operatorChatID, "Invalid chat_id", TelegramSendMessageOptions{})
+		s.sendMessageBestEffort(ctx, operatorChatID, "Invalid chat_id")
 		return nil
 	}
 
 	_, err = s.client.SendMessage(ctx, chatID, strings.TrimSpace(parts[2]), TelegramSendMessageOptions{})
 	if err != nil {
-		_, _ = s.client.SendMessage(ctx, operatorChatID, "Direct send failed: "+err.Error(), TelegramSendMessageOptions{})
+		s.sendMessageBestEffort(ctx, operatorChatID, "Direct send failed: "+err.Error())
 		return nil
 	}
 
-	_, _ = s.client.SendMessage(ctx, operatorChatID, "Direct send: ok", TelegramSendMessageOptions{})
+	s.sendMessageBestEffort(ctx, operatorChatID, "Direct send: ok")
 	return nil
 }
 
@@ -419,7 +424,7 @@ func (s *TelegramSupportService) handleOperatorResolve(ctx context.Context, msg 
 		return nil
 	}
 	if msg.ReplyToMessage == nil {
-		_, _ = s.client.SendMessage(ctx, operatorChatID, "Use /resolve as reply to a support message", TelegramSendMessageOptions{})
+		s.sendMessageBestEffort(ctx, operatorChatID, "Use /resolve as reply to a support message")
 		return nil
 	}
 
@@ -428,7 +433,7 @@ func (s *TelegramSupportService) handleOperatorResolve(ctx context.Context, msg 
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		_, _ = s.client.SendMessage(ctx, operatorChatID, "No support relay found for this message", TelegramSendMessageOptions{})
+		s.sendMessageBestEffort(ctx, operatorChatID, "No support relay found for this message")
 		return nil
 	}
 
@@ -436,9 +441,9 @@ func (s *TelegramSupportService) handleOperatorResolve(ctx context.Context, msg 
 		return err
 	}
 
-	_, _ = s.client.SendMessage(ctx, operatorChatID, "Conversation resolved", TelegramSendMessageOptions{})
+	s.sendMessageBestEffort(ctx, operatorChatID, "Conversation resolved")
 	if relay.UserChatID != 0 {
-		_, _ = s.client.SendMessage(ctx, relay.UserChatID, "Диалог поддержки завершен. При необходимости напишите снова.", TelegramSendMessageOptions{})
+		s.sendMessageBestEffort(ctx, relay.UserChatID, "Диалог поддержки завершен. При необходимости напишите снова.")
 	} else {
 		s.pushInAppSupportUpdate(relay.ConversationID, "Диалог поддержки завершен. При необходимости создайте новое обращение.")
 	}
@@ -583,6 +588,8 @@ func (s *TelegramSupportService) escalateToOperator(
 		}); err != nil {
 			log.Printf("[Support] create meta relay failed: %v", err)
 		}
+	} else {
+		log.Printf("[Support] send operator meta message failed: %v", sendErr)
 	}
 
 	if err := s.store.MarkConversationEscalated(conversationID, now); err != nil {
@@ -739,26 +746,51 @@ func (s *TelegramSupportService) preview(text string) string {
 	if text == "" {
 		return ""
 	}
-	if len(text) > 300 {
-		return text[:300]
+	if utf8.RuneCountInString(text) > 300 {
+		return string([]rune(text)[:300])
 	}
 	return text
+}
+
+func (s *TelegramSupportService) sendMessageBestEffort(ctx context.Context, chatID int64, text string) {
+	if s.client == nil {
+		log.Printf("[Support] send message skipped: client is not configured")
+		return
+	}
+	if _, err := s.client.SendMessage(ctx, chatID, text, TelegramSendMessageOptions{}); err != nil {
+		log.Printf("[Support] send message to chat %d failed: %v", chatID, err)
+	}
 }
 
 func selectBestPhoto(items []TelegramPhotoSize) *TelegramPhotoSize {
 	if len(items) == 0 {
 		return nil
 	}
-	best := items[0]
-	for _, item := range items[1:] {
-		if item.FileSize > best.FileSize {
-			best = item
+	bestIndex := -1
+	bestScore := int64(-1)
+
+	for i := range items {
+		item := items[i]
+		if strings.TrimSpace(item.FileID) == "" {
+			continue
+		}
+		score := item.FileSize
+		if score <= 0 {
+			score = int64(item.Width) * int64(item.Height)
+		}
+		if score >= bestScore {
+			bestScore = score
+			bestIndex = i
 		}
 	}
-	if best.FileID == "" {
+
+	if bestIndex >= 0 {
+		return &items[bestIndex]
+	}
+	if len(items) > 0 {
 		return &items[len(items)-1]
 	}
-	return &best
+	return nil
 }
 
 func containsCyrillic(text string) bool {
@@ -882,9 +914,13 @@ func (s *TelegramSupportService) pushInAppSupportUpdate(conversationID uint, bod
 		return
 	}
 
-	paramsRaw, _ := json.Marshal(map[string]interface{}{
+	paramsRaw, err := json.Marshal(map[string]interface{}{
 		"conversationId": conversationID,
 	})
+	if err != nil {
+		log.Printf("[Support] push update: marshal params failed for conversation %d: %v", conversationID, err)
+		paramsRaw = []byte("{}")
+	}
 	push := GetPushService()
 	if push == nil {
 		return

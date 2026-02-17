@@ -34,6 +34,17 @@ func requireYatraAdminUserID(c *fiber.Ctx) (uint, error) {
 	if userID == 0 {
 		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	if !models.IsAdminRole(middleware.GetUserRole(c)) {
+		return 0, c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	return userID, nil
+}
+
+func requireYatraReporterUserID(c *fiber.Ctx) (uint, error) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
 	return userID, nil
 }
 
@@ -743,7 +754,7 @@ func (h *YatraAdminHandler) MarkNotificationRead(c *fiber.Ctx) error {
 // CreateYatraReport creates a report against a yatra
 // POST /api/yatra/:id/report (Protected)
 func (h *YatraAdminHandler) CreateYatraReport(c *fiber.Ctx) error {
-	userID, err := requireYatraAdminUserID(c)
+	userID, err := requireYatraReporterUserID(c)
 	if err != nil {
 		return err
 	}
@@ -778,7 +789,7 @@ func (h *YatraAdminHandler) CreateYatraReport(c *fiber.Ctx) error {
 // CreateOrganizerReport creates a report against an organizer
 // POST /api/organizer/:id/report (Protected)
 func (h *YatraAdminHandler) CreateOrganizerReport(c *fiber.Ctx) error {
-	userID, err := requireYatraAdminUserID(c)
+	userID, err := requireYatraReporterUserID(c)
 	if err != nil {
 		return err
 	}

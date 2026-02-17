@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import {
     ScrollView
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../../types/navigation';
@@ -33,9 +34,10 @@ interface Media {
 }
 
 export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
-    const { userId, readOnly } = route.params as any;
+    const { userId, readOnly } = route.params;
     const { user: currentUser } = useUser();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const { isDarkMode } = useSettings();
     const { colors } = useRoleTheme(currentUser?.role, isDarkMode);
     const theme = {
@@ -45,6 +47,17 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
         subText: colors.textSecondary,
         accent: colors.accent,
     };
+    const themedStyles = useMemo(() => ({
+        header: { borderBottomColor: theme.borderColor, paddingTop: insets.top + 10 },
+        backText: { color: theme.text },
+        title: { color: theme.text },
+        accentText: { color: theme.accent },
+        subtitleText: { color: theme.subText },
+        profileBadge: { backgroundColor: theme.accent },
+        profileBorder: { borderColor: theme.accent },
+        emptyTitle: { color: theme.text },
+        emptyHint: { color: theme.subText },
+    }), [theme.accent, theme.borderColor, theme.subText, theme.text, insets.top]);
     const [photos, setPhotos] = useState<Media[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -53,11 +66,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
     // Determine if user can edit (is own profile and not explicitly readOnly)
     const canEdit = !readOnly && (currentUser?.ID === userId);
 
-    useEffect(() => {
-        fetchPhotos();
-    }, []);
-
-    const fetchPhotos = async () => {
+    const fetchPhotos = useCallback(async () => {
         try {
             const data = await datingService.getPhotos(userId);
             setPhotos(data);
@@ -66,7 +75,11 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId]);
+
+    useEffect(() => {
+        fetchPhotos();
+    }, [fetchPhotos]);
 
     const handleAddPhoto = () => {
         if (!canEdit) return;
@@ -75,11 +88,11 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
             t('chat.chooseAction'),
             [
                 {
-                    text: t('registration.camera' as any) || 'Камера',
+                    text: t('registration.camera', { defaultValue: t('common.camera', { defaultValue: 'Camera' }) }),
                     onPress: () => launchCamera({ mediaType: 'photo' }, onPhotoSelected),
                 },
                 {
-                    text: t('registration.gallery' as any) || 'Галерея',
+                    text: t('registration.gallery', { defaultValue: t('common.gallery', { defaultValue: 'Gallery' }) }),
                     onPress: () => launchImageLibrary({ mediaType: 'photo' }, onPhotoSelected),
                 },
                 { text: t('common.cancel'), style: 'cancel' },
@@ -88,6 +101,15 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     const onPhotoSelected = async (response: any) => {
+        if (response?.didCancel) {
+            return;
+        }
+
+        if (response?.errorCode) {
+            Alert.alert(t('common.error'), response.errorMessage || t('dating.uploadFailed'));
+            return;
+        }
+
         if (response.assets && response.assets.length > 0) {
             const asset = response.assets[0];
             const formData = new FormData();
@@ -102,7 +124,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
                 await datingService.uploadPhoto(userId, formData);
                 fetchPhotos();
             } catch (error) {
-                Alert.alert('Error', 'Failed to upload photo');
+                Alert.alert(t('common.error'), t('dating.uploadFailed'));
                 console.error(error);
             } finally {
                 setUploading(false);
@@ -113,19 +135,19 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
     const handlePhotoOptions = (photo: Media) => {
         if (!canEdit) return;
         Alert.alert(
-            'Photo Options',
-            'Choose an action',
+            t('dating.photoOptionsTitle'),
+            t('chat.chooseAction'),
             [
                 {
-                    text: t('dating.setAsProfile' as any) || 'Сделать главным',
+                    text: t('dating.setAsProfile'),
                     onPress: () => setProfilePicture(photo.ID),
                 },
                 {
-                    text: 'Delete',
+                    text: t('common.delete'),
                     style: 'destructive',
-                    onPress: () => deletePhoto(photo.ID),
+                    onPress: () => confirmDeletePhoto(photo.ID),
                 },
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
             ]
         );
     };
@@ -134,17 +156,32 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
         try {
             await datingService.setProfilePhoto(id);
             fetchPhotos();
-        } catch (error) {
-            Alert.alert('Error', 'Failed to set profile picture');
+        } catch {
+            Alert.alert(t('common.error'), t('dating.setProfileFailed'));
         }
+    };
+
+    const confirmDeletePhoto = (id: number) => {
+        Alert.alert(
+            t('common.confirm'),
+            t('dating.deletePhotoConfirm'),
+            [
+                { text: t('common.cancel'), style: 'cancel' },
+                {
+                    text: t('common.delete'),
+                    style: 'destructive',
+                    onPress: () => deletePhoto(id),
+                },
+            ]
+        );
     };
 
     const deletePhoto = async (id: number) => {
         try {
             await datingService.deletePhoto(id);
             fetchPhotos();
-        } catch (error) {
-            Alert.alert(t('common.error'), t('common.error'));
+        } catch {
+            Alert.alert(t('common.error'), t('dating.deleteFailed'));
         }
     };
 
@@ -161,10 +198,10 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
         >
             <Image
                 source={{ uri: `${datingService.getMediaUrl(item.url)}` }}
-                style={[styles.photo, item.isProfile && { borderColor: theme.accent, borderWidth: 3 }]}
+                style={[styles.photo, item.isProfile && styles.profilePhotoBorder, item.isProfile && themedStyles.profileBorder]}
             />
             {item.isProfile && (
-                <View style={[styles.profileBadge, { backgroundColor: theme.accent }]}>
+                <View style={[styles.profileBadge, themedStyles.profileBadge]}>
                     <Text style={styles.profileBadgeText}>{t('dating.mainPhotoBadge')}</Text>
                 </View>
             )}
@@ -173,32 +210,41 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const renderHeader = () => (
         canEdit ? (
-            <View style={{ padding: 12, paddingBottom: 0 }}>
-                <Text style={{ color: theme.subText, fontSize: 13, marginBottom: 8 }}>
+            <View style={styles.headerHintContainer}>
+                <Text style={[styles.headerHintText, themedStyles.subtitleText]}>
                     {t('dating.longPressOptions')}
                 </Text>
             </View>
         ) : null
     );
 
+    const renderEmptyState = () => (
+        <View style={styles.emptyState}>
+            <Text style={[styles.emptyTitle, themedStyles.emptyTitle]}>{t('dating.noMediaYet')}</Text>
+            <Text style={[styles.emptyHint, themedStyles.emptyHint]}>
+                {canEdit ? t('dating.addFirstPhoto') : t('dating.noPhotos')}
+            </Text>
+        </View>
+    );
+
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <View style={[styles.header, { borderBottomColor: theme.borderColor }]}>
+            <View style={[styles.header, themedStyles.header]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Text style={{ color: theme.text, fontSize: 18 }}>← {t('common.back')}</Text>
+                    <Text style={[styles.backText, themedStyles.backText]}>← {t('common.back')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.title, { color: theme.text }]}>{canEdit ? t('settings.tabs.chat').replace('Чат', 'Медиа') : t('contacts.media')}</Text>
+                <Text style={[styles.title, themedStyles.title]}>{t('dating.media')}</Text>
                 {canEdit ? (
                     <TouchableOpacity onPress={handleAddPhoto} disabled={uploading}>
-                        {uploading ? <ActivityIndicator color={theme.accent} /> : <Text style={{ color: theme.accent, fontSize: 18 }}>{t('common.save').replace('Сохранить', 'Добавить')}</Text>}
+                        {uploading ? <ActivityIndicator color={theme.accent} /> : <Text style={[styles.headerActionText, themedStyles.accentText]}>{t('common.add')}</Text>}
                     </TouchableOpacity>
                 ) : (
-                    <View style={{ width: 40 }} />
+                    <View style={styles.headerSpacer} />
                 )}
             </View>
 
             {loading ? (
-                <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.accent} />
+                <ActivityIndicator style={styles.loadingIndicator} size="large" color={theme.accent} />
             ) : (
                 <FlatList
                     ListHeaderComponent={renderHeader}
@@ -207,14 +253,15 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
                     renderItem={renderPhoto}
                     numColumns={3}
                     contentContainerStyle={styles.list}
+                    ListEmptyComponent={renderEmptyState}
                     ListFooterComponent={
                         canEdit ? (
                             <TouchableOpacity
                                 style={styles.addPhotoTile}
                                 onPress={handleAddPhoto}
                             >
-                                <Text style={{ fontSize: 30, color: theme.accent }}>+</Text>
-                                <Text style={{ color: theme.accent, fontSize: 12, marginTop: 4 }}>{t('dating.addPhoto')}</Text>
+                                <Text style={[styles.addTilePlus, themedStyles.accentText]}>+</Text>
+                                <Text style={[styles.addTileLabel, themedStyles.accentText]}>{t('dating.addPhoto')}</Text>
                             </TouchableOpacity>
                         ) : null
                     }
@@ -233,7 +280,7 @@ export const MediaLibraryScreen: React.FC<Props> = ({ navigation, route }) => {
                         style={styles.closeModalBtn}
                         onPress={() => setSelectedPhoto(null)}
                     >
-                        <Text style={{ color: 'white', fontSize: 24 }}>✕</Text>
+                        <Text style={styles.closeModalText}>✕</Text>
                     </TouchableOpacity>
 
                     <ScrollView
@@ -266,18 +313,38 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: 16,
-        paddingTop: 50,
         borderBottomWidth: 1,
     },
     backBtn: {
         padding: 5,
     },
+    backText: {
+        fontSize: 18,
+    },
     title: {
         fontSize: 20,
         fontWeight: 'bold',
     },
+    headerActionText: {
+        fontSize: 18,
+    },
+    headerSpacer: {
+        width: 40,
+    },
+    loadingIndicator: {
+        flex: 1,
+    },
+    headerHintContainer: {
+        padding: 12,
+        paddingBottom: 0,
+    },
+    headerHintText: {
+        fontSize: 13,
+        marginBottom: 8,
+    },
     list: {
         padding: 12,
+        flexGrow: 1,
     },
     photoContainer: {
         width: COLUMN_WIDTH,
@@ -289,6 +356,9 @@ const styles = StyleSheet.create({
     photo: {
         width: '100%',
         height: '100%',
+    },
+    profilePhotoBorder: {
+        borderWidth: 3,
     },
     profileBadge: {
         position: 'absolute',
@@ -314,6 +384,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    addTilePlus: {
+        fontSize: 30,
+    },
+    addTileLabel: {
+        fontSize: 12,
+        marginTop: 4,
+    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.95)',
@@ -327,9 +404,28 @@ const styles = StyleSheet.create({
         zIndex: 10,
         padding: 10,
     },
+    closeModalText: {
+        color: 'white',
+        fontSize: 24,
+    },
     centerImage: {
         flexGrow: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyState: {
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 24,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 6,
+    },
+    emptyHint: {
+        fontSize: 13,
+        textAlign: 'center',
     }
 });

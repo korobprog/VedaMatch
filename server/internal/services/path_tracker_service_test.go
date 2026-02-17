@@ -1,6 +1,9 @@
 package services
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestApplyGuardrailsLowLoadKeepsOnlyLowDifficulty(t *testing.T) {
 	svc := &PathTrackerService{}
@@ -88,6 +91,56 @@ func TestUnlockSequenceByRole(t *testing.T) {
 	devoteeSeq := unlockSequenceByRole("devotee")
 	if len(devoteeSeq) == 0 || devoteeSeq[0] != "seva" {
 		t.Fatalf("expected devotee sequence to start with seva")
+	}
+}
+
+func TestIsKnownUnlockServiceID(t *testing.T) {
+	if !isKnownUnlockServiceID("news") {
+		t.Fatalf("expected news to be recognized")
+	}
+	if !isKnownUnlockServiceID(" Video_Circles ") {
+		t.Fatalf("expected video_circles to be recognized case-insensitively")
+	}
+	if isKnownUnlockServiceID("unknown_service") {
+		t.Fatalf("unexpected unknown service to be recognized")
+	}
+}
+
+func TestNormalizeUnlockServiceID(t *testing.T) {
+	if got := normalizeUnlockServiceID(" Video_Circles "); got != "video_circles" {
+		t.Fatalf("expected normalized value video_circles, got %q", got)
+	}
+}
+
+func TestSuggestedServiceTitleNormalizesInput(t *testing.T) {
+	if got := suggestedServiceTitle(" Video_Circles "); got != "Видео Кружки" {
+		t.Fatalf("expected normalized title for video circles, got %q", got)
+	}
+	if got := suggestedServiceTitle("unknown"); got != "" {
+		t.Fatalf("expected empty title for unknown service, got %q", got)
+	}
+}
+
+func TestMarkUnlockOpenedRejectsInvalidServiceID(t *testing.T) {
+	svc := &PathTrackerService{}
+
+	if err := svc.MarkUnlockOpened(1, " "); !errors.Is(err, ErrInvalidUnlockService) {
+		t.Fatalf("expected ErrInvalidUnlockService for empty service id, got %v", err)
+	}
+	if err := svc.MarkUnlockOpened(1, "unknown"); !errors.Is(err, ErrInvalidUnlockService) {
+		t.Fatalf("expected ErrInvalidUnlockService for unknown service id, got %v", err)
+	}
+}
+
+func TestResolvePathTrackerTimezone(t *testing.T) {
+	if got := resolvePathTrackerTimezone("UTC", "Europe/Moscow"); got != "UTC" {
+		t.Fatalf("expected override timezone UTC, got %q", got)
+	}
+	if got := resolvePathTrackerTimezone("Bad/Zone", "Europe/Moscow"); got != "Europe/Moscow" {
+		t.Fatalf("expected fallback to user timezone, got %q", got)
+	}
+	if got := resolvePathTrackerTimezone("Bad/Zone", "Also/Bad"); got != "UTC" {
+		t.Fatalf("expected final fallback UTC, got %q", got)
 	}
 }
 

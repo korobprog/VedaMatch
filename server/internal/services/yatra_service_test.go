@@ -1,0 +1,203 @@
+package services
+
+import (
+	"encoding/json"
+	"math"
+	"testing"
+	"time"
+
+	"rag-agent-server/internal/models"
+)
+
+func TestDefaultYatraStatusForCreate(t *testing.T) {
+	t.Parallel()
+
+	if got := defaultYatraStatusForCreate(); got != models.YatraStatusDraft {
+		t.Fatalf("default status = %q, want %q", got, models.YatraStatusDraft)
+	}
+}
+
+func TestResolveYatraParticipantLimits(t *testing.T) {
+	t.Parallel()
+
+	maxParticipants, minParticipants, err := resolveYatraParticipantLimits(0, 0)
+	if err != nil {
+		t.Fatalf("unexpected error for defaults: %v", err)
+	}
+	if maxParticipants != defaultYatraMaxParticipants || minParticipants != defaultYatraMinParticipants {
+		t.Fatalf("unexpected defaults max=%d min=%d", maxParticipants, minParticipants)
+	}
+
+	maxParticipants, minParticipants, err = resolveYatraParticipantLimits(30, 5)
+	if err != nil {
+		t.Fatalf("unexpected error for explicit limits: %v", err)
+	}
+	if maxParticipants != 30 || minParticipants != 5 {
+		t.Fatalf("unexpected explicit limits max=%d min=%d", maxParticipants, minParticipants)
+	}
+
+	if _, _, err := resolveYatraParticipantLimits(3, 5); err == nil {
+		t.Fatalf("expected error when min > max")
+	}
+}
+
+func TestParseYatraDateRange(t *testing.T) {
+	t.Parallel()
+
+	start, end, err := parseYatraDateRange(" 2026-02-10 ", "2026-02-11")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !start.Equal(time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected start date: %v", start)
+	}
+	if !end.Equal(time.Date(2026, 2, 11, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected end date: %v", end)
+	}
+
+	if _, _, err := parseYatraDateRange("bad", "2026-02-11"); err == nil {
+		t.Fatalf("expected error for invalid start date")
+	}
+	if _, _, err := parseYatraDateRange("2026-02-10", "bad"); err == nil {
+		t.Fatalf("expected error for invalid end date")
+	}
+	if _, _, err := parseYatraDateRange("2026-02-12", "2026-02-11"); err == nil {
+		t.Fatalf("expected error when end date is before start date")
+	}
+}
+
+func TestNormalizeAndValidateYatraTheme(t *testing.T) {
+	t.Parallel()
+
+	theme := normalizeYatraTheme(" Vrindavan ")
+	if theme != models.YatraThemeVrindavan {
+		t.Fatalf("normalized theme = %q", theme)
+	}
+	if !isValidYatraTheme(theme) {
+		t.Fatalf("expected normalized theme to be valid")
+	}
+	if isValidYatraTheme(models.YatraTheme("unknown")) {
+		t.Fatalf("unknown theme must be invalid")
+	}
+	if !isValidYatraTheme("") {
+		t.Fatalf("empty theme should be valid")
+	}
+}
+
+func TestParseIntFromAny(t *testing.T) {
+	t.Parallel()
+
+	if got, ok := parseIntFromAny(float64(10)); !ok || got != 10 {
+		t.Fatalf("float64 integral parse failed, got=%d ok=%v", got, ok)
+	}
+	if _, ok := parseIntFromAny(float64(10.5)); ok {
+		t.Fatalf("fractional float should be rejected")
+	}
+	if got, ok := parseIntFromAny(" 42 "); !ok || got != 42 {
+		t.Fatalf("string parse failed, got=%d ok=%v", got, ok)
+	}
+	if got, ok := parseIntFromAny(json.Number("15")); !ok || got != 15 {
+		t.Fatalf("json number int parse failed, got=%d ok=%v", got, ok)
+	}
+	if _, ok := parseIntFromAny(json.Number("15.5")); ok {
+		t.Fatalf("json number float should be rejected for int parser")
+	}
+	if _, ok := parseIntFromAny(" "); ok {
+		t.Fatalf("blank string should be rejected")
+	}
+	if _, ok := parseIntFromAny(uint64(math.MaxUint64)); ok {
+		t.Fatalf("overflowing uint64 should be rejected")
+	}
+}
+
+func TestParseFloatFromAny(t *testing.T) {
+	t.Parallel()
+
+	if got, ok := parseFloatFromAny(" 42.5 "); !ok || got != 42.5 {
+		t.Fatalf("string float parse failed, got=%v ok=%v", got, ok)
+	}
+	if got, ok := parseFloatFromAny(json.Number("7.25")); !ok || got != 7.25 {
+		t.Fatalf("json float parse failed, got=%v ok=%v", got, ok)
+	}
+	if _, ok := parseFloatFromAny("bad"); ok {
+		t.Fatalf("invalid float string should be rejected")
+	}
+}
+
+func TestParseYatraDateFromAny(t *testing.T) {
+	t.Parallel()
+
+	dateOnly, ok := parseYatraDateFromAny("2026-02-10")
+	if !ok {
+		t.Fatalf("expected date-only parse success")
+	}
+	if !dateOnly.Equal(time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected date-only value: %v", dateOnly)
+	}
+
+	rfc3339, ok := parseYatraDateFromAny("2026-02-10T12:30:00+03:00")
+	if !ok {
+		t.Fatalf("expected RFC3339 parse success")
+	}
+	if rfc3339.Location() != time.UTC {
+		t.Fatalf("expected UTC location, got %v", rfc3339.Location())
+	}
+
+	localTime := time.Date(2026, 2, 10, 12, 30, 0, 0, time.FixedZone("X", 3*3600))
+	normalized, ok := parseYatraDateFromAny(localTime)
+	if !ok {
+		t.Fatalf("expected time.Time parse success")
+	}
+	if normalized.Location() != time.UTC {
+		t.Fatalf("expected normalized UTC time, got %v", normalized.Location())
+	}
+
+	if _, ok := parseYatraDateFromAny("bad"); ok {
+		t.Fatalf("invalid date should be rejected")
+	}
+}
+
+func TestSanitizeYatraUpdatesThemeValidation(t *testing.T) {
+	t.Parallel()
+
+	current := models.Yatra{
+		StartDate:       time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+		EndDate:         time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+		MaxParticipants: 20,
+		MinParticipants: 1,
+	}
+
+	updated, err := sanitizeYatraUpdates(map[string]interface{}{"theme": " MAYAPUR "}, current)
+	if err != nil {
+		t.Fatalf("unexpected error for valid theme update: %v", err)
+	}
+	if got, ok := updated["theme"].(models.YatraTheme); !ok || got != models.YatraThemeMayapur {
+		t.Fatalf("unexpected normalized theme value: %#v", updated["theme"])
+	}
+
+	if _, err := sanitizeYatraUpdates(map[string]interface{}{"theme": "unknown"}, current); err == nil {
+		t.Fatalf("expected error for unknown theme")
+	}
+}
+
+func TestValidateYatraReviewRequest(t *testing.T) {
+	t.Parallel()
+
+	valid := models.YatraReviewCreateRequest{
+		OverallRating:       5,
+		OrganizerRating:     4,
+		RouteRating:         0,
+		AccommodationRating: 3,
+		ValueRating:         2,
+	}
+	if err := validateYatraReviewRequest(valid); err != nil {
+		t.Fatalf("unexpected error for valid request: %v", err)
+	}
+
+	if err := validateYatraReviewRequest(models.YatraReviewCreateRequest{OverallRating: 0}); err == nil {
+		t.Fatalf("expected error for invalid overall rating")
+	}
+	if err := validateYatraReviewRequest(models.YatraReviewCreateRequest{OverallRating: 5, RouteRating: 6}); err == nil {
+		t.Fatalf("expected error for invalid optional rating")
+	}
+}

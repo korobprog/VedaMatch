@@ -313,6 +313,9 @@ func (h *PathTrackerHandler) MarkUnlockOpened(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "serviceId is required"})
 	}
 	if err := h.service.MarkUnlockOpened(userID, body.ServiceID); err != nil {
+		if errors.Is(err, services.ErrInvalidUnlockService) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"ok": true})

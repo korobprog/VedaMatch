@@ -12,6 +12,7 @@ import (
 	"rag-agent-server/internal/models"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 )
@@ -777,7 +778,12 @@ func (s *MapService) fetchGeoapify(requestURL string) ([]byte, error) {
 		return nil, fmt.Errorf("geoapify api key is not configured")
 	}
 
-	resp, err := s.httpClient.Get(requestURL)
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+
+	resp, err := client.Get(requestURL)
 	if err != nil {
 		return nil, err
 	}
@@ -789,10 +795,18 @@ func (s *MapService) fetchGeoapify(requestURL string) ([]byte, error) {
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("geoapify responded with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("geoapify responded with status %d: %s", resp.StatusCode, trimErrorPayload(body, 512))
 	}
 
 	return body, nil
+}
+
+func trimErrorPayload(body []byte, maxLen int) string {
+	payload := strings.TrimSpace(string(body))
+	if maxLen <= 0 || utf8.RuneCountInString(payload) <= maxLen {
+		return payload
+	}
+	return string([]rune(payload)[:maxLen]) + "..."
 }
 
 func normalizeMarkerTypes(input []models.MarkerType) []models.MarkerType {

@@ -22,6 +22,9 @@ func requireMultimediaUserID(c *fiber.Ctx) (uint, error) {
 	if userID == 0 {
 		return 0, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	if !models.IsAdminRole(middleware.GetUserRole(c)) {
+		return 0, c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
 	return userID, nil
 }
 
@@ -44,6 +47,9 @@ func isUnsafeFolderPath(path string) bool {
 }
 
 func respondMultimediaDomainError(c *fiber.Ctx, err error, notFoundMsg string) error {
+	if err == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
+	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": notFoundMsg})
 	}
@@ -53,7 +59,7 @@ func respondMultimediaDomainError(c *fiber.Ctx, err error, notFoundMsg string) e
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 }
 
 func NewMultimediaHandler() *MultimediaHandler {

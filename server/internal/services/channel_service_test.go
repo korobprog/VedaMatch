@@ -1,8 +1,10 @@
 package services
 
 import (
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"rag-agent-server/internal/models"
 )
@@ -229,6 +231,15 @@ func TestNormalizePromptKey(t *testing.T) {
 	if got := normalizePromptKey(longKey); len(got) != 120 {
 		t.Fatalf("expected trimmed key length 120, got %d", len(got))
 	}
+
+	unicodeKey := strings.Repeat("й", 130)
+	normalized := normalizePromptKey(unicodeKey)
+	if !utf8.ValidString(normalized) {
+		t.Fatalf("normalized key must stay valid UTF-8")
+	}
+	if len([]rune(normalized)) != 120 {
+		t.Fatalf("expected 120 runes for unicode key, got %d", len([]rune(normalized)))
+	}
 }
 
 func TestClampChannelInt(t *testing.T) {
@@ -380,6 +391,12 @@ func TestValidateSchedulePostRequest(t *testing.T) {
 			name:       "published post cannot be scheduled",
 			status:     models.ChannelPostStatusPublished,
 			scheduled:  future,
+			shouldFail: true,
+		},
+		{
+			name:       "past schedule is invalid",
+			status:     models.ChannelPostStatusDraft,
+			scheduled:  time.Now().Add(-2 * time.Minute),
 			shouldFail: true,
 		},
 	}

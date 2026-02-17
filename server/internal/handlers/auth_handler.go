@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"mime"
+	"net/mail"
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/config"
@@ -13,6 +15,7 @@ import (
 	"rag-agent-server/internal/services"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -59,6 +62,33 @@ func sanitizeUsers(users []models.User) {
 	}
 }
 
+func sanitizeAvatarExtension(filename string) string {
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(filename)))
+	if ext == "" || len(ext) > 10 || !strings.HasPrefix(ext, ".") {
+		return ""
+	}
+	for _, r := range ext[1:] {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return ""
+		}
+	}
+	return ext
+}
+
+func isAllowedAvatarExtension(ext string) bool {
+	switch strings.ToLower(strings.TrimSpace(ext)) {
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedAvatarContentType(contentType string) bool {
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	return strings.HasPrefix(contentType, "image/")
+}
+
 func buildTokenPairResponse(message string, user models.User, sessionID uint, accessToken string, accessTokenExpiresAt time.Time, refreshToken string, refreshTokenExpiresAt time.Time) fiber.Map {
 	response := fiber.Map{
 		"message": message,
@@ -75,6 +105,21 @@ func buildTokenPairResponse(message string, user models.User, sessionID uint, ac
 	}
 
 	return response
+}
+
+func validateRegistrationCredentials(email, password string) error {
+	email = strings.TrimSpace(strings.ToLower(email))
+	password = strings.TrimSpace(password)
+	if email == "" || password == "" {
+		return errors.New("Email and password are required")
+	}
+	if _, err := mail.ParseAddress(email); err != nil {
+		return errors.New("Invalid email format")
+	}
+	if utf8.RuneCountInString(password) < 8 {
+		return errors.New("Password must be at least 8 characters")
+	}
+	return nil
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
@@ -98,9 +143,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	// God mode cannot be set from public registration payload.
 	applyPortalRoleAndGodMode(&user, registerData.Role, false)
 
-	if user.Email == "" || user.Password == "" {
+	if err := validateRegistrationCredentials(user.Email, user.Password); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Email and password are required",
+			"error": err.Error(),
 		})
 	}
 
@@ -355,13 +400,21 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 
 	now := time.Now().UTC()
 	refreshHash := hashRefreshToken(refreshToken)
+	deviceID := strings.TrimSpace(req.DeviceID)
 
 	var session models.AuthSession
 	if err := database.DB.Where("refresh_token_hash = ?", refreshHash).First(&session).Error; err != nil {
 		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
-		middleware.SetErrorCode(c, "auth_refresh_invalid_token")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid refresh token",
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			middleware.SetErrorCode(c, "auth_refresh_invalid_token")
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid refresh token",
+			})
+		}
+		log.Printf("[AUTH] Failed to lookup refresh session by token hash: %v", err)
+		middleware.SetErrorCode(c, "auth_refresh_lookup_failed")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not validate refresh token",
 		})
 	}
 
@@ -384,9 +437,16 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 	var user models.User
 	if err := database.DB.First(&user, session.UserID).Error; err != nil {
 		_ = services.GetMetricsService().Increment(services.MetricAuthRefreshFail, 1)
-		middleware.SetErrorCode(c, "auth_refresh_user_not_found")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Session user not found",
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			middleware.SetErrorCode(c, "auth_refresh_user_not_found")
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Session user not found",
+			})
+		}
+		log.Printf("[AUTH] Failed to load user %d for refresh session %d: %v", session.UserID, session.ID, err)
+		middleware.SetErrorCode(c, "auth_refresh_user_lookup_failed")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not validate session user",
 		})
 	}
 	if user.IsBlocked {
@@ -397,7 +457,7 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 		})
 	}
 
-	newRefreshToken, err := rotateAuthSession(&session, req.DeviceID, now)
+	newRefreshToken, err := rotateAuthSession(&session, deviceID, now)
 	if err != nil {
 		log.Printf("[AUTH] Failed to rotate refresh session %d: %v", session.ID, err)
 		middleware.SetErrorCode(c, "auth_refresh_rotate_failed")
@@ -728,7 +788,7 @@ func (h *AuthHandler) Heartbeat(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
-	user.LastSeen = time.Now().Format(time.RFC3339)
+	user.LastSeen = time.Now().UTC().Format(time.RFC3339)
 	if err := database.DB.Model(&user).Update("last_seen", user.LastSeen).Error; err != nil {
 		log.Printf("[AUTH] Failed to update heartbeat last_seen for user %d: %v", user.ID, err)
 	}
@@ -748,6 +808,19 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No avatar file provided"})
 	}
+	ext := sanitizeAvatarExtension(file.Filename)
+	if !isAllowedAvatarExtension(ext) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unsupported avatar file extension"})
+	}
+	contentType := strings.TrimSpace(file.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = mime.TypeByExtension(ext)
+	}
+	if !isAllowedAvatarContentType(contentType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Only image avatars are supported"})
+	}
+
+	timestamp := time.Now().UnixNano()
 
 	// 1. Try S3 Storage
 	s3Service := services.GetS3Service()
@@ -755,10 +828,8 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 		fileContent, err := file.Open()
 		if err == nil {
 			defer fileContent.Close()
-			ext := filepath.Ext(file.Filename)
 			// avatars/userId_timestamp.ext to avoid caching issues + uniqueness
-			fileName := fmt.Sprintf("avatars/%d_%d%s", userId, time.Now().Unix(), ext)
-			contentType := file.Header.Get("Content-Type")
+			fileName := fmt.Sprintf("avatars/%d_%d%s", userId, timestamp, ext)
 
 			avatarURL, err := s3Service.UploadFile(c.UserContext(), fileContent, fileName, contentType, file.Size)
 			if err == nil {
@@ -776,14 +847,19 @@ func (h *AuthHandler) UploadAvatar(c *fiber.Ctx) error {
 
 	// 2. Fallback to Local Storage
 	uploadDir := "./uploads/avatars"
-	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-		os.MkdirAll(uploadDir, 0755)
+	if _, err := os.Stat(uploadDir); err != nil {
+		if !os.IsNotExist(err) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to access avatar storage"})
+		}
+		if mkErr := os.MkdirAll(uploadDir, 0755); mkErr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to prepare avatar storage"})
+		}
 	}
 
-	filename := fmt.Sprintf("%d_%s", userId, file.Filename)
-	filepath := fmt.Sprintf("%s/%s", uploadDir, filename)
+	filename := fmt.Sprintf("%d_%d%s", userId, timestamp, ext)
+	avatarPath := filepath.Join(uploadDir, filename)
 
-	if err := c.SaveFile(file, filepath); err != nil {
+	if err := c.SaveFile(file, avatarPath); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save avatar"})
 	}
 
@@ -811,10 +887,25 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
+	if body.FriendID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "friendId is required"})
+	}
+	if body.FriendID == userId {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot add yourself as friend"})
+	}
+	var friendUser models.User
+	if err := database.DB.Select("id").First(&friendUser, body.FriendID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Friend user not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not validate friend user"})
+	}
 
 	// Check if already friends
 	var count int64
-	database.DB.Model(&models.Friend{}).Where("user_id = ? AND friend_id = ?", userId, body.FriendID).Count(&count)
+	if err := database.DB.Model(&models.Friend{}).Where("user_id = ? AND friend_id = ?", userId, body.FriendID).Count(&count).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check friendship"})
+	}
 	if count > 0 {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Already friends"})
 	}
@@ -825,6 +916,9 @@ func (h *AuthHandler) AddFriend(c *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Create(&friendship).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "Already friends"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not add friend"})
 	}
 
@@ -844,6 +938,9 @@ func (h *AuthHandler) RemoveFriend(c *fiber.Ctx) error {
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+	if body.FriendID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "friendId is required"})
 	}
 
 	if err := database.DB.Where("user_id = ? AND friend_id = ?", userId, body.FriendID).Delete(&models.Friend{}).Error; err != nil {
@@ -867,6 +964,9 @@ func (h *AuthHandler) GetFriends(c *fiber.Ctx) error {
 	var friendIDs []uint
 	for _, f := range friends {
 		friendIDs = append(friendIDs, f.FriendID)
+	}
+	if len(friendIDs) == 0 {
+		return c.Status(fiber.StatusOK).JSON([]models.User{})
 	}
 
 	var users []models.User
@@ -898,7 +998,7 @@ func (h *AuthHandler) AdminStats(c *fiber.Ctx) error {
 	var totalUsers int64
 	if err := database.DB.Debug().Model(&models.User{}).Count(&totalUsers).Error; err != nil {
 		log.Printf("[AdminStats] CRITICAL SQL ERROR counting total users: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error: " + err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
 	}
 
 	var totalReferrals int64
@@ -907,7 +1007,7 @@ func (h *AuthHandler) AdminStats(c *fiber.Ctx) error {
 
 	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL").Count(&totalReferrals).Error; err != nil {
 		log.Printf("[AdminStats] CRITICAL SQL ERROR counting total referrals: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error: " + err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
 	}
 
 	if err := database.DB.Debug().Model(&models.User{}).Where("referrer_id IS NOT NULL AND referral_status = ?", models.ReferralStatusActivated).Count(&activeReferrals).Error; err != nil {
@@ -965,6 +1065,26 @@ func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
+	if body.BlockedID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "blockedId is required"})
+	}
+	if body.BlockedID == userId {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot block yourself"})
+	}
+	var blockedUser models.User
+	if err := database.DB.Select("id").First(&blockedUser, body.BlockedID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Blocked user not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not validate blocked user"})
+	}
+	var existingBlockCount int64
+	if err := database.DB.Model(&models.Block{}).Where("user_id = ? AND blocked_id = ?", userId, body.BlockedID).Count(&existingBlockCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check block status"})
+	}
+	if existingBlockCount > 0 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "User is already blocked"})
+	}
 
 	block := models.Block{
 		UserID:    userId,
@@ -972,12 +1092,17 @@ func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Create(&block).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "User is already blocked"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not block user"})
 	}
 
 	// Also remove friendship if exists
-	database.DB.Where("(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
-		userId, body.BlockedID, body.BlockedID, userId).Delete(&models.Friend{})
+	if err := database.DB.Where("(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
+		userId, body.BlockedID, body.BlockedID, userId).Delete(&models.Friend{}).Error; err != nil {
+		log.Printf("[AUTH] Failed to remove friendship while blocking user %d -> %d: %v", userId, body.BlockedID, err)
+	}
 
 	return c.Status(fiber.StatusCreated).JSON(block)
 }
@@ -994,9 +1119,16 @@ func (h *AuthHandler) UnblockUser(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
+	if body.BlockedID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "blockedId is required"})
+	}
 
-	if err := database.DB.Where("user_id = ? AND blocked_id = ?", userId, body.BlockedID).Delete(&models.Block{}).Error; err != nil {
+	result := database.DB.Where("user_id = ? AND blocked_id = ?", userId, body.BlockedID).Delete(&models.Block{})
+	if result.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not unblock user"})
+	}
+	if result.RowsAffected == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Block not found"})
 	}
 
 	return c.SendStatus(fiber.StatusOK)

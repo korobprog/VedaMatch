@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/mail"
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -63,6 +65,36 @@ func isSensitiveSystemSettingKey(key string) bool {
 	return false
 }
 
+func validateAdminCredentials(email, password string) error {
+	if strings.TrimSpace(email) == "" || strings.TrimSpace(password) == "" {
+		return errors.New("email and password are required")
+	}
+	if _, err := mail.ParseAddress(strings.TrimSpace(email)); err != nil {
+		return errors.New("invalid email format")
+	}
+	if utf8.RuneCountInString(strings.TrimSpace(password)) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	return nil
+}
+
+func parseAdminQueryInt(raw string, fallback int, min int, max int) int {
+	value := fallback
+	trimmed := strings.TrimSpace(raw)
+	if trimmed != "" {
+		if parsed, err := strconv.Atoi(trimmed); err == nil {
+			value = parsed
+		}
+	}
+	if value < min {
+		value = min
+	}
+	if max > 0 && value > max {
+		value = max
+	}
+	return value
+}
+
 func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
@@ -106,7 +138,8 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) ToggleBlockUser(c *fiber.Ctx) error {
-	if _, err := requireAdminUserID(c); err != nil {
+	adminID, err := requireAdminUserID(c)
+	if err != nil {
 		return err
 	}
 
@@ -117,6 +150,12 @@ func (h *AdminHandler) ToggleBlockUser(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch user"})
 		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	if user.ID == adminID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot block yourself"})
+	}
+	if middleware.GetUserRole(c) != models.RoleSuperadmin && models.IsAdminRole(user.Role) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Only superadmin can block admin users"})
 	}
 
 	user.IsBlocked = !user.IsBlocked
@@ -134,6 +173,7 @@ func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
 	}
+	actorRole := middleware.GetUserRole(c)
 
 	var body struct {
 		Email    string `json:"email"`
@@ -146,16 +186,16 @@ func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
 	}
 	body.Email = strings.TrimSpace(strings.ToLower(body.Email))
 	body.Password = strings.TrimSpace(body.Password)
-	body.Role = strings.TrimSpace(body.Role)
-	if body.Email == "" || body.Password == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "email and password are required"})
-	}
-	if len(body.Password) < 8 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "password must be at least 8 characters"})
+	body.Role = strings.ToLower(strings.TrimSpace(body.Role))
+	if err := validateAdminCredentials(body.Email, body.Password); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	if !models.IsAdminRole(body.Role) {
 		body.Role = models.RoleAdmin
+	}
+	if body.Role == models.RoleSuperadmin && actorRole != models.RoleSuperadmin {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Only superadmin can create superadmin"})
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
@@ -171,6 +211,9 @@ func (h *AdminHandler) AddAdmin(c *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Create(&newAdmin).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "admin with this email already exists"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create admin user"})
 	}
 
@@ -182,6 +225,7 @@ func (h *AdminHandler) UpdateUserRole(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
 	}
+	actorRole := middleware.GetUserRole(c)
 
 	userID := c.Params("id")
 	var body struct {
@@ -191,17 +235,25 @@ func (h *AdminHandler) UpdateUserRole(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
+	body.Role = strings.ToLower(strings.TrimSpace(body.Role))
 
 	if !models.IsValidUserRole(body.Role) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid role"})
 	}
+	var target models.User
+	if err := database.DB.Select("id", "role").First(&target, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch user"})
+	}
+	if actorRole != models.RoleSuperadmin && (target.Role == models.RoleSuperadmin || body.Role == models.RoleSuperadmin) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Only superadmin can manage superadmin role"})
+	}
 
-	updateResult := database.DB.Model(&models.User{}).Where("id = ?", userID).Update("role", body.Role)
+	updateResult := database.DB.Model(&models.User{}).Where("id = ?", target.ID).Update("role", body.Role)
 	if updateResult.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update role"})
-	}
-	if updateResult.RowsAffected == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
 	return c.JSON(fiber.Map{"message": "Role updated successfully"})
@@ -530,12 +582,7 @@ func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
 		return err
 	}
 
-	windowHours := 24
-	if raw := strings.TrimSpace(c.Query("window_hours")); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 24*30 {
-			windowHours = parsed
-		}
-	}
+	windowHours := parseAdminQueryInt(c.Query("window_hours"), 24, 1, 24*30)
 
 	pushService := services.GetPushService()
 	summary, err := pushService.GetHealthSummary(time.Duration(windowHours) * time.Hour)
@@ -899,13 +946,8 @@ func (h *AdminHandler) GetUserTransactions(c *fiber.Ctx) error {
 		Type:     models.TransactionType(c.Query("type")),
 		DateFrom: c.Query("dateFrom"),
 		DateTo:   c.Query("dateTo"),
-	}
-
-	if page, err := strconv.Atoi(c.Query("page", "1")); err == nil {
-		filters.Page = page
-	}
-	if limit, err := strconv.Atoi(c.Query("limit", "50")); err == nil {
-		filters.Limit = limit
+		Page:     parseAdminQueryInt(c.Query("page", "1"), 1, 1, 100000),
+		Limit:    parseAdminQueryInt(c.Query("limit", "50"), 50, 1, 500),
 	}
 
 	walletService := services.NewWalletService()

@@ -485,15 +485,21 @@ func (s *PushNotificationService) UnregisterUserDeviceToken(userID uint, token s
 	}
 
 	if token != "" {
-		_ = s.db.Model(&models.User{}).Where("id = ? AND push_token = ?", userID, token).Update("push_token", "").Error
+		if err := s.db.Model(&models.User{}).Where("id = ? AND push_token = ?", userID, token).Update("push_token", "").Error; err != nil {
+			log.Printf("[PUSH] failed to clear legacy push_token for user=%d token unregister: %v", userID, err)
+		}
 	} else if deviceID != "" {
 		var invalidatedTokens []string
 		if err := s.db.Model(&models.UserDeviceToken{}).
 			Where("user_id = ? AND device_id = ? AND invalidated_at IS NOT NULL", userID, deviceID).
 			Pluck("token", &invalidatedTokens).Error; err == nil && len(invalidatedTokens) > 0 {
-			_ = s.db.Model(&models.User{}).
+			if err := s.db.Model(&models.User{}).
 				Where("id = ? AND push_token IN ?", userID, invalidatedTokens).
-				Update("push_token", "").Error
+				Update("push_token", "").Error; err != nil {
+				log.Printf("[PUSH] failed to clear legacy push_token(s) for user=%d device=%s: %v", userID, deviceID, err)
+			}
+		} else if err != nil {
+			log.Printf("[PUSH] failed to fetch invalidated tokens for user=%d device=%s: %v", userID, deviceID, err)
 		}
 	}
 
@@ -915,9 +921,14 @@ func (s *PushNotificationService) sendProviderWithRetry(provider string, targets
 
 		if err != nil {
 			lastErr = err
+		} else {
+			lastErr = nil
 		}
 		if len(retryTargets) == 0 {
-			return lastErr
+			if err != nil {
+				return err
+			}
+			return nil
 		}
 
 		pending = retryTargets
@@ -1037,8 +1048,21 @@ func (s *PushNotificationService) sendFCMLegacyAttempt(targets []pushTokenTarget
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		if readErr != nil {
+			lastErr = fmt.Errorf("failed to read FCM response: %w", readErr)
+			for _, target := range batch {
+				if finalAttempt {
+					s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeTransient, "response_read_error", attempt, latency)
+					s.bumpTokenFailCount(target.Token)
+					continue
+				}
+				s.recordDeliveryEvent(target, message, deliveryStatusRetry, errorTypeTransient, "response_read_error", attempt, latency)
+				retryTargets = append(retryTargets, target)
+			}
+			continue
+		}
 
 		if resp.StatusCode != http.StatusOK {
 			lastErr = fmt.Errorf("fcm returned status %d", resp.StatusCode)
@@ -1220,7 +1244,10 @@ func (s *PushNotificationService) sendFCMV1Request(endpoint string, accessToken 
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return resp.StatusCode, nil, latency, fmt.Errorf("failed to read fcm v1 response body: %w", readErr)
+	}
 	return resp.StatusCode, body, latency, nil
 }
 
@@ -1270,7 +1297,10 @@ func (s *PushNotificationService) getFCMV1AccessToken(cfg fcmV1ResolvedConfig) (
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return "", fmt.Errorf("failed to read oauth token response: %w", readErr)
+	}
 	if resp.StatusCode != http.StatusOK {
 		statusText, fcmErrorCode, _ := parseFCMV1Error(body)
 		normalizedCode := normalizeFCMV1ErrorCode(resp.StatusCode, statusText, fcmErrorCode)
@@ -1370,8 +1400,21 @@ func (s *PushNotificationService) sendExpoAttempt(targets []pushTokenTarget, mes
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		if readErr != nil {
+			lastErr = fmt.Errorf("failed to read Expo response: %w", readErr)
+			for _, target := range batch {
+				if finalAttempt {
+					s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeTransient, "response_read_error", attempt, latency)
+					s.bumpTokenFailCount(target.Token)
+					continue
+				}
+				s.recordDeliveryEvent(target, message, deliveryStatusRetry, errorTypeTransient, "response_read_error", attempt, latency)
+				retryTargets = append(retryTargets, target)
+			}
+			continue
+		}
 
 		if resp.StatusCode != http.StatusOK {
 			lastErr = fmt.Errorf("expo returned status %d", resp.StatusCode)
@@ -1479,7 +1522,10 @@ func (s *PushNotificationService) getTargetsForUser(userID uint) ([]pushTokenTar
 
 	var user models.User
 	if err := s.db.Select("id", "push_token").First(&user, userID).Error; err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+		return nil, err
 	}
 
 	var rows []models.UserDeviceToken
@@ -1762,14 +1808,16 @@ func (s *PushNotificationService) markTokenDeliverySuccess(token string) {
 	}
 
 	now := time.Now()
-	_ = s.db.Model(&models.UserDeviceToken{}).
+	if err := s.db.Model(&models.UserDeviceToken{}).
 		Where("token = ?", token).
 		Updates(map[string]interface{}{
 			"fail_count":     0,
 			"last_seen_at":   now,
 			"invalidated_at": nil,
 			"updated_at":     now,
-		}).Error
+		}).Error; err != nil {
+		log.Printf("[PUSH] failed to mark token delivery success: %v", err)
+	}
 }
 
 func (s *PushNotificationService) bumpTokenFailCount(token string) {
@@ -1782,13 +1830,15 @@ func (s *PushNotificationService) bumpTokenFailCount(token string) {
 	}
 
 	now := time.Now()
-	_ = s.db.Model(&models.UserDeviceToken{}).
+	if err := s.db.Model(&models.UserDeviceToken{}).
 		Where("token = ? AND invalidated_at IS NULL", token).
 		Updates(map[string]interface{}{
 			"fail_count":   gorm.Expr("fail_count + 1"),
 			"last_seen_at": now,
 			"updated_at":   now,
-		}).Error
+		}).Error; err != nil {
+		log.Printf("[PUSH] failed to bump token fail count: %v", err)
+	}
 }
 
 func (s *PushNotificationService) invalidateToken(token string) {
@@ -1801,16 +1851,20 @@ func (s *PushNotificationService) invalidateToken(token string) {
 	}
 
 	now := time.Now()
-	_ = s.db.Model(&models.UserDeviceToken{}).
+	if err := s.db.Model(&models.UserDeviceToken{}).
 		Where("token = ? AND invalidated_at IS NULL", token).
 		Updates(map[string]interface{}{
 			"invalidated_at": now,
 			"fail_count":     gorm.Expr("fail_count + 1"),
 			"updated_at":     now,
-		}).Error
+		}).Error; err != nil {
+		log.Printf("[PUSH] failed to invalidate token: %v", err)
+	}
 
 	// Cleanup legacy single-token storage when provider says token is invalid.
-	_ = s.db.Model(&models.User{}).Where("push_token = ?", token).Update("push_token", "").Error
+	if err := s.db.Model(&models.User{}).Where("push_token = ?", token).Update("push_token", "").Error; err != nil {
+		log.Printf("[PUSH] failed to clear legacy token after invalidation: %v", err)
+	}
 }
 
 func sanitizePushToken(token string) string {
@@ -1825,7 +1879,8 @@ func normalizeProvider(provider string, token string) string {
 	}
 
 	token = sanitizePushToken(token)
-	if strings.HasPrefix(token, "ExponentPushToken[") || strings.HasPrefix(token, "ExpoPushToken[") {
+	tokenLower := strings.ToLower(token)
+	if strings.HasPrefix(tokenLower, strings.ToLower("ExponentPushToken[")) || strings.HasPrefix(tokenLower, strings.ToLower("ExpoPushToken[")) {
 		return providerExpo
 	}
 	return providerFCM
@@ -2015,10 +2070,12 @@ func (s *PushNotificationService) resolveSettingOrEnv(key string) (string, strin
 }
 
 func classifyFCMError(errorCode string) string {
-	switch strings.TrimSpace(errorCode) {
-	case "InvalidRegistration", "NotRegistered", "MismatchSenderId", "MissingRegistration", "InvalidPackageName", "MessageTooBig", "InvalidDataKey", "InvalidTtl":
+	normalized := strings.ToUpper(strings.TrimSpace(errorCode))
+	normalized = strings.ReplaceAll(normalized, "_", "")
+	switch normalized {
+	case "INVALIDREGISTRATION", "NOTREGISTERED", "MISMATCHSENDERID", "MISSINGREGISTRATION", "INVALIDPACKAGENAME", "MESSAGETOOBIG", "INVALIDDATAKEY", "INVALIDTTL":
 		return errorTypePermanent
-	case "Unavailable", "InternalServerError", "DeviceMessageRateExceeded", "TopicsMessageRateExceeded":
+	case "UNAVAILABLE", "INTERNALSERVERERROR", "INTERNAL", "DEVICEMESSAGERATEEXCEEDED", "TOPICSMESSAGERATEEXCEEDED":
 		return errorTypeTransient
 	default:
 		return errorTypeUnknown
@@ -2108,10 +2165,14 @@ func resolveSettingOrEnv(settingValue string, envValue string) (string, string) 
 
 // Helper function
 func truncatePushBody(text string, maxLen int) string {
-	if len(text) <= maxLen {
+	if maxLen <= 0 {
+		return "..."
+	}
+	runes := []rune(text)
+	if len(runes) <= maxLen {
 		return text
 	}
-	return text[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }
 
 // Global instance

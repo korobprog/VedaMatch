@@ -50,8 +50,114 @@ func isValidProductStatus(status models.ProductStatus) bool {
 	}
 }
 
+func isValidProductCategory(category models.ProductCategory) bool {
+	switch category {
+	case models.ProductCategoryBooks,
+		models.ProductCategoryClothing,
+		models.ProductCategoryFood,
+		models.ProductCategoryIncense,
+		models.ProductCategoryJewelry,
+		models.ProductCategoryAyurveda,
+		models.ProductCategoryMusicInstr,
+		models.ProductCategoryArt,
+		models.ProductCategoryHomeDecor,
+		models.ProductCategoryCosmetics,
+		models.ProductCategoryDigitalCourses,
+		models.ProductCategoryDigitalBooks,
+		models.ProductCategoryAccessories,
+		models.ProductCategoryOther:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeProductType(productType models.ProductType) models.ProductType {
+	return models.ProductType(strings.ToLower(strings.TrimSpace(string(productType))))
+}
+
+func normalizeProductStatus(status models.ProductStatus) models.ProductStatus {
+	return models.ProductStatus(strings.ToLower(strings.TrimSpace(string(status))))
+}
+
+func normalizeProductCategory(category models.ProductCategory) models.ProductCategory {
+	return models.ProductCategory(strings.ToLower(strings.TrimSpace(string(category))))
+}
+
 func isValidBonusLkmPercent(value int) bool {
 	return value >= 0 && value <= 100
+}
+
+func calculateProductTotalPages(total int64, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	return totalPages
+}
+
+func validateVariantCreateRequest(req models.VariantCreateRequest, defaultBasePrice float64) (models.VariantCreateRequest, error) {
+	req.SKU = strings.TrimSpace(req.SKU)
+	req.Name = strings.TrimSpace(req.Name)
+	req.ImageURL = strings.TrimSpace(req.ImageURL)
+	if req.SKU == "" {
+		return req, errors.New("variant sku is required")
+	}
+	if len(req.Attributes) == 0 {
+		return req, errors.New("variant attributes are required")
+	}
+	if req.Stock < 0 {
+		return req, errors.New("variant stock cannot be negative")
+	}
+	if req.Price != nil && *req.Price < 0 {
+		return req, errors.New("variant price cannot be negative")
+	}
+	if req.SalePrice != nil {
+		if *req.SalePrice < 0 {
+			return req, errors.New("variant sale price cannot be negative")
+		}
+		maxAllowedSale := defaultBasePrice
+		if req.Price != nil {
+			maxAllowedSale = *req.Price
+		}
+		if *req.SalePrice > maxAllowedSale {
+			return req, errors.New("variant sale price cannot exceed variant price")
+		}
+	}
+
+	return req, nil
+}
+
+func resolveUpdatedProductPrices(currentBase float64, currentSale *float64, req models.ProductUpdateRequest) (float64, *float64, error) {
+	nextBase := currentBase
+	if req.BasePrice != nil {
+		if *req.BasePrice < 0 {
+			return 0, nil, errors.New("base price cannot be negative")
+		}
+		nextBase = *req.BasePrice
+	}
+
+	var nextSale *float64
+	if currentSale != nil {
+		sale := *currentSale
+		nextSale = &sale
+	}
+	if req.SalePrice != nil {
+		if *req.SalePrice < 0 {
+			return 0, nil, errors.New("sale price cannot be negative")
+		}
+		sale := *req.SalePrice
+		nextSale = &sale
+	}
+
+	if nextSale != nil && *nextSale > nextBase {
+		return 0, nil, errors.New("sale price cannot exceed base price")
+	}
+
+	return nextBase, nextSale, nil
 }
 
 // CreateProduct creates a new product
@@ -71,8 +177,8 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	req.ExternalURL = strings.TrimSpace(req.ExternalURL)
 	req.DigitalURL = strings.TrimSpace(req.DigitalURL)
 	req.Currency = strings.TrimSpace(req.Currency)
-	req.Category = models.ProductCategory(strings.TrimSpace(string(req.Category)))
-	req.ProductType = models.ProductType(strings.TrimSpace(string(req.ProductType)))
+	req.Category = normalizeProductCategory(req.Category)
+	req.ProductType = normalizeProductType(req.ProductType)
 	req.MainImageURL = strings.TrimSpace(req.MainImageURL)
 	req.Dimensions = strings.TrimSpace(req.Dimensions)
 	if req.Name == "" {
@@ -81,8 +187,8 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 	if !isValidProductType(req.ProductType) {
 		return nil, errors.New("invalid product type")
 	}
-	if req.Category == "" {
-		return nil, errors.New("category is required")
+	if !isValidProductCategory(req.Category) {
+		return nil, errors.New("invalid category")
 	}
 	if req.BasePrice < 0 {
 		return nil, errors.New("base price cannot be negative")
@@ -145,70 +251,62 @@ func (s *ProductService) CreateProduct(shopID uint, req models.ProductCreateRequ
 		product.Currency = "RUB"
 	}
 
-	// Create product in transaction
-	tx := database.DB.Begin()
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&product).Error; err != nil {
+			return err
+		}
 
-	if err := tx.Create(&product).Error; err != nil {
-		tx.Rollback()
-		return nil, err
-	}
+		// Create images
+		for i, imgURL := range req.Images {
+			imgURL = strings.TrimSpace(imgURL)
+			if imgURL == "" {
+				continue
+			}
+			img := models.ProductImage{
+				ProductID: product.ID,
+				ImageURL:  imgURL,
+				Position:  i,
+			}
+			if err := tx.Create(&img).Error; err != nil {
+				return err
+			}
+		}
 
-	// Create images
-	for i, imgURL := range req.Images {
-		imgURL = strings.TrimSpace(imgURL)
-		if imgURL == "" {
-			continue
-		}
-		img := models.ProductImage{
-			ProductID: product.ID,
-			ImageURL:  imgURL,
-			Position:  i,
-		}
-		if err := tx.Create(&img).Error; err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-	}
+		seenSKUs := make(map[string]struct{}, len(req.Variants))
+		for _, rawVariant := range req.Variants {
+			varReq, err := validateVariantCreateRequest(rawVariant, req.BasePrice)
+			if err != nil {
+				return err
+			}
+			if _, exists := seenSKUs[varReq.SKU]; exists {
+				return fmt.Errorf("duplicate variant sku: %s", varReq.SKU)
+			}
+			seenSKUs[varReq.SKU] = struct{}{}
 
-	// Create variants
-	for _, varReq := range req.Variants {
-		varReq.SKU = strings.TrimSpace(varReq.SKU)
-		varReq.Name = strings.TrimSpace(varReq.Name)
-		varReq.ImageURL = strings.TrimSpace(varReq.ImageURL)
-		if varReq.SKU == "" {
-			tx.Rollback()
-			return nil, errors.New("variant sku is required")
+			attrJSON, err := json.Marshal(varReq.Attributes)
+			if err != nil {
+				return err
+			}
+			variant := models.ProductVariant{
+				ProductID:  product.ID,
+				SKU:        varReq.SKU,
+				Attributes: string(attrJSON),
+				Name:       varReq.Name,
+				Price:      varReq.Price,
+				SalePrice:  varReq.SalePrice,
+				Stock:      varReq.Stock,
+				ImageURL:   varReq.ImageURL,
+				IsActive:   true,
+			}
+			if err := tx.Create(&variant).Error; err != nil {
+				return err
+			}
 		}
-		attrJSON, err := json.Marshal(varReq.Attributes)
-		if err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-		variant := models.ProductVariant{
-			ProductID:  product.ID,
-			SKU:        varReq.SKU,
-			Attributes: string(attrJSON),
-			Name:       varReq.Name,
-			Price:      varReq.Price,
-			SalePrice:  varReq.SalePrice,
-			Stock:      varReq.Stock,
-			ImageURL:   varReq.ImageURL,
-			IsActive:   true,
-		}
-		if err := tx.Create(&variant).Error; err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-	}
 
-	// Update shop products count
-	if err := tx.Model(&models.Shop{}).Where("id = ?", shopID).
-		UpdateColumn("products_count", gorm.Expr("products_count + 1")).Error; err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	if err := tx.Commit().Error; err != nil {
+		// Update shop products count
+		return tx.Model(&models.Shop{}).Where("id = ?", shopID).
+			UpdateColumn("products_count", gorm.Expr("products_count + 1")).Error
+	}); err != nil {
 		return nil, err
 	}
 
@@ -246,9 +344,9 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.FullDescription = strings.TrimSpace(*req.FullDescription)
 	}
 	if req.Category != nil {
-		nextCategory := models.ProductCategory(strings.TrimSpace(string(*req.Category)))
-		if nextCategory == "" {
-			return nil, errors.New("category is required")
+		nextCategory := normalizeProductCategory(*req.Category)
+		if !isValidProductCategory(nextCategory) {
+			return nil, errors.New("invalid category")
 		}
 		product.Category = nextCategory
 	}
@@ -260,7 +358,7 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.Tags = string(tagsBytes)
 	}
 	if req.ProductType != nil {
-		nextType := models.ProductType(strings.TrimSpace(string(*req.ProductType)))
+		nextType := normalizeProductType(*req.ProductType)
 		if !isValidProductType(nextType) {
 			return nil, errors.New("invalid product type")
 		}
@@ -269,24 +367,14 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 	if req.ExternalURL != nil {
 		product.ExternalURL = strings.TrimSpace(*req.ExternalURL)
 	}
-	if req.BasePrice != nil {
-		if *req.BasePrice < 0 {
-			return nil, errors.New("base price cannot be negative")
-		}
-		if product.SalePrice != nil && *product.SalePrice > *req.BasePrice {
-			return nil, errors.New("sale price cannot exceed base price")
-		}
-		product.BasePrice = *req.BasePrice
+
+	nextBasePrice, nextSalePrice, err := resolveUpdatedProductPrices(product.BasePrice, product.SalePrice, req)
+	if err != nil {
+		return nil, err
 	}
-	if req.SalePrice != nil {
-		if *req.SalePrice < 0 {
-			return nil, errors.New("sale price cannot be negative")
-		}
-		if *req.SalePrice > product.BasePrice {
-			return nil, errors.New("sale price cannot exceed base price")
-		}
-		product.SalePrice = req.SalePrice
-	}
+	product.BasePrice = nextBasePrice
+	product.SalePrice = nextSalePrice
+
 	if req.Stock != nil {
 		if *req.Stock < 0 {
 			return nil, errors.New("stock cannot be negative")
@@ -294,7 +382,7 @@ func (s *ProductService) UpdateProduct(productID uint, shopID uint, req models.P
 		product.Stock = *req.Stock
 	}
 	if req.Status != nil {
-		nextStatus := models.ProductStatus(strings.TrimSpace(string(*req.Status)))
+		nextStatus := normalizeProductStatus(*req.Status)
 		if !isValidProductStatus(nextStatus) {
 			return nil, errors.New("invalid product status")
 		}
@@ -379,13 +467,11 @@ func (s *ProductService) GetProductsByShop(shopID uint, page, limit int) (*model
 		responses = append(responses, resp)
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return &models.ProductListResponse{
 		Products:   responses,
 		Total:      total,
 		Page:       page,
-		TotalPages: totalPages,
+		TotalPages: calculateProductTotalPages(total, limit),
 	}, nil
 }
 
@@ -480,13 +566,11 @@ func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.Pro
 		responses = append(responses, resp)
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-
 	return &models.ProductListResponse{
 		Products:   responses,
 		Total:      total,
 		Page:       page,
-		TotalPages: totalPages,
+		TotalPages: calculateProductTotalPages(total, limit),
 	}, nil
 }
 
@@ -726,6 +810,12 @@ func (s *ProductService) ToggleFavorite(userID, productID uint) (bool, error) {
 
 // AddReview adds a review to a product
 func (s *ProductService) AddReview(userID, productID uint, req models.ReviewCreateRequest) (*models.ProductReview, error) {
+	if req.Rating < 1 || req.Rating > 5 {
+		return nil, errors.New("rating must be between 1 and 5")
+	}
+	req.Title = strings.TrimSpace(req.Title)
+	req.Comment = strings.TrimSpace(req.Comment)
+
 	// Verify product exists
 	var product models.Product
 	if err := database.DB.First(&product, productID).Error; err != nil {
@@ -747,10 +837,12 @@ func (s *ProductService) AddReview(userID, productID uint, req models.ReviewCrea
 	var verified bool
 	var order models.Order
 	err := database.DB.Joins("JOIN order_items ON order_items.order_id = orders.id").
-		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.status = ?", userID, productID, "completed").
+		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.status = ?", userID, productID, models.OrderStatusCompleted).
 		First(&order).Error
 	if err == nil {
 		verified = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 
 	review := models.ProductReview{

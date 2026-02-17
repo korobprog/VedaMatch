@@ -60,6 +60,8 @@ func (s *ChannelService) IsFeatureEnabled() bool {
 	var setting models.SystemSetting
 	if err := s.db.Where("key = ?", "CHANNELS_V1_ENABLED").First(&setting).Error; err == nil {
 		return parseBoolWithDefault(setting.Value, true)
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[Channels] load setting CHANNELS_V1_ENABLED failed: %v", err)
 	}
 
 	envValue := strings.TrimSpace(os.Getenv("CHANNELS_V1_ENABLED"))
@@ -207,9 +209,11 @@ func (s *ChannelService) UpdateChannel(channelID, actorID uint, req models.Chann
 			return nil, errors.New("title cannot be empty")
 		}
 		updates["title"] = title
-		if reqTitleSlug, slugErr := s.makeUniqueSlug("", title, &channel.ID); slugErr == nil {
-			updates["slug"] = reqTitleSlug
+		reqTitleSlug, slugErr := s.makeUniqueSlug("", title, &channel.ID)
+		if slugErr != nil {
+			return nil, slugErr
 		}
+		updates["slug"] = reqTitleSlug
 	}
 	if req.Description != nil {
 		updates["description"] = strings.TrimSpace(*req.Description)
@@ -584,7 +588,7 @@ func (s *ChannelService) PublishPost(channelID, postID, actorID uint) (*models.C
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{
 		"status":       models.ChannelPostStatusPublished,
 		"published_at": now,
@@ -653,7 +657,7 @@ func (s *ChannelService) PinPost(channelID, postID, actorID uint) (*models.Chann
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	tx := s.db.Begin()
 	if err := tx.Model(&models.ChannelPost{}).
 		Where("channel_id = ? AND is_pinned = ?", channelID, true).
@@ -707,7 +711,8 @@ func (s *ChannelService) PublishDuePosts(limit int) (int, error) {
 	}
 
 	var posts []models.ChannelPost
-	if err := s.db.Where("status = ? AND scheduled_at IS NOT NULL AND scheduled_at <= ?", models.ChannelPostStatusScheduled, time.Now()).
+	now := time.Now().UTC()
+	if err := s.db.Where("status = ? AND scheduled_at IS NOT NULL AND scheduled_at <= ?", models.ChannelPostStatusScheduled, now).
 		Order("scheduled_at ASC").
 		Limit(limit).
 		Find(&posts).Error; err != nil {
@@ -722,22 +727,27 @@ func (s *ChannelService) PublishDuePosts(limit int) (int, error) {
 		ids = append(ids, post.ID)
 	}
 
-	now := time.Now()
-	if err := s.db.Model(&models.ChannelPost{}).
-		Where("id IN ?", ids).
+	result := s.db.Model(&models.ChannelPost{}).
+		Where("id IN ? AND status = ? AND scheduled_at IS NOT NULL AND scheduled_at <= ?", ids, models.ChannelPostStatusScheduled, now).
 		Updates(map[string]interface{}{
 			"status":       models.ChannelPostStatusPublished,
 			"published_at": now,
 			"scheduled_at": nil,
-		}).Error; err != nil {
-		return 0, err
+		})
+	if result.Error != nil {
+		return 0, result.Error
 	}
 
-	if err := GetMetricsService().Increment(MetricChannelPostsPublishedTotal, int64(len(ids))); err != nil {
+	publishedCount := int(result.RowsAffected)
+	if publishedCount == 0 {
+		return 0, nil
+	}
+
+	if err := GetMetricsService().Increment(MetricChannelPostsPublishedTotal, int64(publishedCount)); err != nil {
 		log.Printf("[Channels] metric increment failed (%s): %v", MetricChannelPostsPublishedTotal, err)
 	}
 
-	return len(ids), nil
+	return publishedCount, nil
 }
 
 func (s *ChannelService) TrackCTAClick(channelID, postID, viewerID uint) error {
@@ -816,7 +826,7 @@ func (s *ChannelService) DismissPrompt(userID uint, promptKey string, postID *ui
 		UserID:      userID,
 		PromptKey:   normalizedKey,
 		PostID:      postID,
-		DismissedAt: time.Now(),
+		DismissedAt: time.Now().UTC(),
 	}
 
 	return s.db.Clauses(clause.OnConflict{
@@ -968,9 +978,12 @@ func (s *ChannelService) loadPromotedAds(viewerID uint, limit int) ([]models.Cha
 		var viewer models.User
 		if err := s.db.Select("id", "city").First(&viewer, viewerID).Error; err == nil {
 			viewerCity = strings.TrimSpace(viewer.City)
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[Channels] load viewer city failed for user %d: %v", viewerID, err)
 		}
 
-		dailyCount, err := s.countPromotedAdImpressions(viewerID, promotedAdPlacementChannelsFeed, time.Now().Add(-24*time.Hour))
+		now := time.Now().UTC()
+		dailyCount, err := s.countPromotedAdImpressions(viewerID, promotedAdPlacementChannelsFeed, now.Add(-24*time.Hour))
 		if err != nil {
 			return nil, err
 		}
@@ -995,7 +1008,8 @@ func (s *ChannelService) loadPromotedAds(viewerID uint, limit int) ([]models.Cha
 	if viewerID > 0 {
 		query = query.Where("user_id <> ?", viewerID)
 
-		recentAdIDs, err := s.listRecentlySeenPromotedAdIDs(viewerID, promotedAdPlacementChannelsFeed, time.Now().Add(-cooldownDuration))
+		now := time.Now().UTC()
+		recentAdIDs, err := s.listRecentlySeenPromotedAdIDs(viewerID, promotedAdPlacementChannelsFeed, now.Add(-cooldownDuration))
 		if err != nil {
 			return nil, err
 		}
@@ -1070,7 +1084,7 @@ func (s *ChannelService) savePromotedAdImpressions(userID uint, placement string
 		return nil
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	rows := make([]models.ChannelPromotedAdImpression, 0, len(ads))
 	for _, ad := range ads {
 		rows = append(rows, models.ChannelPromotedAdImpression{
@@ -1317,6 +1331,8 @@ func (s *ChannelService) getSystemSettingValue(key, fallback string) string {
 	var setting models.SystemSetting
 	if err := s.db.Where("key = ?", key).First(&setting).Error; err == nil {
 		return strings.TrimSpace(setting.Value)
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[Channels] load setting %s failed: %v", key, err)
 	}
 	return fallback
 }
@@ -1510,8 +1526,9 @@ func normalizePromptKey(raw string) string {
 	if key == "" {
 		return ""
 	}
-	if len(key) > 120 {
-		return key[:120]
+	runes := []rune(key)
+	if len(runes) > 120 {
+		return string(runes[:120])
 	}
 	return key
 }
@@ -1606,6 +1623,9 @@ func validateSchedulePostRequest(status models.ChannelPostStatus, scheduledAt ti
 	}
 	if status == models.ChannelPostStatusPublished {
 		return errors.New("published post cannot be scheduled")
+	}
+	if scheduledAt.UTC().Before(time.Now().UTC().Add(-1 * time.Second)) {
+		return errors.New("invalid scheduledAt: must be in the future")
 	}
 	return nil
 }
