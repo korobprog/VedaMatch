@@ -157,4 +157,8 @@ func TestCalculateServiceTotalPages(t *testing.T) {
 	if got := calculateServiceTotalPages(10, 0); got != 1 {
 		t.Fatalf("expected fallback page count 1, got %d", got)
 	}
+	maxInt := int64(^uint(0) >> 1)
+	if got := calculateServiceTotalPages(maxInt, 1); got != int(maxInt) {
+		t.Fatalf("expected capped max int pages=%d, got %d", maxInt, got)
+	}
 }

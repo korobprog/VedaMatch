@@ -11,6 +11,7 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { X } from 'lucide-react-native';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -153,6 +154,12 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
         >
             <View style={styles.overlay}>
                 <View style={[styles.modalContainer, { backgroundColor: vTheme.colors.background }]}>
+                    <TouchableOpacity
+                        style={styles.closeButton}
+                        onPress={onClose}
+                    >
+                        <X size={24} color={vTheme.colors.text} />
+                    </TouchableOpacity>
                     <Text style={[styles.title, { color: vTheme.colors.text }]}>
                         {t('chat.editRoomImage')}
                     </Text>
@@ -242,6 +249,15 @@ const styles = StyleSheet.create({
         maxHeight: '80%',
         borderRadius: 16,
         padding: 20,
+        paddingTop: 48,
+        position: 'relative',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        zIndex: 10,
+        padding: 4,
     },
     title: {
         fontSize: 20,

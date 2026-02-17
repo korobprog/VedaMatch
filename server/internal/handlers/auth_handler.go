@@ -626,6 +626,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.IsProfileComplete = true
 	// Preserve privileged flags and avoid accidental role downgrades when role is omitted/invalid.
 	user.Role = resolveProfileRoleForUpdate(user.Role, updateData.Role)
+	user.GodModeEnabled = updateData.GodModeEnabled
 
 	// Handle coordinates
 	if updateData.Latitude != nil && updateData.Longitude != nil {

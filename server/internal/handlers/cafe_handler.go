@@ -40,6 +40,15 @@ func clampQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	return value
 }
 
+func parsePositiveCafeParam(c *fiber.Ctx, key string, invalidMessage string) (uint, error) {
+	raw := strings.TrimSpace(c.Params(key))
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || value == 0 {
+		return 0, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": invalidMessage})
+	}
+	return uint(value), nil
+}
+
 func parseCafeBoolQuery(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "1", "true", "yes", "on":
@@ -255,9 +264,9 @@ func (h *CafeHandler) GetMyCafe(c *fiber.Ctx) error {
 // GetCafe returns a cafe by ID
 // GET /api/cafes/:id
 func (h *CafeHandler) GetCafe(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	cafe, err := h.cafeService.GetCafe(uint(cafeID))
@@ -333,9 +342,9 @@ func (h *CafeHandler) UpdateCafe(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	// Check ownership
@@ -367,9 +376,9 @@ func (h *CafeHandler) DeleteCafe(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	// Check ownership only
@@ -393,9 +402,9 @@ func (h *CafeHandler) CreateTable(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	// Check staff access
@@ -419,9 +428,9 @@ func (h *CafeHandler) CreateTable(c *fiber.Ctx) error {
 // GetTables returns all tables for a cafe
 // GET /api/cafes/:id/tables
 func (h *CafeHandler) GetTables(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	tables, err := h.cafeService.GetTables(uint(cafeID))
@@ -439,13 +448,13 @@ func (h *CafeHandler) UpdateTable(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	tableID, err := strconv.ParseUint(c.Params("tableId"), 10, 32)
+	tableID, err := parsePositiveCafeParam(c, "tableId", "Invalid table ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid table ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -479,9 +488,9 @@ func (h *CafeHandler) UpdateFloorLayout(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -507,13 +516,13 @@ func (h *CafeHandler) DeleteTable(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	tableID, err := strconv.ParseUint(c.Params("tableId"), 10, 32)
+	tableID, err := parsePositiveCafeParam(c, "tableId", "Invalid table ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid table ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -552,9 +561,9 @@ func (h *CafeHandler) ScanQRCode(c *fiber.Ctx) error {
 // GetMenu returns the full menu for a cafe
 // GET /api/cafes/:id/menu
 func (h *CafeHandler) GetMenu(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	menu, err := h.dishService.GetFullMenu(uint(cafeID))
@@ -568,9 +577,9 @@ func (h *CafeHandler) GetMenu(c *fiber.Ctx) error {
 // GetFeaturedDishes returns featured dishes
 // GET /api/cafes/:id/featured
 func (h *CafeHandler) GetFeaturedDishes(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	limit := clampQueryInt(c, "limit", 10, 1, 50)
@@ -592,9 +601,9 @@ func (h *CafeHandler) CreateCategory(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -617,9 +626,9 @@ func (h *CafeHandler) CreateCategory(c *fiber.Ctx) error {
 // GetCategories returns all categories for a cafe
 // GET /api/cafes/:id/categories
 func (h *CafeHandler) GetCategories(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	includeInactive := parseCafeBoolQuery(c.Query("include_inactive"))
@@ -638,13 +647,13 @@ func (h *CafeHandler) UpdateCategory(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	categoryID, err := strconv.ParseUint(c.Params("categoryId"), 10, 32)
+	categoryID, err := parsePositiveCafeParam(c, "categoryId", "Invalid category ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid category ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -678,13 +687,13 @@ func (h *CafeHandler) DeleteCategory(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	categoryID, err := strconv.ParseUint(c.Params("categoryId"), 10, 32)
+	categoryID, err := parsePositiveCafeParam(c, "categoryId", "Invalid category ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid category ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -714,9 +723,9 @@ func (h *CafeHandler) CreateDish(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -742,13 +751,13 @@ func (h *CafeHandler) CreateDish(c *fiber.Ctx) error {
 // GetDish returns a dish by ID
 // GET /api/cafes/:id/dishes/:dishId
 func (h *CafeHandler) GetDish(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	dishID, err := strconv.ParseUint(c.Params("dishId"), 10, 32)
+	dishID, err := parsePositiveCafeParam(c, "dishId", "Invalid dish ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid dish ID"})
+		return err
 	}
 	belongs, err := h.dishBelongsToCafe(uint(cafeID), uint(dishID))
 	if err != nil {
@@ -772,9 +781,9 @@ func (h *CafeHandler) GetDish(c *fiber.Ctx) error {
 // ListDishes returns a list of dishes
 // GET /api/cafes/:id/dishes
 func (h *CafeHandler) ListDishes(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	filters := models.DishFilters{
@@ -823,13 +832,13 @@ func (h *CafeHandler) UpdateDish(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	dishID, err := strconv.ParseUint(c.Params("dishId"), 10, 32)
+	dishID, err := parsePositiveCafeParam(c, "dishId", "Invalid dish ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid dish ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -866,13 +875,13 @@ func (h *CafeHandler) DeleteDish(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	dishID, err := strconv.ParseUint(c.Params("dishId"), 10, 32)
+	dishID, err := parsePositiveCafeParam(c, "dishId", "Invalid dish ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid dish ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, []models.CafeStaffRole{models.CafeStaffRoleAdmin, models.CafeStaffRoleManager}) {
@@ -902,9 +911,9 @@ func (h *CafeHandler) UpdateStopList(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, nil) { // Any staff can update stop-list
@@ -930,9 +939,9 @@ func (h *CafeHandler) GetStopList(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, nil) {
@@ -952,9 +961,9 @@ func (h *CafeHandler) GetStopList(c *fiber.Ctx) error {
 // CreateWaiterCall creates a waiter call
 // POST /api/cafes/:id/waiter-call
 func (h *CafeHandler) CreateWaiterCall(c *fiber.Ctx) error {
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	var userID *uint
@@ -983,9 +992,9 @@ func (h *CafeHandler) GetActiveWaiterCalls(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, nil) {
@@ -1007,13 +1016,13 @@ func (h *CafeHandler) AcknowledgeWaiterCall(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	callID, err := strconv.ParseUint(c.Params("callId"), 10, 32)
+	callID, err := parsePositiveCafeParam(c, "callId", "Invalid call ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid call ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, nil) {
@@ -1044,13 +1053,13 @@ func (h *CafeHandler) CompleteWaiterCall(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cafeID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	cafeID, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
+		return err
 	}
-	callID, err := strconv.ParseUint(c.Params("callId"), 10, 32)
+	callID, err := parsePositiveCafeParam(c, "callId", "Invalid call ID")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid call ID"})
+		return err
 	}
 
 	if !h.hasStaffAccess(uint(cafeID), userID, nil) {

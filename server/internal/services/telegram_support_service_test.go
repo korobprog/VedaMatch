@@ -893,6 +893,84 @@ func TestSupportTextLowConfidence_EscalatesToOperator(t *testing.T) {
 	}
 }
 
+func TestSupportOperatorPhotoReply_SetsFirstResponse(t *testing.T) {
+	store := newMemorySupportStore()
+	client := newFakeTelegramClient()
+	ai := &fakeSupportAIResponder{}
+	storage := &fakeMediaStorage{}
+
+	service := NewTelegramSupportServiceWithDeps(
+		store,
+		client,
+		storage,
+		ai,
+		newSettingsProvider(map[string]string{
+			"SUPPORT_TELEGRAM_OPERATOR_CHAT_ID": "777",
+		}),
+	)
+
+	conversationID := uint(1)
+	userChatID := int64(55)
+	store.conversationsByID[conversationID] = &models.SupportConversation{
+		Model:          gorm.Model{ID: conversationID},
+		Channel:        models.SupportConversationChannelTelegram,
+		Status:         models.SupportConversationStatusOpen,
+		TelegramChatID: userChatID,
+	}
+	store.relaysByOperatorMsg["777:5000"] = &models.SupportOperatorRelay{
+		Model:             gorm.Model{ID: 1},
+		ConversationID:    conversationID,
+		OperatorChatID:    777,
+		OperatorMessageID: 5000,
+		UserChatID:        userChatID,
+		UserTelegramID:    userChatID,
+		RelayKind:         "user_message",
+	}
+
+	update := &TelegramUpdate{
+		UpdateID: 8001,
+		Message: &TelegramMessage{
+			MessageID: 6001,
+			Date:      time.Now().Unix(),
+			Caption:   "look at this screenshot",
+			Photo: []TelegramPhotoSize{
+				{FileID: "operator_photo"},
+			},
+			Chat: &TelegramChat{
+				ID:   777,
+				Type: "supergroup",
+			},
+			ReplyToMessage: &TelegramMessage{
+				MessageID: 5000,
+			},
+		},
+	}
+
+	if err := service.ProcessUpdate(context.Background(), update); err != nil {
+		t.Fatalf("operator photo reply failed: %v", err)
+	}
+
+	conv := store.conversationsByID[conversationID]
+	if conv == nil || conv.FirstResponseAt == nil {
+		t.Fatalf("expected first response timestamp to be set for operator photo reply")
+	}
+
+	var outboundImage *models.SupportMessage
+	for _, id := range store.messageOrder {
+		msg := store.messages[id]
+		if msg.ConversationID == conversationID &&
+			msg.Direction == models.SupportMessageDirectionOutbound &&
+			msg.Source == models.SupportMessageSourceOperator &&
+			msg.Type == models.SupportMessageTypeImage {
+			outboundImage = msg
+			break
+		}
+	}
+	if outboundImage == nil {
+		t.Fatalf("expected outbound operator image message")
+	}
+}
+
 func TestPreviewRuneAware(t *testing.T) {
 	service := &TelegramSupportService{}
 

@@ -71,14 +71,20 @@ func moneyToLKM(amount float64) int {
 }
 
 func calculateOrderTotalPages(total int64, limit int) int {
-	if limit <= 0 {
+	if total <= 0 || limit <= 0 {
 		return 1
 	}
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	if totalPages < 1 {
-		return 1
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
 	}
-	return totalPages
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
 }
 
 // CreateOrder creates a new order from cart items

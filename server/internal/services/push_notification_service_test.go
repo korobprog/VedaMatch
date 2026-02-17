@@ -2,6 +2,8 @@ package services
 
 import (
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -143,4 +145,30 @@ func TestDigestRecipientsIgnoresDuplicates(t *testing.T) {
 		{Token: "token-a"},
 	}
 	require.Equal(t, digestRecipients(targetsB), digestRecipients(targetsA))
+}
+
+func TestSendFCMLegacyAttemptMissingResultsAreRetried(t *testing.T) {
+	var capturedAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":1,"failure":0,"results":[{"message_id":"m1"}]}`))
+	}))
+	defer server.Close()
+
+	svc := &PushNotificationService{
+		fcmURL:     server.URL,
+		httpClient: server.Client(),
+		fcmEnvKey:  "test-key",
+	}
+
+	retryTargets, err := svc.sendFCMLegacyAttempt([]pushTokenTarget{
+		{Token: "token-a", Provider: providerFCM},
+		{Token: "token-b", Provider: providerFCM},
+	}, PushMessage{Title: "title", Body: "body"}, 1, false)
+	require.NoError(t, err)
+	require.Equal(t, "key=test-key", capturedAuth)
+	require.Len(t, retryTargets, 1)
+	require.Equal(t, "token-b", retryTargets[0].Token)
 }

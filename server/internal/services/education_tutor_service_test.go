@@ -173,6 +173,18 @@ func TestExtractJSONObject_HandlesEscapedQuotes(t *testing.T) {
 	}
 }
 
+func TestDurationHoursRoundedUp(t *testing.T) {
+	if got := durationHoursRoundedUp(30 * time.Minute); got != 1 {
+		t.Fatalf("expected 1 hour for 30m window, got %d", got)
+	}
+	if got := durationHoursRoundedUp(2 * time.Hour); got != 2 {
+		t.Fatalf("expected exact 2 hours, got %d", got)
+	}
+	if got := durationHoursRoundedUp(2*time.Hour+10*time.Minute); got != 3 {
+		t.Fatalf("expected rounded up 3 hours, got %d", got)
+	}
+}
+
 func TestEducationTutor_TurnDisabledByFlag(t *testing.T) {
 	db := setupEducationTutorDB(t)
 	svc := NewEducationTutorService(db)

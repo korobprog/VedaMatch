@@ -203,3 +203,42 @@ func TestExtractDurationFromInstructionsWithPunctuation(t *testing.T) {
 		t.Fatalf("expected duration 5, got %d", got)
 	}
 }
+
+func TestApplyCompletionStreakIgnoresOlderCompletionDate(t *testing.T) {
+	last, current, best := applyCompletionStreak("2026-02-10", 4, 6, "2026-02-08")
+	if last != "2026-02-10" {
+		t.Fatalf("expected last active date to stay unchanged, got %q", last)
+	}
+	if current != 4 {
+		t.Fatalf("expected current streak to stay 4, got %d", current)
+	}
+	if best != 6 {
+		t.Fatalf("expected best streak to stay 6, got %d", best)
+	}
+}
+
+func TestApplyCompletionStreakConsecutiveDayIncrements(t *testing.T) {
+	last, current, best := applyCompletionStreak("2026-02-10", 4, 4, "2026-02-11")
+	if last != "2026-02-11" {
+		t.Fatalf("expected last active date to move forward, got %q", last)
+	}
+	if current != 5 {
+		t.Fatalf("expected current streak to increment to 5, got %d", current)
+	}
+	if best != 5 {
+		t.Fatalf("expected best streak to update to 5, got %d", best)
+	}
+}
+
+func TestApplyCompletionStreakGapResetsCurrent(t *testing.T) {
+	last, current, best := applyCompletionStreak("2026-02-10", 4, 7, "2026-02-14")
+	if last != "2026-02-14" {
+		t.Fatalf("expected last active date to move to completion date, got %q", last)
+	}
+	if current != 1 {
+		t.Fatalf("expected current streak reset to 1, got %d", current)
+	}
+	if best != 7 {
+		t.Fatalf("expected best streak to stay 7, got %d", best)
+	}
+}

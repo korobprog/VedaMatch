@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"math"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
@@ -45,6 +44,15 @@ func boundedNewsQueryInt(c *fiber.Ctx, key string, def int, min int, max int) in
 		return max
 	}
 	return value
+}
+
+func parsePositiveNewsParam(c *fiber.Ctx, key string, invalidMessage string) (uint, error) {
+	raw := strings.TrimSpace(c.Params(key))
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || value == 0 {
+		return 0, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": invalidMessage})
+	}
+	return uint(value), nil
 }
 
 func isValidNewsItemStatus(status models.NewsItemStatus) bool {
@@ -100,14 +108,20 @@ func validateNewsFetchInterval(interval int) error {
 }
 
 func calculateNewsTotalPages(total int64, limit int) int {
-	if limit <= 0 {
+	if total <= 0 || limit <= 0 {
 		return 1
 	}
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	if totalPages < 1 {
-		return 1
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
 	}
-	return totalPages
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
 }
 
 // ==================== PUBLIC ENDPOINTS ====================
@@ -217,9 +231,9 @@ func (h *NewsHandler) GetNews(c *fiber.Ctx) error {
 // GetNewsItem returns a single news item by ID
 // GET /api/news/:id
 func (h *NewsHandler) GetNewsItem(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid news ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
+		return err
 	}
 
 	lang := strings.ToLower(strings.TrimSpace(c.Query("lang", "ru")))
@@ -358,9 +372,9 @@ func (h *NewsHandler) GetAdminNewsItem(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid news ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
+		return err
 	}
 
 	var newsItem models.NewsItem
@@ -455,9 +469,9 @@ func (h *NewsHandler) UpdateNews(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid news ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
+		return err
 	}
 
 	var newsItem models.NewsItem
@@ -546,9 +560,9 @@ func (h *NewsHandler) DeleteNews(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid news ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
+		return err
 	}
 
 	var newsItem models.NewsItem
@@ -576,9 +590,9 @@ func (h *NewsHandler) PublishNews(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid news ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
+		return err
 	}
 
 	var newsItem models.NewsItem
@@ -623,9 +637,9 @@ func (h *NewsHandler) ProcessNewsAI(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid news ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid news ID"})
+		return err
 	}
 	var newsItem models.NewsItem
 	if err := database.DB.Select("id").First(&newsItem, id).Error; err != nil {
@@ -640,7 +654,7 @@ func (h *NewsHandler) ProcessNewsAI(c *fiber.Ctx) error {
 		if err := services.GetNewsAIService().ProcessNewsItem(newsID); err != nil {
 			log.Printf("[ADMIN NEWS] AI processing error for %d: %v", newsID, err)
 		}
-	}(uint(id))
+	}(id)
 
 	log.Printf("[ADMIN NEWS] Triggered AI processing for news item ID: %d", id)
 	return c.JSON(fiber.Map{"message": "AI processing started in background"})
@@ -708,9 +722,9 @@ func (h *NewsHandler) GetSource(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 
 	var source models.NewsSource
@@ -808,9 +822,9 @@ func (h *NewsHandler) UpdateSource(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 
 	var source models.NewsSource
@@ -919,9 +933,9 @@ func (h *NewsHandler) DeleteSource(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 
 	var source models.NewsSource
@@ -961,9 +975,9 @@ func (h *NewsHandler) ToggleSourceActive(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 
 	var source models.NewsSource
@@ -991,9 +1005,9 @@ func (h *NewsHandler) FetchSourceNow(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 	var source models.NewsSource
 	if err := database.DB.Select("id").First(&source, id).Error; err != nil {
@@ -1004,7 +1018,7 @@ func (h *NewsHandler) FetchSourceNow(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch source"})
 	}
 
-	if err := services.GetNewsScheduler().FetchSourceNow(uint(id)); err != nil {
+	if err := services.GetNewsScheduler().FetchSourceNow(id); err != nil {
 		log.Printf("[ADMIN NEWS] Error fetching source: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to start source fetch"})
 	}
@@ -1092,9 +1106,9 @@ func (h *NewsHandler) SubscribeToSource(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	sourceID, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 	var sourceExists int64
 	if err := database.DB.Model(&models.NewsSource{}).
@@ -1108,7 +1122,7 @@ func (h *NewsHandler) SubscribeToSource(c *fiber.Ctx) error {
 
 	subscription := models.UserNewsSubscription{
 		UserID:   userID,
-		SourceID: uint(sourceID),
+		SourceID: sourceID,
 	}
 
 	if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&subscription).Error; err != nil {
@@ -1126,9 +1140,9 @@ func (h *NewsHandler) UnsubscribeFromSource(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	sourceID, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 
 	if err := database.DB.Where("user_id = ? AND source_id = ?", userID, sourceID).
@@ -1165,9 +1179,9 @@ func (h *NewsHandler) AddToFavorites(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	sourceID, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 	var sourceExists int64
 	if err := database.DB.Model(&models.NewsSource{}).
@@ -1181,7 +1195,7 @@ func (h *NewsHandler) AddToFavorites(c *fiber.Ctx) error {
 
 	favorite := models.UserNewsFavorite{
 		UserID:   userID,
-		SourceID: uint(sourceID),
+		SourceID: sourceID,
 	}
 
 	if err := database.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&favorite).Error; err != nil {
@@ -1199,9 +1213,9 @@ func (h *NewsHandler) RemoveFromFavorites(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	sourceID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	sourceID, err := parsePositiveNewsParam(c, "id", "Invalid source ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid source ID"})
+		return err
 	}
 
 	if err := database.DB.Where("user_id = ? AND source_id = ?", userID, sourceID).

@@ -293,6 +293,22 @@ func TestClampChannelInt(t *testing.T) {
 	}
 }
 
+func TestCalculateChannelTotalPages(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateChannelTotalPages(0, 20); got != 1 {
+		t.Fatalf("expected 1 page for empty dataset, got %d", got)
+	}
+	if got := calculateChannelTotalPages(41, 20); got != 3 {
+		t.Fatalf("expected 3 pages for total=41 limit=20, got %d", got)
+	}
+
+	maxInt := int64(^uint(0) >> 1)
+	if got := calculateChannelTotalPages(maxInt, 1); got != int(maxInt) {
+		t.Fatalf("expected capped max int pages, got %d", got)
+	}
+}
+
 func TestComputePromotedFetchLimit(t *testing.T) {
 	t.Parallel()
 

@@ -31,6 +31,23 @@ var (
 	ErrInvalidShopData  = errors.New("invalid shop data")
 )
 
+func calculateShopTotalPages(total int64, limit int) int {
+	if total <= 0 || limit <= 0 {
+		return 1
+	}
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
+	}
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
+}
+
 // CanCreateShop checks if user can create a new shop
 // Regular users: 1 shop limit (requires subscription)
 // Admins/Superadmins: unlimited
@@ -323,7 +340,7 @@ func (s *ShopService) GetShops(filters models.ShopFilters) (*models.ShopListResp
 		shopResponses = append(shopResponses, resp)
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	totalPages := calculateShopTotalPages(total, limit)
 
 	return &models.ShopListResponse{
 		Shops:      shopResponses,

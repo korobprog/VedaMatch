@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -147,6 +148,18 @@ func TestCalculateProductTotalPages(t *testing.T) {
 			}
 		})
 	}
+
+	expected := int64(math.MaxInt64 / 2)
+	if math.MaxInt64%2 != 0 {
+		expected++
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if expected > maxInt {
+		expected = maxInt
+	}
+	if got := calculateProductTotalPages(math.MaxInt64, 2); got != int(expected) {
+		t.Fatalf("large total pages = %d, want %d", got, expected)
+	}
 }
 
 func TestGenerateProductSlug(t *testing.T) {
@@ -166,5 +179,34 @@ func TestGenerateProductSlugFallback(t *testing.T) {
 	got := svc.generateSlug("!!!")
 	if !strings.HasPrefix(got, "product-") {
 		t.Fatalf("fallback slug prefix = %q, want product-*", got)
+	}
+}
+
+func TestNormalizeProductFiltersForQuery(t *testing.T) {
+	t.Parallel()
+
+	in := models.ProductFilters{
+		Category:    models.ProductCategory(" FOOD "),
+		ProductType: models.ProductType(" DIGITAL "),
+		City:        "  Moscow  ",
+		Search:      "  gita  ",
+		Sort:        " PRICE_DESC ",
+	}
+	got := normalizeProductFiltersForQuery(in)
+
+	if got.Category != models.ProductCategoryFood {
+		t.Fatalf("normalized category = %q, want %q", got.Category, models.ProductCategoryFood)
+	}
+	if got.ProductType != models.ProductTypeDigital {
+		t.Fatalf("normalized product type = %q, want %q", got.ProductType, models.ProductTypeDigital)
+	}
+	if got.City != "Moscow" {
+		t.Fatalf("normalized city = %q, want Moscow", got.City)
+	}
+	if got.Search != "gita" {
+		t.Fatalf("normalized search = %q, want gita", got.Search)
+	}
+	if got.Sort != "price_desc" {
+		t.Fatalf("normalized sort = %q, want price_desc", got.Sort)
 	}
 }

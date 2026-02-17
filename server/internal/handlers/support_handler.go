@@ -1170,12 +1170,12 @@ func (h *SupportHandler) GetMyTicketMessages(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	conversationID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	conversationID, err := parseSupportPositiveUintParam(c, "id", "ticket id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid ticket id"})
+		return err
 	}
 
-	conversation, err := h.loadConversationForUser(userID, uint(conversationID))
+	conversation, err := h.loadConversationForUser(userID, conversationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "ticket not found"})
@@ -1213,9 +1213,9 @@ func (h *SupportHandler) PostMyTicketMessage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	conversationID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	conversationID, err := parseSupportPositiveUintParam(c, "id", "ticket id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid ticket id"})
+		return err
 	}
 
 	var req supportAddMessageRequest
@@ -1237,7 +1237,7 @@ func (h *SupportHandler) PostMyTicketMessage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "message or attachment is required"})
 	}
 
-	conversation, err := h.loadConversationForUser(userID, uint(conversationID))
+	conversation, err := h.loadConversationForUser(userID, conversationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "ticket not found"})
@@ -1316,12 +1316,12 @@ func (h *SupportHandler) MarkMyTicketRead(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	conversationID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	conversationID, err := parseSupportPositiveUintParam(c, "id", "ticket id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid ticket id"})
+		return err
 	}
 
-	conversation, err := h.loadConversationForUser(userID, uint(conversationID))
+	conversation, err := h.loadConversationForUser(userID, conversationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "ticket not found"})
@@ -1525,13 +1525,13 @@ func (h *SupportHandler) GetConversationMessages(c *fiber.Ctx) error {
 		return err
 	}
 
-	conversationID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	conversationID, err := parseSupportPositiveUintParam(c, "id", "conversation id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conversation id"})
+		return err
 	}
 
 	var conversation models.SupportConversation
-	if err := database.DB.Select("id").First(&conversation, uint(conversationID)).Error; err != nil {
+	if err := database.DB.Select("id").First(&conversation, conversationID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "conversation not found"})
 		}
@@ -1539,7 +1539,7 @@ func (h *SupportHandler) GetConversationMessages(c *fiber.Ctx) error {
 	}
 
 	var messages []models.SupportMessage
-	if err := database.DB.Where("conversation_id = ?", uint(conversationID)).
+	if err := database.DB.Where("conversation_id = ?", conversationID).
 		Order("created_at ASC").
 		Find(&messages).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load messages"})
@@ -1558,9 +1558,9 @@ func (h *SupportHandler) ResolveConversation(c *fiber.Ctx) error {
 		return err
 	}
 
-	conversationID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	conversationID, err := parseSupportPositiveUintParam(c, "id", "conversation id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conversation id"})
+		return err
 	}
 
 	now := time.Now().UTC()
@@ -1570,7 +1570,7 @@ func (h *SupportHandler) ResolveConversation(c *fiber.Ctx) error {
 		"resolved_by": adminID,
 	}
 	result := database.DB.Model(&models.SupportConversation{}).
-		Where("id = ?", uint(conversationID)).
+		Where("id = ?", conversationID).
 		Updates(updates)
 	if result.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to resolve conversation"})
@@ -1579,7 +1579,7 @@ func (h *SupportHandler) ResolveConversation(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "conversation not found"})
 	}
 
-	h.pushSupportStatusUpdate(uint(conversationID), "Диалог поддержки завершен. При необходимости создайте новое обращение.")
+	h.pushSupportStatusUpdate(conversationID, "Диалог поддержки завершен. При необходимости создайте новое обращение.")
 
 	return c.JSON(fiber.Map{"message": "conversation resolved"})
 }
@@ -1653,13 +1653,13 @@ func (h *SupportHandler) UpdateFAQ(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parseSupportPositiveUintParam(c, "id", "faq id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid faq id"})
+		return err
 	}
 
 	var existing models.SupportFAQItem
-	if err := database.DB.First(&existing, uint(id)).Error; err != nil {
+	if err := database.DB.First(&existing, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "faq not found"})
 		}
@@ -1699,12 +1699,12 @@ func (h *SupportHandler) DeleteFAQ(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parseSupportPositiveUintParam(c, "id", "faq id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid faq id"})
+		return err
 	}
 
-	result := database.DB.Delete(&models.SupportFAQItem{}, uint(id))
+	result := database.DB.Delete(&models.SupportFAQItem{}, id)
 	if result.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete faq"})
 	}
@@ -1730,6 +1730,17 @@ func parseSupportInt(raw string, def int, min int, max int) int {
 		return max
 	}
 	return value
+}
+
+func parseSupportPositiveUintParam(c *fiber.Ctx, key string, fieldName string) (uint, error) {
+	raw := strings.TrimSpace(c.Params(key))
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || value == 0 {
+		return 0, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("invalid %s", strings.TrimSpace(fieldName)),
+		})
+	}
+	return uint(value), nil
 }
 
 func normalizeSupportFAQPayload(req models.SupportFAQItem) (models.SupportFAQItem, error) {

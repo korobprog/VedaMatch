@@ -63,14 +63,29 @@ func calculateMultimediaTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
 	}
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
+	if total <= 0 {
+		return 1
 	}
-	if totalPages < 1 {
-		totalPages = 1
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
 	}
-	return totalPages
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
+}
+
+func normalizeTrackFilter(filter TrackFilter) TrackFilter {
+	filter.MediaType = strings.ToLower(strings.TrimSpace(filter.MediaType))
+	filter.Madh = strings.ToLower(strings.TrimSpace(filter.Madh))
+	filter.YogaStyle = strings.ToLower(strings.TrimSpace(filter.YogaStyle))
+	filter.Language = strings.ToLower(strings.TrimSpace(filter.Language))
+	filter.Search = strings.TrimSpace(filter.Search)
+	return filter
 }
 
 func NewMultimediaService() *MultimediaService {
@@ -179,11 +194,7 @@ type TrackListResponse struct {
 func (s *MultimediaService) GetTracks(filter TrackFilter) (*TrackListResponse, error) {
 	var tracks []models.MediaTrack
 	var total int64
-	filter.MediaType = strings.TrimSpace(filter.MediaType)
-	filter.Madh = strings.TrimSpace(filter.Madh)
-	filter.YogaStyle = strings.TrimSpace(filter.YogaStyle)
-	filter.Language = strings.TrimSpace(filter.Language)
-	filter.Search = strings.TrimSpace(filter.Search)
+	filter = normalizeTrackFilter(filter)
 
 	query := s.db.Model(&models.MediaTrack{}).Where("is_active = ?", true)
 

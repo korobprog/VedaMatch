@@ -14,6 +14,10 @@ func TestCalculateOrderTotalPages(t *testing.T) {
 	if got := calculateOrderTotalPages(10, 0); got != 1 {
 		t.Fatalf("expected fallback total pages to be 1, got %d", got)
 	}
+	maxInt := int64(^uint(0) >> 1)
+	if got := calculateOrderTotalPages(maxInt, 1); got != int(maxInt) {
+		t.Fatalf("expected capped max int pages=%d, got %d", maxInt, got)
+	}
 }
 
 func TestNormalizeMarketPaymentMethod(t *testing.T) {

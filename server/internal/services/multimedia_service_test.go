@@ -1,6 +1,9 @@
 package services
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestSanitizeUploadFolder(t *testing.T) {
 	t.Parallel()
@@ -50,5 +53,45 @@ func TestCalculateMultimediaTotalPages(t *testing.T) {
 	}
 	if got := calculateMultimediaTotalPages(10, 0); got != 1 {
 		t.Fatalf("expected fallback page count 1, got %d", got)
+	}
+
+	expected := int64(math.MaxInt64 / 2)
+	if math.MaxInt64%2 != 0 {
+		expected++
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if expected > maxInt {
+		expected = maxInt
+	}
+	if got := calculateMultimediaTotalPages(math.MaxInt64, 2); got != int(expected) {
+		t.Fatalf("expected clamped page count %d, got %d", expected, got)
+	}
+}
+
+func TestNormalizeTrackFilter(t *testing.T) {
+	t.Parallel()
+
+	in := TrackFilter{
+		MediaType: " AUDIO ",
+		Madh:      " ISKCON ",
+		YogaStyle: " HATHA ",
+		Language:  " RU ",
+		Search:    "  mantra  ",
+	}
+	got := normalizeTrackFilter(in)
+	if got.MediaType != "audio" {
+		t.Fatalf("media type = %q, want audio", got.MediaType)
+	}
+	if got.Madh != "iskcon" {
+		t.Fatalf("madh = %q, want iskcon", got.Madh)
+	}
+	if got.YogaStyle != "hatha" {
+		t.Fatalf("yoga style = %q, want hatha", got.YogaStyle)
+	}
+	if got.Language != "ru" {
+		t.Fatalf("language = %q, want ru", got.Language)
+	}
+	if got.Search != "mantra" {
+		t.Fatalf("search = %q, want mantra", got.Search)
 	}
 }

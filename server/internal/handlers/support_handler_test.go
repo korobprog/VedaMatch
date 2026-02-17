@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"encoding/json"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 func TestIsValidSupportContact(t *testing.T) {
@@ -172,6 +176,49 @@ func TestLoadSupportUserEmailNilDB(t *testing.T) {
 
 	if got := loadSupportUserEmail(42); got != "" {
 		t.Fatalf("expected empty email when database is not initialized, got %q", got)
+	}
+}
+
+func TestParseSupportPositiveUintParam(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:id", func(c *fiber.Ctx) error {
+		id, err := parseSupportPositiveUintParam(c, "id", "ticket id")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"id": id})
+	})
+
+	reqValid := httptest.NewRequest("GET", "/42", nil)
+	respValid, err := app.Test(reqValid)
+	if err != nil {
+		t.Fatalf("valid request failed: %v", err)
+	}
+	defer respValid.Body.Close()
+	var payload map[string]uint
+	if err := json.NewDecoder(respValid.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode valid response: %v", err)
+	}
+	if payload["id"] != 42 {
+		t.Fatalf("expected parsed id=42, got %d", payload["id"])
+	}
+
+	reqZero := httptest.NewRequest("GET", "/0", nil)
+	respZero, err := app.Test(reqZero)
+	if err != nil {
+		t.Fatalf("zero request failed: %v", err)
+	}
+	if respZero.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400 for zero id, got %d", respZero.StatusCode)
+	}
+
+	reqBad := httptest.NewRequest("GET", "/abc", nil)
+	respBad, err := app.Test(reqBad)
+	if err != nil {
+		t.Fatalf("bad request failed: %v", err)
+	}
+	if respBad.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid id, got %d", respBad.StatusCode)
 	}
 }
 

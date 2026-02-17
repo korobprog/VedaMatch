@@ -51,10 +51,26 @@ func validateMapBoundingBox(bbox models.MapBoundingBox) error {
 	return nil
 }
 
+func calculateTruncatedCount(total int64, returned int) int {
+	if total <= int64(returned) {
+		return 0
+	}
+
+	diff := total - int64(returned)
+	maxInt := int64(^uint(0) >> 1)
+	if diff > maxInt {
+		return int(maxInt)
+	}
+	return int(diff)
+}
+
 // GetMarkers retrieves markers for the given bounding box and categories
 func (s *MapService) GetMarkers(req models.MapMarkersRequest) (*models.MapMarkersResponse, error) {
 	if err := validateMapBoundingBox(req.MapBoundingBox); err != nil {
 		return nil, err
+	}
+	if (req.UserLat == nil) != (req.UserLng == nil) {
+		return nil, fmt.Errorf("both user coordinates are required")
 	}
 	if req.UserLat != nil && req.UserLng != nil {
 		if !isValidLatitude(*req.UserLat) || !isValidLongitude(*req.UserLng) {
@@ -193,9 +209,7 @@ func (s *MapService) getUserMarkers(bbox models.MapBoundingBox, userLat, userLng
 	}
 
 	truncated := 0
-	if int(totalCount) > limit {
-		truncated = int(totalCount) - limit
-	}
+	truncated = calculateTruncatedCount(totalCount, len(markers))
 
 	return markers, truncated
 }
@@ -260,9 +274,7 @@ func (s *MapService) getShopMarkers(bbox models.MapBoundingBox, userLat, userLng
 	}
 
 	truncated := 0
-	if int(totalCount) > limit {
-		truncated = int(totalCount) - limit
-	}
+	truncated = calculateTruncatedCount(totalCount, len(markers))
 
 	return markers, truncated
 }
@@ -333,9 +345,7 @@ func (s *MapService) getAdMarkers(bbox models.MapBoundingBox, userLat, userLng *
 	}
 
 	truncated := 0
-	if int(totalCount) > limit {
-		truncated = int(totalCount) - limit
-	}
+	truncated = calculateTruncatedCount(totalCount, len(markers))
 
 	return markers, truncated
 }
@@ -401,9 +411,7 @@ func (s *MapService) getCafeMarkers(bbox models.MapBoundingBox, userLat, userLng
 	}
 
 	truncated := 0
-	if int(totalCount) > limit {
-		truncated = int(totalCount) - limit
-	}
+	truncated = calculateTruncatedCount(totalCount, len(markers))
 
 	return markers, truncated
 }

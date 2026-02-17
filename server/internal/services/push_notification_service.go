@@ -1101,10 +1101,19 @@ func (s *PushNotificationService) sendFCMLegacyAttempt(targets []pushTokenTarget
 		}
 
 		for idx, target := range batch {
-			resultErr := ""
-			if idx < len(parsed.Results) {
-				resultErr = strings.TrimSpace(parsed.Results[idx].Error)
+			if idx >= len(parsed.Results) {
+				if finalAttempt {
+					s.recordDeliveryEvent(target, message, deliveryStatusFailed, errorTypeTransient, "missing_result", attempt, latency)
+					s.bumpTokenFailCount(target.Token)
+					continue
+				}
+				s.recordDeliveryEvent(target, message, deliveryStatusRetry, errorTypeTransient, "missing_result", attempt, latency)
+				retryTargets = append(retryTargets, target)
+				continue
 			}
+
+			resultErr := ""
+			resultErr = strings.TrimSpace(parsed.Results[idx].Error)
 			if resultErr == "" {
 				s.recordDeliveryEvent(target, message, deliveryStatusSuccess, "", "", attempt, latency)
 				s.markTokenDeliverySuccess(target.Token)

@@ -833,19 +833,12 @@ func (s *PathTrackerService) CompleteStep(userID uint, stepID uint) (*DailyStepV
 	}
 
 	state := s.ensureState(userID)
-	today := step.DateLocal
-	if state.LastActiveDate != today {
-		yesterday := shiftDate(today, -1)
-		if state.LastActiveDate == yesterday {
-			state.StreakCurrent++
-		} else {
-			state.StreakCurrent = 1
-		}
-	}
-	if state.StreakCurrent > state.StreakBest {
-		state.StreakBest = state.StreakCurrent
-	}
-	state.LastActiveDate = today
+	state.LastActiveDate, state.StreakCurrent, state.StreakBest = applyCompletionStreak(
+		state.LastActiveDate,
+		state.StreakCurrent,
+		state.StreakBest,
+		step.DateLocal,
+	)
 	state.LastFormat = step.Format
 	if err := s.db.Save(&state).Error; err != nil {
 		return nil, err
@@ -2127,6 +2120,57 @@ func daysSince(prevDate, currentDate string) int {
 		return 99
 	}
 	return int(curr.Sub(prev).Hours() / 24)
+}
+
+func applyCompletionStreak(lastActiveDate string, streakCurrent int, streakBest int, completedDate string) (string, int, int) {
+	completedDate = strings.TrimSpace(completedDate)
+	if completedDate == "" {
+		return lastActiveDate, streakCurrent, streakBest
+	}
+
+	lastActiveDate = strings.TrimSpace(lastActiveDate)
+	if lastActiveDate == "" {
+		streakCurrent = 1
+		if streakCurrent > streakBest {
+			streakBest = streakCurrent
+		}
+		return completedDate, streakCurrent, streakBest
+	}
+
+	deltaDays, ok := dayDelta(lastActiveDate, completedDate)
+	if !ok {
+		// Keep existing state on malformed historical dates.
+		if completedDate <= lastActiveDate {
+			return lastActiveDate, streakCurrent, streakBest
+		}
+		deltaDays = 2
+	}
+
+	if deltaDays <= 0 {
+		return lastActiveDate, streakCurrent, streakBest
+	}
+
+	if deltaDays == 1 && streakCurrent > 0 {
+		streakCurrent++
+	} else {
+		streakCurrent = 1
+	}
+	if streakCurrent > streakBest {
+		streakBest = streakCurrent
+	}
+	return completedDate, streakCurrent, streakBest
+}
+
+func dayDelta(fromDate string, toDate string) (int, bool) {
+	from, err := time.Parse("2006-01-02", fromDate)
+	if err != nil {
+		return 0, false
+	}
+	to, err := time.Parse("2006-01-02", toDate)
+	if err != nil {
+		return 0, false
+	}
+	return int(to.Sub(from).Hours() / 24), true
 }
 
 func shiftDate(date string, deltaDays int) string {

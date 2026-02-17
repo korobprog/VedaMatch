@@ -77,3 +77,37 @@ func TestIsUnsafeFolderPath(t *testing.T) {
 		t.Fatalf("expected relative folder to be safe")
 	}
 }
+
+func TestParsePositiveMultimediaParam(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:id", func(c *fiber.Ctx) error {
+		id, err := parsePositiveMultimediaParam(c, "id", "Invalid track ID")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"id": id})
+	})
+
+	reqValid := httptest.NewRequest("GET", "/42", nil)
+	respValid, err := app.Test(reqValid)
+	if err != nil {
+		t.Fatalf("valid request failed: %v", err)
+	}
+	defer respValid.Body.Close()
+	var payload map[string]uint
+	if err := json.NewDecoder(respValid.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode valid response failed: %v", err)
+	}
+	if payload["id"] != 42 {
+		t.Fatalf("expected parsed id=42, got %d", payload["id"])
+	}
+
+	reqZero := httptest.NewRequest("GET", "/0", nil)
+	respZero, err := app.Test(reqZero)
+	if err != nil {
+		t.Fatalf("zero request failed: %v", err)
+	}
+	if respZero.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400 for zero id, got %d", respZero.StatusCode)
+	}
+}

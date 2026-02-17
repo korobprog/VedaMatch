@@ -1,6 +1,12 @@
 package handlers
 
-import "testing"
+import (
+	"encoding/json"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gofiber/fiber/v2"
+)
 
 func TestValidateNewsSourceID(t *testing.T) {
 	if err := validateNewsSourceID(nil); err == nil {
@@ -40,6 +46,10 @@ func TestCalculateNewsTotalPages(t *testing.T) {
 	if got := calculateNewsTotalPages(10, 0); got != 1 {
 		t.Fatalf("expected fallback total pages 1 for invalid limit, got %d", got)
 	}
+	maxInt := int64(^uint(0) >> 1)
+	if got := calculateNewsTotalPages(maxInt, 1); got != int(maxInt) {
+		t.Fatalf("expected capped max int pages=%d, got %d", maxInt, got)
+	}
 }
 
 func TestParseNewsBoolQuery(t *testing.T) {
@@ -54,5 +64,39 @@ func TestParseNewsBoolQuery(t *testing.T) {
 	}
 	if parseNewsBoolQuery("unexpected") {
 		t.Fatalf("expected unexpected token to parse as false")
+	}
+}
+
+func TestParsePositiveNewsParam(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:id", func(c *fiber.Ctx) error {
+		id, err := parsePositiveNewsParam(c, "id", "Invalid news ID")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"id": id})
+	})
+
+	reqValid := httptest.NewRequest("GET", "/12", nil)
+	respValid, err := app.Test(reqValid)
+	if err != nil {
+		t.Fatalf("valid request failed: %v", err)
+	}
+	defer respValid.Body.Close()
+	var payload map[string]uint
+	if err := json.NewDecoder(respValid.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode valid response failed: %v", err)
+	}
+	if payload["id"] != 12 {
+		t.Fatalf("expected parsed id=12, got %d", payload["id"])
+	}
+
+	reqZero := httptest.NewRequest("GET", "/0", nil)
+	respZero, err := app.Test(reqZero)
+	if err != nil {
+		t.Fatalf("zero request failed: %v", err)
+	}
+	if respZero.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400 for zero id, got %d", respZero.StatusCode)
 	}
 }

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"testing"
 	"unicode/utf8"
 
@@ -138,5 +139,40 @@ func TestGetMarkersInvalidBoundingBox(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected bbox validation error")
+	}
+}
+
+func TestGetMarkersPartialUserCoordinates(t *testing.T) {
+	t.Parallel()
+
+	lat := 55.75
+	svc := &MapService{}
+	_, err := svc.GetMarkers(models.MapMarkersRequest{
+		MapBoundingBox: models.MapBoundingBox{
+			LatMin: 55.0,
+			LatMax: 56.0,
+			LngMin: 37.0,
+			LngMax: 38.0,
+		},
+		UserLat: &lat,
+	})
+	if err == nil {
+		t.Fatalf("expected error for partial user coordinates")
+	}
+}
+
+func TestCalculateTruncatedCount(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateTruncatedCount(5, 5); got != 0 {
+		t.Fatalf("expected 0, got %d", got)
+	}
+	if got := calculateTruncatedCount(12, 8); got != 4 {
+		t.Fatalf("expected 4, got %d", got)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if got := calculateTruncatedCount(math.MaxInt64, 0); got != maxInt {
+		t.Fatalf("expected clamped %d, got %d", maxInt, got)
 	}
 }

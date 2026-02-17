@@ -15,7 +15,7 @@ import {
     Easing,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Bell, Clock, Info, Camera, Image as ImageIcon } from 'lucide-react-native';
+import { Bell, Clock, Info, Camera, Image as ImageIcon, X } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import DatePicker from 'react-native-date-picker';
 import { COLORS } from '../../../components/chat/ChatConstants';
@@ -200,253 +200,261 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
         >
             <View style={styles.modalOverlay}>
                 <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
-                <Animated.View
-                    style={[
-                        styles.modalContent,
-                        {
-                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.84)' : colors.surfaceElevated,
-                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                        },
-                        {
-                            opacity: modalOpacity,
-                            transform: [{ scale: modalScale }],
-                        },
-                    ]}
-                >
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ paddingBottom: 20 }}
-                        keyboardShouldPersistTaps="handled"
+                    <Animated.View
+                        style={[
+                            styles.modalContent,
+                            {
+                                backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.84)' : colors.surfaceElevated,
+                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                            },
+                            {
+                                opacity: modalOpacity,
+                                transform: [{ scale: modalScale }],
+                            },
+                        ]}
                     >
-                        <Text style={[styles.modalTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.createRoom')}</Text>
+                        <TouchableOpacity
+                            style={styles.closeButton}
+                            onPress={onClose}
+                            activeOpacity={0.7}
+                        >
+                            <X size={24} color={isPhotoBg ? '#FFFFFF' : colors.textPrimary} />
+                        </TouchableOpacity>
 
-                        <Text style={[styles.sectionTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary, marginTop: 10 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
+                        <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={{ paddingBottom: 20 }}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            <Text style={[styles.modalTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.createRoom')}</Text>
 
-                        <View style={styles.imageSelectionContainer}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScrollContent}>
-                                <TouchableOpacity
-                                    activeOpacity={0.88}
-                                    style={[
-                                        styles.presetItem,
-                                        {
-                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface,
-                                            borderColor: imageUrl === 'custom' ? colors.accent : (isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border)
-                                        }
-                                    ]}
-                                    onPress={() => {
-                                        triggerTapFeedback();
-                                        handleUploadImage();
-                                    }}
-                                >
-                                    {customImageUri ? (
-                                        <Image source={{ uri: customImageUri }} style={styles.customImagePreview} />
-                                    ) : (
-                                        <>
-                                            <Camera size={26} color={isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary} />
-                                            <Text style={[styles.presetLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                                {t('chat.upload')}
-                                            </Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
+                            <Text style={[styles.sectionTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary, marginTop: 10 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
 
-                                {PRESET_IMAGES.map(preset => (
+                            <View style={styles.imageSelectionContainer}>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScrollContent}>
                                     <TouchableOpacity
-                                        key={preset.id}
                                         activeOpacity={0.88}
                                         style={[
                                             styles.presetItem,
                                             {
                                                 backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface,
-                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
-                                            },
-                                            imageUrl === preset.id && { borderColor: colors.accent }
+                                                borderColor: imageUrl === 'custom' ? colors.accent : (isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border)
+                                            }
                                         ]}
                                         onPress={() => {
                                             triggerTapFeedback();
-                                            setImageUrl(preset.id);
-                                            setCustomImageUri(null);
+                                            handleUploadImage();
                                         }}
                                     >
-                                        <Text style={styles.presetEmoji}>{preset.emoji}</Text>
-                                        <Text style={[styles.presetLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                            {t(`chat.presets.${preset.id}`)}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
-
-                        <TextInput
-                            style={[
-                                styles.input,
-                                {
-                                    color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
-                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                }
-                            ]}
-                            placeholder={t('chat.roomName')}
-                            placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
-                            value={name}
-                            onChangeText={setName}
-                        />
-
-                        <TextInput
-                            style={[
-                                styles.input,
-                                {
-                                    color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
-                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                    height: 84
-                                }
-                            ]}
-                            placeholder={t('chat.roomDesc')}
-                            placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
-                            value={description}
-                            onChangeText={setDescription}
-                            multiline
-                        />
-
-                        <View style={[styles.switchRow, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface, borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border }]}>
-                            <Text style={[styles.switchLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                {t('chat.enableReading') || 'Enable Scripture Reading'}
-                            </Text>
-                            <Switch
-                                value={enableReading}
-                                onValueChange={setEnableReading}
-                                trackColor={{ false: colors.border, true: colors.accent }}
-                            />
-                        </View>
-
-                        {enableReading && (
-                            <>
-                                {/* Shared Reading Fields */}
-                                <Text style={[styles.sectionTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.readingSettings')}</Text>
-
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
-                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                        }
-                                    ]}
-                                    placeholder={t('chat.locationPlaceholder')}
-                                    placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
-                                    value={location}
-                                    onChangeText={setLocation}
-                                />
-
-                                <View style={{ marginBottom: 16 }}>
-                                    <Text style={{ color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary, marginBottom: 8 }}>{t('chat.selectScripture')}</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 50 }}>
-                                        {books.map((book) => (
-                                            <TouchableOpacity
-                                                key={book.id}
-                                                style={[
-                                                    styles.bookItem,
-                                                    {
-                                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border
-                                                    },
-                                                    selectedBook === book.code && { backgroundColor: colors.accent, borderColor: colors.accent }
-                                                ]}
-                                                onPress={() => setSelectedBook(book.code === selectedBook ? '' : book.code)}
-                                            >
-                                                <Text style={[
-                                                    styles.bookText,
-                                                    { color: selectedBook === book.code ? '#fff' : (isPhotoBg ? '#FFFFFF' : colors.textPrimary) }
-                                                ]}>
-                                                    {i18n.language === 'ru' ? (book.name_ru || book.name_en) : (book.name_en || book.name_ru)}
+                                        {customImageUri ? (
+                                            <Image source={{ uri: customImageUri }} style={styles.customImagePreview} />
+                                        ) : (
+                                            <>
+                                                <Camera size={26} color={isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary} />
+                                                <Text style={[styles.presetLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
+                                                    {t('chat.upload')}
                                                 </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
 
-                                <Text style={[styles.sectionTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.readingSchedule') || 'Reading Schedule'}</Text>
+                                    {PRESET_IMAGES.map(preset => (
+                                        <TouchableOpacity
+                                            key={preset.id}
+                                            activeOpacity={0.88}
+                                            style={[
+                                                styles.presetItem,
+                                                {
+                                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface,
+                                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
+                                                },
+                                                imageUrl === preset.id && { borderColor: colors.accent }
+                                            ]}
+                                            onPress={() => {
+                                                triggerTapFeedback();
+                                                setImageUrl(preset.id);
+                                                setCustomImageUri(null);
+                                            }}
+                                        >
+                                            <Text style={styles.presetEmoji}>{preset.emoji}</Text>
+                                            <Text style={[styles.presetLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
+                                                {t(`chat.presets.${preset.id}`)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    {
+                                        color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                    }
+                                ]}
+                                placeholder={t('chat.roomName')}
+                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
+                                value={name}
+                                onChangeText={setName}
+                            />
+
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    {
+                                        color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
+                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                        height: 84
+                                    }
+                                ]}
+                                placeholder={t('chat.roomDesc')}
+                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
+                                value={description}
+                                onChangeText={setDescription}
+                                multiline
+                            />
+
+                            <View style={[styles.switchRow, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface, borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border }]}>
+                                <Text style={[styles.switchLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
+                                    {t('chat.enableReading') || 'Enable Scripture Reading'}
+                                </Text>
+                                <Switch
+                                    value={enableReading}
+                                    onValueChange={setEnableReading}
+                                    trackColor={{ false: colors.border, true: colors.accent }}
+                                />
+                            </View>
+
+                            {enableReading && (
+                                <>
+                                    {/* Shared Reading Fields */}
+                                    <Text style={[styles.sectionTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.readingSettings')}</Text>
+
+                                    <TextInput
+                                        style={[
+                                            styles.input,
+                                            {
+                                                color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
+                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
+                                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                            }
+                                        ]}
+                                        placeholder={t('chat.locationPlaceholder')}
+                                        placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
+                                        value={location}
+                                        onChangeText={setLocation}
+                                    />
+
+                                    <View style={{ marginBottom: 16 }}>
+                                        <Text style={{ color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary, marginBottom: 8 }}>{t('chat.selectScripture')}</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 50 }}>
+                                            {books.map((book) => (
+                                                <TouchableOpacity
+                                                    key={book.id}
+                                                    style={[
+                                                        styles.bookItem,
+                                                        {
+                                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border
+                                                        },
+                                                        selectedBook === book.code && { backgroundColor: colors.accent, borderColor: colors.accent }
+                                                    ]}
+                                                    onPress={() => setSelectedBook(book.code === selectedBook ? '' : book.code)}
+                                                >
+                                                    <Text style={[
+                                                        styles.bookText,
+                                                        { color: selectedBook === book.code ? '#fff' : (isPhotoBg ? '#FFFFFF' : colors.textPrimary) }
+                                                    ]}>
+                                                        {i18n.language === 'ru' ? (book.name_ru || book.name_en) : (book.name_en || book.name_ru)}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+
+                                    <Text style={[styles.sectionTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.readingSchedule') || 'Reading Schedule'}</Text>
+                                    <TouchableOpacity
+                                        activeOpacity={0.88}
+                                        style={[
+                                            styles.scheduleButton,
+                                            {
+                                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
+                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border
+                                            }
+                                        ]}
+                                        onPress={() => {
+                                            triggerTapFeedback();
+                                            setShowDatePicker(true);
+                                        }}
+                                    >
+                                        <Bell size={18} color={colors.accent} />
+                                        <Text style={[styles.scheduleValue, { color: startTime ? (isPhotoBg ? '#FFFFFF' : colors.textPrimary) : (isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary) }]}>
+                                            {startTime ? startTime.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : t('chat.setStartTime') || 'Set Start Time'}
+                                        </Text>
+                                        {startTime && (
+                                            <TouchableOpacity onPress={(e) => { e.stopPropagation(); setStartTime(null); }}>
+                                                <Text style={{ color: colors.accent, fontSize: 12 }}>{t('common.clear') || 'Clear'}</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </TouchableOpacity>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 }}>
+                                        <Info size={12} color={isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary} />
+                                        <Text style={[styles.scheduleSubLabel, { color: vTheme.colors.textSecondary }]}>
+                                            {t('chat.notificationHint') || 'Friends will be notified 15 minutes before'}
+                                        </Text>
+                                    </View>
+                                </>
+                            )}
+
+                            <DatePicker
+                                modal
+                                open={showDatePicker}
+                                date={startTime || new Date()}
+                                title={t('chat.selectStartTime') || "Select Start Time"}
+                                onConfirm={(date) => {
+                                    setShowDatePicker(false);
+                                    setStartTime(date);
+                                }}
+                                onCancel={() => {
+                                    setShowDatePicker(false);
+                                }}
+                            />
+
+                            <View style={styles.buttonRow}>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
                                     style={[
-                                        styles.scheduleButton,
+                                        styles.button,
+                                        styles.cancelButton,
                                         {
-                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border
+                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface,
+                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : colors.border
                                         }
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
-                                        setShowDatePicker(true);
+                                        onClose();
                                     }}
                                 >
-                                    <Bell size={18} color={colors.accent} />
-                                    <Text style={[styles.scheduleValue, { color: startTime ? (isPhotoBg ? '#FFFFFF' : colors.textPrimary) : (isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary) }]}>
-                                        {startTime ? startTime.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : t('chat.setStartTime') || 'Set Start Time'}
-                                    </Text>
-                                    {startTime && (
-                                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); setStartTime(null); }}>
-                                            <Text style={{ color: colors.accent, fontSize: 12 }}>{t('common.clear') || 'Clear'}</Text>
-                                        </TouchableOpacity>
-                                    )}
+                                    <Text style={[styles.buttonText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('common.cancel')}</Text>
                                 </TouchableOpacity>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 }}>
-                                    <Info size={12} color={isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary} />
-                                    <Text style={[styles.scheduleSubLabel, { color: vTheme.colors.textSecondary }]}>
-                                        {t('chat.notificationHint') || 'Friends will be notified 15 minutes before'}
-                                    </Text>
-                                </View>
-                            </>
-                        )}
-
-                        <DatePicker
-                            modal
-                            open={showDatePicker}
-                            date={startTime || new Date()}
-                            title={t('chat.selectStartTime') || "Select Start Time"}
-                            onConfirm={(date) => {
-                                setShowDatePicker(false);
-                                setStartTime(date);
-                            }}
-                            onCancel={() => {
-                                setShowDatePicker(false);
-                            }}
-                        />
-
-                        <View style={styles.buttonRow}>
-                            <TouchableOpacity
-                                activeOpacity={0.88}
-                                style={[
-                                    styles.button,
-                                    styles.cancelButton,
-                                    {
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surface,
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : colors.border
-                                    }
-                                ]}
-                                onPress={() => {
-                                    triggerTapFeedback();
-                                    onClose();
-                                }}
-                            >
-                                <Text style={[styles.buttonText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('common.cancel')}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                activeOpacity={0.88}
-                                style={[styles.button, { backgroundColor: colors.accent, borderColor: colors.accent }]}
-                                onPress={() => {
-                                    triggerTapFeedback();
-                                    handleCreate();
-                                }}
-                                disabled={loading}
-                            >
-                                <Text style={styles.buttonText}>{loading ? t('common.loading') : t('chat.create')}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </ScrollView>
-                </Animated.View>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[styles.button, { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        handleCreate();
+                                    }}
+                                    disabled={loading}
+                                >
+                                    <Text style={styles.buttonText}>{loading ? t('common.loading') : t('chat.create')}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    </Animated.View>
                 </KeyboardAwareContainer>
             </View>
         </Modal>
@@ -467,7 +475,16 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         borderWidth: 1,
         padding: 24,
+        paddingTop: 48, // Increased top padding for the close button
         elevation: 5,
+        position: 'relative',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        zIndex: 10,
+        padding: 4,
     },
     modalTitle: {
         fontSize: 24,

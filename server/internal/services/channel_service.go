@@ -485,10 +485,7 @@ func (s *ChannelService) ListPosts(channelID, viewerID uint, page, limit int, in
 		return nil, "", err
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	totalPages := calculateChannelTotalPages(total, limit)
 
 	return &models.ChannelPostListResponse{
 		Posts:      posts,
@@ -934,10 +931,7 @@ func (s *ChannelService) GetFeed(filters ChannelFeedFilters) (*models.ChannelFee
 		return nil, err
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(filters.Limit)))
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	totalPages := calculateChannelTotalPages(total, filters.Limit)
 
 	promotedInsertEvery := s.getPromotedInsertEvery()
 	promotedFetchLimit := computePromotedFetchLimit(filters.Limit, promotedInsertEvery)
@@ -1362,13 +1356,41 @@ func (s *ChannelService) getPromotedInsertEvery() int {
 	return clampChannelInt(value, 2, 20)
 }
 
+func calculateChannelTotalPages(total int64, limit int) int {
+	if total <= 0 || limit <= 0 {
+		return 1
+	}
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
+	}
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
+}
+
+func ceilDivChannel(value int, divisor int) int {
+	if value <= 0 || divisor <= 0 {
+		return 0
+	}
+	quotient := value / divisor
+	if value%divisor != 0 {
+		quotient++
+	}
+	return quotient
+}
+
 func computePromotedFetchLimit(feedLimit int, insertEvery int) int {
 	if feedLimit <= 0 {
 		feedLimit = 20
 	}
 	insertEvery = clampChannelInt(insertEvery, 2, 20)
 
-	limit := int(math.Ceil(float64(feedLimit) / float64(insertEvery)))
+	limit := ceilDivChannel(feedLimit, insertEvery)
 	if limit < 1 {
 		limit = 1
 	}
@@ -1409,10 +1431,7 @@ func (s *ChannelService) listChannels(baseQuery *gorm.DB, filters ChannelListFil
 		return nil, err
 	}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	if totalPages == 0 {
-		totalPages = 1
-	}
+	totalPages := calculateChannelTotalPages(total, limit)
 
 	return &models.ChannelListResponse{
 		Channels:   channels,

@@ -380,7 +380,7 @@ func (s *TelegramSupportService) handleOperatorMessage(ctx context.Context, msg 
 		if err := s.store.UpdateConversationActivity(relay.ConversationID, s.preview("[operator image] "+outbound.Caption), now); err != nil {
 			log.Printf("[Support] update conversation activity failed: %v", err)
 		}
-		return nil
+		return s.store.MarkConversationFirstResponse(relay.ConversationID, now)
 	}
 
 	operatorText := strings.TrimSpace(msg.Text)

@@ -233,6 +233,25 @@ func TestChannelHandler_GetFeedInvalidChannelID(t *testing.T) {
 	}
 }
 
+func TestChannelHandler_GetFeedZeroChannelID(t *testing.T) {
+	app := fiber.New()
+	handler := NewChannelHandlerWithService(&mockChannelService{})
+
+	app.Get("/feed", func(c *fiber.Ctx) error {
+		c.Locals("userID", "11")
+		return handler.GetFeed(c)
+	})
+
+	req := httptest.NewRequest("GET", "/feed?channelId=0", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusBadRequest)
+	}
+}
+
 func TestChannelHandler_GetFeedParsesFilters(t *testing.T) {
 	app := fiber.New()
 	handler := NewChannelHandlerWithService(&mockChannelService{
@@ -407,5 +426,39 @@ func TestParseUintParamAcceptsPositive(t *testing.T) {
 	}
 	if res.StatusCode != fiber.StatusOK {
 		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+}
+
+func TestParseQueryIntWithDefaultRejectsNonPositive(t *testing.T) {
+	app := fiber.New()
+	app.Get("/", func(c *fiber.Ctx) error {
+		page := parseQueryIntWithDefault(c, "page", 3)
+		return c.JSON(fiber.Map{"page": page})
+	})
+
+	reqZero := httptest.NewRequest("GET", "/?page=0", nil)
+	resZero, err := app.Test(reqZero)
+	if err != nil {
+		t.Fatalf("app.Test error (zero): %v", err)
+	}
+	var payloadZero map[string]int
+	if err := json.NewDecoder(resZero.Body).Decode(&payloadZero); err != nil {
+		t.Fatalf("decode zero payload: %v", err)
+	}
+	if payloadZero["page"] != 3 {
+		t.Fatalf("page for zero=%d, want=3", payloadZero["page"])
+	}
+
+	reqNeg := httptest.NewRequest("GET", "/?page=-2", nil)
+	resNeg, err := app.Test(reqNeg)
+	if err != nil {
+		t.Fatalf("app.Test error (negative): %v", err)
+	}
+	var payloadNeg map[string]int
+	if err := json.NewDecoder(resNeg.Body).Decode(&payloadNeg); err != nil {
+		t.Fatalf("decode negative payload: %v", err)
+	}
+	if payloadNeg["page"] != 3 {
+		t.Fatalf("page for negative=%d, want=3", payloadNeg["page"])
 	}
 }

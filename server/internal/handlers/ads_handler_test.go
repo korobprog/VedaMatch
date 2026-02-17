@@ -161,4 +161,8 @@ func TestCalculateAdTotalPages(t *testing.T) {
 	if got := calculateAdTotalPages(10, 0); got != 1 {
 		t.Fatalf("expected limit safeguard pages=1, got %d", got)
 	}
+	maxInt := int64(^uint(0) >> 1)
+	if got := calculateAdTotalPages(maxInt, 1); got != int(maxInt) {
+		t.Fatalf("expected capped max int pages=%d, got %d", maxInt, got)
+	}
 }

@@ -45,6 +45,15 @@ func boundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	return value
 }
 
+func parsePositiveMultimediaParam(c *fiber.Ctx, key string, invalidMessage string) (uint, error) {
+	raw := strings.TrimSpace(c.Params(key))
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || value == 0 {
+		return 0, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": invalidMessage})
+	}
+	return uint(value), nil
+}
+
 func isUnsafeFolderPath(path string) bool {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -149,12 +158,12 @@ func (h *MultimediaHandler) GetTracks(c *fiber.Ctx) error {
 // @Success 200 {object} models.MediaTrack
 // @Router /api/multimedia/tracks/{id} [get]
 func (h *MultimediaHandler) GetTrack(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid track ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
+		return err
 	}
 
-	track, err := h.service.GetTrackByID(uint(id))
+	track, err := h.service.GetTrackByID(id)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch track"})
@@ -202,16 +211,16 @@ func (h *MultimediaHandler) UpdateTrack(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid track ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
+		return err
 	}
 
 	var track models.MediaTrack
 	if err := c.BodyParser(&track); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	track.ID = uint(id)
+	track.ID = id
 
 	if err := h.service.UpdateTrack(&track); err != nil {
 		return respondMultimediaDomainError(c, err, "Track not found")
@@ -230,12 +239,12 @@ func (h *MultimediaHandler) DeleteTrack(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid track ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
+		return err
 	}
 
-	if err := h.service.DeleteTrack(uint(id)); err != nil {
+	if err := h.service.DeleteTrack(id); err != nil {
 		return respondMultimediaDomainError(c, err, "Track not found")
 	}
 	return c.JSON(fiber.Map{"message": "Track deleted"})
@@ -265,12 +274,12 @@ func (h *MultimediaHandler) GetRadioStations(c *fiber.Ctx) error {
 // @Success 200 {object} models.RadioStation
 // @Router /api/multimedia/radio/{id} [get]
 func (h *MultimediaHandler) GetRadioStation(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid station ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid station ID"})
+		return err
 	}
 
-	station, err := h.service.GetRadioStationByID(uint(id))
+	station, err := h.service.GetRadioStationByID(id)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch station"})
@@ -317,16 +326,16 @@ func (h *MultimediaHandler) UpdateRadioStation(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid station ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid station ID"})
+		return err
 	}
 
 	var station models.RadioStation
 	if err := c.BodyParser(&station); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	station.ID = uint(id)
+	station.ID = id
 
 	if err := h.service.UpdateRadioStation(&station); err != nil {
 		return respondMultimediaDomainError(c, err, "Station not found")
@@ -345,12 +354,12 @@ func (h *MultimediaHandler) DeleteRadioStation(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid station ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid station ID"})
+		return err
 	}
 
-	if err := h.service.DeleteRadioStation(uint(id)); err != nil {
+	if err := h.service.DeleteRadioStation(id); err != nil {
 		return respondMultimediaDomainError(c, err, "Station not found")
 	}
 	return c.JSON(fiber.Map{"message": "Station deleted"})
@@ -380,12 +389,12 @@ func (h *MultimediaHandler) GetTVChannels(c *fiber.Ctx) error {
 // @Success 200 {object} models.TVChannel
 // @Router /api/multimedia/tv/{id} [get]
 func (h *MultimediaHandler) GetTVChannel(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid channel ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid channel ID"})
+		return err
 	}
 
-	channel, err := h.service.GetTVChannelByID(uint(id))
+	channel, err := h.service.GetTVChannelByID(id)
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch channel"})
@@ -432,16 +441,16 @@ func (h *MultimediaHandler) UpdateTVChannel(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid channel ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid channel ID"})
+		return err
 	}
 
 	var channel models.TVChannel
 	if err := c.BodyParser(&channel); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	channel.ID = uint(id)
+	channel.ID = id
 
 	if err := h.service.UpdateTVChannel(&channel); err != nil {
 		return respondMultimediaDomainError(c, err, "Channel not found")
@@ -460,12 +469,12 @@ func (h *MultimediaHandler) DeleteTVChannel(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid channel ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid channel ID"})
+		return err
 	}
 
-	if err := h.service.DeleteTVChannel(uint(id)); err != nil {
+	if err := h.service.DeleteTVChannel(id); err != nil {
 		return respondMultimediaDomainError(c, err, "Channel not found")
 	}
 	return c.JSON(fiber.Map{"message": "Channel deleted"})
@@ -530,6 +539,9 @@ func (h *MultimediaHandler) GetPresignedURL(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	body.Filename = strings.TrimSpace(body.Filename)
+	body.SeriesSlug = strings.TrimSpace(body.SeriesSlug)
+	body.ContentType = strings.TrimSpace(body.ContentType)
 
 	if body.Filename == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Filename is required"})
@@ -620,9 +632,14 @@ func (h *MultimediaHandler) GetPendingSuggestions(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/admin/multimedia/suggestions/{id}/review [post]
 func (h *MultimediaHandler) ReviewSuggestion(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	userID, err := requireMultimediaUserID(c)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid suggestion ID"})
+		return err
+	}
+
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid suggestion ID")
+	if err != nil {
+		return err
 	}
 
 	var body struct {
@@ -636,12 +653,7 @@ func (h *MultimediaHandler) ReviewSuggestion(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Status must be 'approved' or 'rejected'"})
 	}
 
-	userID, err := requireMultimediaUserID(c)
-	if err != nil {
-		return err
-	}
-
-	if err := h.service.ReviewSuggestion(uint(id), body.Status, body.AdminNote, userID); err != nil {
+	if err := h.service.ReviewSuggestion(id, body.Status, body.AdminNote, userID); err != nil {
 		return respondMultimediaDomainError(c, err, "Suggestion not found")
 	}
 	return c.JSON(fiber.Map{"message": "Suggestion reviewed"})
@@ -656,9 +668,9 @@ func (h *MultimediaHandler) ReviewSuggestion(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/multimedia/tracks/{id}/favorite [post]
 func (h *MultimediaHandler) AddToFavorites(c *fiber.Ctx) error {
-	trackID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	trackID, err := parsePositiveMultimediaParam(c, "id", "Invalid track ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
+		return err
 	}
 
 	userID := middleware.GetUserID(c)
@@ -666,7 +678,7 @@ func (h *MultimediaHandler) AddToFavorites(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	if err := h.service.AddToFavorites(userID, uint(trackID)); err != nil {
+	if err := h.service.AddToFavorites(userID, trackID); err != nil {
 		return respondMultimediaDomainError(c, err, "Track not found")
 	}
 	return c.JSON(fiber.Map{"message": "Added to favorites"})
@@ -679,9 +691,9 @@ func (h *MultimediaHandler) AddToFavorites(c *fiber.Ctx) error {
 // @Success 200 {object} fiber.Map
 // @Router /api/multimedia/tracks/{id}/favorite [delete]
 func (h *MultimediaHandler) RemoveFromFavorites(c *fiber.Ctx) error {
-	trackID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	trackID, err := parsePositiveMultimediaParam(c, "id", "Invalid track ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid track ID"})
+		return err
 	}
 
 	userID := middleware.GetUserID(c)
@@ -689,7 +701,7 @@ func (h *MultimediaHandler) RemoveFromFavorites(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	if err := h.service.RemoveFromFavorites(userID, uint(trackID)); err != nil {
+	if err := h.service.RemoveFromFavorites(userID, trackID); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "Removed from favorites"})
@@ -777,16 +789,16 @@ func (h *MultimediaHandler) UpdateCategory(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid category ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid category ID"})
+		return err
 	}
 
 	var category models.MediaCategory
 	if err := c.BodyParser(&category); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	category.ID = uint(id)
+	category.ID = id
 
 	if err := h.service.UpdateCategory(&category); err != nil {
 		return respondMultimediaDomainError(c, err, "Category not found")
@@ -805,12 +817,12 @@ func (h *MultimediaHandler) DeleteCategory(c *fiber.Ctx) error {
 		return err
 	}
 
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid category ID")
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid category ID"})
+		return err
 	}
 
-	if err := h.service.DeleteCategory(uint(id)); err != nil {
+	if err := h.service.DeleteCategory(id); err != nil {
 		return respondMultimediaDomainError(c, err, "Category not found")
 	}
 	return c.JSON(fiber.Map{"message": "Category deleted"})

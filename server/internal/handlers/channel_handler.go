@@ -606,7 +606,7 @@ func (h *ChannelHandler) GetFeed(c *fiber.Ctx) error {
 
 	if channelIDStr := c.Query("channelId"); channelIDStr != "" {
 		channelID, err := strconv.ParseUint(channelIDStr, 10, 32)
-		if err != nil {
+		if err != nil || channelID == 0 {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channelId"})
 		}
 		channelIDUint := uint(channelID)
@@ -819,7 +819,7 @@ func parseQueryIntWithDefault(c *fiber.Ctx, key string, def int) int {
 		return def
 	}
 	value, err := strconv.Atoi(raw)
-	if err != nil {
+	if err != nil || value <= 0 {
 		return def
 	}
 	return value

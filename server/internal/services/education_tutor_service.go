@@ -783,7 +783,7 @@ func (s *EducationTutorService) GetLatencySummary(window time.Duration) (*TutorL
 	}
 
 	summary := &TutorLatencySummary{
-		WindowHours:    int(window.Hours()),
+		WindowHours:    durationHoursRoundedUp(window),
 		TurnCount:      int64(len(turnLatencies)),
 		RetrievalCount: int64(len(retrievalLatencies)),
 		NoDataTurns:    noDataTurns,
@@ -1245,6 +1245,21 @@ func roundTutor(value float64, precision int) float64 {
 	}
 	scale := math.Pow10(precision)
 	return math.Round(value*scale) / scale
+}
+
+func durationHoursRoundedUp(window time.Duration) int {
+	if window <= 0 {
+		return 0
+	}
+
+	hours := int(window / time.Hour)
+	if window%time.Hour != 0 {
+		hours++
+	}
+	if hours < 1 {
+		return 1
+	}
+	return hours
 }
 
 func latencyP95(values []int64) int64 {

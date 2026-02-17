@@ -27,14 +27,41 @@ func calculateCafeTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
 	}
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
+	if total <= 0 {
+		return 1
 	}
-	if totalPages < 1 {
-		totalPages = 1
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
 	}
-	return totalPages
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
+}
+
+func normalizeCafeListFilters(filters models.CafeFilters) models.CafeFilters {
+	filters.City = strings.TrimSpace(filters.City)
+	filters.Search = strings.TrimSpace(filters.Search)
+	filters.Status = models.CafeStatus(strings.ToLower(strings.TrimSpace(string(filters.Status))))
+	filters.Sort = strings.ToLower(strings.TrimSpace(filters.Sort))
+	return filters
+}
+
+func calculateCafeMarkerTruncated(total int64, returned int) int {
+	if total <= int64(returned) {
+		return 0
+	}
+
+	diff := total - int64(returned)
+	maxInt := int64(^uint(0) >> 1)
+	if diff > maxInt {
+		return int(maxInt)
+	}
+	return int(diff)
 }
 
 func validateCafeUpdateNumericFields(req models.CafeUpdateRequest) error {
@@ -221,10 +248,7 @@ func (s *CafeService) GetCafeBySlug(slug string) (*models.CafeDetailResponse, er
 
 // ListCafes returns a paginated list of cafes
 func (s *CafeService) ListCafes(filters models.CafeFilters) (*models.CafeListResponse, error) {
-	filters.City = strings.TrimSpace(filters.City)
-	filters.Search = strings.TrimSpace(filters.Search)
-	filters.Status = models.CafeStatus(strings.TrimSpace(string(filters.Status)))
-	filters.Sort = strings.TrimSpace(filters.Sort)
+	filters = normalizeCafeListFilters(filters)
 
 	query := s.db.Model(&models.Cafe{})
 
@@ -907,9 +931,7 @@ func (s *CafeService) GetCafeMarkers(bbox models.MapBoundingBox, userLat, userLn
 	}
 
 	truncated := 0
-	if int(total) > len(markers) {
-		truncated = int(total) - len(markers)
-	}
+	truncated = calculateCafeMarkerTruncated(total, len(markers))
 
 	return markers, truncated
 }

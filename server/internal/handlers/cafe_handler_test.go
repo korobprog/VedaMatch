@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http/httptest"
 	"rag-agent-server/internal/models"
 	"testing"
 
+	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
@@ -74,5 +77,39 @@ func TestIsBonusPercentValidationError(t *testing.T) {
 	}
 	if isBonusPercentValidationError(errors.New("some other validation error")) {
 		t.Fatalf("did not expect unrelated validation error to match")
+	}
+}
+
+func TestParsePositiveCafeParam(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:id", func(c *fiber.Ctx) error {
+		id, err := parsePositiveCafeParam(c, "id", "Invalid cafe ID")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"id": id})
+	})
+
+	reqValid := httptest.NewRequest("GET", "/7", nil)
+	respValid, err := app.Test(reqValid)
+	if err != nil {
+		t.Fatalf("valid request failed: %v", err)
+	}
+	defer respValid.Body.Close()
+	var payload map[string]uint
+	if err := json.NewDecoder(respValid.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if payload["id"] != 7 {
+		t.Fatalf("expected parsed id=7, got %d", payload["id"])
+	}
+
+	reqZero := httptest.NewRequest("GET", "/0", nil)
+	respZero, err := app.Test(reqZero)
+	if err != nil {
+		t.Fatalf("zero request failed: %v", err)
+	}
+	if respZero.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400 for zero id, got %d", respZero.StatusCode)
 	}
 }

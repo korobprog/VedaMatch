@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -92,11 +91,29 @@ func calculateProductTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
 	}
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	if totalPages < 1 {
-		totalPages = 1
+	if total <= 0 {
+		return 1
 	}
-	return totalPages
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
+	}
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
+}
+
+func normalizeProductFiltersForQuery(filters models.ProductFilters) models.ProductFilters {
+	filters.Category = normalizeProductCategory(filters.Category)
+	filters.ProductType = normalizeProductType(filters.ProductType)
+	filters.City = strings.TrimSpace(filters.City)
+	filters.Search = strings.TrimSpace(filters.Search)
+	filters.Sort = strings.ToLower(strings.TrimSpace(filters.Sort))
+	return filters
 }
 
 func validateVariantCreateRequest(req models.VariantCreateRequest, defaultBasePrice float64) (models.VariantCreateRequest, error) {
@@ -477,11 +494,7 @@ func (s *ProductService) GetProductsByShop(shopID uint, page, limit int) (*model
 
 // GetProducts retrieves products with filters (public discovery)
 func (s *ProductService) GetProducts(filters models.ProductFilters) (*models.ProductListResponse, error) {
-	filters.Category = models.ProductCategory(strings.TrimSpace(string(filters.Category)))
-	filters.ProductType = models.ProductType(strings.TrimSpace(string(filters.ProductType)))
-	filters.City = strings.TrimSpace(filters.City)
-	filters.Search = strings.TrimSpace(filters.Search)
-	filters.Sort = strings.TrimSpace(filters.Sort)
+	filters = normalizeProductFiltersForQuery(filters)
 
 	query := database.DB.Model(&models.Product{}).
 		Joins("JOIN shops ON shops.id = products.shop_id").
