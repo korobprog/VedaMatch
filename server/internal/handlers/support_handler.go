@@ -740,6 +740,9 @@ func loadSupportUserEmail(userID uint) string {
 	if userID == 0 {
 		return ""
 	}
+	if database.DB == nil {
+		return ""
+	}
 	var user models.User
 	if err := database.DB.Select("email").First(&user, userID).Error; err != nil {
 		return ""
@@ -1754,6 +1757,9 @@ func loadSupportUnreadCounts(conversationIDs []uint) (map[uint]int64, error) {
 	counts := make(map[uint]int64, len(conversationIDs))
 	if len(conversationIDs) == 0 {
 		return counts, nil
+	}
+	if database.DB == nil {
+		return nil, errors.New("database is not initialized")
 	}
 
 	type unreadCountRow struct {

@@ -68,3 +68,15 @@ func TestParseAdminQueryInt(t *testing.T) {
 		t.Fatalf("expected clamped max 100, got %d", got)
 	}
 }
+
+func TestIsSensitiveSystemSettingKey(t *testing.T) {
+	if !isSensitiveSystemSettingKey("api_open_ai") {
+		t.Fatalf("expected lowercase API_OPEN_AI to be treated as sensitive")
+	}
+	if !isSensitiveSystemSettingKey(" gemini_api_key_2 ") {
+		t.Fatalf("expected GEMINI key with spaces to be treated as sensitive")
+	}
+	if isSensitiveSystemSettingKey("PUBLIC_SITE_NAME") {
+		t.Fatalf("expected PUBLIC_SITE_NAME to be non-sensitive")
+	}
+}

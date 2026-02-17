@@ -139,7 +139,7 @@ func TestSyncDomainUnknownDomain(t *testing.T) {
 	}
 }
 
-func TestShouldFallbackToILike(t *testing.T) {
+func TestShouldFallbackToLikeSearch(t *testing.T) {
 	cases := []struct {
 		name string
 		err  error
@@ -164,11 +164,42 @@ func TestShouldFallbackToILike(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := shouldFallbackToILike(tc.err)
+			got := shouldFallbackToLikeSearch(tc.err)
 			if got != tc.want {
 				t.Fatalf("unexpected fallback decision for %q: got=%v want=%v", tc.name, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestEscapeLikePatternDA(t *testing.T) {
+	got := escapeLikePatternDA(`100%_match\value`)
+	want := `100\%\_match\\value`
+	if got != want {
+		t.Fatalf("unexpected escaped pattern: got=%q want=%q", got, want)
+	}
+}
+
+func TestAllowedDomainSetBlankConfigFallsBackToDefault(t *testing.T) {
+	t.Setenv("RAG_ALLOWED_DOMAINS", " , \t, ")
+
+	svc := &DomainAssistantService{}
+	allowed := svc.allowedDomainSet()
+	if len(allowed) == 0 {
+		t.Fatalf("expected non-empty fallback allowed domains")
+	}
+	if !allowed["market"] || !allowed["services"] {
+		t.Fatalf("expected MVP defaults to be enabled on invalid config, got %v", allowed)
+	}
+}
+
+func TestAllowedDomainSetAllowsCustomDomain(t *testing.T) {
+	t.Setenv("RAG_ALLOWED_DOMAINS", "rag_test,market")
+
+	svc := &DomainAssistantService{}
+	allowed := svc.allowedDomainSet()
+	if !allowed["rag_test"] {
+		t.Fatalf("expected custom domain to be preserved, got %v", allowed)
 	}
 }
 

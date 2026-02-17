@@ -437,7 +437,7 @@ func (s *PathTrackerService) GetAlertEvents(page int, pageSize int, deliveryStat
 	}
 
 	orderCol := "created_at"
-	switch strings.TrimSpace(strings.ToLower(sortBy)) {
+	switch normalizePathTrackerSortBy(sortBy) {
 	case "deliverystatus":
 		orderCol = "delivery_status"
 	case "createdat":
@@ -1018,11 +1018,14 @@ func (s *PathTrackerService) GetMetricsSummary() (*PathTrackerMetricsSummary, er
 		return nil, err
 	}
 	summary.UsersWithSteps = int64(len(rows))
+	todayUTC := time.Now().UTC().Format("2006-01-02")
+	d1EligibilityDate := shiftDate(todayUTC, -1)
+	d7EligibilityDate := shiftDate(todayUTC, -7)
 	for _, row := range rows {
 		d1 := shiftDate(row.FirstDate, 1)
 		d7 := shiftDate(row.FirstDate, 7)
 
-		if row.FirstDate <= shiftDate(time.Now().UTC().Format("2006-01-02"), -1) {
+		if row.FirstDate <= d1EligibilityDate {
 			summary.D1RetentionEligible++
 			var count int64
 			if err := s.db.Model(&models.DailyStep{}).Where("user_id = ? AND date_local = ?", row.UserID, d1).Count(&count).Error; err != nil {
@@ -1032,7 +1035,7 @@ func (s *PathTrackerService) GetMetricsSummary() (*PathTrackerMetricsSummary, er
 				summary.D1RetainedUsers++
 			}
 		}
-		if row.FirstDate <= shiftDate(time.Now().UTC().Format("2006-01-02"), -7) {
+		if row.FirstDate <= d7EligibilityDate {
 			summary.D7RetentionEligible++
 			var count int64
 			if err := s.db.Model(&models.DailyStep{}).Where("user_id = ? AND date_local = ?", row.UserID, d7).Count(&count).Error; err != nil {
@@ -2188,7 +2191,7 @@ func extractDurationFromInstructions(instructions []string) int {
 	}
 	for _, line := range instructions {
 		for _, token := range strings.Fields(line) {
-			n, err := strconv.Atoi(strings.Trim(token, ".,:;"))
+			n, err := strconv.Atoi(strings.Trim(token, ".,:;!?()[]{}\"'`"))
 			if err == nil && (n == 3 || n == 5 || n == 10) {
 				return n
 			}
@@ -2217,7 +2220,24 @@ func suggestedServiceTitle(serviceID string) string {
 }
 
 func normalizeUnlockServiceID(serviceID string) string {
-	return strings.TrimSpace(strings.ToLower(serviceID))
+	normalized := strings.TrimSpace(strings.ToLower(serviceID))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalized = strings.ReplaceAll(normalized, " ", "_")
+	normalized = strings.Trim(normalized, "_")
+
+	switch normalized {
+	case "videocircles", "video_circle", "video_circles":
+		return "video_circles"
+	default:
+		return normalized
+	}
+}
+
+func normalizePathTrackerSortBy(sortBy string) string {
+	key := strings.TrimSpace(strings.ToLower(sortBy))
+	key = strings.ReplaceAll(key, "_", "")
+	key = strings.ReplaceAll(key, "-", "")
+	return key
 }
 
 func unlockSequenceByRole(role string) []string {

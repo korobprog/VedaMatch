@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/url"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
@@ -28,24 +29,21 @@ const (
 )
 
 func remainingSecondsUntil(expiresAt, now time.Time) int {
-	remaining := int(expiresAt.Sub(now).Seconds())
-	if remaining < 0 {
+	remaining := expiresAt.Sub(now)
+	if remaining <= 0 {
 		return 0
 	}
-	return remaining
+	return int(math.Ceil(remaining.Seconds()))
 }
 
 func calculateVideoCircleTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
 	}
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
-	}
-	if totalPages == 0 {
+	if total <= 0 {
 		return 1
 	}
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
 	return totalPages
 }
 

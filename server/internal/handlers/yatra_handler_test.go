@@ -69,3 +69,15 @@ func TestRespondYatraDomainError(t *testing.T) {
 		}
 	}
 }
+
+func TestParseYatraBoolQuery(t *testing.T) {
+	if !parseYatraBoolQuery("TRUE") {
+		t.Fatalf("expected TRUE to parse as true")
+	}
+	if !parseYatraBoolQuery("1") {
+		t.Fatalf("expected 1 to parse as true")
+	}
+	if parseYatraBoolQuery("off") {
+		t.Fatalf("expected off to parse as false")
+	}
+}

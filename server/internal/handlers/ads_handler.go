@@ -64,6 +64,27 @@ func parseAdIntWithDefault(raw string, fallback int) int {
 	return value
 }
 
+func parseAdBoolWithDefault(raw string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func normalizeAdSort(raw string) string {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	switch normalized {
+	case "price_asc", "price_desc", "popular", "newest":
+		return normalized
+	default:
+		return "newest"
+	}
+}
+
 func hasMinRunes(value string, min int) bool {
 	if min <= 0 {
 		return true
@@ -233,14 +254,14 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	}
 
 	// Filter by price range
-	minPrice := c.Query("minPrice")
+	minPrice := strings.TrimSpace(c.Query("minPrice"))
 	if minPrice != "" {
 		if min, err := strconv.ParseFloat(minPrice, 64); err == nil {
 			query = query.Where("price >= ? OR is_free = true", min)
 		}
 	}
 
-	maxPrice := c.Query("maxPrice")
+	maxPrice := strings.TrimSpace(c.Query("maxPrice"))
 	if maxPrice != "" {
 		if max, err := strconv.ParseFloat(maxPrice, 64); err == nil {
 			query = query.Where("price <= ? OR is_free = true", max)
@@ -248,8 +269,7 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	}
 
 	// Filter free only
-	isFree := c.Query("isFree")
-	if isFree == "true" {
+	if parseAdBoolWithDefault(c.Query("isFree"), false) {
 		query = query.Where("is_free = true")
 	}
 
@@ -269,8 +289,7 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	}
 
 	// Sorting
-	sort := c.Query("sort", "newest")
-	switch sort {
+	switch normalizeAdSort(c.Query("sort", "newest")) {
 	case "price_asc":
 		query = query.Order("COALESCE(price, 0) ASC")
 	case "price_desc":
@@ -433,7 +452,7 @@ func (h *AdsHandler) CreateAd(c *fiber.Ctx) error {
 		currency = "RUB"
 	}
 
-	expiresAt := time.Now().AddDate(0, 0, 30).Format(time.RFC3339)
+	expiresAt := time.Now().UTC().AddDate(0, 0, 30).Format(time.RFC3339)
 
 	ad := models.Ad{
 		UserID:       userID,

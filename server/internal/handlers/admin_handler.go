@@ -50,16 +50,17 @@ func getSystemSettingOrEnv(key string) string {
 }
 
 func isSensitiveSystemSettingKey(key string) bool {
-	if key == "API_OPEN_AI" || key == "POLZA_API_KEY" || key == "OPENROUTER_API_KEY" {
+	normalized := strings.ToUpper(strings.TrimSpace(key))
+	if normalized == "API_OPEN_AI" || normalized == "POLZA_API_KEY" || normalized == "OPENROUTER_API_KEY" {
 		return true
 	}
-	if strings.HasPrefix(key, "GEMINI_API_KEY") {
+	if strings.HasPrefix(normalized, "GEMINI_API_KEY") {
 		return true
 	}
-	if key == "TELEGRAM_BOT_TOKEN" || key == "VK_API_TOKEN" {
+	if normalized == "TELEGRAM_BOT_TOKEN" || normalized == "VK_API_TOKEN" {
 		return true
 	}
-	if key == "SUPPORT_TELEGRAM_BOT_TOKEN" || key == "SUPPORT_TELEGRAM_WEBHOOK_SECRET" {
+	if normalized == "SUPPORT_TELEGRAM_BOT_TOKEN" || normalized == "SUPPORT_TELEGRAM_WEBHOOK_SECRET" {
 		return true
 	}
 	return false

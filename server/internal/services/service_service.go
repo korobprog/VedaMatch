@@ -77,6 +77,9 @@ func settingInt(settings map[string]interface{}, key string, fallback int) int {
 
 	switch v := val.(type) {
 	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return fallback
+		}
 		return int(v)
 	case int:
 		return v

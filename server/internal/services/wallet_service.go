@@ -65,14 +65,20 @@ func calculateTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
 	}
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
-	}
-	if totalPages == 0 {
+	if total <= 0 {
 		return 1
 	}
-	return totalPages
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
+	}
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
 }
 
 func calculateSpendAllocation(amount, regularBalance, bonusBalance int, opts SpendOptions) (SpendAllocation, error) {

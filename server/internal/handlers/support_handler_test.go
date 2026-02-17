@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 )
 
@@ -147,6 +148,30 @@ func TestLoadSupportUnreadCountsEmpty(t *testing.T) {
 	}
 	if len(counts) != 0 {
 		t.Fatalf("expected empty counts map, got %d items", len(counts))
+	}
+}
+
+func TestLoadSupportUnreadCountsNilDB(t *testing.T) {
+	prevDB := database.DB
+	database.DB = nil
+	t.Cleanup(func() {
+		database.DB = prevDB
+	})
+
+	if _, err := loadSupportUnreadCounts([]uint{1}); err == nil {
+		t.Fatalf("expected error when database is not initialized")
+	}
+}
+
+func TestLoadSupportUserEmailNilDB(t *testing.T) {
+	prevDB := database.DB
+	database.DB = nil
+	t.Cleanup(func() {
+		database.DB = prevDB
+	})
+
+	if got := loadSupportUserEmail(42); got != "" {
+		t.Fatalf("expected empty email when database is not initialized, got %q", got)
 	}
 }
 

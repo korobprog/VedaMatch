@@ -111,3 +111,36 @@ func TestTruncatePushBodyRuneAware(t *testing.T) {
 	emptyLimit := truncatePushBody("hello", 0)
 	require.Equal(t, "...", emptyLimit)
 }
+
+func TestDeriveEventKeySupportsSnakeCaseAliases(t *testing.T) {
+	msg := PushMessage{
+		Data: map[string]string{
+			"type":       "booking_reminder",
+			"booking_id": "77",
+		},
+	}
+	require.Equal(t, "booking_reminder:bookingId:77", deriveEventKey(msg))
+}
+
+func TestDeriveEventKeySupportsGenericID(t *testing.T) {
+	msg := PushMessage{
+		Data: map[string]string{
+			"type": "wallet_update",
+			"id":   "abc-123",
+		},
+	}
+	require.Equal(t, "wallet_update:id:abc-123", deriveEventKey(msg))
+}
+
+func TestDigestRecipientsIgnoresDuplicates(t *testing.T) {
+	targetsA := []pushTokenTarget{
+		{Token: "token-a"},
+		{Token: "token-b"},
+		{Token: "token-a"},
+	}
+	targetsB := []pushTokenTarget{
+		{Token: "token-b"},
+		{Token: "token-a"},
+	}
+	require.Equal(t, digestRecipients(targetsB), digestRecipients(targetsA))
+}

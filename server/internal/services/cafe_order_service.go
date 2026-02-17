@@ -20,8 +20,12 @@ type CafeOrderService struct {
 	walletService *WalletService
 }
 
+func normalizeCafePaymentMethod(method string) string {
+	return strings.ToLower(strings.TrimSpace(method))
+}
+
 func isValidCafePaymentMethod(method string) bool {
-	switch method {
+	switch normalizeCafePaymentMethod(method) {
 	case "", "cash", "card_terminal", "lkm":
 		return true
 	default:
@@ -93,14 +97,20 @@ func calculateCafeOrderTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
 	}
-	totalPages := int(total) / limit
-	if int(total)%limit > 0 {
-		totalPages++
+	if total <= 0 {
+		return 1
 	}
-	if totalPages < 1 {
-		totalPages = 1
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
 	}
-	return totalPages
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
 }
 
 // NewCafeOrderService creates a new cafe order service instance
@@ -120,7 +130,7 @@ func (s *CafeOrderService) CreateOrder(customerID *uint, req models.CafeOrderCre
 	req.DeliveryAddress = strings.TrimSpace(req.DeliveryAddress)
 	req.DeliveryPhone = strings.TrimSpace(req.DeliveryPhone)
 	req.CustomerNote = strings.TrimSpace(req.CustomerNote)
-	req.PaymentMethod = strings.TrimSpace(req.PaymentMethod)
+	req.PaymentMethod = normalizeCafePaymentMethod(req.PaymentMethod)
 	if req.PaymentMethod == "" {
 		req.PaymentMethod = "cash"
 	}
@@ -775,7 +785,7 @@ func (s *CafeOrderService) CancelOrder(orderID uint, userID uint, reason string)
 
 // MarkAsPaid marks an order as paid
 func (s *CafeOrderService) MarkAsPaid(orderID uint, paymentMethod string) error {
-	paymentMethod = strings.TrimSpace(paymentMethod)
+	paymentMethod = normalizeCafePaymentMethod(paymentMethod)
 	if paymentMethod == "" {
 		return errors.New("payment method is required")
 	}

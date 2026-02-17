@@ -1114,18 +1114,42 @@ func parseExtractorPayload(raw string) (extractorPayload, error) {
 }
 
 func extractJSONObject(input string) string {
-	start := strings.Index(input, "{")
-	if start < 0 {
-		return ""
-	}
+	start := -1
 	depth := 0
-	for i := start; i < len(input); i++ {
-		switch input[i] {
+	inString := false
+	escaped := false
+
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' && inString {
+			escaped = true
+			continue
+		}
+		if ch == '"' {
+			inString = !inString
+			continue
+		}
+		if inString {
+			continue
+		}
+
+		switch ch {
 		case '{':
+			if depth == 0 {
+				start = i
+			}
 			depth++
 		case '}':
-			depth--
 			if depth == 0 {
+				continue
+			}
+			depth--
+			if depth == 0 && start >= 0 {
 				return strings.TrimSpace(input[start : i+1])
 			}
 		}

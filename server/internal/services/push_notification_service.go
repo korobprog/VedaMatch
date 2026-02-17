@@ -2112,10 +2112,22 @@ func deriveEventKey(message PushMessage) string {
 		return ""
 	}
 
-	idKeys := []string{"bookingId", "newsId", "walletTxId", "orderId", "yatraId", "projectId", "roomId"}
-	for _, key := range idKeys {
-		if value := strings.TrimSpace(message.Data[key]); value != "" {
-			return eventType + ":" + key + ":" + value
+	identifierAliases := [][]string{
+		{"bookingId", "booking_id"},
+		{"newsId", "news_id"},
+		{"walletTxId", "wallet_tx_id"},
+		{"orderId", "order_id"},
+		{"yatraId", "yatra_id"},
+		{"projectId", "project_id"},
+		{"roomId", "room_id"},
+		{"id"},
+	}
+	for _, aliases := range identifierAliases {
+		canonical := aliases[0]
+		for _, key := range aliases {
+			if value := strings.TrimSpace(message.Data[key]); value != "" {
+				return eventType + ":" + canonical + ":" + value
+			}
 		}
 	}
 
@@ -2126,10 +2138,16 @@ func digestRecipients(targets []pushTokenTarget) string {
 	if len(targets) == 0 {
 		return ""
 	}
+
+	seen := make(map[string]struct{}, len(targets))
 	tokens := make([]string, 0, len(targets))
 	for _, target := range targets {
 		token := sanitizePushToken(target.Token)
 		if token != "" {
+			if _, exists := seen[token]; exists {
+				continue
+			}
+			seen[token] = struct{}{}
 			tokens = append(tokens, token)
 		}
 	}

@@ -32,6 +32,15 @@ func TestBuildAllowedOrigins(t *testing.T) {
 	}
 }
 
+func TestNormalizeAllowedOrigin(t *testing.T) {
+	if got := normalizeAllowedOrigin(" https://api.example.com/ "); got != "https://api.example.com" {
+		t.Fatalf("unexpected normalized origin: %q", got)
+	}
+	if got := normalizeAllowedOrigin("   "); got != "" {
+		t.Fatalf("expected empty normalized origin, got %q", got)
+	}
+}
+
 func TestResolveListenPort(t *testing.T) {
 	t.Setenv("PORT", "")
 	if got := resolveListenPort("8000"); got != ":8000" {

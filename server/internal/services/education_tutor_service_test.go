@@ -155,6 +155,24 @@ func TestParseExtractorPayload_Invalid(t *testing.T) {
 	}
 }
 
+func TestExtractJSONObject_IgnoresBracesInsideStrings(t *testing.T) {
+	input := `prefix {"message":"text with {curly} braces","nested":{"ok":true}} suffix`
+	got := extractJSONObject(input)
+	want := `{"message":"text with {curly} braces","nested":{"ok":true}}`
+	if got != want {
+		t.Fatalf("unexpected extracted object: got %q want %q", got, want)
+	}
+}
+
+func TestExtractJSONObject_HandlesEscapedQuotes(t *testing.T) {
+	input := `note {"value":"escaped quote: \"hello\" and } char","n":1} tail`
+	got := extractJSONObject(input)
+	want := `{"value":"escaped quote: \"hello\" and } char","n":1}`
+	if got != want {
+		t.Fatalf("unexpected extracted object: got %q want %q", got, want)
+	}
+}
+
 func TestEducationTutor_TurnDisabledByFlag(t *testing.T) {
 	db := setupEducationTutorDB(t)
 	svc := NewEducationTutorService(db)
@@ -357,6 +375,12 @@ func TestEducationTutor_CleanupExpiredData(t *testing.T) {
 func TestEducationTutor_GetLatencySummary(t *testing.T) {
 	db := setupEducationTutorDB(t)
 	svc := NewEducationTutorService(db)
+	if err := db.Where("1 = 1").Delete(&models.EducationTutorLatencyEvent{}).Error; err != nil {
+		t.Fatalf("failed to cleanup latency events before test: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Where("1 = 1").Delete(&models.EducationTutorLatencyEvent{}).Error
+	})
 
 	base := time.Now().UTC().Add(-2 * time.Hour)
 	events := []models.EducationTutorLatencyEvent{
@@ -369,20 +393,15 @@ func TestEducationTutor_GetLatencySummary(t *testing.T) {
 	if err := db.Create(&events).Error; err != nil {
 		t.Fatalf("failed to seed latency events: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = db.Where("user_id = ? AND created_at >= ?", uint(92001), base.Add(-1*time.Minute)).
-			Delete(&models.EducationTutorLatencyEvent{}).Error
-	})
-
 	summary, err := svc.GetLatencySummary(24 * time.Hour)
 	if err != nil {
 		t.Fatalf("GetLatencySummary failed: %v", err)
 	}
-	if summary.TurnCount < 3 {
-		t.Fatalf("expected at least 3 turn events, got %d", summary.TurnCount)
+	if summary.TurnCount != 3 {
+		t.Fatalf("expected 3 turn events, got %d", summary.TurnCount)
 	}
-	if summary.RetrievalCount < 2 {
-		t.Fatalf("expected at least 2 retrieval events, got %d", summary.RetrievalCount)
+	if summary.RetrievalCount != 2 {
+		t.Fatalf("expected 2 retrieval events, got %d", summary.RetrievalCount)
 	}
 	if summary.TurnLatencyP95 < 600 {
 		t.Fatalf("unexpected turn p95: %d", summary.TurnLatencyP95)

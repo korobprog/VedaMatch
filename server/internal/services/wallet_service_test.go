@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"testing"
 
 	"rag-agent-server/internal/models"
@@ -416,6 +417,18 @@ func TestCalculateTotalPages(t *testing.T) {
 				t.Fatalf("calculateTotalPages(%d, %d) = %d, want %d", tc.total, tc.limit, got, tc.want)
 			}
 		})
+	}
+
+	expected := int64(math.MaxInt64 / 2)
+	if math.MaxInt64%2 != 0 {
+		expected++
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if expected > maxInt {
+		expected = maxInt
+	}
+	if got := calculateTotalPages(math.MaxInt64, 2); got != int(expected) {
+		t.Fatalf("calculateTotalPages(maxInt64,2) = %d, want %d", got, expected)
 	}
 }
 

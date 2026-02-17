@@ -37,6 +37,12 @@ func TestValidateChannelCTAPayload(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "book_service supports snake_case",
+			ctaType: models.ChannelPostCTATypeBookService,
+			payload: `{"service_id": 123}`,
+			wantErr: false,
+		},
+		{
 			name:    "book_service missing serviceId",
 			ctaType: models.ChannelPostCTATypeBookService,
 			payload: `{"foo":"bar"}`,
@@ -46,6 +52,12 @@ func TestValidateChannelCTAPayload(t *testing.T) {
 			name:    "order_products valid payload",
 			ctaType: models.ChannelPostCTATypeOrderProducts,
 			payload: `{"shopId": 10, "items":[{"productId": 1, "quantity": 2}]}`,
+			wantErr: false,
+		},
+		{
+			name:    "order_products supports snake_case",
+			ctaType: models.ChannelPostCTATypeOrderProducts,
+			payload: `{"shop_id": 10, "items":[{"product_id": 1, "quantity": 2}]}`,
 			wantErr: false,
 		},
 		{
@@ -74,6 +86,31 @@ func TestValidateChannelCTAPayload(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestExtractPositiveUintRejectsOverflow(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := extractPositiveUint(float64(1 << 40)); ok {
+		t.Fatalf("expected overflow float64 to be rejected")
+	}
+	if _, ok := extractPositiveUint(int64(1 << 40)); ok {
+		t.Fatalf("expected overflow int64 to be rejected")
+	}
+	if _, ok := extractPositiveUint(uint64(1 << 40)); ok {
+		t.Fatalf("expected overflow uint64 to be rejected")
+	}
+}
+
+func TestExtractPositiveUintFromMapAliases(t *testing.T) {
+	t.Parallel()
+
+	value, ok := extractPositiveUintFromMap(map[string]interface{}{
+		"service_id": float64(22),
+	}, "serviceId", "service_id")
+	if !ok || value != 22 {
+		t.Fatalf("expected alias extraction to return 22, got value=%d ok=%v", value, ok)
 	}
 }
 

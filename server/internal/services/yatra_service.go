@@ -122,6 +122,13 @@ func isValidLongitude(value float64) bool {
 }
 
 func validateOptionalCoordinates(startLat, startLng, endLat, endLng *float64) error {
+	if (startLat == nil) != (startLng == nil) {
+		return errors.New("start coordinates must include both latitude and longitude")
+	}
+	if (endLat == nil) != (endLng == nil) {
+		return errors.New("end coordinates must include both latitude and longitude")
+	}
+
 	if startLat != nil && !isValidLatitude(*startLat) {
 		return errors.New("invalid start latitude")
 	}
@@ -624,10 +631,26 @@ func parseYatraDateFromAny(value interface{}) (time.Time, bool) {
 		}
 		return parsed.UTC(), true
 	case time.Time:
+		if typed.IsZero() {
+			return time.Time{}, false
+		}
 		return typed.UTC(), true
 	default:
 		return time.Time{}, false
 	}
+}
+
+func calculateYatraMarkerTruncated(total int64, returned int) int {
+	if total <= int64(returned) {
+		return 0
+	}
+
+	diff := total - int64(returned)
+	maxInt := int64(^uint(0) >> 1)
+	if diff > maxInt {
+		return int(maxInt)
+	}
+	return int(diff)
 }
 
 func isRatingInRange(value, min, max int) bool {
@@ -1046,9 +1069,7 @@ func (s *YatraService) GetYatraMarkers(bbox models.MapBoundingBox, limit int) ([
 	}
 
 	truncated := 0
-	if int(total) > len(markers) {
-		truncated = int(total) - len(markers)
-	}
+	truncated = calculateYatraMarkerTruncated(total, len(markers))
 
 	return markers, truncated
 }

@@ -22,6 +22,8 @@ type NewsAIService struct {
 	aiChatService *AiChatService
 }
 
+const defaultNewsAIProcessLimit = 50
+
 // NewNewsAIService creates a new NewsAIService
 func NewNewsAIService() *NewsAIService {
 	return &NewsAIService{
@@ -171,7 +173,7 @@ func (s *NewsAIService) ProcessNewsItem(newsID uint) error {
 	}
 
 	// Mark as processed
-	now := time.Now()
+	now := time.Now().UTC()
 	newsItem.AIProcessed = true
 	newsItem.AIProcessedAt = &now
 
@@ -282,7 +284,7 @@ func (s *NewsAIService) DeepClassifyTarget(content string) (madh, yoga, identity
 	}
 
 	// Try to extract JSON from response
-	re := regexp.MustCompile(`\{.*\}`)
+	re := regexp.MustCompile(`(?s)\{.*\}`)
 	jsonStr := re.FindString(response)
 	if jsonStr == "" {
 		return "", "", "", fmt.Errorf("no JSON found in AI response")
@@ -318,34 +320,17 @@ TAGS: [тег1, тег2, тег3]
 		return "", nil, fmt.Errorf("classification failed: %w", err)
 	}
 
-	// Parse response
-	category := "other"
-	var tags []string
-
-	lines := strings.Split(response, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(strings.ToUpper(line), "CATEGORY:") {
-			category = strings.TrimSpace(strings.TrimPrefix(line, "CATEGORY:"))
-			category = strings.TrimPrefix(category, "category:")
-			category = strings.ToLower(strings.TrimSpace(category))
-		} else if strings.HasPrefix(strings.ToUpper(line), "TAGS:") {
-			tagStr := strings.TrimSpace(strings.TrimPrefix(line, "TAGS:"))
-			tagStr = strings.TrimPrefix(tagStr, "tags:")
-			for _, tag := range strings.Split(tagStr, ",") {
-				tag = strings.TrimSpace(tag)
-				if tag != "" {
-					tags = append(tags, tag)
-				}
-			}
-		}
-	}
+	category, tags := parseNewsClassificationResponse(response)
 
 	return category, tags, nil
 }
 
 // ProcessPendingNews processes all unprocessed news items
 func (s *NewsAIService) ProcessPendingNews(ctx context.Context, limit int) error {
+	if limit <= 0 {
+		limit = defaultNewsAIProcessLimit
+	}
+
 	var items []models.NewsItem
 	if err := s.db.Where("ai_processed = ? OR ai_processed IS NULL", false).
 		Order("created_at ASC").
@@ -380,16 +365,21 @@ func (s *NewsAIService) ProcessPendingNews(ctx context.Context, limit int) error
 
 // Helper function to truncate text
 func truncateText(text string, maxLen int) string {
-	if len(text) <= maxLen {
+	if maxLen <= 0 {
 		return text
 	}
-	return text[:maxLen] + "..."
+	runes := []rune(text)
+	if len(runes) <= maxLen {
+		return text
+	}
+	return string(runes[:maxLen]) + "..."
 }
 
 // ==================== AI ASSISTANT INTEGRATION ====================
 
 // GetLatestNewsSummary returns a summary of the latest news for the AI assistant
 func (s *NewsAIService) GetLatestNewsSummary(lang string, limit int) (string, error) {
+	lang = strings.ToLower(strings.TrimSpace(lang))
 	if limit <= 0 {
 		limit = 5
 	}
@@ -450,6 +440,9 @@ func (s *NewsAIService) GetLatestNewsSummary(lang string, limit int) (string, er
 
 // SearchAndSummarizeNews searches news by query and returns a summary
 func (s *NewsAIService) SearchAndSummarizeNews(query string, lang string) (string, error) {
+	query = strings.TrimSpace(query)
+	lang = strings.ToLower(strings.TrimSpace(lang))
+
 	// Search in news
 	searchPattern := "%" + query + "%"
 
@@ -512,7 +505,7 @@ func (s *NewsAIService) SearchAndSummarizeNews(query string, lang string) (strin
 
 // IsNewsQuery checks if the user message is asking about news
 func IsNewsQuery(message string) bool {
-	message = strings.ToLower(message)
+	message = strings.ToLower(strings.TrimSpace(message))
 
 	newsKeywords := []string{
 		"новости", "новость", "что нового", "последние новости",
@@ -532,7 +525,7 @@ func IsNewsQuery(message string) bool {
 
 // ExtractNewsSearchQuery extracts the search topic from a news query
 func ExtractNewsSearchQuery(message string) string {
-	message = strings.ToLower(message)
+	message = strings.ToLower(strings.TrimSpace(message))
 
 	// Remove common prefixes
 	prefixes := []string{
@@ -549,6 +542,45 @@ func ExtractNewsSearchQuery(message string) string {
 	}
 
 	return ""
+}
+
+func parseNewsClassificationResponse(response string) (string, []string) {
+	category := "other"
+	var tags []string
+
+	lines := strings.Split(response, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.ToLower(strings.TrimSpace(parts[0]))
+		value := strings.TrimSpace(parts[1])
+		value = strings.Trim(value, "[]")
+		if value == "" {
+			continue
+		}
+
+		switch key {
+		case "category":
+			category = strings.ToLower(strings.TrimSpace(value))
+		case "tags":
+			for _, tag := range strings.Split(value, ",") {
+				tag = strings.TrimSpace(tag)
+				if tag != "" {
+					tags = append(tags, tag)
+				}
+			}
+		}
+	}
+
+	return category, tags
 }
 
 // Global instance

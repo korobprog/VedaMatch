@@ -1563,7 +1563,7 @@ func validateChannelCTAPayload(ctaType models.ChannelPostCTAType, payload string
 		if err := json.Unmarshal([]byte(payload), &data); err != nil {
 			return ErrInvalidPayload
 		}
-		serviceID, ok := extractPositiveUint(data["serviceId"])
+		serviceID, ok := extractPositiveUintFromMap(data, "serviceId", "service_id")
 		if !ok || serviceID == 0 {
 			return errors.New("ctaPayloadJson.serviceId is required and must be > 0")
 		}
@@ -1576,7 +1576,7 @@ func validateChannelCTAPayload(ctaType models.ChannelPostCTAType, payload string
 		if err := json.Unmarshal([]byte(payload), &data); err != nil {
 			return ErrInvalidPayload
 		}
-		shopID, ok := extractPositiveUint(data["shopId"])
+		shopID, ok := extractPositiveUintFromMap(data, "shopId", "shop_id")
 		if !ok || shopID == 0 {
 			return errors.New("ctaPayloadJson.shopId is required and must be > 0")
 		}
@@ -1589,11 +1589,11 @@ func validateChannelCTAPayload(ctaType models.ChannelPostCTAType, payload string
 			if !ok {
 				return errors.New("ctaPayloadJson.items[] must be objects")
 			}
-			productID, ok := extractPositiveUint(itemMap["productId"])
+			productID, ok := extractPositiveUintFromMap(itemMap, "productId", "product_id")
 			if !ok || productID == 0 {
 				return errors.New("ctaPayloadJson.items[].productId is required and must be > 0")
 			}
-			qty, ok := extractPositiveUint(itemMap["quantity"])
+			qty, ok := extractPositiveUintFromMap(itemMap, "quantity")
 			if !ok || qty == 0 {
 				return errors.New("ctaPayloadJson.items[].quantity is required and must be > 0")
 			}
@@ -1638,6 +1638,8 @@ func validatePinPostStatus(status models.ChannelPostStatus) error {
 }
 
 func extractPositiveUint(value interface{}) (uint, bool) {
+	const maxAllowedID = uint64(^uint32(0))
+
 	switch typed := value.(type) {
 	case float64:
 		if typed <= 0 {
@@ -1646,9 +1648,15 @@ func extractPositiveUint(value interface{}) (uint, bool) {
 		if math.Trunc(typed) != typed {
 			return 0, false
 		}
+		if typed > float64(maxAllowedID) {
+			return 0, false
+		}
 		return uint(typed), true
 	case int:
 		if typed <= 0 {
+			return 0, false
+		}
+		if uint64(typed) > maxAllowedID {
 			return 0, false
 		}
 		return uint(typed), true
@@ -1656,14 +1664,23 @@ func extractPositiveUint(value interface{}) (uint, bool) {
 		if typed <= 0 {
 			return 0, false
 		}
+		if uint64(typed) > maxAllowedID {
+			return 0, false
+		}
 		return uint(typed), true
 	case uint:
 		if typed == 0 {
 			return 0, false
 		}
+		if uint64(typed) > maxAllowedID {
+			return 0, false
+		}
 		return typed, true
 	case uint64:
 		if typed == 0 {
+			return 0, false
+		}
+		if typed > maxAllowedID {
 			return 0, false
 		}
 		return uint(typed), true
@@ -1676,4 +1693,20 @@ func extractPositiveUint(value interface{}) (uint, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func extractPositiveUintFromMap(data map[string]interface{}, keys ...string) (uint, bool) {
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		value, exists := data[key]
+		if !exists {
+			continue
+		}
+		if parsed, ok := extractPositiveUint(value); ok {
+			return parsed, true
+		}
+	}
+	return 0, false
 }

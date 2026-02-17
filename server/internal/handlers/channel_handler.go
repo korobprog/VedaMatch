@@ -807,8 +807,8 @@ func (h *ChannelHandler) GetPromptStatus(c *fiber.Ctx) error {
 func parseUintParam(c *fiber.Ctx, key string) (uint, error) {
 	raw := strings.TrimSpace(c.Params(key))
 	value, err := strconv.ParseUint(raw, 10, 32)
-	if err != nil {
-		return 0, err
+	if err != nil || value == 0 {
+		return 0, errors.New("invalid uint param")
 	}
 	return uint(value), nil
 }

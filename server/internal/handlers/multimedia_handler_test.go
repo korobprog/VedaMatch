@@ -70,6 +70,9 @@ func TestIsUnsafeFolderPath(t *testing.T) {
 	if !isUnsafeFolderPath("/root") {
 		t.Fatalf("expected absolute path to be unsafe")
 	}
+	if !isUnsafeFolderPath("C:/windows/temp") {
+		t.Fatalf("expected windows drive path to be unsafe")
+	}
 	if isUnsafeFolderPath("series/my-slug") {
 		t.Fatalf("expected relative folder to be safe")
 	}

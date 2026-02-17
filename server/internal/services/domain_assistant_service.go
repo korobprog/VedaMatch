@@ -1631,17 +1631,17 @@ func (s *DomainAssistantService) retrieveFTS(query string, domains []string, lim
 		Limit(limit)
 
 	if err := dbQuery.Find(&rows).Error; err != nil {
-		if !shouldFallbackToILike(err) {
+		if !shouldFallbackToLikeSearch(err) {
 			return nil, err
 		}
 
-		// Fallback to ILIKE only when full-text primitives are unavailable in current DB engine/schema.
+		// Fallback to case-insensitive LIKE when full-text primitives are unavailable in current DB engine/schema.
 		rows = nil
-		like := "%" + query + "%"
+		like := "%" + escapeLikePatternDA(strings.ToLower(normalizeWhitespace(query))) + "%"
 		fallbackQuery := s.db.Model(&models.AssistantDocument{}).
 			Where("domain IN ?", domains)
 		fallbackQuery = applyVisibilityFilter(fallbackQuery, userID, includePrivate)
-		fallbackQuery = fallbackQuery.Where("title ILIKE ? OR content ILIKE ?", like, like).
+		fallbackQuery = fallbackQuery.Where("(LOWER(title) LIKE ? ESCAPE '\\') OR (LOWER(content) LIKE ? ESCAPE '\\')", like, like).
 			Order("updated_at DESC").
 			Limit(limit)
 		var fallbackDocs []models.AssistantDocument
@@ -1910,6 +1910,13 @@ func (s *DomainAssistantService) allowedDomainSet() map[string]bool {
 		}
 	}
 
+	// Keep the assistant operational when config contains only unknown/invalid values.
+	if len(allowed) == 0 {
+		for _, d := range defaultMVPDomains {
+			allowed[d] = true
+		}
+	}
+
 	return allowed
 }
 
@@ -2038,7 +2045,7 @@ func isRecordNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
 
-func shouldFallbackToILike(err error) bool {
+func shouldFallbackToLikeSearch(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -2046,6 +2053,18 @@ func shouldFallbackToILike(err error) bool {
 	return strings.Contains(lower, "search_vector") ||
 		strings.Contains(lower, "plainto_tsquery") ||
 		strings.Contains(lower, "ts_rank")
+}
+
+func escapeLikePatternDA(value string) string {
+	if value == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer(
+		`\`, `\\`,
+		`%`, `\%`,
+		`_`, `\_`,
+	)
+	return replacer.Replace(value)
 }
 
 func firstNonEmpty(values ...string) string {

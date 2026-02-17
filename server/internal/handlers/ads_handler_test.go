@@ -19,6 +19,27 @@ func TestParseAdIntWithDefault(t *testing.T) {
 	}
 }
 
+func TestParseAdBoolWithDefault(t *testing.T) {
+	if !parseAdBoolWithDefault(" TRUE ", false) {
+		t.Fatalf("expected TRUE to parse as true")
+	}
+	if parseAdBoolWithDefault("off", true) {
+		t.Fatalf("expected off to parse as false")
+	}
+	if !parseAdBoolWithDefault("invalid", true) {
+		t.Fatalf("expected fallback=true for invalid bool")
+	}
+}
+
+func TestNormalizeAdSort(t *testing.T) {
+	if got := normalizeAdSort(" PRICE_ASC "); got != "price_asc" {
+		t.Fatalf("expected price_asc, got %q", got)
+	}
+	if got := normalizeAdSort("unknown"); got != "newest" {
+		t.Fatalf("expected fallback newest, got %q", got)
+	}
+}
+
 func TestParsePagination_InvalidLimitFallsBackToDefault(t *testing.T) {
 	app := fiber.New()
 	app.Get("/", func(c *fiber.Ctx) error {

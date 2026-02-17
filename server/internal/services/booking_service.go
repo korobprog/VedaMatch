@@ -3,7 +3,6 @@ package services
 import (
 	"errors"
 	"log"
-	"math"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strings"
@@ -45,11 +44,43 @@ func calculateBookingTotalPages(total int64, limit int) int {
 	if limit <= 0 {
 		return 1
 	}
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	if totalPages < 1 {
+	if total <= 0 {
 		return 1
 	}
-	return totalPages
+
+	quotient := total / int64(limit)
+	if total%int64(limit) != 0 {
+		quotient++
+	}
+
+	maxInt := int64(^uint(0) >> 1)
+	if quotient > maxInt {
+		return int(maxInt)
+	}
+	return int(quotient)
+}
+
+func parseBookingDate(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed, true
+}
+
+func applyBookingDateFilters(query *gorm.DB, filters models.BookingFilters) *gorm.DB {
+	if dateFrom, ok := parseBookingDate(filters.DateFrom); ok {
+		query = query.Where("scheduled_at >= ?", dateFrom)
+	}
+	if dateTo, ok := parseBookingDate(filters.DateTo); ok {
+		query = query.Where("scheduled_at < ?", dateTo.Add(24*time.Hour))
+	}
+	return query
 }
 
 // NewBookingService creates a new booking service
@@ -362,6 +393,9 @@ func (s *BookingService) Cancel(bookingID, userID uint, req models.BookingAction
 	if booking.Status == models.BookingStatusCompleted || booking.Status == models.BookingStatusCancelled {
 		return nil, errors.New("booking cannot be cancelled")
 	}
+	if booking.PricePaid > 0 && s.walletService == nil {
+		return nil, errors.New("wallet service is not configured")
+	}
 
 	now := time.Now().UTC()
 	updates := map[string]interface{}{
@@ -556,16 +590,7 @@ func (s *BookingService) GetMyBookings(clientID uint, filters models.BookingFilt
 	if filters.ServiceID != nil {
 		query = query.Where("service_id = ?", *filters.ServiceID)
 	}
-	if filters.DateFrom != "" {
-		if dateFrom, err := time.Parse("2006-01-02", filters.DateFrom); err == nil {
-			query = query.Where("scheduled_at >= ?", dateFrom)
-		}
-	}
-	if filters.DateTo != "" {
-		if dateTo, err := time.Parse("2006-01-02", filters.DateTo); err == nil {
-			query = query.Where("scheduled_at < ?", dateTo.Add(24*time.Hour))
-		}
-	}
+	query = applyBookingDateFilters(query, filters)
 
 	var total int64
 	if err := query.Model(&models.ServiceBooking{}).Count(&total).Error; err != nil {
@@ -618,7 +643,7 @@ func (s *BookingService) GetIncomingBookings(ownerID uint, filters models.Bookin
 			Total:      0,
 			Page:       1,
 			Limit:      20,
-			TotalPages: 0,
+			TotalPages: calculateBookingTotalPages(0, 20),
 		}, nil
 	}
 
@@ -630,16 +655,7 @@ func (s *BookingService) GetIncomingBookings(ownerID uint, filters models.Bookin
 	if filters.ServiceID != nil {
 		query = query.Where("service_id = ?", *filters.ServiceID)
 	}
-	if filters.DateFrom != "" {
-		if dateFrom, err := time.Parse("2006-01-02", filters.DateFrom); err == nil {
-			query = query.Where("scheduled_at >= ?", dateFrom)
-		}
-	}
-	if filters.DateTo != "" {
-		if dateTo, err := time.Parse("2006-01-02", filters.DateTo); err == nil {
-			query = query.Where("scheduled_at < ?", dateTo.Add(24*time.Hour))
-		}
-	}
+	query = applyBookingDateFilters(query, filters)
 
 	var total int64
 	if err := query.Model(&models.ServiceBooking{}).Count(&total).Error; err != nil {

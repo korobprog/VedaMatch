@@ -75,7 +75,14 @@ func isValidNewsSourceMode(mode models.NewsSourceMode) bool {
 }
 
 func parseNewsBoolQuery(value string) bool {
-	return strings.ToLower(strings.TrimSpace(value)) == "true"
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off", "":
+		return false
+	default:
+		return false
+	}
 }
 
 func validateNewsSourceID(sourceID *uint) error {

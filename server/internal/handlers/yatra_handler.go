@@ -49,6 +49,15 @@ func parseBoundedYatraQueryInt(c *fiber.Ctx, key string, def int, min int, max i
 	return value
 }
 
+func parseYatraBoolQuery(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 // NewYatraHandler creates a new yatra handler instance
 func NewYatraHandler() *YatraHandler {
 	mapService := services.NewMapService(database.DB)
@@ -108,24 +117,24 @@ func (h *YatraHandler) GetYatra(c *fiber.Ctx) error {
 // GET /api/yatra
 func (h *YatraHandler) ListYatras(c *fiber.Ctx) error {
 	filters := models.YatraFilters{
-		City:     c.Query("city"),
-		Language: c.Query("language"),
-		Search:   c.Query("search"),
+		City:     strings.TrimSpace(c.Query("city")),
+		Language: strings.TrimSpace(c.Query("language")),
+		Search:   strings.TrimSpace(c.Query("search")),
 		Page:     parseBoundedYatraQueryInt(c, "page", 1, 1, 100000),
 		Limit:    parseBoundedYatraQueryInt(c, "limit", 20, 1, 200),
 	}
 
-	if c.Query("theme") != "" {
-		filters.Theme = models.YatraTheme(c.Query("theme"))
+	if theme := strings.TrimSpace(c.Query("theme")); theme != "" {
+		filters.Theme = models.YatraTheme(theme)
 	}
-	if c.Query("status") != "" {
-		filters.Status = models.YatraStatus(c.Query("status"))
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		filters.Status = models.YatraStatus(status)
 	}
-	if c.Query("start_after") != "" {
-		filters.StartAfter = c.Query("start_after")
+	if startAfter := strings.TrimSpace(c.Query("start_after")); startAfter != "" {
+		filters.StartAfter = startAfter
 	}
-	if c.Query("start_before") != "" {
-		filters.StartBefore = c.Query("start_before")
+	if startBefore := strings.TrimSpace(c.Query("start_before")); startBefore != "" {
+		filters.StartBefore = startBefore
 	}
 	yatras, total, err := h.yatraService.ListYatras(filters)
 	if err != nil {
@@ -385,31 +394,33 @@ func (h *YatraHandler) GetShelter(c *fiber.Ctx) error {
 // GET /api/shelter
 func (h *YatraHandler) ListShelters(c *fiber.Ctx) error {
 	filters := models.ShelterFilters{
-		City:   c.Query("city"),
-		Search: c.Query("search"),
+		City:   strings.TrimSpace(c.Query("city")),
+		Search: strings.TrimSpace(c.Query("search")),
 		Page:   parseBoundedYatraQueryInt(c, "page", 1, 1, 100000),
 		Limit:  parseBoundedYatraQueryInt(c, "limit", 20, 1, 200),
 	}
 
-	if c.Query("type") != "" {
-		filters.Type = models.ShelterType(c.Query("type"))
+	if shelterType := strings.TrimSpace(c.Query("type")); shelterType != "" {
+		filters.Type = models.ShelterType(shelterType)
 	}
-	if c.Query("seva_only") == "true" {
+	if parseYatraBoolQuery(c.Query("seva_only")) {
 		filters.SevaOnly = true
 	}
-	if c.Query("min_rating") != "" {
-		if rating, err := strconv.ParseFloat(c.Query("min_rating"), 64); err == nil {
+	if minRating := strings.TrimSpace(c.Query("min_rating")); minRating != "" {
+		if rating, err := strconv.ParseFloat(minRating, 64); err == nil {
 			filters.MinRating = &rating
 		}
 	}
-	if c.Query("near_lat") != "" && c.Query("near_lng") != "" {
-		if lat, err := strconv.ParseFloat(c.Query("near_lat"), 64); err == nil {
+	nearLat := strings.TrimSpace(c.Query("near_lat"))
+	nearLng := strings.TrimSpace(c.Query("near_lng"))
+	if nearLat != "" && nearLng != "" {
+		if lat, err := strconv.ParseFloat(nearLat, 64); err == nil {
 			filters.NearLat = &lat
 		}
-		if lng, err := strconv.ParseFloat(c.Query("near_lng"), 64); err == nil {
+		if lng, err := strconv.ParseFloat(nearLng, 64); err == nil {
 			filters.NearLng = &lng
 		}
-		if radius, err := strconv.ParseFloat(c.Query("radius_km"), 64); err == nil {
+		if radius, err := strconv.ParseFloat(strings.TrimSpace(c.Query("radius_km")), 64); err == nil {
 			filters.RadiusKm = &radius
 		} else {
 			defaultRadius := 50.0

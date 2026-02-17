@@ -121,7 +121,7 @@ func (h *SeriesHandler) GetSeriesDetails(c *fiber.Ctx) error {
 }
 
 func urlDecode(str string) (string, error) {
-	return url.QueryUnescape(str)
+	return url.PathUnescape(str)
 }
 
 // CreateSeries creates a new series

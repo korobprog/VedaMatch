@@ -371,3 +371,41 @@ func TestChannelHandler_FeatureDisabled(t *testing.T) {
 		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusServiceUnavailable)
 	}
 }
+
+func TestParseUintParamRejectsZero(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:id", func(c *fiber.Ctx) error {
+		if _, err := parseUintParam(c, "id"); err != nil {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/0", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusBadRequest)
+	}
+}
+
+func TestParseUintParamAcceptsPositive(t *testing.T) {
+	app := fiber.New()
+	app.Get("/:id", func(c *fiber.Ctx) error {
+		if _, err := parseUintParam(c, "id"); err != nil {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/42", nil)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusOK {
+		t.Fatalf("status=%d, want=%d", res.StatusCode, fiber.StatusOK)
+	}
+}

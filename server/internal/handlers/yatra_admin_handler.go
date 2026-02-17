@@ -8,6 +8,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -15,7 +16,7 @@ import (
 
 func parseBoundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	value := def
-	if raw := c.Query(key); raw != "" {
+	if raw := strings.TrimSpace(c.Query(key)); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil {
 			value = parsed
 		}
@@ -27,6 +28,15 @@ func parseBoundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) i
 		return max
 	}
 	return value
+}
+
+func parseYatraAdminBoolQuery(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func requireYatraAdminUserID(c *fiber.Ctx) (uint, error) {
@@ -196,10 +206,10 @@ func (h *YatraAdminHandler) GetAllYatras(c *fiber.Ctx) error {
 			Language: c.Query("language"),
 			Search:   c.Query("search"),
 		},
-		IncludeDrafts:    c.Query("include_drafts") == "true",
-		IncludeCancelled: c.Query("include_cancelled") == "true",
-		IncludeCompleted: c.Query("include_completed") == "true",
-		ReportedOnly:     c.Query("reported_only") == "true",
+		IncludeDrafts:    parseYatraAdminBoolQuery(c.Query("include_drafts")),
+		IncludeCancelled: parseYatraAdminBoolQuery(c.Query("include_cancelled")),
+		IncludeCompleted: parseYatraAdminBoolQuery(c.Query("include_completed")),
+		ReportedOnly:     parseYatraAdminBoolQuery(c.Query("reported_only")),
 	}
 	filters.Page = parseBoundedQueryInt(c, "page", 1, 1, 100000)
 	filters.Limit = parseBoundedQueryInt(c, "limit", 20, 1, 200)
@@ -400,8 +410,8 @@ func (h *YatraAdminHandler) GetOrganizers(c *fiber.Ctx) error {
 		return err
 	}
 	filters := services.OrganizerFilters{
-		BlockedOnly: c.Query("blocked_only") == "true",
-		TopRated:    c.Query("top_rated") == "true",
+		BlockedOnly: parseYatraAdminBoolQuery(c.Query("blocked_only")),
+		TopRated:    parseYatraAdminBoolQuery(c.Query("top_rated")),
 		MinYatras:   parseBoundedQueryInt(c, "min_yatras", 0, 0, 1000000),
 		Page:        parseBoundedQueryInt(c, "page", 1, 1, 100000),
 		Limit:       parseBoundedQueryInt(c, "limit", 20, 1, 200),
@@ -692,7 +702,7 @@ func (h *YatraAdminHandler) GetNotifications(c *fiber.Ctx) error {
 	if _, err := requireYatraAdminUserID(c); err != nil {
 		return err
 	}
-	unreadOnly := c.Query("unread_only") == "true"
+	unreadOnly := parseYatraAdminBoolQuery(c.Query("unread_only"))
 	page := parseBoundedQueryInt(c, "page", 1, 1, 100000)
 	limit := parseBoundedQueryInt(c, "limit", 50, 1, 200)
 

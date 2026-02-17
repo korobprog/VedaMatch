@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"testing"
 
 	"rag-agent-server/internal/models"
@@ -59,6 +60,18 @@ func TestCalculateCafeOrderTotalPages(t *testing.T) {
 			}
 		})
 	}
+
+	expected := int64(math.MaxInt64 / 2)
+	if math.MaxInt64%2 != 0 {
+		expected++
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if expected > maxInt {
+		expected = maxInt
+	}
+	if got := calculateCafeOrderTotalPages(math.MaxInt64, 2); got != int(expected) {
+		t.Fatalf("large total pages = %d, want %d", got, expected)
+	}
 }
 
 func TestIsOrderNumberConflict(t *testing.T) {
@@ -83,6 +96,35 @@ func TestIsValidCafeOrderStatus(t *testing.T) {
 	}
 	if isValidCafeOrderStatus(models.CafeOrderStatus("unknown")) {
 		t.Fatalf("unknown status should be invalid")
+	}
+}
+
+func TestNormalizeCafePaymentMethod(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeCafePaymentMethod(" CARD_TERMINAL "); got != "card_terminal" {
+		t.Fatalf("normalized payment method = %q, want card_terminal", got)
+	}
+	if got := normalizeCafePaymentMethod(""); got != "" {
+		t.Fatalf("empty payment method should remain empty, got %q", got)
+	}
+}
+
+func TestIsValidCafePaymentMethod(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{"cash", " card_terminal ", "LKM", ""}
+	for _, method := range valid {
+		if !isValidCafePaymentMethod(method) {
+			t.Fatalf("expected %q to be valid payment method", method)
+		}
+	}
+
+	invalid := []string{"paypal", "wire"}
+	for _, method := range invalid {
+		if isValidCafePaymentMethod(method) {
+			t.Fatalf("expected %q to be invalid payment method", method)
+		}
 	}
 }
 

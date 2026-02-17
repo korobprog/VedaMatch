@@ -36,6 +36,42 @@ func TestParseBoundedQueryInt(t *testing.T) {
 	}
 }
 
+func TestParseBoundedQueryInt_TrimsValue(t *testing.T) {
+	app := fiber.New()
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"page": parseBoundedQueryInt(c, "page", 1, 1, 100),
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/?page=%202%20", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var payload map[string]int
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if payload["page"] != 2 {
+		t.Fatalf("expected parsed page=2, got %d", payload["page"])
+	}
+}
+
+func TestParseYatraAdminBoolQuery(t *testing.T) {
+	if !parseYatraAdminBoolQuery("TRUE") {
+		t.Fatalf("expected TRUE to parse as true")
+	}
+	if !parseYatraAdminBoolQuery("1") {
+		t.Fatalf("expected 1 to parse as true")
+	}
+	if parseYatraAdminBoolQuery("off") {
+		t.Fatalf("expected off to parse as false")
+	}
+}
+
 func TestRequireYatraReporterUserID_AllowsAuthenticatedUser(t *testing.T) {
 	app := fiber.New()
 	app.Get("/", func(c *fiber.Ctx) error {

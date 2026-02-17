@@ -7,6 +7,26 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+func TestURLDecodePreservesPlusInPath(t *testing.T) {
+	decoded, err := urlDecode("series/my+video.mp4")
+	if err != nil {
+		t.Fatalf("urlDecode returned error: %v", err)
+	}
+	if decoded != "series/my+video.mp4" {
+		t.Fatalf("unexpected decode result: %q", decoded)
+	}
+}
+
+func TestURLDecodePathEscapes(t *testing.T) {
+	decoded, err := urlDecode("series%2Fclip%20one.mp4")
+	if err != nil {
+		t.Fatalf("urlDecode returned error: %v", err)
+	}
+	if decoded != "series/clip one.mp4" {
+		t.Fatalf("unexpected decode result: %q", decoded)
+	}
+}
+
 func TestIsSeriesAdminRequest(t *testing.T) {
 	app := fiber.New()
 	app.Get("/", func(c *fiber.Ctx) error {

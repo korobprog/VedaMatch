@@ -46,10 +46,20 @@ func boundedQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 }
 
 func isUnsafeFolderPath(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return false
+	}
 	if strings.Contains(path, "..") || strings.Contains(path, "\\") {
 		return true
 	}
-	return strings.HasPrefix(path, "/")
+	if strings.HasPrefix(path, "/") {
+		return true
+	}
+	if len(path) >= 2 && path[1] == ':' {
+		return true
+	}
+	return false
 }
 
 func respondMultimediaDomainError(c *fiber.Ctx, err error, notFoundMsg string) error {

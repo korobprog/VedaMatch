@@ -32,6 +32,14 @@ func TestIsAdminRoleRequested(t *testing.T) {
 	require.False(t, isAdminRoleRequested(models.RoleUser))
 }
 
+func TestResolveProfileRoleForUpdate(t *testing.T) {
+	require.Equal(t, models.RoleDevotee, resolveProfileRoleForUpdate(models.RoleDevotee, ""))
+	require.Equal(t, models.RoleDevotee, resolveProfileRoleForUpdate(models.RoleDevotee, "invalid-role"))
+	require.Equal(t, models.RoleYogi, resolveProfileRoleForUpdate(models.RoleDevotee, models.RoleYogi))
+	require.Equal(t, models.RoleDevotee, resolveProfileRoleForUpdate(models.RoleDevotee, models.RoleAdmin))
+	require.Equal(t, models.RoleAdmin, resolveProfileRoleForUpdate(models.RoleAdmin, models.RoleUser))
+}
+
 func TestValidateRegistrationCredentials(t *testing.T) {
 	require.NoError(t, validateRegistrationCredentials("user@example.com", "password1"))
 	require.Error(t, validateRegistrationCredentials("", "password1"))

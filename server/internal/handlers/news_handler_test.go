@@ -41,3 +41,18 @@ func TestCalculateNewsTotalPages(t *testing.T) {
 		t.Fatalf("expected fallback total pages 1 for invalid limit, got %d", got)
 	}
 }
+
+func TestParseNewsBoolQuery(t *testing.T) {
+	if !parseNewsBoolQuery("TRUE") {
+		t.Fatalf("expected TRUE to parse as true")
+	}
+	if !parseNewsBoolQuery("1") {
+		t.Fatalf("expected 1 to parse as true")
+	}
+	if parseNewsBoolQuery("off") {
+		t.Fatalf("expected off to parse as false")
+	}
+	if parseNewsBoolQuery("unexpected") {
+		t.Fatalf("expected unexpected token to parse as false")
+	}
+}

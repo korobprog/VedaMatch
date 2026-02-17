@@ -96,7 +96,7 @@ func main() {
 		StreamRequestBody: true,                   // Stream large uploads instead of buffering in memory
 		// Custom error handler with SECURE CORS validation
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			origin := c.Get("Origin")
+			origin := normalizeAllowedOrigin(c.Get("Origin"))
 			if allowedOriginsMap[origin] {
 				// Only set headers if Origin is explicitly allowed
 				c.Set("Vary", "Origin")
@@ -1009,7 +1009,7 @@ func buildAllowedOrigins(defaults []string) ([]string, map[string]bool) {
 	originsSet := make(map[string]bool, len(defaults))
 	ordered := make([]string, 0, len(defaults))
 	addOrigin := func(origin string) {
-		normalized := strings.TrimSpace(origin)
+		normalized := normalizeAllowedOrigin(origin)
 		if normalized == "" {
 			return
 		}
@@ -1034,6 +1034,14 @@ func buildAllowedOrigins(defaults []string) ([]string, map[string]bool) {
 	}
 
 	return ordered, originsSet
+}
+
+func normalizeAllowedOrigin(origin string) string {
+	normalized := strings.TrimSpace(origin)
+	if normalized == "" {
+		return ""
+	}
+	return strings.TrimSuffix(normalized, "/")
 }
 
 func resolveListenPort(defaultPort string) string {

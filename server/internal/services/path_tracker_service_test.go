@@ -110,6 +110,27 @@ func TestNormalizeUnlockServiceID(t *testing.T) {
 	if got := normalizeUnlockServiceID(" Video_Circles "); got != "video_circles" {
 		t.Fatalf("expected normalized value video_circles, got %q", got)
 	}
+	if got := normalizeUnlockServiceID("video-circles"); got != "video_circles" {
+		t.Fatalf("expected normalized alias video_circles, got %q", got)
+	}
+	if got := normalizeUnlockServiceID(" video circles "); got != "video_circles" {
+		t.Fatalf("expected normalized spaced alias video_circles, got %q", got)
+	}
+}
+
+func TestNormalizePathTrackerSortBy(t *testing.T) {
+	cases := map[string]string{
+		"deliveryStatus":  "deliverystatus",
+		"delivery_status": "deliverystatus",
+		"delivery-status": "deliverystatus",
+		"created_at":      "createdat",
+		" createdAt ":     "createdat",
+	}
+	for in, want := range cases {
+		if got := normalizePathTrackerSortBy(in); got != want {
+			t.Fatalf("normalizePathTrackerSortBy(%q) = %q, want %q", in, got, want)
+		}
+	}
 }
 
 func TestSuggestedServiceTitleNormalizesInput(t *testing.T) {
@@ -173,5 +194,12 @@ func TestApplyPhase3ExperimentControlNoChange(t *testing.T) {
 	got := svc.ApplyPhase3Experiment(candidates, "user", profile, "medium", 5, "control")
 	if got[0].Format != "communication" {
 		t.Fatalf("expected original order in control, got %s first", got[0].Format)
+	}
+}
+
+func TestExtractDurationFromInstructionsWithPunctuation(t *testing.T) {
+	got := extractDurationFromInstructions([]string{"Сделай 5) глубоких вдохов."})
+	if got != 5 {
+		t.Fatalf("expected duration 5, got %d", got)
 	}
 }

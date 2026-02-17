@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 )
 
@@ -106,6 +107,8 @@ func TestSettingInt(t *testing.T) {
 
 	settings := map[string]interface{}{
 		"float":  float64(5),
+		"nan":    math.NaN(),
+		"inf":    math.Inf(1),
 		"int":    int(7),
 		"int64":  int64(9),
 		"number": json.Number("11"),
@@ -130,6 +133,12 @@ func TestSettingInt(t *testing.T) {
 	}
 	if got := settingInt(settings, "bad", 3); got != 3 {
 		t.Fatalf("bad -> %d, want fallback 3", got)
+	}
+	if got := settingInt(settings, "nan", 6); got != 6 {
+		t.Fatalf("nan -> %d, want fallback 6", got)
+	}
+	if got := settingInt(settings, "inf", 7); got != 7 {
+		t.Fatalf("inf -> %d, want fallback 7", got)
 	}
 	if got := settingInt(settings, "missing", 4); got != 4 {
 		t.Fatalf("missing -> %d, want fallback 4", got)

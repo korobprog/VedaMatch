@@ -40,6 +40,15 @@ func clampQueryInt(c *fiber.Ctx, key string, def int, min int, max int) int {
 	return value
 }
 
+func parseCafeBoolQuery(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 func isAllowedCafeImageContentType(contentType string) bool {
 	contentType = strings.ToLower(strings.TrimSpace(contentType))
 	return strings.HasPrefix(contentType, "image/")
@@ -55,9 +64,9 @@ func isValidDishType(dishType models.DishType) bool {
 }
 
 func safeImageExtension(filename string) string {
-	ext := strings.ToLower(filepath.Ext(filepath.Base(filename)))
+	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(filepath.Base(filename))))
 	switch ext {
-	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic":
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif":
 		return ext
 	default:
 		return ".jpg"
@@ -299,7 +308,7 @@ func (h *CafeHandler) ListCafes(c *fiber.Ctx) error {
 			filters.MinRating = &rating
 		}
 	}
-	if c.Query("has_delivery") == "true" {
+	if parseCafeBoolQuery(c.Query("has_delivery")) {
 		hasDelivery := true
 		filters.HasDelivery = &hasDelivery
 	}
@@ -613,7 +622,7 @@ func (h *CafeHandler) GetCategories(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cafe ID"})
 	}
 
-	includeInactive := c.Query("include_inactive") == "true"
+	includeInactive := parseCafeBoolQuery(c.Query("include_inactive"))
 	categories, err := h.dishService.GetCategories(uint(cafeID), includeInactive)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get categories"})
@@ -791,11 +800,11 @@ func (h *CafeHandler) ListDishes(c *fiber.Ctx) error {
 		}
 		filters.Type = dishType
 	}
-	if c.Query("vegetarian") == "true" {
+	if parseCafeBoolQuery(c.Query("vegetarian")) {
 		v := true
 		filters.IsVegetarian = &v
 	}
-	if c.Query("vegan") == "true" {
+	if parseCafeBoolQuery(c.Query("vegan")) {
 		v := true
 		filters.IsVegan = &v
 	}

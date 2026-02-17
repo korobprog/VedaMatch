@@ -47,6 +47,26 @@ func normalizePortalRole(role string) string {
 	return models.RoleUser
 }
 
+func resolveProfileRoleForUpdate(currentRole string, requestedRole string) string {
+	currentNormalized := strings.TrimSpace(strings.ToLower(currentRole))
+	if models.IsAdminRole(currentNormalized) {
+		return currentNormalized
+	}
+
+	requestedNormalized := strings.TrimSpace(strings.ToLower(requestedRole))
+	if requestedNormalized == "" {
+		return normalizePortalRole(currentRole)
+	}
+	if models.IsAdminRole(requestedNormalized) {
+		return normalizePortalRole(currentRole)
+	}
+	if models.IsPortalRole(requestedNormalized) {
+		return requestedNormalized
+	}
+
+	return normalizePortalRole(currentRole)
+}
+
 func isAdminRoleRequested(role string) bool {
 	return models.IsAdminRole(strings.TrimSpace(strings.ToLower(role)))
 }
@@ -604,8 +624,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	user.MaritalStatus = updateData.MaritalStatus
 	user.BirthTime = updateData.BirthTime
 	user.IsProfileComplete = true
-	// Preserve privileged god mode flag; profile payload must not escalate this field.
-	applyPortalRoleAndGodMode(&user, updateData.Role, user.GodModeEnabled)
+	// Preserve privileged flags and avoid accidental role downgrades when role is omitted/invalid.
+	user.Role = resolveProfileRoleForUpdate(user.Role, updateData.Role)
 
 	// Handle coordinates
 	if updateData.Latitude != nil && updateData.Longitude != nil {

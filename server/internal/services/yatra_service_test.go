@@ -161,6 +161,9 @@ func TestParseYatraDateFromAny(t *testing.T) {
 	if _, ok := parseYatraDateFromAny("bad"); ok {
 		t.Fatalf("invalid date should be rejected")
 	}
+	if _, ok := parseYatraDateFromAny(time.Time{}); ok {
+		t.Fatalf("zero time should be rejected")
+	}
 }
 
 func TestSanitizeYatraUpdatesThemeValidation(t *testing.T) {
@@ -224,6 +227,13 @@ func TestValidateOptionalCoordinates(t *testing.T) {
 	if err := validateOptionalCoordinates(nil, &invalidLng, nil, nil); err == nil {
 		t.Fatalf("expected invalid longitude error")
 	}
+
+	if err := validateOptionalCoordinates(&startLat, nil, nil, nil); err == nil {
+		t.Fatalf("expected error for incomplete start coordinate pair")
+	}
+	if err := validateOptionalCoordinates(nil, nil, &endLat, nil); err == nil {
+		t.Fatalf("expected error for incomplete end coordinate pair")
+	}
 }
 
 func TestValidateYatraReviewRequest(t *testing.T) {
@@ -245,5 +255,21 @@ func TestValidateYatraReviewRequest(t *testing.T) {
 	}
 	if err := validateYatraReviewRequest(models.YatraReviewCreateRequest{OverallRating: 5, RouteRating: 6}); err == nil {
 		t.Fatalf("expected error for invalid optional rating")
+	}
+}
+
+func TestCalculateYatraMarkerTruncated(t *testing.T) {
+	t.Parallel()
+
+	if got := calculateYatraMarkerTruncated(5, 5); got != 0 {
+		t.Fatalf("expected 0 truncated for equal counts, got %d", got)
+	}
+	if got := calculateYatraMarkerTruncated(12, 7); got != 5 {
+		t.Fatalf("expected truncated=5, got %d", got)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if got := calculateYatraMarkerTruncated(math.MaxInt64, 0); got != maxInt {
+		t.Fatalf("expected clamped truncated=%d, got %d", maxInt, got)
 	}
 }

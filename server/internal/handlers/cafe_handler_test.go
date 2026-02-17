@@ -20,6 +20,7 @@ func TestSafeImageExtension(t *testing.T) {
 		{name: "invalid extension", in: "file.exe", want: ".jpg"},
 		{name: "path traversal", in: "../photo.webp", want: ".webp"},
 		{name: "no extension", in: "photo", want: ".jpg"},
+		{name: "trim spaces and heif", in: " photo.heif ", want: ".heif"},
 	}
 
 	for _, tc := range tests {
@@ -28,6 +29,18 @@ func TestSafeImageExtension(t *testing.T) {
 				t.Fatalf("safeImageExtension(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestParseCafeBoolQuery(t *testing.T) {
+	if !parseCafeBoolQuery("TRUE") {
+		t.Fatalf("expected TRUE to parse as true")
+	}
+	if !parseCafeBoolQuery("1") {
+		t.Fatalf("expected 1 to parse as true")
+	}
+	if parseCafeBoolQuery("off") {
+		t.Fatalf("expected off to parse as false")
 	}
 }
 

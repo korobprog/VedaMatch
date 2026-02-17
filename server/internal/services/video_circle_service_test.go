@@ -67,6 +67,9 @@ func TestRemainingSecondsUntil(t *testing.T) {
 	if got := remainingSecondsUntil(now.Add(30*time.Second), now); got != 30 {
 		t.Fatalf("expected 30 seconds, got %d", got)
 	}
+	if got := remainingSecondsUntil(now.Add(500*time.Millisecond), now); got != 1 {
+		t.Fatalf("expected 1 second for positive sub-second duration, got %d", got)
+	}
 	if got := remainingSecondsUntil(now.Add(-1*time.Second), now); got != 0 {
 		t.Fatalf("expected 0 seconds for past time, got %d", got)
 	}

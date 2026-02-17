@@ -1,8 +1,10 @@
 package services
 
 import (
+	"math"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNormalizeBookingSource(t *testing.T) {
@@ -42,5 +44,36 @@ func TestCalculateBookingTotalPages(t *testing.T) {
 	}
 	if got := calculateBookingTotalPages(10, 0); got != 1 {
 		t.Fatalf("expected fallback total pages 1 for invalid limit, got %d", got)
+	}
+
+	expected := int64(math.MaxInt64 / 2)
+	if math.MaxInt64%2 != 0 {
+		expected++
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if expected > maxInt {
+		expected = maxInt
+	}
+	if got := calculateBookingTotalPages(math.MaxInt64, 2); got != int(expected) {
+		t.Fatalf("expected bounded page count %d for large total, got %d", expected, got)
+	}
+}
+
+func TestParseBookingDate(t *testing.T) {
+	t.Parallel()
+
+	got, ok := parseBookingDate(" 2026-02-01 ")
+	if !ok {
+		t.Fatalf("expected parse success")
+	}
+	if got.Format("2006-01-02") != "2026-02-01" {
+		t.Fatalf("unexpected parsed date: %s", got.Format(time.RFC3339))
+	}
+
+	if _, ok := parseBookingDate(""); ok {
+		t.Fatalf("expected empty date to be rejected")
+	}
+	if _, ok := parseBookingDate("not-a-date"); ok {
+		t.Fatalf("expected invalid date to be rejected")
 	}
 }

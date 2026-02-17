@@ -8,6 +8,7 @@ import (
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"strconv"
+	"strings"
 	"time"
 
 	"regexp"
@@ -18,6 +19,19 @@ import (
 
 type DatingHandler struct {
 	aiService *services.AiChatService
+}
+
+func parsePositiveUint(raw string) (uint, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, errors.New("value is required")
+	}
+
+	parsed, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || parsed == 0 {
+		return 0, errors.New("invalid positive uint")
+	}
+	return uint(parsed), nil
 }
 
 func requireDatingUserID(c *fiber.Ctx) (uint, error) {
@@ -52,7 +66,7 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	industry := c.Query("industry")
 	minAge := c.QueryInt("minAge", 0)
 	maxAge := c.QueryInt("maxAge", 0)
-	userID := c.Query("userId")
+	userID := strings.TrimSpace(c.Query("userId"))
 
 	// Apply mode filter
 	if mode != "" {
@@ -70,18 +84,20 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	// Get current user to determine opposite gender default for family mode
 	var currentUser models.User
 	if userID != "" {
-		if err := database.DB.First(&currentUser, userID).Error; err == nil {
-			// If no gender specified, default to opposite ONLY in family mode
-			if gender == "" && mode == "family" {
-				switch currentUser.Gender {
-				case "Male":
-					gender = "Female"
-				case "Female":
-					gender = "Male"
+		if parsedUserID, parseErr := parsePositiveUint(userID); parseErr == nil {
+			if err := database.DB.First(&currentUser, parsedUserID).Error; err == nil {
+				// If no gender specified, default to opposite ONLY in family mode
+				if gender == "" && mode == "family" {
+					switch currentUser.Gender {
+					case "Male":
+						gender = "Female"
+					case "Female":
+						gender = "Male"
+					}
 				}
+				// Exclude the user themselves
+				query = query.Where("id != ?", parsedUserID)
 			}
-			// Exclude the user themselves
-			query = query.Where("id != ?", userID)
 		}
 	}
 
@@ -119,7 +135,7 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 	// MinAge 20 => Born BEFORE (Today - 20 years) => Dob <= Date(Today - 20)
 	// MaxAge 30 => Born AFTER (Today - 30 years)  => Dob >= Date(Today - 30)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	if isNew {
 		twentyFourHoursAgo := now.Add(-24 * time.Hour)
 		query = query.Where("created_at > ?", twentyFourHoursAgo)
@@ -157,12 +173,17 @@ func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
 }
 
 func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
-	userIDStr := c.Params("userId")
-	candidateIDStr := c.Params("candidateId")
-
-	var userID, candidateID uint
-	fmt.Sscanf(userIDStr, "%d", &userID)
-	fmt.Sscanf(candidateIDStr, "%d", &candidateID)
+	userID, err := parsePositiveUint(c.Params("userId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+	candidateID, err := parsePositiveUint(c.Params("candidateId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid candidate ID"})
+	}
+	if userID == candidateID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot calculate compatibility with yourself"})
+	}
 
 	// Check cache first
 	var cached models.DatingCompatibility
@@ -173,10 +194,10 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 	}
 
 	var user, candidate models.User
-	if err := database.DB.First(&user, userIDStr).Error; err != nil {
+	if err := database.DB.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
-	if err := database.DB.First(&candidate, candidateIDStr).Error; err != nil {
+	if err := database.DB.First(&candidate, candidateID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Candidate not found"})
 	}
 
@@ -352,8 +373,15 @@ func (h *DatingHandler) UpdateDatingProfile(c *fiber.Ctx) error {
 		updateMap["is_profile_complete"] = *updates.IsProfileComplete
 	}
 
+	if len(updateMap) == 0 {
+		return c.JSON(user)
+	}
+
 	if err := database.DB.Model(&user).Updates(updateMap).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not update profile"})
+	}
+	if err := database.DB.Preload("Photos").First(&user, user.ID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load updated profile"})
 	}
 
 	return c.JSON(user)
@@ -375,6 +403,27 @@ func (h *DatingHandler) AddToFavorites(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot parse JSON"})
 	}
 	body.UserID = authUserID
+	if body.CandidateID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "candidateId is required"})
+	}
+	if body.CandidateID == body.UserID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Cannot favorite yourself"})
+	}
+
+	var candidate models.User
+	if err := database.DB.Select("id").First(&candidate, body.CandidateID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Candidate not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load candidate"})
+	}
+
+	var existing models.DatingFavorite
+	if err := database.DB.Where("user_id = ? AND candidate_id = ?", body.UserID, body.CandidateID).First(&existing).Error; err == nil {
+		return c.JSON(existing)
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not check favorites"})
+	}
 
 	favorite := models.DatingFavorite{
 		UserID:             body.UserID,
@@ -448,7 +497,18 @@ func cleanResponse(resp string) string {
 	reHtml := regexp.MustCompile(`<[^>]*>`)
 	resp = reHtml.ReplaceAllString(resp, "")
 
-	return resp
+	// Remove lines that start with URLs.
+	lines := strings.Split(resp, "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+
+	return strings.TrimSpace(strings.Join(filtered, "\n"))
 }
 
 func (h *DatingHandler) GetDatingCities(c *fiber.Ctx) error {
@@ -464,19 +524,25 @@ func (h *DatingHandler) GetDatingStats(c *fiber.Ctx) error {
 	var cityCount int64
 	var newCount int64
 
-	city := c.Query("city")
+	city := strings.TrimSpace(c.Query("city"))
 
 	// Total active dating profiles
-	database.DB.Model(&models.User{}).Where("dating_enabled = ?", true).Count(&totalCount)
+	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ?", true).Count(&totalCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch total stats"})
+	}
 
 	// Profiles in specific city
 	if city != "" {
-		database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city = ?", true, city).Count(&cityCount)
+		if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND city = ?", true, city).Count(&cityCount).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch city stats"})
+		}
 	}
 
 	// New profiles in last 24h
-	twentyFourHoursAgo := time.Now().Add(-24 * time.Hour)
-	database.DB.Model(&models.User{}).Where("dating_enabled = ? AND created_at > ?", true, twentyFourHoursAgo).Count(&newCount)
+	twentyFourHoursAgo := time.Now().UTC().Add(-24 * time.Hour)
+	if err := database.DB.Model(&models.User{}).Where("dating_enabled = ? AND created_at > ?", true, twentyFourHoursAgo).Count(&newCount).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch new stats"})
+	}
 
 	return c.JSON(fiber.Map{
 		"total": totalCount,
@@ -487,8 +553,8 @@ func (h *DatingHandler) GetDatingStats(c *fiber.Ctx) error {
 
 // GetFavoriteCount returns how many people added this profile to favorites
 func (h *DatingHandler) GetFavoriteCount(c *fiber.Ctx) error {
-	userID := c.Params("userId")
-	if userID == "" {
+	userID, err := parsePositiveUint(c.Params("userId"))
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "userId is required"})
 	}
 
@@ -510,18 +576,26 @@ func (h *DatingHandler) GetWhoLikedMe(c *fiber.Ctx) error {
 	}
 
 	var favorites []models.DatingFavorite
-	if err := database.DB.Preload("User").Preload("User.Photos").Where("candidate_id = ?", authUserID).Find(&favorites).Error; err != nil {
+	if err := database.DB.Where("candidate_id = ?", authUserID).Find(&favorites).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch likes"})
 	}
 
-	// Extract users who liked
-	var users []models.User
+	likerIDs := make([]uint, 0, len(favorites))
+	seen := make(map[uint]struct{}, len(favorites))
 	for _, fav := range favorites {
-		// Load user who created the favorite
-		var user models.User
-		if err := database.DB.Preload("Photos").First(&user, fav.UserID).Error; err == nil {
-			users = append(users, user)
+		if _, ok := seen[fav.UserID]; ok {
+			continue
 		}
+		seen[fav.UserID] = struct{}{}
+		likerIDs = append(likerIDs, fav.UserID)
+	}
+	if len(likerIDs) == 0 {
+		return c.JSON([]models.User{})
+	}
+
+	var users []models.User
+	if err := database.DB.Preload("Photos").Where("id IN ?", likerIDs).Find(&users).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load users"})
 	}
 
 	return c.JSON(users)
@@ -533,9 +607,8 @@ func (h *DatingHandler) CheckIsFavorited(c *fiber.Ctx) error {
 	if authErr != nil {
 		return authErr
 	}
-	candidateID := c.Query("candidateId")
-
-	if candidateID == "" {
+	candidateID, err := parsePositiveUint(c.Query("candidateId"))
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "candidateId is required"})
 	}
 
