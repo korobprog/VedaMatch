@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { HeroSection } from './HeroSection';
 import { FeaturesSection } from './FeaturesSection';
 import { ScrollSection } from './ScrollSection';
+import { PhilosophySection } from './PhilosophySection';
 import { TeamSection } from './TeamSection';
 import { motion } from 'framer-motion';
-import { LogOut, User as UserIcon, Grid, ArrowRight, MessageCircle } from 'lucide-react';
+import { LogOut, User as UserIcon, Grid, ArrowRight, MessageCircle, Sparkles } from 'lucide-react';
 
 export default function LandingPage() {
     const [user, setUser] = useState<any>(null);
@@ -30,31 +31,34 @@ export default function LandingPage() {
     const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
     return (
-        <div className="min-h-screen bg-[#faf9f6]">
+        <div className="min-h-screen bg-[#faf9f6] selection:bg-orange-200">
             {/* Navbar */}
-            <nav className="fixed top-0 left-0 right-0 z-50 bg-[#faf9f6]/80 backdrop-blur-md border-b border-[#e7e5e4]">
-                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gradient-to-tr from-orange-400 to-red-500 rounded-lg flex items-center justify-center text-white font-bold">
+            <nav className="fixed top-0 left-0 right-0 z-50 bg-[#faf9f6]/80 backdrop-blur-xl border-b border-[#e7e5e4]">
+                <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-tr from-orange-400 to-red-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg transform rotate-3">
                             V
                         </div>
-                        <span className="text-xl font-bold text-[#2c1810]">VedaMatch</span>
+                        <div className="flex flex-col">
+                            <span className="text-xl font-bold text-[#2c1810] leading-none">VedaMatch</span>
+                            <span className="text-[10px] font-bold tracking-widest text-orange-600 uppercase mt-1">Ecosystem Agent</span>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6">
                         {user ? (
                             <div className="flex items-center gap-6">
-                                <Link href="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                                    <div className="w-8 h-8 bg-[#2c1810]/5 rounded-full flex items-center justify-center border border-[#e7e5e4]">
-                                        <UserIcon className="w-4 h-4 text-[#2c1810]" />
+                                <Link href="/profile" className="flex items-center gap-3 group">
+                                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-[#e7e5e4] shadow-sm group-hover:border-orange-300 transition-colors overflow-hidden relative">
+                                        <UserIcon className="w-5 h-5 text-[#2c1810]" />
                                     </div>
-                                    <span className="text-[#2c1810] font-medium hidden sm:inline">
+                                    <span className="text-[#2c1810] font-semibold hidden sm:inline group-hover:text-orange-600 transition-colors">
                                         {user.spiritualName || user.email}
                                     </span>
                                 </Link>
                                 <Link
                                     href="/user/dashboard"
-                                    className="px-4 py-2 bg-[#2c1810]/5 hover:bg-[#2c1810]/10 rounded-lg text-sm font-bold text-[#2c1810] transition-all flex items-center gap-2"
+                                    className="px-5 py-2.5 bg-[#2c1810] hover:bg-[#4a2c20] rounded-xl text-sm font-bold text-white shadow-lg transition-all flex items-center gap-2"
                                 >
                                     <Grid className="w-4 h-4" />
                                     Портал
@@ -62,27 +66,28 @@ export default function LandingPage() {
                                 {isAdmin && (
                                     <Link
                                         href="/dashboard"
-                                        className="bg-[#2c1810] text-[#faf9f6] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#4a2c20] transition-colors"
+                                        className="bg-white text-[#2c1810] border border-[#e7e5e4] px-5 py-2.5 rounded-xl text-sm font-bold hover:border-orange-200 hover:bg-orange-50 transition-all shadow-sm flex items-center gap-2"
                                     >
-                                        Админ Панель
+                                        <Sparkles className="w-4 h-4 text-orange-500" />
+                                        Админ
                                     </Link>
                                 )}
                                 <button
                                     onClick={handleLogout}
-                                    className="p-2 text-[#5c4d47] hover:text-[#2c1810] transition-colors"
+                                    className="w-10 h-10 flex items-center justify-center text-[#5c4d47] hover:text-red-500 border border-transparent hover:border-red-100 hover:bg-red-50 rounded-xl transition-all"
                                     title="Выйти"
                                 >
                                     <LogOut className="w-5 h-5" />
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-4">
-                                <Link href="/login" className="text-[#5c4d47] hover:text-[#2c1810] font-medium transition-colors">
+                            <div className="flex items-center gap-5">
+                                <Link href="/login" className="text-[#5c4d47] hover:text-[#2c1810] font-bold transition-colors">
                                     Вход
                                 </Link>
                                 <Link
                                     href="/register"
-                                    className="bg-[#2c1810] text-[#faf9f6] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#4a2c20] transition-colors"
+                                    className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
                                 >
                                     Регистрация
                                 </Link>
@@ -95,46 +100,49 @@ export default function LandingPage() {
             {/* Main Content */}
             <main>
                 <HeroSection />
-                <FeaturesSection />
+                <div id="features" className="scroll-mt-20">
+                    <FeaturesSection />
+                </div>
+                <PhilosophySection />
                 <TeamSection />
 
                 {/* Community Section */}
-                <section className="py-24 bg-[#faf9f6] relative overflow-hidden">
+                <section className="py-32 bg-[#faf9f6] relative overflow-hidden">
                     <div className="container mx-auto px-4 relative z-10">
                         <motion.div
-                            initial={{ opacity: 0, y: 30 }}
-                            whileInView={{ opacity: 1, y: 0 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            whileInView={{ opacity: 1, scale: 1 }}
                             viewport={{ once: true }}
-                            className="max-w-4xl mx-auto bg-[#2c1810] rounded-[3rem] p-12 md:p-16 text-center text-[#faf9f6] shadow-2xl relative overflow-hidden group"
+                            className="max-w-5xl mx-auto bg-gradient-to-br from-[#2c1810] to-[#1a0f0a] rounded-[4rem] p-12 md:p-20 text-center text-[#faf9f6] shadow-[0_40px_100px_-20px_rgba(44,24,16,0.5)] relative overflow-hidden group"
                         >
                             {/* Decorative background elements */}
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
-                            <div className="absolute bottom-0 left-0 w-64 h-64 bg-red-500/10 rounded-full blur-3xl -ml-32 -mb-32" />
+                            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[100px] -mr-64 -mt-64 group-hover:opacity-20 transition-opacity" />
+                            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-500/10 rounded-full blur-[100px] -ml-64 -mb-64 group-hover:opacity-20 transition-opacity" />
 
                             <div className="relative z-10">
                                 <motion.div
                                     initial={{ scale: 0.8, opacity: 0 }}
                                     whileInView={{ scale: 1, opacity: 1 }}
                                     transition={{ delay: 0.2 }}
-                                    className="w-20 h-20 bg-[#faf9f6]/10 rounded-2xl flex items-center justify-center mx-auto mb-8 border border-[#faf9f6]/20 backdrop-blur-sm"
+                                    className="w-24 h-24 bg-white/5 rounded-[2rem] flex items-center justify-center mx-auto mb-10 border border-white/10 backdrop-blur-xl shadow-2xl"
                                 >
-                                    <MessageCircle className="w-10 h-10 text-orange-400" />
+                                    <MessageCircle className="w-12 h-12 text-orange-400" />
                                 </motion.div>
 
-                                <h2 className="text-4xl md:text-5xl font-serif mb-6">Присоединяйтесь к <span className="text-orange-400">Сообществу</span></h2>
+                                <h2 className="text-5xl md:text-7xl font-serif mb-8 leading-tight">Присоединяйтесь к <span className="text-orange-400 italic">Сангхе</span></h2>
 
-                                <p className="text-xl text-[#faf9f6]/70 mb-10 max-w-2xl mx-auto leading-relaxed">
-                                    Обсуждайте развитие проекта, предлагайте свои идеи и общайтесь с единомышленниками в нашем Telegram-канале. Вместе мы создаем технологии будущего для преданных.
+                                <p className="text-2xl text-[#faf9f6]/60 mb-12 max-w-3xl mx-auto leading-relaxed font-light">
+                                    Обсуждайте развитие экосистемы, предлагайте свои идеи и общайтесь с единомышленниками. Вместе мы создаем технологии будущего в служении преданным.
                                 </p>
 
                                 <a
                                     href="https://t.me/vedamatch"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-3 bg-[#faf9f6] text-[#2c1810] px-10 py-5 rounded-2xl font-bold text-lg hover:bg-orange-400 hover:text-white transition-all hover:scale-105 active:scale-95 shadow-xl"
+                                    className="inline-flex items-center gap-4 bg-orange-500 text-white px-12 py-6 rounded-[2rem] font-black text-xl hover:bg-orange-600 transition-all hover:scale-105 active:scale-95 shadow-[0_15px_30px_-5px_rgba(249,115,22,0.4)]"
                                 >
-                                    Перейти в Telegram
-                                    <ArrowRight className="w-5 h-5" />
+                                    В наш Телеграм
+                                    <ArrowRight className="w-6 h-6" />
                                 </a>
                             </div>
                         </motion.div>

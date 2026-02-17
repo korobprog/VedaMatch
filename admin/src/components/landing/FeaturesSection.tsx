@@ -7,7 +7,8 @@ import {
     MessageCircle,
     BookOpen,
     Newspaper,
-    Sparkles
+    Sparkles,
+    ShieldCheck
 } from 'lucide-react';
 
 const features = [
@@ -15,59 +16,79 @@ const features = [
         icon: ShoppingBag,
         title: 'Sattva Market',
         description: 'Маркетплейс для благостной жизни. Находите продукты, одежду и атрибутику от проверенных вайшнавских магазинов. Безопасные сделки и удобная доставка.',
-        color: 'from-orange-400 to-red-500'
+        color: 'from-orange-400 to-red-500',
+        delay: 0
     },
     {
         icon: Heart,
         title: 'VedaMatch',
         description: 'Осознанные знакомства. Ищите спутника жизни, деловых партнеров или друзей по интересам. Умные фильтры по ашраму, целям и служению.',
-        color: 'from-pink-400 to-rose-500'
+        color: 'from-pink-400 to-rose-500',
+        delay: 0.1
     },
     {
         icon: MessageCircle,
         title: 'Sanga Общение',
         description: 'Оставайтесь на связи с общиной. P2P звонки, чаты и поиск преданных рядом с вами для совместного служения и киртанов.',
-        color: 'from-blue-400 to-indigo-500'
+        color: 'from-blue-400 to-indigo-500',
+        delay: 0.2
     },
     {
         icon: BookOpen,
         title: 'Библиотека Мудрости',
-        description: 'Образовательная платформа. Изучайте шастры, проходите курсы (Бхакти Шастры) и проверяйте знания в тренажерах, адаптированных под вашу школу.',
-        color: 'from-amber-400 to-yellow-500'
+        description: 'Образовательная платформа. Изучайте шастры, проходите курсы (Бхакти Шастры) и проверяйте знания в тренажерах.',
+        color: 'from-amber-400 to-yellow-500',
+        delay: 0.3
     },
     {
         icon: Newspaper,
         title: 'Лента Новостей',
-        description: 'Агрегатор чистого контента. Новости с фильтром по матхам и организациям, очищенные от негатива и адаптированные нашим AI для вашего вдохновения.',
-        color: 'from-emerald-400 to-green-500'
+        description: 'Агрегатор чистого контента. Новости с фильтром по матхам и организациям, очищенные от негатива.',
+        color: 'from-emerald-400 to-green-500',
+        delay: 0.4
     },
     {
         icon: Sparkles,
         title: 'AI Ассистент',
-        description: 'Ваш личный гид. Задавайте вопросы по философии и практике — искусственный интеллект найдет ответы в авторитетных источниках.',
-        color: 'from-purple-400 to-violet-500'
+        description: 'Ваш личный гид. Задавайте вопросы по философии и практике — искусственный интеллект найдет ответы.',
+        color: 'from-purple-400 to-violet-500',
+        delay: 0.5
     }
 ];
 
 export function FeaturesSection() {
     return (
-        <section className="py-24 bg-[#fffbeb]">
-            <div className="container mx-auto px-4">
-                <div className="text-center mb-16">
+        <section className="py-32 bg-[#fffbeb] relative overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-[0.02] pointer-events-none"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 86c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm66-3c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm-46-43c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm20-27c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm58 48c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm-46 40c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm-54-53c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm56-55c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm-48 6c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm54 96c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zM72 20c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z' fill='%23000' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E")` }}
+            />
+
+            <div className="container mx-auto px-4 relative z-10">
+                <div className="text-center mb-20">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-100/50 border border-orange-200 text-orange-700 text-[10px] font-bold tracking-widest uppercase mb-6"
+                    >
+                        <ShieldCheck className="w-3 h-3" />
+                        Built for Devotees
+                    </motion.div>
                     <motion.h2
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="text-3xl md:text-4xl font-serif text-[#2c1810] mb-4"
+                        className="text-4xl md:text-6xl font-serif text-[#2c1810] mb-6 leading-tight"
                     >
-                        Всё необходимое в одном приложении
+                        Всё необходимое в <br /><span className="text-orange-600 italic">Одном Месте</span>
                     </motion.h2>
                     <motion.p
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.2 }}
-                        className="text-[#5c4d47] max-w-2xl mx-auto"
+                        className="text-xl text-[#5c4d47] max-w-2xl mx-auto font-light leading-relaxed"
                     >
                         Мы собрали лучшие инструменты для духовной практики, общения и жизни в гуне благости.
                     </motion.p>
@@ -82,16 +103,16 @@ export function FeaturesSection() {
                                 initial={{ opacity: 0, y: 30 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
-                                transition={{ delay: idx * 0.1 }}
-                                className="bg-white/50 backdrop-blur-sm p-8 rounded-2xl hover:bg-white hover:shadow-xl transition-all duration-300 border border-[#e7e5e4] group"
+                                transition={{ delay: feature.delay }}
+                                className="bg-white/40 backdrop-blur-md p-10 rounded-[2.5rem] hover:bg-white hover:shadow-[0_20px_50px_-10px_rgba(44,24,16,0.1)] transition-all duration-500 border border-[#e7e5e4] group"
                             >
-                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
-                                    <Icon size={24} />
+                                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center text-white mb-8 group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-[#2c1810]/5`}>
+                                    <Icon size={32} strokeWidth={1.5} />
                                 </div>
-                                <h3 className="text-xl font-bold text-[#2c1810] mb-3 group-hover:text-orange-600 transition-colors">
+                                <h3 className="text-2xl font-bold text-[#2c1810] mb-4 group-hover:text-orange-600 transition-colors">
                                     {feature.title}
                                 </h3>
-                                <p className="text-[#5c4d47] leading-relaxed text-sm">
+                                <p className="text-[#5c4d47] leading-relaxed text-sm opacity-80">
                                     {feature.description}
                                 </p>
                             </motion.div>
