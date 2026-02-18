@@ -8,7 +8,13 @@ import {
     BookOpen,
     Newspaper,
     Sparkles,
-    ShieldCheck
+    ShieldCheck,
+    Coffee,
+    HandHelping,
+    GraduationCap,
+    MapPin,
+    Compass,
+    Megaphone
 } from 'lucide-react';
 
 const features = [
@@ -34,27 +40,70 @@ const features = [
         delay: 0.2
     },
     {
+        icon: Coffee,
+        title: 'Sattva Cafe',
+        description: 'Найдите ближайшее вегетарианское кафе или закажите доставку прасада. Каталог проверенных заведений с отзывами преданных.',
+        color: 'from-amber-500 to-orange-600',
+        delay: 0.3
+    },
+    {
         icon: BookOpen,
         title: 'Библиотека Мудрости',
         description: 'Образовательная платформа. Изучайте шастры, проходите курсы (Бхакти Шастры) и проверяйте знания в тренажерах.',
         color: 'from-amber-400 to-yellow-500',
-        delay: 0.3
+        delay: 0.4
+    },
+    {
+        icon: GraduationCap,
+        title: 'Образование',
+        description: 'Курсы по философии, музыке, кулинарии и другим ведическим искусствам. Обучение от мастеров своего дела.',
+        color: 'from-cyan-400 to-blue-500',
+        delay: 0.5
+    },
+    {
+        icon: HandHelping,
+        title: 'Seva Hub',
+        description: 'Раздел для тех, кто хочет служить. Поиск волонтеров для храмовых проектов, фестивалей и добрых дел.',
+        color: 'from-emerald-500 to-teal-600',
+        delay: 0.6
     },
     {
         icon: Newspaper,
         title: 'Лента Новостей',
         description: 'Агрегатор чистого контента. Новости с фильтром по матхам и организациям, очищенные от негатива.',
         color: 'from-emerald-400 to-green-500',
-        delay: 0.4
+        delay: 0.7
+    },
+    {
+        icon: Compass,
+        title: 'Священные Путешествия',
+        description: 'Паломничества в святые места (Дхамы), йога-туры и поездки на фестивали. Организация жилья и трансферов.',
+        color: 'from-red-400 to-orange-500',
+        delay: 0.8
+    },
+    {
+        icon: MapPin,
+        title: 'Экосистема Карт',
+        description: 'Все вайшнавские центры, храмы и культурные объекты на одной карте. Будьте в курсе событий в вашем регионе.',
+        color: 'from-lime-400 to-emerald-500',
+        delay: 0.9
+    },
+    {
+        icon: Megaphone,
+        title: 'Объявления',
+        description: 'Доска объявлений для своих. Покупайте, продавайте, дарите и находите нужные услуги внутри сообщества.',
+        color: 'from-orange-300 to-amber-500',
+        delay: 1.0
     },
     {
         icon: Sparkles,
         title: 'AI Ассистент',
         description: 'Ваш личный гид. Задавайте вопросы по философии и практике — искусственный интеллект найдет ответы.',
         color: 'from-purple-400 to-violet-500',
-        delay: 0.5
+        delay: 1.1
     }
 ];
+
 
 export function FeaturesSection() {
     return (

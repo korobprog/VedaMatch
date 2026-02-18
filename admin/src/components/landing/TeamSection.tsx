@@ -6,36 +6,20 @@ import Image from 'next/image';
 
 const team = [
     {
-        name: 'Шрила Прабхупада',
-        role: 'Духовный Наставник',
-        bio: 'Основатель-ачарья ИСККОН, чья мудрость и наставления являются фундаментом нашего проекта. Мы стремимся использовать современные технологии для распространения знания, которое он дал миру.',
-        image: '/vaishnava_portrait.png',
-        specialty: 'Философское видение',
-        color: '#F97316' // Orange
+        name: 'Санкаршан дас',
+        role: 'Основатель и идейный вдохновитель',
+        bio: 'Связь с общественностью. Координация внешних связей и развитие стратегического партнерства в рамках экосистемы.',
+        image: '/sankarshan.webp',
+        specialty: 'Общественные связи',
+        color: '#F97316'
     },
     {
-        name: 'Артем Мамушев',
-        role: 'Основатель и Архитектор',
-        bio: 'Разработчик с глубоким пониманием как технологических процессов, так и ведической философии. Создает мосты между древней мудростью и будущим цифрового мира через VedaMatch.',
-        image: '/krishnaAssistant.png',
-        specialty: 'Системная архитектура',
-        color: '#6366F1' // Indigo
-    },
-    {
-        name: 'Алексей Иванов',
-        role: 'Lead AI Engineer',
-        bio: 'Специалист по машинному обучению, занимающийся адаптацией языковых моделей для корректной интерпретации священных текстов и помощи в духовной практике.',
-        image: '/vaishnava_group.png',
-        specialty: 'Нейронные сети',
-        color: '#EC4899' // Pink
-    },
-    {
-        name: 'Мария Сарасвати',
-        role: 'UX/UI & Community',
-        bio: 'Дизайнер и менеджер сообщества, которая заботится о том, чтобы интерфейс был не только удобным, но и эстетически соответствовал вайшнавской культуре.',
-        image: '/krishna_bg.png',
-        specialty: 'Дизайн и Культура',
-        color: '#10B981' // Emerald
+        name: 'Маму Тхакур дас',
+        role: 'Основатель и идейный вдохновитель',
+        bio: 'Технический специалист. Архитектура системы, разработка AI-сервисов и технологическая реализация видения проекта.',
+        image: '/mamu_thakur 2.webp',
+        specialty: 'Технологии',
+        color: '#6366F1'
     }
 ];
 
@@ -70,7 +54,7 @@ export function TeamSection() {
                     </p>
                 </motion.div>
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-12 max-w-5xl mx-auto">
                     {team.map((member, idx) => (
                         <motion.div
                             key={idx}
@@ -117,12 +101,6 @@ export function TeamSection() {
                                         </p>
                                     </div>
                                 </div>
-
-                                <div className="mt-8 pt-6 border-t border-[#e7e5e4] flex items-center justify-center gap-6 text-[#2c1810]/30">
-                                    <Mail className="w-5 h-5 cursor-pointer hover:text-orange-500 transition-colors" />
-                                    <Globe className="w-5 h-5 cursor-pointer hover:text-orange-500 transition-colors" />
-                                    <Github className="w-5 h-5 cursor-pointer hover:text-orange-500 transition-colors" />
-                                </div>
                             </div>
                         </motion.div>
                     ))}
@@ -131,3 +109,4 @@ export function TeamSection() {
         </section>
     );
 }
+
