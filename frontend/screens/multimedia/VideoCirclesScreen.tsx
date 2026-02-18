@@ -6,6 +6,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -478,6 +479,12 @@ export const VideoCirclesScreen: React.FC = () => {
     setCommentModalOpen(true);
   };
 
+  const closeCommentModal = () => {
+    setCommentModalOpen(false);
+    setCommentTarget(null);
+    setCommentText('');
+  };
+
   const submitComment = async () => {
     if (!commentTarget) return;
     if (!commentText.trim()) {
@@ -486,15 +493,12 @@ export const VideoCirclesScreen: React.FC = () => {
     }
 
     const target = commentTarget;
-    setCommentModalOpen(false);
-    setCommentTarget(null);
-    setCommentText('');
+    closeCommentModal();
     await handleInteraction(target, 'comment');
   };
 
   const handleChatPress = async (circle: VideoCircle) => {
     if (user?.ID && circle.authorId === user.ID) {
-      Alert.alert(t('common.error'), t('videoCircles.ownCircleError') || 'Это ваш кружок');
       return;
     }
 
@@ -827,7 +831,12 @@ export const VideoCirclesScreen: React.FC = () => {
                   <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.commentCount}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleChatPress(item)} activeOpacity={0.7}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, user?.ID && item.authorId === user.ID && styles.disabledAction]}
+                  onPress={() => handleChatPress(item)}
+                  activeOpacity={0.7}
+                  disabled={!!(user?.ID && item.authorId === user.ID)}
+                >
                   <Send size={19} color={roleColors.textSecondary} />
                   <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.chatCount}</Text>
                 </TouchableOpacity>
@@ -999,39 +1008,38 @@ export const VideoCirclesScreen: React.FC = () => {
         </View>
       </Modal>
 
-      <Modal visible={commentModalOpen} animationType="slide" transparent onRequestClose={() => setCommentModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, modalCardStyle]}>
+      <Modal visible={commentModalOpen} animationType="slide" transparent onRequestClose={closeCommentModal}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+          <View style={[styles.modalCard, modalCardStyle, styles.commentModalCard]}>
             <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>{t('contacts.sendMessage')}</Text>
-            <TextInput
-              value={commentText}
-              onChangeText={setCommentText}
-              placeholder={t('chat.placeholder')}
-              placeholderTextColor={roleColors.textSecondary}
-              multiline
-              style={[
-                styles.input,
-                styles.commentInput,
-                inputSurfaceStyle,
-              ]}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.secondaryBtn, { borderColor: roleColors.border }]}
-                onPress={() => {
-                  setCommentModalOpen(false);
-                  setCommentTarget(null);
-                  setCommentText('');
-                }}
-              >
-                <Text style={roleTextSecondaryStyle}>{t('common.cancel')}</Text>
+            <View style={[styles.commentComposer, { borderColor: roleColors.border, backgroundColor: roleColors.surface }]}>
+              <TextInput
+                value={commentText}
+                onChangeText={setCommentText}
+                placeholder={t('chat.placeholder')}
+                placeholderTextColor={roleColors.textSecondary}
+                multiline
+                autoFocus
+                style={[
+                  styles.commentComposerInput,
+                  { color: roleColors.textPrimary },
+                ]}
+              />
+              <TouchableOpacity style={[styles.commentSendBtn, roleAccentBackgroundStyle]} onPress={submitComment}>
+                <Send size={16} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.primaryBtn, roleAccentBackgroundStyle]} onPress={submitComment}>
-                <Text style={styles.primaryBtnText}>{t('common.save')}</Text>
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.secondaryBtn, { borderColor: roleColors.border }]} onPress={closeCommentModal}>
+                <Text style={roleTextSecondaryStyle}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={filtersOpen} animationType="slide" transparent onRequestClose={() => setFiltersOpen(false)}>
@@ -1445,6 +1453,37 @@ const styles = StyleSheet.create({
     height: 120,
     textAlignVertical: 'top',
     paddingTop: 16,
+  },
+  commentModalCard: {
+    gap: 12,
+  },
+  commentComposer: {
+    minHeight: 64,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+  },
+  commentComposerInput: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 140,
+    fontSize: 16,
+    textAlignVertical: 'top',
+    paddingVertical: 0,
+  },
+  commentSendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
   },
   categoryLabel: {
     fontSize: 14,

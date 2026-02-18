@@ -4,6 +4,10 @@ export const DATING_TRADITIONS = [
     'Brahma Sampradaya (Madhvacharya)',
     'Rudra Sampradaya (Vishnuswami)',
     'Kumara Sampradaya (Nimbarka)',
+    'Шри Чайтанья Сарасват Матх',
+    'Международное Общество Чистой Бхакти-йоги',
+    'Шри Гопинатх Гаудия',
+    'Шри Чайтанья Матх',
     'Other'
 ];
 

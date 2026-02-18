@@ -1242,6 +1242,7 @@ export default {
         errorUploadTimeout: 'Video upload took too long. Please try again with a more stable connection.',
         requiredCategory: 'Select a category',
         requiredMatha: 'Select a matha (tradition)',
+        ownCircleError: 'You cannot message yourself',
         successBoost: 'Premium boost applied',
         categories: {
             spiritual: '🙏 Practice',
