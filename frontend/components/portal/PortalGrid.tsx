@@ -52,44 +52,51 @@ interface CylinderRowProps {
     rowIndex: number;
     scrollY: SharedValue<number>;
     containerHeight: number;
+    gridTopOffset: number;
     children: React.ReactNode;
 }
 
-const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY, containerHeight, children }) => {
+const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY, containerHeight, gridTopOffset, children }) => {
     const animatedStyle = useAnimatedStyle(() => {
         if (containerHeight <= 0) {
-            return { transform: [{ perspective: 1000 }] };
+            return { opacity: 1, transform: [{ perspective: 1000 }] };
         }
-        // Effective visible area excludes dock overlap at bottom
-        const effectiveHeight = containerHeight - DOCK_OVERLAP;
+        // Effective visible area: subtract dock overlap at bottom AND widget area at top
+        const effectiveTop = gridTopOffset;
+        const effectiveBottom = containerHeight - DOCK_OVERLAP;
+        const effectiveHeight = effectiveBottom - effectiveTop;
+        if (effectiveHeight <= 0) {
+            return { opacity: 1, transform: [{ perspective: 1000 }] };
+        }
         const itemY = rowIndex * ESTIMATED_ROW_HEIGHT;
-        const visibleY = itemY - scrollY.value;
+        const visibleY = gridTopOffset + itemY - scrollY.value;
         const itemCenter = visibleY + ESTIMATED_ROW_HEIGHT / 2;
-        const viewCenter = effectiveHeight / 2;
+        // Center of the effective visible band (between widgets and dock)
+        const viewCenter = effectiveTop + effectiveHeight / 2;
         const distFromCenter = itemCenter - viewCenter;
         const halfRange = effectiveHeight / 2;
         const normalizedDist = halfRange > 0 ? distFromCenter / halfRange : 0;
         const absNorm = Math.abs(normalizedDist);
 
-        if (absNorm < 0.5) {
-            return { transform: [{ perspective: 1000 }] };
+        if (absNorm < 0.85) {
+            return { opacity: 1, transform: [{ perspective: 1000 }] };
         }
 
         const rotateX = interpolate(
             normalizedDist,
-            [-1.3, -0.5, 0, 0.5, 1.3],
-            [55, 0, 0, 0, -55],
+            [-1.5, -0.85, 0, 0.85, 1.5],
+            [60, 0, 0, 0, -60],
             Extrapolation.CLAMP
         );
         const scaleVal = interpolate(
             absNorm,
-            [0.5, 0.9, 1.3],
+            [0.85, 1.2, 1.5],
             [1, 0.85, 0.65],
             Extrapolation.CLAMP
         );
         const opacityVal = interpolate(
             absNorm,
-            [0.5, 0.9, 1.3],
+            [0.85, 1.2, 1.5],
             [1, 0.6, 0.0],
             Extrapolation.CLAMP
         );
@@ -158,9 +165,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
     // Cylinder scroll effect state
     const scrollY = useSharedValue(0);
-    const [scrollContainerHeight, setScrollContainerHeight] = useState(
-        Dimensions.get('window').height * 0.55
-    );
+    const [scrollContainerHeight, setScrollContainerHeight] = useState(0);
     const [widgetsHeight, setWidgetsHeight] = useState(0);
     const scrollHandler = useAnimatedScrollHandler({
         onScroll: (event) => {
@@ -535,26 +540,53 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         if (!widgetComponent) return null;
 
         return (
-            <DraggablePortalItem
-                key={widget.id}
-                id={widget.id}
-                isEditMode={isEditMode}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onSecondaryLongPress={() => setEditMode(true)}
-            >
-                <View
-                    pointerEvents="box-none"
-                    ref={(ref) => { widgetRefs.current[widget.id] = ref; }}
+            <View key={widget.id} style={{ position: 'relative' }}>
+                <DraggablePortalItem
+                    id={widget.id}
+                    isEditMode={isEditMode}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onSecondaryLongPress={() => setEditMode(true)}
                 >
-                    <PortalWidgetWrapper
-                        isEditMode={isEditMode}
-                        onRemove={() => removeWidget(widget.id)}
+                    <View
+                        pointerEvents="box-none"
+                        ref={(ref) => { widgetRefs.current[widget.id] = ref; }}
                     >
-                        {widgetComponent}
-                    </PortalWidgetWrapper>
-                </View>
-            </DraggablePortalItem>
+                        <PortalWidgetWrapper
+                            isEditMode={isEditMode}
+                            onRemove={() => removeWidget(widget.id)}
+                        >
+                            {widgetComponent}
+                        </PortalWidgetWrapper>
+                    </View>
+                </DraggablePortalItem>
+                {isEditMode && (
+                    <TouchableOpacity
+                        style={{
+                            position: 'absolute',
+                            top: -2,
+                            left: -2,
+                            zIndex: 9999,
+                        }}
+                        onPress={() => removeWidget(widget.id)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                        <View style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 13,
+                            backgroundColor: 'rgba(239,68,68,0.9)',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            borderWidth: 1.5,
+                            borderColor: '#FFF',
+                        }}>
+                            <Text style={{ color: '#FFF', fontSize: 18, fontWeight: 'bold', marginTop: -2 }}>−</Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
+            </View>
         );
     }, [isEditMode, removeWidget, handleDragStart, handleDragEnd, setEditMode]);
 
@@ -610,10 +642,10 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 style={[
                     styles.editToolbarContainer,
                     {
-                        // Как в CalendarWidget: transparent на фото, полупрозрачный на обычном фоне
+                        // Solid background for iOS shadow calculation (BlurView provides visual opacity)
                         backgroundColor: isPhotoBg
-                            ? 'transparent'
-                            : (isDarkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.9)'),
+                            ? '#1A1A1A'
+                            : (isDarkMode ? '#1E1E1E' : '#F5F5F5'),
                         borderColor: isPhotoBg
                             ? 'rgba(255,255,255,0.3)'
                             : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
@@ -707,6 +739,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                                     rowIndex={rowIndex}
                                     scrollY={scrollY}
                                     containerHeight={scrollContainerHeight}
+                                    gridTopOffset={widgetsHeight > 0 ? widgetsHeight + 8 : 10}
                                 >
                                     {row.map(item => renderItem(item))}
                                 </CylinderRow>
@@ -853,7 +886,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
-        paddingBottom: 90, // Reduced: icons scroll closer to dock, cylinder curls them before clipping
+        paddingBottom: 180, // Increased: allow bottom icons to scroll higher and stay out of the curling zone
     },
     scrollPressable: {
         flex: 1,
@@ -991,7 +1024,7 @@ const styles = StyleSheet.create({
         right: 20,
         borderRadius: 32,
         // overflow: 'hidden', // Убрали, чтобы не мешало кликам на Android
-        backgroundColor: 'transparent',
+        backgroundColor: '#1E1E1E',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.25,
@@ -1022,9 +1055,10 @@ const styles = StyleSheet.create({
     doneButton: {
         paddingHorizontal: 22,
         paddingVertical: 10,
-        paddingTop: Platform.OS === 'android' ? 12 : 10, // Уменьшили для центровки
+        paddingTop: Platform.OS === 'android' ? 12 : 10,
         borderRadius: 18,
         overflow: 'hidden',
+        backgroundColor: '#FF8533',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
@@ -1044,7 +1078,8 @@ const styles = StyleSheet.create({
         padding: 24,
         borderRadius: 32,
         overflow: 'hidden',
-        backgroundColor: 'transparent',
+        // Fix for "shadow set but cannot calculate shadow efficiently"
+        backgroundColor: '#1E1E1E',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 16 },
         shadowOpacity: 0.45,

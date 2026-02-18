@@ -10,7 +10,7 @@ export type RootStackParamList = {
     Login: { inviteCode?: string } | undefined;
     Plans: undefined;
     Portal: {
-        initialTab?: 'contacts' | 'chat' | 'dating' | 'shops' | 'ads' | 'news' | 'map' | 'path_tracker' | 'channels';
+        initialTab?: 'contacts' | 'chat' | 'rooms' | 'dating' | 'shops' | 'ads' | 'news' | 'map' | 'path_tracker' | 'channels';
         resetToGridAt?: number;
     } | undefined;
     MapGeoapify: { focusMarker?: { id: number; type: 'user' | 'shop' | 'ad'; latitude: number; longitude: number } } | undefined;

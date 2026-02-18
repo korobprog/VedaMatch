@@ -1237,6 +1237,11 @@ export default {
         insufficientLkm: 'Insufficient LKM',
         errorUpdateReaction: 'Failed to update reaction',
         errorBoost: 'Failed to apply premium boost',
+        errorPublish: 'Failed to publish circle',
+        errorPlay: 'Failed to open video',
+        errorUploadTimeout: 'Video upload took too long. Please try again with a more stable connection.',
+        requiredCategory: 'Select a category',
+        requiredMatha: 'Select a matha (tradition)',
         successBoost: 'Premium boost applied',
         categories: {
             spiritual: '🙏 Practice',

@@ -344,6 +344,14 @@ export const VideoCirclesScreen: React.FC = () => {
       Alert.alert(t('common.error'), t('chat.imagePickError'));
       return;
     }
+    if (!matha.trim()) {
+      Alert.alert(t('common.error'), t('videoCircles.requiredMatha'));
+      return;
+    }
+    if (!category.trim()) {
+      Alert.alert(t('common.error'), t('videoCircles.requiredCategory'));
+      return;
+    }
 
     setPublishing(true);
     try {
@@ -364,7 +372,16 @@ export const VideoCirclesScreen: React.FC = () => {
       Alert.alert(t('common.success'), t('videoCircles.successPublish', { defaultValue: 'Видео-кружок опубликован' }));
     } catch (error) {
       console.error('Failed to publish circle:', error);
-      Alert.alert(t('common.error'), t('videoCircles.errorBoost')); // Use generic error or specific one if added
+      const errorText = error instanceof Error ? error.message : '';
+      const normalizedError = errorText.toLowerCase();
+      const message = normalizedError.includes('upload_timeout')
+        ? t('videoCircles.errorUploadTimeout')
+        : normalizedError.includes('category is required')
+          ? t('videoCircles.requiredCategory')
+          : normalizedError.includes('matha is required')
+            ? t('videoCircles.requiredMatha')
+            : t('videoCircles.errorPublish');
+      Alert.alert(t('common.error'), message);
     } finally {
       if (isMountedRef.current) {
         setPublishing(false);
@@ -487,6 +504,26 @@ export const VideoCirclesScreen: React.FC = () => {
       // Ignore interaction logging failure to keep chat entry available.
     }
     navigation.navigate('Chat', { userId: circle.authorId });
+  };
+
+  const openCirclePlayer = (circle: VideoCircle) => {
+    const mediaUrl = (circle.mediaUrl || '').trim();
+    if (!mediaUrl) {
+      Alert.alert(t('common.error'), t('videoCircles.errorPlay'));
+      return;
+    }
+
+    navigation.navigate('VideoPlayer', {
+      video: {
+        id: circle.id,
+        url: mediaUrl,
+        title: t(`videoCircles.categories.${circle.category}`, { defaultValue: t('videoCircles.title') }),
+        artist: circle.matha || t('videoCircles.title'),
+        description: [circle.city, circle.matha].filter(Boolean).join(' • '),
+        viewCount: 0,
+        likeCount: circle.likeCount || 0,
+      },
+    });
   };
 
   const handleBoost = async (circleId: number) => {
@@ -720,7 +757,7 @@ export const VideoCirclesScreen: React.FC = () => {
               } : { elevation: 6 }),
             },
           ]}>
-            <View style={styles.mediaWrap}>
+            <TouchableOpacity style={styles.mediaWrap} activeOpacity={0.9} onPress={() => openCirclePlayer(item)}>
               {item.thumbnailUrl ? (
                 <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
               ) : (
@@ -746,7 +783,7 @@ export const VideoCirclesScreen: React.FC = () => {
                   <Play size={22} color="#fff" fill="#fff" />
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.cardBody}>
               {(!!item.city || !!item.matha || !!item.category) && (

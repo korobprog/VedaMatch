@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, Alert, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, Alert, SafeAreaView, ImageBackground, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, Wallet as WalletIcon } from 'lucide-react-native';
+import { ChevronLeft, Wallet as WalletIcon, Info } from 'lucide-react-native';
 import { CharityProject } from '../../types/charity';
 import { charityService } from '../../services/charityService';
 import { useWallet } from '../../context/WalletContext';
@@ -171,39 +171,46 @@ const SevaHubScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             <SafeAreaView style={styles.safeHeader}>
-                <View style={styles.header}>
-                    <View style={styles.headerTop}>
-                        <TouchableOpacity
-                            onPress={() => navigation.goBack()}
-                            style={styles.backButton}
-                        >
-                            <ChevronLeft color="#FFF" size={28} />
-                        </TouchableOpacity>
+                <ImageBackground
+                    source={require('../../assets/vedamatch_bg.png')}
+                    style={styles.headerBanner}
+                    imageStyle={styles.headerBannerImage}
+                >
+                    <View style={styles.headerOverlay} />
+                    <View style={styles.header}>
+                        <View style={styles.headerTop}>
+                            <TouchableOpacity
+                                onPress={() => navigation.goBack()}
+                                style={styles.backButton}
+                            >
+                                <ChevronLeft color="#FFF" size={28} />
+                            </TouchableOpacity>
 
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('MyDonations')}
-                            style={styles.historyButton}
-                        >
-                            <Text style={styles.historyButtonText}>История</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.balanceRow}>
-                        <WalletIcon color="#FFD700" size={18} style={{ marginRight: 6 }} />
-                        <Text style={styles.balanceText}>Итого: {totalBalance.toLocaleString()} LKM</Text>
-                    </View>
-                    <View style={styles.balanceSplitRow}>
-                        <View style={styles.balanceSplitBadge}>
-                            <Text style={styles.balanceSplitText}>Основной: {regularBalance.toLocaleString()}</Text>
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('MyDonations')}
+                                style={styles.historyButton}
+                            >
+                                <Text style={styles.historyButtonText}>История</Text>
+                            </TouchableOpacity>
                         </View>
-                        <View style={[styles.balanceSplitBadge, styles.balanceBonusBadge]}>
-                            <Text style={[styles.balanceSplitText, styles.balanceBonusText]}>Бонусный: {bonusBalance.toLocaleString()}</Text>
-                        </View>
-                    </View>
 
-                    <Text style={styles.headerTitle}>Seva Marketplace</Text>
-                    <Text style={styles.headerSubtitle}>Donate with trust & transparency</Text>
-                </View>
+                        <View style={styles.balanceRow}>
+                            <WalletIcon color="#FFD700" size={18} style={{ marginRight: 6 }} />
+                            <Text style={styles.balanceText}>Итого: {totalBalance.toLocaleString()} LKM</Text>
+                        </View>
+                        <View style={styles.balanceSplitRow}>
+                            <View style={styles.balanceSplitBadge}>
+                                <Text style={styles.balanceSplitText}>Основной: {regularBalance.toLocaleString()}</Text>
+                            </View>
+                            <View style={[styles.balanceSplitBadge, styles.balanceBonusBadge]}>
+                                <Text style={[styles.balanceSplitText, styles.balanceBonusText]}>Бонусный: {bonusBalance.toLocaleString()}</Text>
+                            </View>
+                        </View>
+
+                        <Text style={styles.headerTitle}>Seva Marketplace</Text>
+                        <Text style={styles.headerSubtitle}>Donate with trust & transparency</Text>
+                    </View>
+                </ImageBackground>
             </SafeAreaView>
             <GodModeStatusBanner />
 
@@ -250,7 +257,19 @@ const styles = StyleSheet.create({
         backgroundColor: '#121212',
     },
     safeHeader: {
-        backgroundColor: '#1E1E1E',
+        backgroundColor: '#000',
+    },
+    headerBanner: {
+        width: '100%',
+        overflow: 'hidden',
+    },
+    headerBannerImage: {
+        resizeMode: 'cover',
+        opacity: 0.6,
+    },
+    headerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
     header: {
         padding: 20,

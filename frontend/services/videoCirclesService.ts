@@ -101,6 +101,7 @@ export interface VideoCircleFilters {
 
 class VideoCirclesService {
   private baseUrl = API_PATH;
+  private readonly uploadTimeoutMs = 3 * 60 * 1000;
 
   async getVideoCircles(filters: VideoCircleFilters = {}): Promise<VideoCircleListResponse> {
     const headers = await getAuthHeaders();
@@ -253,21 +254,49 @@ class VideoCirclesService {
     if (payload.category) formData.append('category', payload.category);
     if (payload.durationSec) formData.append('durationSec', String(payload.durationSec));
 
-    const response = await fetch(`${this.baseUrl}/video-circles/upload`, {
-      method: 'POST',
-      headers: {
-        ...headers,
-        Accept: 'application/json',
-      },
-      body: formData,
-    });
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+    const timeoutId: ReturnType<typeof setTimeout> | undefined = controller
+      ? setTimeout(() => controller.abort(), this.uploadTimeoutMs)
+      : undefined;
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to upload and create video circle');
+    try {
+      const response = await fetch(`${this.baseUrl}/video-circles/upload`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          Accept: 'application/json',
+        },
+        body: formData,
+        signal: controller?.signal,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        let errorMessage = text;
+        if (text && text.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed?.error && typeof parsed.error === 'string') {
+              errorMessage = parsed.error;
+            }
+          } catch {
+            // Keep raw text fallback.
+          }
+        }
+        throw new Error(errorMessage || 'Failed to upload and create video circle');
+      }
+
+      return response.json();
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('UPLOAD_TIMEOUT');
+      }
+      throw error;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
-
-    return response.json();
   }
 
   async deleteCircle(circleId: number): Promise<void> {

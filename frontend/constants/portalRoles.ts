@@ -6,8 +6,8 @@ export const FALLBACK_PORTAL_BLUEPRINTS: Record<string, PortalBlueprint> = {
     title: 'Искатель',
     description: 'Базовый портал для повседневной практики.',
     highlightColor: '#6B7280',
-    quickAccess: ['path_tracker', 'chat', 'multimedia'],
-    heroServices: ['path_tracker', 'multimedia', 'news', 'library'],
+    quickAccess: ['path_tracker', 'rooms', 'multimedia'],
+    heroServices: ['path_tracker', 'rooms', 'multimedia', 'news', 'library'],
     servicesHint: [
       { serviceId: 'path_tracker', title: 'Путь дня', filters: ['daily_step', 'gentle_onboarding'] },
       { serviceId: 'multimedia', title: 'Медия', filters: ['kirtan', 'lectures'] },

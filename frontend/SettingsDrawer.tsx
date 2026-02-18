@@ -439,10 +439,11 @@ const styles = StyleSheet.create({
     drawer: {
         flex: 1,
         height: '100%',
+        backgroundColor: '#1A1A1A',
         shadowColor: 'rgba(0,0,0,1)',
         shadowOffset: { width: -10, height: 0 },
         shadowOpacity: 0.2,
-        shadowRadius: 30, // Softer edge
+        shadowRadius: 30,
         elevation: 24,
     },
     tabBar: {

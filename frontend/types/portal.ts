@@ -52,8 +52,8 @@ export const DEFAULT_SERVICES: ServiceDefinition[] = [
     { id: 'path_tracker', label: 'Путь дня', icon: 'Compass', color: '#0F766E' },
     { id: 'contacts', label: 'Контакты', icon: 'Contact', color: '#3B82F6' },
     { id: 'chat', label: 'Чат', icon: 'MessageCircle', color: '#6B5B53' },
+    { id: 'rooms', label: 'Комнаты', icon: 'Users', color: '#6366F1' },
     { id: 'calls', label: 'Звонки', icon: 'Phone', color: '#10B981' },
-    { id: 'groups', label: 'Группы', icon: 'Users', color: '#F59E0B' },
     { id: 'dating', label: 'Союз', icon: 'Sparkles', color: '#EC4899' },
 
     { id: 'cafe', label: 'Кафе', icon: 'Coffee', color: '#FF6B00' },
@@ -88,7 +88,7 @@ export const FOLDER_COLORS = [
 
 // Create default layout
 export const createDefaultLayout = (): PortalLayout => {
-    const quickAccessIds = ['contacts', 'calls', 'groups'];
+    const quickAccessIds = ['calls', 'contacts', 'history'];
 
     const quickAccess: PortalItem[] = quickAccessIds.map((id, index) => ({
         id: `qa-${id}`,

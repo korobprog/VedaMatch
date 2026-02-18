@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -149,7 +150,9 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
 	} else {
-		if generated, genErr := tryGenerateCircleThumbnail(mediaURL); genErr == nil && generated != "" {
+		if generated, genErr := tryGenerateCircleThumbnailFromUpload(c, videoFile); genErr == nil && generated != "" {
+			thumbnailURL = generated
+		} else if generated, genErr := tryGenerateCircleThumbnail(mediaURL); genErr == nil && generated != "" {
 			thumbnailURL = generated
 		}
 	}
@@ -580,6 +583,74 @@ func tryGenerateCircleThumbnail(mediaURL string) (string, error) {
 		if url, err := thumbnailService.GenerateAndUploadThumbnail(context.Background(), inputPath, key); err == nil {
 			_ = os.Remove(outputPath)
 			return url, nil
+		}
+	}
+
+	return strings.TrimPrefix(outputPath, "."), nil
+}
+
+func tryGenerateCircleThumbnailFromUpload(c *fiber.Ctx, videoFile *multipart.FileHeader) (string, error) {
+	if videoFile == nil {
+		return "", errors.New("video file is required")
+	}
+
+	inputReader, err := videoFile.Open()
+	if err != nil {
+		return "", err
+	}
+	defer inputReader.Close()
+
+	tmpInputDir := "./uploads/video-circles/tmp"
+	if err := os.MkdirAll(tmpInputDir, 0755); err != nil {
+		return "", err
+	}
+
+	inputExt := filepath.Ext(videoFile.Filename)
+	if inputExt == "" {
+		inputExt = ".mp4"
+	}
+	inputPath := filepath.Join(tmpInputDir, fmt.Sprintf("src_%d_%d%s", time.Now().Unix(), time.Now().UnixNano(), inputExt))
+
+	inputFile, err := os.Create(inputPath)
+	if err != nil {
+		return "", err
+	}
+	_, copyErr := io.Copy(inputFile, inputReader)
+	closeErr := inputFile.Close()
+	if copyErr != nil {
+		_ = os.Remove(inputPath)
+		return "", copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(inputPath)
+		return "", closeErr
+	}
+	defer os.Remove(inputPath)
+
+	outputDir := "./uploads/video-circles/thumbnail"
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", err
+	}
+	outputPath := filepath.Join(outputDir, fmt.Sprintf("thumb_%d.jpg", time.Now().UnixNano()))
+
+	thumbnailService := services.NewThumbnailService()
+	if err := thumbnailService.GenerateThumbnail(inputPath, outputPath, services.DefaultThumbnailConfig()); err != nil {
+		_ = os.Remove(outputPath)
+		return "", err
+	}
+
+	s3Service := services.GetS3Service()
+	if s3Service != nil {
+		thumbReader, err := os.Open(outputPath)
+		if err == nil {
+			defer thumbReader.Close()
+			if stat, statErr := thumbReader.Stat(); statErr == nil {
+				key := fmt.Sprintf("video-circles/thumbnail/thumb_%d.jpg", time.Now().UnixNano())
+				if url, uploadErr := s3Service.UploadFile(c.UserContext(), thumbReader, key, "image/jpeg", stat.Size()); uploadErr == nil {
+					_ = os.Remove(outputPath)
+					return url, nil
+				}
+			}
 		}
 	}
 

@@ -8,7 +8,11 @@ export function useRoleTheme(role?: PortalRole | string | null, isDarkMode = tru
   return useMemo(() => {
     const resolvedRole = resolvePortalRole(role);
     const roleTheme = getRoleTheme(resolvedRole);
-    const colors = buildSemanticTokens(roleTheme, isDarkMode);
+
+    // NOTE: Role-based themes are currently all designed with dark gradients.
+    // To ensure text contrast (textPrimary/textSecondary), we force dark-mode tokens
+    // for these themes regardless of the system isDarkMode setting.
+    const colors = buildSemanticTokens(roleTheme, true);
     const components = buildComponentTokens(colors);
 
     return {
@@ -17,5 +21,5 @@ export function useRoleTheme(role?: PortalRole | string | null, isDarkMode = tru
       colors,
       components,
     };
-  }, [role, isDarkMode]);
+  }, [role]); // Removed isDarkMode from dependencies as it's now ignored for colors
 }

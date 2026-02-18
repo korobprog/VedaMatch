@@ -183,10 +183,13 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                                 ? 'rgba(255,255,255,0.25)'
                                 : portalBackgroundType === 'image' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
                             borderWidth: roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'colored' ? 1.5 : 1,
-                            shadowColor: roleHighlight ? service.color : 'transparent',
-                            shadowOpacity: roleHighlight ? 0.35 : 0,
-                            shadowRadius: roleHighlight ? 8 : 0,
-                            shadowOffset: { width: 0, height: 2 },
+                            ...(roleHighlight ? {
+                                shadowColor: service.color,
+                                shadowOpacity: 0.35,
+                                shadowRadius: 8,
+                                shadowOffset: { width: 0, height: 2 },
+                                elevation: 6,
+                            } : {}),
                             marginBottom: showLabel ? 6 : 0,
                         },
                     ]}

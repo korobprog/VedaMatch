@@ -32,7 +32,7 @@ export default function ChannelsHubScreen() {
   const navigation = useNavigation<any>();
   const { user } = useUser();
   const { isDarkMode } = useSettings();
-  const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+  const { colors, roleTheme } = useRoleTheme(user?.role, true);
   const styles = React.useMemo(() => createStyles(colors), [colors]);
 
   const [activeTab, setActiveTab] = useState<HubTab>('feed');
@@ -219,7 +219,7 @@ export default function ChannelsHubScreen() {
         style={styles.promotedCard}
         activeOpacity={0.9}
         onPress={() => {
-          void channelService.trackPromotedAdClick(ad.id).catch(() => {});
+          void channelService.trackPromotedAdClick(ad.id).catch(() => { });
           navigation.navigate('AdDetail', { adId: ad.id });
         }}
       >
@@ -337,7 +337,7 @@ export default function ChannelsHubScreen() {
           <Text style={styles.headerTitle}>Каналы и лента</Text>
           <View style={styles.headerActions}>
             <AssistantChatButton size={36} />
-            <BalancePill size="small" lightMode={isDarkMode} />
+            <BalancePill size="small" lightMode={true} />
             {activeTab === 'my' ? (
               <TouchableOpacity
                 style={[styles.headerButton, styles.headerActionButton]}

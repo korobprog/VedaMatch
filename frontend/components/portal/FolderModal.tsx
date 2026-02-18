@@ -112,8 +112,8 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                                 styles.container,
                                 {
                                     backgroundColor: isPhotoBg
-                                        ? 'transparent'
-                                        : (isDarkMode ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)'),
+                                        ? '#1A1A1A'
+                                        : (isDarkMode ? '#1E1E1E' : '#F5F5F5'),
                                     borderWidth: 0,
                                 },
                             ]}
@@ -248,6 +248,7 @@ const styles = StyleSheet.create({
         minHeight: 200,
         borderRadius: 32,
         padding: 20,
+        backgroundColor: '#1E1E1E',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.35,
@@ -313,7 +314,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.25)',
+        backgroundColor: 'rgba(80,80,80,1)',
         borderWidth: 1.2,
         borderColor: 'rgba(255,255,255,0.45)',
         overflow: 'hidden',

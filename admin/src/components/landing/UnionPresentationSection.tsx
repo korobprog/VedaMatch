@@ -179,7 +179,7 @@ export function UnionPresentationSection() {
                         <div className="order-1 lg:order-2 relative">
                             <div className="grid grid-cols-5 gap-3">
                                 <AnimatePresence mode="popLayout">
-                                    {currentModeData?.profiles.map((profile, i) => (
+                                    {currentModeData?.profiles?.map((profile, i) => (
                                         <motion.div
                                             key={`${activeTab}-${i}`}
                                             layout

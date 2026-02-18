@@ -381,11 +381,50 @@ const ensureVideoCirclesDefaultWidget = (inputLayout: PortalLayout): { layout: P
 
     const firstPage = layout.pages[0];
     firstPage.widgets.push({
-        id: `widget-circles-quick-${Date.now()}`,
-        type: 'circles_quick',
-        size: '1x1',
+        id: `widget-circles-panel-${Date.now()}`,
+        type: 'circles_panel',
+        size: '2x2',
         position: firstPage.widgets.length,
     });
+
+    layout.lastModified = Date.now();
+    layout.syncedWithServer = false;
+    return { layout, changed: true };
+};
+
+const ensureCalendarDefaultWidget = (inputLayout: PortalLayout): { layout: PortalLayout; changed: boolean } => {
+    if (inputLayout.pages.length === 0) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const hasCalendarWidget = inputLayout.pages.some((page) =>
+        page.widgets.some((widget) => widget.type === 'calendar')
+    );
+    if (hasCalendarWidget) {
+        return { layout: inputLayout, changed: false };
+    }
+
+    const layout: PortalLayout = {
+        ...inputLayout,
+        pages: inputLayout.pages.map((p) => ({
+            ...p,
+            items: p.items.map((item) => item.type === 'folder'
+                ? { ...item, items: [...item.items] }
+                : { ...item }),
+            widgets: [...p.widgets],
+        })),
+        quickAccess: [...inputLayout.quickAccess],
+    };
+
+    const firstPage = layout.pages[0];
+    firstPage.widgets.unshift({
+        id: `widget-calendar-${Date.now()}`,
+        type: 'calendar',
+        size: '2x2',
+        position: 0,
+    });
+    // Re-index positions
+    firstPage.widgets = firstPage.widgets.map((w, i) => ({ ...w, position: i }));
 
     layout.lastModified = Date.now();
     layout.syncedWithServer = false;
@@ -473,10 +512,11 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
                 const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
                 const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
                 const { layout: layoutWithWidget, changed: circlesWidgetChanged } = ensureVideoCirclesDefaultWidget(layoutWithCircles);
-                if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged) {
-                    await saveLocalLayout(layoutWithWidget);
+                const { layout: layoutWithCalendar, changed: calendarWidgetChanged } = ensureCalendarDefaultWidget(layoutWithWidget);
+                if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged || calendarWidgetChanged) {
+                    await saveLocalLayout(layoutWithCalendar);
                 }
-                setLayout(layoutWithWidget);
+                setLayout(layoutWithCalendar);
             } catch (error) {
                 console.warn('Failed to initialize portal layout:', error);
             } finally {
@@ -649,10 +689,11 @@ export const PortalLayoutProvider: React.FC<{ children: ReactNode }> = ({ childr
             const { layout: adjustedLayout, changed } = groupLockedServicesForSeeker(sanitizedLayout, user?.role, user?.isProfileComplete);
             const { layout: layoutWithCircles, changed: circlesChanged } = ensureVideoCirclesShortcut(adjustedLayout);
             const { layout: layoutWithWidget, changed: circlesWidgetChanged } = ensureVideoCirclesDefaultWidget(layoutWithCircles);
-            if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged) {
-                await saveLocalLayout(layoutWithWidget);
+            const { layout: layoutWithCalendar, changed: calendarWidgetChanged } = ensureCalendarDefaultWidget(layoutWithWidget);
+            if (sanitizedChanged || changed || circlesChanged || circlesWidgetChanged || calendarWidgetChanged) {
+                await saveLocalLayout(layoutWithCalendar);
             }
-            setLayout(layoutWithWidget);
+            setLayout(layoutWithCalendar);
         } finally {
             setIsLoading(false);
         }

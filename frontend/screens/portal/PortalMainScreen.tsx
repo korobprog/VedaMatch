@@ -58,10 +58,10 @@ import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
 
 
-type ServiceTab = 'contacts' | 'chat' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services' | 'path_tracker';
+type ServiceTab = 'contacts' | 'chat' | 'rooms' | 'dating' | 'cafe' | 'shops' | 'ads' | 'news' | 'calls' | 'multimedia' | 'video_circles' | 'knowledge_base' | 'library' | 'education' | 'map' | 'travel' | 'services' | 'path_tracker';
 type PortalMainProps = NativeStackScreenProps<RootStackParamList, 'Portal'>;
 const SERVICE_TABS = new Set<ServiceTab>([
-    'contacts', 'chat', 'dating', 'cafe', 'shops', 'ads', 'news', 'calls', 'multimedia',
+    'contacts', 'chat', 'rooms', 'dating', 'cafe', 'shops', 'ads', 'news', 'calls', 'multimedia',
     'video_circles', 'knowledge_base', 'library', 'education', 'map', 'travel', 'services', 'path_tracker',
 ]);
 
@@ -370,6 +370,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             navigation.navigate('ServicesHome');
             return;
         }
+        if (serviceId === 'chat') {
+            navigation.navigate('Chat');
+            return;
+        }
         if (serviceId === 'support') {
             navigation.navigate('SupportHome', { entryPoint: 'portal' });
             return;
@@ -419,6 +423,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         switch (activeTab) {
             case 'contacts': return <ContactsScreen />;
             case 'chat': return <PortalChatScreen />;
+            case 'rooms': return <PortalChatScreen />;
             case 'calls': return <CallHistoryScreen />;
             case 'dating': return <DatingScreen onBack={backToGrid} />;
             case 'cafe': return <CafeListScreen onBack={backToGrid} />;

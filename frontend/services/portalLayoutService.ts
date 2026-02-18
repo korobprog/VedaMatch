@@ -63,7 +63,7 @@ const getAuthHeaders = async () => {
 };
 
 const getDefaultQuickAccess = (): PortalItem[] => {
-    const quickAccessIds = ['contacts', 'calls', 'groups'];
+    const quickAccessIds = ['calls', 'contacts', 'history'];
     return quickAccessIds.map((id, index) => ({
         id: `qa-${id}`,
         serviceId: id,
@@ -227,7 +227,7 @@ const ensureDefaultServices = (layout: PortalLayout): PortalLayout => {
 // Handle migration for old layouts
 const ensureQuickAccess = (layout: PortalLayout): PortalLayout => {
     if (!layout.quickAccess) {
-        const quickAccessIds = ['contacts', 'calls', 'groups'];
+        const quickAccessIds = ['calls', 'contacts', 'history'];
         layout.quickAccess = quickAccessIds.map((id, index) => ({
             id: `qa-${id}`,
             serviceId: id,
