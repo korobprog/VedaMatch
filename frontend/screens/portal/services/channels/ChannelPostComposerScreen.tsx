@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -84,7 +85,43 @@ export default function ChannelPostComposerScreen() {
   const [ctaType, setCtaType] = useState<ChannelPostCTAType>('none');
   const [ctaPayloadJson, setCtaPayloadJson] = useState('');
   const [scheduledAt, setScheduledAt] = useState(buildDefaultSchedule());
+  const [isPrivateChannel, setIsPrivateChannel] = useState(false);
+  const [deliverPersonally, setDeliverPersonally] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadChannel = async () => {
+      if (!channelId) {
+        if (isActive) {
+          setIsPrivateChannel(false);
+          setDeliverPersonally(false);
+        }
+        return;
+      }
+
+      try {
+        const response = await channelService.getChannel(channelId);
+        if (!isActive) return;
+        const privateChannel = !response?.channel?.isPublic;
+        setIsPrivateChannel(privateChannel);
+        setDeliverPersonally(privateChannel);
+      } catch (error) {
+        console.error('[ChannelPostComposer] Failed to load channel details:', error);
+        if (isActive) {
+          setIsPrivateChannel(false);
+          setDeliverPersonally(false);
+        }
+      }
+    };
+
+    loadChannel();
+
+    return () => {
+      isActive = false;
+    };
+  }, [channelId]);
 
   const schedulePreview = useMemo(() => {
     const date = new Date(scheduledAt);
@@ -122,6 +159,7 @@ export default function ChannelPostComposerScreen() {
         content: cleanContent,
         ctaType,
         ctaPayloadJson: ctaType === 'none' ? '' : ctaPayloadJson.trim(),
+        deliverPersonally: isPrivateChannel ? deliverPersonally : false,
       });
 
       if (action === 'publish') {
@@ -204,6 +242,22 @@ export default function ChannelPostComposerScreen() {
                 numberOfLines={5}
               />
             </>
+          ) : null}
+
+          {isPrivateChannel ? (
+            <View style={styles.toggleCard}>
+              <View style={styles.toggleContent}>
+                <Text style={styles.toggleTitle}>Отправить лично платным подписчикам</Text>
+                <Text style={styles.toggleSubtitle}>Пост пойдет в канал + push + личное сообщение каждому участнику</Text>
+              </View>
+              <Switch
+                value={deliverPersonally}
+                onValueChange={setDeliverPersonally}
+                trackColor={{ false: colors.border, true: colors.accent }}
+                thumbColor={colors.textPrimary}
+                ios_backgroundColor={colors.border}
+              />
+            </View>
           ) : null}
 
           <Text style={styles.label}>Отложка (ISO дата/время)</Text>
@@ -311,6 +365,31 @@ const createStyles = (colors: ReturnType<typeof useRoleTheme>['colors']) =>
     textArea: {
       minHeight: 110,
       textAlignVertical: 'top',
+    },
+    toggleCard: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    toggleContent: {
+      flex: 1,
+      gap: 4,
+    },
+    toggleTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    toggleSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 16,
     },
     segmentedRow: {
       flexDirection: 'row',

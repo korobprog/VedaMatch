@@ -81,6 +81,8 @@ type ChannelPost struct {
 	MediaJSON      string             `json:"mediaJson" gorm:"type:text"`
 	CTAType        ChannelPostCTAType `json:"ctaType" gorm:"type:varchar(30);default:'none';index"`
 	CTAPayloadJSON string             `json:"ctaPayloadJson" gorm:"type:text"`
+	// DeliverPersonally enables personal DM + push fanout for private channels.
+	DeliverPersonally bool `json:"deliverPersonally" gorm:"default:false;index"`
 
 	Status      ChannelPostStatus `json:"status" gorm:"type:varchar(20);default:'draft';index"`
 	ScheduledAt *time.Time        `json:"scheduledAt" gorm:"index"`
@@ -155,19 +157,21 @@ type ChannelMemberRoleUpdateRequest struct {
 }
 
 type ChannelPostCreateRequest struct {
-	Type           ChannelPostType    `json:"type"`
-	Content        string             `json:"content"`
-	MediaJSON      string             `json:"mediaJson"`
-	CTAType        ChannelPostCTAType `json:"ctaType"`
-	CTAPayloadJSON string             `json:"ctaPayloadJson"`
+	Type              ChannelPostType    `json:"type"`
+	Content           string             `json:"content"`
+	MediaJSON         string             `json:"mediaJson"`
+	CTAType           ChannelPostCTAType `json:"ctaType"`
+	CTAPayloadJSON    string             `json:"ctaPayloadJson"`
+	DeliverPersonally *bool              `json:"deliverPersonally"`
 }
 
 type ChannelPostUpdateRequest struct {
-	Type           *ChannelPostType    `json:"type"`
-	Content        *string             `json:"content"`
-	MediaJSON      *string             `json:"mediaJson"`
-	CTAType        *ChannelPostCTAType `json:"ctaType"`
-	CTAPayloadJSON *string             `json:"ctaPayloadJson"`
+	Type              *ChannelPostType    `json:"type"`
+	Content           *string             `json:"content"`
+	MediaJSON         *string             `json:"mediaJson"`
+	CTAType           *ChannelPostCTAType `json:"ctaType"`
+	CTAPayloadJSON    *string             `json:"ctaPayloadJson"`
+	DeliverPersonally *bool               `json:"deliverPersonally"`
 }
 
 type ChannelPostScheduleRequest struct {

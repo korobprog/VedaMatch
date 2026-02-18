@@ -497,3 +497,36 @@ func TestValidatePinPostStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveDeliverPersonally(t *testing.T) {
+	t.Parallel()
+
+	trueValue := true
+	falseValue := false
+
+	if got := resolveDeliverPersonally(true, &trueValue); got {
+		t.Fatalf("public channels must force deliverPersonally=false")
+	}
+	if got := resolveDeliverPersonally(false, nil); !got {
+		t.Fatalf("private channels must default deliverPersonally=true")
+	}
+	if got := resolveDeliverPersonally(false, &falseValue); got {
+		t.Fatalf("private channel explicit false should be respected")
+	}
+}
+
+func TestBuildPersonalPushBody(t *testing.T) {
+	t.Parallel()
+
+	post := &models.ChannelPost{Content: ""}
+	if got := buildPersonalPushBody(post); got == "" {
+		t.Fatalf("fallback push body must not be empty")
+	}
+
+	longContent := strings.Repeat("а", 200)
+	post.Content = longContent
+	got := buildPersonalPushBody(post)
+	if len([]rune(got)) != 143 { // 140 + "..."
+		t.Fatalf("expected truncated content length 143, got %d", len([]rune(got)))
+	}
+}

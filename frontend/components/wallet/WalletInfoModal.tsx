@@ -40,7 +40,7 @@ export const WalletInfoModal: React.FC<WalletInfoModalProps> = ({ visible, onClo
                                 <View style={styles.iconContainer}>
                                     <Sparkles size={20} color="#F59E0B" fill="#F59E0B" />
                                 </View>
-                                <Text style={styles.title}>О валюте LKM</Text>
+                                <Text style={styles.title}>О LKM</Text>
                             </View>
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                                 <X size={24} color="#9CA3AF" />
@@ -50,45 +50,47 @@ export const WalletInfoModal: React.FC<WalletInfoModalProps> = ({ visible, onClo
                         <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                             <Text style={styles.mainDescription}>
-                                LKM — внутренняя валюта Vedamatch. Кошелёк показывает отдельно основной и бонусный баланс,
-                                а также полную историю списаний и начислений.
+                                LKM — внутренняя единица активности.{"\n"}
+                                LKM начисляются за участие.{"\n"}
+                                LKM используются для доступа к функциям портала.{"\n"}
+                                LKM не имеют денежной стоимости и не подлежат обмену.
                             </Text>
 
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Как читать баланс</Text>
+                                <Text style={styles.sectionTitle}>Как понимать LKM</Text>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Основной счёт — обычные LKM для всех стандартных оплат</Text>
+                                    <Text style={styles.featureText}>Основные LKM используются для стандартного доступа к функциям портала</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Бонусный счёт — бонусные LKM, доступные по правилам сервиса</Text>
+                                    <Text style={styles.featureText}>Бонусные LKM начисляются по правилам сервиса</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <CheckCircle2 size={18} color="#10B981" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>В истории у операций видно разбивку: Обычные / Бонусные</Text>
+                                    <Text style={styles.featureText}>В истории активности видна разбивка: Основные / Бонусные</Text>
                                 </View>
                             </View>
 
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Ограничения бонусов</Text>
+                                <Text style={styles.sectionTitle}>Ограничения</Text>
                                 <View style={styles.featureRow}>
                                     <AlertCircle size={18} color="#EF4444" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Бонусные LKM расходуются только в сервисах с отметкой VedaMatch</Text>
+                                    <Text style={styles.featureText}>Бонусные LKM используются только в сервисах с отметкой VedaMatch</Text>
                                 </View>
                                 <View style={styles.featureRow}>
                                     <AlertCircle size={18} color="#EF4444" style={{ marginTop: 2 }} />
-                                    <Text style={styles.featureText}>Для каждого товара/услуги может быть лимит процента оплаты бонусами</Text>
+                                    <Text style={styles.featureText}>Для каждой функции может действовать лимит использования бонусных LKM</Text>
                                 </View>
                             </View>
 
                             <View style={styles.infoBox}>
                                 <View style={styles.infoBoxHeader}>
                                     <Clock size={16} color="#F59E0B" />
-                                    <Text style={styles.infoBoxTitle}>Реальная история</Text>
+                                    <Text style={styles.infoBoxTitle}>История активности</Text>
                                 </View>
                                 <Text style={styles.infoBoxText}>
-                                    Используйте фильтр «Все / Бонусные», чтобы быстро увидеть операции с бонусной частью.
+                                    Используйте фильтр «Все / Бонусные», чтобы быстро найти действия с бонусной частью.
                                 </Text>
                             </View>
 

@@ -100,6 +100,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const isMountedRef = useRef(true);
@@ -113,6 +114,14 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
             loadMoreInProgressRef.current = false;
         };
     }, []);
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 350);
+
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery]);
 
     const loadServices = useCallback(async ({ reset = false, pageOverride }: { reset?: boolean; pageOverride?: number } = {}) => {
         const requestId = ++latestLoadRequestRef.current;
@@ -132,8 +141,9 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
                 filters.category = selectedCategory;
             }
 
-            if (searchQuery.trim()) {
-                filters.search = searchQuery.trim();
+            const normalizedSearch = debouncedSearchQuery.trim();
+            if (normalizedSearch) {
+                filters.search = normalizedSearch;
             }
 
             const response = await getServices(filters);
@@ -167,13 +177,13 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
             }
             loadMoreInProgressRef.current = false;
         }
-    }, [selectedCategory, searchQuery]);
+    }, [selectedCategory, debouncedSearchQuery]);
 
     useEffect(() => {
         setPage(1);
         setHasMore(true);
         loadServices({ reset: true, pageOverride: 1 });
-    }, [selectedCategory, searchQuery, loadServices]);
+    }, [selectedCategory, debouncedSearchQuery, loadServices]);
 
     const onRefresh = useCallback(() => {
         if (refreshing || loading) {

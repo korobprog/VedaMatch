@@ -340,6 +340,7 @@ func main() {
 	api.Get("/video-tariffs", videoCircleHandler.GetTariffs)
 	api.Get("/feed", middleware.OptionalAuth(), channelHandler.GetFeed)
 	api.Get("/channels", channelHandler.ListPublicChannels)
+	api.Get("/channels/my", middleware.Protected(), channelHandler.ListMyChannels)
 	api.Get("/channels/:id", middleware.OptionalAuth(), channelHandler.GetChannel)
 	api.Get("/channels/:id/posts", middleware.OptionalAuth(), channelHandler.ListPosts)
 	api.Post("/channels/:id/posts/:postId/cta-click", middleware.OptionalAuth(), channelHandler.TrackCTAClick)
@@ -685,7 +686,6 @@ func main() {
 
 	// Channels (Release 1)
 	protected.Post("/channels", channelHandler.CreateChannel)
-	protected.Get("/channels/my", channelHandler.ListMyChannels)
 	protected.Get("/channels/prompts/status", channelHandler.GetPromptStatus)
 	protected.Post("/channels/prompts/:promptKey/dismiss", channelHandler.DismissPrompt)
 	protected.Patch("/channels/:id", channelHandler.UpdateChannel)

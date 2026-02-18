@@ -43,7 +43,7 @@ export const FrozenBalanceModal: React.FC<FrozenBalanceModalProps> = ({
                             <Lock size={32} color="#EF4444" />
                         </View>
 
-                        <Text style={styles.title}>Замороженный баланс</Text>
+                        <Text style={styles.title}>Зарезервированные LKM</Text>
                         <Text style={styles.bigAmount}>{totalAmount} LKM</Text>
 
                         <View style={styles.amountSplitCard}>
@@ -58,17 +58,17 @@ export const FrozenBalanceModal: React.FC<FrozenBalanceModalProps> = ({
                         </View>
 
                         <Text style={styles.description}>
-                            Средства временно заблокированы под активные бронирования и операции ожидания.
+                            LKM временно зарезервированы под активные бронирования и операции в ожидании.
                         </Text>
 
                         <View style={styles.scenarios}>
                             <View style={styles.scenarioRow}>
                                 <CheckCircle2 size={16} color="#10B981" />
-                                <Text style={styles.scenarioText}>Спишется — когда услуга будет оказана</Text>
+                                <Text style={styles.scenarioText}>Используются — когда услуга подтверждена</Text>
                             </View>
                             <View style={styles.scenarioRow}>
                                 <CheckCircle2 size={16} color="#10B981" />
-                                <Text style={styles.scenarioText}>Вернется — если вы отмените запись вовремя</Text>
+                                <Text style={styles.scenarioText}>Возвращаются — если запись отменена вовремя</Text>
                             </View>
                         </View>
 

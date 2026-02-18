@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View, ActivityIndicator } from 'react-native';
-import { Wallet } from 'lucide-react-native';
+import { Sparkles } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useWallet } from '../../context/WalletContext';
 
@@ -66,7 +66,7 @@ export const BalancePill: React.FC<BalancePillProps> = ({
             ]}
             activeOpacity={0.7}
         >
-            <Wallet
+            <Sparkles
                 size={isSmall ? 13 : 15}
                 color={textColor}
                 strokeWidth={2.5}

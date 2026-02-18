@@ -52,6 +52,7 @@ func Connect() {
 		&models.User{}, &models.AuthSession{}, &models.Friend{}, &models.Message{}, &models.Block{},
 		&models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{},
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
+		&models.ChannelPostDelivery{},
 		&models.ChannelPromotedAdImpression{},
 		&models.UserDeviceToken{}, &models.PushDeliveryEvent{},
 		&models.SystemSetting{}, &models.MetricCounter{}, &models.UserDismissedPrompt{},
@@ -139,6 +140,10 @@ func Connect() {
 	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_single_pinned_post
 		ON channel_posts (channel_id)
 		WHERE is_pinned = true`)
+
+	// Idempotency for personal channel post fanout.
+	DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_post_delivery_unique
+		ON channel_post_deliveries (post_id, user_id, delivery_type)`)
 
 	// Message history pagination indexes
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_room_id_id_desc

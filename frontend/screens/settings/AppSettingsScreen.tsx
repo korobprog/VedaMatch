@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
-import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Wallet, Users, ChevronRight, LifeBuoy } from 'lucide-react-native';
+import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Users, ChevronRight, LifeBuoy } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { SLIDESHOW_INTERVALS } from '../../config/wallpaperPresets';
 import { useSettings } from '../../context/SettingsContext';
@@ -411,7 +411,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                             >
                                 <View style={styles.walletMain}>
                                     <View style={[styles.walletIconContainer, themedStyles.walletIconBg]}>
-                                        <Wallet size={24} color="#F59E0B" />
+                                        <Sparkles size={24} color="#F59E0B" />
                                     </View>
                                     <View style={styles.walletInfo}>
                                         <Text style={[styles.walletLabel, { color: vTheme.colors.textSecondary }]}>
@@ -456,7 +456,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                         </Text>
                                     </View>
                                     <Text style={[styles.actionDescription, { color: vTheme.colors.textSecondary }]}>
-                                        Получите 100 LKM за каждого активного друга
+                                        Бонусные 100 LKM за каждого активного друга
                                     </Text>
                                 </View>
                                 <ChevronRight size={20} color="#22C55E" />

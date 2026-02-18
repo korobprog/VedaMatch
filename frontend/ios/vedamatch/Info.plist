@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Veda Match Dev</string>
+	<string>Veda Match</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -90,7 +90,7 @@
 		</dict>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>Приложению нужен доступ к геолокации, чтобы показывать сервисы и контент рядом с вами.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Приложению нужен доступ к камере для создания фото</string>
 	<key>NSPhotoLibraryUsageDescription</key>

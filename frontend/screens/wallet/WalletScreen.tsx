@@ -21,7 +21,7 @@ import {
     ArrowDownCircle,
     ArrowUpCircle,
     History as HistoryIcon,
-    Wallet as WalletIcon,
+    Sparkles as PointsIcon,
     TrendingUp,
     MoreHorizontal,
     Info,
@@ -197,8 +197,8 @@ export default function WalletScreen() {
                         <ArrowLeft size={22} color="#fff" />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle}>Кошелёк</Text>
-                        <Text style={styles.headerSubtitle}>Управление балансом</Text>
+                        <Text style={styles.headerTitle}>LKM</Text>
+                        <Text style={styles.headerSubtitle}>{t('wallet.management')}</Text>
                     </View>
                     <TouchableOpacity style={styles.headerAction}>
                         <MoreHorizontal size={22} color="#fff" />
@@ -272,7 +272,7 @@ export default function WalletScreen() {
                                 />
                                 <View style={styles.balanceTop}>
                                     <View style={styles.balanceLabelRow}>
-                                        <WalletIcon size={14} color="rgba(26,26,46,0.6)" />
+                                        <PointsIcon size={14} color="rgba(26,26,46,0.6)" />
                                         <Text style={styles.balanceLabel}>
                                             {walletTab === 'regular' ? t('wallet.regularAccount') : t('wallet.bonusAccount')}
                                         </Text>

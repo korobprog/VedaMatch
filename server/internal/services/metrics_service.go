@@ -11,13 +11,17 @@ import (
 )
 
 const (
-	MetricChannelPostsPublishedTotal = "channel_posts_published_total"
-	MetricChannelPostsScheduledTotal = "channel_posts_scheduled_total"
-	MetricChannelCTAClickTotal       = "channel_cta_click_total"
-	MetricOrdersFromChannelTotal     = "orders_from_channel_total"
-	MetricBookingsFromChannelTotal   = "bookings_from_channel_total"
-	MetricPromotedAdsServedTotal     = "promoted_ads_served_total"
-	MetricPromotedAdsClickedTotal    = "promoted_ads_clicked_total"
+	MetricChannelPostsPublishedTotal         = "channel_posts_published_total"
+	MetricChannelPostsScheduledTotal         = "channel_posts_scheduled_total"
+	MetricChannelCTAClickTotal               = "channel_cta_click_total"
+	MetricOrdersFromChannelTotal             = "orders_from_channel_total"
+	MetricBookingsFromChannelTotal           = "bookings_from_channel_total"
+	MetricChannelPersonalDeliveriesTotal     = "channel_personal_deliveries_total"
+	MetricChannelPersonalPushSentTotal       = "channel_personal_push_sent_total"
+	MetricChannelPersonalDMCreatedTotal      = "channel_personal_dm_created_total"
+	MetricChannelPersonalDeliveryFailedTotal = "channel_personal_delivery_failed_total"
+	MetricPromotedAdsServedTotal             = "promoted_ads_served_total"
+	MetricPromotedAdsClickedTotal            = "promoted_ads_clicked_total"
 
 	MetricAuthRefreshSuccess                 = "auth_refresh_success"
 	MetricAuthRefreshFail                    = "auth_refresh_fail"

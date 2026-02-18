@@ -417,16 +417,18 @@ func (s *ChannelService) CreatePost(channelID, actorID uint, req models.ChannelP
 	if err := validateChannelCTAPayload(ctaType, ctaPayload); err != nil {
 		return nil, err
 	}
+	deliverPersonally := resolveDeliverPersonally(channel.IsPublic, req.DeliverPersonally)
 
 	post := models.ChannelPost{
-		ChannelID:      channel.ID,
-		AuthorID:       actorID,
-		Type:           postType,
-		Content:        strings.TrimSpace(req.Content),
-		MediaJSON:      mediaJSON,
-		CTAType:        ctaType,
-		CTAPayloadJSON: ctaPayload,
-		Status:         models.ChannelPostStatusDraft,
+		ChannelID:         channel.ID,
+		AuthorID:          actorID,
+		Type:              postType,
+		Content:           strings.TrimSpace(req.Content),
+		MediaJSON:         mediaJSON,
+		CTAType:           ctaType,
+		CTAPayloadJSON:    ctaPayload,
+		DeliverPersonally: deliverPersonally,
+		Status:            models.ChannelPostStatusDraft,
 	}
 
 	if err := s.db.Create(&post).Error; err != nil {
@@ -551,6 +553,11 @@ func (s *ChannelService) UpdatePost(channelID, postID, actorID uint, req models.
 		updates["cta_payload_json"] = trimmed
 		effectiveCTAPayload = trimmed
 	}
+	if channel.IsPublic {
+		updates["deliver_personally"] = false
+	} else if req.DeliverPersonally != nil {
+		updates["deliver_personally"] = *req.DeliverPersonally
+	}
 
 	if err := validateChannelCTAPayload(effectiveCTAType, effectiveCTAPayload); err != nil {
 		return nil, err
@@ -579,6 +586,9 @@ func (s *ChannelService) PublishPost(channelID, postID, actorID uint) (*models.C
 		return nil, err
 	}
 	if post.Status == models.ChannelPostStatusPublished {
+		if err := s.deliverPostPersonally(post); err != nil {
+			log.Printf("[Channels] personal delivery failed for already published post=%d: %v", post.ID, err)
+		}
 		return post, nil
 	}
 	if err := validateChannelCTAPayload(post.CTAType, post.CTAPayloadJSON); err != nil {
@@ -601,6 +611,9 @@ func (s *ChannelService) PublishPost(channelID, postID, actorID uint) (*models.C
 	}
 	if err := GetMetricsService().Increment(MetricChannelPostsPublishedTotal, 1); err != nil {
 		log.Printf("[Channels] metric increment failed (%s): %v", MetricChannelPostsPublishedTotal, err)
+	}
+	if err := s.deliverPostPersonally(post); err != nil {
+		log.Printf("[Channels] personal delivery failed post=%d: %v", post.ID, err)
 	}
 	return post, nil
 }
@@ -744,7 +757,17 @@ func (s *ChannelService) PublishDuePosts(limit int) (int, error) {
 		log.Printf("[Channels] metric increment failed (%s): %v", MetricChannelPostsPublishedTotal, err)
 	}
 
-	return publishedCount, nil
+	var firstDeliveryErr error
+	for _, postID := range ids {
+		if err := s.deliverPostPersonallyByID(postID); err != nil {
+			if firstDeliveryErr == nil {
+				firstDeliveryErr = err
+			}
+			log.Printf("[Channels] personal delivery failed for scheduled post=%d: %v", postID, err)
+		}
+	}
+
+	return publishedCount, firstDeliveryErr
 }
 
 func (s *ChannelService) TrackCTAClick(channelID, postID, viewerID uint) error {
@@ -773,6 +796,10 @@ func (s *ChannelService) GetMetricsSnapshot() (map[string]int64, error) {
 		MetricChannelCTAClickTotal,
 		MetricOrdersFromChannelTotal,
 		MetricBookingsFromChannelTotal,
+		MetricChannelPersonalDeliveriesTotal,
+		MetricChannelPersonalPushSentTotal,
+		MetricChannelPersonalDMCreatedTotal,
+		MetricChannelPersonalDeliveryFailedTotal,
 		MetricPromotedAdsServedTotal,
 		MetricPromotedAdsClickedTotal,
 	})
@@ -1225,6 +1252,209 @@ func (s *ChannelService) DeleteShowcase(channelID, showcaseID, actorID uint) err
 	return nil
 }
 
+func (s *ChannelService) deliverPostPersonallyByID(postID uint) error {
+	if postID == 0 {
+		return nil
+	}
+
+	var post models.ChannelPost
+	if err := s.db.Preload("Channel").Preload("Author").First(&post, postID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	return s.deliverPostPersonally(&post)
+}
+
+func (s *ChannelService) deliverPostPersonally(post *models.ChannelPost) error {
+	if post == nil {
+		return nil
+	}
+	if post.Status != models.ChannelPostStatusPublished || !post.DeliverPersonally {
+		return nil
+	}
+
+	channel := post.Channel
+	if channel == nil {
+		var loaded models.Channel
+		if err := s.db.Select("id", "owner_id", "title", "is_public").First(&loaded, post.ChannelID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		channel = &loaded
+		post.Channel = channel
+	}
+
+	// Personal delivery is strictly for private channels.
+	if channel.IsPublic {
+		return nil
+	}
+
+	var members []models.ChannelMember
+	if err := s.db.Select("user_id").Where("channel_id = ? AND user_id <> ?", post.ChannelID, post.AuthorID).Find(&members).Error; err != nil {
+		return err
+	}
+	if len(members) == 0 {
+		return nil
+	}
+
+	var firstErr error
+	for _, member := range members {
+		if err := s.deliverPostPersonallyToUser(post, channel, member.UserID); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			log.Printf("[Channels] personal delivery failed post=%d user=%d: %v", post.ID, member.UserID, err)
+		}
+	}
+
+	return firstErr
+}
+
+func (s *ChannelService) deliverPostPersonallyToUser(post *models.ChannelPost, channel *models.Channel, userID uint) error {
+	if post == nil || channel == nil || userID == 0 {
+		return nil
+	}
+
+	var firstErr error
+	if err := s.createPersonalDeliveryDM(post, channel, userID); err != nil {
+		firstErr = err
+	}
+	if err := s.sendPersonalDeliveryPush(post, channel, userID); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
+}
+
+func (s *ChannelService) createPersonalDeliveryDM(post *models.ChannelPost, channel *models.Channel, userID uint) error {
+	deliveryID, shouldSend, err := s.reservePostDelivery(post.ID, userID, models.ChannelPostDeliveryTypeDM)
+	if err != nil {
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+	if !shouldSend {
+		return nil
+	}
+
+	message := models.Message{
+		SenderID:    channel.OwnerID,
+		RecipientID: userID,
+		RoomID:      0,
+		Type:        "text",
+		Content:     buildPersonalDeliveryContent(post, channel),
+		MapData: map[string]interface{}{
+			"type":      "channel_news_personal",
+			"channelId": post.ChannelID,
+			"postId":    post.ID,
+		},
+	}
+	if err := s.db.Create(&message).Error; err != nil {
+		_ = s.markPostDelivery(deliveryID, models.ChannelPostDeliveryStatusFailed)
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+
+	if err := s.markPostDelivery(deliveryID, models.ChannelPostDeliveryStatusSuccess); err != nil {
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+
+	s.incrementMetricSafe(MetricChannelPersonalDMCreatedTotal, 1)
+	s.incrementMetricSafe(MetricChannelPersonalDeliveriesTotal, 1)
+	return nil
+}
+
+func (s *ChannelService) sendPersonalDeliveryPush(post *models.ChannelPost, channel *models.Channel, userID uint) error {
+	deliveryID, shouldSend, err := s.reservePostDelivery(post.ID, userID, models.ChannelPostDeliveryTypePush)
+	if err != nil {
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+	if !shouldSend {
+		return nil
+	}
+
+	pushMessage := PushMessage{
+		Title:    buildPersonalPushTitle(channel),
+		Body:     buildPersonalPushBody(post),
+		Priority: "high",
+		Data: map[string]string{
+			"type":      "channel_news_personal",
+			"channelId": strconv.FormatUint(uint64(post.ChannelID), 10),
+			"postId":    strconv.FormatUint(uint64(post.ID), 10),
+		},
+	}
+
+	if err := GetPushService().SendToUser(userID, pushMessage); err != nil {
+		_ = s.markPostDelivery(deliveryID, models.ChannelPostDeliveryStatusFailed)
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+
+	if err := s.markPostDelivery(deliveryID, models.ChannelPostDeliveryStatusSuccess); err != nil {
+		s.incrementMetricSafe(MetricChannelPersonalDeliveryFailedTotal, 1)
+		return err
+	}
+
+	s.incrementMetricSafe(MetricChannelPersonalPushSentTotal, 1)
+	s.incrementMetricSafe(MetricChannelPersonalDeliveriesTotal, 1)
+	return nil
+}
+
+func (s *ChannelService) reservePostDelivery(
+	postID uint,
+	userID uint,
+	deliveryType models.ChannelPostDeliveryType,
+) (uint, bool, error) {
+	delivery := models.ChannelPostDelivery{
+		PostID:       postID,
+		UserID:       userID,
+		DeliveryType: deliveryType,
+		Status:       models.ChannelPostDeliveryStatusPending,
+		DeliveredAt:  nil,
+	}
+
+	result := s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "post_id"},
+			{Name: "user_id"},
+			{Name: "delivery_type"},
+		},
+		DoNothing: true,
+	}).Create(&delivery)
+	if result.Error != nil {
+		return 0, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return 0, false, nil
+	}
+
+	return delivery.ID, true, nil
+}
+
+func (s *ChannelService) markPostDelivery(deliveryID uint, status models.ChannelPostDeliveryStatus) error {
+	if deliveryID == 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	return s.db.Model(&models.ChannelPostDelivery{}).
+		Where("id = ?", deliveryID).
+		Updates(map[string]interface{}{
+			"status":       status,
+			"delivered_at": now,
+		}).Error
+}
+
+func (s *ChannelService) incrementMetricSafe(key string, delta int64) {
+	if err := GetMetricsService().Increment(key, delta); err != nil {
+		log.Printf("[Channels] metric increment failed (%s): %v", key, err)
+	}
+}
+
 func (s *ChannelService) loadPost(channelID, postID uint) (*models.ChannelPost, *models.Channel, error) {
 	var post models.ChannelPost
 	if err := s.db.Preload("Channel").Preload("Author").Where("id = ? AND channel_id = ?", postID, channelID).First(&post).Error; err != nil {
@@ -1563,6 +1793,54 @@ func rankRole(role models.ChannelMemberRole) int {
 	default:
 		return 0
 	}
+}
+
+func resolveDeliverPersonally(isPublic bool, requested *bool) bool {
+	if isPublic {
+		return false
+	}
+	if requested == nil {
+		return true
+	}
+	return *requested
+}
+
+func buildPersonalDeliveryContent(post *models.ChannelPost, channel *models.Channel) string {
+	content := strings.TrimSpace(post.Content)
+	if content != "" {
+		return content
+	}
+	channelTitle := ""
+	if channel != nil {
+		channelTitle = strings.TrimSpace(channel.Title)
+	}
+	if channelTitle != "" {
+		return fmt.Sprintf("Новая новость в канале %s", channelTitle)
+	}
+	return "Новая новость в приватном канале"
+}
+
+func buildPersonalPushTitle(channel *models.Channel) string {
+	if channel != nil {
+		title := strings.TrimSpace(channel.Title)
+		if title != "" {
+			return fmt.Sprintf("Новая новость: %s", title)
+		}
+	}
+	return "Новая новость от мастера"
+}
+
+func buildPersonalPushBody(post *models.ChannelPost) string {
+	body := strings.TrimSpace(post.Content)
+	if body == "" {
+		return "Откройте канал, чтобы прочитать новость"
+	}
+	const maxRunes = 140
+	runes := []rune(body)
+	if len(runes) > maxRunes {
+		return string(runes[:maxRunes]) + "..."
+	}
+	return body
 }
 
 func validateChannelCTAPayload(ctaType models.ChannelPostCTAType, payload string) error {

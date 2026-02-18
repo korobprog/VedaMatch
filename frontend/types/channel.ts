@@ -63,6 +63,7 @@ export interface ChannelPost {
   mediaJson: string;
   ctaType: ChannelPostCTAType;
   ctaPayloadJson: string;
+  deliverPersonally?: boolean;
   status: ChannelPostStatus;
   scheduledAt?: string;
   publishedAt?: string;
@@ -120,6 +121,7 @@ export interface ChannelPostCreateRequest {
   mediaJson?: string;
   ctaType?: ChannelPostCTAType;
   ctaPayloadJson?: string;
+  deliverPersonally?: boolean;
 }
 
 export interface ChannelPostUpdateRequest {
@@ -128,6 +130,7 @@ export interface ChannelPostUpdateRequest {
   mediaJson?: string;
   ctaType?: ChannelPostCTAType;
   ctaPayloadJson?: string;
+  deliverPersonally?: boolean;
 }
 
 export interface ChannelSchedulePostRequest {

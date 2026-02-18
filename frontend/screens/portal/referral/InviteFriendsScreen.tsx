@@ -147,9 +147,15 @@ export default function InviteFriendsScreen({ navigation }: any) {
     const handleShare = async () => {
         if (!inviteData) return;
         try {
+            const safeShareMessage = [
+                'Присоединяйся к VedaMatch по моему коду приглашения.',
+                `Код: ${inviteData.inviteCode}`,
+                'Получи бонусные LKM за активность в приложении.',
+            ].join('\n');
+
             await Share.open({
                 title: 'Приглашение в VedaMatch',
-                message: inviteData.shareText,
+                message: safeShareMessage,
                 url: inviteData.webLink,
             });
         } catch (err) {
@@ -268,7 +274,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                         <Gift size={32} color="#FFF" />
                         <Text style={styles.heroTitle}>Приглашай друзей</Text>
                         <Text style={styles.heroSubtitle}>
-                            Получай 100 LKM за каждого активного друга!
+                            Получайте бонусные LKM за каждого активного друга!
                         </Text>
                     </View>
                 </LinearGradient>
@@ -360,7 +366,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                                 <Text style={[styles.statValue, styles.earnedValue]}>
                                     {stats.totalEarned}
                                 </Text>
-                                <Text style={styles.statLabel}>Заработано</Text>
+                                <Text style={styles.statLabel}>Начислено</Text>
                             </View>
                         </View>
                     </View>
@@ -396,7 +402,7 @@ export default function InviteFriendsScreen({ navigation }: any) {
                     <View style={styles.ruleItem}>
                         <Text style={styles.ruleNumber}>3</Text>
                         <Text style={styles.ruleText}>
-                            Когда друг совершает первую покупку, ты получаешь 100 LKM!
+                            Когда друг проявляет первую активность, вы получаете бонусные 100 LKM.
                         </Text>
                     </View>
                 </View>

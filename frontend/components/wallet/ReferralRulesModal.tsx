@@ -71,7 +71,7 @@ export const ReferralRulesModal: React.FC<ReferralRulesModalProps> = ({ visible,
                                     </View>
                                     <View style={styles.ruleInfo}>
                                         <Text style={styles.ruleLabel}>Вам: +100 LKM</Text>
-                                        <Text style={styles.ruleSubtext}>Начисляются за «Активацию» друга (его первая любая оплата в приложении).</Text>
+                                        <Text style={styles.ruleSubtext}>Начисляются за «Активацию» друга (его первое использование функций приложения).</Text>
                                     </View>
                                 </View>
                             </View>
@@ -95,7 +95,8 @@ export const ReferralRulesModal: React.FC<ReferralRulesModalProps> = ({ visible,
                                     <Text style={styles.infoBoxTitle}>Важно знать</Text>
                                 </View>
                                 <Text style={styles.infoBoxText}>
-                                    Валюта LKM является внутренней расчетной единицей благодарности и не подлежит обмену на реальные деньги (фиат).
+                                    LKM — внутренняя единица активности. LKM начисляются за участие и используются для доступа к функциям портала.
+                                    LKM не имеют денежной стоимости и не подлежат обмену.
                                 </Text>
                             </View>
 

@@ -38,12 +38,12 @@ export const DonateModal: React.FC<DonateModalProps> = ({
 
     const handleDonate = async () => {
         if (!selectedAmount || selectedAmount < (project.minDonation || 10)) {
-            Alert.alert("Invalid Amount", `Minimum donation is ${project.minDonation} LKM`);
+            Alert.alert("Invalid LKM Amount", `Minimum support amount is ${project.minDonation} LKM`);
             return;
         }
 
         if (!canAfford) {
-            Alert.alert("Insufficient Funds", "Please top up your wallet first.");
+            Alert.alert("Insufficient LKM", "Please increase your LKM activity points first.");
             return;
         }
 
@@ -60,9 +60,9 @@ export const DonateModal: React.FC<DonateModalProps> = ({
             setConfirmDebit(false);
             setUnderstandRefund(false);
             onClose();
-            Alert.alert("Success", "Thank you for your donation!");
+            Alert.alert("Success", "Thank you for your support!");
         } catch (error: any) {
-            Alert.alert("Error", error.message || "Failed to process donation");
+            Alert.alert("Error", error.message || "Failed to process support action");
         } finally {
             setLoading(false);
         }
@@ -78,7 +78,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
             <View style={styles.overlay}>
                 <View style={styles.container}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Donate to Seva</Text>
+                        <Text style={styles.title}>Support Seva</Text>
                         <TouchableOpacity onPress={onClose}>
                             <X size={24} color="#FFF" />
                         </TouchableOpacity>
@@ -88,7 +88,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                         <Text style={styles.projectTitle}>{project.title}</Text>
                         <Text style={styles.orgName}>{project.organization?.name}</Text>
 
-                        <Text style={styles.label}>Select Amount (LKM)</Text>
+                        <Text style={styles.label}>Select LKM amount</Text>
                         <View style={styles.presetsRow}>
                             {PRESET_AMOUNTS.map((val) => (
                                 <TouchableOpacity
@@ -105,7 +105,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
 
                         <TextInput
                             style={styles.input}
-                            placeholder="Custom amount"
+                            placeholder="Custom LKM amount"
                             placeholderTextColor="#666"
                             keyboardType="number-pad"
                             value={amount}
@@ -114,7 +114,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
 
                         <View style={styles.summaryBox}>
                             <View style={styles.row}>
-                                <Text style={styles.summaryLabel}>Donation:</Text>
+                                <Text style={styles.summaryLabel}>Support points:</Text>
                                 <Text style={styles.summaryValue}>{selectedAmount} LKM</Text>
                             </View>
 
@@ -125,7 +125,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                 <View style={styles.checkbox}>
                                     {includeTips && <Check size={16} color="#000" />}
                                 </View>
-                                <Text style={styles.tipsText}>Add 5% platform tips ({tipsAmount} LKM)</Text>
+                                <Text style={styles.tipsText}>Add 5% support bonus ({tipsAmount} LKM)</Text>
                             </TouchableOpacity>
 
                             <View style={[styles.row, styles.totalRow]}>
@@ -135,7 +135,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                         </View>
 
                         <Text style={styles.balanceText}>
-                            Your Balance: <Text style={{ color: canAfford ? '#4CAF50' : '#FF4444' }}>{userBalance} LKM</Text>
+                            Your LKM points: <Text style={{ color: canAfford ? '#4CAF50' : '#FF4444' }}>{userBalance} LKM</Text>
                         </Text>
 
                         <View style={styles.optionsContainer}>
@@ -146,7 +146,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                 <View style={[styles.checkbox, isAnonymous && styles.activeCheckbox]}>
                                     {isAnonymous && <Check size={16} color="#000" />}
                                 </View>
-                                <Text style={styles.optionText}>Donate Anonymously</Text>
+                                <Text style={styles.optionText}>Support anonymously</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -163,11 +163,11 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                         <View style={styles.warningBox}>
                             <Text style={styles.warningTitle}>⚠️ Важно!</Text>
                             <Text style={styles.warningText}>
-                                Средства будут списаны с вашего кошелька и переведены организации{' '}
+                                LKM будут использованы из ваших баллов активности и начислены организации{' '}
                                 <Text style={styles.boldText}>{project.organization?.name}</Text>.
                             </Text>
                             <Text style={styles.warningText}>
-                                У вас есть <Text style={styles.boldText}>24 часа</Text> для возврата средств.
+                                У вас есть <Text style={styles.boldText}>24 часа</Text>, чтобы отменить передачу.
                             </Text>
 
                             {/* Checkbox 1: Confirm Debit */}
@@ -179,7 +179,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                     {confirmDebit && <Check size={16} color="#000" />}
                                 </View>
                                 <Text style={styles.confirmText}>
-                                    Я подтверждаю списание {totalAmount} LKM с моего кошелька
+                                    Я подтверждаю использование {totalAmount} LKM
                                 </Text>
                             </TouchableOpacity>
 
@@ -192,13 +192,13 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                     {understandRefund && <Check size={16} color="#000" />}
                                 </View>
                                 <Text style={styles.confirmText}>
-                                    Я понимаю, что могу вернуть средства в течение 24 часов
+                                    Я понимаю, что могу отменить передачу в течение 24 часов
                                 </Text>
                             </TouchableOpacity>
 
                             {/* Refund Policy Link */}
-                            <TouchableOpacity onPress={() => Alert.alert("Условия возврата", "Вы можете вернуть средства в течение 24 часов с момента пожертвования. После истечения этого срока средства автоматически передаются благотворительной организации и возврат невозможен.")}>
-                                <Text style={styles.linkText}>Условия возврата средств</Text>
+                            <TouchableOpacity onPress={() => Alert.alert("Условия отмены", "Вы можете отменить передачу LKM в течение 24 часов с момента пожертвования. После этого срока LKM закрепляются за благотворительной организацией и отмена недоступна.")}>
+                                <Text style={styles.linkText}>Условия отмены передачи LKM</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -214,7 +214,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                 <ActivityIndicator color="#000" />
                             ) : (
                                 <Text style={styles.donateBtnText}>
-                                    Donate {totalAmount > 0 ? `${totalAmount} LKM` : ''}
+                                    Support {totalAmount > 0 ? `${totalAmount} LKM` : ''}
                                 </Text>
                             )}
                         </TouchableOpacity>

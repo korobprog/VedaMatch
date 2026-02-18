@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, Alert, SafeAreaView, ImageBackground, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, Wallet as WalletIcon, Info } from 'lucide-react-native';
+import { ChevronLeft, Sparkles as PointsIcon, Info } from 'lucide-react-native';
 import { CharityProject } from '../../types/charity';
 import { charityService } from '../../services/charityService';
 import { useWallet } from '../../context/WalletContext';
@@ -195,7 +195,7 @@ const SevaHubScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.balanceRow}>
-                            <WalletIcon color="#FFD700" size={18} style={{ marginRight: 6 }} />
+                            <PointsIcon color="#FFD700" size={18} style={{ marginRight: 6 }} />
                             <Text style={styles.balanceText}>Итого: {totalBalance.toLocaleString()} LKM</Text>
                         </View>
                         <View style={styles.balanceSplitRow}>

@@ -156,6 +156,16 @@ export const notificationService = {
             return;
         }
 
+        if (data.type === 'channel_news_personal') {
+            const channelRaw = data.channelId || params.channelId;
+            const channelId = Number.parseInt(String(channelRaw || ''), 10);
+            if (Number.isFinite(channelId) && channelId > 0) {
+                // @ts-ignore
+                navigationRef.navigate('ChannelDetails', { channelId });
+            }
+            return;
+        }
+
         if (data.type === 'new_message') {
             const senderRaw = data.senderId || params.senderId;
             const senderId = Number.parseInt(String(senderRaw || ''), 10);
