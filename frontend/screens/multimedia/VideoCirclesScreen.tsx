@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
+  AppStateStatus,
   Dimensions,
   FlatList,
   Image,
@@ -17,6 +19,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ViewToken,
 } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -35,8 +38,10 @@ import {
   Tag,
   Video,
 } from 'lucide-react-native';
+import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Asset, launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
+import RNVideo from 'react-native-video';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { useUser } from '../../context/UserContext';
@@ -57,6 +62,12 @@ const ROLE_DOT_COLORS: Record<PortalRoleType, string> = {
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const CIRCLE_PREVIEW_DURATION_SEC = 3;
+const CIRCLE_PREVIEW_RESTART_COOLDOWN_MS = 8000;
+const CIRCLE_PREVIEW_VIEWABILITY_CONFIG = {
+  viewAreaCoveragePercentThreshold: 70,
+};
 
 
 
@@ -85,6 +96,8 @@ export const VideoCirclesScreen: React.FC = () => {
   const openPublishHandled = useRef(false);
   const latestCirclesRequestRef = useRef(0);
   const latestTariffsRequestRef = useRef(0);
+  const lastPreviewAtByIdRef = useRef<Record<number, number>>({});
+  const viewabilityConfigRef = useRef(CIRCLE_PREVIEW_VIEWABILITY_CONFIG);
   const isMountedRef = useRef(true);
   const interactionLocksRef = useRef<Set<string>>(new Set());
 
@@ -110,10 +123,25 @@ export const VideoCirclesScreen: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'active' | 'expired' | 'deleted'>('active');
   const [roleScope, setRoleScope] = useState<PortalRoleType[]>([]);
   const [feedScope, setFeedScope] = useState<'all' | 'friends'>(routeParams?.scope === 'friends' ? 'friends' : 'all');
+  const [isWifiConnected, setIsWifiConnected] = useState(false);
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+  const [activeVisibleCircleId, setActiveVisibleCircleId] = useState<number | null>(null);
+  const [playingPreviewCircleId, setPlayingPreviewCircleId] = useState<number | null>(null);
+  const [previewBlockedIds, setPreviewBlockedIds] = useState<number[]>([]);
   const isTariffAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   const fabAnim = useRef(new Animated.Value(1)).current;
   const lastScrollY = useRef(0);
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const topVisible = [...viewableItems]
+      .filter((token) => token.isViewable && token.item && typeof token.index === 'number')
+      .sort(
+        (a, b) =>
+          (a.index ?? Number.MAX_SAFE_INTEGER) - (b.index ?? Number.MAX_SAFE_INTEGER)
+      )[0];
+    const nextVisibleId = topVisible ? (topVisible.item as VideoCircle).id : null;
+    setActiveVisibleCircleId((currentId) => (currentId === nextVisibleId ? currentId : nextVisibleId));
+  });
 
   const ROLE_FILTER_OPTIONS = useMemo(() => [
     { value: 'user' as PortalRoleType, label: t('portal.roles.user') },
@@ -194,6 +222,40 @@ export const VideoCirclesScreen: React.FC = () => {
   }, [loadCircles, loadTariffs]);
 
   useEffect(() => {
+    const applyNetworkState = (state: NetInfoState) => {
+      const onWifi = state.isConnected === true && state.type === 'wifi';
+      setIsWifiConnected(onWifi);
+    };
+
+    let active = true;
+    NetInfo.fetch()
+      .then((state) => {
+        if (active) {
+          applyNetworkState(state);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setIsWifiConnected(false);
+        }
+      });
+
+    const unsubscribe = NetInfo.addEventListener(applyNetworkState);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      setIsAppActive(nextState === 'active');
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     return () => {
       isMountedRef.current = false;
       latestCirclesRequestRef.current += 1;
@@ -234,6 +296,68 @@ export const VideoCirclesScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, [filterStatus]);
 
+  useEffect(() => {
+    if (!circles.length) {
+      setActiveVisibleCircleId(null);
+      setPlayingPreviewCircleId(null);
+      return;
+    }
+
+    if (activeVisibleCircleId === null) {
+      setActiveVisibleCircleId(circles[0].id);
+      return;
+    }
+
+    if (!circles.some((circle) => circle.id === activeVisibleCircleId)) {
+      setActiveVisibleCircleId(circles[0].id);
+    }
+  }, [activeVisibleCircleId, circles]);
+
+  useEffect(() => {
+    if (!isAppActive || !isWifiConnected || activeVisibleCircleId === null) {
+      setPlayingPreviewCircleId((currentId) => {
+        if (currentId !== null) {
+          lastPreviewAtByIdRef.current[currentId] = Date.now();
+        }
+        return null;
+      });
+      return;
+    }
+
+    const activeCircle = circles.find((circle) => circle.id === activeVisibleCircleId);
+    const activeMediaUrl = (activeCircle?.mediaUrl || '').trim();
+
+    if (!activeCircle || !activeMediaUrl || previewBlockedIds.includes(activeVisibleCircleId)) {
+      setPlayingPreviewCircleId((currentId) => {
+        if (currentId !== null) {
+          lastPreviewAtByIdRef.current[currentId] = Date.now();
+        }
+        return null;
+      });
+      return;
+    }
+
+    const lastPreviewAt = lastPreviewAtByIdRef.current[activeVisibleCircleId] || 0;
+    const inCooldown = Date.now() - lastPreviewAt < CIRCLE_PREVIEW_RESTART_COOLDOWN_MS;
+
+    if (inCooldown) {
+      setPlayingPreviewCircleId((currentId) => {
+        if (currentId !== null) {
+          lastPreviewAtByIdRef.current[currentId] = Date.now();
+        }
+        return null;
+      });
+      return;
+    }
+
+    setPlayingPreviewCircleId((currentId) => {
+      if (currentId !== null && currentId !== activeVisibleCircleId) {
+        lastPreviewAtByIdRef.current[currentId] = Date.now();
+      }
+      return currentId === activeVisibleCircleId ? currentId : activeVisibleCircleId;
+    });
+  }, [activeVisibleCircleId, circles, isAppActive, isWifiConnected, previewBlockedIds]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadCircles();
@@ -250,6 +374,44 @@ export const VideoCirclesScreen: React.FC = () => {
       useNativeDriver: true,
     }).start();
   }, [fabAnim]);
+
+  const finishPreview = useCallback((circleId: number, blockPreview = false) => {
+    if (blockPreview) {
+      setPreviewBlockedIds((current) =>
+        current.includes(circleId) ? current : [...current, circleId]
+      );
+    }
+
+    lastPreviewAtByIdRef.current[circleId] = Date.now();
+    setPlayingPreviewCircleId((currentId) => (currentId === circleId ? null : currentId));
+  }, []);
+
+  const handlePreviewProgress = useCallback(
+    (circleId: number, currentTime: number) => {
+      if (playingPreviewCircleId !== circleId) {
+        return;
+      }
+      if (currentTime >= CIRCLE_PREVIEW_DURATION_SEC) {
+        finishPreview(circleId);
+      }
+    },
+    [finishPreview, playingPreviewCircleId]
+  );
+
+  const handlePreviewEnd = useCallback(
+    (circleId: number) => {
+      finishPreview(circleId);
+    },
+    [finishPreview]
+  );
+
+  const handlePreviewError = useCallback(
+    (circleId: number, error: unknown) => {
+      console.warn('Video circle preview failed:', error);
+      finishPreview(circleId, true);
+    },
+    [finishPreview]
+  );
 
   const openVideoPicker = useCallback(async (source: 'camera' | 'gallery') => {
     try {
@@ -735,6 +897,8 @@ export const VideoCirclesScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        viewabilityConfig={viewabilityConfigRef.current}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={roleColors.accent} />}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
@@ -747,49 +911,81 @@ export const VideoCirclesScreen: React.FC = () => {
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={[
-            styles.card,
-            {
-              backgroundColor: roleColors.surfaceElevated,
-              borderColor: roleColors.border,
-              ...(Platform.OS === 'ios' ? {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: isDarkMode ? 0.4 : 0.12,
-                shadowRadius: 12,
-              } : { elevation: 6 }),
-            },
-          ]}>
-            <TouchableOpacity style={styles.mediaWrap} activeOpacity={0.9} onPress={() => openCirclePlayer(item)}>
-              {item.thumbnailUrl ? (
-                <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
-              ) : (
-                <View style={[styles.thumb, placeholderThumbStyle]}>
-                  <Play size={40} color={isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)'} />
-                </View>
-              )}
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.6)']}
-                style={styles.mediaGradient}
-              />
-              <View style={styles.topBadges}>
-                <View style={styles.badgeWrap}>
-                  <Clock size={10} color="#fff" />
-                  <Text style={styles.badge}>60s</Text>
-                </View>
-                <View style={[styles.badgeWrap, styles.timerBadge]}>
-                  <Text style={styles.badge}>{renderTime(item.remainingSec)}</Text>
-                </View>
-              </View>
-              <View style={styles.playOverlay}>
-                <View style={styles.playBtn}>
-                  <Play size={22} color="#fff" fill="#fff" />
-                </View>
-              </View>
-            </TouchableOpacity>
+        renderItem={({ item }) => {
+          const shouldRenderPreview =
+            playingPreviewCircleId === item.id &&
+            activeVisibleCircleId === item.id &&
+            isAppActive &&
+            isWifiConnected &&
+            !previewBlockedIds.includes(item.id) &&
+            !!(item.mediaUrl || '').trim();
 
-            <View style={styles.cardBody}>
+          return (
+            <View style={[
+              styles.card,
+              {
+                backgroundColor: roleColors.surfaceElevated,
+                borderColor: roleColors.border,
+                ...(Platform.OS === 'ios' ? {
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: isDarkMode ? 0.4 : 0.12,
+                  shadowRadius: 12,
+                } : { elevation: 6 }),
+              },
+            ]}>
+              <TouchableOpacity
+                style={styles.mediaWrap}
+                activeOpacity={0.9}
+                onPress={() => openCirclePlayer(item)}
+                testID={`video-circle-media-${item.id}`}
+              >
+                {shouldRenderPreview ? (
+                  <RNVideo
+                    source={{ uri: item.mediaUrl }}
+                    style={styles.thumb}
+                    muted
+                    controls={false}
+                    repeat={false}
+                    paused={false}
+                    resizeMode="cover"
+                    playInBackground={false}
+                    ignoreSilentSwitch="ignore"
+                    testID={`video-circle-preview-${item.id}`}
+                    onProgress={(progress) => handlePreviewProgress(item.id, progress.currentTime)}
+                    onEnd={() => handlePreviewEnd(item.id)}
+                    onError={(error) => handlePreviewError(item.id, error)}
+                  />
+                ) : item.thumbnailUrl ? (
+                  <Image testID={`video-circle-thumb-${item.id}`} source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
+                ) : (
+                  <View testID={`video-circle-thumb-${item.id}`} style={[styles.thumb, placeholderThumbStyle]}>
+                    <Play size={40} color={isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)'} />
+                  </View>
+                )}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.6)']}
+                  style={styles.mediaGradient}
+                />
+                <View style={styles.topBadges}>
+                  <View style={styles.badgeWrap}>
+                    <Clock size={10} color="#fff" />
+                    <Text style={styles.badge}>60s</Text>
+                  </View>
+                  <View style={[styles.badgeWrap, styles.timerBadge]}>
+                    <Text style={styles.badge}>{renderTime(item.remainingSec)}</Text>
+                  </View>
+                </View>
+                {!shouldRenderPreview && (
+                  <View style={styles.playOverlay}>
+                    <View style={styles.playBtn}>
+                      <Play size={22} color="#fff" fill="#fff" />
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.cardBody}>
               {(!!item.city || !!item.matha || !!item.category) && (
                 <View style={styles.metaRow}>
                   {!!item.city && (
@@ -863,7 +1059,8 @@ export const VideoCirclesScreen: React.FC = () => {
               </View>
             </View>
           </View>
-        )}
+          );
+        }}
       />
 
       <Animated.View
