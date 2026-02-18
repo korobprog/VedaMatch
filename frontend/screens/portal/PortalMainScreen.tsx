@@ -146,6 +146,28 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [displayedImageFailed, setDisplayedImageFailed] = useState(false);
     const isTransitioning = useRef(false);
     const failedWallpaperSetRef = useRef<Set<string>>(new Set());
+    const giftAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        const startGiftPulse = () => {
+            Animated.sequence([
+                Animated.timing(giftAnim, {
+                    toValue: 1.25,
+                    duration: 600,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(giftAnim, {
+                    toValue: 1,
+                    duration: 600,
+                    useNativeDriver: true,
+                }),
+                Animated.delay(7000),
+            ]).start(() => startGiftPulse());
+        };
+
+        startGiftPulse();
+        return () => giftAnim.stopAnimation();
+    }, [giftAnim]);
 
     useEffect(() => {
         if (!isSlideshowEnabled || effectiveBg === displayedBg || isTransitioning.current) return;
@@ -373,7 +395,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         const seekerAllowedWithoutProfile = ['path_tracker', 'contacts', 'chat', 'calls', 'cafe', 'shops', 'services', 'support', 'map', 'news', 'library', 'education', 'multimedia', 'video_circles', 'channels'];
         const canUseWithoutCompleteProfile = isSeeker && seekerAllowedWithoutProfile.includes(serviceId);
 
-        if (!user?.isProfileComplete && !canUseWithoutCompleteProfile) {
+        if (!user?.godModeEnabled && !user?.isProfileComplete && !canUseWithoutCompleteProfile) {
             Alert.alert(
                 'Profile Incomplete',
                 'Please complete your registration to access this service.',
@@ -438,7 +460,9 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     blurAmount={12}
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
-                                <Gift size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                <Animated.View style={{ transform: [{ scale: giftAnim }] }}>
+                                    <Gift size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                </Animated.View>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => navigation.navigate('VideoCirclesScreen')}
