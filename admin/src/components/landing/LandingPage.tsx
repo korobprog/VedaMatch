@@ -8,6 +8,7 @@ import { FeaturesSection } from './FeaturesSection';
 import { ScrollSection } from './ScrollSection';
 import { PhilosophySection } from './PhilosophySection';
 import { TeamSection } from './TeamSection';
+import { UnionPresentationSection } from './UnionPresentationSection';
 import { motion } from 'framer-motion';
 import { LogOut, User as UserIcon, Grid, ArrowRight, MessageCircle, Sparkles } from 'lucide-react';
 
@@ -104,6 +105,7 @@ export default function LandingPage() {
                     <FeaturesSection />
                 </div>
                 <PhilosophySection />
+                <UnionPresentationSection />
                 <TeamSection />
 
                 {/* Community Section */}

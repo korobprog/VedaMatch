@@ -301,6 +301,9 @@ func main() {
 	api.Get("/ads/stats", adsHandler.GetAdStats)
 	api.Get("/ads/:id", adsHandler.GetAd)
 
+	// Public Dating Routes
+	api.Get("/dating/presentation", datingHandler.GetDatingPresentation)
+
 	// Public Cafe Routes (Sattva Cafe)
 	api.Get("/cafes/my", middleware.Protected(), cafeHandler.GetMyCafe)
 	api.Get("/cafes", cafeHandler.ListCafes)

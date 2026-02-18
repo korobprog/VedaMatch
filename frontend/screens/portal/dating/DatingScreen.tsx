@@ -34,6 +34,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { DATING_TRADITIONS, YOGA_STYLES, GUNAS, IDENTITY_OPTIONS } from '../../../constants/DatingConstants';
 import { ProtectedScreen } from '../../../components/ProtectedScreen';
 import { GodModeStatusBanner } from '../../../components/portal/god-mode/GodModeStatusBanner';
+import { GodModeFiltersPanel } from '../../../components/portal/god-mode/GodModeFiltersPanel';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import type { UserContact } from '../../../services/contactService';
 import { BalancePill } from '../../../components/wallet/BalancePill';
@@ -515,7 +516,7 @@ const normalizeProfilePhotos = (photos: PreviewProfileApiResponse['photos']): Ph
 
 export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     const { t } = useTranslation();
-    const { user } = useUser();
+    const { user, godModeFilters, activeMathId, setActiveMath } = useUser();
     const { setChatRecipient } = useChat();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { isDarkMode } = useSettings();
@@ -735,11 +736,11 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
     useEffect(() => {
         fetchCandidates();
         fetchCities();
-    }, [fetchCandidates, fetchCities]);
+    }, [fetchCandidates, fetchCities, activeMathId]);
 
     useEffect(() => {
         fetchStats(user?.city);
-    }, [fetchStats, user?.city]);
+    }, [fetchStats, user?.city, activeMathId]);
 
     const handleCheckCompatibility = async (candidateId: number) => {
         if (!user?.ID) return;
@@ -900,7 +901,15 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                             </View>
                         </ImageBackground>
                     </View>
-                    <GodModeStatusBanner />
+                    {user?.godModeEnabled ? (
+                        <GodModeFiltersPanel
+                            filters={godModeFilters}
+                            activeMathId={activeMathId || undefined}
+                            onSelectMath={(mathId) => setActiveMath(mathId)}
+                        />
+                    ) : (
+                        <GodModeStatusBanner />
+                    )}
 
                     <View style={styles.topActionScrollContainer}>
                         <ScrollView
@@ -1133,124 +1142,124 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
                             <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
-                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax85]}>
-                                <View style={styles.modalHeader}>
-                                    <Text style={styles.modalTitle}>{t('dating.filters')}</Text>
-                                </View>
-
-                                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                                    {mode === 'business' && (
-                                        <>
-                                            <Text style={styles.filterLabel}>{t('dating.skills')}</Text>
-                                            <TextInput
-                                                style={styles.filterInput}
-                                                value={filterSkills}
-                                                onChangeText={setFilterSkills}
-                                                placeholder={t('dating.skillsPlaceholder')}
-                                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                            />
-
-                                            <Text style={styles.filterLabel}>{t('dating.industry')}</Text>
-                                            <TextInput
-                                                style={styles.filterInput}
-                                                value={filterIndustry}
-                                                onChangeText={setFilterIndustry}
-                                                placeholder={t('dating.industryPlaceholder')}
-                                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                            />
-                                        </>
-                                    )}
-
-                                    <Text style={styles.filterLabel}>{t('registration.city')}</Text>
-                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowCityPicker(true)}>
-                                        <Text style={filterCityTextStyle}>
-                                            {filterCity || t('dating.selectCity')}
-                                        </Text>
-                                    </TouchableOpacity>
-
-                                    <Text style={styles.filterLabel}>{t('registration.dob')}</Text>
-                                    <View style={styles.filterRow}>
-                                        <TextInput
-                                            style={[styles.filterInput, styles.filterInputHalf]}
-                                            value={filterMinAge}
-                                            onChangeText={setFilterMinAge}
-                                            placeholder={t('dating.minAge')}
-                                            keyboardType="numeric"
-                                            placeholderTextColor="rgba(255,255,255,0.3)"
-                                        />
-                                        <TextInput
-                                            style={[styles.filterInput, styles.filterInputHalf]}
-                                            value={filterMaxAge}
-                                            onChangeText={setFilterMaxAge}
-                                            placeholder={t('dating.maxAge')}
-                                            keyboardType="numeric"
-                                            placeholderTextColor="rgba(255,255,255,0.3)"
-                                        />
+                                <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax85]}>
+                                    <View style={styles.modalHeader}>
+                                        <Text style={styles.modalTitle}>{t('dating.filters')}</Text>
                                     </View>
 
-                                    <Text style={styles.filterLabel}>{t('dating.tradition')}</Text>
-                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowMadhPicker(true)}>
-                                        <Text style={filterMadhTextStyle}>
-                                            {filterMadh || t('dating.any')}
-                                        </Text>
-                                    </TouchableOpacity>
+                                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                        {mode === 'business' && (
+                                            <>
+                                                <Text style={styles.filterLabel}>{t('dating.skills')}</Text>
+                                                <TextInput
+                                                    style={styles.filterInput}
+                                                    value={filterSkills}
+                                                    onChangeText={setFilterSkills}
+                                                    placeholder={t('dating.skillsPlaceholder')}
+                                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                                />
 
-                                    <Text style={styles.filterLabel}>{t('dating.yogaStyle')}</Text>
-                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowYogaPicker(true)}>
-                                        <Text style={filterYogaStyleTextStyle}>
-                                            {filterYogaStyle || t('dating.any')}
-                                        </Text>
-                                    </TouchableOpacity>
+                                                <Text style={styles.filterLabel}>{t('dating.industry')}</Text>
+                                                <TextInput
+                                                    style={styles.filterInput}
+                                                    value={filterIndustry}
+                                                    onChangeText={setFilterIndustry}
+                                                    placeholder={t('dating.industryPlaceholder')}
+                                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                                />
+                                            </>
+                                        )}
 
-                                    <Text style={styles.filterLabel}>{t('dating.guna')}</Text>
-                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowGunaPicker(true)}>
-                                        <Text style={filterGunaTextStyle}>
-                                            {filterGuna || t('dating.any')}
-                                        </Text>
-                                    </TouchableOpacity>
+                                        <Text style={styles.filterLabel}>{t('registration.city')}</Text>
+                                        <TouchableOpacity style={styles.filterInput} onPress={() => setShowCityPicker(true)}>
+                                            <Text style={filterCityTextStyle}>
+                                                {filterCity || t('dating.selectCity')}
+                                            </Text>
+                                        </TouchableOpacity>
 
-                                    <Text style={styles.filterLabel}>{t('dating.identity')}</Text>
-                                    <TouchableOpacity style={styles.filterInput} onPress={() => setShowIdentityPicker(true)}>
-                                        <Text style={filterIdentityTextStyle}>
-                                            {filterIdentity || t('dating.any')}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </ScrollView>
+                                        <Text style={styles.filterLabel}>{t('registration.dob')}</Text>
+                                        <View style={styles.filterRow}>
+                                            <TextInput
+                                                style={[styles.filterInput, styles.filterInputHalf]}
+                                                value={filterMinAge}
+                                                onChangeText={setFilterMinAge}
+                                                placeholder={t('dating.minAge')}
+                                                keyboardType="numeric"
+                                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                            />
+                                            <TextInput
+                                                style={[styles.filterInput, styles.filterInputHalf]}
+                                                value={filterMaxAge}
+                                                onChangeText={setFilterMaxAge}
+                                                placeholder={t('dating.maxAge')}
+                                                keyboardType="numeric"
+                                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                            />
+                                        </View>
 
-                                <View style={styles.filterBtnContainer}>
-                                    <TouchableOpacity
-                                        style={styles.glassButtonSecondary}
-                                        onPress={() => {
-                                            resetAllFilters();
-                                            fetchCandidates({
-                                                isNew: false,
-                                                city: '',
-                                                minAge: '',
-                                                maxAge: '',
-                                                madh: '',
-                                                yogaStyle: '',
-                                                guna: '',
-                                                identity: '',
-                                                skills: '',
-                                                industry: ''
-                                            });
-                                        }}
-                                    >
-                                        <Text style={styles.glassButtonText}>{t('dating.reset')}</Text>
+                                        <Text style={styles.filterLabel}>{t('dating.tradition')}</Text>
+                                        <TouchableOpacity style={styles.filterInput} onPress={() => setShowMadhPicker(true)}>
+                                            <Text style={filterMadhTextStyle}>
+                                                {filterMadh || t('dating.any')}
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        <Text style={styles.filterLabel}>{t('dating.yogaStyle')}</Text>
+                                        <TouchableOpacity style={styles.filterInput} onPress={() => setShowYogaPicker(true)}>
+                                            <Text style={filterYogaStyleTextStyle}>
+                                                {filterYogaStyle || t('dating.any')}
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        <Text style={styles.filterLabel}>{t('dating.guna')}</Text>
+                                        <TouchableOpacity style={styles.filterInput} onPress={() => setShowGunaPicker(true)}>
+                                            <Text style={filterGunaTextStyle}>
+                                                {filterGuna || t('dating.any')}
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        <Text style={styles.filterLabel}>{t('dating.identity')}</Text>
+                                        <TouchableOpacity style={styles.filterInput} onPress={() => setShowIdentityPicker(true)}>
+                                            <Text style={filterIdentityTextStyle}>
+                                                {filterIdentity || t('dating.any')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </ScrollView>
+
+                                    <View style={styles.filterBtnContainer}>
+                                        <TouchableOpacity
+                                            style={styles.glassButtonSecondary}
+                                            onPress={() => {
+                                                resetAllFilters();
+                                                fetchCandidates({
+                                                    isNew: false,
+                                                    city: '',
+                                                    minAge: '',
+                                                    maxAge: '',
+                                                    madh: '',
+                                                    yogaStyle: '',
+                                                    guna: '',
+                                                    identity: '',
+                                                    skills: '',
+                                                    industry: ''
+                                                });
+                                            }}
+                                        >
+                                            <Text style={styles.glassButtonText}>{t('dating.reset')}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={styles.premiumButtonPrimary}
+                                            onPress={() => { setShowFilters(false); fetchCandidates(); }}
+                                        >
+                                            <LinearGradient colors={[roleTheme.accent, roleTheme.accentStrong]} style={styles.buttonGradient}>
+                                                <Text style={styles.premiumButtonText}>{t('dating.apply')}</Text>
+                                            </LinearGradient>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <TouchableOpacity style={styles.modalCloseLink} onPress={() => setShowFilters(false)}>
+                                        <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={styles.premiumButtonPrimary}
-                                        onPress={() => { setShowFilters(false); fetchCandidates(); }}
-                                    >
-                                        <LinearGradient colors={[roleTheme.accent, roleTheme.accentStrong]} style={styles.buttonGradient}>
-                                            <Text style={styles.premiumButtonText}>{t('dating.apply')}</Text>
-                                        </LinearGradient>
-                                    </TouchableOpacity>
-                                </View>
-                                <TouchableOpacity style={styles.modalCloseLink} onPress={() => setShowFilters(false)}>
-                                    <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
-                                </TouchableOpacity>
-                            </LinearGradient>
+                                </LinearGradient>
                             </KeyboardAwareContainer>
                         </View>
                     </Modal>
@@ -1297,41 +1306,41 @@ export const DatingScreen = ({ onBack }: { onBack?: () => void }) => {
                         <View style={styles.modalOverlay}>
                             <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={20} />
                             <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
-                            <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax80]}>
-                                <View style={styles.modalHeader}>
-                                    <Text style={styles.modalTitle}>{t('dating.selectCity')}</Text>
-                                </View>
+                                <LinearGradient colors={['rgba(30,30,50,0.8)', 'rgba(15,15,25,0.95)']} style={[styles.modalContent, styles.modalContentMax80]}>
+                                    <View style={styles.modalHeader}>
+                                        <Text style={styles.modalTitle}>{t('dating.selectCity')}</Text>
+                                    </View>
 
-                                <TextInput
-                                    style={[styles.filterInput, styles.citySearchInput]}
-                                    value={citySearchQuery}
-                                    onChangeText={setCitySearchQuery}
-                                    placeholder={t('dating.searchCity')}
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
-                                />
+                                    <TextInput
+                                        style={[styles.filterInput, styles.citySearchInput]}
+                                        value={citySearchQuery}
+                                        onChangeText={setCitySearchQuery}
+                                        placeholder={t('dating.searchCity')}
+                                        placeholderTextColor="rgba(255,255,255,0.3)"
+                                    />
 
-                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pickerScrollContent}>
-                                    <TouchableOpacity
-                                        style={styles.pickerOptionRow}
-                                        onPress={() => { setFilterCity(''); setCitySearchQuery(''); setShowCityPicker(false); }}
-                                    >
-                                        <Text style={[styles.pickerAccentText, modalAccentTextStyle]}>{t('dating.allCities')}</Text>
-                                    </TouchableOpacity>
-                                    {filteredCities.map((city, index) => (
+                                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pickerScrollContent}>
                                         <TouchableOpacity
-                                            key={index}
                                             style={styles.pickerOptionRow}
-                                            onPress={() => { setFilterCity(city); setCitySearchQuery(''); setShowCityPicker(false); }}
+                                            onPress={() => { setFilterCity(''); setCitySearchQuery(''); setShowCityPicker(false); }}
                                         >
-                                            <Text style={styles.pickerOptionText}>{city}</Text>
+                                            <Text style={[styles.pickerAccentText, modalAccentTextStyle]}>{t('dating.allCities')}</Text>
                                         </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
+                                        {filteredCities.map((city, index) => (
+                                            <TouchableOpacity
+                                                key={index}
+                                                style={styles.pickerOptionRow}
+                                                onPress={() => { setFilterCity(city); setCitySearchQuery(''); setShowCityPicker(false); }}
+                                            >
+                                                <Text style={styles.pickerOptionText}>{city}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
 
-                                <TouchableOpacity style={styles.modalCloseLink} onPress={() => { setCitySearchQuery(''); setShowCityPicker(false); }}>
-                                    <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
-                                </TouchableOpacity>
-                            </LinearGradient>
+                                    <TouchableOpacity style={styles.modalCloseLink} onPress={() => { setCitySearchQuery(''); setShowCityPicker(false); }}>
+                                        <Text style={styles.modalCloseLinkText}>{t('dating.close')}</Text>
+                                    </TouchableOpacity>
+                                </LinearGradient>
                             </KeyboardAwareContainer>
                         </View>
                     </Modal>

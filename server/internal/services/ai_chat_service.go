@@ -157,6 +157,31 @@ func (s *AiChatService) makeRequest(modelID string, messages []map[string]string
 	return "", fmt.Errorf("Polza API key not configured. Please set it in admin panel.")
 }
 
+func (s *AiChatService) generateWithFallback(messages []map[string]string) (string, error) {
+	defaultModelID := s.getModel("deepseek/deepseek-chat")
+	log.Printf("[AiChatService] Attempting response with primary model: %s", defaultModelID)
+
+	content, err := s.makeRequest(defaultModelID, messages)
+	if err == nil {
+		return content, nil
+	}
+
+	log.Printf("[AiChatService] Primary model %s failed: %v. Initiating fallback...", defaultModelID, err)
+
+	fallbacks := s.getFallbackModelIDs(defaultModelID)
+	for _, fallbackModelID := range fallbacks {
+		log.Printf("[AiChatService] Retrying with fallback model: %s", fallbackModelID)
+		content, err := s.makeRequest(fallbackModelID, messages)
+		if err == nil {
+			log.Printf("[AiChatService] Fallback successful with model: %s", fallbackModelID)
+			return content, nil
+		}
+		log.Printf("[AiChatService] Fallback model %s failed: %v", fallbackModelID, err)
+	}
+
+	return "", fmt.Errorf("all AI models failed")
+}
+
 func (s *AiChatService) GenerateReply(roomName string, lastMessages []models.Message) (string, map[string]interface{}, error) {
 	// Construct message history for AI
 	var messages []map[string]string
@@ -346,33 +371,23 @@ func (s *AiChatService) GenerateSimpleResponse(prompt string) (string, error) {
 		{"role": "user", "content": finalPrompt},
 	}
 
-	defaultModelID := s.getModel("deepseek/deepseek-chat")
-	log.Printf("[AiChatService] Attempting simple response with primary model: %s", defaultModelID)
-
-	content, err := s.makeRequest(defaultModelID, messages)
-	if err == nil {
-		if s.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
-			content = s.domainAssistant.AppendSources(content, assistantContext)
-		}
-		return content, nil
+	content, err := s.generateWithFallback(messages)
+	if err != nil {
+		return "", err
 	}
 
-	log.Printf("[AiChatService] Primary model %s failed: %v. Initiating fallback...", defaultModelID, err)
-
-	// 2. Fallback Loop
-	fallbacks := s.getFallbackModelIDs(defaultModelID)
-	for _, fallbackModelID := range fallbacks {
-		log.Printf("[AiChatService] Retrying with fallback model: %s", fallbackModelID)
-		content, err := s.makeRequest(fallbackModelID, messages)
-		if err == nil {
-			if s.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
-				content = s.domainAssistant.AppendSources(content, assistantContext)
-			}
-			return content, nil
-		}
+	if s.domainAssistant != nil && assistantContext != nil && len(assistantContext.Sources) > 0 {
+		content = s.domainAssistant.AppendSources(content, assistantContext)
 	}
+	return content, nil
+}
 
-	return "", fmt.Errorf("all AI models failed")
+// GeneratePromptOnlyResponse sends prompt to the model stack without Domain Assistant pre-routing.
+func (s *AiChatService) GeneratePromptOnlyResponse(prompt string) (string, error) {
+	messages := []map[string]string{
+		{"role": "user", "content": prompt},
+	}
+	return s.generateWithFallback(messages)
 }
 
 func (s *AiChatService) GenerateResponse(ctx context.Context, messages []models.ChatMessage, modelID string, apiKey string) (string, error) {

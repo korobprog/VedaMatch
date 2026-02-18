@@ -18,7 +18,8 @@ import (
 )
 
 type DatingHandler struct {
-	aiService *services.AiChatService
+	aiService       *services.AiChatService
+	domainAssistant *services.DomainAssistantService
 }
 
 func parsePositiveUint(raw string) (uint, error) {
@@ -44,8 +45,57 @@ func requireDatingUserID(c *fiber.Ctx) (uint, error) {
 
 func NewDatingHandler(aiService *services.AiChatService) *DatingHandler {
 	return &DatingHandler{
-		aiService: aiService,
+		aiService:       aiService,
+		domainAssistant: services.GetDomainAssistantService(),
 	}
+}
+
+func buildSynastryRAGQuery(user models.User, candidate models.User) string {
+	userName := strings.TrimSpace(firstNonEmptyDating(user.SpiritualName, user.KarmicName))
+	candidateName := strings.TrimSpace(firstNonEmptyDating(candidate.SpiritualName, candidate.KarmicName))
+
+	return strings.TrimSpace(fmt.Sprintf(
+		`ведическая астрология джйотиш синастрия совместимость
+критерии: гуна милан, варна, накшатры, раши, 7 дом, упай, семейная гармония
+профиль A: %s, дата рождения %s, время %s, место %s, традиция %s, интересы %s
+профиль B: %s, дата рождения %s, время %s, место %s, традиция %s, интересы %s`,
+		userName, strings.TrimSpace(user.Dob), strings.TrimSpace(user.BirthTime), strings.TrimSpace(user.BirthPlaceLink), strings.TrimSpace(user.Madh), strings.TrimSpace(user.Interests),
+		candidateName, strings.TrimSpace(candidate.Dob), strings.TrimSpace(candidate.BirthTime), strings.TrimSpace(candidate.BirthPlaceLink), strings.TrimSpace(candidate.Madh), strings.TrimSpace(candidate.Interests),
+	))
+}
+
+func buildSynastryRAGBlock(ctxResp *services.DomainContextResponse) string {
+	if ctxResp == nil || len(ctxResp.Sources) == 0 {
+		return ""
+	}
+
+	limit := 5
+	if len(ctxResp.Sources) < limit {
+		limit = len(ctxResp.Sources)
+	}
+
+	var b strings.Builder
+	b.WriteString("RAG-контекст по ведическим источникам:\n")
+	for i := 0; i < limit; i++ {
+		src := ctxResp.Sources[i]
+		title := strings.TrimSpace(src.Title)
+		if title == "" {
+			title = fmt.Sprintf("%s/%s", src.Domain, src.SourceType)
+		}
+		b.WriteString(fmt.Sprintf("[%d] %s: %s\n", i+1, title, strings.TrimSpace(src.Snippet)))
+	}
+	b.WriteString("Используйте контекст как справку по терминам и принципам, но анализ делайте персонально по данным двух профилей.")
+
+	return strings.TrimSpace(b.String())
+}
+
+func firstNonEmptyDating(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func (h *DatingHandler) GetCandidates(c *fiber.Ctx) error {
@@ -187,10 +237,13 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 
 	// Check cache first
 	var cached models.DatingCompatibility
-	if err := database.DB.Where("user_id = ? AND candidate_id = ?", userID, candidateID).First(&cached).Error; err == nil {
-		return c.JSON(fiber.Map{
-			"compatibility": cached.CompatibilityText,
-		})
+	if err := database.DB.Where("user_id = ? AND candidate_id = ?", userID, candidateID).Order("created_at DESC").First(&cached).Error; err == nil {
+		lowerCached := strings.ToLower(strings.TrimSpace(cached.CompatibilityText))
+		if !strings.Contains(lowerCached, "не найдено достаточно данных") {
+			return c.JSON(fiber.Map{
+				"compatibility": cached.CompatibilityText,
+			})
+		}
 	}
 
 	var user, candidate models.User
@@ -204,6 +257,24 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 	if h.aiService == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "AI service not available"})
 	}
+
+	var ragCtx *services.DomainContextResponse
+	if h.domainAssistant != nil &&
+		h.domainAssistant.IsDomainAssistantEnabled() &&
+		h.domainAssistant.IsHybridEnabled() {
+		ctxResp, ragErr := h.domainAssistant.BuildAssistantContext(c.Context(), services.DomainContextRequest{
+			Query:          buildSynastryRAGQuery(user, candidate),
+			Domains:        []string{"library", "dating"},
+			TopK:           6,
+			UserID:         userID,
+			IncludePrivate: true,
+			StrictRouting:  false,
+		})
+		if ragErr == nil && ctxResp != nil && len(ctxResp.Sources) > 0 {
+			ragCtx = ctxResp
+		}
+	}
+	ragBlock := buildSynastryRAGBlock(ragCtx)
 
 	prompt := fmt.Sprintf(`Ты — потомственный ведический астролог (Джйотиш).
 Твоя задача — дать глубокий, но лаконичный анализ совместимости для %s.
@@ -219,11 +290,13 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 
 Используй термины джйотиш (Бхава, Раши, Накшатра) профессионально, но понятно.
 ОБЯЗАТЕЛЬНО начни ответ сразу с текста анализа. НЕ пиши приветствие, оно будет добавлено автоматически.
+Если точных данных рождения недостаточно для строгого расчета, явно обозначь ограничение и дай вероятностный практичный разбор.
+НЕ отвечай одной фразой "не найдено достаточно данных".
 СТРОГО ЗАПРЕЩЕНО: Не генерируй аудио, ссылки или HTML-теги. ТОЛЬКО ТЕКСТ. Не используй TTS.
 
 Данные для анализа:
 ---
-ПОЛЬЗОВАТЕЛЬ 1 (Кандидат):
+ПОЛЬЗОВАТЕЛЬ 1 (Вы):
 - Духовное имя: %s
 - Интересы: %s
 - Традиция: %s
@@ -232,7 +305,7 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 - Место рождения: %s
 - О себе: %s
 
-ПОЛЬЗОВАТЕЛЬ 2 (Партнер):
+ПОЛЬЗОВАТЕЛЬ 2 (Кандидат):
 - Духовное имя: %s
 - Интересы: %s
 - Традиция: %s
@@ -240,12 +313,15 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 - Время рождения: %s
 - Место рождения: %s
 - О себе: %s
----`,
+---
+
+%s`,
 		user.SpiritualName,
 		user.SpiritualName, user.Interests, user.Madh, user.Dob, user.BirthTime, user.BirthPlaceLink, user.Bio,
-		candidate.SpiritualName, candidate.Interests, candidate.Madh, candidate.Dob, candidate.BirthTime, candidate.BirthPlaceLink, candidate.Bio)
+		candidate.SpiritualName, candidate.Interests, candidate.Madh, candidate.Dob, candidate.BirthTime, candidate.BirthPlaceLink, candidate.Bio,
+		ragBlock)
 
-	resp, err := h.aiService.GenerateSimpleResponse(prompt)
+	resp, err := h.aiService.GeneratePromptOnlyResponse(prompt)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -253,6 +329,9 @@ func (h *DatingHandler) GetCompatibility(c *fiber.Ctx) error {
 	// Clean up response from potential hallucinations (audio tags, etc.)
 	// This removes <audio ...> tags and any lines starting with http
 	compatibilityAI := cleanResponse(resp)
+	if h.domainAssistant != nil && ragCtx != nil && len(ragCtx.Sources) > 0 {
+		compatibilityAI = h.domainAssistant.AppendSources(compatibilityAI, ragCtx)
+	}
 
 	// Manually prepend the greeting to ensure it's never truncated
 	greeting := fmt.Sprintf("Харе Кришна, дорогой %s! 🌟\n\n", user.SpiritualName)
@@ -622,4 +701,66 @@ func (h *DatingHandler) CheckIsFavorited(c *fiber.Ctx) error {
 
 func (h *DatingHandler) GetNotifications(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "Not implemented"})
+}
+
+// GetDatingPresentation returns public stats and top photos for landing page
+func (h *DatingHandler) GetDatingPresentation(c *fiber.Ctx) error {
+	modes := []string{"family", "business", "friendship", "seva"}
+	result := make(map[string]interface{})
+
+	type ProfileInfo struct {
+		AvatarURL string `json:"avatarUrl" gorm:"column:avatar_url"`
+		Skills    string `json:"skills" gorm:"column:skills"`
+		FavCount  int64  `json:"-" gorm:"column:fav_count"`
+	}
+
+	for _, mode := range modes {
+		var total int64
+		query := database.DB.Model(&models.User{}).Where("dating_enabled = ?", true)
+
+		if mode == "family" {
+			// Include people specifically looking for family OR people with no intentions set (default)
+			query = query.Where("intentions = ? OR intentions LIKE ? OR intentions IS NULL", "", "%family%")
+		} else {
+			query = query.Where("intentions LIKE ?", "%"+mode+"%")
+		}
+		query.Count(&total)
+
+		var profiles []ProfileInfo
+		pQuery := database.DB.Table("users").
+			Select("users.avatar_url, users.skills, count(dating_favorites.id) as fav_count").
+			Joins("left join dating_favorites on dating_favorites.candidate_id = users.id").
+			Where("users.dating_enabled = ? AND (users.avatar_url IS NOT NULL AND users.avatar_url != ?)", true, "")
+
+		if mode == "family" {
+			pQuery = pQuery.Where("(users.intentions = ? OR users.intentions LIKE ? OR users.intentions IS NULL)", "", "%family%")
+		} else {
+			pQuery = pQuery.Where("users.intentions LIKE ?", "%"+mode+"%")
+		}
+
+		err := pQuery.Group("users.id, users.avatar_url, users.skills").
+			Order("fav_count DESC").
+			Limit(10).
+			Scan(&profiles).Error
+
+		modeData := fiber.Map{
+			"profiles":   profiles,
+			"totalCount": total,
+		}
+
+		// Add gender breakdown for family mode
+		if mode == "family" {
+			var males, females int64
+			database.DB.Model(&models.User{}).Where("dating_enabled = ? AND (intentions = ? OR intentions LIKE ? OR intentions IS NULL) AND gender = ?", true, "", "%family%", "Male").Count(&males)
+			database.DB.Model(&models.User{}).Where("dating_enabled = ? AND (intentions = ? OR intentions LIKE ? OR intentions IS NULL) AND gender = ?", true, "", "%family%", "Female").Count(&females)
+			modeData["totalMale"] = males
+			modeData["totalFemale"] = females
+		}
+
+		if err == nil {
+			result[mode] = modeData
+		}
+	}
+
+	return c.JSON(result)
 }
