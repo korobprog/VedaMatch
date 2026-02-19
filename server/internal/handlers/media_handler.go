@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"rag-agent-server/internal/database"
+	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
 	"rag-agent-server/internal/websocket"
@@ -171,6 +172,11 @@ func parseUint(s string) uint {
 
 // UploadMessageMedia uploads a media file (image, audio, document) and creates a message
 func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
 	file, err := c.FormFile("file")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -179,14 +185,40 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 	}
 
 	mediaType := c.FormValue("type") // 'image', 'audio', 'document'
-	senderID := c.FormValue("senderId")
-	recipientID := c.FormValue("recipientId")
-	roomID := c.FormValue("roomId")
+	recipientIDRaw := strings.TrimSpace(c.FormValue("recipientId"))
+	roomIDRaw := strings.TrimSpace(c.FormValue("roomId"))
 	duration := c.FormValue("duration") // Audio duration in seconds
 
-	if mediaType == "" || senderID == "" {
+	if mediaType == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "type and senderId are required",
+			"error": "type is required",
+		})
+	}
+
+	var recipientID uint
+	var roomID uint
+	if recipientIDRaw != "" {
+		parsedRecipientID, parseErr := parseRequiredPositiveUint(recipientIDRaw)
+		if parseErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid recipientId"})
+		}
+		recipientID = parsedRecipientID
+	}
+	if roomIDRaw != "" {
+		parsedRoomID, parseErr := parseRequiredPositiveUint(roomIDRaw)
+		if parseErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid roomId"})
+		}
+		roomID = parsedRoomID
+	}
+	if recipientID == 0 && roomID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "recipientId or roomId is required",
+		})
+	}
+	if recipientID != 0 && roomID != 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "recipientId and roomId are mutually exclusive",
 		})
 	}
 
@@ -225,6 +257,27 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 
 	var fileURL string
 	var uploadErr error
+	senderID := strconv.FormatUint(uint64(actorID), 10)
+
+	roomName := ""
+	var roomMemberIDs []uint
+	if roomID != 0 {
+		room, roomErr := loadRoomByID(roomID)
+		if roomErr != nil {
+			return respondRoomLoadError(c, roomErr)
+		}
+		if _, accessErr := ensureRoomAccess(room, actorID, true); accessErr != nil {
+			return respondRoomAccessError(c, accessErr)
+		}
+		memberIDs, membersErr := getRoomMemberUserIDs(roomID)
+		if membersErr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not resolve room members",
+			})
+		}
+		roomMemberIDs = memberIDs
+		roomName = room.Name
+	}
 
 	s3Service := services.GetS3Service()
 
@@ -271,7 +324,7 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 	}
 
 	msg := models.Message{
-		SenderID: parseUint(senderID),
+		SenderID: actorID,
 		Content:  fileURL,
 		Type:     mediaType,
 		FileName: file.Filename,
@@ -286,13 +339,8 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 		}
 	}
 
-	if recipientID != "" {
-		msg.RecipientID = parseUint(recipientID)
-	}
-	if roomID != "" {
-		roomIDUint, _ := strconv.ParseUint(roomID, 10, 32)
-		msg.RoomID = uint(roomIDUint)
-	}
+	msg.RecipientID = recipientID
+	msg.RoomID = roomID
 
 	if err := database.DB.Create(&msg).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -300,8 +348,20 @@ func (h *MediaHandler) UploadMessageMedia(c *fiber.Ctx) error {
 		})
 	}
 
+	services.GetMessagePushService().Dispatch(msg, services.MessagePushOptions{
+		RoomName:      roomName,
+		RoomMemberIDs: roomMemberIDs,
+	})
+
 	if h.hub != nil {
-		h.hub.Broadcast(msg)
+		if msg.RoomID != 0 {
+			h.hub.Broadcast(msg, roomMemberIDs...)
+			if len(roomMemberIDs) > 0 {
+				_ = services.GetMetricsService().Increment(services.MetricRoomWSDeliveryTotal, int64(len(roomMemberIDs)))
+			}
+		} else {
+			h.hub.Broadcast(msg)
+		}
 	}
 
 	return c.JSON(msg)

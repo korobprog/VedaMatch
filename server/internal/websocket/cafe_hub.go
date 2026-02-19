@@ -38,6 +38,12 @@ func (e CafeEvent) GetType() string      { return string(e.Type) }
 func (e CafeEvent) GetSenderID() uint    { return 0 }
 func (e CafeEvent) GetRecipientID() uint { return e.TargetUserID }
 func (e CafeEvent) GetRoomID() uint      { return 0 }
+func (e CafeEvent) GetTargetUserIDs() []uint {
+	if e.TargetUserID == 0 {
+		return nil
+	}
+	return []uint{e.TargetUserID}
+}
 
 // CafeRoom represents a WebSocket room for a specific cafe
 type CafeRoom struct {
@@ -292,6 +298,9 @@ func (m RawMessage) GetType() string      { return "raw" }
 func (m RawMessage) GetSenderID() uint    { return 0 }
 func (m RawMessage) GetRecipientID() uint { return 0 }
 func (m RawMessage) GetRoomID() uint      { return 0 }
+func (m RawMessage) GetTargetUserIDs() []uint {
+	return nil
+}
 
 // ===== Helper functions to send cafe events =====
 

@@ -191,11 +191,25 @@ export const notificationService = {
         }
 
         if (data.type === 'new_message') {
-            const senderRaw = data.senderId || params.senderId;
+            const senderRaw = data.senderId || params.userId || params.senderId;
             const senderId = Number.parseInt(String(senderRaw || ''), 10);
             if (Number.isFinite(senderId) && senderId > 0) {
                 // @ts-ignore
                 navigationRef.navigate('Chat', { userId: senderId });
+            }
+            return;
+        }
+
+        if (data.type === 'room_message') {
+            const roomIDRaw = data.roomId || params.roomId;
+            const roomNameRaw = data.roomName || params.roomName;
+            const roomID = Number.parseInt(String(roomIDRaw || ''), 10);
+            if (Number.isFinite(roomID) && roomID > 0) {
+                const roomName = typeof roomNameRaw === 'string' && roomNameRaw.trim()
+                    ? roomNameRaw.trim()
+                    : 'Room';
+                // @ts-ignore
+                navigationRef.navigate('RoomChat', { roomId: roomID, roomName });
             }
             return;
         }

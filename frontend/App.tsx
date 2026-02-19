@@ -3,6 +3,7 @@ import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTh
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RNCallKeep from 'react-native-callkeep';
 import { Platform, PermissionsAndroid } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ChatProvider } from './context/ChatContext';
@@ -67,6 +68,7 @@ const getUUID = () => {
 };
 
 import { RoomChatScreen } from './screens/portal/chat/RoomChatScreen';
+import { RoomInviteEntryScreen } from './screens/portal/chat/RoomInviteEntryScreen';
 import { CallScreen } from './screens/calls/CallScreen';
 import { MediaLibraryScreen } from './screens/portal/dating/MediaLibraryScreen';
 import { EditDatingProfileScreen } from './screens/portal/dating/EditDatingProfileScreen';
@@ -158,6 +160,7 @@ import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
 import { crashReportingService } from './services/crashReportingService';
+import { PENDING_ROOM_INVITE_TOKEN_KEY } from './screens/portal/chat/roomInviteStorage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 import { navigationRef } from './navigation/navigationRef';
@@ -181,6 +184,7 @@ const AppContent = () => {
   const { isLoggedIn, isLoading, user } = useUser();
   const [showPreview, setShowPreview] = useState(true);
   const [minLoadTime, setMinLoadTime] = useState(false); // Force min loading time to hide flashes
+  const pendingRoomInviteTokenRef = React.useRef('');
   // Keep sipUser ref or state if needed to manage connection
 
   // Use WebSocket to listen for incoming WebRTC calls
@@ -315,6 +319,50 @@ const AppContent = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  React.useEffect(() => {
+    if (!isLoggedIn) {
+      pendingRoomInviteTokenRef.current = '';
+      return;
+    }
+
+    let cancelled = false;
+    const processPendingToken = () => {
+      void (async () => {
+        const rawToken = await AsyncStorage.getItem(PENDING_ROOM_INVITE_TOKEN_KEY);
+        if (cancelled) return;
+
+        const token = String(rawToken || '').trim();
+        if (!token) {
+          pendingRoomInviteTokenRef.current = '';
+          return;
+        }
+        if (pendingRoomInviteTokenRef.current === token) {
+          return;
+        }
+
+        if (!navigationRef.isReady()) {
+          setTimeout(() => {
+            if (!cancelled) {
+              processPendingToken();
+            }
+          }, 200);
+          return;
+        }
+
+        pendingRoomInviteTokenRef.current = token;
+        navigationRef.navigate('RoomInviteEntry', { token });
+      })().catch((error) => {
+        console.warn('[App] Failed to process pending room invite token', error);
+      });
+    };
+    const timer = setTimeout(processPendingToken, 200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isLoggedIn]);
+
   // Show preview only for non-logged-in users
   if (showPreview && !isLoggedIn && !isLoading) {
     return <PreviewScreen onFinish={() => setShowPreview(false)} />;
@@ -376,6 +424,7 @@ const AppContent = () => {
                     component={RoomChatScreen}
                     options={{ headerShown: true }}
                   />
+                  <Stack.Screen name="RoomInviteEntry" component={RoomInviteEntryScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
                   <Stack.Screen name="EditDatingProfile" component={EditDatingProfileScreen} />
                   <Stack.Screen name="DatingFavorites" component={DatingFavoritesScreen} />
@@ -499,6 +548,7 @@ const AppContent = () => {
                 </Stack.Group>
               ) : (
                 <Stack.Group>
+                  <Stack.Screen name="RoomInviteEntry" component={RoomInviteEntryScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
                   <Stack.Screen name="Registration" component={RegistrationScreen} />
                   <Stack.Screen name="SupportHome" component={SupportHomeScreen} options={{ headerShown: false }} />

@@ -287,7 +287,8 @@ func (s *YatraAdminService) RemoveParticipant(yatraID, participantID, adminID ui
 	// Remove from chat room
 	var yatra models.Yatra
 	if err := s.db.First(&yatra, yatraID).Error; err == nil && yatra.ChatRoomID != nil {
-		s.db.Where("room_id = ? AND user_id = ?", *yatra.ChatRoomID, participant.UserID).
+		s.db.Unscoped().
+			Where("room_id = ? AND user_id = ?", *yatra.ChatRoomID, participant.UserID).
 			Delete(&models.RoomMember{})
 	}
 

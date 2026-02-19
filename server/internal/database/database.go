@@ -50,7 +50,7 @@ func Connect() {
 	err = DB.AutoMigrate(
 		// Core models
 		&models.User{}, &models.AuthSession{}, &models.Friend{}, &models.Message{}, &models.Block{},
-		&models.Room{}, &models.RoomMember{}, &models.AiModel{}, &models.Media{},
+		&models.Room{}, &models.RoomMember{}, &models.RoomInviteToken{}, &models.AiModel{}, &models.Media{},
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
 		&models.ChannelPostDelivery{},
 		&models.ChannelPromotedAdImpression{},
@@ -153,6 +153,8 @@ func Connect() {
 	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_recipient_sender_id_desc
 		ON messages (recipient_id, sender_id, id DESC)`)
 
+	backfillRoomOwnerMemberships()
+
 	// Backfill support conversation channel for legacy rows created before channel field existed.
 	DB.Exec(`UPDATE support_conversations
 		SET channel = 'telegram'
@@ -225,6 +227,36 @@ func InitializeSuperAdmin() {
 		log.Printf("[AUTH] Failed to create superadmin: %v", err)
 	} else {
 		log.Printf("[AUTH] Superadmin %s created successfully", email)
+	}
+}
+
+func backfillRoomOwnerMemberships() {
+	if DB == nil {
+		return
+	}
+
+	if err := DB.Exec(`
+		INSERT INTO room_members (created_at, updated_at, room_id, user_id, role)
+		SELECT NOW(), NOW(), r.id, r.owner_id, 'owner'
+		FROM rooms r
+		WHERE r.owner_id > 0
+		ON CONFLICT (room_id, user_id) DO UPDATE
+		SET role = 'owner', deleted_at = NULL, updated_at = NOW()
+	`).Error; err != nil {
+		log.Printf("[Migration] Failed to backfill room owner memberships: %v", err)
+		return
+	}
+
+	if err := DB.Exec(`
+		UPDATE room_members rm
+		SET role = 'owner', updated_at = NOW()
+		FROM rooms r
+		WHERE rm.room_id = r.id
+		  AND rm.user_id = r.owner_id
+		  AND rm.deleted_at IS NULL
+		  AND rm.role <> 'owner'
+	`).Error; err != nil {
+		log.Printf("[Migration] Failed to normalize owner room role: %v", err)
 	}
 }
 

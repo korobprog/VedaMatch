@@ -931,7 +931,8 @@ func (s *YatraService) RemoveParticipant(yatraID uint, participantID uint, organ
 
 	// Remove from chat room
 	if yatra.ChatRoomID != nil {
-		if err := s.db.Where("room_id = ? AND user_id = ?", *yatra.ChatRoomID, participant.UserID).
+		if err := s.db.Unscoped().
+			Where("room_id = ? AND user_id = ?", *yatra.ChatRoomID, participant.UserID).
 			Delete(&models.RoomMember{}).Error; err != nil {
 			log.Printf("[YatraService] Failed to remove participant from chat yatra_id=%d room_id=%d user_id=%d: %v", yatraID, *yatra.ChatRoomID, participant.UserID, err)
 		}
@@ -1044,7 +1045,7 @@ func (s *YatraService) addParticipantToChat(yatraID uint, userID uint) {
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.RoomMember{
 				RoomID: room.ID,
 				UserID: yatra.OrganizerID,
-				Role:   "admin",
+				Role:   models.RoomRoleOwner,
 			}).Error; err != nil {
 				return err
 			}
@@ -1057,7 +1058,7 @@ func (s *YatraService) addParticipantToChat(yatraID uint, userID uint) {
 		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.RoomMember{
 			RoomID: *yatra.ChatRoomID,
 			UserID: userID,
-			Role:   "member",
+			Role:   models.RoomRoleMember,
 		}).Error
 	}); err != nil {
 		log.Printf("[YatraService] Failed to add participant to chat yatra_id=%d user_id=%d: %v", yatraID, userID, err)

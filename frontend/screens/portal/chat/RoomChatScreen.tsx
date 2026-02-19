@@ -35,6 +35,8 @@ import { RoomVideoBar } from '../../../components/chat/RoomVideoBar';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 import { authorizedFetch } from '../../../services/authSessionService';
+import { messageService } from '../../../services/messageService';
+import { appendLiveMessage, prependHistoryPage } from './roomChatMessageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
@@ -70,6 +72,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [settingsVisible, setSettingsVisible] = useState(false);
     const [isCallActive, setIsCallActive] = useState(false);
     const [sending, setSending] = useState(false);
+    const [nextBeforeId, setNextBeforeId] = useState<number | null>(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
     const [roomDetails, setRoomDetails] = useState<any>(null);
     const [currentVerse, setCurrentVerse] = useState<any>(null);
@@ -83,6 +88,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const latestChaptersRequestRef = useRef(0);
     const latestVerseRequestRef = useRef(0);
     const latestFontSettingsRequestRef = useRef(0);
+    const loadingOlderRef = useRef(false);
     const isMountedRef = useRef(true);
     const triggerTapFeedback = usePressFeedback();
 
@@ -207,44 +213,92 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         }
     };
 
+    const formatChatMessage = useCallback((m: any): ChatMessage | null => {
+        if (m?.ID == null) return null;
+        return {
+            id: String(m.ID),
+            content: m.content,
+            type: m.type || 'text',
+            fileName: m.fileName,
+            fileSize: m.fileSize,
+            duration: m.duration,
+            sender: m.senderId === user?.ID
+                ? (user?.spiritualName || user?.karmicName || t('common.me'))
+                : (m.senderId === 0 ? t('chat.aiAssistant') : m.senderName || t('common.other')),
+            isMe: m.senderId === user?.ID,
+            time: new Date(m.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+        };
+    }, [i18n.language, t, user?.ID, user?.karmicName, user?.spiritualName]);
+
     const fetchMessages = useCallback(async () => {
         const requestId = ++latestMessagesRequestRef.current;
+        setLoading(true);
         if (!user?.ID) {
             if (requestId === latestMessagesRequestRef.current) {
                 setLoading(false);
                 setMessages([]);
+                setHasMore(false);
+                setNextBeforeId(null);
             }
             return;
         }
         try {
-            const response = await authorizedFetch(`${API_PATH}/messages/${user?.ID}/0?roomId=${roomId}`);
-            if (response.ok) {
-                const data = await response.json();
-                const formattedMessages = data
-                    .filter((m: any) => m?.ID != null)
-                    .map((m: any) => ({
-                        id: String(m.ID),
-                        content: m.content,
-                        type: m.type || 'text',
-                        fileName: m.fileName,
-                        fileSize: m.fileSize,
-                        duration: m.duration,
-                        sender: m.senderId === user?.ID ? (user?.spiritualName || user?.karmicName || t('common.me')) : (m.senderId === 0 ? t('chat.aiAssistant') : m.senderName || t('common.other')),
-                        isMe: m.senderId === user?.ID,
-                        time: new Date(m.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
-                    }));
-                if (requestId === latestMessagesRequestRef.current && isMountedRef.current) {
-                    setMessages(formattedMessages);
-                }
+            const history = await messageService.getRoomMessagesHistory(roomId, 30);
+            if (requestId === latestMessagesRequestRef.current && isMountedRef.current) {
+                const formattedMessages = history.items
+                    .map(formatChatMessage)
+                    .filter((m): m is ChatMessage => m !== null);
+                setMessages(formattedMessages);
+                setHasMore(Boolean(history.hasMore));
+                setNextBeforeId(history.nextBeforeId ?? null);
             }
         } catch (error) {
             console.error('Error fetching messages:', error);
+            if (requestId === latestMessagesRequestRef.current && isMountedRef.current) {
+                setHasMore(false);
+                setNextBeforeId(null);
+            }
         } finally {
             if (requestId === latestMessagesRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }
-    }, [i18n.language, roomId, t, user?.ID, user?.karmicName, user?.spiritualName]);
+    }, [formatChatMessage, roomId, user?.ID]);
+
+    const loadOlderMessages = useCallback(async () => {
+        if (loadingOlderRef.current || loading || !hasMore || !nextBeforeId) {
+            return;
+        }
+
+        loadingOlderRef.current = true;
+        setIsLoadingOlder(true);
+        try {
+            const history = await messageService.getRoomMessagesHistory(roomId, 30, nextBeforeId);
+            if (!isMountedRef.current) return;
+
+            const olderMessages = history.items
+                .map(formatChatMessage)
+                .filter((m): m is ChatMessage => m !== null);
+            setMessages(prev => prependHistoryPage(prev, olderMessages));
+            setHasMore(Boolean(history.hasMore));
+            setNextBeforeId(history.nextBeforeId ?? null);
+        } catch (error) {
+            console.error('Error loading older room messages:', error);
+        } finally {
+            loadingOlderRef.current = false;
+            if (isMountedRef.current) {
+                setIsLoadingOlder(false);
+            }
+        }
+    }, [formatChatMessage, hasMore, loading, nextBeforeId, roomId]);
+
+    const handleMessagesScroll = useCallback((event: any) => {
+        if (!hasMore || loading || isLoadingOlder) return;
+        const offsetY = event?.nativeEvent?.contentOffset?.y;
+        if (typeof offsetY === 'number' && offsetY <= 48) {
+            void loadOlderMessages();
+        }
+    }, [hasMore, isLoadingOlder, loadOlderMessages, loading]);
 
     useEffect(() => {
         return () => {
@@ -254,6 +308,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             latestChaptersRequestRef.current += 1;
             latestVerseRequestRef.current += 1;
             latestFontSettingsRequestRef.current += 1;
+            loadingOlderRef.current = false;
         };
     }, []);
 
@@ -270,27 +325,14 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             }
             // Check if message belongs to this room
             if (String(msg?.roomId) === String(roomId) && msg?.ID != null) {
-                const formattedMsg = {
-                    id: String(msg.ID),
-                    content: msg.content,
-                    type: msg.type || 'text',
-                    fileName: msg.fileName,
-                    fileSize: msg.fileSize,
-                    duration: msg.duration,
-                    sender: msg.senderId === user?.ID ? (user?.spiritualName || user?.karmicName || t('common.me')) : (msg.senderId === 0 ? t('chat.aiAssistant') : msg.senderName || t('common.other')),
-                    isMe: msg.senderId === user?.ID,
-                    time: new Date(msg.CreatedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
-                };
-                setMessages(prev => {
-                    // Avoid duplicates (e.g. if we sent it and it came back via WS)
-                    if (prev.find(m => m.id === formattedMsg.id)) return prev;
-                    return [...prev, formattedMsg];
-                });
+                const formattedMsg = formatChatMessage(msg);
+                if (!formattedMsg) return;
+                setMessages(prev => appendLiveMessage(prev, formattedMsg));
             }
         });
 
         return () => removeListener();
-    }, [addListener, i18n.language, roomId, t, user?.ID, user?.karmicName, user?.spiritualName]);
+    }, [addListener, formatChatMessage, roomId]);
 
     useEffect(() => {
         navigation.setOptions({
@@ -371,6 +413,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     useEffect(() => {
         // Hide invite button for Yatra group chats - participants are managed via tour registration
         const isYatraChatRoom = isYatraChat || (roomDetails?.yatraId != null);
+        const myRole = String(roomDetails?.myRole || '').toLowerCase();
+        const canInvite = !isYatraChatRoom && (myRole === 'owner' || myRole === 'admin');
+        const canOpenSettings = myRole === 'owner';
 
         navigation.setOptions({
             headerRight: () => (
@@ -389,7 +434,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     }}
                 >
                     <BalancePill size="small" lightMode={false} />
-                    {!isYatraChatRoom && (
+                    {canInvite && (
                         <TouchableOpacity
                             onPress={() => setInviteVisible(true)}
                             style={{
@@ -408,23 +453,25 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             <UserPlus size={18} color={headerIconColor} />
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity
-                        onPress={() => setSettingsVisible(true)}
-                        style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 19,
-                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            borderWidth: 1,
-                            borderColor: headerCardBorder,
-                            ...vTheme.shadows.soft
-                        }}
-                        activeOpacity={0.86}
-                    >
-                        <Settings size={18} color={headerIconColor} />
-                    </TouchableOpacity>
+                    {canOpenSettings && (
+                        <TouchableOpacity
+                            onPress={() => setSettingsVisible(true)}
+                            style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 19,
+                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                borderWidth: 1,
+                                borderColor: headerCardBorder,
+                                ...vTheme.shadows.soft
+                            }}
+                            activeOpacity={0.86}
+                        >
+                            <Settings size={18} color={headerIconColor} />
+                        </TouchableOpacity>
+                    )}
                 </View>
             )
         });
@@ -930,6 +977,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 renderItem={renderMessage}
                                 keyboardShouldPersistTaps="handled"
                                 contentContainerStyle={styles.list}
+                                onScroll={handleMessagesScroll}
+                                scrollEventThrottle={100}
+                                ListHeaderComponent={isLoadingOlder ? (
+                                    <View style={{ paddingVertical: 12 }}>
+                                        <ActivityIndicator size="small" color={theme.accent} />
+                                    </View>
+                                ) : null}
                                 ListEmptyComponent={
                                     <View style={[
                                         styles.emptyState,

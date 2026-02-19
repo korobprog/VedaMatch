@@ -6,7 +6,6 @@ import {
     Modal,
     FlatList,
     TouchableOpacity,
-    useColorScheme,
     ActivityIndicator,
     Alert,
     TextInput,
@@ -15,7 +14,6 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
 import { X, Link2, UserPlus, ShieldCheck, UserMinus, Search, User as UserIcon } from 'lucide-react-native';
 import { COLORS } from '../../../components/chat/ChatConstants';
-import { ModernVedicTheme } from '../../../theme/ModernVedicTheme';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
 import { useSettings } from '../../../context/SettingsContext';
@@ -40,6 +38,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const [loading, setLoading] = useState(true);
     const [invitingId, setInvitingId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [creatingInviteLink, setCreatingInviteLink] = useState(false);
 
     const fetchFriends = async () => {
         if (!user) return;
@@ -76,7 +75,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             setLoading(true);
             fetchFriends();
         }
-    }, [visible, user]);
+    }, [roomId, visible, user]);
 
     const handleInvite = async (friendId: number) => {
         setInvitingId(friendId);
@@ -171,10 +170,39 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
         }
     };
 
-    const copyRoomLink = () => {
-        const link = `rag-agent://room/${roomId}`;
-        Clipboard.setString(link);
-        Alert.alert(t('common.success'), 'Link copied to clipboard');
+    const copyRoomLink = async () => {
+        if (creatingInviteLink) return;
+        setCreatingInviteLink(true);
+        try {
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/invite-link`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({}),
+            });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                Alert.alert(t('common.error'), data.error || 'Failed to create invite link');
+                return;
+            }
+            const data = await response.json().catch(() => ({}));
+            const inviteLink = typeof data?.inviteLink === 'string' && data.inviteLink.trim()
+                ? data.inviteLink.trim()
+                : (typeof data?.inviteToken === 'string' && data.inviteToken.trim()
+                    ? `vedamatch://rooms/join/${data.inviteToken.trim()}`
+                    : '');
+            if (!inviteLink) {
+                Alert.alert(t('common.error'), 'Invite link is unavailable');
+                return;
+            }
+            Clipboard.setString(inviteLink);
+            Alert.alert(t('common.success'), 'Invite link copied to clipboard');
+        } catch (error) {
+            Alert.alert(t('common.error'), 'Network error');
+        } finally {
+            setCreatingInviteLink(false);
+        }
     };
 
     const filteredFriends = friends
@@ -187,8 +215,13 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
     const renderItem = ({ item }: any) => {
         const memberRecord = roomMembers.find(m => m.user?.ID === item.ID);
         const isMember = !!memberRecord;
-        const isAdmin = memberRecord?.role === 'admin';
-        const canManage = currentUserRole === 'admin';
+        const memberRole = String(memberRecord?.role || '').toLowerCase();
+        const isOwner = memberRole === 'owner';
+        const isAdmin = memberRole === 'admin';
+        const currentRole = String(currentUserRole || '').toLowerCase();
+        const canRemove = currentRole === 'owner' || currentRole === 'admin';
+        const canPromote = currentRole === 'owner';
+        const canRemoveThisMember = canRemove && !isOwner && !(currentRole === 'admin' && isAdmin);
 
         return (
             <View style={[styles.friendItem, { borderBottomColor: vTheme.colors.divider }]}>
@@ -197,13 +230,13 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                 </View>
                 <View style={styles.friendInfo}>
                     <Text style={[styles.friendName, { color: vTheme.colors.text }]}>
-                        {item.karmicName} {isAdmin && '👑'}
+                        {item.karmicName} {(isAdmin || isOwner) && '👑'}
                     </Text>
                     <Text style={[styles.friendEmail, { color: vTheme.colors.textSecondary }]}>{item.email}</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {isMember && canManage && !isAdmin && (
+                    {isMember && canPromote && !isAdmin && !isOwner && (
                         <TouchableOpacity
                             style={[
                                 styles.iconButton,
@@ -221,8 +254,8 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                             styles.inviteButton,
                             { backgroundColor: isMember ? vTheme.colors.accent : vTheme.colors.primary }
                         ]}
-                        onPress={() => isMember ? (canManage ? handleRemove(item.ID) : null) : handleInvite(item.ID)}
-                        disabled={invitingId === item.ID || (isMember && !canManage)}
+                        onPress={() => isMember ? (canRemoveThisMember ? handleRemove(item.ID) : null) : handleInvite(item.ID)}
+                        disabled={invitingId === item.ID || (isMember && !canRemoveThisMember)}
                     >
                         {invitingId === item.ID ? (
                             <ActivityIndicator size="small" color="#fff" />
@@ -234,7 +267,7 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                                     <UserPlus size={16} color="#fff" />
                                 )}
                                 <Text style={styles.inviteButtonText}>
-                                    {isMember ? (canManage ? t('common.remove') || 'Remove' : 'Member') : t('chat.invite')}
+                                    {isMember ? (canRemoveThisMember ? t('common.remove') || 'Remove' : 'Member') : t('chat.invite')}
                                 </Text>
                             </View>
                         )}
@@ -261,8 +294,17 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
                         <Text style={[styles.modalTitle, { color: vTheme.colors.text }]}>
                             {t('chat.inviteFriends')}
                         </Text>
-                        <TouchableOpacity onPress={copyRoomLink} style={styles.headerIcon}>
-                            <Link2 size={24} color={vTheme.colors.primary} />
+                        <TouchableOpacity
+                            testID="invite-link-button"
+                            onPress={() => { void copyRoomLink(); }}
+                            style={styles.headerIcon}
+                            disabled={creatingInviteLink}
+                        >
+                            {creatingInviteLink ? (
+                                <ActivityIndicator size="small" color={vTheme.colors.primary} />
+                            ) : (
+                                <Link2 size={24} color={vTheme.colors.primary} />
+                            )}
                         </TouchableOpacity>
                     </View>
 

@@ -1240,8 +1240,8 @@ func (h *AdsHandler) ContactSeller(c *fiber.Ctx) error {
 				roomID = newRoom.ID
 
 				members := []models.RoomMember{
-					{RoomID: roomID, UserID: userID, Role: "admin"},
-					{RoomID: roomID, UserID: ad.UserID, Role: "member"},
+					{RoomID: roomID, UserID: userID, Role: models.RoomRoleOwner},
+					{RoomID: roomID, UserID: ad.UserID, Role: models.RoomRoleMember},
 				}
 				return tx.Create(&members).Error
 			})

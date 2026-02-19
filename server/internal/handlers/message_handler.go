@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"rag-agent-server/internal/config"
@@ -57,11 +58,31 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 
 	// LKM Billing: Check if this is an AI-enabled room
 	aiEnabled := false
+	roomName := ""
+	var roomMemberIDs []uint
 	if msg.RoomID != 0 {
-		var room models.Room
-		if err := database.DB.First(&room, msg.RoomID).Error; err == nil {
-			aiEnabled = room.AiEnabled
+		room, err := loadRoomByID(msg.RoomID)
+		if err != nil {
+			if errors.Is(err, errRoomNotFound) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Room not found"})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not load room"})
 		}
+
+		if _, err := ensureRoomAccess(room, userID, true); err != nil {
+			return respondRoomAccessError(c, err)
+		}
+
+		aiEnabled = room.AiEnabled
+		roomName = room.Name
+
+		memberIDs, err := getRoomMemberUserIDs(room.ID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not resolve room members",
+			})
+		}
+		roomMemberIDs = memberIDs
 	}
 
 	// If AI is enabled, charge 1 LKM per message
@@ -101,33 +122,21 @@ func (h *MessageHandler) SendMessage(c *fiber.Ctx) error {
 		})
 	}
 
-	// P2P push notifications are non-blocking and must not rollback saved message on failure.
-	if config.PushP2PEnabled() && msg.RoomID == 0 && msg.RecipientID != 0 {
-		go func(saved models.Message) {
-			pushMessage := services.PushMessage{
-				Title:    "Новое сообщение",
-				Body:     strings.TrimSpace(saved.Content),
-				Priority: "high",
-				Data: map[string]string{
-					"type":      "new_message",
-					"messageId": fmt.Sprintf("%d", saved.ID),
-					"senderId":  fmt.Sprintf("%d", saved.SenderID),
-					"chatType":  "p2p",
-				},
-			}
-			if pushMessage.Body == "" {
-				pushMessage.Body = "Вам пришло новое сообщение"
-			}
-			if err := services.GetPushService().SendToUser(saved.RecipientID, pushMessage); err != nil {
-				_ = services.GetMetricsService().Increment(services.MetricPushSendFail, 1)
-				log.Printf("[Message] P2P push failed message_id=%d recipient_id=%d error=%v", saved.ID, saved.RecipientID, err)
-			}
-		}(msg)
-	}
+	services.GetMessagePushService().Dispatch(msg, services.MessagePushOptions{
+		RoomName:      roomName,
+		RoomMemberIDs: roomMemberIDs,
+	})
 
 	// Broadcast via WebSocket
 	if h.hub != nil {
-		h.hub.Broadcast(msg)
+		if msg.RoomID != 0 {
+			h.hub.Broadcast(msg, roomMemberIDs...)
+			if len(roomMemberIDs) > 0 {
+				_ = services.GetMetricsService().Increment(services.MetricRoomWSDeliveryTotal, int64(len(roomMemberIDs)))
+			}
+		} else {
+			h.hub.Broadcast(msg)
+		}
 	}
 
 	// Trigger AI if it's a room message and AI is enabled
@@ -142,6 +151,10 @@ func (h *MessageHandler) handleAiResponse(roomID uint) {
 	var room models.Room
 	if err := database.DB.First(&room, roomID).Error; err != nil || !room.AiEnabled {
 		return
+	}
+	roomMemberIDs, roomMembersErr := getRoomMemberUserIDs(roomID)
+	if roomMembersErr != nil {
+		log.Printf("[AI] failed to load room members for websocket broadcast room_id=%d: %v", roomID, roomMembersErr)
 	}
 
 	// Fetch last messages for context
@@ -205,15 +218,30 @@ func (h *MessageHandler) handleAiResponse(roomID uint) {
 
 	// Broadcast AI response
 	if h.hub != nil {
-		h.hub.Broadcast(aiMsg)
+		h.hub.Broadcast(aiMsg, roomMemberIDs...)
+		if len(roomMemberIDs) > 0 {
+			_ = services.GetMetricsService().Increment(services.MetricRoomWSDeliveryTotal, int64(len(roomMemberIDs)))
+		}
 	}
 }
 
 func (h *MessageHandler) GetRoomSummary(c *fiber.Ctx) error {
-	roomID := c.Params("id")
-	var room models.Room
-	if err := database.DB.First(&room, roomID).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Room not found"})
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	roomID, err := parseRequiredPositiveUint(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid room id"})
+	}
+
+	room, err := loadRoomByID(roomID)
+	if err != nil {
+		return respondRoomLoadError(c, err)
+	}
+	if _, err := ensureRoomAccess(room, userID, true); err != nil {
+		return respondRoomAccessError(c, err)
 	}
 
 	var lastMessages []models.Message
@@ -237,19 +265,31 @@ func (h *MessageHandler) GetMessages(c *fiber.Ctx) error {
 		})
 	}
 
-	recipientID, err := strconv.ParseUint(strings.TrimSpace(c.Params("recipientId")), 10, 64)
-	if err != nil || recipientID == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid recipient ID",
-		})
-	}
-
 	roomId := c.Query("roomId")
 
 	query := database.DB.Order("created_at asc")
 	if roomId != "" {
-		query = query.Where("room_id = ?", roomId)
+		roomID, err := parseRequiredPositiveUint(roomId)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid room ID",
+			})
+		}
+		room, err := loadRoomByID(roomID)
+		if err != nil {
+			return respondRoomLoadError(c, err)
+		}
+		if _, err := ensureRoomAccess(room, userID, true); err != nil {
+			return respondRoomAccessError(c, err)
+		}
+		query = query.Where("room_id = ?", roomID)
 	} else {
+		recipientID, err := strconv.ParseUint(strings.TrimSpace(c.Params("recipientId")), 10, 64)
+		if err != nil || recipientID == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid recipient ID",
+			})
+		}
 		query = query.Where("(sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)",
 			userID, recipientID, recipientID, userID)
 	}
@@ -327,6 +367,15 @@ func (h *MessageHandler) GetMessagesHistory(c *fiber.Ctx) error {
 
 	query := database.DB.Model(&models.Message{})
 	if roomProvided {
+		room, roomErr := loadRoomByID(roomID)
+		if roomErr != nil {
+			middleware.SetErrorCode(c, "chat_history_room_not_found")
+			return respondRoomLoadError(c, roomErr)
+		}
+		if _, accessErr := ensureRoomAccess(room, userID, true); accessErr != nil {
+			middleware.SetErrorCode(c, "chat_history_room_forbidden")
+			return respondRoomAccessError(c, accessErr)
+		}
 		query = query.Where("room_id = ?", roomID)
 	} else {
 		query = query.Where(
@@ -381,6 +430,15 @@ func parseOptionalPositiveUint(raw string) (uint, bool, error) {
 		return 0, false, fmt.Errorf("invalid positive uint")
 	}
 	return uint(value), true, nil
+}
+
+func parseRequiredPositiveUint(raw string) (uint, error) {
+	raw = strings.TrimSpace(raw)
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || value == 0 {
+		return 0, fmt.Errorf("invalid positive uint")
+	}
+	return uint(value), nil
 }
 
 func reverseMessages(items []models.Message) []models.Message {

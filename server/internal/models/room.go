@@ -1,8 +1,38 @@
 package models
 
 import (
+	"strings"
+
 	"gorm.io/gorm"
 )
+
+const (
+	RoomRoleOwner  = "owner"
+	RoomRoleAdmin  = "admin"
+	RoomRoleMember = "member"
+)
+
+func NormalizeRoomRole(role string) string {
+	return strings.ToLower(strings.TrimSpace(role))
+}
+
+func IsValidRoomRole(role string) bool {
+	switch NormalizeRoomRole(role) {
+	case RoomRoleOwner, RoomRoleAdmin, RoomRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+func CanManageRoomMembers(role string) bool {
+	switch NormalizeRoomRole(role) {
+	case RoomRoleOwner, RoomRoleAdmin:
+		return true
+	default:
+		return false
+	}
+}
 
 type Room struct {
 	gorm.Model
@@ -32,5 +62,5 @@ type RoomMember struct {
 	gorm.Model
 	RoomID uint   `json:"roomId" gorm:"index:idx_room_user,unique"`
 	UserID uint   `json:"userId" gorm:"index:idx_room_user,unique"`
-	Role   string `json:"role" gorm:"default:'member'"` // 'admin', 'member'
+	Role   string `json:"role" gorm:"default:'member'"` // 'owner', 'admin', 'member'
 }

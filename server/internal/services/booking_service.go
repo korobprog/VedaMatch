@@ -349,12 +349,12 @@ func (s *BookingService) Confirm(bookingID, ownerID uint, req models.BookingActi
 		database.DB.Create(&models.RoomMember{
 			RoomID: room.ID,
 			UserID: booking.Service.OwnerID,
-			Role:   "admin",
+			Role:   models.RoomRoleOwner,
 		})
 		database.DB.Create(&models.RoomMember{
 			RoomID: room.ID,
 			UserID: booking.ClientID,
-			Role:   "member",
+			Role:   models.RoomRoleMember,
 		})
 
 		// Update booking with chat room ID

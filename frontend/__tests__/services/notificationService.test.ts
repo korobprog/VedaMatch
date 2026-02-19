@@ -72,4 +72,30 @@ describe('notificationService video circle publish push', () => {
 
     expect(mockNavigate).toHaveBeenCalledWith('VideoCirclesScreen');
   });
+
+  it('routes room_message payload to RoomChat', () => {
+    notificationService.handleNotificationAction({
+      type: 'room_message',
+      roomId: '42',
+      roomName: 'Bhakti Circle',
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('RoomChat', {
+      roomId: 42,
+      roomName: 'Bhakti Circle',
+    });
+  });
+
+  it('routes explicit RoomChat screen payload with params', () => {
+    notificationService.handleNotificationAction({
+      type: 'room_message',
+      screen: 'RoomChat',
+      params: JSON.stringify({ roomId: 99, roomName: 'Japa' }),
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('RoomChat', {
+      roomId: 99,
+      roomName: 'Japa',
+    });
+  });
 });

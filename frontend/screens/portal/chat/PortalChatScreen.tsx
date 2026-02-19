@@ -50,6 +50,7 @@ export const PortalChatScreen: React.FC = () => {
     const [editImageVisible, setEditImageVisible] = useState(false);
     const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
     const [selectedRoomImageUrl, setSelectedRoomImageUrl] = useState<string>('');
+    const [joiningRoomId, setJoiningRoomId] = useState<number | null>(null);
     const isPhotoBg = portalBackgroundType === 'image';
     const triggerTapFeedback = usePressFeedback();
 
@@ -87,12 +88,48 @@ export const PortalChatScreen: React.FC = () => {
         fetchRooms();
     };
 
+    const openRoom = async (room: any) => {
+        const roomID = Number(room?.ID);
+        if (!Number.isFinite(roomID) || roomID <= 0) {
+            return;
+        }
+
+        if (room?.canJoin && !room?.isMember) {
+            setJoiningRoomId(roomID);
+            try {
+                const response = await authorizedFetch(`${API_PATH}/rooms/${roomID}/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    Alert.alert(t('common.error'), data.error || 'Failed to join room');
+                    return;
+                }
+            } catch (error) {
+                Alert.alert(t('common.error'), 'Network error');
+                return;
+            } finally {
+                setJoiningRoomId(null);
+            }
+        }
+
+        navigation.navigate('RoomChat', { roomId: roomID, roomName: room.name });
+    };
+
     const renderItem = ({ item }: { item: any }) => {
         const isPreset = !!EMOJI_MAP[item.imageUrl];
         const mediaUrl = !isPreset ? getMediaUrl(item.imageUrl) : null;
         const emoji = EMOJI_MAP[item.imageUrl] || EMOJI_MAP['general'];
         const createdAt = new Date(item.CreatedAt);
         const roomMembers = item.membersCount || item.members_count || item.members?.length || 0;
+        const roomID = Number(item.ID);
+        const isJoining = joiningRoomId === roomID;
+        const myRole = String(item?.myRole || '').toLowerCase();
+        const canInviteMembers = myRole === 'owner' || myRole === 'admin';
+        const canEditRoomImage = myRole === 'owner';
 
         return (
             <TouchableOpacity
@@ -106,27 +143,36 @@ export const PortalChatScreen: React.FC = () => {
                 ]}
                 onPress={() => {
                     triggerTapFeedback();
-                    navigation.navigate('RoomChat', { roomId: item.ID, roomName: item.name });
+                    void openRoom(item);
                 }}
                 onLongPress={() => {
-                    // Admins only or everyone? Let's say everyone can invite for now
+                    const actions: Array<{ text: string; onPress?: () => void; style?: 'cancel' | 'default' | 'destructive' }> = [];
+                    if (canEditRoomImage) {
+                        actions.push({
+                            text: t('chat.editImage'),
+                            onPress: () => {
+                                setSelectedRoomId(item.ID);
+                                setSelectedRoomImageUrl(item.imageUrl || 'general');
+                                setEditImageVisible(true);
+                            }
+                        });
+                    }
+                    if (canInviteMembers) {
+                        actions.push({
+                            text: t('chat.inviteFriends'),
+                            onPress: () => setInviteVisible(true),
+                        });
+                    }
+                    if (actions.length === 0) {
+                        return;
+                    }
+
                     setSelectedRoomId(item.ID);
                     Alert.alert(
                         item.name,
                         t('chat.roomOptions'),
                         [
-                            {
-                                text: t('chat.editImage'),
-                                onPress: () => {
-                                    setSelectedRoomId(item.ID);
-                                    setSelectedRoomImageUrl(item.imageUrl || 'general');
-                                    setEditImageVisible(true);
-                                }
-                            },
-                            {
-                                text: t('chat.inviteFriends'),
-                                onPress: () => setInviteVisible(true),
-                            },
+                            ...actions,
                             {
                                 text: t('common.cancel'),
                                 style: 'cancel',
@@ -134,6 +180,7 @@ export const PortalChatScreen: React.FC = () => {
                         ]
                     );
                 }}
+                disabled={isJoining}
             >
                 <View style={[styles.chatIcon, { backgroundColor: colors.accentSoft }]}>
                     {mediaUrl ? (
@@ -167,7 +214,11 @@ export const PortalChatScreen: React.FC = () => {
                     </View>
                 </View>
                 <View style={[styles.chevronWrap, { borderColor: isPhotoBg ? 'rgba(255,255,255,0.28)' : colors.border }]}>
-                    <ChevronRight size={16} color={isPhotoBg ? '#FFFFFF' : colors.textSecondary} />
+                    {isJoining ? (
+                        <ActivityIndicator size="small" color={isPhotoBg ? '#FFFFFF' : colors.textSecondary} />
+                    ) : (
+                        <ChevronRight size={16} color={isPhotoBg ? '#FFFFFF' : colors.textSecondary} />
+                    )}
                 </View>
             </TouchableOpacity>
         );

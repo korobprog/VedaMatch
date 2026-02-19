@@ -26,7 +26,7 @@ func AuthRefreshV1Enabled() bool {
 }
 
 func ChatHistoryV2Enabled() bool {
-	return FlagEnabled("CHAT_HISTORY_V2", false)
+	return FlagEnabled("CHAT_HISTORY_V2", true)
 }
 
 func RAGLiteMarketEnabled() bool {
@@ -34,5 +34,5 @@ func RAGLiteMarketEnabled() bool {
 }
 
 func PushP2PEnabled() bool {
-	return FlagEnabled("PUSH_P2P", false)
+	return FlagEnabled("PUSH_P2P", true)
 }

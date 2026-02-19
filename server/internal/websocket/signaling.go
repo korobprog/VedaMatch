@@ -13,3 +13,9 @@ func (s SignalingMessage) GetType() string      { return s.Type }
 func (s SignalingMessage) GetSenderID() uint    { return s.SenderID }
 func (s SignalingMessage) GetRecipientID() uint { return s.TargetID }
 func (s SignalingMessage) GetRoomID() uint      { return 0 }
+func (s SignalingMessage) GetTargetUserIDs() []uint {
+	if s.TargetID == 0 {
+		return nil
+	}
+	return []uint{s.TargetID}
+}

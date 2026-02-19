@@ -29,6 +29,12 @@ export const linking: LinkingOptions<RootStackParamList> = {
 
             // Direct access to Invite Friends screen (for logged in users)
             InviteFriends: 'invite-friends',
+            RoomInviteEntry: {
+                path: 'rooms/join/:token',
+                parse: {
+                    token: (value: string) => value,
+                },
+            },
             Wallet: 'wallet',
             SupportHome: 'support',
             SupportTicketForm: 'support/ticket',
