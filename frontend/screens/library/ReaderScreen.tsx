@@ -1,8 +1,10 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, Switch, Share, ImageBackground, Platform, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, GestureResponderEvent, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
 import { ModernVedicTheme } from '../../theme/ModernVedicTheme';
 import { libraryService } from '../../services/libraryService';
 import { offlineBookService } from '../../services/offlineBookService';
@@ -17,11 +19,17 @@ import {
     ChevronRight,
     ArrowLeft,
     ArrowRight,
-    X
+    X,
+    MessageCircle,
+    Copy,
+    Share as ShareIcon,
+    Sparkles
 } from 'lucide-react-native';
 
 import { useUser } from '../../context/UserContext';
 import { useTranslation } from 'react-i18next';
+import { useSettings } from '../../context/SettingsContext';
+import { useRoleTheme } from '../../hooks/useRoleTheme';
 import type { RootStackParamList } from '../../types/navigation';
 declare var require: any;
 
@@ -33,7 +41,15 @@ export const ReaderScreen = () => {
     const navigation = useNavigation();
     const { t, i18n } = useTranslation();
     const { user } = useUser();
+    const { isDarkMode, portalBackgroundType } = useSettings();
+    const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const { bookCode, title } = route.params;
+
+    const isPhotoBg = portalBackgroundType === 'image';
+    const glassSurface = isPhotoBg || isDarkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.85)';
+    const glassBorder = isPhotoBg || isDarkMode ? 'rgba(255, 255, 255, 0.22)' : 'rgba(15, 23, 42, 0.1)';
+    const accentColor = roleColors.accent;
+
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);
     const [currentChapter, setCurrentChapter] = useState<number>(1);
     const [currentCanto, setCurrentCanto] = useState<number>(0);
@@ -50,6 +66,8 @@ export const ReaderScreen = () => {
     const latestChaptersRequestRef = useRef(0);
     const latestVersesRequestRef = useRef(0);
     const isMountedRef = useRef(true);
+
+    const fadeAnim = useRef(new Animated.Value(0)).current;
 
     // Reader Settings State
     const [showSettings, setShowSettings] = useState(false);
@@ -229,6 +247,7 @@ export const ReaderScreen = () => {
         const requestId = ++latestVersesRequestRef.current;
         if (isMountedRef.current) {
             setLoading(true);
+            Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
         }
         try {
             const data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language);
@@ -239,10 +258,10 @@ export const ReaderScreen = () => {
                 setActiveVerseIndex(0);
                 versePositions.current = {};
                 mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+                Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
             }
         } catch (error) {
             console.error('Failed to load verses from network, trying offline', error);
-            // Fallback to offline data
             const offlineData = await offlineBookService.getOfflineVerses(bookCode, chapter, canto, language);
             if (requestId !== latestVersesRequestRef.current || !isMountedRef.current) {
                 return;
@@ -254,8 +273,8 @@ export const ReaderScreen = () => {
                 setActiveVerseIndex(0);
                 versePositions.current = {};
                 mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+                Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
             } else {
-                console.error('No offline data available for this chapter');
                 setVerses([]);
             }
         } finally {
@@ -263,7 +282,7 @@ export const ReaderScreen = () => {
                 setLoading(false);
             }
         }
-    }, [bookCode, language]);
+    }, [bookCode, language, fadeAnim]);
 
     useEffect(() => {
         loadChapters();
@@ -271,24 +290,49 @@ export const ReaderScreen = () => {
 
     useEffect(() => {
         navigation.setOptions({
-            title: title,
+            headerTitle: () => (
+                <View style={styles.headerTitleWrap}>
+                    <Text style={[styles.headerTitleText, { color: roleColors.textPrimary }]}>{title}</Text>
+                    {chapters.length > 0 && (
+                        <Text style={[styles.headerSubtitleText, { color: roleColors.textSecondary }]}>
+                            {t('reader.chapter')} {currentChapter}
+                        </Text>
+                    )}
+                </View>
+            ),
             headerRight: () => (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TouchableOpacity onPress={() => setShowBookmarksList(true)} style={{ padding: 8 }}>
-                        <Bookmark size={22} color={ModernVedicTheme.colors.primary} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <TouchableOpacity
+                        onPress={() => setShowBookmarksList(true)}
+                        style={[styles.headerIconBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
+                    >
+                        <Bookmark size={20} color={roleColors.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowSettings(true)} style={{ padding: 8 }}>
-                        <Settings size={22} color={ModernVedicTheme.colors.primary} />
+                    <TouchableOpacity
+                        onPress={() => setShowSettings(true)}
+                        style={[styles.headerIconBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
+                    >
+                        <Settings size={20} color={roleColors.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={toggleLanguage} style={{ padding: 8 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FF8000' }}>
-                            {language === 'ru' ? 'RU' : 'EN'}
+                    <TouchableOpacity
+                        onPress={toggleLanguage}
+                        style={[styles.headerLangBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
+                    >
+                        <Text style={[styles.langText, { color: accentColor }]}>
+                            {language === 'ru' ? 'РУ' : 'EN'}
                         </Text>
                     </TouchableOpacity>
                 </View>
             ),
+            headerStyle: {
+                backgroundColor: isPhotoBg ? 'transparent' : roleColors.background,
+                elevation: 0,
+                shadowOpacity: 0,
+            },
+            headerTransparent: isPhotoBg,
+            headerTintColor: roleColors.textPrimary,
         });
-    }, [language, navigation, title, toggleLanguage]);
+    }, [language, navigation, title, toggleLanguage, roleColors, glassSurface, glassBorder, accentColor, currentChapter, chapters.length, isPhotoBg]);
 
     useEffect(() => {
         if (chapters.length === 0) {
@@ -388,21 +432,23 @@ export const ReaderScreen = () => {
     };
 
     const renderWithTheme = () => {
-        if (readerTheme === 'ancient') {
-            return (
-                <ImageBackground
-                    source={require('../../assets/ancient_parchment.png')}
-                    style={styles.container}
-                    imageStyle={{ opacity: 0.9 }}
-                >
-                    {content}
-                </ImageBackground>
-            );
-        }
+        const bgSource = readerTheme === 'ancient' ? require('../../assets/ancient_parchment.png') : null;
 
         return (
-            <View style={[styles.container, styles[readerTheme]]}>
-                {content}
+            <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
+                {bgSource ? (
+                    <ImageBackground
+                        source={bgSource}
+                        style={styles.container}
+                        imageStyle={{ opacity: 0.9 }}
+                    >
+                        {content}
+                    </ImageBackground>
+                ) : (
+                    <View style={[styles.container, styles[readerTheme]]}>
+                        {content}
+                    </View>
+                )}
             </View>
         );
     };
@@ -416,73 +462,78 @@ export const ReaderScreen = () => {
                 onRequestClose={() => setShowSettings(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={styles.settingsContainer}>
+                    <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowSettings(false)} />
+                    <View style={[styles.settingsContainer, { backgroundColor: roleColors.background, borderColor: roleColors.border }]}>
+                        {isPhotoBg && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType={isDarkMode ? 'dark' : 'light'}
+                                blurAmount={20}
+                                reducedTransparencyFallbackColor={roleColors.surfaceElevated}
+                            />
+                        )}
                         <View style={styles.settingsHeader}>
-                            <Text style={styles.settingsTitle}>{t('reader.settings', 'Настройки чтения')}</Text>
-                            <TouchableOpacity onPress={() => setShowSettings(false)} style={styles.closeBtn}>
-                                <X size={24} color="#999" />
+                            <Text style={[styles.settingsTitle, { color: roleColors.textPrimary }]}>{t('reader.settings', 'Настройки чтения')}</Text>
+                            <TouchableOpacity onPress={() => setShowSettings(false)} style={[styles.closeBtn, { backgroundColor: glassSurface }]}>
+                                <X size={20} color={roleColors.textPrimary} />
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView style={styles.settingsScroll}>
-                            <View style={styles.settingRow}>
-                                <Text style={styles.settingLabel}>{t('reader.show_sanskrit', 'Санскрит')}</Text>
-                                <Switch value={showSanskrit} onValueChange={setShowSanskrit} trackColor={{ true: '#FF8000' }} />
-                            </View>
-                            <View style={styles.settingRow}>
-                                <Text style={styles.settingLabel}>{t('reader.show_translit', 'Транслитерация')}</Text>
-                                <Switch value={showTransliteration} onValueChange={setShowTransliteration} trackColor={{ true: '#FF8000' }} />
-                            </View>
-                            <View style={styles.settingRow}>
-                                <Text style={styles.settingLabel}>{t('reader.show_translation', 'Перевод')}</Text>
-                                <Switch value={showTranslation} onValueChange={setShowTranslation} trackColor={{ true: '#FF8000' }} />
-                            </View>
-                            <View style={styles.settingRow}>
-                                <Text style={styles.settingLabel}>{t('reader.show_purport', 'Комментарий')}</Text>
-                                <Switch value={showPurport} onValueChange={setShowPurport} trackColor={{ true: '#FF8000' }} />
+                        <ScrollView style={styles.settingsScroll} showsVerticalScrollIndicator={false}>
+                            <View style={[styles.glassSettingCard, { backgroundColor: glassSurface, borderColor: glassBorder }]}>
+                                <View style={styles.settingRow}>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_sanskrit', 'Санскрит')}</Text>
+                                    <Switch value={showSanskrit} onValueChange={setShowSanskrit} trackColor={{ true: accentColor }} />
+                                </View>
+                                <View style={styles.settingRow}>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_translit', 'Транслитерация')}</Text>
+                                    <Switch value={showTransliteration} onValueChange={setShowTransliteration} trackColor={{ true: accentColor }} />
+                                </View>
+                                <View style={styles.settingRow}>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_translation', 'Перевод')}</Text>
+                                    <Switch value={showTranslation} onValueChange={setShowTranslation} trackColor={{ true: accentColor }} />
+                                </View>
+                                <View style={styles.settingRow}>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.show_purport', 'Комментарий')}</Text>
+                                    <Switch value={showPurport} onValueChange={setShowPurport} trackColor={{ true: accentColor }} />
+                                </View>
                             </View>
 
-                            <View style={styles.divider} />
-
-                            <Text style={styles.sectionLabel}>{t('reader.font_size', 'Размер шрифта')}</Text>
-                            <View style={styles.fontSizeControls}>
-                                <TouchableOpacity onPress={() => setFontSizeBase(prev => Math.max(12, prev - 2))} style={styles.fontBtn}>
-                                    <Text style={styles.fontBtnText}>A-</Text>
+                            <Text style={[styles.sectionLabel, { color: roleColors.textSecondary }]}>{t('reader.font_size', 'Размер шрифта')}</Text>
+                            <View style={[styles.glassSettingCard, { backgroundColor: glassSurface, borderColor: glassBorder, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }]}>
+                                <TouchableOpacity onPress={() => setFontSizeBase(prev => Math.max(12, prev - 2))} style={[styles.fontBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}>
+                                    <Text style={[styles.fontBtnText, { color: accentColor }]}>A-</Text>
                                 </TouchableOpacity>
-                                <Text style={styles.fontSizeValue}>{fontSizeBase}</Text>
-                                <TouchableOpacity onPress={() => setFontSizeBase(prev => Math.min(30, prev + 2))} style={styles.fontBtn}>
-                                    <Text style={styles.fontBtnText}>A+</Text>
+                                <Text style={[styles.fontSizeValue, { color: roleColors.textPrimary }]}>{fontSizeBase}</Text>
+                                <TouchableOpacity onPress={() => setFontSizeBase(prev => Math.min(30, prev + 2))} style={[styles.fontBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}>
+                                    <Text style={[styles.fontBtnText, { color: accentColor }]}>A+</Text>
                                 </TouchableOpacity>
                             </View>
 
-                            <View style={styles.settingRow}>
-                                <Text style={styles.settingLabel}>{t('reader.font_bold', 'Жирный шрифт')}</Text>
-                                <Switch value={fontBold} onValueChange={setFontBold} trackColor={{ true: '#FF8000' }} />
+                            <View style={[styles.glassSettingCard, { backgroundColor: glassSurface, borderColor: glassBorder, marginTop: 15 }]}>
+                                <View style={styles.settingRow}>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.font_bold', 'Жирный шрифт')}</Text>
+                                    <Switch value={fontBold} onValueChange={setFontBold} trackColor={{ true: accentColor }} />
+                                </View>
+                                <View style={styles.settingRow}>
+                                    <Text style={[styles.settingLabel, { color: roleColors.textPrimary }]}>{t('reader.font_serif', 'С засечками')}</Text>
+                                    <Switch value={isSerif} onValueChange={setIsSerif} trackColor={{ true: accentColor }} />
+                                </View>
                             </View>
 
-                            <View style={styles.settingRow}>
-                                <Text style={styles.settingLabel}>{t('reader.font_serif', 'С засечками')}</Text>
-                                <Switch value={isSerif} onValueChange={setIsSerif} trackColor={{ true: '#FF8000' }} />
-                            </View>
-
-                            <View style={styles.divider} />
-
-                            <Text style={styles.sectionLabel}>{t('reader.theme', 'Тема оформления')}</Text>
+                            <Text style={[styles.sectionLabel, { color: roleColors.textSecondary }]}>{t('reader.theme', 'Тема оформления')}</Text>
                             <View style={styles.themeSelector}>
                                 {(['paper', 'sepia', 'ancient', 'dark'] as ReaderTheme[]).map((tName) => (
                                     <TouchableOpacity
                                         key={tName}
                                         style={[
                                             styles.themeBtn,
-                                            readerTheme === tName && styles.activeThemeBtn,
-                                            { backgroundColor: tName === 'paper' ? '#FFF8E1' : tName === 'sepia' ? '#F4ECD8' : tName === 'ancient' ? '#F1E5AC' : '#1A1A1A' }
+                                            { backgroundColor: tName === 'paper' ? '#FFF8E1' : tName === 'sepia' ? '#F4ECD8' : tName === 'ancient' ? '#F1E5AC' : '#1A1A1A' },
+                                            readerTheme === tName && { borderColor: accentColor, borderWidth: 2 }
                                         ]}
                                         onPress={() => setReaderTheme(tName)}
                                     >
-                                        <Text style={[
-                                            styles.themeBtnText,
-                                            { color: tName === 'dark' ? '#FFF' : '#333' }
-                                        ]}>
+                                        <Text style={[styles.themeBtnText, { color: tName === 'dark' ? '#FFF' : '#333' }]}>
                                             {t(`reader.theme_${tName}`, tName)}
                                         </Text>
                                     </TouchableOpacity>
@@ -499,31 +550,39 @@ export const ReaderScreen = () => {
                 animationType="fade"
                 onRequestClose={() => setShowBookmarksList(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.settingsContainer, { height: '80%' }]}>
+                <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.7)' }]}>
+                    <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowBookmarksList(false)} />
+                    <View style={[styles.bookmarksContainer, { backgroundColor: roleColors.background, borderColor: roleColors.border }]}>
+                        {isPhotoBg && (
+                            <BlurView
+                                style={StyleSheet.absoluteFill}
+                                blurType={isDarkMode ? 'dark' : 'light'}
+                                blurAmount={20}
+                            />
+                        )}
                         <View style={styles.settingsHeader}>
-                            <Text style={styles.settingsTitle}>{t('reader.bookmarks', 'Ваши закладки')}</Text>
-                            <TouchableOpacity onPress={() => setShowBookmarksList(false)} style={styles.closeBtn}>
-                                <X size={24} color="#999" />
+                            <Text style={[styles.settingsTitle, { color: roleColors.textPrimary }]}>{t('reader.bookmarks', 'Ваши закладки')}</Text>
+                            <TouchableOpacity onPress={() => setShowBookmarksList(false)} style={[styles.closeBtn, { backgroundColor: glassSurface }]}>
+                                <X size={20} color={roleColors.textPrimary} />
                             </TouchableOpacity>
                         </View>
-                        <ScrollView>
+                        <ScrollView showsVerticalScrollIndicator={false}>
                             {bookmarks.length === 0 ? (
-                                <Text style={styles.emptyText}>{t('reader.no_bookmarks', 'Закладок пока нет')}</Text>
+                                <View style={styles.emptyWrap}>
+                                    <Bookmark size={48} color={roleColors.textSecondary} style={{ opacity: 0.3, marginBottom: 15 }} />
+                                    <Text style={[styles.emptyText, { color: roleColors.textSecondary }]}>{t('reader.no_bookmarks', 'Закладок пока нет')}</Text>
+                                </View>
                             ) : (
                                 bookmarks.map((bId) => {
                                     const [bCode, ch, v] = bId.split('-');
-                                    if (bCode !== bookCode) return null; // Only show for current book
+                                    if (bCode !== bookCode) return null;
                                     return (
                                         <TouchableOpacity
                                             key={bId}
-                                            style={styles.bookmarkItem}
+                                            style={[styles.bookmarkItem, { backgroundColor: glassSurface, borderColor: glassBorder }]}
                                             onPress={async () => {
                                                 const targetChapter = parseInt(ch, 10);
-                                                if (Number.isNaN(targetChapter)) {
-                                                    return;
-                                                }
-
+                                                if (Number.isNaN(targetChapter)) return;
                                                 if (targetChapter !== currentChapter) {
                                                     const targetChapterMeta = chapters.find((chapter) => chapter.chapter === targetChapter);
                                                     pendingBookmarkVerseRef.current = v;
@@ -535,18 +594,21 @@ export const ReaderScreen = () => {
                                                 setShowBookmarksList(false);
                                             }}
                                         >
-                                            <Text style={styles.bookmarkText}>
-                                                {t('reader.chapter')} {ch}, {t('reader.text')} {v}
-                                            </Text>
-                                            <TouchableOpacity onPress={(event: GestureResponderEvent) => {
-                                                event.stopPropagation();
-                                                const targetChapter = parseInt(ch, 10);
-                                                if (Number.isNaN(targetChapter)) {
-                                                    return;
-                                                }
-                                                void toggleBookmark({ chapter: targetChapter, verse: v });
-                                            }}>
-                                                <Trash2 size={18} color="#FF5252" />
+                                            <View style={styles.bookmarkInfo}>
+                                                <Sparkles size={14} color={accentColor} style={{ marginRight: 8 }} />
+                                                <Text style={[styles.bookmarkText, { color: roleColors.textPrimary }]}>
+                                                    {t('reader.chapter')} {ch}, {t('reader.text')} {v}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={(event: GestureResponderEvent) => {
+                                                    event.stopPropagation();
+                                                    const targetChapter = parseInt(ch, 10);
+                                                    if (!Number.isNaN(targetChapter)) void toggleBookmark({ chapter: targetChapter, verse: v });
+                                                }}
+                                                style={[styles.bookmarkTrash, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}
+                                            >
+                                                <Trash2 size={16} color={roleColors.danger} />
                                             </TouchableOpacity>
                                         </TouchableOpacity>
                                     )
@@ -557,218 +619,202 @@ export const ReaderScreen = () => {
                 </View>
             </Modal>
 
-            <View style={[
-                styles.navigationHeader,
-                readerTheme === 'dark' && { backgroundColor: '#222', borderBottomColor: '#444' },
-                readerTheme === 'ancient' && { backgroundColor: 'rgba(234, 215, 164, 0.8)', borderBottomColor: '#DBC18B' }
-            ]}>
-                <View style={[
-                    styles.chapterSelector,
-                    readerTheme === 'dark' && { backgroundColor: '#222', borderBottomColor: '#333' },
-                    readerTheme === 'ancient' && { backgroundColor: 'transparent', borderBottomColor: '#DBC18B' }
-                ]}>
+            <View style={[styles.navigationHeader, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
+                {isPhotoBg && (
+                    <BlurView
+                        style={StyleSheet.absoluteFill}
+                        blurType={isDarkMode ? 'dark' : 'light'}
+                        blurAmount={12}
+                    />
+                )}
+                <View style={styles.chapterSelector}>
                     <TouchableOpacity
                         onPress={goToPreviousChapter}
                         disabled={!canGoPrevious()}
-                        style={[styles.navButton, !canGoPrevious() && styles.navButtonDisabled]}
+                        style={[styles.navButton, { backgroundColor: glassSurface, borderColor: glassBorder }, !canGoPrevious() && styles.navButtonDisabled]}
                     >
-                        <ChevronLeft size={24} color={ModernVedicTheme.colors.primary} />
+                        <ChevronLeft size={20} color={roleColors.textPrimary} />
                     </TouchableOpacity>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll} contentContainerStyle={{ alignItems: 'center' }}>
-                        {chapters.map((ch) => (
-                            <TouchableOpacity
-                                key={`${ch.canto}-${ch.chapter}`}
-                                style={[styles.chapterBtn, currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && styles.activeBtn]}
-                                onPress={() => loadVerses(ch.chapter, ch.canto)}
-                            >
-                                <Text style={[
-                                    styles.chapterText,
-                                    currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && styles.activeText,
-                                    readerTheme === 'dark' && { color: '#888' },
-                                    readerTheme === 'ancient' && { color: '#5D4037' },
-                                    currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && readerTheme === 'dark' && { color: '#FF8000' },
-                                    currentChapter === ch.chapter && (ch.canto || 0) === currentCanto && readerTheme === 'ancient' && { color: '#BF360C' }
-                                ]}>
-                                    {t('reader.chapter', 'Chapter')} {ch.chapter}
-                                    {ch.chapter_title ? `: ${ch.chapter_title}` : ''}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll} contentContainerStyle={{ alignItems: 'center', paddingHorizontal: 10 }}>
+                        {chapters.map((ch) => {
+                            const isActive = currentChapter === ch.chapter && (ch.canto || 0) === currentCanto;
+                            return (
+                                <TouchableOpacity
+                                    key={`${ch.canto}-${ch.chapter}`}
+                                    style={[
+                                        styles.chapterBtn,
+                                        { backgroundColor: isActive ? accentColor : glassSurface, borderColor: isActive ? accentColor : glassBorder }
+                                    ]}
+                                    onPress={() => loadVerses(ch.chapter, ch.canto)}
+                                >
+                                    <Text style={[styles.chapterText, { color: isActive ? '#FFF' : roleColors.textPrimary }]}>
+                                        {ch.chapter}
+                                    </Text>
+                                    {isActive && ch.chapter_title && (
+                                        <Text style={styles.activeTitleLabel} numberOfLines={1}>{ch.chapter_title}</Text>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
                     </ScrollView>
                     <TouchableOpacity
                         onPress={goToNextChapter}
                         disabled={!canGoNext()}
-                        style={[styles.navButton, !canGoNext() && styles.navButtonDisabled]}
+                        style={[styles.navButton, { backgroundColor: glassSurface, borderColor: glassBorder }, !canGoNext() && styles.navButtonDisabled]}
                     >
-                        <ChevronRight size={24} color={ModernVedicTheme.colors.primary} />
+                        <ChevronRight size={20} color={roleColors.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
                 {verses.length > 0 && (
-                    <View style={[
-                        styles.verseSelector,
-                        readerTheme === 'dark' && { backgroundColor: '#2a2a2a' },
-                        readerTheme === 'ancient' && { backgroundColor: 'rgba(219, 193, 139, 0.5)' }
-                    ]}>
+                    <View style={styles.verseSelector}>
                         <ScrollView
                             ref={verseSelectorRef}
                             horizontal
                             showsHorizontalScrollIndicator={false}
                             style={styles.verseScroll}
-                            contentContainerStyle={{ paddingHorizontal: 12 }}
+                            contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center' }}
                         >
-                            {verses.map((v, index) => (
-                                <TouchableOpacity
-                                    key={`selector-${v.id || `${v.chapter}-${v.verse}-${index}`}`}
-                                    style={[
-                                        styles.verseBtn,
-                                        activeVerseIndex === index && styles.activeVerseBtn,
-                                        activeVerseIndex === index && readerTheme === 'dark' && { backgroundColor: '#444' },
-                                        activeVerseIndex === index && readerTheme === 'ancient' && { backgroundColor: '#C8AD7F' }
-                                    ]}
-                                    onPress={() => handleVersePress(index)}
-                                >
-                                    <Text style={[
-                                        styles.verseBtnText,
-                                        activeVerseIndex === index && styles.activeVerseBtnText,
-                                        readerTheme === 'dark' && { color: '#888' },
-                                        readerTheme === 'ancient' && { color: '#5D4037' },
-                                        activeVerseIndex === index && readerTheme === 'dark' && { color: '#FF8000' },
-                                        activeVerseIndex === index && readerTheme === 'ancient' && { color: '#BF360C' }
-                                    ]}>
-                                        {v.verse}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+                            {verses.map((v, index) => {
+                                const isActive = activeVerseIndex === index;
+                                return (
+                                    <TouchableOpacity
+                                        key={`selector-${v.id || `${v.chapter}-${v.verse}-${index}`}`}
+                                        style={[
+                                            styles.verseBtn,
+                                            { backgroundColor: isActive ? accentColor : glassSurface, borderColor: isActive ? accentColor : glassBorder }
+                                        ]}
+                                        onPress={() => handleVersePress(index)}
+                                    >
+                                        <Text style={[styles.verseBtnText, { color: isActive ? '#FFF' : roleColors.textPrimary }]}>
+                                            {v.verse}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </ScrollView>
                     </View>
                 )}
             </View>
 
             {loading ? (
-                <View style={[styles.loadingContainer, readerTheme !== 'ancient' && styles[readerTheme]]}>
-                    <ActivityIndicator size="large" color="#FF8000" />
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={accentColor} />
+                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>{t('common.loading', 'Загрузка...')}</Text>
                 </View>
             ) : (
-                <ScrollView
-                    ref={mainScrollRef}
-                    contentContainerStyle={[styles.textContainer, readerTheme !== 'ancient' && styles[readerTheme]]}
-                    onScroll={handleScroll}
-                    scrollEventThrottle={16}
-                >
-                    {verses.map((v, index) => {
-                        const isBookmarked = bookmarks.includes(`${bookCode}-${v.chapter}-${v.verse}`);
-                        return (
-                            <View
-                                key={v.id || `${v.chapter}-${v.verse}-${index}`}
-                                style={[
-                                    styles.verseContainer,
-                                    readerTheme === 'dark' && { backgroundColor: '#2a2a2a' },
-                                    readerTheme === 'ancient' && { backgroundColor: 'rgba(234, 215, 164, 0.6)', borderColor: '#DBC18B', borderWidth: 1 }
-                                ]}
-                                onLayout={(event: LayoutChangeEvent) => onVerseLayout(index, event.nativeEvent.layout.y)}
-                            >
-                                <View style={styles.verseHeader}>
-                                    <Text style={[
-                                        styles.verseNumber,
-                                        readerTheme === 'dark' && { color: '#FF8000' },
-                                        readerTheme === 'ancient' && { color: '#BF360C' }
-                                    ]}>{t('reader.text', 'Text')} {v.verse}</Text>
-                                    <View style={{ flexDirection: 'row' }}>
-                                        <TouchableOpacity onPress={() => shareVerse(v)} style={{ padding: 5, marginRight: 10 }}>
-                                            <Share2 size={18} color={ModernVedicTheme.colors.primary} />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => toggleBookmark(v)} style={{ padding: 5 }}>
-                                            <Star size={20} color={isBookmarked ? '#FFD700' : ModernVedicTheme.colors.textSecondary} fill={isBookmarked ? '#FFD700' : 'transparent'} />
-                                        </TouchableOpacity>
+                <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+                    <ScrollView
+                        ref={mainScrollRef}
+                        contentContainerStyle={styles.textContainer}
+                        onScroll={handleScroll}
+                        scrollEventThrottle={16}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {verses.map((v, index) => {
+                            const isBookmarked = bookmarks.includes(`${bookCode}-${v.chapter}-${v.verse}`);
+                            return (
+                                <View
+                                    key={v.id || `${v.chapter}-${v.verse}-${index}`}
+                                    style={[styles.verseContainer, { backgroundColor: glassSurface, borderColor: glassBorder }]}
+                                    onLayout={(event: LayoutChangeEvent) => onVerseLayout(index, event.nativeEvent.layout.y)}
+                                >
+                                    <View style={styles.verseHeader}>
+                                        <View style={[styles.verseBadge, { backgroundColor: accentColor }]}>
+                                            <Text style={styles.verseBadgeText}>{t('reader.text')} {v.verse}</Text>
+                                        </View>
+                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                            <TouchableOpacity
+                                                onPress={() => { }}
+                                                style={[styles.verseActionBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}
+                                            >
+                                                <MessageCircle size={18} color={roleColors.textSecondary} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => toggleBookmark(v)}
+                                                style={[styles.verseActionBtn, { backgroundColor: isBookmarked ? accentColor + '20' : 'rgba(255,255,255,0.05)' }]}
+                                            >
+                                                <Star
+                                                    size={18}
+                                                    color={isBookmarked ? accentColor : roleColors.textSecondary}
+                                                    fill={isBookmarked ? accentColor : 'transparent'}
+                                                />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => shareVerse(v)}
+                                                style={[styles.verseActionBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}
+                                            >
+                                                <ShareIcon size={18} color={roleColors.textSecondary} />
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
-                                </View>
-                                {v.devanagari && showSanskrit && (
-                                    <Text style={[
-                                        styles.sanskrit,
-                                        { fontSize: fontSizeBase + 2, fontWeight: fontBold ? 'bold' : 'normal', color: readerTheme === 'dark' ? '#DDD' : readerTheme === 'ancient' ? '#3E2723' : '#2c3e50' }
-                                    ]}>
-                                        {v.devanagari}
-                                    </Text>
-                                )}
-                                {showTransliteration && (
-                                    <Text style={[
-                                        styles.transliteration,
-                                        { fontSize: fontSizeBase - 1, fontWeight: fontBold ? 'bold' : 'normal', color: readerTheme === 'dark' ? '#AAA' : readerTheme === 'ancient' ? '#5D4037' : '#5d6d7e' }
-                                    ]}>
-                                        {v.transliteration}
-                                    </Text>
-                                )}
-                                {showTranslation && (
-                                    <Text style={[
-                                        styles.translation,
-                                        { fontSize: fontSizeBase + 1, fontWeight: fontBold ? 'bold' : '600', color: readerTheme === 'dark' ? '#EEE' : readerTheme === 'ancient' ? '#212121' : '#1a1a1a' }
-                                    ]}>
-                                        {v.translation}
-                                    </Text>
-                                )}
-                                {v.purport && showPurport && (
-                                    <View>
-                                        <View style={[
-                                            styles.purportDivider,
-                                            readerTheme === 'dark' && { backgroundColor: '#444' },
-                                            readerTheme === 'ancient' && { backgroundColor: '#DBC18B' }
-                                        ]} />
+
+                                    {v.devanagari && showSanskrit && (
                                         <Text style={[
-                                            styles.purport,
-                                            {
-                                                fontSize: fontSizeBase,
-                                                fontWeight: fontBold ? 'bold' : 'normal',
-                                                fontFamily: isSerif ? (Platform.OS === 'ios' ? 'Georgia' : 'serif') : undefined,
-                                                color: readerTheme === 'dark' ? '#CCC' : readerTheme === 'ancient' ? '#3E2723' : '#34495e'
-                                            }
+                                            styles.sanskrit,
+                                            { fontSize: fontSizeBase + 4, fontWeight: fontBold ? 'bold' : 'normal', color: roleColors.textPrimary }
                                         ]}>
-                                            {v.purport}
+                                            {v.devanagari}
                                         </Text>
-                                    </View>
-                                )}
-                            </View>
-                        );
-                    })}
-                    <View style={styles.footerNav}>
-                        <TouchableOpacity
-                            onPress={goToPreviousChapter}
-                            disabled={!canGoPrevious()}
-                            style={[
-                                styles.footerBtn,
-                                !canGoPrevious() && styles.footerBtnDisabled,
-                                readerTheme === 'dark' && { backgroundColor: '#333', borderColor: '#444' },
-                                readerTheme === 'ancient' && { backgroundColor: 'rgba(219, 193, 139, 0.7)', borderColor: '#BF360C' }
-                            ]}
-                        >
-                            <Text style={[
-                                styles.footerBtnText,
-                                readerTheme === 'dark' && { color: '#FF8000' },
-                                readerTheme === 'ancient' && { color: '#BF360C' }
-                            ]}>
-                                <ArrowLeft size={16} color={readerTheme === 'dark' ? '#FF8000' : readerTheme === 'ancient' ? '#BF360C' : ModernVedicTheme.colors.primary} /> {t('reader.prev', 'Prev')}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={goToNextChapter}
-                            disabled={!canGoNext()}
-                            style={[
-                                styles.footerBtn,
-                                !canGoNext() && styles.footerBtnDisabled,
-                                readerTheme === 'dark' && { backgroundColor: '#333', borderColor: '#444' },
-                                readerTheme === 'ancient' && { backgroundColor: 'rgba(219, 193, 139, 0.7)', borderColor: '#BF360C' }
-                            ]}
-                        >
-                            <Text style={[
-                                styles.footerBtnText,
-                                readerTheme === 'dark' && { color: '#FF8000' },
-                                readerTheme === 'ancient' && { color: '#BF360C' }
-                            ]}>
-                                {t('reader.next', 'Next')} <ArrowRight size={16} color={readerTheme === 'dark' ? '#FF8000' : readerTheme === 'ancient' ? '#BF360C' : ModernVedicTheme.colors.primary} />
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </ScrollView>
+                                    )}
+                                    {showTransliteration && (
+                                        <Text style={[
+                                            styles.transliteration,
+                                            { fontSize: fontSizeBase, fontWeight: fontBold ? 'bold' : 'normal', color: roleColors.textSecondary }
+                                        ]}>
+                                            {v.transliteration}
+                                        </Text>
+                                    )}
+                                    {showTranslation && (
+                                        <Text style={[
+                                            styles.translation,
+                                            { fontSize: fontSizeBase + 2, fontWeight: fontBold ? 'bold' : '700', color: roleColors.textPrimary }
+                                        ]}>
+                                            {v.translation}
+                                        </Text>
+                                    )}
+                                    {v.purport && showPurport && (
+                                        <View style={[styles.purportGlassBox, { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: glassBorder }]}>
+                                            <Text style={[
+                                                styles.purport,
+                                                {
+                                                    fontSize: fontSizeBase,
+                                                    fontWeight: fontBold ? 'bold' : '400',
+                                                    fontFamily: isSerif ? (Platform.OS === 'ios' ? 'Georgia' : 'serif') : undefined,
+                                                    color: roleColors.textSecondary
+                                                }
+                                            ]}>
+                                                {v.purport}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })}
+                        <View style={styles.footerNav}>
+                            <TouchableOpacity
+                                onPress={goToPreviousChapter}
+                                disabled={!canGoPrevious()}
+                                style={[styles.footerBtn, { backgroundColor: glassSurface, borderColor: glassBorder }, !canGoPrevious() && styles.footerBtnDisabled]}
+                            >
+                                <ArrowLeft size={18} color={canGoPrevious() ? roleColors.textPrimary : roleColors.textSecondary} />
+                                <Text style={[styles.footerBtnText, { color: canGoPrevious() ? roleColors.textPrimary : roleColors.textSecondary }]}>
+                                    {t('reader.prev', 'Back')}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={goToNextChapter}
+                                disabled={!canGoNext()}
+                                style={[styles.footerBtn, { backgroundColor: accentColor, borderColor: accentColor }, !canGoNext() && styles.footerBtnDisabled]}
+                            >
+                                <Text style={[styles.footerBtnText, { color: '#FFF' }]}>
+                                    {t('reader.next', 'Next')}
+                                </Text>
+                                <ArrowRight size={18} color="#FFF" />
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+                </Animated.View>
             )}
         </>
     );
@@ -779,295 +825,330 @@ export const ReaderScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFF8E1', // Paper color
     },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    settingsContainer: {
-        backgroundColor: '#FFF',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        padding: 20,
-        maxHeight: '70%',
-    },
-    settingsHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEE',
-        paddingBottom: 10,
-    },
-    settingsTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    closeBtn: {
-        padding: 5,
-    },
-    closeBtnText: {
-        fontSize: 20,
-        color: '#999',
-    },
-    settingsScroll: {
-        marginBottom: 20,
-    },
-    settingRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12,
-    },
-    settingLabel: {
-        fontSize: 16,
-        color: '#444',
-    },
-    sectionLabel: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#888',
-        marginTop: 15,
-        marginBottom: 10,
-        textTransform: 'uppercase',
-    },
-    fontSizeControls: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginVertical: 10,
-    },
-    fontBtn: {
-        width: 50,
-        height: 40,
-        backgroundColor: '#F5F5F5',
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#DDD',
-    },
-    fontBtnText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#FF8000',
-    },
-    fontSizeValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginHorizontal: 20,
-        minWidth: 30,
-        textAlign: 'center',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#EEE',
-        marginVertical: 10,
-    },
-    themeSelector: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 10,
-    },
-    themeBtn: {
-        flex: 1,
-        height: 45,
-        marginHorizontal: 5,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#DDD',
-    },
-    activeThemeBtn: {
-        borderColor: '#FF8000',
-        borderWidth: 2,
-    },
-    themeBtnText: {
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    paper: { backgroundColor: '#FFF8E1' },
-    sepia: { backgroundColor: '#F4ECD8' },
-    ancient: { backgroundColor: '#F1E5AC' },
-    dark: { backgroundColor: '#1A1A1A' },
-    verseHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    purportDivider: {
-        height: 1,
-        backgroundColor: '#F0F0F0',
-        marginVertical: 15,
-        width: '100%',
-    },
-    bookmarkItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEE',
-    },
-    bookmarkText: {
-        fontSize: 16,
-        color: '#333',
-    },
-    emptyText: {
-        textAlign: 'center',
-        marginTop: 40,
-        color: '#999',
-        fontSize: 16,
-    },
+    // Navigation Header (Chapter/Verse Selector)
     navigationHeader: {
-        backgroundColor: '#FFF',
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        zIndex: 10,
+        borderBottomWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        overflow: 'hidden',
     },
     chapterSelector: {
-        height: 70, // Increased height to show titles clearly
-        backgroundColor: '#FFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    verseSelector: {
-        height: 40,
-        backgroundColor: '#F9F9F9',
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEE',
-    },
-    verseScroll: {
-        flex: 1,
-    },
-    verseBtn: {
-        paddingHorizontal: 12,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-        minWidth: 40,
-    },
-    activeVerseBtn: {
-        backgroundColor: '#FFF4E5',
-        borderBottomWidth: 2,
-        borderBottomColor: '#FF8000',
-    },
-    verseBtnText: {
-        fontSize: 13,
-        color: '#666',
-    },
-    activeVerseBtnText: {
-        color: '#FF8000',
-        fontWeight: 'bold',
+        paddingVertical: 12,
+        paddingHorizontal: 8,
     },
     navButton: {
-        width: 40,
-        height: 50,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
     navButtonDisabled: {
-        opacity: 0.2,
-    },
-    navButtonText: {
-        fontSize: 18,
-        color: '#FF8000',
-        fontWeight: 'bold',
-    },
-    navButtonTextDisabled: {
-        color: '#999',
+        opacity: 0.3,
     },
     chapterScroll: {
         flex: 1,
     },
     chapterBtn: {
-        paddingHorizontal: 16,
+        minWidth: 40,
+        height: 48,
+        borderRadius: 24,
+        borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        height: '100%',
-        minWidth: 80,
-    },
-    activeBtn: {
-        borderBottomWidth: 2,
-        borderBottomColor: '#FF8000',
+        marginHorizontal: 4,
+        paddingHorizontal: 12,
     },
     chapterText: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: 16,
+        fontWeight: '700',
     },
-    activeText: {
-        color: '#FF8000',
-        fontWeight: 'bold',
+    activeTitleLabel: {
+        fontSize: 10,
+        color: '#FFF',
+        marginTop: 2,
+        maxWidth: 100,
+    },
+    verseSelector: {
+        paddingVertical: 10,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
+    },
+    verseScroll: {
+        maxHeight: 40,
+    },
+    verseBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginHorizontal: 4,
+    },
+    verseBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+
+    // Header Custom Title
+    headerTitleWrap: {
+        alignItems: 'center',
+    },
+    headerTitleText: {
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    headerSubtitleText: {
+        fontSize: 11,
+        opacity: 0.8,
+    },
+    headerIconBtn: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerLangBtn: {
+        height: 34,
+        paddingHorizontal: 10,
+        borderRadius: 17,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    langText: {
+        fontSize: 12,
+        fontWeight: '800',
+    },
+
+    // Content
+    textContainer: {
+        padding: 16,
+        paddingBottom: 40,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#FFF8E1',
     },
-    textContainer: {
-        padding: 16,
-        paddingBottom: 40,
+    loadingText: {
+        marginTop: 10,
+        fontSize: 14,
     },
     verseContainer: {
-        marginBottom: 32,
-        backgroundColor: '#FFF',
-        padding: 16,
-        borderRadius: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 2,
+        marginBottom: 24,
+        borderRadius: 24,
+        padding: 20,
+        borderWidth: 1,
+        overflow: 'hidden',
     },
-    verseNumber: {
-        fontSize: 13,
-        fontWeight: 'bold',
-        color: '#FF8000',
-        marginBottom: 12,
-        textAlign: 'center',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
+    verseHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    verseBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    verseBadgeText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    verseActionBtn: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     sanskrit: {
-        fontSize: 18,
         textAlign: 'center',
-        marginBottom: 12,
-        color: '#2c3e50',
-        lineHeight: 28,
+        marginBottom: 16,
+        lineHeight: 32,
     },
     transliteration: {
-        fontSize: 15,
         textAlign: 'center',
         marginBottom: 16,
-        color: '#5d6d7e',
         fontStyle: 'italic',
-        lineHeight: 22,
+        lineHeight: 24,
     },
     translation: {
-        fontSize: 17,
-        fontWeight: '600',
+        textAlign: 'left',
         marginBottom: 16,
         lineHeight: 26,
-        color: '#1a1a1a',
+    },
+    purportGlassBox: {
+        marginTop: 10,
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
     },
     purport: {
-        fontSize: 16,
-        lineHeight: 26,
-        color: '#34495e',
-        marginTop: 8,
+        lineHeight: 24,
+        textAlign: 'left',
     },
+
+    // Modals
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
+    },
+    settingsContainer: {
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        padding: 24,
+        maxHeight: '85%',
+        borderTopWidth: 1,
+        overflow: 'hidden',
+    },
+    bookmarksContainer: {
+        position: 'absolute',
+        top: '10%',
+        bottom: '10%',
+        left: 20,
+        right: 20,
+        borderRadius: 32,
+        padding: 24,
+        borderWidth: 1,
+        overflow: 'hidden',
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+    },
+    settingsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    settingsTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+    },
+    closeBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    settingsScroll: {
+        marginBottom: 20,
+    },
+    glassSettingCard: {
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 20,
+        borderWidth: 1,
+    },
+    settingRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 10,
+    },
+    settingLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    sectionLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 12,
+        marginLeft: 4,
+    },
+    fontBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fontBtnText: {
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    fontSizeValue: {
+        fontSize: 20,
+        fontWeight: '800',
+        marginHorizontal: 24,
+    },
+    themeSelector: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 20,
+    },
+    themeBtn: {
+        flex: 1,
+        minWidth: '45%',
+        height: 50,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    themeBtnText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    bookmarkItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 12,
+        borderWidth: 1,
+    },
+    bookmarkInfo: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    bookmarkText: {
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    bookmarkTrash: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyWrap: {
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    emptyText: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+
+    // Themes
+    paper: { backgroundColor: '#FFF8E1' },
+    sepia: { backgroundColor: '#F4ECD8' },
+    dark: { backgroundColor: '#121212' },
+    ancient: { backgroundColor: 'transparent' },
+
+    // Footer
     footerNav: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -1075,19 +1156,20 @@ const styles = StyleSheet.create({
         marginBottom: 40,
     },
     footerBtn: {
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        backgroundColor: '#FFF',
-        borderRadius: 8,
+        flex: 0.48,
+        height: 54,
+        borderRadius: 27,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#FF8000',
+        gap: 8,
     },
     footerBtnDisabled: {
-        borderColor: '#CCC',
-        opacity: 0.5,
+        opacity: 0.3,
     },
     footerBtnText: {
-        color: '#FF8000',
-        fontWeight: '600',
+        fontSize: 16,
+        fontWeight: '700',
     },
 });

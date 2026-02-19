@@ -318,10 +318,13 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                             />
 
                             <View style={[styles.switchRow, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface, borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border }]}>
-                                <Text style={[styles.switchLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                    {t('chat.enableReading') || 'Enable Scripture Reading'}
-                                </Text>
+                                <View style={styles.switchLabelWrap}>
+                                    <Text style={[styles.switchLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
+                                        {t('chat.enableReading') || 'Enable Scripture Reading'}
+                                    </Text>
+                                </View>
                                 <Switch
+                                    style={styles.switchControl}
                                     value={enableReading}
                                     onValueChange={setEnableReading}
                                     trackColor={{ false: colors.border, true: colors.accent }}
@@ -509,9 +512,17 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 10,
     },
+    switchLabelWrap: {
+        flex: 1,
+        paddingRight: 12,
+    },
     switchLabel: {
         fontSize: 15,
         fontWeight: '500',
+        flexShrink: 1,
+    },
+    switchControl: {
+        marginLeft: 10,
     },
     sectionTitle: {
         fontSize: 15,

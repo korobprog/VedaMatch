@@ -1,13 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform, Animated } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
 import { libraryService } from '../../services/libraryService';
 import { offlineBookService, formatBytes, SavedBookInfo } from '../../services/offlineBookService';
 import { ScriptureBook } from '../../types/library';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { BookOpenText, Download, CheckCircle, Sparkles } from 'lucide-react-native';
+import { BookOpenText, Download, CheckCircle, Sparkles, ChevronRight } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
 import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
@@ -146,105 +147,115 @@ export const LibraryHomeScreen = () => {
         );
     };
 
-    const renderBookItem = ({ item }: { item: ScriptureBook }) => {
+    const renderBookItem = ({ item, index }: { item: ScriptureBook, index: number }) => {
         const isSaved = savedBooks.includes(item.code);
         const isSaving = savingBook === item.code;
         const bookSize = bookSizes[item.code];
         const titleColor = isPhotoBg ? '#FFFFFF' : roleColors.textPrimary;
-        const subColor = isPhotoBg ? 'rgba(255,255,255,0.82)' : roleColors.textSecondary;
+        const subColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : roleColors.textSecondary;
         const cardBackground = isPhotoBg
-            ? 'rgba(255,255,255,0.14)'
-            : (isDarkMode ? roleColors.surfaceElevated : roleColors.surface);
+            ? 'rgba(255,255,255,0.12)'
+            : (isDarkMode ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255, 255, 255, 0.82)');
         const cardBorder = isPhotoBg
-            ? 'rgba(255,255,255,0.3)'
+            ? 'rgba(255,255,255,0.22)'
             : roleColors.border;
-        const iconColor = isPhotoBg ? '#FFFFFF' : roleColors.accent;
-        const iconBg = isPhotoBg ? 'rgba(255,255,255,0.2)' : roleColors.accentSoft;
-        const actionBg = isPhotoBg ? 'rgba(255,255,255,0.16)' : roleColors.accentSoft;
-        const actionBorder = isPhotoBg ? 'rgba(255,255,255,0.32)' : roleColors.border;
+        const accentColor = roleColors.accent;
+
+        // Animation for entrance
+        const translateY = useRef(new Animated.Value(20)).current;
+        const opacity = useRef(new Animated.Value(0)).current;
+
+        useEffect(() => {
+            Animated.parallel([
+                Animated.timing(translateY, {
+                    toValue: 0,
+                    duration: 400,
+                    delay: index * 100,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(opacity, {
+                    toValue: 1,
+                    duration: 400,
+                    delay: index * 100,
+                    useNativeDriver: true,
+                })
+            ]).start();
+        }, []);
 
         return (
-            <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackground, borderColor: cardBorder }]}
-                onPress={() => handleBookPress(item)}
-                onLongPress={() => handleLongPress(item)}
-                delayLongPress={500}
-                activeOpacity={0.88}
-            >
-                {(isPhotoBg || isDarkMode) && (
-                    <BlurView
-                        style={[StyleSheet.absoluteFill, { borderRadius: 22 }]}
-                        blurType={isDarkMode ? 'dark' : 'light'}
-                        blurAmount={14}
-                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.65)' : roleColors.surfaceElevated}
+            <Animated.View style={{ transform: [{ translateY }], opacity }}>
+                <TouchableOpacity
+                    style={[styles.card, { backgroundColor: cardBackground, borderColor: cardBorder }]}
+                    onPress={() => handleBookPress(item)}
+                    onLongPress={() => handleLongPress(item)}
+                    delayLongPress={500}
+                    activeOpacity={0.8}
+                >
+                    {(isPhotoBg || isDarkMode) && (
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType={isDarkMode ? 'dark' : 'light'}
+                            blurAmount={20}
+                            reducedTransparencyFallbackColor={roleColors.surfaceElevated}
+                        />
+                    )}
+
+                    <LinearGradient
+                        colors={isDarkMode ? ['rgba(255,255,255,0.05)', 'transparent'] : ['rgba(255,255,255,0.8)', 'transparent']}
+                        style={StyleSheet.absoluteFill}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
                     />
-                )}
 
-                {/* Book icon */}
-                <View style={[styles.iconContainer, { backgroundColor: iconBg, borderColor: cardBorder }]}>
-                    <BookOpenText size={28} color={iconColor} />
-                </View>
+                    {/* Book icon */}
+                    <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : roleColors.surfaceElevated, borderColor: cardBorder }]}>
+                        <BookOpenText size={24} color={accentColor} />
+                    </View>
 
-                {/* Book info */}
-                <View style={styles.textContainer}>
-                    <Text
-                        style={[styles.cardTitle, { color: titleColor }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                    >
-                        {item.name_ru || item.name_en}
-                    </Text>
-                    <Text
-                        style={[styles.cardDescription, { color: subColor }]}
-                        numberOfLines={2}
-                        ellipsizeMode="tail"
-                    >
-                        {item.description_ru || item.description_en || t('library.scripture', 'Священное писание')}
-                    </Text>
-
-                    {/* Size info */}
-                    {bookSize && (
-                        <Text style={[styles.sizeText, { color: subColor }]}>
-                            {formatBytes(bookSize)}
-                        </Text>
-                    )}
-
-                    {/* Saving progress */}
-                    {isSaving && (
-                        <View style={styles.progressContainer}>
-                            <View style={[styles.progressBar, { width: `${saveProgress}%` }]} />
-                            <Text style={styles.progressText}>{saveStatus}</Text>
+                    {/* Book info */}
+                    <View style={styles.textContainer}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                            <Text
+                                style={[styles.cardTitle, { color: titleColor }]}
+                                numberOfLines={1}
+                            >
+                                {item.name_ru || item.name_en}
+                            </Text>
+                            {isSaved && <View style={[styles.dot, { backgroundColor: '#10B981' }]} />}
                         </View>
-                    )}
-                </View>
+                        <Text
+                            style={[styles.cardDescription, { color: subColor }]}
+                            numberOfLines={2}
+                        >
+                            {item.description_ru || item.description_en || t('library.scripture', 'Священное писание')}
+                        </Text>
 
-                {/* Action buttons (Right side) */}
-                <View style={styles.actions}>
-                    {isSaving ? (
-                        <ActivityIndicator size="small" color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
-                    ) : isSaved ? (
-                        <TouchableOpacity
-                            onPress={() => handleRemoveBook(item)}
-                            style={[
-                                styles.actionButton,
-                                {
-                                    backgroundColor: isPhotoBg ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.14)',
-                                    borderColor: isPhotoBg ? 'rgba(16,185,129,0.46)' : 'rgba(16,185,129,0.24)',
-                                },
-                            ]}
-                        >
-                            <CheckCircle size={22} color={isPhotoBg ? '#A7F3D0' : '#10B981'} />
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity
-                            onPress={() => handleSaveBook(item)}
-                            style={[styles.actionButton, { backgroundColor: actionBg, borderColor: actionBorder }]}
-                        >
-                            <Download size={22} color={isPhotoBg ? '#FFFFFF' : roleColors.accent} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </TouchableOpacity>
+                        {bookSize && (
+                            <Text style={[styles.sizeText, { color: accentColor, opacity: 0.8 }]}>
+                                {formatBytes(bookSize)} • {t('library.saved', 'Сохранено')}
+                            </Text>
+                        )}
+
+                        {isSaving && (
+                            <View style={styles.progressContainer}>
+                                <View style={[styles.progressBar, { width: `${saveProgress}%`, backgroundColor: accentColor }]} />
+                                <Text style={styles.progressText}>{saveStatus}</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Action button */}
+                    <View style={styles.actions}>
+                        {isSaving ? (
+                            <ActivityIndicator size="small" color={accentColor} />
+                        ) : (
+                            <View style={[styles.chevronBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                                <ChevronRight size={18} color={roleColors.textSecondary} />
+                            </View>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
         );
     };
 
@@ -289,113 +300,108 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerWrap: {
-        paddingHorizontal: 16,
-        paddingTop: 12,
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        marginBottom: 8,
     },
     headerChip: {
         alignSelf: 'flex-start',
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 999,
+        borderRadius: 16,
         borderWidth: 1,
         paddingHorizontal: 12,
-        paddingVertical: 7,
+        paddingVertical: 6,
         gap: 6,
     },
     headerChipText: {
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     list: {
         padding: 16,
-        paddingTop: 12,
-        paddingBottom: 22,
+        paddingBottom: 40,
     },
     card: {
         flexDirection: 'row',
-        borderRadius: 22,
+        borderRadius: 24,
         borderWidth: 1,
         padding: 16,
-        marginBottom: 14,
+        marginBottom: 16,
         alignItems: 'center',
         position: 'relative',
         overflow: 'hidden',
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOpacity: 0.14,
-                shadowRadius: 9,
-                shadowOffset: { width: 0, height: 5 },
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    savedBadge: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 10,
     },
     iconContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 18,
+        width: 64,
+        height: 64,
+        borderRadius: 20,
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 14,
+        marginRight: 16,
     },
     textContainer: {
         flex: 1,
         paddingRight: 8,
     },
     cardTitle: {
-        fontSize: 18,
+        fontSize: 19,
         fontWeight: '800',
-        marginBottom: 4,
+        letterSpacing: -0.2,
+    },
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        marginLeft: 8,
     },
     cardDescription: {
         fontSize: 14,
-        lineHeight: 21,
+        lineHeight: 20,
+        marginTop: 2,
     },
     sizeText: {
         fontSize: 12,
-        marginTop: 6,
-        fontWeight: '500',
+        marginTop: 8,
+        fontWeight: '700',
     },
     progressContainer: {
-        marginTop: 6,
-        height: 20,
-        backgroundColor: 'rgba(255,255,255,0.26)',
-        borderRadius: 8,
+        marginTop: 10,
+        height: 18,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 9,
         overflow: 'hidden',
         position: 'relative',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     progressBar: {
         position: 'absolute',
         left: 0,
         top: 0,
         bottom: 0,
-        backgroundColor: '#10B981',
-        borderRadius: 8,
+        borderRadius: 9,
     },
     progressText: {
-        fontSize: 10,
+        fontSize: 9,
         color: '#FFFFFF',
         textAlign: 'center',
-        lineHeight: 20,
-        paddingHorizontal: 4,
-        fontWeight: '600',
+        lineHeight: 16,
+        paddingHorizontal: 6,
+        fontWeight: '800',
     },
     actions: {
-        marginLeft: 8,
+        marginLeft: 4,
+    },
+    chevronBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     actionButton: {
         width: 44,

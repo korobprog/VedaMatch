@@ -51,6 +51,14 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     const { colors } = useRoleTheme(undefined, isDarkMode);
     const isPhotoBg = portalBackgroundType === 'image';
     const triggerTapFeedback = usePressFeedback();
+    const textPrimary = isPhotoBg ? '#F8FAFC' : colors.textPrimary;
+    const textSecondary = isPhotoBg ? 'rgba(226,232,240,0.92)' : colors.textSecondary;
+    const surfaceStrong = isPhotoBg ? 'rgba(30,41,59,0.92)' : colors.surface;
+    const surfaceMuted = isPhotoBg ? 'rgba(30,41,59,0.95)' : vTheme.colors.backgroundSecondary;
+    const borderStrong = isPhotoBg ? 'rgba(148,163,184,0.58)' : colors.border;
+    const dividerStrong = isPhotoBg ? 'rgba(148,163,184,0.42)' : vTheme.colors.divider;
+    const modalSurface = isPhotoBg ? 'rgba(15,23,42,0.97)' : colors.surfaceElevated;
+    const modalBorder = isPhotoBg ? 'rgba(148,163,184,0.45)' : colors.border;
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -366,13 +374,14 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
             key={item.code}
             style={[
                 styles.bookItem,
+                { backgroundColor: surfaceStrong, borderColor: borderStrong },
                 bookCode === item.code && { backgroundColor: theme.accent, borderColor: theme.accent }
             ]}
             onPress={() => setBookCode(item.code)}
         >
             <Text style={[
                 styles.bookItemText,
-                bookCode === item.code ? { color: '#fff' } : { color: vTheme.colors.text }
+                bookCode === item.code ? { color: '#fff' } : { color: textPrimary }
             ]}>
                 {t(`reader.books.${item.code}`) || item.name}
             </Text>
@@ -416,439 +425,443 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         >
             <View style={styles.modalOverlay}>
                 <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
-                <Animated.View
-                    style={[
-                        styles.modalContent,
-                        {
-                            backgroundColor: isPhotoBg ? 'rgba(15,23,42,0.86)' : colors.surfaceElevated,
-                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                        },
-                        {
-                            opacity: modalOpacity,
-                            transform: [{ scale: modalScale }],
-                        },
-                    ]}
-                >
-                    <View style={styles.header}>
-                        <TouchableOpacity
-                            activeOpacity={0.88}
-                            onPress={() => {
-                                triggerTapFeedback();
-                                onClose();
-                            }}
-                            style={[
-                                styles.headerIcon,
-                                {
-                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border,
-                                }
-                            ]}
-                        >
-                            <X size={20} color={isPhotoBg ? '#FFFFFF' : colors.textPrimary} />
-                        </TouchableOpacity>
-                        <Text style={[styles.modalTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                            {roomName} - {t('common.settings')}
-                        </Text>
-                        <TouchableOpacity
-                            activeOpacity={0.88}
-                            onPress={() => {
-                                triggerTapFeedback();
-                                handleSaveReading();
-                            }}
-                            disabled={saving || uploadingImage}
-                            style={[
-                                styles.headerIcon,
-                                {
-                                    backgroundColor: colors.accent,
-                                    borderColor: colors.accent,
-                                    opacity: saving || uploadingImage ? 0.6 : 1,
-                                }
-                            ]}
-                        >
-                            <Check size={18} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </View>
+                    <Animated.View
+                        style={[
+                            styles.modalContent,
+                            {
+                                backgroundColor: modalSurface,
+                                borderColor: modalBorder,
+                            },
+                            {
+                                opacity: modalOpacity,
+                                transform: [{ scale: modalScale }],
+                            },
+                        ]}
+                    >
+                        <View style={styles.header}>
+                            <TouchableOpacity
+                                activeOpacity={0.88}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    onClose();
+                                }}
+                                style={[
+                                    styles.headerIcon,
+                                    {
+                                        backgroundColor: surfaceStrong,
+                                        borderColor: borderStrong,
+                                    }
+                                ]}
+                            >
+                                <X size={20} color={textPrimary} />
+                            </TouchableOpacity>
+                            <Text style={[styles.modalTitle, { color: textPrimary }]} numberOfLines={1}>
+                                {roomName} - {t('common.settings')}
+                            </Text>
+                            <TouchableOpacity
+                                activeOpacity={0.88}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    handleSaveReading();
+                                }}
+                                disabled={saving || uploadingImage}
+                                style={[
+                                    styles.headerIcon,
+                                    {
+                                        backgroundColor: colors.accent,
+                                        borderColor: colors.accent,
+                                        opacity: saving || uploadingImage ? 0.6 : 1,
+                                    }
+                                ]}
+                            >
+                                <Check size={18} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
 
-                    {loading ? (
-                        <ActivityIndicator size="large" color={theme.accent} style={{ margin: 20 }} />
-                    ) : (
-                        <ScrollView
-                            showsVerticalScrollIndicator={false}
-                            contentContainerStyle={{ paddingBottom: 20 }}
-                            keyboardShouldPersistTaps="handled"
-                        >
-                            {/* Image Selection Section */}
-                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary, textAlign: 'center', marginBottom: 12 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
-                            <View style={styles.imageSection}>
+                        {loading ? (
+                            <ActivityIndicator size="large" color={theme.accent} style={{ margin: 20 }} />
+                        ) : (
+                            <ScrollView
+                                showsVerticalScrollIndicator={false}
+                                contentContainerStyle={{ paddingBottom: 20 }}
+                                keyboardShouldPersistTaps="handled"
+                            >
+                                {/* Image Selection Section */}
+                                <Text style={[styles.sectionHeader, { color: textPrimary, textAlign: 'center', marginBottom: 12 }]}>{t('chat.roomImage') || 'Room Image'}</Text>
+                                <View style={styles.imageSection}>
+                                    <TouchableOpacity
+                                        activeOpacity={0.88}
+                                        style={[
+                                            styles.imagePreviewContainer,
+                                            {
+                                                backgroundColor: surfaceStrong,
+                                                borderColor: borderStrong,
+                                            }
+                                        ]}
+                                        onPress={() => {
+                                            triggerTapFeedback();
+                                            handleUploadImage();
+                                        }}
+                                        disabled={uploadingImage}
+                                    >
+                                        {uploadingImage ? (
+                                            <ActivityIndicator color={theme.accent} />
+                                        ) : roomImage && !EMOJI_MAP[roomImage] ? (
+                                            <Image source={{ uri: getMediaUrl(roomImage) || '' }} style={styles.roomImagePreview} />
+                                        ) : roomImage && EMOJI_MAP[roomImage] ? (
+                                            <Text style={styles.roomImageEmoji}>{EMOJI_MAP[roomImage]}</Text>
+                                        ) : (
+                                            <Camera size={40} color={textSecondary} />
+                                        )}
+                                        <View style={styles.cameraIconBadge}>
+                                            <Camera size={14} color="#fff" />
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <View style={styles.presetContainer}>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                            {PRESET_IMAGES.map(item => (
+                                                <TouchableOpacity
+                                                    key={item.id}
+                                                    activeOpacity={0.88}
+                                                    style={[
+                                                        styles.presetItem,
+                                                        {
+                                                            backgroundColor: surfaceStrong,
+                                                            borderColor: borderStrong,
+                                                        },
+                                                        roomImage === item.id && { backgroundColor: colors.accentSoft, borderColor: colors.accent }
+                                                    ]}
+                                                    onPress={() => {
+                                                        triggerTapFeedback();
+                                                        handleSelectPreset(item.id);
+                                                    }}
+                                                >
+                                                    <Text style={styles.presetEmoji}>{item.emoji}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                </View>
+
+                                {/* Basic Info Section */}
+                                <Text style={[styles.sectionHeader, { color: textPrimary }]}>{t('chat.roomName') || 'Room Name'}</Text>
+                                <TextInput
+                                    style={[
+                                        styles.textInput,
+                                        {
+                                            color: textPrimary,
+                                            borderColor: borderStrong,
+                                            backgroundColor: surfaceStrong,
+                                        }
+                                    ]}
+                                    value={editName}
+                                    onChangeText={setEditName}
+                                    placeholder={t('chat.roomName')}
+                                    placeholderTextColor={textSecondary}
+                                />
+
+                                <Text style={[styles.sectionHeader, { color: textPrimary }]}>{t('chat.roomDesc') || 'Description'}</Text>
+                                <TextInput
+                                    style={[
+                                        styles.textInput,
+                                        {
+                                            color: textPrimary,
+                                            borderColor: borderStrong,
+                                            backgroundColor: surfaceStrong,
+                                            height: 72
+                                        }
+                                    ]}
+                                    value={editDescription}
+                                    onChangeText={setEditDescription}
+                                    placeholder={t('chat.roomDesc')}
+                                    placeholderTextColor={textSecondary}
+                                    multiline
+                                />
+
+                                <View style={[styles.switchRow, { borderBottomColor: dividerStrong, borderBottomWidth: 0.5, paddingVertical: 12 }]}>
+                                    <View style={styles.settingTextBlock}>
+                                        <Text style={[styles.settingLabel, { color: textPrimary }]}>
+                                            {t('chat.enableReading') || 'Enable Scripture Reading'}
+                                        </Text>
+                                        <Text style={[styles.settingSubLabel, { color: textSecondary }]}>
+                                            {t('chat.enableReadingDesc') || 'Focus room on studying scriptures'}
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        style={styles.switchControl}
+                                        value={enableReading}
+                                        onValueChange={setEnableReading}
+                                        trackColor={{ false: colors.border, true: colors.accent }}
+                                    />
+                                </View>
+
+                                {enableReading && (
+                                    <>
+                                        <Text style={[styles.sectionHeader, { color: textPrimary }]}>Location (City, Yatra)</Text>
+                                        <TextInput
+                                            style={[
+                                                styles.textInput,
+                                                {
+                                                    color: textPrimary,
+                                                    borderColor: borderStrong,
+                                                    backgroundColor: surfaceStrong,
+                                                }
+                                            ]}
+                                            value={editLocation}
+                                            onChangeText={setEditLocation}
+                                            placeholder={t('chat.locationPlaceholder') || "E.g. Moscow, ISKCON"}
+                                            placeholderTextColor={textSecondary}
+                                        />
+
+                                        <View style={[styles.divider, { backgroundColor: dividerStrong }]} />
+
+                                        {/* Shared Reading Section */}
+                                        <Text style={[styles.sectionHeader, { color: textPrimary }]}>{t('reader.settings') || 'Shared Reading'}</Text>
+
+                                        <View style={styles.bookList}>
+                                            {AVAILABLE_BOOKS.map(renderBookItem)}
+                                        </View>
+
+                                        <View style={styles.verseInputContainer}>
+                                            <View style={styles.inputWrapper}>
+                                                <Text style={{ color: textPrimary }}>{t('reader.chapter') || 'Chapter'}</Text>
+                                                <View style={[styles.numberInput, { backgroundColor: surfaceMuted, borderColor: borderStrong }]}>
+                                                    <TouchableOpacity onPress={() => setChapter(Math.max(1, chapter - 1))}>
+                                                        <Text style={{ fontSize: 20, color: textPrimary }}>-</Text>
+                                                    </TouchableOpacity>
+                                                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: textPrimary }}>{chapter}</Text>
+                                                    <TouchableOpacity onPress={() => setChapter(chapter + 1)}>
+                                                        <Text style={{ fontSize: 20, color: textPrimary }}>+</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.inputWrapper}>
+                                                <Text style={{ color: textPrimary }}>{t('reader.verse') || 'Verse'}</Text>
+                                                <View style={[styles.numberInput, { backgroundColor: surfaceMuted, borderColor: borderStrong }]}>
+                                                    <TouchableOpacity onPress={() => setVerse(Math.max(1, verse - 1))}>
+                                                        <Text style={{ fontSize: 20, color: textPrimary }}>-</Text>
+                                                    </TouchableOpacity>
+                                                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: textPrimary }}>{verse}</Text>
+                                                    <TouchableOpacity onPress={() => setVerse(verse + 1)}>
+                                                        <Text style={{ fontSize: 20, color: textPrimary }}>+</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        </View>
+                                    </>
+                                )}
+
+                                <View style={[styles.divider, { backgroundColor: dividerStrong }]} />
+
+                                {/* Font Settings Section - LOCAL ONLY */}
+                                <Text style={[styles.sectionHeader, { color: textPrimary }]}>{t('reader.fontSettings') || 'Font Settings'}</Text>
+
+                                <View style={styles.fontSettingsRow}>
+                                    <View style={styles.fontControl}>
+                                        <Text style={{ color: textPrimary, fontSize: 12, marginBottom: 4 }}>{t('reader.fontSize') || 'Size'}</Text>
+                                        <View style={[styles.numberInput, { backgroundColor: surfaceMuted, borderColor: borderStrong }]}>
+                                            <TouchableOpacity onPress={() => {
+                                                const newSize = Math.max(12, fontSize - 2);
+                                                setFontSize(newSize);
+                                                saveFontSettings(newSize, isBold);
+                                            }}>
+                                                <Text style={{ fontSize: 20, color: textPrimary }}>A-</Text>
+                                            </TouchableOpacity>
+                                            <Text style={{ fontSize: 16, fontWeight: 'bold', color: textPrimary }}>{fontSize}</Text>
+                                            <TouchableOpacity onPress={() => {
+                                                const newSize = Math.min(30, fontSize + 2);
+                                                setFontSize(newSize);
+                                                saveFontSettings(newSize, isBold);
+                                            }}>
+                                                <Text style={{ fontSize: 20, color: textPrimary }}>A+</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.fontControl}>
+                                        <Text style={{ color: textPrimary, fontSize: 12, marginBottom: 4 }}>{t('reader.fontStyle') || 'Style'}</Text>
+                                        <TouchableOpacity
+                                            style={[styles.boldButton, isBold && { backgroundColor: theme.accent }]}
+                                            onPress={() => {
+                                                const newBold = !isBold;
+                                                setIsBold(newBold);
+                                                saveFontSettings(fontSize, newBold);
+                                            }}
+                                        >
+                                            <Text style={[styles.boldButtonText, { color: isBold ? '#fff' : textPrimary }]}>
+                                                {t('reader.bold') || 'BOLD'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+
+                                <View style={[styles.divider, { backgroundColor: dividerStrong }]} />
+
+                                {/* Language & Purport Settings */}
+                                <View style={[styles.settingItem, { borderBottomColor: borderStrong }]}>
+                                    <View style={styles.settingTextBlock}>
+                                        <Text style={[styles.settingLabel, { color: textPrimary }]}>
+                                            {t('reader.language') || 'Reading Language'}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        {['ru', 'en'].map(lang => (
+                                            <TouchableOpacity
+                                                key={lang}
+                                                activeOpacity={0.88}
+                                                style={[
+                                                    styles.langButton,
+                                                    {
+                                                        backgroundColor: surfaceStrong,
+                                                        borderColor: borderStrong,
+                                                    },
+                                                    readingLanguage === lang && { backgroundColor: colors.accent, borderColor: colors.accent }
+                                                ]}
+                                                onPress={() => {
+                                                    triggerTapFeedback();
+                                                    setReadingLanguage(lang);
+                                                }}
+                                            >
+                                                <Text style={{
+                                                    color: readingLanguage === lang ? '#fff' : textPrimary,
+                                                    fontWeight: 'bold'
+                                                }}>{lang.toUpperCase()}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
+                                <View style={[styles.settingItem, { borderBottomColor: borderStrong }]}>
+                                    <View style={styles.settingTextBlock}>
+                                        <Text style={[styles.settingLabel, { color: textPrimary }]}>
+                                            {t('reader.showPurport') || 'Show Purport'}
+                                        </Text>
+                                        <Text style={[styles.settingSubLabel, { color: textSecondary }]}>
+                                            {t('reader.showPurportDesc') || 'Display verse commentaries'}
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        style={styles.switchControl}
+                                        value={showPurport}
+                                        onValueChange={setShowPurport}
+                                        trackColor={{ false: colors.border, true: colors.accent }}
+                                        thumbColor={showPurport ? '#fff' : '#f4f3f4'}
+                                    />
+                                </View>
+
+
+
+                                <View style={[styles.divider, { backgroundColor: dividerStrong }]} />
+
+                                {/* Schedule Section */}
+                                <Text style={[styles.sectionHeader, { color: textPrimary }]}>
+                                    {t('chat.readingSchedule') || 'Reading Schedule'}
+                                </Text>
+
                                 <TouchableOpacity
                                     activeOpacity={0.88}
                                     style={[
-                                        styles.imagePreviewContainer,
+                                        styles.scheduleButton,
                                         {
-                                            backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                            borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
+                                            backgroundColor: surfaceStrong,
+                                            borderColor: borderStrong,
+                                        }
+                                    ]}
+                                    onPress={() => setShowDatePicker(true)}
+                                >
+                                    <Bell size={20} color={colors.accent} />
+                                    <View style={{ marginLeft: 12, flex: 1 }}>
+                                        <Text style={[styles.scheduleValue, { color: textPrimary }]}>
+                                            {startTime ? startTime.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : (t('chat.setStartTime') || 'Set Start Time')}
+                                        </Text>
+                                        <Text style={[styles.scheduleSubLabel, { color: textSecondary }]}>
+                                            {t('chat.notificationHint') || 'Friends will be notified 15 minutes before'}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <DatePicker
+                                    modal
+                                    open={showDatePicker}
+                                    date={startTime || new Date()}
+                                    onConfirm={(date) => {
+                                        setShowDatePicker(false);
+                                        setStartTime(date);
+                                    }}
+                                    onCancel={() => {
+                                        setShowDatePicker(false);
+                                    }}
+                                    title={t('chat.selectStartTime') || "Select Start Time"}
+                                    confirmText={t('common.confirm') || "Confirm"}
+                                    cancelText={t('common.cancel') || "Cancel"}
+                                />
+
+                                <View style={[styles.divider, { backgroundColor: dividerStrong }]} />
+                                <View style={[styles.settingItem, { borderBottomColor: borderStrong }]}>
+                                    <View style={styles.settingTextBlock}>
+                                        <Text style={[styles.settingLabel, { color: textPrimary }]}>
+                                            {t('chat.publicRoom') || 'Public Room'}
+                                        </Text>
+                                        <Text style={[styles.settingSubLabel, { color: textSecondary }]}>
+                                            {t('chat.publicRoomDesc') || 'Anyone can find and join'}
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        style={styles.switchControl}
+                                        value={isPublic}
+                                        onValueChange={handleTogglePublic}
+                                        trackColor={{ false: colors.border, true: colors.accent }}
+                                        thumbColor={isPublic ? '#fff' : '#f4f3f4'}
+                                        disabled={saving}
+                                    />
+                                </View>
+
+                                <View style={[styles.settingItem, { borderBottomColor: borderStrong }]}>
+                                    <View style={styles.settingTextBlock}>
+                                        <Text style={[styles.settingLabel, { color: textPrimary }]}>
+                                            {t('chat.aiAssistant') || 'AI Assistant'}
+                                        </Text>
+                                        <Text style={[styles.settingSubLabel, { color: textSecondary }]}>
+                                            {t('chat.aiAssistantDesc') || 'AI joins the conversation'}
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        style={styles.switchControl}
+                                        value={aiEnabled}
+                                        onValueChange={handleToggleAi}
+                                        trackColor={{ false: colors.border, true: colors.accent }}
+                                        thumbColor={aiEnabled ? '#fff' : '#f4f3f4'}
+                                        disabled={saving}
+                                    />
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.actionButton,
+                                        {
+                                            backgroundColor: surfaceStrong,
+                                            borderColor: borderStrong,
                                         }
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
-                                        handleUploadImage();
+                                        handleGetSummary();
                                     }}
-                                    disabled={uploadingImage}
+                                    disabled={summaryLoading}
                                 >
-                                    {uploadingImage ? (
-                                        <ActivityIndicator color={theme.accent} />
-                                    ) : roomImage && !EMOJI_MAP[roomImage] ? (
-                                        <Image source={{ uri: getMediaUrl(roomImage) || '' }} style={styles.roomImagePreview} />
-                                    ) : roomImage && EMOJI_MAP[roomImage] ? (
-                                        <Text style={styles.roomImageEmoji}>{EMOJI_MAP[roomImage]}</Text>
+                                    {summaryLoading ? (
+                                        <ActivityIndicator size="small" color={colors.accent} />
                                     ) : (
-                                        <Camera size={40} color={isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary} />
-                                    )}
-                                    <View style={styles.cameraIconBadge}>
-                                        <Camera size={14} color="#fff" />
-                                    </View>
-                                </TouchableOpacity>
-
-                                <View style={styles.presetContainer}>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                        {PRESET_IMAGES.map(item => (
-                                            <TouchableOpacity
-                                                key={item.id}
-                                                activeOpacity={0.88}
-                                                style={[
-                                                styles.presetItem,
-                                                {
-                                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
-                                                },
-                                                roomImage === item.id && { backgroundColor: colors.accentSoft, borderColor: colors.accent }
-                                            ]}
-                                                onPress={() => {
-                                                    triggerTapFeedback();
-                                                    handleSelectPreset(item.id);
-                                                }}
-                                            >
-                                                <Text style={styles.presetEmoji}>{item.emoji}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
-                            </View>
-
-                            {/* Basic Info Section */}
-                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.roomName') || 'Room Name'}</Text>
-                            <TextInput
-                                style={[
-                                    styles.textInput,
-                                    {
-                                        color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface
-                                    }
-                                ]}
-                                value={editName}
-                                onChangeText={setEditName}
-                                placeholder={t('chat.roomName')}
-                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
-                            />
-
-                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.roomDesc') || 'Description'}</Text>
-                            <TextInput
-                                style={[
-                                    styles.textInput,
-                                    {
-                                        color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                        height: 72
-                                    }
-                                ]}
-                                value={editDescription}
-                                onChangeText={setEditDescription}
-                                placeholder={t('chat.roomDesc')}
-                                placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
-                                multiline
-                            />
-
-                            <View style={[styles.switchRow, { borderBottomColor: vTheme.colors.divider, borderBottomWidth: 0.5, paddingVertical: 12 }]}>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                        {t('chat.enableReading') || 'Enable Scripture Reading'}
-                                    </Text>
-                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                        {t('chat.enableReadingDesc') || 'Focus room on studying scriptures'}
-                                    </Text>
-                                </View>
-                                <Switch
-                                    value={enableReading}
-                                    onValueChange={setEnableReading}
-                                    trackColor={{ false: colors.border, true: colors.accent }}
-                                />
-                            </View>
-
-                            {enableReading && (
-                                <>
-                                    <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>Location (City, Yatra)</Text>
-                                    <TextInput
-                                        style={[
-                                            styles.textInput,
-                                            {
-                                                color: isPhotoBg ? '#FFFFFF' : colors.textPrimary,
-                                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border,
-                                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface
-                                            }
-                                        ]}
-                                        value={editLocation}
-                                        onChangeText={setEditLocation}
-                                        placeholder={t('chat.locationPlaceholder') || "E.g. Moscow, ISKCON"}
-                                        placeholderTextColor={isPhotoBg ? 'rgba(255,255,255,0.72)' : colors.textSecondary}
-                                    />
-
-                                    <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
-
-                                    {/* Shared Reading Section */}
-                                    <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('reader.settings') || 'Shared Reading'}</Text>
-
-                                    <View style={styles.bookList}>
-                                        {AVAILABLE_BOOKS.map(renderBookItem)}
-                                    </View>
-
-                                    <View style={styles.verseInputContainer}>
-                                        <View style={styles.inputWrapper}>
-                                            <Text style={{ color: vTheme.colors.text }}>{t('reader.chapter') || 'Chapter'}</Text>
-                                            <View style={[styles.numberInput, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
-                                                <TouchableOpacity onPress={() => setChapter(Math.max(1, chapter - 1))}>
-                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>-</Text>
-                                                </TouchableOpacity>
-                                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>{chapter}</Text>
-                                                <TouchableOpacity onPress={() => setChapter(chapter + 1)}>
-                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>+</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-
-                                        <View style={styles.inputWrapper}>
-                                            <Text style={{ color: vTheme.colors.text }}>{t('reader.verse') || 'Verse'}</Text>
-                                            <View style={[styles.numberInput, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
-                                                <TouchableOpacity onPress={() => setVerse(Math.max(1, verse - 1))}>
-                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>-</Text>
-                                                </TouchableOpacity>
-                                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>{verse}</Text>
-                                                <TouchableOpacity onPress={() => setVerse(verse + 1)}>
-                                                    <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>+</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    </View>
-                                </>
-                            )}
-
-                            <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
-
-                            {/* Font Settings Section - LOCAL ONLY */}
-                            <Text style={[styles.sectionHeader, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('reader.fontSettings') || 'Font Settings'}</Text>
-
-                            <View style={styles.fontSettingsRow}>
-                                <View style={styles.fontControl}>
-                                    <Text style={{ color: vTheme.colors.text, fontSize: 12, marginBottom: 4 }}>{t('reader.fontSize') || 'Size'}</Text>
-                                    <View style={[styles.numberInput, { backgroundColor: vTheme.colors.backgroundSecondary }]}>
-                                        <TouchableOpacity onPress={() => {
-                                            const newSize = Math.max(12, fontSize - 2);
-                                            setFontSize(newSize);
-                                            saveFontSettings(newSize, isBold);
-                                        }}>
-                                            <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>A-</Text>
-                                        </TouchableOpacity>
-                                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>{fontSize}</Text>
-                                        <TouchableOpacity onPress={() => {
-                                            const newSize = Math.min(30, fontSize + 2);
-                                            setFontSize(newSize);
-                                            saveFontSettings(newSize, isBold);
-                                        }}>
-                                            <Text style={{ fontSize: 20, color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }}>A+</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                <View style={styles.fontControl}>
-                                    <Text style={{ color: vTheme.colors.text, fontSize: 12, marginBottom: 4 }}>{t('reader.fontStyle') || 'Style'}</Text>
-                                    <TouchableOpacity
-                                        style={[styles.boldButton, isBold && { backgroundColor: theme.accent }]}
-                                        onPress={() => {
-                                            const newBold = !isBold;
-                                            setIsBold(newBold);
-                                            saveFontSettings(fontSize, newBold);
-                                        }}
-                                    >
-                                        <Text style={[styles.boldButtonText, { color: isBold ? '#fff' : vTheme.colors.text }]}>
-                                            {t('reader.bold') || 'BOLD'}
+                                        <Text style={[styles.actionButtonText, { color: textPrimary }]}>
+                                            📝 {t('chat.getSummary') || 'Get Chat Summary'}
                                         </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
-
-                            {/* Language & Purport Settings */}
-                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                        {t('reader.language') || 'Reading Language'}
-                                    </Text>
-                                </View>
-                                <View style={{ flexDirection: 'row', gap: 8 }}>
-                                    {['ru', 'en'].map(lang => (
-                                        <TouchableOpacity
-                                            key={lang}
-                                            activeOpacity={0.88}
-                                            style={[
-                                                styles.langButton,
-                                                {
-                                                    backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                                    borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
-                                                },
-                                                readingLanguage === lang && { backgroundColor: colors.accent, borderColor: colors.accent }
-                                            ]}
-                                            onPress={() => {
-                                                triggerTapFeedback();
-                                                setReadingLanguage(lang);
-                                            }}
-                                        >
-                                            <Text style={{
-                                                color: readingLanguage === lang ? '#fff' : (isPhotoBg ? '#FFFFFF' : colors.textPrimary),
-                                                fontWeight: 'bold'
-                                            }}>{lang.toUpperCase()}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </View>
-
-                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                        {t('reader.showPurport') || 'Show Purport'}
-                                    </Text>
-                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                        {t('reader.showPurportDesc') || 'Display verse commentaries'}
-                                    </Text>
-                                </View>
-                                <Switch
-                                    value={showPurport}
-                                    onValueChange={setShowPurport}
-                                    trackColor={{ false: colors.border, true: colors.accent }}
-                                    thumbColor={showPurport ? '#fff' : '#f4f3f4'}
-                                />
-                            </View>
-
-
-
-                            <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
-
-                            {/* Schedule Section */}
-                            <Text style={[styles.sectionHeader, { color: vTheme.colors.text }]}>
-                                {t('chat.readingSchedule') || 'Reading Schedule'}
-                            </Text>
-
-                            <TouchableOpacity
-                                activeOpacity={0.88}
-                                style={[
-                                    styles.scheduleButton,
-                                    {
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
-                                    }
-                                ]}
-                                onPress={() => setShowDatePicker(true)}
-                            >
-                                <Bell size={20} color={colors.accent} />
-                                <View style={{ marginLeft: 12, flex: 1 }}>
-                                    <Text style={[styles.scheduleValue, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                        {startTime ? startTime.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : (t('chat.setStartTime') || 'Set Start Time')}
-                                    </Text>
-                                    <Text style={[styles.scheduleSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                        {t('chat.notificationHint') || 'Friends will be notified 15 minutes before'}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-
-                            <DatePicker
-                                modal
-                                open={showDatePicker}
-                                date={startTime || new Date()}
-                                onConfirm={(date) => {
-                                    setShowDatePicker(false);
-                                    setStartTime(date);
-                                }}
-                                onCancel={() => {
-                                    setShowDatePicker(false);
-                                }}
-                                title={t('chat.selectStartTime') || "Select Start Time"}
-                                confirmText={t('common.confirm') || "Confirm"}
-                                cancelText={t('common.cancel') || "Cancel"}
-                            />
-
-                            <View style={[styles.divider, { backgroundColor: vTheme.colors.divider }]} />
-                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                        {t('chat.publicRoom') || 'Public Room'}
-                                    </Text>
-                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                        {t('chat.publicRoomDesc') || 'Anyone can find and join'}
-                                    </Text>
-                                </View>
-                                <Switch
-                                    value={isPublic}
-                                    onValueChange={handleTogglePublic}
-                                    trackColor={{ false: colors.border, true: colors.accent }}
-                                    thumbColor={isPublic ? '#fff' : '#f4f3f4'}
-                                    disabled={saving}
-                                />
-                            </View>
-
-                            <View style={[styles.settingItem, { borderBottomColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border }]}>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                        {t('chat.aiAssistant') || 'AI Assistant'}
-                                    </Text>
-                                    <Text style={[styles.settingSubLabel, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                        {t('chat.aiAssistantDesc') || 'AI joins the conversation'}
-                                    </Text>
-                                </View>
-                                <Switch
-                                    value={aiEnabled}
-                                    onValueChange={handleToggleAi}
-                                    trackColor={{ false: colors.border, true: colors.accent }}
-                                    thumbColor={aiEnabled ? '#fff' : '#f4f3f4'}
-                                    disabled={saving}
-                                />
-                            </View>
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.actionButton,
-                                    {
-                                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface,
-                                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.24)' : colors.border
-                                    }
-                                ]}
-                                onPress={() => {
-                                    triggerTapFeedback();
-                                    handleGetSummary();
-                                }}
-                                disabled={summaryLoading}
-                            >
-                                {summaryLoading ? (
-                                    <ActivityIndicator size="small" color={colors.accent} />
-                                ) : (
-                                    <Text style={[styles.actionButtonText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
-                                        📝 {t('chat.getSummary') || 'Get Chat Summary'}
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
-                        </ScrollView>
-                    )}
-                </Animated.View>
+                                    )}
+                                </TouchableOpacity>
+                            </ScrollView>
+                        )}
+                    </Animated.View>
                 </KeyboardAwareContainer>
             </View>
         </Modal>
@@ -873,8 +886,10 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 22,
         fontWeight: '800',
+        lineHeight: 28,
         textAlign: 'center',
         flex: 1,
+        paddingHorizontal: 10,
     },
     header: {
         flexDirection: 'row',
@@ -899,6 +914,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingVertical: 16,
+        paddingHorizontal: 8,
         borderBottomWidth: 0.5,
         borderBottomColor: '#ccc',
     },
@@ -906,13 +922,25 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 8,
+    },
+    settingTextBlock: {
+        flex: 1,
+        paddingRight: 12,
+    },
+    switchControl: {
+        marginLeft: 10,
+        marginRight: 6,
+        alignSelf: 'center',
     },
     settingLabel: {
         fontSize: 16,
         fontWeight: '600',
+        flexShrink: 1,
     },
     settingSubLabel: {
-        fontSize: 12,
+        fontSize: 13,
+        lineHeight: 18,
         marginTop: 4,
     },
     actionButton: {
@@ -926,7 +954,7 @@ const styles = StyleSheet.create({
     },
     actionButtonText: {
         fontSize: 16,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     scheduleButton: {
         flexDirection: 'row',
@@ -1027,7 +1055,7 @@ const styles = StyleSheet.create({
     },
     bookItemText: {
         fontSize: 14,
-        fontWeight: 'bold',
+        fontWeight: '700',
     },
     textInput: {
         borderWidth: 1,
@@ -1035,6 +1063,7 @@ const styles = StyleSheet.create({
         padding: 14,
         marginBottom: 16,
         fontSize: 16,
+        lineHeight: 22,
     },
     verseInputContainer: {
         flexDirection: 'row',
@@ -1053,6 +1082,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(148,163,184,0.5)',
         marginTop: 8,
     },
     saveButton: {
@@ -1070,6 +1101,8 @@ const styles = StyleSheet.create({
     langButton: {
         paddingVertical: 6,
         paddingHorizontal: 12,
+        minWidth: 52,
+        alignItems: 'center',
         borderRadius: 8,
         borderWidth: 1,
         borderColor: '#ccc',
@@ -1093,7 +1126,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     boldButtonText: {
-        fontWeight: 'bold',
+        fontWeight: '700',
         fontSize: 14,
     }
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, ScrollView } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
 import { webRTCService } from '../../services/webRTCService';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Camera } from 'lucide-react-native';
@@ -14,8 +14,8 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
     const { vTheme } = useSettings();
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const [isMuted, setIsMuted] = useState(false);
-    const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [isMuted, setIsMuted] = useState(true);
+    const [isVideoEnabled, setIsVideoEnabled] = useState(false);
     const [status, setStatus] = useState('Connecting...');
 
     useEffect(() => {
@@ -28,7 +28,20 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
                 if (!stream) {
                     stream = await webRTCService.startLocalStream(true);
                 }
+
+                // Default room call state: microphone OFF + camera OFF.
+                stream.getAudioTracks().forEach(track => {
+                    track.enabled = false;
+                });
+                stream.getVideoTracks().forEach(track => {
+                    track.enabled = false;
+                });
+
                 if (mounted) setLocalStream(stream);
+                if (mounted) {
+                    setIsMuted(true);
+                    setIsVideoEnabled(false);
+                }
 
                 // 2. Setup Listeners
                 webRTCService.setOnRemoteStream((rStream) => {
@@ -58,15 +71,25 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
 
     const toggleMute = () => {
         if (localStream) {
-            localStream.getAudioTracks().forEach(t => t.enabled = !t.enabled);
-            setIsMuted(!isMuted);
+            setIsMuted(prev => {
+                const nextMuted = !prev;
+                localStream.getAudioTracks().forEach(track => {
+                    track.enabled = !nextMuted;
+                });
+                return nextMuted;
+            });
         }
     };
 
     const toggleVideo = () => {
         if (localStream) {
-            localStream.getVideoTracks().forEach(t => t.enabled = !t.enabled);
-            setIsVideoEnabled(!isVideoEnabled);
+            setIsVideoEnabled(prev => {
+                const nextVideoEnabled = !prev;
+                localStream.getVideoTracks().forEach(track => {
+                    track.enabled = nextVideoEnabled;
+                });
+                return nextVideoEnabled;
+            });
         }
     };
 
