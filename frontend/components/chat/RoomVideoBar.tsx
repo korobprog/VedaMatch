@@ -7,16 +7,18 @@ import { useSettings } from '../../context/SettingsContext';
 
 interface RoomVideoBarProps {
     roomId: number;
+    targetUserId?: number | null;
+    targetUserName?: string;
     onClose: () => void;
 }
 
-export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) => {
+export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, targetUserId, targetUserName, onClose }) => {
     const { vTheme } = useSettings();
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [isMuted, setIsMuted] = useState(true);
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-    const [status, setStatus] = useState('Connecting...');
+    const [status, setStatus] = useState('Preparing call...');
 
     useEffect(() => {
         let mounted = true;
@@ -52,8 +54,22 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
                     }
                 });
 
-                // 3. Start Connection (using roomId as targetId for now)
-                await webRTCService.startCall(roomId);
+                webRTCService.setOnIceStateChange((iceStatus) => {
+                    if (mounted) {
+                        setStatus(iceStatus);
+                    }
+                });
+
+                // 3. Start connection only when there is a real participant user ID.
+                if (!targetUserId || targetUserId <= 0) {
+                    if (mounted) {
+                        setStatus('Waiting for participant');
+                    }
+                    return;
+                }
+
+                setStatus('Connecting...');
+                await webRTCService.startRoomCall(targetUserId, roomId);
 
             } catch (err) {
                 console.error('[RoomVideoBar] Failed to start call:', err);
@@ -67,7 +83,7 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
             mounted = false;
             webRTCService.endCall();
         };
-    }, [roomId]);
+    }, [roomId, targetUserId]);
 
     const toggleMute = () => {
         if (localStream) {
@@ -134,7 +150,9 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
                             style={styles.video}
                             objectFit="cover"
                         />
-                        <Text style={[styles.userName, { backgroundColor: vTheme.colors.glass, color: vTheme.colors.text }]}>Room</Text>
+                        <Text style={[styles.userName, { backgroundColor: vTheme.colors.glass, color: vTheme.colors.text }]}>
+                            {targetUserName || 'Participant'}
+                        </Text>
                     </View>
                 )}
             </ScrollView>

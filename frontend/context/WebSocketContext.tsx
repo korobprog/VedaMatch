@@ -21,7 +21,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             wsServiceRef.current = new WebSocketService(
                 user.ID,
                 (msg) => {
-                    if (['offer', 'answer', 'candidate', 'hangup'].includes(msg.type)) {
+                    if (['offer', 'answer', 'candidate', 'hangup', 'room_offer', 'room_answer', 'room_candidate', 'room_hangup'].includes(msg.type)) {
                         webRTCService.handleSignalingMessage(msg);
                     }
                     listenersRef.current.forEach(listener => listener(msg));

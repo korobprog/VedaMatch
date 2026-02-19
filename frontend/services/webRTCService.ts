@@ -27,6 +27,8 @@ class WebRTCService {
     wsService: WebSocketService | null = null;
     onRemoteStream: ((stream: MediaStream) => void) | null = null;
     targetId: number | null = null;
+    signalingRoomId: number | null = null;
+    signalingMode: 'p2p' | 'room' = 'p2p';
     isInitiator: boolean = false;
     private remoteCandidates: RTCIceCandidate[] = [];
     private pendingOffer: any = null; // Store offer until user accepts
@@ -140,11 +142,20 @@ class WebRTCService {
                 }
 
                 if (this.wsService && this.targetId) {
-                    this.wsService.send({
-                        type: 'candidate',
-                        targetId: this.targetId,
-                        payload: event.candidate,
-                    });
+                    if (this.signalingMode === 'room') {
+                        this.wsService.send({
+                            type: 'room_candidate',
+                            roomId: this.signalingRoomId || 0,
+                            targetId: this.targetId,
+                            payload: event.candidate,
+                        });
+                    } else {
+                        this.wsService.send({
+                            type: 'candidate',
+                            targetId: this.targetId,
+                            payload: event.candidate,
+                        });
+                    }
                 }
             }
         };
@@ -204,6 +215,8 @@ class WebRTCService {
 
     async startCall(targetId: number) {
         await this.fetchTurnCredentials(); // Get TURN config first
+        this.signalingMode = 'p2p';
+        this.signalingRoomId = null;
         this.targetId = targetId;
         this.isInitiator = true;
 
@@ -234,10 +247,45 @@ class WebRTCService {
         }
     }
 
+    async startRoomCall(targetId: number, roomId: number) {
+        await this.fetchTurnCredentials();
+        this.signalingMode = 'room';
+        this.signalingRoomId = roomId;
+        this.targetId = targetId;
+        this.isInitiator = true;
+
+        InCallManager.start({ media: 'video' });
+        InCallManager.setForceSpeakerphoneOn(true);
+
+        this.createPeerConnection();
+
+        const offer = await (this.peerConnection as any).createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+        });
+        await this.peerConnection!.setLocalDescription(offer);
+
+        if (this.wsService) {
+            this.wsService.send({
+                type: 'room_offer',
+                roomId,
+                targetId: this.targetId,
+                payload: offer,
+            });
+        }
+    }
+
     async processOffer(message: any) {
         console.log('Received OFFER, storing as pending...');
         this.pendingOffer = message;
         this.targetId = message.senderId;
+        if (message?.type === 'room_offer' && message?.roomId) {
+            this.signalingMode = 'room';
+            this.signalingRoomId = Number(message.roomId);
+        } else {
+            this.signalingMode = 'p2p';
+            this.signalingRoomId = null;
+        }
         this.isInitiator = false;
         // Don't auto-answer. Wait for acceptCall().
     }
@@ -269,11 +317,20 @@ class WebRTCService {
             await this.peerConnection!.setLocalDescription(answer);
 
             if (this.wsService && this.targetId) {
-                this.wsService.send({
-                    type: 'answer',
-                    targetId: this.targetId,
-                    payload: answer,
-                });
+                if (this.signalingMode === 'room') {
+                    this.wsService.send({
+                        type: 'room_answer',
+                        roomId: this.signalingRoomId || 0,
+                        targetId: this.targetId,
+                        payload: answer,
+                    });
+                } else {
+                    this.wsService.send({
+                        type: 'answer',
+                        targetId: this.targetId,
+                        payload: answer,
+                    });
+                }
             }
         } catch (e) {
             console.error('Error accepting call:', e);
@@ -321,15 +378,19 @@ class WebRTCService {
     async handleSignalingMessage(message: any) {
         switch (message.type) {
             case 'offer':
+            case 'room_offer':
                 await this.processOffer(message);
                 break;
             case 'answer':
+            case 'room_answer':
                 await this.processAnswer(message);
                 break;
             case 'candidate':
+            case 'room_candidate':
                 await this.processCandidate(message);
                 break;
             case 'hangup':
+            case 'room_hangup':
                 this.endCall();
                 break;
         }
@@ -347,17 +408,28 @@ class WebRTCService {
         InCallManager.stop();
         this.remoteStream = null;
         this.targetId = null;
+        this.signalingRoomId = null;
+        this.signalingMode = 'p2p';
         this.onIceStateChange = null;
         // Notify server/other user if needed via hangup message
     }
 
     sendHangup() {
         if (this.wsService && this.targetId) {
-            this.wsService.send({
-                type: 'hangup',
-                targetId: this.targetId,
-                payload: {},
-            });
+            if (this.signalingMode === 'room') {
+                this.wsService.send({
+                    type: 'room_hangup',
+                    roomId: this.signalingRoomId || 0,
+                    targetId: this.targetId,
+                    payload: {},
+                });
+            } else {
+                this.wsService.send({
+                    type: 'hangup',
+                    targetId: this.targetId,
+                    payload: {},
+                });
+            }
         }
         this.endCall();
     }

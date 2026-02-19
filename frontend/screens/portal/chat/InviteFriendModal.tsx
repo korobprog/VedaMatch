@@ -13,6 +13,7 @@ import {
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
 import { X, Link2, UserPlus, ShieldCheck, UserMinus, Search, User as UserIcon } from 'lucide-react-native';
+import { BlurView } from '@react-native-community/blur';
 import { COLORS } from '../../../components/chat/ChatConstants';
 import { API_PATH } from '../../../config/api.config';
 import { useUser } from '../../../context/UserContext';
@@ -285,59 +286,67 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
-                <KeyboardAwareContainer style={{ width: '100%' }} useTopInset={false}>
-                <View style={[styles.modalContent, { backgroundColor: vTheme.colors.background }]}>
-                    <View style={styles.headerRow}>
-                        <TouchableOpacity onPress={onClose} style={styles.headerIcon}>
-                            <X size={26} color={vTheme.colors.text} />
-                        </TouchableOpacity>
-                        <Text style={[styles.modalTitle, { color: vTheme.colors.text }]}>
-                            {t('chat.inviteFriends')}
-                        </Text>
-                        <TouchableOpacity
-                            testID="invite-link-button"
-                            onPress={() => { void copyRoomLink(); }}
-                            style={styles.headerIcon}
-                            disabled={creatingInviteLink}
-                        >
-                            {creatingInviteLink ? (
-                                <ActivityIndicator size="small" color={vTheme.colors.primary} />
-                            ) : (
-                                <Link2 size={24} color={vTheme.colors.primary} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.searchContainer, { backgroundColor: vTheme.colors.backgroundSecondary, borderColor: vTheme.colors.divider }]}>
-                        <Search size={18} color={vTheme.colors.textSecondary} style={{ marginLeft: 12 }} />
-                        <TextInput
-                            style={[styles.searchInput, { color: vTheme.colors.text }]}
-                            placeholder={t('common.search') || "Search friends..."}
-                            placeholderTextColor={vTheme.colors.textSecondary}
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
+                <KeyboardAwareContainer style={{ width: '100%', flex: 1, justifyContent: 'flex-end' }} useTopInset={false}>
+                    <View style={styles.modalContent}>
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType={isDarkMode ? 'dark' : 'light'}
+                            blurAmount={20}
+                            reducedTransparencyFallbackColor={isDarkMode ? '#0F172A' : '#FDFCFB'}
                         />
-                    </View>
+                        <View style={styles.headerRow}>
+                            <TouchableOpacity onPress={onClose} style={styles.headerButton}>
+                                <X size={22} color={vTheme.colors.text} />
+                            </TouchableOpacity>
+                            <Text style={[styles.modalTitle, { color: vTheme.colors.text }]}>
+                                {t('chat.inviteFriends')}
+                            </Text>
+                            <TouchableOpacity
+                                testID="invite-link-button"
+                                onPress={() => { void copyRoomLink(); }}
+                                style={styles.headerButton}
+                                disabled={creatingInviteLink}
+                            >
+                                {creatingInviteLink ? (
+                                    <ActivityIndicator size="small" color={vTheme.colors.primary} />
+                                ) : (
+                                    <Link2 size={20} color={vTheme.colors.primary} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
 
-                    {loading ? (
-                        <ActivityIndicator size="large" color={theme.accent} style={{ margin: 20 }} />
-                    ) : (
-                        <FlatList
-                            data={filteredFriends}
-                            keyExtractor={item => item.ID.toString()}
-                            renderItem={renderItem}
-                            keyboardShouldPersistTaps="handled"
-                            ListEmptyComponent={
-                                <View style={styles.emptyContainer}>
-                                    <Text style={{ color: vTheme.colors.textSecondary }}>
-                                        {friends.length === 0 ? t('chat.noHistory') : 'No matching friends found'}
-                                    </Text>
-                                </View>
-                            }
-                            style={{ maxHeight: 400 }}
-                        />
-                    )}
-                </View>
+                        <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: vTheme.colors.divider }]}>
+                            <Search size={18} color={vTheme.colors.textSecondary} style={{ marginLeft: 12 }} />
+                            <TextInput
+                                style={[styles.searchInput, { color: vTheme.colors.text }]}
+                                placeholder={t('common.search') || "Search friends..."}
+                                placeholderTextColor={vTheme.colors.textSecondary}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                            />
+                        </View>
+
+                        {loading ? (
+                            <ActivityIndicator size="large" color={vTheme.colors.primary} style={{ margin: 40 }} />
+                        ) : (
+                            <FlatList
+                                data={filteredFriends}
+                                keyExtractor={item => item.ID.toString()}
+                                renderItem={renderItem}
+                                keyboardShouldPersistTaps="handled"
+                                ListEmptyComponent={
+                                    <View style={styles.emptyContainer}>
+                                        <Text style={{ color: vTheme.colors.textSecondary, fontSize: 15 }}>
+                                            {friends.length === 0 ? t('chat.noHistory') : 'No matching friends found'}
+                                        </Text>
+                                    </View>
+                                }
+                                style={{ flex: 1 }}
+                                contentContainerStyle={{ paddingBottom: 40 }}
+                                showsVerticalScrollIndicator={false}
+                            />
+                        )}
+                    </View>
                 </KeyboardAwareContainer>
             </View>
         </Modal>
@@ -347,67 +356,75 @@ export const InviteFriendModal: React.FC<InviteFriendModalProps> = ({ visible, o
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
         alignItems: 'center',
-        padding: 20,
     },
     modalContent: {
         width: '100%',
-        borderRadius: 20,
+        height: '88%',
+        borderTopLeftRadius: 36,
+        borderTopRightRadius: 36,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
         padding: 24,
-        maxHeight: '80%',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderBottomWidth: 0,
+        borderColor: 'rgba(255,255,255,0.15)',
     },
     modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 20,
+        fontSize: 19,
+        fontWeight: '700',
         textAlign: 'center',
+        flex: 1,
+        letterSpacing: -0.4,
     },
     friendItem: {
         flexDirection: 'row',
-        paddingVertical: 12,
+        paddingVertical: 14,
         alignItems: 'center',
-        borderBottomWidth: 0.5,
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
     avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     friendInfo: {
         flex: 1,
-        marginLeft: 12,
+        marginLeft: 14,
     },
     friendName: {
         fontSize: 16,
-        fontWeight: '500',
+        fontWeight: '600',
+        marginBottom: 2,
     },
     friendEmail: {
-        fontSize: 12,
+        fontSize: 13,
+        opacity: 0.7,
     },
     inviteButton: {
         paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 8,
+        paddingVertical: 9,
+        borderRadius: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
     },
     inviteButtonText: {
         color: '#fff',
-        fontWeight: 'bold',
+        fontWeight: '700',
         fontSize: 14,
     },
-    closeButton: {
-        marginTop: 20,
-        alignItems: 'center',
-    },
-    closeButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
     emptyContainer: {
-        padding: 20,
+        padding: 40,
         alignItems: 'center',
     },
     headerRow: {
@@ -416,30 +433,34 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 24,
     },
-    headerIcon: {
-        padding: 5,
+    headerButton: {
         width: 40,
         height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.18)',
         alignItems: 'center',
         justifyContent: 'center',
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: 16,
         borderWidth: 1,
-        marginBottom: 16,
+        marginBottom: 20,
     },
     searchInput: {
         flex: 1,
-        height: 44,
+        height: 48,
         paddingHorizontal: 12,
         fontSize: 16,
+        fontWeight: '500',
     },
     iconButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     }

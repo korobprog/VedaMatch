@@ -19,7 +19,12 @@ func (c *Client) ReadPump() {
 		c.Conn.Close()
 	}()
 	for {
-		var msg SignalingMessage
+		var msg struct {
+			Type     string      `json:"type"`
+			TargetID uint        `json:"targetId"`
+			RoomID   uint        `json:"roomId"`
+			Payload  interface{} `json:"payload"`
+		}
 		if err := c.Conn.ReadJSON(&msg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("WebSocket error for User %d: %v", c.UserID, err)
@@ -27,12 +32,25 @@ func (c *Client) ReadPump() {
 			break
 		}
 
-		log.Printf("[WS] Received message from User %d: Type=%s, Target=%d", c.UserID, msg.Type, msg.TargetID)
+		log.Printf("[WS] Received message from User %d: Type=%s, Target=%d, Room=%d", c.UserID, msg.Type, msg.TargetID, msg.RoomID)
 
-		if msg.Type == "offer" || msg.Type == "answer" || msg.Type == "candidate" || msg.Type == "hangup" {
-			msg.SenderID = c.UserID
-			c.Hub.Signal <- msg
-		} else {
+		switch msg.Type {
+		case "offer", "answer", "candidate", "hangup":
+			c.Hub.Signal <- SignalingMessage{
+				Type:     msg.Type,
+				TargetID: msg.TargetID,
+				Payload:  msg.Payload,
+				SenderID: c.UserID,
+			}
+		case "room_offer", "room_answer", "room_candidate", "room_hangup":
+			c.Hub.RoomSignal <- RoomSignalingMessage{
+				Type:     msg.Type,
+				RoomID:   msg.RoomID,
+				TargetID: msg.TargetID,
+				Payload:  msg.Payload,
+				SenderID: c.UserID,
+			}
+		default:
 			log.Printf("[WS] Ignored message type: %s", msg.Type)
 		}
 	}

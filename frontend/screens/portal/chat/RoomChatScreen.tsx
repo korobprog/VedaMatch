@@ -86,6 +86,8 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [readerFontSize, setReaderFontSize] = useState(16);
     const [readerFontBold, setReaderFontBold] = useState(false);
+    const [roomVideoTargetId, setRoomVideoTargetId] = useState<number | null>(null);
+    const [roomVideoTargetName, setRoomVideoTargetName] = useState<string>('');
     const latestMessagesRequestRef = useRef(0);
     const latestRoomRequestRef = useRef(0);
     const latestChaptersRequestRef = useRef(0);
@@ -124,21 +126,68 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         return parsed;
     };
 
+    const normalizeBookCode = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+
+    const getVerseText = useCallback((verse: any) => {
+        if (!verse) {
+            return {
+                primary: '',
+                translation: '',
+                purport: '',
+            };
+        }
+        return {
+            primary: String(verse.devanagari || verse.text_sanskrit || verse.transliteration || '').trim(),
+            translation: String(verse.translation || verse.translation_ru || verse.translation_en || verse.text || '').trim(),
+            purport: String(verse.purport || '').trim(),
+        };
+    }, []);
+
     const fetchVerse = useCallback(async (bookCode: string, chapter: number, verseNum: number, lang: string = 'ru') => {
         const requestId = ++latestVerseRequestRef.current;
-        try {
-            const response = await fetch(`${API_PATH}/library/verses?bookCode=${bookCode}&chapter=${chapter}&language=${lang}`);
-            if (response.ok) {
-                const versesPayload = await response.json();
-                const verses = Array.isArray(versesPayload) ? versesPayload : [];
-                if (requestId === latestVerseRequestRef.current && isMountedRef.current) {
-                    setVersesInChapter(verses);
-                    const verse = verses.find((v: { verse?: string | number }) => Number.parseInt(String(v.verse ?? ''), 10) === verseNum);
-                    setCurrentVerse(verse || verses[0]);
-                }
-            } else if (requestId === latestVerseRequestRef.current && isMountedRef.current) {
+        const normalizedBookCode = normalizeBookCode(bookCode);
+        if (!normalizedBookCode) {
+            if (requestId === latestVerseRequestRef.current && isMountedRef.current) {
                 setVersesInChapter([]);
                 setCurrentVerse(null);
+            }
+            return;
+        }
+
+        const languagePriority = [lang, 'en', '']
+            .map((item) => String(item || '').trim().toLowerCase())
+            .filter((item, index, arr) => item === '' || arr.indexOf(item) === index);
+
+        try {
+            let selectedVerses: any[] = [];
+            for (const language of languagePriority) {
+                const params = new URLSearchParams({
+                    bookCode: normalizedBookCode,
+                    chapter: String(chapter),
+                });
+                if (language) {
+                    params.set('language', language);
+                }
+
+                const response = await fetch(`${API_PATH}/library/verses?${params.toString()}`);
+                if (!response.ok) {
+                    continue;
+                }
+                const versesPayload = await response.json();
+                const verses = Array.isArray(versesPayload) ? versesPayload : [];
+                if (verses.length > 0) {
+                    selectedVerses = verses;
+                    break;
+                }
+                if (language === '') {
+                    selectedVerses = verses;
+                }
+            }
+
+            if (requestId === latestVerseRequestRef.current && isMountedRef.current) {
+                setVersesInChapter(selectedVerses);
+                const verse = selectedVerses.find((v: { verse?: string | number }) => Number.parseInt(String(v.verse ?? ''), 10) === verseNum);
+                setCurrentVerse(verse || selectedVerses[0] || null);
             }
         } catch (err) {
             console.error('Error fetching verse', err);
@@ -151,8 +200,15 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     const fetchChapters = useCallback(async (bookCode: string) => {
         const requestId = ++latestChaptersRequestRef.current;
+        const normalizedBookCode = normalizeBookCode(bookCode);
+        if (!normalizedBookCode) {
+            if (requestId === latestChaptersRequestRef.current && isMountedRef.current) {
+                setChapters([]);
+            }
+            return;
+        }
         try {
-            const response = await fetch(`${API_PATH}/library/books/${bookCode}/chapters`);
+            const response = await fetch(`${API_PATH}/library/books/${normalizedBookCode}/chapters`);
             if (response.ok) {
                 const dataPayload = await response.json();
                 const data = Array.isArray(dataPayload) ? dataPayload : [];
@@ -184,14 +240,65 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 if (currentRoom.bookCode) {
                     const chapter = toPositiveInt(currentRoom.currentChapter) ?? 1;
                     const verse = toPositiveInt(currentRoom.currentVerse) ?? 1;
-                    fetchChapters(currentRoom.bookCode);
-                    fetchVerse(currentRoom.bookCode, chapter, verse, currentRoom.language || 'ru');
+                    const normalizedBookCode = normalizeBookCode(currentRoom.bookCode);
+                    if (normalizedBookCode) {
+                        fetchChapters(normalizedBookCode);
+                        fetchVerse(normalizedBookCode, chapter, verse, currentRoom.language || 'ru');
+                    } else {
+                        setChapters([]);
+                        setVersesInChapter([]);
+                        setCurrentVerse(null);
+                    }
+                } else {
+                    setChapters([]);
+                    setVersesInChapter([]);
+                    setCurrentVerse(null);
                 }
             }
         } catch (error) {
             console.error('Error fetching room details:', error);
         }
     }, [fetchChapters, fetchVerse, roomId]);
+
+    const fetchRoomCallTarget = useCallback(async () => {
+        if (!user?.ID) {
+            setRoomVideoTargetId(null);
+            setRoomVideoTargetName('');
+            return;
+        }
+        try {
+            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/members`);
+            if (!response.ok) {
+                setRoomVideoTargetId(null);
+                setRoomVideoTargetName('');
+                return;
+            }
+            const membersPayload = await response.json();
+            const members = Array.isArray(membersPayload) ? membersPayload : [];
+            const targetMember = members.find((item: any) => {
+                const memberId = Number(item?.user?.id ?? 0);
+                return memberId > 0 && memberId !== user.ID;
+            });
+            if (!targetMember) {
+                setRoomVideoTargetId(null);
+                setRoomVideoTargetName('');
+                return;
+            }
+            const memberId = Number(targetMember?.user?.id ?? 0);
+            const memberName = String(
+                targetMember?.user?.spiritualName ||
+                targetMember?.user?.karmicName ||
+                targetMember?.user?.email ||
+                ''
+            ).trim();
+            setRoomVideoTargetId(memberId > 0 ? memberId : null);
+            setRoomVideoTargetName(memberName);
+        } catch (error) {
+            console.error('Error fetching room members for video target:', error);
+            setRoomVideoTargetId(null);
+            setRoomVideoTargetName('');
+        }
+    }, [roomId, user?.ID]);
 
     const fetchFontSettings = useCallback(async () => {
         const requestId = ++latestFontSettingsRequestRef.current;
@@ -345,6 +452,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         fetchRoomDetails();
         fetchFontSettings();
     }, [fetchFontSettings, fetchMessages, fetchRoomDetails]);
+
+    useEffect(() => {
+        fetchRoomCallTarget();
+    }, [fetchRoomCallTarget]);
 
     useEffect(() => {
         const removeListener = addListener((msg: any) => {
@@ -563,10 +674,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         );
     };
 
+    const verseText = getVerseText(currentVerse);
+    const hasReadableVerseContent = Boolean(verseText.primary || verseText.translation || verseText.purport);
+
     return (
         <View style={[styles.container, { backgroundColor: tokens.canvas }]}>
             {/* Custom Premium Header */}
-            <View style={[styles.headerWrapper]}>
+            <View style={[styles.headerWrapper, { paddingTop: insets.top + 8 }]} testID="roomchat-header">
                 <BlurView
                     style={StyleSheet.absoluteFill}
                     blurType={isDarkMode ? 'dark' : 'light'}
@@ -608,11 +722,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 </View>
             </View>
 
-            <KeyboardAwareContainer style={styles.container}>
+            <KeyboardAwareContainer style={styles.container} useTopInset={false}>
 
                 {isCallActive && (
                     <RoomVideoBar
                         roomId={roomId}
+                        targetUserId={roomVideoTargetId}
+                        targetUserName={roomVideoTargetName}
                         onClose={() => setIsCallActive(false)}
                     />
                 )}
@@ -663,13 +779,17 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 <TouchableOpacity
                                     activeOpacity={0.88}
                                     style={[styles.joinCallButton, styles.joinCallButtonFullWidth]}
+                                    disabled={!roomVideoTargetId}
                                     onPress={() => {
+                                        if (!roomVideoTargetId) return;
                                         triggerTapFeedback();
                                         setIsCallActive(true);
                                     }}
                                 >
                                     <Video size={18} color={tokens.accentTextOnPrimary} />
-                                    <Text style={styles.joinCallButtonText}>{t('chat.joinCall')}</Text>
+                                    <Text style={styles.joinCallButtonText}>
+                                        {roomVideoTargetId ? (t('chat.joinCall')) : (t('chat.waitingForParticipants') || 'Ожидание участников')}
+                                    </Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -744,7 +864,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             </View>
                         )}
 
-                        {currentVerse ? (
+                        {hasReadableVerseContent ? (
                             <View style={styles.verseContentWrap}>
                                 <ScrollView
                                     style={styles.verseScroll}
@@ -759,7 +879,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                             lineHeight: (readerFontSize * 1.2) * 1.4
                                         }
                                     ]}>
-                                        {currentVerse.devanagari || currentVerse.text_sanskrit}
+                                        {verseText.primary || (t('reader.translationOnly') || 'Санскрит недоступен')}
                                     </Text>
                                     <Text style={[
                                         styles.translationText,
@@ -769,10 +889,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                             lineHeight: readerFontSize * 1.5
                                         }
                                     ]}>
-                                        {currentVerse.translation}
+                                        {verseText.translation || (t('reader.translationMissing') || 'Перевод временно недоступен')}
                                     </Text>
 
-                                    {roomDetails?.showPurport && currentVerse.purport && (
+                                    {roomDetails?.showPurport && verseText.purport && (
                                         <View style={styles.purportContainer}>
                                             <Text style={styles.purportHeader}>
                                                 {t('reader.purport') || 'Purport'}
@@ -785,7 +905,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                                     lineHeight: (readerFontSize * 0.95) * 1.6
                                                 }
                                             ]}>
-                                                {currentVerse.purport}
+                                                {verseText.purport}
                                             </Text>
                                         </View>
                                     )}
@@ -855,13 +975,17 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             <TouchableOpacity
                                 activeOpacity={0.88}
                                 style={styles.joinCallButton}
+                                disabled={!roomVideoTargetId}
                                 onPress={() => {
+                                    if (!roomVideoTargetId) return;
                                     triggerTapFeedback();
                                     setIsCallActive(true);
                                 }}
                             >
                                 <Video size={18} color={tokens.accentTextOnPrimary} />
-                                <Text style={styles.joinCallButtonText}>{t('chat.joinCall')}</Text>
+                                <Text style={styles.joinCallButtonText}>
+                                    {roomVideoTargetId ? (t('chat.joinCall')) : (t('chat.waitingForParticipants') || 'Ожидание участников')}
+                                </Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -904,6 +1028,9 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     testID="roomchat-input-bar"
                     style={[
                         styles.inputBarWrapper,
+                        {
+                            marginBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 8 : 10),
+                        },
                         {
                             opacity: inputFade,
                             transform: [{ translateY: inputTranslateY }],

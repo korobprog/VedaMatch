@@ -138,7 +138,7 @@ describe('RoomChatScreen design contract', () => {
     mockGetRoomMessagesHistory.mockResolvedValue({ items: [], hasMore: false, nextBeforeId: null });
   });
 
-  it('renders key zones and exposes header background testID', async () => {
+  it('renders key zones and header container', async () => {
     mockAuthorizedFetch.mockResolvedValue(jsonResponse({
       id: 42,
       bookCode: 'bg',
@@ -162,19 +162,11 @@ describe('RoomChatScreen design contract', () => {
     const screen = renderScreen();
 
     await waitFor(() => {
+      expect(screen.getByTestId('roomchat-header')).toBeTruthy();
       expect(screen.getByTestId('roomchat-reader-card')).toBeTruthy();
       expect(screen.getByTestId('roomchat-input-bar')).toBeTruthy();
       expect(screen.getByTestId('roomchat-send-button')).toBeTruthy();
     });
-
-    const optionsWithBackground = mockSetOptions.mock.calls
-      .map(([options]) => options)
-      .reverse()
-      .find((options: any) => typeof options?.headerBackground === 'function');
-
-    expect(optionsWithBackground).toBeTruthy();
-    const headerBackground = optionsWithBackground.headerBackground();
-    expect(headerBackground.props.testID).toBe('roomchat-header');
   });
 
   it('shows compact header variant when room has no reader book', async () => {

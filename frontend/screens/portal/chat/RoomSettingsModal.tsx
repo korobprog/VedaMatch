@@ -912,25 +912,25 @@ const styles = StyleSheet.create({
     settingItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         paddingVertical: 16,
-        paddingHorizontal: 8,
+        paddingHorizontal: 4,
         borderBottomWidth: 0.5,
         borderBottomColor: '#ccc',
     },
     switchRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 8,
+        alignItems: 'flex-start',
+        paddingHorizontal: 4,
     },
     settingTextBlock: {
         flex: 1,
-        paddingRight: 12,
+        paddingRight: 16,
     },
     switchControl: {
-        marginLeft: 10,
-        marginRight: 6,
+        marginLeft: 12,
+        marginRight: 0,
         alignSelf: 'center',
     },
     settingLabel: {

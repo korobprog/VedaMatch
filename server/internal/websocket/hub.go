@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"log"
+	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"sync"
 )
@@ -43,6 +44,7 @@ type Hub struct {
 	clients    map[uint]*Client
 	broadcast  chan WSMessage
 	Signal     chan SignalingMessage // Dedicated channel for direct signaling
+	RoomSignal chan RoomSignalingMessage
 	Register   chan *Client
 	Unregister chan *Client
 	mu         sync.RWMutex
@@ -52,6 +54,7 @@ func NewHub() *Hub {
 	return &Hub{
 		broadcast:  make(chan WSMessage, 256),
 		Signal:     make(chan SignalingMessage, 256),
+		RoomSignal: make(chan RoomSignalingMessage, 256),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
 		clients:    make(map[uint]*Client),
@@ -124,8 +127,92 @@ func (h *Hub) Run() {
 				log.Printf("[Hub] Target User %d not connected", msg.TargetID)
 			}
 			h.mu.RUnlock()
+		case msg := <-h.RoomSignal:
+			h.handleRoomSignaling(msg)
 		}
 	}
+}
+
+func (h *Hub) handleRoomSignaling(msg RoomSignalingMessage) {
+	if msg.RoomID == 0 || msg.SenderID == 0 {
+		return
+	}
+
+	if !isRoomMember(msg.RoomID, msg.SenderID) {
+		log.Printf("[Hub] Room signaling rejected: sender %d is not member of room %d", msg.SenderID, msg.RoomID)
+		return
+	}
+
+	if msg.TargetID != 0 {
+		if !isRoomMember(msg.RoomID, msg.TargetID) {
+			log.Printf("[Hub] Room signaling rejected: target %d is not member of room %d", msg.TargetID, msg.RoomID)
+			return
+		}
+		h.mu.RLock()
+		target, ok := h.clients[msg.TargetID]
+		h.mu.RUnlock()
+		if !ok {
+			log.Printf("[Hub] Room target user %d not connected", msg.TargetID)
+			return
+		}
+		select {
+		case target.Send <- msg:
+		default:
+			log.Printf("[Hub] Room signaling drop: target %d channel full", msg.TargetID)
+		}
+		return
+	}
+
+	memberIDs, err := getRoomMemberIDs(msg.RoomID)
+	if err != nil {
+		log.Printf("[Hub] Room signaling member lookup failed room=%d: %v", msg.RoomID, err)
+		return
+	}
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, memberID := range memberIDs {
+		if memberID == msg.SenderID {
+			continue
+		}
+		client, ok := h.clients[memberID]
+		if !ok {
+			continue
+		}
+		select {
+		case client.Send <- msg:
+		default:
+		}
+	}
+}
+
+func isRoomMember(roomID uint, userID uint) bool {
+	var count int64
+	if err := database.DB.Model(&models.RoomMember{}).
+		Where("room_id = ? AND user_id = ?", roomID, userID).
+		Count(&count).Error; err != nil {
+		log.Printf("[Hub] room membership check failed room=%d user=%d: %v", roomID, userID, err)
+		return false
+	}
+	return count > 0
+}
+
+func getRoomMemberIDs(roomID uint) ([]uint, error) {
+	var members []models.RoomMember
+	if err := database.DB.Model(&models.RoomMember{}).
+		Where("room_id = ?", roomID).
+		Find(&members).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]uint, 0, len(members))
+	for _, member := range members {
+		if member.UserID == 0 {
+			continue
+		}
+		result = append(result, member.UserID)
+	}
+	return uniqueTargetUsers(result), nil
 }
 
 func (h *Hub) Broadcast(msg models.Message, targetUserIDs ...uint) {
