@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -152,8 +153,15 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 	} else {
 		if generated, genErr := tryGenerateCircleThumbnailFromUpload(c, videoFile); genErr == nil && generated != "" {
 			thumbnailURL = generated
-		} else if generated, genErr := tryGenerateCircleThumbnail(mediaURL); genErr == nil && generated != "" {
-			thumbnailURL = generated
+		} else {
+			if genErr != nil {
+				log.Printf("[VideoCircles] thumbnail_from_upload_failed file=%s error=%v", videoFile.Filename, genErr)
+			}
+			if generated, fallbackErr := tryGenerateCircleThumbnail(mediaURL); fallbackErr == nil && generated != "" {
+				thumbnailURL = generated
+			} else if fallbackErr != nil {
+				log.Printf("[VideoCircles] thumbnail_fallback_failed media=%s error=%v", mediaURL, fallbackErr)
+			}
 		}
 	}
 

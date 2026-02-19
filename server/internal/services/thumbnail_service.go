@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // ThumbnailService handles video thumbnail generation
@@ -46,30 +49,73 @@ func DefaultThumbnailConfig() ThumbnailConfig {
 
 // GenerateThumbnail creates a thumbnail from a video file
 func (t *ThumbnailService) GenerateThumbnail(inputPath, outputPath string, config ThumbnailConfig) error {
+	defaults := DefaultThumbnailConfig()
 	if config.Width == 0 {
-		config = DefaultThumbnailConfig()
+		config.Width = defaults.Width
+	}
+	if strings.TrimSpace(config.TimeOffset) == "" {
+		config.TimeOffset = defaults.TimeOffset
+	}
+	if config.Quality == 0 {
+		config.Quality = defaults.Quality
 	}
 
-	args := []string{
-		"-i", inputPath,
-		"-ss", config.TimeOffset,
-		"-vframes", "1",
-		"-vf", fmt.Sprintf("scale=%d:-1", config.Width),
-		"-q:v", fmt.Sprintf("%d", config.Quality),
-		"-y", // Overwrite output
-		outputPath,
+	offsetCandidates := []string{config.TimeOffset}
+	if durationSec, err := t.getVideoDuration(inputPath); err == nil && durationSec > 0 {
+		safeOffset := chooseSafeThumbnailOffset(durationSec, config.TimeOffset)
+		if safeOffset != "" && safeOffset != config.TimeOffset {
+			offsetCandidates = append(offsetCandidates, safeOffset)
+		}
+	}
+	if config.TimeOffset != "00:00:00" {
+		offsetCandidates = append(offsetCandidates, "00:00:00")
 	}
 
-	cmd := exec.Command(t.ffmpegPath, args...)
+	seenOffsets := make(map[string]struct{}, len(offsetCandidates))
+	var lastErr error
+	for _, offset := range offsetCandidates {
+		offset = strings.TrimSpace(offset)
+		if offset == "" {
+			continue
+		}
+		if _, exists := seenOffsets[offset]; exists {
+			continue
+		}
+		seenOffsets[offset] = struct{}{}
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+		_ = os.Remove(outputPath)
+		args := []string{
+			"-i", inputPath,
+			"-ss", offset,
+			"-vframes", "1",
+			"-vf", fmt.Sprintf("scale=%d:-1", config.Width),
+			"-q:v", fmt.Sprintf("%d", config.Quality),
+			"-y", // Overwrite output
+			outputPath,
+		}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("thumbnail generation failed: %s - %w", stderr.String(), err)
+		cmd := exec.Command(t.ffmpegPath, args...)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			lastErr = fmt.Errorf("thumbnail generation failed at %s: %s - %w", offset, stderr.String(), err)
+			continue
+		}
+
+		stat, statErr := os.Stat(outputPath)
+		if statErr != nil || stat.Size() == 0 {
+			lastErr = fmt.Errorf("thumbnail generation produced empty file at %s", offset)
+			continue
+		}
+
+		return nil
 	}
 
-	return nil
+	if lastErr != nil {
+		return lastErr
+	}
+	return fmt.Errorf("thumbnail generation failed: no valid offset")
 }
 
 // GenerateMultipleThumbnails creates thumbnails at various points in the video
@@ -174,4 +220,64 @@ func (t *ThumbnailService) getVideoDuration(inputPath string) (int, error) {
 	var duration float64
 	fmt.Sscanf(string(output), "%f", &duration)
 	return int(duration), nil
+}
+
+func chooseSafeThumbnailOffset(durationSec int, requestedOffset string) string {
+	if durationSec <= 0 {
+		return "00:00:00"
+	}
+
+	requestedSec := parseTimeOffsetToSeconds(requestedOffset)
+	maxValidSec := int(math.Max(float64(durationSec-1), 0))
+	if requestedSec <= maxValidSec {
+		return requestedOffset
+	}
+
+	// For short clips, take an early representative frame.
+	safeSec := durationSec / 3
+	if safeSec > maxValidSec {
+		safeSec = maxValidSec
+	}
+	if safeSec < 0 {
+		safeSec = 0
+	}
+	return formatSecondsAsTimestamp(safeSec)
+}
+
+func parseTimeOffsetToSeconds(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+
+	parts := strings.Split(raw, ":")
+	if len(parts) == 1 {
+		value, err := strconv.Atoi(parts[0])
+		if err != nil {
+			return 0
+		}
+		return value
+	}
+
+	total := 0
+	multiplier := 1
+	for i := len(parts) - 1; i >= 0; i-- {
+		value, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return 0
+		}
+		total += value * multiplier
+		multiplier *= 60
+	}
+	return total
+}
+
+func formatSecondsAsTimestamp(totalSec int) string {
+	if totalSec < 0 {
+		totalSec = 0
+	}
+	hours := totalSec / 3600
+	minutes := (totalSec % 3600) / 60
+	seconds := totalSec % 60
+	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 }
