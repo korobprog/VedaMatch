@@ -43,6 +43,20 @@ const safeParseParams = (raw: any): Record<string, any> => {
     }
 };
 
+const getVideoCirclePublishCopy = (data: any) => {
+    const status = String(data?.status || '').toLowerCase();
+    if (status === 'success') {
+        return {
+            title: 'Видео опубликовано',
+            body: 'Ваш кружок опубликован и появился в ленте.',
+        };
+    }
+    return {
+        title: 'Публикация не выполнена',
+        body: 'Видео не опубликовано, попробуйте еще раз.',
+    };
+};
+
 const registerTokenOnServer = async (token: string) => {
     if (!token) return;
 
@@ -109,14 +123,18 @@ export const notificationService = {
     onMessageReceived: (message: any) => {
         console.log('[NotificationService] Foreground message:', message);
 
-        if (message?.notification) {
+        const data = message?.data || {};
+        const isCirclePublishResult = data?.type === 'video_circle_publish_result';
+        const fallback = isCirclePublishResult ? getVideoCirclePublishCopy(data) : null;
+
+        if (message?.notification || isCirclePublishResult) {
             Alert.alert(
-                message.notification.title || 'Notification',
-                message.notification.body || '',
+                message?.notification?.title || fallback?.title || 'Notification',
+                message?.notification?.body || fallback?.body || '',
                 [
                     {
                         text: 'View',
-                        onPress: () => notificationService.handleNotificationAction(message.data)
+                        onPress: () => notificationService.handleNotificationAction(data)
                     },
                     { text: 'Close', style: 'cancel' }
                 ]
@@ -141,6 +159,12 @@ export const notificationService = {
         if (data.screen) {
             // @ts-ignore
             navigationRef.navigate(data.screen, params);
+            return;
+        }
+
+        if (data.type === 'video_circle_publish_result') {
+            // @ts-ignore
+            navigationRef.navigate('VideoCirclesScreen');
             return;
         }
 

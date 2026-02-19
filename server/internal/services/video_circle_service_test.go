@@ -78,3 +78,32 @@ func TestRemainingSecondsUntil(t *testing.T) {
 		t.Fatalf("expected ceil rounding to 2 seconds, got %d", got)
 	}
 }
+
+func TestHasVideoCircleProAccess(t *testing.T) {
+	if !hasVideoCircleProAccess(models.User{GodModeEnabled: true}, models.RoleUser) {
+		t.Fatalf("god mode user should have pro access")
+	}
+	if !hasVideoCircleProAccess(models.User{}, models.RoleSuperadmin) {
+		t.Fatalf("superadmin role should have pro access")
+	}
+	if hasVideoCircleProAccess(models.User{}, models.RoleUser) {
+		t.Fatalf("regular user should not have pro access")
+	}
+}
+
+func TestResolveVideoCircleMatha(t *testing.T) {
+	user := models.User{Madh: "profile-matha"}
+
+	if got := resolveVideoCircleMatha("request-matha", user, models.RoleUser); got != "profile-matha" {
+		t.Fatalf("non-pro should use profile matha, got %q", got)
+	}
+	if got := resolveVideoCircleMatha("request-matha", models.User{GodModeEnabled: true, Madh: "profile-matha"}, models.RoleUser); got != "request-matha" {
+		t.Fatalf("god mode should use requested matha, got %q", got)
+	}
+	if got := resolveVideoCircleMatha("request-matha", user, models.RoleSuperadmin); got != "request-matha" {
+		t.Fatalf("superadmin should use requested matha, got %q", got)
+	}
+	if got := resolveVideoCircleMatha("   ", models.User{}, models.RoleUser); got != "" {
+		t.Fatalf("empty profile matha should remain empty for non-pro, got %q", got)
+	}
+}

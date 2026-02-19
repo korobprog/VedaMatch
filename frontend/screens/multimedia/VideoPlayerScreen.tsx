@@ -1,59 +1,114 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    SafeAreaView,
     ActivityIndicator,
+    Alert,
+    SafeAreaView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Play, Pause } from 'lucide-react-native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { ArrowLeft, MessageSquare, Pause, Play, Share2 } from 'lucide-react-native';
 import Video from 'react-native-video';
 import { WebView } from 'react-native-webview';
 import { MediaTrack } from '../../services/multimediaService';
+import { RootStackParamList } from '../../types/navigation';
+import { videoCirclesService } from '../../services/videoCirclesService';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 
+type VideoPlayerRouteProp = RouteProp<RootStackParamList, 'VideoPlayer'>;
+
 export const VideoPlayerScreen: React.FC = () => {
-    const route = useRoute<any>();
-    const navigation = useNavigation();
+    const route = useRoute<VideoPlayerRouteProp>();
+    const navigation = useNavigation<any>();
     const { isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
-    const { video } = route.params as { video: MediaTrack };
+
+    const { video, source, circle } = route.params || {};
+    const media = (video || {}) as Partial<MediaTrack> & {
+        url?: string;
+        title?: string;
+        artist?: string;
+        description?: string;
+        viewCount?: number;
+        likeCount?: number;
+    };
+
+    const isCircleMode = source === 'video_circles' && !!circle;
+    const mediaUrl = typeof media?.url === 'string' ? media.url : '';
     const [paused, setPaused] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [showControls, setShowControls] = useState(true);
+    const [commentCount, setCommentCount] = useState(circle?.commentCount ?? 0);
+    const [commentSending, setCommentSending] = useState(false);
 
-    // Check if it's a YouTube URL
-    const isYouTube = video.url.includes('youtube.com') || video.url.includes('youtu.be');
+    const isYouTube = useMemo(
+        () => mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be'),
+        [mediaUrl]
+    );
 
     const getYouTubeId = (url: string) => {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
         const match = url.match(regExp);
-        return (match && match[2].length === 11) ? match[2] : null;
+        return match && match[2].length === 11 ? match[2] : null;
     };
 
-    const [error, setError] = useState<string | null>(null);
-
-    const [showControls, setShowControls] = useState(true);
-
-    // Auto-hide controls
     useEffect(() => {
+        if (isCircleMode) {
+            return;
+        }
         if (showControls && !paused) {
             const timer = setTimeout(() => setShowControls(false), 3000);
             return () => clearTimeout(timer);
         }
-    }, [showControls, paused]);
+    }, [isCircleMode, paused, showControls]);
 
     const toggleControls = () => {
-        setShowControls(!showControls);
+        setShowControls((prev) => !prev);
     };
 
-    const renderPlayer = () => {
+    const handleCircleComment = useCallback(async () => {
+        if (!circle?.id || commentSending) {
+            return;
+        }
+        setCommentSending(true);
+        try {
+            const response = await videoCirclesService.interact(circle.id, 'comment', 'add');
+            if (typeof response?.commentCount === 'number') {
+                setCommentCount(response.commentCount);
+            } else {
+                setCommentCount((prev) => prev + 1);
+            }
+        } catch (interactionError) {
+            console.error('Failed to add circle comment interaction:', interactionError);
+            Alert.alert('Ошибка', 'Не удалось отправить комментарий');
+        } finally {
+            setCommentSending(false);
+        }
+    }, [circle?.id, commentSending]);
+
+    const handleCircleShare = useCallback(async () => {
+        try {
+            await Share.share({
+                title: media.title || 'Видео кружок',
+                message: mediaUrl,
+                url: mediaUrl,
+            });
+        } catch (shareError) {
+            console.error('Failed to share video circle:', shareError);
+            Alert.alert('Ошибка', 'Не удалось открыть меню "Поделиться"');
+        }
+    }, [media.title, mediaUrl]);
+
+    const renderDefaultPlayer = () => {
         if (isYouTube) {
-            const videoId = getYouTubeId(video.url);
+            const videoId = getYouTubeId(mediaUrl);
             return (
                 <WebView
                     style={styles.webview}
@@ -61,9 +116,9 @@ export const VideoPlayerScreen: React.FC = () => {
                     domStorageEnabled={true}
                     source={{ uri: `https://www.youtube.com/embed/${videoId}?autoplay=1` }}
                     onLoadEnd={() => setLoading(false)}
-                    onError={(e) => {
+                    onError={(event) => {
                         setLoading(false);
-                        setError(`YouTube Error: ${e.nativeEvent.description}`);
+                        setError(`YouTube Error: ${event.nativeEvent.description}`);
                     }}
                 />
             );
@@ -76,25 +131,24 @@ export const VideoPlayerScreen: React.FC = () => {
                 style={styles.videoWrapper}
             >
                 <Video
-                    source={{ uri: video.url }}
+                    source={{ uri: mediaUrl }}
                     style={styles.video}
-                    controls={false} // Disable native controls to use our custom overlay
+                    controls={false}
                     paused={paused}
                     resizeMode="contain"
                     onLoad={() => setLoading(false)}
                     onBuffer={({ isBuffering }) => setLoading(isBuffering)}
-                    onError={(e) => {
+                    onError={(event) => {
                         setLoading(false);
-                        console.log("Video Playback Error:", e);
-                        setError(`Error: ${e.error.errorString || JSON.stringify(e.error)}`);
+                        console.log('Video Playback Error:', event);
+                        setError(`Error: ${event.error?.errorString || JSON.stringify(event.error)}`);
                     }}
                 />
 
-                {/* Custom Controls Overlay */}
                 {showControls && !loading && (
                     <View style={styles.controlsOverlay}>
                         <TouchableOpacity
-                            onPress={() => setPaused(!paused)}
+                            onPress={() => setPaused((prev) => !prev)}
                             style={[styles.playButton, { backgroundColor: colors.overlay }]}
                         >
                             {paused ? (
@@ -109,28 +163,129 @@ export const VideoPlayerScreen: React.FC = () => {
         );
     };
 
+    if (!mediaUrl) {
+        return (
+            <View style={[styles.container, { backgroundColor: colors.background }]}>
+                <SafeAreaView style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <ArrowLeft size={24} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                </SafeAreaView>
+                <View style={styles.errorContainer}>
+                    <Text style={[styles.errorText, { color: colors.danger }]}>Некорректная ссылка на видео</Text>
+                </View>
+            </View>
+        );
+    }
+
+    if (isCircleMode && circle) {
+        return (
+            <View style={styles.circleContainer} testID="video-player-circles-mode">
+                <TouchableOpacity
+                    activeOpacity={1}
+                    onPress={() => setPaused((prev) => !prev)}
+                    style={styles.circleVideoTap}
+                    testID="video-player-circles-tap-layer"
+                >
+                    <Video
+                        source={{ uri: mediaUrl }}
+                        style={styles.circleVideo}
+                        controls={false}
+                        paused={paused}
+                        repeat
+                        resizeMode="cover"
+                        onLoad={() => setLoading(false)}
+                        onBuffer={({ isBuffering }) => setLoading(isBuffering)}
+                        onError={(event) => {
+                            setLoading(false);
+                            console.log('Video circle playback error:', event);
+                            setError('Не удалось воспроизвести видео');
+                        }}
+                    />
+                </TouchableOpacity>
+
+                <SafeAreaView style={styles.circleTopBar}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.circleBackButton}>
+                        <ArrowLeft size={24} color="#fff" />
+                    </TouchableOpacity>
+                </SafeAreaView>
+
+                <View style={styles.circleSideActions}>
+                    <TouchableOpacity
+                        style={styles.circleActionButton}
+                        onPress={handleCircleComment}
+                        testID="video-player-circles-comment-btn"
+                    >
+                        {commentSending ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <MessageSquare size={24} color="#fff" />
+                        )}
+                        <Text style={styles.circleActionText}>{commentCount}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.circleActionButton}
+                        onPress={handleCircleShare}
+                        testID="video-player-circles-share-btn"
+                    >
+                        <Share2 size={24} color="#fff" />
+                        <Text style={styles.circleActionText}>Share</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.circleBottomOverlay}>
+                    <Text style={styles.circleTitle} numberOfLines={1}>
+                        {media.title || 'Видео кружок'}
+                    </Text>
+                    <Text style={styles.circleMeta} numberOfLines={2}>
+                        {[circle.city, circle.matha].filter(Boolean).join(' • ')}
+                    </Text>
+                    <Text style={styles.circleCategory} numberOfLines={1}>
+                        {circle.category || ''}
+                    </Text>
+                </View>
+
+                {paused && !loading && (
+                    <View style={styles.circlePauseOverlay}>
+                        <Play size={56} color="#fff" fill="#fff" />
+                    </View>
+                )}
+
+                {loading && !error && (
+                    <View style={styles.circleLoader}>
+                        <ActivityIndicator size="large" color="#fff" />
+                    </View>
+                )}
+
+                {!!error && (
+                    <View style={styles.circleErrorOverlay}>
+                        <Text style={styles.circleErrorText}>{error}</Text>
+                    </View>
+                )}
+            </View>
+        );
+    }
+
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
-            {/* Header */}
+        <View style={[styles.container, { backgroundColor: colors.background }]} testID="video-player-default-mode">
             <SafeAreaView style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerInfo}>
-                    <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{video.title}</Text>
-                    <Text style={[styles.artist, { color: colors.textSecondary }]}>{video.artist || 'Неизвестный автор'}</Text>
+                    <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{media.title}</Text>
+                    <Text style={[styles.artist, { color: colors.textSecondary }]}>{media.artist || 'Неизвестный автор'}</Text>
                 </View>
             </SafeAreaView>
 
-            {/* Player Container */}
             <View style={[styles.playerContainer, { backgroundColor: colors.overlay }]}>
                 {error ? (
                     <View style={styles.errorContainer}>
                         <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-                        <Text style={[styles.errorUrlText, { color: colors.textSecondary }]} numberOfLines={2}>{video.url}</Text>
+                        <Text style={[styles.errorUrlText, { color: colors.textSecondary }]} numberOfLines={2}>{mediaUrl}</Text>
                     </View>
                 ) : (
-                    renderPlayer()
+                    renderDefaultPlayer()
                 )}
                 {loading && !error && (
                     <View style={[styles.loader, { backgroundColor: colors.overlay }]}>
@@ -139,12 +294,11 @@ export const VideoPlayerScreen: React.FC = () => {
                 )}
             </View>
 
-            {/* Info & Description */}
             <View style={[styles.details, { backgroundColor: colors.surfaceElevated }]}>
-                <Text style={[styles.description, { color: colors.textPrimary }]}>{video.description || 'Нет описания'}</Text>
+                <Text style={[styles.description, { color: colors.textPrimary }]}>{media.description || 'Нет описания'}</Text>
                 <View style={styles.statsRow}>
-                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>👁️ {video.viewCount} просмотров</Text>
-                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>❤️ {video.likeCount} отметок</Text>
+                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>👁️ {media.viewCount || 0} просмотров</Text>
+                    <Text style={[styles.statsText, { color: colors.textSecondary }]}>❤️ {media.likeCount || 0} отметок</Text>
                 </View>
             </View>
         </View>
@@ -241,6 +395,92 @@ const styles = StyleSheet.create({
     },
     errorUrlText: {
         fontSize: 10,
+        textAlign: 'center',
+    },
+    circleContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    circleVideoTap: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    circleVideo: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    circleTopBar: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        paddingHorizontal: 12,
+    },
+    circleBackButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.35)',
+    },
+    circleSideActions: {
+        position: 'absolute',
+        right: 12,
+        bottom: 126,
+        gap: 18,
+    },
+    circleActionButton: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    circleActionText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    circleBottomOverlay: {
+        position: 'absolute',
+        left: 16,
+        right: 90,
+        bottom: 34,
+        gap: 6,
+    },
+    circleTitle: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: '800',
+    },
+    circleMeta: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    circleCategory: {
+        color: 'rgba(255,255,255,0.75)',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    circlePauseOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+    },
+    circleLoader: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    circleErrorOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 30,
+        backgroundColor: 'rgba(0,0,0,0.35)',
+    },
+    circleErrorText: {
+        color: '#fff',
+        fontSize: 15,
         textAlign: 'center',
     },
 });

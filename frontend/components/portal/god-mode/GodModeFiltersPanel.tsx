@@ -34,6 +34,19 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
   if (!filters || filters.length === 0) return null;
 
   const active = filters.find((f) => f.mathId === activeMathId) || filters[0];
+  const formatFilterLabel = (filter: string) => {
+    const key = `portal.filters.${filter}`;
+    const translated = t(key);
+    if (translated !== key) {
+      return translated;
+    }
+
+    const normalized = filter.replace(/_/g, ' ').trim();
+    if (!normalized) {
+      return filter;
+    }
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  };
 
   const toggleExpanded = () => {
     LayoutAnimation.configureNext(
@@ -95,7 +108,7 @@ export const GodModeFiltersPanel: React.FC<GodModeFiltersPanelProps> = ({
           </Text>
           <Text style={styles.filtersText}>
             {active.filters
-              .map((f) => t(`portal.filters.${f}`, f))
+              .map((f) => formatFilterLabel(f))
               .join(', ')}
           </Text>
         </View>

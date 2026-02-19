@@ -239,7 +239,7 @@ func (s *VideoCircleService) ListCircles(userID uint, role string, params models
 		query = query.Where("category = ?", category)
 	}
 
-	allowAllMatha := user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)
+	allowAllMatha := hasVideoCircleProAccess(user, role)
 	if params.ChannelID == nil {
 		normalizedRoleScope := normalizePortalRoleScope(params.RoleScope)
 		if allowAllMatha {
@@ -362,6 +362,17 @@ func normalizePortalRoleScope(values []string) []string {
 	return result
 }
 
+func hasVideoCircleProAccess(user models.User, role string) bool {
+	return user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)
+}
+
+func resolveVideoCircleMatha(requestedMatha string, user models.User, role string) string {
+	if hasVideoCircleProAccess(user, role) {
+		return strings.TrimSpace(requestedMatha)
+	}
+	return strings.TrimSpace(user.Madh)
+}
+
 func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error) {
 	mediaURL := strings.TrimSpace(req.MediaURL)
 	if mediaURL == "" {
@@ -396,10 +407,7 @@ func (s *VideoCircleService) CreateCircle(userID uint, role string, req models.V
 		return nil, errors.New("expiresAt must be in the future")
 	}
 
-	matha := strings.TrimSpace(req.Matha)
-	if !(user.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)) {
-		matha = strings.TrimSpace(user.Madh)
-	}
+	matha := resolveVideoCircleMatha(req.Matha, user, role)
 	if matha == "" {
 		return nil, errors.New("matha is required")
 	}
@@ -566,10 +574,7 @@ func (s *VideoCircleService) UpdateCircle(circleID, userID uint, role string, re
 		updates["thumbnail_url"] = strings.TrimSpace(*req.ThumbnailURL)
 	}
 	if req.Matha != nil {
-		matha := strings.TrimSpace(*req.Matha)
-		if !(actor.GodModeEnabled || strings.EqualFold(role, models.RoleSuperadmin)) {
-			matha = strings.TrimSpace(actor.Madh)
-		}
+		matha := resolveVideoCircleMatha(*req.Matha, actor, role)
 		if matha == "" {
 			return nil, errors.New("matha is required")
 		}

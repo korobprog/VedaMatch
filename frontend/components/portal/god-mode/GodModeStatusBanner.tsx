@@ -1,15 +1,33 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useGodModeFilters } from '../../../hooks/useGodModeFilters';
 
 export const GodModeStatusBanner: React.FC = () => {
+  const { t } = useTranslation();
   const { enabled, activeMath } = useGodModeFilters();
   if (!enabled || !activeMath) return null;
 
+  const formattedFilters = activeMath.filters
+    .map((filter) => {
+      const key = `portal.filters.${filter}`;
+      const translated = t(key);
+      if (translated !== key) {
+        return translated;
+      }
+
+      const normalized = filter.replace(/_/g, ' ').trim();
+      if (!normalized) {
+        return filter;
+      }
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    })
+    .join(', ');
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Вы видите матх {activeMath.mathName}</Text>
-      <Text style={styles.filters}>{activeMath.filters.join(', ')}</Text>
+      <Text style={styles.title}>{t('portal.godMode.viewingMath', { name: activeMath.mathName })}</Text>
+      <Text style={styles.filters}>{formattedFilters}</Text>
     </View>
   );
 };

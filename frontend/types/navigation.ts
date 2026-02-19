@@ -1,5 +1,18 @@
 import { CartItem } from './market';
 
+export type VideoCirclePlayerPayload = {
+    id: number;
+    authorId: number;
+    mediaUrl: string;
+    thumbnailUrl?: string;
+    city?: string;
+    matha?: string;
+    category?: string;
+    likeCount: number;
+    commentCount: number;
+    chatCount: number;
+};
+
 export type RootStackParamList = {
     Preview: undefined;
     Ads: undefined;
@@ -97,7 +110,7 @@ export type RootStackParamList = {
     SeriesDetail: { series: any };
     RadioPlayer: { station: any };
     AudioPlayer: { track: any };
-    VideoPlayer: { video: any };
+    VideoPlayer: { video: any; source?: 'video_circles'; circle?: VideoCirclePlayerPayload };
     TVPlayer: { channel: any };
 
     // Travel Routes

@@ -45,8 +45,8 @@ import RNVideo from 'react-native-video';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { useUser } from '../../context/UserContext';
-import { VideoCircle, VideoTariff, videoCirclesService } from '../../services/videoCirclesService';
-import { RootStackParamList } from '../../types/navigation';
+import { UploadVideoCirclePayload, VideoCircle, VideoTariff, videoCirclesService } from '../../services/videoCirclesService';
+import { RootStackParamList, VideoCirclePlayerPayload } from '../../types/navigation';
 import { DATING_TRADITIONS } from '../../constants/DatingConstants';
 
 type PortalRoleType = 'user' | 'in_goodness' | 'yogi' | 'devotee';
@@ -128,7 +128,11 @@ export const VideoCirclesScreen: React.FC = () => {
   const [activeVisibleCircleId, setActiveVisibleCircleId] = useState<number | null>(null);
   const [playingPreviewCircleId, setPlayingPreviewCircleId] = useState<number | null>(null);
   const [previewBlockedIds, setPreviewBlockedIds] = useState<number[]>([]);
+  const [backgroundPublishing, setBackgroundPublishing] = useState(false);
+  const [backgroundPublishLabel, setBackgroundPublishLabel] = useState('');
   const isTariffAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const isProMode = !!(user?.godModeEnabled || user?.role === 'superadmin');
+  const profileMatha = useMemo(() => (user?.madh || '').trim(), [user?.madh]);
 
   const fabAnim = useRef(new Animated.Value(1)).current;
   const lastScrollY = useRef(0);
@@ -176,12 +180,13 @@ export const VideoCirclesScreen: React.FC = () => {
 
   const loadCircles = useCallback(async () => {
     const requestId = ++latestCirclesRequestRef.current;
+    const mathaForRequest = isProMode ? filterMatha.trim() : profileMatha;
     try {
       const res = await videoCirclesService.getVideoCircles({
         channelId: routeChannelId,
         status: filterStatus,
         city: filterCity.trim() || undefined,
-        matha: filterMatha.trim() || undefined,
+        matha: mathaForRequest || undefined,
         category: filterCategory.trim() || undefined,
         roleScope,
         scope: feedScope,
@@ -202,7 +207,7 @@ export const VideoCirclesScreen: React.FC = () => {
         setRefreshing(false);
       }
     }
-  }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, roleScope, routeChannelId, t]);
+  }, [feedScope, filterCategory, filterCity, filterMatha, filterStatus, isProMode, profileMatha, roleScope, routeChannelId, t]);
 
   const loadTariffs = useCallback(async () => {
     const requestId = ++latestTariffsRequestRef.current;
@@ -273,11 +278,18 @@ export const VideoCirclesScreen: React.FC = () => {
     if (roleScope.length > 0) {
       return;
     }
-    if (user?.godModeEnabled || user?.role === 'superadmin') {
+    if (isProMode) {
       return;
     }
     setRoleScope([normalizePortalRole(user?.role)]);
-  }, [roleScope.length, user?.godModeEnabled, user?.role]);
+  }, [isProMode, roleScope.length, user?.role]);
+
+  useEffect(() => {
+    if (!isProMode) {
+      setFilterMatha(profileMatha);
+      setMatha(profileMatha);
+    }
+  }, [isProMode, profileMatha]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -487,7 +499,7 @@ export const VideoCirclesScreen: React.FC = () => {
     setSelectedVideo(null);
     // Keep user profile values as defaults for next time
     setCity(user?.city || '');
-    setMatha(user?.madh || '');
+    setMatha(profileMatha);
     setCategory('');
   };
 
@@ -495,9 +507,53 @@ export const VideoCirclesScreen: React.FC = () => {
   useEffect(() => {
     if (publishOpen && selectedVideo) {
       if (!city && user?.city) setCity(user.city);
-      if (!matha && user?.madh) setMatha(user.madh);
+      if (!matha && profileMatha) setMatha(profileMatha);
     }
-  }, [city, matha, publishOpen, selectedVideo, user?.city, user?.madh]);
+  }, [city, matha, profileMatha, publishOpen, selectedVideo, user?.city]);
+
+  const prependCircleToFeed = useCallback((circle: VideoCircle) => {
+    setCircles((current) => [circle, ...current.filter((item) => item.id !== circle.id)]);
+  }, []);
+
+  const getPublishErrorMessage = useCallback((error: unknown) => {
+    const errorText = error instanceof Error ? error.message : '';
+    const normalizedError = errorText.toLowerCase();
+    if (normalizedError.includes('upload_timeout')) {
+      return t('videoCircles.errorUploadTimeout');
+    }
+    if (normalizedError.includes('category is required')) {
+      return t('videoCircles.requiredCategory');
+    }
+    if (normalizedError.includes('matha is required')) {
+      return t('videoCircles.requiredMatha');
+    }
+    return t('videoCircles.errorPublish');
+  }, [t]);
+
+  const runBackgroundPublish = useCallback(async (payload: UploadVideoCirclePayload) => {
+    try {
+      const createdCircle = await videoCirclesService.uploadAndCreateCircle(payload);
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      prependCircleToFeed(createdCircle);
+      setRefreshing(true);
+      await loadCircles();
+    } catch (error) {
+      console.error('Failed to publish circle:', error);
+      if (!isMountedRef.current) {
+        return;
+      }
+      Alert.alert(t('common.error'), getPublishErrorMessage(error));
+    } finally {
+      if (isMountedRef.current) {
+        setPublishing(false);
+        setBackgroundPublishing(false);
+        setBackgroundPublishLabel('');
+      }
+    }
+  }, [getPublishErrorMessage, loadCircles, prependCircleToFeed, t]);
 
   const publishCircle = async () => {
     if (publishing) {
@@ -507,7 +563,13 @@ export const VideoCirclesScreen: React.FC = () => {
       Alert.alert(t('common.error'), t('chat.imagePickError'));
       return;
     }
-    if (!matha.trim()) {
+    if (!isProMode && !profileMatha) {
+      Alert.alert(t('common.error'), t('videoCircles.profileMathaRequired'));
+      return;
+    }
+
+    const publishMatha = isProMode ? matha.trim() : profileMatha;
+    if (!publishMatha) {
       Alert.alert(t('common.error'), t('videoCircles.requiredMatha'));
       return;
     }
@@ -516,40 +578,25 @@ export const VideoCirclesScreen: React.FC = () => {
       return;
     }
 
+    const payload: UploadVideoCirclePayload = {
+      video: {
+        uri: selectedVideo.uri,
+        name: selectedVideo.fileName || `circle_${Date.now()}.mp4`,
+        type: selectedVideo.type || 'video/mp4',
+      },
+      channelId: routeChannelId,
+      city: city.trim() || undefined,
+      matha: publishMatha || undefined,
+      category: category.trim() || undefined,
+      durationSec: 60,
+    };
+
     setPublishing(true);
-    try {
-      await videoCirclesService.uploadAndCreateCircle({
-        video: {
-          uri: selectedVideo.uri,
-          name: selectedVideo.fileName || `circle_${Date.now()}.mp4`,
-          type: selectedVideo.type || 'video/mp4',
-        },
-        channelId: routeChannelId,
-        city: city.trim() || undefined,
-        matha: matha.trim() || undefined,
-        category: category.trim() || undefined,
-        durationSec: 60,
-      });
-      resetPublishForm();
-      await loadCircles();
-      Alert.alert(t('common.success'), t('videoCircles.successPublish', { defaultValue: 'Видео-кружок опубликован' }));
-    } catch (error) {
-      console.error('Failed to publish circle:', error);
-      const errorText = error instanceof Error ? error.message : '';
-      const normalizedError = errorText.toLowerCase();
-      const message = normalizedError.includes('upload_timeout')
-        ? t('videoCircles.errorUploadTimeout')
-        : normalizedError.includes('category is required')
-          ? t('videoCircles.requiredCategory')
-          : normalizedError.includes('matha is required')
-            ? t('videoCircles.requiredMatha')
-            : t('videoCircles.errorPublish');
-      Alert.alert(t('common.error'), message);
-    } finally {
-      if (isMountedRef.current) {
-        setPublishing(false);
-      }
-    }
+    setBackgroundPublishing(true);
+    setBackgroundPublishLabel(selectedVideo.fileName || t('videoCircles.publishInBackground'));
+    resetPublishForm();
+
+    void runBackgroundPublish(payload);
   };
 
   const applyInteractionResponse = (
@@ -679,6 +726,19 @@ export const VideoCirclesScreen: React.FC = () => {
       return;
     }
 
+    const circlePayload: VideoCirclePlayerPayload = {
+      id: circle.id,
+      authorId: circle.authorId,
+      mediaUrl: mediaUrl,
+      thumbnailUrl: circle.thumbnailUrl,
+      city: circle.city,
+      matha: circle.matha,
+      category: circle.category,
+      likeCount: circle.likeCount || 0,
+      commentCount: circle.commentCount || 0,
+      chatCount: circle.chatCount || 0,
+    };
+
     navigation.navigate('VideoPlayer', {
       video: {
         id: circle.id,
@@ -689,6 +749,8 @@ export const VideoCirclesScreen: React.FC = () => {
         viewCount: 0,
         likeCount: circle.likeCount || 0,
       },
+      source: 'video_circles',
+      circle: circlePayload,
     });
   };
 
@@ -735,6 +797,8 @@ export const VideoCirclesScreen: React.FC = () => {
     () => ({ backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }),
     [roleColors.border, roleColors.surfaceElevated]
   );
+  const publishBlockedByMatha = !isProMode && !profileMatha;
+  const publishSubmitDisabled = publishing || publishBlockedByMatha;
 
   const getRoleDotStyle = useCallback(
     (selected: boolean, dotColor: string) => ({ backgroundColor: dotColor, opacity: selected ? 1 : 0.4 }),
@@ -787,7 +851,11 @@ export const VideoCirclesScreen: React.FC = () => {
           </View>
           <View style={styles.headerActions}>
             {isTariffAdmin && (
-              <TouchableOpacity onPress={() => navigation.navigate('VideoTariffsAdminScreen')} style={styles.myBtn}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('VideoTariffsAdminScreen')}
+                style={styles.myBtn}
+                testID="video-circles-promotion-btn"
+              >
                 <Text style={[styles.myBtnTariffText, myBtnTariffTextStyle]}>{t('videoCircles.tariffs')}</Text>
               </TouchableOpacity>
             )}
@@ -1063,6 +1131,21 @@ export const VideoCirclesScreen: React.FC = () => {
         }}
       />
 
+      {backgroundPublishing && (
+        <View
+          style={[
+            styles.backgroundPublishBanner,
+            { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border },
+          ]}
+          testID="video-circle-background-publish-indicator"
+        >
+          <ActivityIndicator size="small" color={roleColors.accent} />
+          <Text style={[styles.backgroundPublishText, { color: roleColors.textPrimary }]}>
+            {backgroundPublishLabel || t('videoCircles.publishInBackground')}
+          </Text>
+        </View>
+      )}
+
       <Animated.View
         style={[
           styles.fab,
@@ -1081,6 +1164,7 @@ export const VideoCirclesScreen: React.FC = () => {
         <TouchableOpacity
           onPress={openPublishSourceSheet}
           activeOpacity={0.85}
+          testID="video-circle-open-publish-btn"
           style={[
             styles.fabButton,
             {
@@ -1099,7 +1183,7 @@ export const VideoCirclesScreen: React.FC = () => {
       </Animated.View>
 
       <Modal visible={publishOpen} animationType="slide" transparent onRequestClose={resetPublishForm}>
-        <View style={styles.modalOverlay}>
+        <View style={styles.modalOverlay} testID="video-circle-publish-modal">
           <View style={[styles.modalCard, modalCardStyle]}>
             <Text style={[styles.modalTitle, { color: roleColors.textPrimary }]}>{t('videoCircles.publishTitle')}</Text>
             <Text style={[styles.modalHint, { color: roleColors.textSecondary }]}>
@@ -1116,12 +1200,16 @@ export const VideoCirclesScreen: React.FC = () => {
             <Text style={[styles.categoryLabel, { color: roleColors.textSecondary }]}>{t('videoCircles.mathaLabel')}</Text>
             <View style={styles.categoryChipsWrap}>
               {(() => {
-                // For devotee role with matha set - show only their matha (locked)
-                const isDevoteeWithMatha = user?.role === 'devotee' && user?.madh;
-                const isAdminOrSuperAdmin = user?.role === 'admin' || user?.role === 'superadmin';
-
-                // Devotees with matha see only their tradition (unless admin)
-                if (isDevoteeWithMatha && !isAdminOrSuperAdmin) {
+                if (!isProMode) {
+                  if (!profileMatha) {
+                    return (
+                      <View style={styles.mathaWarningWrap}>
+                        <Text style={[styles.mathaWarningText, { color: roleColors.warning }]}>
+                          {t('videoCircles.profileMathaRequired')}
+                        </Text>
+                      </View>
+                    );
+                  }
                   return (
                     <View
                       style={[
@@ -1133,13 +1221,12 @@ export const VideoCirclesScreen: React.FC = () => {
                       ]}
                     >
                       <Text style={styles.categoryChipTextActiveSmall}>
-                        {user.madh}
+                        {profileMatha}
                       </Text>
                     </View>
                   );
                 }
 
-                // Everyone else (including admins) - show all traditions
                 return DATING_TRADITIONS.map((tradition) => {
                   const selected = matha === tradition;
                   return (
@@ -1193,7 +1280,16 @@ export const VideoCirclesScreen: React.FC = () => {
               <TouchableOpacity style={[styles.secondaryBtn, { borderColor: roleColors.border }]} onPress={resetPublishForm} disabled={publishing}>
                 <Text style={roleTextSecondaryStyle}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.primaryBtn, roleAccentBackgroundStyle]} onPress={publishCircle} disabled={publishing}>
+              <TouchableOpacity
+                style={[
+                  styles.primaryBtn,
+                  roleAccentBackgroundStyle,
+                  publishSubmitDisabled && styles.disabledAction,
+                ]}
+                onPress={publishCircle}
+                disabled={publishSubmitDisabled}
+                testID="video-circle-publish-submit-btn"
+              >
                 {publishing ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
@@ -1270,12 +1366,18 @@ export const VideoCirclesScreen: React.FC = () => {
               style={[styles.input, inputSurfaceStyle]}
             />
             <TextInput
-              value={filterMatha}
+              value={isProMode ? filterMatha : profileMatha}
               onChangeText={setFilterMatha}
               placeholder={t('dating.madh')}
               placeholderTextColor={roleColors.textSecondary}
-              style={[styles.input, inputSurfaceStyle]}
+              editable={isProMode}
+              style={[styles.input, inputSurfaceStyle, !isProMode && styles.inputReadonly]}
             />
+            {!isProMode && !profileMatha && (
+              <Text style={[styles.mathaWarningText, { color: roleColors.warning }]}>
+                {t('videoCircles.profileMathaRequired')}
+              </Text>
+            )}
             <TextInput
               value={filterCategory}
               onChangeText={setFilterCategory}
@@ -1290,7 +1392,7 @@ export const VideoCirclesScreen: React.FC = () => {
                 onPress={() => {
                   setFilterStatus('active');
                   setFilterCity('');
-                  setFilterMatha('');
+                  setFilterMatha(isProMode ? '' : profileMatha);
                   setFilterCategory('');
                 }}
               >
@@ -1318,6 +1420,24 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   listContent: { paddingBottom: 100 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  backgroundPublishBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: Platform.OS === 'ios' ? 112 : 98,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  backgroundPublishText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
 
   // Header Styles
   headerWrap: {
@@ -1646,6 +1766,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
   },
+  inputReadonly: {
+    opacity: 0.75,
+  },
   commentInput: {
     height: 120,
     textAlignVertical: 'top',
@@ -1691,6 +1814,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  mathaWarningWrap: {
+    width: '100%',
+    paddingVertical: 8,
+  },
+  mathaWarningText: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   categoryChip: {
     paddingHorizontal: 16,

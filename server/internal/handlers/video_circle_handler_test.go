@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
@@ -25,6 +26,11 @@ type mockVideoCircleService struct {
 	listTariffsFn     func() ([]models.VideoTariff, error)
 	createTariffFn    func(req models.VideoTariffUpsertRequest, updatedBy uint) (*models.VideoTariff, error)
 	updateTariffFn    func(id uint, req models.VideoTariffUpsertRequest, updatedBy uint) (*models.VideoTariff, error)
+}
+
+type mockVideoCirclePushNotifier struct {
+	sendSuccessFn func(userID uint, circleID uint) error
+	sendFailedFn  func(userID uint, reason string) error
 }
 
 func (m *mockVideoCircleService) ListCircles(userID uint, role string, params models.VideoCircleListParams) (*models.VideoCircleListResponse, error) {
@@ -92,6 +98,20 @@ func (m *mockVideoCircleService) UpdateTariff(id uint, req models.VideoTariffUps
 		return m.updateTariffFn(id, req, updatedBy)
 	}
 	return &models.VideoTariff{}, nil
+}
+
+func (m *mockVideoCirclePushNotifier) SendVideoCirclePublishSuccess(userID uint, circleID uint) error {
+	if m.sendSuccessFn != nil {
+		return m.sendSuccessFn(userID, circleID)
+	}
+	return nil
+}
+
+func (m *mockVideoCirclePushNotifier) SendVideoCirclePublishFailed(userID uint, reason string) error {
+	if m.sendFailedFn != nil {
+		return m.sendFailedFn(userID, reason)
+	}
+	return nil
 }
 
 func TestNormalizeMathaParam(t *testing.T) {
@@ -210,6 +230,124 @@ func TestParseOptionalChannelIDFromValues(t *testing.T) {
 				t.Fatalf("value = %d, want %d", *got, tt.wantValue)
 			}
 		})
+	}
+}
+
+func TestCreateVideoCircle_PushSuccessIsNonBlocking(t *testing.T) {
+	pushRelease := make(chan struct{})
+	pushCalled := make(chan struct{}, 1)
+
+	handler := NewVideoCircleHandlerWithDependencies(
+		&mockVideoCircleService{
+			createCircleFn: func(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error) {
+				return &models.VideoCircleResponse{
+					ID:        88,
+					AuthorID:  userID,
+					MediaURL:  req.MediaURL,
+					Matha:     "gaudiya",
+					Category:  "kirtan",
+					Status:    models.VideoCircleStatusActive,
+					ExpiresAt: time.Now().Add(30 * time.Minute),
+				}, nil
+			},
+		},
+		&mockVideoCirclePushNotifier{
+			sendSuccessFn: func(userID uint, circleID uint) error {
+				pushCalled <- struct{}{}
+				<-pushRelease
+				return nil
+			},
+		},
+	)
+
+	app := fiber.New()
+	app.Post("/video-circles", func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		c.Locals("userRole", models.RoleUser)
+		return handler.CreateVideoCircle(c)
+	})
+
+	req := httptest.NewRequest("POST", "/video-circles", bytes.NewBufferString(`{"mediaUrl":"https://cdn.test/circle.mp4","matha":"gaudiya","category":"kirtan"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	type responseResult struct {
+		statusCode int
+		err        error
+	}
+	resultCh := make(chan responseResult, 1)
+	go func() {
+		res, err := app.Test(req)
+		if err != nil {
+			resultCh <- responseResult{err: err}
+			return
+		}
+		resultCh <- responseResult{statusCode: res.StatusCode}
+	}()
+
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			close(pushRelease)
+			t.Fatalf("app.Test error: %v", result.err)
+		}
+		if result.statusCode != fiber.StatusCreated {
+			close(pushRelease)
+			t.Fatalf("status = %d, want %d", result.statusCode, fiber.StatusCreated)
+		}
+	case <-time.After(200 * time.Millisecond):
+		close(pushRelease)
+		t.Fatalf("request was blocked by push send")
+	}
+
+	close(pushRelease)
+
+	select {
+	case <-pushCalled:
+	case <-time.After(1 * time.Second):
+		t.Fatalf("expected publish success push to be scheduled")
+	}
+}
+
+func TestCreateVideoCircle_ErrorSchedulesFailedPush(t *testing.T) {
+	pushFailureReason := make(chan string, 1)
+	handler := NewVideoCircleHandlerWithDependencies(
+		&mockVideoCircleService{
+			createCircleFn: func(userID uint, role string, req models.VideoCircleCreateRequest) (*models.VideoCircleResponse, error) {
+				return nil, errors.New("matha is required")
+			},
+		},
+		&mockVideoCirclePushNotifier{
+			sendFailedFn: func(userID uint, reason string) error {
+				pushFailureReason <- reason
+				return errors.New("push transport down")
+			},
+		},
+	)
+
+	app := fiber.New()
+	app.Post("/video-circles", func(c *fiber.Ctx) error {
+		c.Locals("userID", "1")
+		c.Locals("userRole", models.RoleUser)
+		return handler.CreateVideoCircle(c)
+	})
+
+	req := httptest.NewRequest("POST", "/video-circles", bytes.NewBufferString(`{"mediaUrl":"https://cdn.test/circle.mp4","category":"kirtan"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test error: %v", err)
+	}
+	if res.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", res.StatusCode, fiber.StatusBadRequest)
+	}
+
+	select {
+	case reason := <-pushFailureReason:
+		if !strings.Contains(reason, "matha is required") {
+			t.Fatalf("unexpected push failure reason: %q", reason)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatalf("expected publish failure push to be scheduled")
 	}
 }
 

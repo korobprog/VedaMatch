@@ -831,6 +831,50 @@ func (s *PushNotificationService) SendCharityReportWarning(ownerID uint, project
 	return s.SendToUser(ownerID, message)
 }
 
+func buildVideoCirclePublishResultMessage(status string, circleID uint, reason string) PushMessage {
+	normalizedStatus := strings.ToLower(strings.TrimSpace(status))
+	if normalizedStatus != "success" {
+		normalizedStatus = "failed"
+	}
+
+	title := "Видео опубликовано"
+	body := "Ваш кружок опубликован и появился в ленте."
+	if normalizedStatus == "failed" {
+		title = "Публикация не выполнена"
+		body = "Видео не опубликовано, попробуйте еще раз."
+	}
+
+	data := map[string]string{
+		"type":   "video_circle_publish_result",
+		"status": normalizedStatus,
+		"screen": "VideoCirclesScreen",
+	}
+	if normalizedStatus == "success" && circleID > 0 {
+		data["circleId"] = fmt.Sprintf("%d", circleID)
+	}
+	if normalizedStatus == "failed" {
+		trimmedReason := strings.TrimSpace(reason)
+		if trimmedReason != "" {
+			data["reason"] = trimmedReason
+		}
+	}
+
+	return PushMessage{
+		Title:    title,
+		Body:     body,
+		Priority: "high",
+		Data:     data,
+	}
+}
+
+func (s *PushNotificationService) SendVideoCirclePublishSuccess(userID uint, circleID uint) error {
+	return s.SendToUser(userID, buildVideoCirclePublishResultMessage("success", circleID, ""))
+}
+
+func (s *PushNotificationService) SendVideoCirclePublishFailed(userID uint, reason string) error {
+	return s.SendToUser(userID, buildVideoCirclePublishResultMessage("failed", 0, reason))
+}
+
 // formatTime helper for readable time format in Russian
 func formatTime(t time.Time) string {
 	months := []string{"", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"}

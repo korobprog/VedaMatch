@@ -114,6 +114,25 @@ func TestTruncatePushBodyRuneAware(t *testing.T) {
 	require.Equal(t, "...", emptyLimit)
 }
 
+func TestBuildVideoCirclePublishResultMessageSuccess(t *testing.T) {
+	msg := buildVideoCirclePublishResultMessage("success", 42, "")
+	require.Equal(t, "Видео опубликовано", msg.Title)
+	require.Equal(t, "video_circle_publish_result", msg.Data["type"])
+	require.Equal(t, "success", msg.Data["status"])
+	require.Equal(t, "42", msg.Data["circleId"])
+	require.Equal(t, "VideoCirclesScreen", msg.Data["screen"])
+}
+
+func TestBuildVideoCirclePublishResultMessageFailed(t *testing.T) {
+	msg := buildVideoCirclePublishResultMessage("failed", 0, "upload timeout")
+	require.Equal(t, "Публикация не выполнена", msg.Title)
+	require.Equal(t, "video_circle_publish_result", msg.Data["type"])
+	require.Equal(t, "failed", msg.Data["status"])
+	require.Equal(t, "upload timeout", msg.Data["reason"])
+	_, hasCircleID := msg.Data["circleId"]
+	require.False(t, hasCircleID)
+}
+
 func TestDeriveEventKeySupportsSnakeCaseAliases(t *testing.T) {
 	msg := PushMessage{
 		Data: map[string]string{

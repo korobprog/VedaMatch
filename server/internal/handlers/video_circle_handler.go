@@ -21,7 +21,8 @@ import (
 )
 
 type VideoCircleHandler struct {
-	service VideoCircleService
+	service      VideoCircleService
+	pushNotifier VideoCirclePushNotifier
 }
 
 type VideoCircleService interface {
@@ -38,12 +39,52 @@ type VideoCircleService interface {
 	UpdateTariff(id uint, req models.VideoTariffUpsertRequest, updatedBy uint) (*models.VideoTariff, error)
 }
 
+type VideoCirclePushNotifier interface {
+	SendVideoCirclePublishSuccess(userID uint, circleID uint) error
+	SendVideoCirclePublishFailed(userID uint, reason string) error
+}
+
 func NewVideoCircleHandler() *VideoCircleHandler {
-	return &VideoCircleHandler{service: services.NewVideoCircleService()}
+	return &VideoCircleHandler{
+		service:      services.NewVideoCircleService(),
+		pushNotifier: services.GetPushService(),
+	}
 }
 
 func NewVideoCircleHandlerWithService(service VideoCircleService) *VideoCircleHandler {
-	return &VideoCircleHandler{service: service}
+	return &VideoCircleHandler{
+		service:      service,
+		pushNotifier: services.GetPushService(),
+	}
+}
+
+func NewVideoCircleHandlerWithDependencies(service VideoCircleService, pushNotifier VideoCirclePushNotifier) *VideoCircleHandler {
+	return &VideoCircleHandler{
+		service:      service,
+		pushNotifier: pushNotifier,
+	}
+}
+
+func (h *VideoCircleHandler) sendPublishSuccessAsync(userID uint, circleID uint) {
+	if userID == 0 || circleID == 0 || h.pushNotifier == nil {
+		return
+	}
+	go func() {
+		if err := h.pushNotifier.SendVideoCirclePublishSuccess(userID, circleID); err != nil {
+			log.Printf("[VideoCircles] publish_success_push_failed user_id=%d circle_id=%d error=%v", userID, circleID, err)
+		}
+	}()
+}
+
+func (h *VideoCircleHandler) sendPublishFailedAsync(userID uint, reason string) {
+	if userID == 0 || h.pushNotifier == nil {
+		return
+	}
+	go func() {
+		if err := h.pushNotifier.SendVideoCirclePublishFailed(userID, reason); err != nil {
+			log.Printf("[VideoCircles] publish_failure_push_failed user_id=%d error=%v", userID, err)
+		}
+	}()
 }
 
 func (h *VideoCircleHandler) GetVideoCircles(c *fiber.Ctx) error {
@@ -94,14 +135,17 @@ func (h *VideoCircleHandler) CreateVideoCircle(c *fiber.Ctx) error {
 
 	var req models.VideoCircleCreateRequest
 	if err := c.BodyParser(&req); err != nil {
+		h.sendPublishFailedAsync(userID, "invalid request body")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 	if req.ChannelID != nil && *req.ChannelID == 0 {
+		h.sendPublishFailedAsync(userID, "invalid channelId")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channelId"})
 	}
 
 	result, err := h.service.CreateCircle(userID, middleware.GetUserRole(c), req)
 	if err != nil {
+		h.sendPublishFailedAsync(userID, err.Error())
 		if errors.Is(err, services.ErrChannelNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -113,6 +157,9 @@ func (h *VideoCircleHandler) CreateVideoCircle(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+
+	h.sendPublishSuccessAsync(userID, result.ID)
+	go maybeScheduleVideoCircleCompression(result.ID, result.MediaURL)
 	return c.Status(fiber.StatusCreated).JSON(result)
 }
 
@@ -121,22 +168,26 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
+	failPublish := func(statusCode int, reason string) error {
+		h.sendPublishFailedAsync(userID, reason)
+		return c.Status(statusCode).JSON(fiber.Map{"error": reason})
+	}
 
 	videoFile, err := c.FormFile("video")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Video file is required"})
+		return failPublish(fiber.StatusBadRequest, "Video file is required")
 	}
 	if videoFile.Size > 250*1024*1024 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Video size exceeds 250MB"})
+		return failPublish(fiber.StatusBadRequest, "Video size exceeds 250MB")
 	}
 	videoContentType := strings.ToLower(strings.TrimSpace(videoFile.Header.Get("Content-Type")))
 	if !strings.HasPrefix(videoContentType, "video/") {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid video content type"})
+		return failPublish(fiber.StatusBadRequest, "Invalid video content type")
 	}
 
 	mediaURL, err := saveUploadedCircleFile(c, videoFile, "video")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return failPublish(fiber.StatusInternalServerError, err.Error())
 	}
 
 	thumbnailURL := ""
@@ -144,11 +195,11 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 	if thumbErr == nil && thumbFile != nil {
 		thumbContentType := strings.ToLower(strings.TrimSpace(thumbFile.Header.Get("Content-Type")))
 		if !strings.HasPrefix(thumbContentType, "image/") {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid thumbnail content type"})
+			return failPublish(fiber.StatusBadRequest, "Invalid thumbnail content type")
 		}
 		thumbnailURL, err = saveUploadedCircleFile(c, thumbFile, "thumbnail")
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+			return failPublish(fiber.StatusInternalServerError, err.Error())
 		}
 	} else {
 		if generated, genErr := tryGenerateCircleThumbnailFromUpload(c, videoFile); genErr == nil && generated != "" {
@@ -183,7 +234,7 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 		strings.TrimSpace(c.FormValue("channel_id")),
 	)
 	if channelIDErr != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid channelId"})
+		return failPublish(fiber.StatusBadRequest, "Invalid channelId")
 	}
 
 	req := models.VideoCircleCreateRequest{
@@ -199,6 +250,7 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 
 	result, err := h.service.CreateCircle(userID, middleware.GetUserRole(c), req)
 	if err != nil {
+		h.sendPublishFailedAsync(userID, err.Error())
 		if errors.Is(err, services.ErrChannelNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -210,6 +262,8 @@ func (h *VideoCircleHandler) UploadAndCreateVideoCircle(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	h.sendPublishSuccessAsync(userID, result.ID)
+	go maybeScheduleVideoCircleCompression(result.ID, result.MediaURL)
 
 	return c.Status(fiber.StatusCreated).JSON(result)
 }
@@ -663,4 +717,17 @@ func tryGenerateCircleThumbnailFromUpload(c *fiber.Ctx, videoFile *multipart.Fil
 	}
 
 	return strings.TrimPrefix(outputPath, "."), nil
+}
+
+func maybeScheduleVideoCircleCompression(circleID uint, mediaURL string) {
+	if circleID == 0 {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(os.Getenv("VIDEO_CIRCLE_ASYNC_COMPRESSION_ENABLED")), "true") {
+		return
+	}
+
+	// Placeholder hook for a dedicated circle compression pipeline.
+	// This is intentionally non-blocking and disabled by default.
+	log.Printf("[VideoCircles] async_compression_queued circle_id=%d media_url=%s", circleID, strings.TrimSpace(mediaURL))
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, AppState, FlatList } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 
 type MockNetInfoState = {
   type: string;
@@ -16,7 +17,9 @@ jest.mock('react-i18next', () => ({
       const dict: Record<string, string> = {
         'videoCircles.title': 'Video Circles',
         'videoCircles.myCircles': 'Мои',
-        'videoCircles.tariffs': 'Тарифы',
+        'videoCircles.tariffs': 'Продвижение',
+        'videoCircles.publishInBackground': 'Публикуем видео в фоне...',
+        'videoCircles.profileMathaRequired': 'Нужен матх из профиля',
       };
       if (options?.defaultValue) {
         return options.defaultValue;
@@ -31,6 +34,7 @@ const mockGoBack = jest.fn();
 const mockGetVideoCircles = jest.fn();
 const mockGetVideoTariffs = jest.fn();
 const mockBoostCircle = jest.fn();
+const mockUploadAndCreateCircle = jest.fn();
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({
@@ -77,7 +81,7 @@ jest.mock('../../../context/SettingsContext', () => ({
 }));
 
 jest.mock('../../../context/UserContext', () => ({
-  useUser: () => ({ user: { role: 'admin' } }),
+  useUser: () => ({ user: { role: 'admin', ID: 1, madh: 'gaudiya', city: 'Moscow' } }),
 }));
 
 jest.mock('../../../hooks/useRoleTheme', () => ({
@@ -104,7 +108,7 @@ jest.mock('../../../services/videoCirclesService', () => ({
     getVideoTariffs: (...args: any[]) => mockGetVideoTariffs(...args),
     boostCircle: (...args: any[]) => mockBoostCircle(...args),
     interact: jest.fn().mockResolvedValue({}),
-    uploadAndCreateCircle: jest.fn().mockResolvedValue({}),
+    uploadAndCreateCircle: (...args: any[]) => mockUploadAndCreateCircle(...args),
   },
 }));
 
@@ -190,6 +194,17 @@ describe('VideoCirclesScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockNetInfoFetch.mockResolvedValue({ type: 'wifi', isConnected: true });
+    (launchImageLibrary as unknown as jest.Mock).mockReset();
+    (launchImageLibrary as unknown as jest.Mock).mockResolvedValue({
+      assets: [
+        {
+          uri: 'file:///tmp/circle.mp4',
+          fileName: 'circle.mp4',
+          type: 'video/mp4',
+          fileSize: 1024,
+        },
+      ],
+    });
 
     mockGetVideoCircles.mockResolvedValue({
       circles: circlesFixture,
@@ -209,6 +224,7 @@ describe('VideoCirclesScreen', () => {
       },
     ]);
     mockBoostCircle.mockResolvedValue({});
+    mockUploadAndCreateCircle.mockResolvedValue(circlesFixture[0]);
   });
 
   it('renders circles and triggers boost + navigation actions', async () => {
@@ -223,12 +239,12 @@ describe('VideoCirclesScreen', () => {
     expect(getByText('kirtan')).toBeTruthy();
     expect(getAllByText('30 LKM').length).toBeGreaterThan(0);
     expect(getByText('Мои')).toBeTruthy();
-    expect(getByText('Тарифы')).toBeTruthy();
+    expect(getByText('Продвижение')).toBeTruthy();
 
     fireEvent.press(getByText('Мои'));
     expect(mockNavigate).toHaveBeenCalledWith('MyVideoCirclesScreen');
 
-    fireEvent.press(getByText('Тарифы'));
+    fireEvent.press(getByText('Продвижение'));
     expect(mockNavigate).toHaveBeenCalledWith('VideoTariffsAdminScreen');
 
     fireEvent.press(getAllByText('30 LKM')[0]);
@@ -343,6 +359,86 @@ describe('VideoCirclesScreen', () => {
     });
   });
 
+  it('closes publish modal immediately and keeps upload in background', async () => {
+    const createdCircle = {
+      id: 999,
+      authorId: 1,
+      mediaUrl: 'https://cdn.example.com/new-circle.mp4',
+      thumbnailUrl: 'https://cdn.example.com/new-circle.jpg',
+      city: 'Kyiv',
+      matha: 'gaudiya',
+      category: 'spiritual',
+      status: 'active',
+      durationSec: 60,
+      expiresAt: '2026-02-09T18:00:00Z',
+      remainingSec: 120,
+      premiumBoostActive: false,
+      likeCount: 0,
+      commentCount: 0,
+      chatCount: 0,
+      createdAt: '2026-02-09T17:10:00Z',
+    };
+
+    let resolveUpload: ((value: any) => void) | null = null;
+    const uploadPromise = new Promise((resolve) => {
+      resolveUpload = resolve;
+    });
+    mockUploadAndCreateCircle.mockReturnValueOnce(uploadPromise);
+    mockGetVideoCircles
+      .mockResolvedValueOnce({
+        circles: circlesFixture,
+        total: circlesFixture.length,
+        page: 1,
+        limit: 30,
+        totalPages: 1,
+      })
+      .mockResolvedValueOnce({
+        circles: [createdCircle, ...circlesFixture],
+        total: circlesFixture.length + 1,
+        page: 1,
+        limit: 30,
+        totalPages: 1,
+      });
+
+    (Alert.alert as jest.Mock).mockImplementationOnce((_title: string, _message: string, buttons: any[]) => {
+      const galleryOption = Array.isArray(buttons)
+        ? buttons.find((button) => button?.text === 'chat.customImage')
+        : null;
+      galleryOption?.onPress?.();
+    });
+
+    const screen = render(<VideoCirclesScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Video Circles')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByTestId('video-circle-open-publish-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('video-circle-publish-modal')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('videoCircles.categories.spiritual'));
+    fireEvent.press(screen.getByTestId('video-circle-publish-submit-btn'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('video-circle-publish-modal')).toBeNull();
+    });
+    expect(screen.getByTestId('video-circle-background-publish-indicator')).toBeTruthy();
+    expect(mockUploadAndCreateCircle).toHaveBeenCalled();
+
+    await act(async () => {
+      resolveUpload?.(createdCircle);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('video-circle-background-publish-indicator')).toBeNull();
+    });
+    expect(mockGetVideoCircles.mock.calls.length).toBeGreaterThan(2);
+  });
+
   it('opens full VideoPlayer on media tap', async () => {
     const screen = render(<VideoCirclesScreen />);
 
@@ -355,6 +451,11 @@ describe('VideoCirclesScreen', () => {
     expect(mockNavigate).toHaveBeenCalledWith(
       'VideoPlayer',
       expect.objectContaining({
+        source: 'video_circles',
+        circle: expect.objectContaining({
+          id: 101,
+          mediaUrl: 'https://cdn.example.com/circle.mp4',
+        }),
         video: expect.objectContaining({
           id: 101,
           url: 'https://cdn.example.com/circle.mp4',
