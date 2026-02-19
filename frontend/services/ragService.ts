@@ -1,5 +1,6 @@
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { authorizedFetch } from './authSessionService';
 
 export interface DomainDescriptor {
     name: string;
@@ -86,7 +87,7 @@ const parseJsonResponse = async <T>(response: Response, fallbackMessage: string)
 export const ragService = {
     async getDomains(): Promise<DomainDescriptor[]> {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/rag/domains`, {
+        const response = await authorizedFetch(`${API_PATH}/rag/domains`, {
             method: 'GET',
             headers,
         });
@@ -96,7 +97,7 @@ export const ragService = {
 
     async queryHybrid(request: HybridQueryRequest): Promise<HybridQueryResponse> {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${API_PATH}/rag/query-hybrid`, {
+        const response = await authorizedFetch(`${API_PATH}/rag/query-hybrid`, {
             method: 'POST',
             headers,
             body: JSON.stringify(request),
@@ -107,7 +108,7 @@ export const ragService = {
     async getSourceById(sourceId: string, includePrivate = false): Promise<SourceDetailsResponse> {
         const headers = await getAuthHeaders();
         const query = includePrivate ? '?includePrivate=true' : '';
-        const response = await fetch(`${API_PATH}/rag/sources/${sourceId}${query}`, {
+        const response = await authorizedFetch(`${API_PATH}/rag/sources/${sourceId}${query}`, {
             method: 'GET',
             headers,
         });

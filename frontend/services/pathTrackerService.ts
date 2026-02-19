@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { authorizedFetch } from './authSessionService';
 
 const TODAY_CACHE_KEY = 'path_tracker_today_cache';
 const PENDING_QUEUE_KEY = 'path_tracker_pending_queue';
@@ -128,7 +129,7 @@ const flushPendingQueue = async () => {
   for (const action of queue) {
     const endpoint = action.type === 'complete' ? '/path-tracker/complete' : '/path-tracker/reflect';
     try {
-      const response = await fetch(`${API_PATH}${endpoint}`, {
+      const response = await authorizedFetch(`${API_PATH}${endpoint}`, {
         method: 'POST',
         headers,
         body: JSON.stringify(action.payload),
@@ -149,7 +150,7 @@ export const pathTrackerService = {
     const headers = await getAuthHeaders();
     try {
       await flushPendingQueue();
-      const response = await fetch(`${API_PATH}/path-tracker/today`, { headers });
+      const response = await authorizedFetch(`${API_PATH}/path-tracker/today`, { headers });
       if (!response.ok) {
         throw new Error(`Failed to get today's tracker state: ${response.status}`);
       }
@@ -175,7 +176,7 @@ export const pathTrackerService = {
     timezone?: string;
   }) {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/path-tracker/checkin`, {
+    const response = await authorizedFetch(`${API_PATH}/path-tracker/checkin`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -189,7 +190,7 @@ export const pathTrackerService = {
 
   async generateStep(): Promise<PathTrackerStep> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/path-tracker/generate-step`, {
+    const response = await authorizedFetch(`${API_PATH}/path-tracker/generate-step`, {
       method: 'POST',
       headers,
       body: JSON.stringify({}),
@@ -205,7 +206,7 @@ export const pathTrackerService = {
   async completeStep(stepId: number) {
     const headers = await getAuthHeaders();
     try {
-      const response = await fetch(`${API_PATH}/path-tracker/complete`, {
+      const response = await authorizedFetch(`${API_PATH}/path-tracker/complete`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ stepId }),
@@ -223,7 +224,7 @@ export const pathTrackerService = {
   async reflectStep(payload: { stepId: number; resultMood?: string; reflectionText?: string }) {
     const headers = await getAuthHeaders();
     try {
-      const response = await fetch(`${API_PATH}/path-tracker/reflect`, {
+      const response = await authorizedFetch(`${API_PATH}/path-tracker/reflect`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
@@ -240,7 +241,7 @@ export const pathTrackerService = {
 
   async assistantHelp(payload: { stepId: number; requestType: PathTrackerRequestType; message?: string }) {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/path-tracker/assistant`, {
+    const response = await authorizedFetch(`${API_PATH}/path-tracker/assistant`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -254,7 +255,7 @@ export const pathTrackerService = {
 
   async getWeeklySummary(): Promise<PathTrackerWeeklySummary> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/path-tracker/weekly-summary`, { headers });
+    const response = await authorizedFetch(`${API_PATH}/path-tracker/weekly-summary`, { headers });
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || 'Failed to load weekly summary');
@@ -265,7 +266,7 @@ export const pathTrackerService = {
   async getUnlockStatus(role?: string): Promise<PathTrackerUnlockStatus> {
     const headers = await getAuthHeaders();
     const query = role ? `?role=${encodeURIComponent(role)}` : '';
-    const response = await fetch(`${API_PATH}/path-tracker/unlock-status${query}`, { headers });
+    const response = await authorizedFetch(`${API_PATH}/path-tracker/unlock-status${query}`, { headers });
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || 'Failed to load unlock status');
@@ -276,7 +277,7 @@ export const pathTrackerService = {
   async markUnlockOpened(serviceId: string) {
     const headers = await getAuthHeaders();
     try {
-      const response = await fetch(`${API_PATH}/path-tracker/unlock-opened`, {
+      const response = await authorizedFetch(`${API_PATH}/path-tracker/unlock-opened`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ serviceId }),

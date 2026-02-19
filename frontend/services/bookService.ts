@@ -1,4 +1,5 @@
 import { API_PATH } from '../config/api.config';
+import { authorizedFetch } from './authSessionService';
 
 export interface Book {
     id: number;
@@ -29,13 +30,13 @@ export interface Chapter {
 
 export const bookService = {
     getBooks: async (): Promise<Book[]> => {
-        const response = await fetch(`${API_PATH}/library/books`);
+        const response = await authorizedFetch(`${API_PATH}/library/books`);
         if (!response.ok) throw new Error('Failed to fetch books');
         return response.json();
     },
 
     getChapters: async (bookCode: string): Promise<Chapter[]> => {
-        const response = await fetch(`${API_PATH}/library/books/${bookCode}/chapters`);
+        const response = await authorizedFetch(`${API_PATH}/library/books/${bookCode}/chapters`);
         if (!response.ok) throw new Error('Failed to fetch chapters');
         return response.json();
     },
@@ -45,7 +46,7 @@ export const bookService = {
         if (canto) url += `&canto=${canto}`;
         if (language) url += `&language=${language}`;
 
-        const response = await fetch(url);
+        const response = await authorizedFetch(url);
         if (!response.ok) throw new Error('Failed to fetch verses');
         return response.json();
     }

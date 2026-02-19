@@ -25,6 +25,9 @@ const (
 
 	MetricAuthRefreshSuccess                 = "auth_refresh_success"
 	MetricAuthRefreshFail                    = "auth_refresh_fail"
+	MetricHTTP4xxTotal                       = "http_4xx_total"
+	MetricHTTP5xxTotal                       = "http_5xx_total"
+	MetricRateLimitedTotal                   = "http_429_total"
 	MetricChatHistoryLatency                 = "chat_history_latency"
 	MetricRAGLiteTimeout                     = "rag_lite_timeout"
 	MetricPushSendFail                       = "push_send_fail"

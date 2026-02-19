@@ -3,6 +3,7 @@
  */
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { authorizedFetch } from './authSessionService';
 import { Service, ServiceTariff, ServiceOwner } from './serviceService';
 
 // ==================== TYPES ====================
@@ -110,7 +111,7 @@ export async function bookService(
     data: CreateBookingRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${serviceId}/book`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/book`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -142,7 +143,7 @@ export async function getMyBookings(
     const queryString = params.toString();
     const url = `${API_PATH}/bookings/my${queryString ? '?' + queryString : ''}`;
 
-    const response = await fetch(url, { headers });
+    const response = await authorizedFetch(url, { headers });
     if (response.status === 401) {
         throw new Error('UNAUTHORIZED');
     }
@@ -168,7 +169,7 @@ export async function getIncomingBookings(
     const queryString = params.toString();
     const url = `${API_PATH}/bookings/incoming${queryString ? '?' + queryString : ''}`;
 
-    const response = await fetch(url, { headers });
+    const response = await authorizedFetch(url, { headers });
     if (!response.ok) throw new Error('Failed to fetch incoming bookings');
     return response.json();
 }
@@ -178,7 +179,7 @@ export async function getIncomingBookings(
  */
 export async function getUpcomingBookings(): Promise<UpcomingBookingsResponse> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/bookings/upcoming`, { headers });
+    const response = await authorizedFetch(`${API_PATH}/bookings/upcoming`, { headers });
     if (!response.ok) throw new Error('Failed to fetch upcoming bookings');
     return response.json();
 }
@@ -191,7 +192,7 @@ export async function confirmBooking(
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/bookings/${bookingId}/confirm`, {
+    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/confirm`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data || {}),
@@ -212,7 +213,7 @@ export async function cancelBooking(
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/bookings/${bookingId}/cancel`, {
+    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/cancel`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data || {}),
@@ -233,7 +234,7 @@ export async function completeBooking(
     data?: BookingActionRequest
 ): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/bookings/${bookingId}/complete`, {
+    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/complete`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data || {}),
@@ -251,7 +252,7 @@ export async function completeBooking(
  */
 export async function markNoShow(bookingId: number): Promise<ServiceBooking> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/bookings/${bookingId}/no-show`, {
+    const response = await authorizedFetch(`${API_PATH}/bookings/${bookingId}/no-show`, {
         method: 'PUT',
         headers,
     });
@@ -273,7 +274,7 @@ export async function getBusyTimes(
     const headers = await getAuthHeaders();
     const params = new URLSearchParams({ dateFrom, dateTo });
 
-    const response = await fetch(`${API_PATH}/calendar/busy?${params}`, { headers });
+    const response = await authorizedFetch(`${API_PATH}/calendar/busy?${params}`, { headers });
     if (!response.ok) throw new Error('Failed to fetch busy times');
     return response.json();
 }

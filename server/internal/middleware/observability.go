@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
+	"rag-agent-server/internal/services"
 	"strings"
 	"time"
 
@@ -43,6 +44,15 @@ func ErrorLog() fiber.Handler {
 		}
 
 		if status >= 400 {
+			if status >= 500 {
+				_ = services.GetMetricsService().Increment(services.MetricHTTP5xxTotal, 1)
+			} else {
+				_ = services.GetMetricsService().Increment(services.MetricHTTP4xxTotal, 1)
+			}
+			if status == fiber.StatusTooManyRequests {
+				_ = services.GetMetricsService().Increment(services.MetricRateLimitedTotal, 1)
+			}
+
 			requestID := GetRequestID(c)
 			errorCode := GetErrorCode(c)
 			if errorCode == "" {

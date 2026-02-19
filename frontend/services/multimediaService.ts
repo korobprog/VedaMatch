@@ -1,6 +1,7 @@
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
 import { getGodModeQueryParams } from './godModeService';
+import { authorizedFetch } from './authSessionService';
 
 export interface MediaTrack {
     ID: number;
@@ -79,7 +80,7 @@ class MultimediaService {
 
     async getCategories(type?: string): Promise<MediaCategory[]> {
         const params = type ? `?type=${type}` : '';
-        const response = await fetch(`${this.baseUrl}/multimedia/categories${params}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/categories${params}`);
         if (!response.ok) throw new Error('Failed to fetch categories');
         return response.json();
     }
@@ -98,13 +99,13 @@ class MultimediaService {
         const godModeParams = await getGodModeQueryParams();
         if (godModeParams.math) params.append('math', godModeParams.math);
 
-        const response = await fetch(`${this.baseUrl}/multimedia/tracks?${params.toString()}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch tracks');
         return response.json();
     }
 
     async getTrack(id: number): Promise<MediaTrack> {
-        const response = await fetch(`${this.baseUrl}/multimedia/tracks/${id}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks/${id}`);
         if (!response.ok) throw new Error('Failed to fetch track');
         return response.json();
     }
@@ -116,13 +117,13 @@ class MultimediaService {
         if (godModeParams.math) params.append('math', godModeParams.math);
         params.append('_t', String(Date.now())); // Cache busting
 
-        const response = await fetch(`${this.baseUrl}/multimedia/radio?${params.toString()}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/radio?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch radio stations');
         return response.json();
     }
 
     async getRadioStation(id: number): Promise<RadioStation> {
-        const response = await fetch(`${this.baseUrl}/multimedia/radio/${id}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/radio/${id}`);
         if (!response.ok) throw new Error('Failed to fetch radio station');
         return response.json();
     }
@@ -132,33 +133,33 @@ class MultimediaService {
         if (madh) params.append('madh', madh);
         const godModeParams = await getGodModeQueryParams();
         if (godModeParams.math) params.append('math', godModeParams.math);
-        const response = await fetch(`${this.baseUrl}/multimedia/tv${params.toString() ? `?${params.toString()}` : ''}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tv${params.toString() ? `?${params.toString()}` : ''}`);
         if (!response.ok) throw new Error('Failed to fetch TV channels');
         return response.json();
     }
 
     async getTVChannel(id: number): Promise<TVChannel> {
-        const response = await fetch(`${this.baseUrl}/multimedia/tv/${id}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tv/${id}`);
         if (!response.ok) throw new Error('Failed to fetch TV channel');
         return response.json();
     }
 
     // Series methods
     async getSeries(): Promise<{ series: any[] }> {
-        const response = await fetch(`${this.baseUrl}/multimedia/series`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/series`);
         if (!response.ok) throw new Error('Failed to fetch series');
         return response.json();
     }
 
     async getSeriesDetails(id: number): Promise<any> {
-        const response = await fetch(`${this.baseUrl}/multimedia/series/${id}`);
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/series/${id}`);
         if (!response.ok) throw new Error('Failed to fetch series details');
         return response.json();
     }
 
     async getFavorites(page = 1, limit = 20): Promise<{ tracks: MediaTrack[]; total: number }> {
         const headers = await getAuthHeaders();
-        const response = await fetch(
+        const response = await authorizedFetch(
             `${this.baseUrl}/multimedia/favorites?page=${page}&limit=${limit}`,
             { headers }
         );
@@ -168,7 +169,7 @@ class MultimediaService {
 
     async addToFavorites(trackId: number): Promise<void> {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${this.baseUrl}/multimedia/tracks/${trackId}/favorite`, {
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks/${trackId}/favorite`, {
             method: 'POST',
             headers,
         });
@@ -177,7 +178,7 @@ class MultimediaService {
 
     async removeFromFavorites(trackId: number): Promise<void> {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${this.baseUrl}/multimedia/tracks/${trackId}/favorite`, {
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/tracks/${trackId}/favorite`, {
             method: 'DELETE',
             headers,
         });
@@ -186,7 +187,7 @@ class MultimediaService {
 
     async suggestContent(data: { title: string; description?: string; url?: string; mediaType: 'audio' | 'video' }): Promise<void> {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${this.baseUrl}/multimedia/suggest`, {
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/suggest`, {
             method: 'POST',
             headers: { ...headers, 'Content-Type': 'application/json' },
             body: JSON.stringify(data),

@@ -10,6 +10,7 @@ import { API_PATH } from '../config/api.config';
 import { PermissionsAndroid, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import { getAuthHeaders } from './contactService';
+import { authorizedFetch } from './authSessionService';
 
 export interface MediaFile {
 	uri: string;
@@ -361,7 +362,7 @@ export const mediaService = {
 			}
 
 			const authHeaders = await getAuthHeaders(false);
-			const response = await fetch(`${API_PATH}/messages/media`, {
+			const response = await authorizedFetch(`${API_PATH}/messages/media`, {
 				method: 'POST',
 				body: formData,
 				headers: {

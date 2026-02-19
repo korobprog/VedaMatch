@@ -16,6 +16,7 @@ const STORAGE_KEY_REFRESH_TOKEN = 'refreshToken';
 const STORAGE_KEY_ACCESS_EXPIRES = 'accessTokenExpiresAt';
 const STORAGE_KEY_REFRESH_EXPIRES = 'refreshTokenExpiresAt';
 const STORAGE_KEY_SESSION_ID = 'sessionId';
+const STORAGE_KEY_PUSH_TOKEN = 'pushToken';
 
 let cachedTokens: AuthTokens | null = null;
 let loadPromise: Promise<AuthTokens | null> | null = null;
@@ -23,6 +24,7 @@ let refreshPromise: Promise<AuthTokens | null> | null = null;
 let axiosAuthInterceptorInitialized = false;
 
 const API_BASE = API_PATH.replace(/\/+$/, '');
+const HEADER_REQUEST_ID = 'X-Request-ID';
 
 const toStringValue = (value: unknown): string => {
     if (typeof value === 'string') return value.trim();
@@ -37,6 +39,23 @@ const toNumberValue = (value: unknown): number | undefined => {
         if (Number.isFinite(parsed) && parsed > 0) return parsed;
     }
     return undefined;
+};
+
+const generateRequestID = (): string => {
+    const now = Date.now().toString(36);
+    const random = Math.random().toString(36).slice(2, 10);
+    return `${now}-${random}`;
+};
+
+const findAxiosHeaderKey = (headers: Record<string, any> | undefined, key: string): string | null => {
+    if (!headers) return null;
+    const normalizedKey = key.toLowerCase();
+    for (const candidate of Object.keys(headers)) {
+        if (candidate.toLowerCase() === normalizedKey) {
+            return candidate;
+        }
+    }
+    return null;
 };
 
 export const normalizeAuthTokens = (payload: any): AuthTokens | null => {
@@ -161,6 +180,15 @@ export const logoutAuthSession = async (): Promise<void> => {
         return;
     }
 
+    let deviceId = '';
+    try {
+        deviceId = await DeviceInfo.getUniqueId();
+    } catch {
+        deviceId = '';
+    }
+
+    const pushToken = toStringValue(await AsyncStorage.getItem(STORAGE_KEY_PUSH_TOKEN));
+
     try {
         await fetch(`${API_PATH}/auth/logout`, {
             method: 'POST',
@@ -171,6 +199,8 @@ export const logoutAuthSession = async (): Promise<void> => {
             body: JSON.stringify({
                 sessionId: current?.sessionId,
                 refreshToken: current?.refreshToken,
+                deviceId: deviceId || undefined,
+                pushToken: pushToken || undefined,
             }),
         });
     } catch {
@@ -226,6 +256,9 @@ const mergeHeaders = (headers: HeadersInit | undefined, accessToken: string | nu
     } else {
         merged.delete('Authorization');
     }
+    if (!merged.has(HEADER_REQUEST_ID)) {
+        merged.set(HEADER_REQUEST_ID, generateRequestID());
+    }
     return merged;
 };
 
@@ -237,13 +270,29 @@ const isApiRequest = (url?: string): boolean => {
     return false;
 };
 
-const mergeAxiosAuthHeader = (headers: any, accessToken: string | null) => {
+const mergeAxiosAuthHeader = (
+    headers: any,
+    accessToken: string | null,
+    options: { preserveExistingAuth?: boolean } = {},
+) => {
     const nextHeaders = { ...(headers || {}) };
-    if (accessToken) {
-        nextHeaders.Authorization = `Bearer ${accessToken}`;
-    } else {
-        delete nextHeaders.Authorization;
+    const requestIDHeaderKey = findAxiosHeaderKey(nextHeaders, HEADER_REQUEST_ID);
+    if (!requestIDHeaderKey || !String(nextHeaders[requestIDHeaderKey] ?? '').trim()) {
+        nextHeaders[HEADER_REQUEST_ID] = generateRequestID();
     }
+
+    const authHeaderKey = findAxiosHeaderKey(nextHeaders, 'Authorization');
+    const hasExistingAuth = authHeaderKey !== null && String(nextHeaders[authHeaderKey] ?? '').trim() !== '';
+
+    if (accessToken) {
+        if (authHeaderKey && authHeaderKey !== 'Authorization') {
+            delete nextHeaders[authHeaderKey];
+        }
+        nextHeaders.Authorization = `Bearer ${accessToken}`;
+    } else if (!options.preserveExistingAuth && authHeaderKey) {
+        delete nextHeaders[authHeaderKey];
+    }
+
     return nextHeaders;
 };
 
@@ -256,13 +305,13 @@ export const setupAxiosAuthInterceptor = () => {
             return config;
         }
 
-        const hasAuthorization = typeof config?.headers?.Authorization === 'string' && config.headers.Authorization.trim() !== '';
-        if (hasAuthorization) {
-            return config;
-        }
+        const authHeaderKey = findAxiosHeaderKey(config?.headers, 'Authorization');
+        const hasAuthorization = authHeaderKey !== null && String(config.headers[authHeaderKey] ?? '').trim() !== '';
 
-        const token = await getAccessToken();
-        config.headers = mergeAxiosAuthHeader(config?.headers, token);
+        const token = hasAuthorization ? null : await getAccessToken();
+        config.headers = mergeAxiosAuthHeader(config?.headers, token, {
+            preserveExistingAuth: hasAuthorization,
+        });
         return config;
     });
 
@@ -327,15 +376,16 @@ export const authorizedAxiosRequest = async <T = any>(
 ): Promise<AxiosResponse<T>> => {
     const { retry401 = true, skipAuth = false } = options;
     const token = skipAuth ? null : await getAccessToken();
+    const existingAuthHeaderKey = findAxiosHeaderKey(config.headers as Record<string, any> | undefined, 'Authorization');
+    const hasExistingAuthorization = existingAuthHeaderKey !== null && String((config.headers as any)?.[existingAuthHeaderKey] ?? '').trim() !== '';
 
     const firstConfig: AxiosRequestConfig = {
         ...config,
         // This helper manages refresh/retry itself.
         ...({ __skipAuthSession: true } as any),
-        headers: {
-            ...(config.headers || {}),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: mergeAxiosAuthHeader(config.headers, token, {
+            preserveExistingAuth: hasExistingAuthorization,
+        }),
     };
 
     try {
@@ -354,10 +404,7 @@ export const authorizedAxiosRequest = async <T = any>(
         const retryConfig: AxiosRequestConfig = {
             ...config,
             ...({ __skipAuthSession: true } as any),
-            headers: {
-                ...(config.headers || {}),
-                Authorization: `Bearer ${refreshed.accessToken}`,
-            },
+            headers: mergeAxiosAuthHeader(config.headers, refreshed.accessToken),
         };
         return axios.request<T>(retryConfig);
     }

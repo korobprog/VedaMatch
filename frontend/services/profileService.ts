@@ -1,5 +1,6 @@
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { authorizedFetch } from './authSessionService';
 
 export interface LocationData {
 	country: string;
@@ -11,7 +12,7 @@ export interface LocationData {
 export const profileService = {
 	updateLocation: async (userId: number, location: LocationData) => {
 		const headers = await getAuthHeaders();
-		const response = await fetch(`${API_PATH}/update-location`, { // API group /api/ with Protected middleware uses /update-location, not /update-location/:userId
+		const response = await authorizedFetch(`${API_PATH}/update-location`, { // API group /api/ with Protected middleware uses /update-location, not /update-location/:userId
 			method: 'PUT',
 			headers,
 			body: JSON.stringify(location),

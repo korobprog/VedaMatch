@@ -8,7 +8,7 @@ export class WebSocketService {
     private userId: number;
     private onMessageCallback: (message: any) => void;
     private reconnectAttempts = 0;
-    private maxReconnectAttempts = 5;
+    private maxReconnectAttempts = 0; // 0 = unlimited reconnect attempts.
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private isDisposed = false;
     private isAuthRecoveryInProgress = false;
@@ -130,9 +130,12 @@ export class WebSocketService {
         }
         this.clearReconnectTimer();
 
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        if (this.maxReconnectAttempts === 0 || this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
-            const timeout = Math.min(Math.pow(2, this.reconnectAttempts) * 1000, 30000);
+            const cappedAttempt = Math.min(this.reconnectAttempts, 6);
+            const backoffMs = Math.min(Math.pow(2, cappedAttempt) * 1000, 30000);
+            const jitterMs = Math.floor(Math.random() * 700);
+            const timeout = backoffMs + jitterMs;
             console.log(`[WebSocket] Reconnecting in ${timeout}ms...`);
             this.reconnectTimer = setTimeout(() => {
                 this.reconnectTimer = null;

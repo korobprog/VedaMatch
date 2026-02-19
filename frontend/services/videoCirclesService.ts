@@ -1,5 +1,6 @@
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
+import { authorizedFetch } from './authSessionService';
 
 export type VideoCircleStatus = 'active' | 'expired' | 'deleted';
 export type VideoInteractionType = 'like' | 'comment' | 'chat';
@@ -121,7 +122,7 @@ class VideoCirclesService {
     if (filters.sort) params.append('sort', filters.sort);
 
     const query = params.toString();
-    const response = await fetch(`${this.baseUrl}/video-circles${query ? `?${query}` : ''}`, { headers });
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles${query ? `?${query}` : ''}`, { headers });
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || 'Failed to fetch video circles');
@@ -131,7 +132,7 @@ class VideoCirclesService {
 
   async createVideoCircle(payload: CreateVideoCirclePayload): Promise<VideoCircle> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/video-circles`, {
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -145,7 +146,7 @@ class VideoCirclesService {
 
   async getMyVideoCircles(page = 1, limit = 30): Promise<VideoCircleListResponse> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/video-circles/my?page=${page}&limit=${limit}`, { headers });
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles/my?page=${page}&limit=${limit}`, { headers });
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || 'Failed to fetch my video circles');
@@ -155,7 +156,7 @@ class VideoCirclesService {
 
   async interact(circleId: number, type: VideoInteractionType, action: VideoInteractionAction): Promise<any> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}/interactions`, {
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}/interactions`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, action }),
@@ -170,7 +171,7 @@ class VideoCirclesService {
   }
 
   async getVideoTariffs(): Promise<VideoTariff[]> {
-    const response = await fetch(`${this.baseUrl}/video-tariffs`);
+    const response = await authorizedFetch(`${this.baseUrl}/video-tariffs`);
     if (!response.ok) {
       throw new Error('Failed to fetch video tariffs');
     }
@@ -188,7 +189,7 @@ class VideoCirclesService {
 
   async createVideoTariff(payload: UpsertVideoTariffPayload): Promise<VideoTariff> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/admin/video-tariffs`, {
+    const response = await authorizedFetch(`${this.baseUrl}/admin/video-tariffs`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -202,7 +203,7 @@ class VideoCirclesService {
 
   async updateVideoTariff(id: number, payload: Partial<UpsertVideoTariffPayload>): Promise<VideoTariff> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/admin/video-tariffs/${id}`, {
+    const response = await authorizedFetch(`${this.baseUrl}/admin/video-tariffs/${id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -216,7 +217,7 @@ class VideoCirclesService {
 
   async boostCircle(circleId: number, boostType: VideoBoostType): Promise<any> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}/boost`, {
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}/boost`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ boostType }),
@@ -260,7 +261,7 @@ class VideoCirclesService {
       : undefined;
 
     try {
-      const response = await fetch(`${this.baseUrl}/video-circles/upload`, {
+      const response = await authorizedFetch(`${this.baseUrl}/video-circles/upload`, {
         method: 'POST',
         headers: {
           ...headers,
@@ -301,7 +302,7 @@ class VideoCirclesService {
 
   async deleteCircle(circleId: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}`, {
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}`, {
       method: 'DELETE',
       headers,
     });
@@ -313,7 +314,7 @@ class VideoCirclesService {
 
   async updateCircle(circleId: number, payload: UpdateVideoCirclePayload): Promise<VideoCircle> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}`, {
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -327,7 +328,7 @@ class VideoCirclesService {
 
   async republishCircle(circleId: number, durationMinutes = 60): Promise<VideoCircle> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}/video-circles/${circleId}/republish`, {
+    const response = await authorizedFetch(`${this.baseUrl}/video-circles/${circleId}/republish`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ durationMinutes }),

@@ -10,6 +10,7 @@ import (
 	"rag-agent-server/internal/services"
 	"rag-agent-server/internal/workers"
 	"strconv"
+	"time"
 
 	"rag-agent-server/internal/websocket"
 	"strings"
@@ -244,10 +245,10 @@ func main() {
 	api := app.Group("/api")
 
 	// Auth Routes (Public)
-	api.Post("/register", authHandler.Register)
-	api.Post("/login", authHandler.Login)
-	api.Post("/auth/refresh", authHandler.Refresh)
-	api.Post("/auth/logout", middleware.OptionalAuth(), authHandler.Logout)
+	api.Post("/register", middleware.RateLimitByIP("auth_register", 15, 10*time.Minute), authHandler.Register)
+	api.Post("/login", middleware.RateLimitByIP("auth_login", 30, 10*time.Minute), authHandler.Login)
+	api.Post("/auth/refresh", middleware.RateLimitByIdentity("auth_refresh", 90, 5*time.Minute), authHandler.Refresh)
+	api.Post("/auth/logout", middleware.OptionalAuth(), middleware.RateLimitByIdentity("auth_logout", 120, 5*time.Minute), authHandler.Logout)
 	api.Post("/integrations/telegram/support/webhook", supportHandler.TelegramWebhook)
 
 	// Library Routes
@@ -402,6 +403,7 @@ func main() {
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
 	admin.Post("/push/test", adminHandler.SendTestPush)
 	admin.Get("/push/health", adminHandler.GetPushHealth)
+	admin.Get("/platform/health", adminHandler.GetPlatformHealth)
 	admin.Get("/education/tutor/metrics", adminHandler.GetEducationTutorMetrics)
 	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)
 
@@ -947,7 +949,7 @@ func main() {
 	admin.Post("/charity/projects/:id/reject", charityHandler.RejectProject)
 
 	// WebSocket Route
-	api.Use("/ws", func(c *fiber.Ctx) error {
+	api.Use("/ws", middleware.RateLimitByIP("ws_upgrade", 60, time.Minute), func(c *fiber.Ctx) error {
 		if !fiberwebsocket.IsWebSocketUpgrade(c) {
 			return c.SendStatus(fiber.StatusUpgradeRequired)
 		}

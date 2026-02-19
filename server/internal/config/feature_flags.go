@@ -22,7 +22,7 @@ func FlagEnabled(key string, defaultValue bool) bool {
 }
 
 func AuthRefreshV1Enabled() bool {
-	return FlagEnabled("AUTH_REFRESH_V1", false)
+	return FlagEnabled("AUTH_REFRESH_V1", true)
 }
 
 func ChatHistoryV2Enabled() bool {

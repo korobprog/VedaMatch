@@ -525,6 +525,8 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	var req struct {
 		RefreshToken string `json:"refreshToken"`
 		SessionID    uint   `json:"sessionId"`
+		DeviceID     string `json:"deviceId"`
+		PushToken    string `json:"pushToken"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		middleware.SetErrorCode(c, "auth_logout_bad_json")
@@ -548,6 +550,8 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 
 	userID := middleware.GetUserID(c)
 	now := time.Now().UTC()
+	requestedPushToken := strings.TrimSpace(req.PushToken)
+	requestedDeviceID := strings.TrimSpace(req.DeviceID)
 
 	query := database.DB.Model(&models.AuthSession{}).Where("revoked_at IS NULL")
 	if userID > 0 {
@@ -570,9 +574,20 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		})
 	}
 
+	var pushInvalidated int64
+	if userID > 0 && (requestedPushToken != "" || requestedDeviceID != "") {
+		invalidated, err := services.GetPushService().UnregisterUserDeviceToken(userID, requestedPushToken, requestedDeviceID)
+		if err != nil {
+			log.Printf("[AUTH] Failed to unregister push token on logout (user=%d): %v", userID, err)
+		} else {
+			pushInvalidated = invalidated
+		}
+	}
+
 	return c.JSON(fiber.Map{
-		"ok":      true,
-		"revoked": result.RowsAffected,
+		"ok":              true,
+		"revoked":         result.RowsAffected,
+		"pushInvalidated": pushInvalidated,
 	})
 }
 

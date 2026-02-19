@@ -627,6 +627,94 @@ func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
 	})
 }
 
+func (h *AdminHandler) GetPlatformHealth(c *fiber.Ctx) error {
+	if _, err := requireAdminUserID(c); err != nil {
+		return err
+	}
+
+	keys := []string{
+		services.MetricAuthRefreshSuccess,
+		services.MetricAuthRefreshFail,
+		services.MetricHTTP4xxTotal,
+		services.MetricHTTP5xxTotal,
+		services.MetricRateLimitedTotal,
+		services.MetricPushSendFail,
+	}
+
+	snapshot, err := services.GetMetricsService().Snapshot(keys)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to load platform metrics",
+		})
+	}
+
+	authRefreshSuccess := snapshot[services.MetricAuthRefreshSuccess]
+	authRefreshFail := snapshot[services.MetricAuthRefreshFail]
+	authRefreshTotal := authRefreshSuccess + authRefreshFail
+
+	authRefreshFailRate := 0.0
+	if authRefreshTotal > 0 {
+		authRefreshFailRate = float64(authRefreshFail) / float64(authRefreshTotal)
+	}
+
+	alerts := make([]fiber.Map, 0)
+	if authRefreshTotal >= 20 && authRefreshFailRate > 0.20 {
+		alerts = append(alerts, fiber.Map{
+			"key":       "auth_refresh_fail_rate_high",
+			"severity":  "high",
+			"threshold": 0.20,
+			"value":     authRefreshFailRate,
+			"message":   "Auth refresh failures are above 20%.",
+		})
+	}
+	if snapshot[services.MetricHTTP5xxTotal] >= 25 {
+		alerts = append(alerts, fiber.Map{
+			"key":       "http_5xx_total_high",
+			"severity":  "high",
+			"threshold": 25,
+			"value":     snapshot[services.MetricHTTP5xxTotal],
+			"message":   "Server-side 5xx errors exceeded baseline threshold.",
+		})
+	}
+	if snapshot[services.MetricRateLimitedTotal] >= 150 {
+		alerts = append(alerts, fiber.Map{
+			"key":       "rate_limited_spike",
+			"severity":  "medium",
+			"threshold": 150,
+			"value":     snapshot[services.MetricRateLimitedTotal],
+			"message":   "Rate-limited requests exceeded baseline threshold.",
+		})
+	}
+	if snapshot[services.MetricPushSendFail] >= 20 {
+		alerts = append(alerts, fiber.Map{
+			"key":       "push_send_failures_high",
+			"severity":  "medium",
+			"threshold": 20,
+			"value":     snapshot[services.MetricPushSendFail],
+			"message":   "Push delivery failures exceeded baseline threshold.",
+		})
+	}
+
+	status := "ok"
+	if len(alerts) > 0 {
+		status = "degraded"
+	}
+
+	return c.JSON(fiber.Map{
+		"status": status,
+		"metrics": fiber.Map{
+			"auth_refresh_success":   authRefreshSuccess,
+			"auth_refresh_fail":      authRefreshFail,
+			"auth_refresh_fail_rate": authRefreshFailRate,
+			"http_4xx_total":         snapshot[services.MetricHTTP4xxTotal],
+			"http_5xx_total":         snapshot[services.MetricHTTP5xxTotal],
+			"http_429_total":         snapshot[services.MetricRateLimitedTotal],
+			"push_send_fail":         snapshot[services.MetricPushSendFail],
+		},
+		"alerts": alerts,
+	})
+}
+
 func (h *AdminHandler) GetEducationTutorMetrics(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err

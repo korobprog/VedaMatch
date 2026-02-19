@@ -148,6 +148,28 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = async () => {
         try {
+            const rawPushToken = await AsyncStorage.getItem('pushToken');
+            const pushToken = rawPushToken && rawPushToken !== 'undefined' && rawPushToken !== 'null'
+                ? rawPushToken
+                : '';
+            let deviceId = '';
+            try {
+                deviceId = await DeviceInfo.getUniqueId();
+            } catch {
+                deviceId = '';
+            }
+
+            if (pushToken || deviceId) {
+                await contactService.unregisterPushToken({
+                    token: pushToken || undefined,
+                    deviceId: deviceId || undefined,
+                });
+            }
+        } catch (error) {
+            console.warn('[UserContext] Failed to unregister push token on logout:', error);
+        }
+
+        try {
             await logoutAuthSession();
         } catch (error) {
             console.warn('[UserContext] Failed to sync logout session:', error);
@@ -157,7 +179,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setGodModeFilters([]);
         setActiveMathId(null);
         await clearAuthTokens();
-        await AsyncStorage.removeItem('user');
+        await AsyncStorage.multiRemove(['user', 'pushToken']);
         console.log('[UserContext] Session cleared (Logged out)');
     };
 

@@ -4,6 +4,7 @@
 import { API_PATH } from '../config/api.config';
 import { getAuthHeaders } from './contactService';
 import { getGodModeQueryParams } from './godModeService';
+import { authorizedFetch } from './authSessionService';
 
 // ==================== TYPES ====================
 
@@ -259,7 +260,7 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
     const url = `${API_PATH}/services${queryString ? '?' + queryString : ''}`;
 
     const headers = await getAuthHeaders();
-    const response = await fetch(url, { headers });
+    const response = await authorizedFetch(url, { headers });
     if (!response.ok) throw new Error('Failed to fetch services');
     return response.json();
 }
@@ -269,7 +270,7 @@ export async function getServices(filters: ServiceFilters = {}): Promise<Service
  */
 export async function getServiceById(id: number): Promise<Service> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${id}`, { headers });
+    const response = await authorizedFetch(`${API_PATH}/services/${id}`, { headers });
     if (!response.ok) throw new Error('Service not found');
     return response.json();
 }
@@ -279,7 +280,7 @@ export async function getServiceById(id: number): Promise<Service> {
  */
 export async function getMyServices(): Promise<{ services: Service[] }> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/my`, { headers });
+    const response = await authorizedFetch(`${API_PATH}/services/my`, { headers });
     if (!response.ok) throw new Error('Failed to fetch my services');
     return response.json();
 }
@@ -289,7 +290,7 @@ export async function getMyServices(): Promise<{ services: Service[] }> {
  */
 export async function createService(data: CreateServiceRequest): Promise<Service> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services`, {
+    const response = await authorizedFetch(`${API_PATH}/services`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -306,7 +307,7 @@ export async function createService(data: CreateServiceRequest): Promise<Service
  */
 export async function updateService(id: number, data: UpdateServiceRequest): Promise<Service> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${id}`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${id}`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -332,7 +333,7 @@ export async function uploadServicePhoto(photoUri: string): Promise<string> {
         name: 'service_photo.jpg',
     });
 
-    const response = await fetch(`${API_PATH}/services/upload`, {
+    const response = await authorizedFetch(`${API_PATH}/services/upload`, {
         method: 'POST',
         headers: {
             ...headers,
@@ -354,7 +355,7 @@ export async function uploadServicePhoto(photoUri: string): Promise<string> {
  */
 export async function deleteService(id: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${id}`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${id}`, {
         method: 'DELETE',
         headers,
     });
@@ -366,7 +367,7 @@ export async function deleteService(id: number): Promise<void> {
  */
 export async function publishService(id: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${id}/publish`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${id}/publish`, {
         method: 'POST',
         headers,
     });
@@ -381,7 +382,7 @@ export async function publishService(id: number): Promise<void> {
  */
 export async function pauseService(id: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${id}/pause`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${id}/pause`, {
         method: 'POST',
         headers,
     });
@@ -394,7 +395,7 @@ export async function pauseService(id: number): Promise<void> {
  * Get tariffs for a service
  */
 export async function getTariffs(serviceId: number): Promise<{ tariffs: ServiceTariff[] }> {
-    const response = await fetch(`${API_PATH}/services/${serviceId}/tariffs`);
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/tariffs`);
     if (!response.ok) throw new Error('Failed to fetch tariffs');
     return response.json();
 }
@@ -404,7 +405,7 @@ export async function getTariffs(serviceId: number): Promise<{ tariffs: ServiceT
  */
 export async function addTariff(serviceId: number, data: CreateTariffRequest): Promise<ServiceTariff> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${serviceId}/tariffs`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/tariffs`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -418,7 +419,7 @@ export async function addTariff(serviceId: number, data: CreateTariffRequest): P
  */
 export async function updateTariff(tariffId: number, data: Partial<ServiceTariff>): Promise<ServiceTariff> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/tariffs/${tariffId}`, {
+    const response = await authorizedFetch(`${API_PATH}/tariffs/${tariffId}`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -432,7 +433,7 @@ export async function updateTariff(tariffId: number, data: Partial<ServiceTariff
  */
 export async function deleteTariff(tariffId: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/tariffs/${tariffId}`, {
+    const response = await authorizedFetch(`${API_PATH}/tariffs/${tariffId}`, {
         method: 'DELETE',
         headers,
     });
@@ -445,7 +446,7 @@ export async function deleteTariff(tariffId: number): Promise<void> {
  * Get schedules for a service
  */
 export async function getSchedules(serviceId: number): Promise<{ schedules: ServiceSchedule[] }> {
-    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule`);
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule`);
     if (!response.ok) throw new Error('Failed to fetch schedules');
     return response.json();
 }
@@ -460,7 +461,7 @@ export async function getServiceSchedule(serviceId: number): Promise<{
     maxBookingsPerDay?: number;
 }> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
         headers,
     });
     if (!response.ok) {
@@ -478,7 +479,7 @@ export async function getServiceSchedule(serviceId: number): Promise<{
  */
 export async function updateServiceSchedule(serviceId: number, data: CreateScheduleRequest): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule/weekly`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -491,7 +492,7 @@ export async function updateServiceSchedule(serviceId: number, data: CreateSched
  */
 export async function addSchedule(serviceId: number, data: CreateScheduleRequest): Promise<ServiceSchedule> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/services/${serviceId}/schedule`, {
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/schedule`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -505,7 +506,7 @@ export async function addSchedule(serviceId: number, data: CreateScheduleRequest
  */
 export async function deleteSchedule(scheduleId: number): Promise<void> {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_PATH}/schedule/${scheduleId}`, {
+    const response = await authorizedFetch(`${API_PATH}/schedule/${scheduleId}`, {
         method: 'DELETE',
         headers,
     });
@@ -525,7 +526,7 @@ export async function getAvailableSlots(
     const params = new URLSearchParams({ date });
     if (timezone) params.append('timezone', timezone);
 
-    const response = await fetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
     if (!response.ok) throw new Error('Failed to fetch slots');
     return response.json();
 }
@@ -542,7 +543,7 @@ export async function getSlotsForRange(
     const params = new URLSearchParams({ dateFrom, dateTo });
     if (timezone) params.append('timezone', timezone);
 
-    const response = await fetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
+    const response = await authorizedFetch(`${API_PATH}/services/${serviceId}/slots?${params}`);
     if (!response.ok) throw new Error('Failed to fetch slots');
     return response.json();
 }
