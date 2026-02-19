@@ -1407,6 +1407,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-netinfo (11.5.2):
+    - React-Core
   - react-native-safe-area-context (4.14.1):
     - React-Core
   - react-native-slider (4.5.7):
@@ -2095,6 +2097,7 @@ DEPENDENCIES:
   - react-native-document-picker (from `../node_modules/react-native-document-picker`)
   - "react-native-geolocation (from `../node_modules/@react-native-community/geolocation`)"
   - react-native-image-picker (from `../node_modules/react-native-image-picker`)
+  - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
   - react-native-track-player (from `../node_modules/react-native-track-player`)
@@ -2254,6 +2257,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-community/geolocation"
   react-native-image-picker:
     :path: "../node_modules/react-native-image-picker"
+  react-native-netinfo:
+    :path: "../node_modules/@react-native-community/netinfo"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-slider:
@@ -2416,6 +2421,7 @@ SPEC CHECKSUMS:
   react-native-document-picker: 302837be22e5e557340d1d510bddb1c658bd4475
   react-native-geolocation: 4e579df11fd10f90eae937e6040d71523fc6addc
   react-native-image-picker: be58a7b0ebe9202cdcd745ea1aef9cf816cd71c3
+  react-native-netinfo: 387c95161b1971d0b2acd61f5ecf394c8fd3fb95
   react-native-safe-area-context: 758e894ca5a9bd1868d2a9cfbca7326a2b6bf9dc
   react-native-slider: cd9a16c488607c55182d68d8f144438ff615694c
   react-native-track-player: dd56f9948e03756a217c75e0a61aa04aab65b5a1

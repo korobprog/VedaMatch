@@ -28,6 +28,9 @@ importers:
       '@react-native-community/geolocation':
         specifier: ^3.4.0
         version: 3.4.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
+      '@react-native-community/netinfo':
+        specifier: ^11.5.2
+        version: 11.5.2(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)
       '@react-native-community/slider':
         specifier: ^4.5.7
         version: 4.5.7
@@ -1660,6 +1663,12 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
+
+  '@react-native-community/netinfo@11.5.2':
+    resolution: {integrity: sha512-/g0m65BtX9HU+bPiCH2517bOHpEIUsGrWFXDzi1a5nNKn5KujQgm04WhL7/OSXWKHyrT8VVtUoJA0XKRxueBpQ==}
+    peerDependencies:
+      react: '*'
+      react-native: '>=0.59'
 
   '@react-native-community/slider@4.5.7':
     resolution: {integrity: sha512-WMDDZjNF2Bd8M8TrSqKf5xhM9ikdfCHtSPur64Ow3bB/OVrKufUQZ59NmYdNZNeGPvcHHTsafuYTY8zfZfbchQ==}
@@ -5282,6 +5291,7 @@ packages:
   tar@7.5.7:
     resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   temp-dir@2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
@@ -7841,6 +7851,11 @@ snapshots:
       - utf-8-validate
 
   '@react-native-community/geolocation@3.4.0(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      react: 18.3.1
+      react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
+
+  '@react-native-community/netinfo@11.5.2(react-native@0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1))(react@18.3.1)':
     dependencies:
       react: 18.3.1
       react-native: 0.76.5(@babel/core@7.28.6)(@babel/preset-env@7.28.6(@babel/core@7.28.6))(@react-native-community/cli-server-api@20.1.1)(@types/react@18.3.27)(react@18.3.1)
