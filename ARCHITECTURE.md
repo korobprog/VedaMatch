@@ -1002,3 +1002,92 @@ Backend выступает шлюзом для всех гео-запросов,
     - **Двойной буфер**: Новый слайд отрисовывается в верхнем слое с `opacity: 0`, затем плавно появляется до `opacity: 1`.
     - **requestAnimationFrame**: После завершения анимации сначала обновляется нижний (основной) слой, и только через один кадр (через `requestAnimationFrame`) верхний слой сбрасывается. Это гарантирует отсутствие "пустых" кадров при ротации слоёв.
 - **Файлы**: `screens/portal/PortalMainScreen.tsx`.
+
+## SFU Room Calls (LiveKit Self-Hosted) (Февраль 2026)
+
+### 1. Зачем ушли от room P2P
+- Старая room-видеосвязь была основана на single-peer `RTCPeerConnection` в клиенте и custom WS signaling (`room_offer/room_answer/...`), что не масштабируется на большие комнаты.
+- Новая цель: стабильные комнаты до 50 участников с управляемым качеством и предсказуемой нагрузкой на мобильные устройства.
+
+### 2. Новая схема компонентов
+```
+RN App (RoomChat/RoomVideoBar)
+  ├─ GET/POST /api/rooms/:id/sfu/*  -> Go API (auth + membership + token issue)
+  └─ connect(wss://LIVEKIT_WS_URL, token) -> LiveKit SFU
+
+Go API
+  ├─ проверка доступа в комнату (owner/admin/member)
+  ├─ выдача short-lived LiveKit JWT
+  └─ метрики/логи room_sfu_token_*
+
+LiveKit SFU
+  ├─ signaling/media relay
+  └─ dynacast + adaptive stream + simulcast
+```
+
+### 3. Auth/token flow
+1. Клиент запрашивает `GET /api/rooms/:id/sfu/config`.
+2. Клиент запрашивает `POST /api/rooms/:id/sfu/token`.
+3. Backend проверяет membership через room access layer.
+4. Backend подписывает LiveKit JWT (HS256):
+   - `iss=LIVEKIT_API_KEY`
+   - `sub=user-<id>`
+   - `video.room=room-<roomID>`
+   - `video.roomJoin=true`
+   - `exp` короткий TTL (по умолчанию 15 минут).
+5. Клиент подключается к `LIVEKIT_WS_URL` с токеном.
+
+### 4. Identity model
+- LiveKit room: `room-<roomID>`
+- Participant identity: `user-<userID>`
+- Metadata: `{"role":"owner|admin|member","roomId":<id>, ...whitelisted client metadata}`
+
+### 5. Media policy для 50 участников
+- `dynacastEnabled=true`
+- `adaptiveStreamEnabled=true`
+- `simulcastEnabled=true`
+- Ограничение подписок на клиенте: `maxSubscriptions` (дефолт 9 видимых потоков/карточек одновременно).
+
+### 6. Default permissions/UX
+- При входе в room call:
+  - микрофон выключен;
+  - камера выключена.
+- Публикация аудио/видео только явным действием пользователя.
+
+### 7. Новые backend API
+- `GET /api/rooms/:id/sfu/config`
+- `POST /api/rooms/:id/sfu/token`
+
+### 8. Конфигурация окружения
+- Feature flags:
+  - `ROOM_SFU_ENABLED`
+  - `ROOM_SFU_PROVIDER`
+  - `ROOM_SFU_REQUIRE_MEMBERSHIP`
+  - `ROOM_SFU_MAX_PARTICIPANTS`
+  - `ROOM_SFU_MAX_SUBSCRIPTIONS`
+- LiveKit:
+  - `LIVEKIT_API_KEY`
+  - `LIVEKIT_API_SECRET`
+  - `LIVEKIT_WS_URL`
+
+### 9. Наблюдаемость
+- Метрики:
+  - `room_sfu_token_issued_total`
+  - `room_sfu_token_denied_total`
+  - `room_sfu_token_error_total`
+- Структурные логи выдачи токена:
+  - `room_id`, `actor_id`, `actor_role`, `provider=livekit`.
+
+## Migration Notes (SFU rollout)
+
+1. Coexistence:
+- P2P `webRTCService` и old call screen остаются для point-to-point сценариев.
+- RoomChat переведён на SFU token/config flow.
+
+2. Rollout:
+- По умолчанию `ROOM_SFU_ENABLED=false`.
+- Включение на staging/internal-room allowlist, затем поэтапный production rollout.
+
+3. Rollback:
+- Достаточно выключить `ROOM_SFU_ENABLED` на backend.
+- Клиент покажет controlled unavailable state без краша.

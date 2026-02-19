@@ -43,7 +43,7 @@ export const createRoomChatStyles = (tokens: RoomChatVisualTokens, density: Room
       minHeight: 64,
       borderBottomWidth: 1,
       borderBottomColor: tokens.headerBorder,
-      backgroundColor: tokens.headerShellOpaque,
+      backgroundColor: 'transparent',
       overflow: 'visible',
     },
     headerTitleText: {

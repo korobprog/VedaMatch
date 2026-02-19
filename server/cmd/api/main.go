@@ -199,6 +199,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(walletService, referralService)
 	messageHandler := handlers.NewMessageHandler(aiChatService, hub, walletService, referralService)
 	roomHandler := handlers.NewRoomHandler()
+	roomSFUHandler := handlers.NewRoomSFUHandler()
 	adminHandler := handlers.NewAdminHandler()
 	adminFinancialHandler := handlers.NewAdminFinancialHandler()
 	aiHandler := handlers.NewAiHandler()
@@ -689,6 +690,8 @@ func main() {
 	protected.Put("/rooms/:id", roomHandler.UpdateRoom)
 	protected.Put("/rooms/:id/settings", roomHandler.UpdateRoomSettings)
 	protected.Post("/rooms/:id/image", roomHandler.UpdateRoomImage)
+	protected.Get("/rooms/:id/sfu/config", roomSFUHandler.GetRoomConfig)
+	protected.Post("/rooms/:id/sfu/token", roomSFUHandler.IssueRoomToken)
 
 	// Channels (Release 1)
 	protected.Post("/channels", channelHandler.CreateChannel)

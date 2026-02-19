@@ -36,3 +36,11 @@ func RAGLiteMarketEnabled() bool {
 func PushP2PEnabled() bool {
 	return FlagEnabled("PUSH_P2P", true)
 }
+
+func RoomSFUEnabled() bool {
+	return FlagEnabled("ROOM_SFU_ENABLED", false)
+}
+
+func RoomSFURequireMembership() bool {
+	return FlagEnabled("ROOM_SFU_REQUIRE_MEMBERSHIP", true)
+}

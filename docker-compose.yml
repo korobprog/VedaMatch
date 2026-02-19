@@ -29,6 +29,19 @@ services:
       DB_USER: raguser
       DB_PASSWORD: ragpassword
       DB_NAME: ragdb
+      ROOM_SFU_ENABLED: "false"
+      ROOM_SFU_PROVIDER: livekit
+      ROOM_SFU_REQUIRE_MEMBERSHIP: "true"
+      ROOM_SFU_MAX_PARTICIPANTS: "50"
+      ROOM_SFU_MAX_SUBSCRIPTIONS: "9"
+      ROOM_SFU_VIDEO_PRESET: balanced
+      ROOM_SFU_DYNACAST_ENABLED: "true"
+      ROOM_SFU_ADAPTIVE_STREAM_ENABLED: "true"
+      ROOM_SFU_SIMULCAST_ENABLED: "true"
+      ROOM_SFU_TOKEN_TTL_MINUTES: "15"
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      LIVEKIT_WS_URL: ws://livekit:7880
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,7 +65,22 @@ services:
       # Secret for REST API (Time Limited Credentials)
       - STATIC_AUTH_SECRET=p2psecretkey123
 
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: rag-agent-livekit
+    restart: unless-stopped
+    profiles: ["sfu"]
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+    environment:
+      - LIVEKIT_KEYS=devkey:secret
+      - LIVEKIT_PORT=7880
+      - LIVEKIT_LOG_LEVEL=debug
+      - LIVEKIT_REGION=local
+      - LIVEKIT_NODE_IP=127.0.0.1
+      - LIVEKIT_USE_EXTERNAL_IP=false
+
 volumes:
   postgres_data:
-
-

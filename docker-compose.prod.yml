@@ -61,6 +61,19 @@ services:
       VIDEO_UPLOAD_MAX_SIZE: ${VIDEO_UPLOAD_MAX_SIZE:-2147483648}
       CDN_ENABLED: ${CDN_ENABLED:-false}
       CDN_BASE_URL: ${CDN_BASE_URL:-}
+      ROOM_SFU_ENABLED: ${ROOM_SFU_ENABLED:-false}
+      ROOM_SFU_PROVIDER: ${ROOM_SFU_PROVIDER:-livekit}
+      ROOM_SFU_REQUIRE_MEMBERSHIP: ${ROOM_SFU_REQUIRE_MEMBERSHIP:-true}
+      ROOM_SFU_MAX_PARTICIPANTS: ${ROOM_SFU_MAX_PARTICIPANTS:-50}
+      ROOM_SFU_MAX_SUBSCRIPTIONS: ${ROOM_SFU_MAX_SUBSCRIPTIONS:-9}
+      ROOM_SFU_VIDEO_PRESET: ${ROOM_SFU_VIDEO_PRESET:-balanced}
+      ROOM_SFU_DYNACAST_ENABLED: ${ROOM_SFU_DYNACAST_ENABLED:-true}
+      ROOM_SFU_ADAPTIVE_STREAM_ENABLED: ${ROOM_SFU_ADAPTIVE_STREAM_ENABLED:-true}
+      ROOM_SFU_SIMULCAST_ENABLED: ${ROOM_SFU_SIMULCAST_ENABLED:-true}
+      ROOM_SFU_TOKEN_TTL_MINUTES: ${ROOM_SFU_TOKEN_TTL_MINUTES:-15}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +104,23 @@ services:
       - MAX_PORT=49162
       - EXTERNAL_IP=${TURN_EXTERNAL_IP:-45.150.9.229}
       - STATIC_AUTH_SECRET=${TURN_SECRET}
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: rag-agent-livekit
+    restart: unless-stopped
+    profiles: ["sfu"]
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_KEYS}
+      - LIVEKIT_PORT=7880
+      - LIVEKIT_LOG_LEVEL=info
+      - LIVEKIT_REGION=ru
+      - LIVEKIT_NODE_IP=${LIVEKIT_NODE_IP}
+      - LIVEKIT_USE_EXTERNAL_IP=true
 
 volumes:
   postgres_data:

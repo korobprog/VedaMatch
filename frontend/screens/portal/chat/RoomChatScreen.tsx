@@ -37,12 +37,14 @@ import { BalancePill } from '../../../components/wallet/BalancePill';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 import { authorizedFetch } from '../../../services/authSessionService';
 import { messageService } from '../../../services/messageService';
+import { roomCallService } from '../../../services/roomCallService';
 import { appendLiveMessage, prependHistoryPage } from './roomChatMessageUtils';
 import { createRoomChatStyles } from './roomChatStyles';
 import { getRoomChatVisualTokens, ROOM_CHAT_DENSITY } from './roomChatVisualTokens';
 import peacockAssistant from '../../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../../assets/krishnaAssistant.png';
 import nanoBanano from '../../../assets/nano_banano.png';
+import krishnaBg from '../../../assets/krishna_bg.png';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomChat'>;
 
@@ -86,8 +88,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [readerFontSize, setReaderFontSize] = useState(16);
     const [readerFontBold, setReaderFontBold] = useState(false);
-    const [roomVideoTargetId, setRoomVideoTargetId] = useState<number | null>(null);
-    const [roomVideoTargetName, setRoomVideoTargetName] = useState<string>('');
+    const [roomSfuEnabled, setRoomSfuEnabled] = useState(false);
     const latestMessagesRequestRef = useRef(0);
     const latestRoomRequestRef = useRef(0);
     const latestChaptersRequestRef = useRef(0);
@@ -260,43 +261,17 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         }
     }, [fetchChapters, fetchVerse, roomId]);
 
-    const fetchRoomCallTarget = useCallback(async () => {
+    const fetchRoomSfuAvailability = useCallback(async () => {
         if (!user?.ID) {
-            setRoomVideoTargetId(null);
-            setRoomVideoTargetName('');
+            setRoomSfuEnabled(false);
             return;
         }
         try {
-            const response = await authorizedFetch(`${API_PATH}/rooms/${roomId}/members`);
-            if (!response.ok) {
-                setRoomVideoTargetId(null);
-                setRoomVideoTargetName('');
-                return;
-            }
-            const membersPayload = await response.json();
-            const members = Array.isArray(membersPayload) ? membersPayload : [];
-            const targetMember = members.find((item: any) => {
-                const memberId = Number(item?.user?.id ?? 0);
-                return memberId > 0 && memberId !== user.ID;
-            });
-            if (!targetMember) {
-                setRoomVideoTargetId(null);
-                setRoomVideoTargetName('');
-                return;
-            }
-            const memberId = Number(targetMember?.user?.id ?? 0);
-            const memberName = String(
-                targetMember?.user?.spiritualName ||
-                targetMember?.user?.karmicName ||
-                targetMember?.user?.email ||
-                ''
-            ).trim();
-            setRoomVideoTargetId(memberId > 0 ? memberId : null);
-            setRoomVideoTargetName(memberName);
+            const cfg = await roomCallService.getRoomSfuConfig(roomId);
+            setRoomSfuEnabled(Boolean(cfg?.enabled));
         } catch (error) {
-            console.error('Error fetching room members for video target:', error);
-            setRoomVideoTargetId(null);
-            setRoomVideoTargetName('');
+            console.error('Error fetching room SFU config:', error);
+            setRoomSfuEnabled(false);
         }
     }, [roomId, user?.ID]);
 
@@ -454,8 +429,8 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     }, [fetchFontSettings, fetchMessages, fetchRoomDetails]);
 
     useEffect(() => {
-        fetchRoomCallTarget();
-    }, [fetchRoomCallTarget]);
+        fetchRoomSfuAvailability();
+    }, [fetchRoomSfuAvailability]);
 
     useEffect(() => {
         const removeListener = addListener((msg: any) => {
@@ -680,11 +655,16 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     return (
         <View style={[styles.container, { backgroundColor: tokens.canvas }]}>
             {/* Custom Premium Header */}
-            <View style={[styles.headerWrapper, { paddingTop: insets.top + 8 }]} testID="roomchat-header">
+            <View style={[styles.headerWrapper]} testID="roomchat-header">
+                <Image
+                    source={nanoBanano}
+                    style={[StyleSheet.absoluteFill, { opacity: 0.35 }]}
+                    resizeMode="contain"
+                />
                 <BlurView
                     style={StyleSheet.absoluteFill}
                     blurType={isDarkMode ? 'dark' : 'light'}
-                    blurAmount={14}
+                    blurAmount={16}
                     reducedTransparencyFallbackColor={isDarkMode ? '#0B1120' : '#F2F4F8'}
                 />
 
@@ -727,8 +707,6 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 {isCallActive && (
                     <RoomVideoBar
                         roomId={roomId}
-                        targetUserId={roomVideoTargetId}
-                        targetUserName={roomVideoTargetName}
                         onClose={() => setIsCallActive(false)}
                     />
                 )}
@@ -779,16 +757,16 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 <TouchableOpacity
                                     activeOpacity={0.88}
                                     style={[styles.joinCallButton, styles.joinCallButtonFullWidth]}
-                                    disabled={!roomVideoTargetId}
+                                    disabled={!roomSfuEnabled}
                                     onPress={() => {
-                                        if (!roomVideoTargetId) return;
+                                        if (!roomSfuEnabled) return;
                                         triggerTapFeedback();
                                         setIsCallActive(true);
                                     }}
                                 >
                                     <Video size={18} color={tokens.accentTextOnPrimary} />
                                     <Text style={styles.joinCallButtonText}>
-                                        {roomVideoTargetId ? (t('chat.joinCall')) : (t('chat.waitingForParticipants') || 'Ожидание участников')}
+                                        {roomSfuEnabled ? (t('chat.joinCall')) : (t('chat.videoUnavailable') || 'Видеосвязь недоступна')}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -975,16 +953,16 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                             <TouchableOpacity
                                 activeOpacity={0.88}
                                 style={styles.joinCallButton}
-                                disabled={!roomVideoTargetId}
+                                disabled={!roomSfuEnabled}
                                 onPress={() => {
-                                    if (!roomVideoTargetId) return;
+                                    if (!roomSfuEnabled) return;
                                     triggerTapFeedback();
                                     setIsCallActive(true);
                                 }}
                             >
                                 <Video size={18} color={tokens.accentTextOnPrimary} />
                                 <Text style={styles.joinCallButtonText}>
-                                    {roomVideoTargetId ? (t('chat.joinCall')) : (t('chat.waitingForParticipants') || 'Ожидание участников')}
+                                    {roomSfuEnabled ? (t('chat.joinCall')) : (t('chat.videoUnavailable') || 'Видеосвязь недоступна')}
                                 </Text>
                             </TouchableOpacity>
                         )}
