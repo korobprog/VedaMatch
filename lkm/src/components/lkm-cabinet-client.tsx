@@ -241,6 +241,10 @@ function getOrCreateLkmDeviceID(): string {
   return next;
 }
 
+function sanitizeApiBaseUrl(rawBaseUrl: string): string {
+  return rawBaseUrl.trim().replace(/\\+/g, '/').replace(/\/+$/, '');
+}
+
 function humanTopupStatus(status: string): string {
   switch (status) {
     case 'pending_payment':
@@ -265,6 +269,7 @@ export default function LkmCabinetClient({
   initialGatewayCode,
   apiBaseUrl,
 }: Props) {
+  const normalizedApiBaseUrl = useMemo(() => sanitizeApiBaseUrl(apiBaseUrl), [apiBaseUrl]);
   const [token, setToken] = useState('');
   const [refreshToken, setRefreshToken] = useState('');
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -422,7 +427,7 @@ export default function LkmCabinetClient({
 
     const refreshPromise = (async () => {
       try {
-        const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
+        const response = await fetch(`${normalizedApiBaseUrl}/auth/refresh`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -453,7 +458,7 @@ export default function LkmCabinetClient({
 
     refreshPromiseRef.current = refreshPromise;
     return refreshPromise;
-  }, [apiBaseUrl, applyAuthSession, clearAuthSession]);
+  }, [normalizedApiBaseUrl, applyAuthSession, clearAuthSession]);
 
   const amountToQuote = useMemo(() => {
     if (selectedAmount && selectedAmount > 0) {
@@ -1381,7 +1386,7 @@ export default function LkmCabinetClient({
     const method = options.method || 'GET';
     const timeoutMs = typeof options.timeoutMs === 'number' && options.timeoutMs > 0 ? options.timeoutMs : 0;
     const requestBody = options.body ? JSON.stringify(options.body) : undefined;
-    const requestUrl = `${apiBaseUrl}${path}`;
+    const requestUrl = `${normalizedApiBaseUrl}${path}`;
 
     const performRequest = async (accessToken: string | undefined) => {
       const requestHeaders: Record<string, string> = {

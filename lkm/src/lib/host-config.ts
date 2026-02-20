@@ -9,7 +9,7 @@ export interface HostConfig {
 }
 
 function normalizeApiBaseURL(rawBaseURL: string): string {
-  const trimmedBaseURL = rawBaseURL.trim().replace(/\/+$/, '');
+  const trimmedBaseURL = rawBaseURL.trim().replace(/\\+/g, '/').replace(/\/+$/, '');
   if (!trimmedBaseURL) {
     return trimmedBaseURL;
   }
