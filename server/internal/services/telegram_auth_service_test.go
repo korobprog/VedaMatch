@@ -111,6 +111,38 @@ func TestTelegramAuthService_VerifyMiniAppInitData_Replay(t *testing.T) {
 	}
 }
 
+func TestTelegramAuthService_VerifyMiniAppInitData_PurposeScopedReplay(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	settings := map[string]string{
+		"TELEGRAM_AUTH_ENABLED":   "true",
+		"TELEGRAM_AUTH_BOT_TOKEN": "test-bot-token",
+	}
+
+	seen := make(map[string]bool)
+	replayGuard := func(hash string, _ time.Duration) error {
+		if seen[hash] {
+			return ErrTelegramInitDataReplay
+		}
+		seen[hash] = true
+		return nil
+	}
+	svc := newTestTelegramAuthService(settings, now, replayGuard)
+	initData := buildTelegramTestInitData(t, "test-bot-token", now.Unix()-20, map[string]string{
+		"query_id": "AAH7V6YAAAAAb8R1mQ",
+		"user":     `{"id":123456,"first_name":"Ivan"}`,
+	})
+
+	if _, err := svc.VerifyMiniAppInitDataWithPurpose(initData, "miniapp_login"); err != nil {
+		t.Fatalf("VerifyMiniAppInitDataWithPurpose(login) returned error: %v", err)
+	}
+	if _, err := svc.VerifyMiniAppInitDataWithPurpose(initData, "miniapp_link"); err != nil {
+		t.Fatalf("VerifyMiniAppInitDataWithPurpose(link) returned error: %v", err)
+	}
+	if _, err := svc.VerifyMiniAppInitDataWithPurpose(initData, "miniapp_login"); err != ErrTelegramInitDataReplay {
+		t.Fatalf("second VerifyMiniAppInitDataWithPurpose(login) error=%v want=%v", err, ErrTelegramInitDataReplay)
+	}
+}
+
 func TestTelegramAuthService_ResolveAuthBotToken_FallbackToSupportToken(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	settings := map[string]string{

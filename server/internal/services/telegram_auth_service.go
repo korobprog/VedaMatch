@@ -142,6 +142,10 @@ func (s *TelegramAuthService) CheckReplay(initDataHash string) error {
 }
 
 func (s *TelegramAuthService) VerifyMiniAppInitData(initData string) (TelegramMiniAppUser, error) {
+	return s.VerifyMiniAppInitDataWithPurpose(initData, "default")
+}
+
+func (s *TelegramAuthService) VerifyMiniAppInitDataWithPurpose(initData string, purpose string) (TelegramMiniAppUser, error) {
 	if !s.isEnabled() {
 		return TelegramMiniAppUser{}, ErrTelegramAuthDisabled
 	}
@@ -188,7 +192,12 @@ func (s *TelegramAuthService) VerifyMiniAppInitData(initData string) (TelegramMi
 
 	sum := sha256.Sum256([]byte(raw))
 	initDataHash := hex.EncodeToString(sum[:])
-	if err := s.CheckReplay(initDataHash); err != nil {
+	replayKey := initDataHash
+	normalizedPurpose := strings.TrimSpace(strings.ToLower(purpose))
+	if normalizedPurpose != "" {
+		replayKey = normalizedPurpose + ":" + initDataHash
+	}
+	if err := s.CheckReplay(replayKey); err != nil {
 		return TelegramMiniAppUser{}, err
 	}
 

@@ -39,9 +39,15 @@ func setupAuthTelegramMiniAppIntegrationDB(t *testing.T) *gorm.DB {
 	require.NoError(t, tx.Error)
 
 	database.DB = tx
-	require.NoError(t, tx.Create(&models.SystemSetting{Key: "TELEGRAM_AUTH_ENABLED", Value: "true"}).Error)
-	require.NoError(t, tx.Create(&models.SystemSetting{Key: "TELEGRAM_AUTH_BOT_TOKEN", Value: "test-telegram-auth-token"}).Error)
-	require.NoError(t, tx.Create(&models.SystemSetting{Key: "TELEGRAM_AUTH_MAX_AGE_SEC", Value: "300"}).Error)
+	require.NoError(t, tx.Where("key = ?", "TELEGRAM_AUTH_ENABLED").
+		Assign(models.SystemSetting{Value: "true"}).
+		FirstOrCreate(&models.SystemSetting{Key: "TELEGRAM_AUTH_ENABLED"}).Error)
+	require.NoError(t, tx.Where("key = ?", "TELEGRAM_AUTH_BOT_TOKEN").
+		Assign(models.SystemSetting{Value: "test-telegram-auth-token"}).
+		FirstOrCreate(&models.SystemSetting{Key: "TELEGRAM_AUTH_BOT_TOKEN"}).Error)
+	require.NoError(t, tx.Where("key = ?", "TELEGRAM_AUTH_MAX_AGE_SEC").
+		Assign(models.SystemSetting{Value: "300"}).
+		FirstOrCreate(&models.SystemSetting{Key: "TELEGRAM_AUTH_MAX_AGE_SEC"}).Error)
 
 	t.Setenv("JWT_SECRET", "telegram-miniapp-test-secret")
 	t.Setenv("AUTH_REFRESH_V1", "true")

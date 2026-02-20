@@ -435,7 +435,7 @@ func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitData(req.InitData)
+	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitDataWithPurpose(req.InitData, "miniapp_login")
 	if err != nil {
 		return respondTelegramAuthError(c, err)
 	}
@@ -512,7 +512,7 @@ func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {
 		})
 	}
 
-	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitData(req.InitData)
+	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitDataWithPurpose(req.InitData, "miniapp_link")
 	if err != nil {
 		return respondTelegramAuthError(c, err)
 	}
