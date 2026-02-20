@@ -11,6 +11,7 @@
     "dev:backend": "npx kill-port 8000 || true && echo '🚀 Starting Go Backend on port 8000...' && cd server && go run cmd/api/main.go",
     "server": "node server/start.js",
     "admin": "cd admin && pnpm run dev",
+    "lkm": "cd lkm && npm run dev",
     "frontend": "cd frontend && pnpm run start",
     "frontend:clean": "cd frontend && pnpm run start:clean",
     "android": "cd frontend && pnpm run android",

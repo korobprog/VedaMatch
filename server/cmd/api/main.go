@@ -34,12 +34,16 @@ func main() {
 		"http://localhost:3000",
 		"http://localhost:3001",
 		"http://localhost:3005",
+		"http://localhost:3006",
 		"http://127.0.0.1:3005",
+		"http://127.0.0.1:3006",
 		"http://localhost:8081",
 		"https://vedamatch.ru",
 		"https://www.vedamatch.ru",
 		"https://api.vedamatch.ru",
 		"https://admin.vedamatch.ru",
+		"https://lkm.vedamatch.ru",
+		"https://lkm.vedamatch.com",
 	}
 	allowedOrigins, allowedOriginsMap := buildAllowedOrigins(defaultAllowedOrigins)
 
@@ -183,6 +187,7 @@ func main() {
 	// Services
 	aiChatService := services.NewAiChatService()
 	walletService := services.NewWalletService()
+	lkmTopupService := services.NewLKMTopupServiceWithDB(database.DB, walletService)
 	referralService := services.NewReferralService(walletService)
 	serviceService := services.NewServiceService()
 	calendarService := services.NewCalendarService()
@@ -240,6 +245,7 @@ func main() {
 	pathTrackerHandler := handlers.NewPathTrackerHandler()
 	channelHandler := handlers.NewChannelHandler()
 	supportHandler := handlers.NewSupportHandler()
+	lkmTopupHandler := handlers.NewLKMTopupHandler(lkmTopupService)
 	// bookHandler removed, using library functions directly
 
 	// Restore scheduler states from database
@@ -255,6 +261,7 @@ func main() {
 	api.Post("/auth/refresh", middleware.RateLimitByIdentity("auth_refresh", 90, 5*time.Minute), authHandler.Refresh)
 	api.Post("/auth/logout", middleware.OptionalAuth(), middleware.RateLimitByIdentity("auth_logout", 120, 5*time.Minute), authHandler.Logout)
 	api.Post("/integrations/telegram/support/webhook", supportHandler.TelegramWebhook)
+	api.Post("/lkm/webhook/:gatewayCode", lkmTopupHandler.Webhook)
 
 	// Library Routes
 	library := api.Group("/library")
@@ -423,6 +430,13 @@ func main() {
 	admin.Get("/funds/permissions/me", adminFinanceRBACHandler.GetMyFinancePermissions)
 	admin.Post("/funds/permissions/grant", adminFinanceRBACHandler.GrantFinancePermission)
 	admin.Post("/funds/permissions/revoke", adminFinanceRBACHandler.RevokeFinancePermission)
+	admin.Get("/lkm/config", lkmTopupHandler.GetAdminConfig)
+	admin.Put("/lkm/config", lkmTopupHandler.UpdateAdminConfig)
+	admin.Get("/lkm/preview", lkmTopupHandler.AdminPreview)
+	admin.Get("/lkm/topups", lkmTopupHandler.ListTopups)
+	admin.Post("/lkm/topups/:topupId/approve", lkmTopupHandler.ApproveTopup)
+	admin.Post("/lkm/topups/:topupId/reject", lkmTopupHandler.RejectTopup)
+	admin.Post("/lkm/topups/:topupId/mark-paid", lkmTopupHandler.MarkTopupPaid)
 
 	// RAG Management
 	admin.Get("/rag/corpora", adminHandler.ListGeminiCorpora)
@@ -945,6 +959,10 @@ func main() {
 	protected.Get("/calendar/busy", bookingHandler.GetBusyTimes)
 
 	// Wallet (Лакшми)
+	protected.Get("/lkm/packages", lkmTopupHandler.GetPackages)
+	protected.Post("/lkm/quote", lkmTopupHandler.CreateQuote)
+	protected.Get("/lkm/topups", lkmTopupHandler.GetMyTopups)
+	protected.Post("/lkm/topups", lkmTopupHandler.CreateTopup)
 	protected.Get("/wallet", walletHandler.GetBalance)
 	protected.Get("/wallet/transactions", walletHandler.GetTransactions)
 	protected.Get("/wallet/stats", walletHandler.GetStats)

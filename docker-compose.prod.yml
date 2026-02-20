@@ -90,6 +90,15 @@ services:
     container_name: rag-agent-admin
     restart: unless-stopped
 
+  lkm:
+    build:
+      context: ./lkm
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: rag-agent-lkm
+    restart: unless-stopped
+
   coturn:
     image: coturn/coturn
     container_name: rag-agent-turn

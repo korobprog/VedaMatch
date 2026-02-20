@@ -472,6 +472,84 @@ func (s *WalletService) AddBonus(userID uint, amount int, description string) er
 	return nil
 }
 
+// Credit adds regular LKM to user's wallet with optional idempotency key.
+// It is used for user deposits/top-ups and system credits.
+func (s *WalletService) Credit(userID uint, amount int, dedupKey string, description string) error {
+	if amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+	dedupKey = strings.TrimSpace(dedupKey)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Credit"
+	}
+
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := s.CreditTx(tx, userID, amount, dedupKey, description)
+		return err
+	})
+}
+
+// CreditTx performs regular LKM credit inside existing DB transaction.
+// Returns false when dedup key was already processed with the same amount.
+func (s *WalletService) CreditTx(tx *gorm.DB, userID uint, amount int, dedupKey string, description string) (bool, error) {
+	if tx == nil {
+		return false, errors.New("transaction is required")
+	}
+	if amount <= 0 {
+		return false, errors.New("amount must be positive")
+	}
+	dedupKey = strings.TrimSpace(dedupKey)
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "Credit"
+	}
+
+	wallet, err := s.getOrCreateLockedWalletTx(tx, userID)
+	if err != nil {
+		return false, err
+	}
+
+	if dedupKey != "" {
+		var existing models.WalletTransaction
+		findErr := tx.Where("wallet_id = ? AND dedup_key = ? AND type = ?",
+			wallet.ID, dedupKey, models.TransactionTypeCredit).
+			First(&existing).Error
+		if findErr == nil {
+			if existing.Amount != amount {
+				return false, errors.New("dedup key already used with different amount")
+			}
+			return false, nil
+		}
+		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return false, findErr
+		}
+	}
+
+	newBalance := wallet.Balance + amount
+	if err := tx.Model(wallet).Updates(map[string]interface{}{
+		"balance":      newBalance,
+		"total_earned": wallet.TotalEarned + amount,
+	}).Error; err != nil {
+		return false, err
+	}
+
+	creditTx := models.WalletTransaction{
+		WalletID:     wallet.ID,
+		Type:         models.TransactionTypeCredit,
+		Amount:       amount,
+		Description:  description,
+		DedupKey:     dedupKey,
+		BalanceAfter: newBalance,
+	}
+	if err := tx.Create(&creditTx).Error; err != nil {
+		return false, err
+	}
+
+	log.Printf("[Wallet] Credit: %d LKM to user %d (dedup=%s)", amount, userID, dedupKey)
+	return true, nil
+}
+
 // Refund refunds Лакшми to user's wallet
 func (s *WalletService) Refund(userID uint, amount int, description string, bookingID *uint) error {
 	return s.RefundWithSplit(userID, amount, 0, description, bookingID)

@@ -127,6 +127,11 @@ func Connect() {
 		// Unified service support ledger
 		&models.LKMAccount{}, &models.LKMLedgerEntry{},
 		&models.LKMExpenseRequest{}, &models.LKMApprovalEvent{},
+		// LKM top-up module
+		&models.LKMTopupGlobalConfig{}, &models.LKMPaymentGateway{}, &models.LKMRegionConfig{},
+		&models.LKMPackageConfig{}, &models.LKMPaymentProcessingCost{},
+		&models.LKMManualFXRate{}, &models.LKMTopupRiskTier{},
+		&models.LKMQuote{}, &models.LKMTopup{}, &models.LKMTopupWebhookEvent{},
 		// Path Tracker
 		&models.DailyCheckin{}, &models.DailyStep{},
 		&models.DailyStepEvent{}, &models.PathTrackerAlertEvent{}, &models.PathTrackerUnlock{}, &models.PathTrackerState{},
@@ -188,6 +193,7 @@ func Connect() {
 	SeedWallets()
 	SeedCharity() // Initialize platform wallet and charity settings
 	SeedLKMAccounts()
+	SeedLKMTopup()
 }
 
 func InitializeSuperAdmin() {

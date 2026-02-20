@@ -47,6 +47,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  lkm:
+    build:
+      context: ./lkm
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8083/api
+    container_name: rag-agent-lkm
+    ports:
+      - "3006:3000"
+    depends_on:
+      - server
+    restart: unless-stopped
+
   coturn:
     image: coturn/coturn
     container_name: rag-agent-turn
