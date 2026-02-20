@@ -212,6 +212,18 @@ func SeedSystemSettings() {
 			Value: "https://lkm.vedamatch.com/?tg=1",
 		},
 		{
+			Key:   "SUPPORT_LKM_OFFICE_TEXT_RU",
+			Value: "LKM офис",
+		},
+		{
+			Key:   "SUPPORT_LKM_OFFICE_TEXT_EN",
+			Value: "LKM Office",
+		},
+		{
+			Key:   "SUPPORT_LKM_OFFICE_TEXT_HI",
+			Value: "LKM ऑफिस",
+		},
+		{
 			Key:   "SUPPORT_DOWNLOAD_IOS_URL",
 			Value: "",
 		},

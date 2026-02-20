@@ -310,12 +310,17 @@ export default function LkmCabinetClient({
     setHistoryPage(initialPage);
     setHistoryLimit(initialLimit);
 
-    const telegramWebApp = getTelegramWebApp();
-    const telegramInitDataValue = telegramWebApp?.initData?.trim() || '';
-    const telegramLanguageCode = normalizeLanguageCode(telegramWebApp?.initDataUnsafe?.user?.language_code);
-    if (telegramInitDataValue) {
+    const bootstrapTelegramContext = () => {
+      const telegramWebApp = getTelegramWebApp();
+      const telegramInitDataValue = telegramWebApp?.initData?.trim() || '';
+      const telegramLanguageCode = normalizeLanguageCode(telegramWebApp?.initDataUnsafe?.user?.language_code);
+      if (!telegramInitDataValue) {
+        return false;
+      }
+
       setIsTelegramMiniApp(true);
       setTelegramInitData(telegramInitDataValue);
+      setIsBlockedInApp(false);
 
       const currentHost = window.location.hostname.toLowerCase();
       if (isLkmVedamatchHost(currentHost)) {
@@ -324,17 +329,35 @@ export default function LkmCabinetClient({
           const nextURL = new URL(window.location.href);
           nextURL.hostname = targetHost;
           window.location.replace(nextURL.toString());
-          return;
+          return true;
         }
       }
 
       telegramWebApp?.ready?.();
       telegramWebApp?.expand?.();
+      return true;
+    };
+
+    if (bootstrapTelegramContext()) {
+      return;
     }
+
+    let attempts = 0;
+    const maxAttempts = 20;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (bootstrapTelegramContext() || attempts >= maxAttempts) {
+        window.clearInterval(timer);
+      }
+    }, 250);
 
     if (channelBlockedByUA(window.navigator.userAgent)) {
       setIsBlockedInApp(true);
     }
+
+    return () => {
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {

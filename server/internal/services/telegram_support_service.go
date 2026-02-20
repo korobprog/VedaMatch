@@ -510,7 +510,7 @@ func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversat
 		"",
 		"Кнопки ниже: ссылки на приложения и наш канал.",
 	}, "\n")
-	replyMarkup := s.buildStartButtons()
+	replyMarkup := s.buildStartButtons(languageCode)
 
 	messageID, err := s.client.SendMessage(ctx, chatID, message, TelegramSendMessageOptions{
 		ReplyMarkup: replyMarkup,
@@ -625,8 +625,8 @@ func (s *TelegramSupportService) escalateToOperator(
 	return s.sendAndPersistText(ctx, conversationID, userChatID, models.SupportMessageSourceBot, userAck)
 }
 
-func (s *TelegramSupportService) buildStartButtons() map[string]interface{} {
-	rows := make([][]map[string]string, 0, 3)
+func (s *TelegramSupportService) buildStartButtons(languageCode string) map[string]interface{} {
+	rows := make([][]map[string]string, 0, 4)
 	addButton := func(text, url string) {
 		url = strings.TrimSpace(url)
 		if url == "" {
@@ -643,6 +643,7 @@ func (s *TelegramSupportService) buildStartButtons() map[string]interface{} {
 	addButton(s.buttonLabel("SUPPORT_DOWNLOAD_IOS_TEXT", "Скачать iOS"), s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
 	addButton(s.buttonLabel("SUPPORT_DOWNLOAD_ANDROID_TEXT", "Скачать Android"), s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
 	addButton(s.buttonLabel("SUPPORT_CHANNEL_TEXT", "Наш канал"), s.getSetting("SUPPORT_CHANNEL_URL"))
+	addButton(s.lkmInlineButtonText(languageCode), s.miniAppURLByLanguage(languageCode))
 
 	if len(rows) == 0 {
 		return nil
@@ -658,6 +659,17 @@ func (s *TelegramSupportService) buttonLabel(settingKey, fallback string) string
 		return fallback
 	}
 	return label
+}
+
+func (s *TelegramSupportService) lkmInlineButtonText(languageCode string) string {
+	switch normalizeTelegramLanguageCode(languageCode) {
+	case "ru":
+		return s.buttonLabel("SUPPORT_LKM_OFFICE_TEXT_RU", "LKM офис")
+	case "hi":
+		return s.buttonLabel("SUPPORT_LKM_OFFICE_TEXT_HI", "LKM ऑफिस")
+	default:
+		return s.buttonLabel("SUPPORT_LKM_OFFICE_TEXT_EN", "LKM Office")
+	}
 }
 
 func (s *TelegramSupportService) buildOperatorTechText(conversationID uint, telegramChatID int64, now time.Time, caption string, mediaURL string) string {

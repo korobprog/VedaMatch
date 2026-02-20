@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 
 const spaceGrotesk = Space_Grotesk({
@@ -25,7 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className={`${spaceGrotesk.variable} ${ibmPlexMono.variable}`}>{children}</body>
+      <body className={`${spaceGrotesk.variable} ${ibmPlexMono.variable}`}>
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+        {children}
+      </body>
     </html>
   );
 }

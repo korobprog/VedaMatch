@@ -498,7 +498,8 @@ func TestSupportStartMessage_IncludesUsageGuide(t *testing.T) {
 		}
 		hasRuButtons = strings.Contains(strings.Join(buttonTexts, "|"), "Скачать iOS") &&
 			strings.Contains(strings.Join(buttonTexts, "|"), "Скачать Android") &&
-			strings.Contains(strings.Join(buttonTexts, "|"), "Наш канал")
+			strings.Contains(strings.Join(buttonTexts, "|"), "Наш канал") &&
+			strings.Contains(strings.Join(buttonTexts, "|"), "LKM офис")
 		if hasRuButtons {
 			break
 		}
@@ -532,24 +533,28 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 		languageCode string
 		wantText     string
 		wantURL      string
+		wantInline   string
 	}{
 		{
 			name:         "english default",
 			languageCode: "en",
 			wantText:     "LKM Cabinet",
 			wantURL:      "https://lkm.vedamatch.com/?tg=1",
+			wantInline:   "LKM Office",
 		},
 		{
 			name:         "hindi label",
 			languageCode: "hi",
 			wantText:     "LKM कैबिनेट",
 			wantURL:      "https://lkm.vedamatch.com/?tg=1",
+			wantInline:   "LKM ऑफिस",
 		},
 		{
 			name:         "russian cis domain",
 			languageCode: "ru",
 			wantText:     "LKM кабинет",
 			wantURL:      "https://lkm.vedamatch.ru/?tg=1",
+			wantInline:   "LKM офис",
 		},
 	}
 
@@ -604,6 +609,38 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 			}
 			if got.URL != tc.wantURL {
 				t.Fatalf("menu button URL = %q, want %q", got.URL, tc.wantURL)
+			}
+
+			var hasInlineLKM bool
+			for _, sent := range client.sentMessages {
+				if sent.ChatID != 707 || sent.Options.ReplyMarkup == nil {
+					continue
+				}
+				rawRows, ok := sent.Options.ReplyMarkup["inline_keyboard"]
+				if !ok {
+					continue
+				}
+				rows, ok := rawRows.([][]map[string]string)
+				if !ok {
+					continue
+				}
+				for _, row := range rows {
+					for _, button := range row {
+						if button["text"] == tc.wantInline && button["url"] == tc.wantURL {
+							hasInlineLKM = true
+							break
+						}
+					}
+					if hasInlineLKM {
+						break
+					}
+				}
+				if hasInlineLKM {
+					break
+				}
+			}
+			if !hasInlineLKM {
+				t.Fatalf("expected inline LKM button %q -> %q", tc.wantInline, tc.wantURL)
 			}
 		})
 	}
