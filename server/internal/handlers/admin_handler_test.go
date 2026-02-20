@@ -83,6 +83,9 @@ func TestIsSensitiveSystemSettingKey(t *testing.T) {
 	if !isSensitiveSystemSettingKey(" gemini_api_key_2 ") {
 		t.Fatalf("expected GEMINI key with spaces to be treated as sensitive")
 	}
+	if !isSensitiveSystemSettingKey("telegram_auth_bot_token") {
+		t.Fatalf("expected TELEGRAM_AUTH_BOT_TOKEN to be treated as sensitive")
+	}
 	if isSensitiveSystemSettingKey("PUBLIC_SITE_NAME") {
 		t.Fatalf("expected PUBLIC_SITE_NAME to be non-sensitive")
 	}

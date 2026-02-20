@@ -258,6 +258,8 @@ func main() {
 	// Auth Routes (Public)
 	api.Post("/register", middleware.RateLimitByIP("auth_register", 15, 10*time.Minute), authHandler.Register)
 	api.Post("/login", middleware.RateLimitByIP("auth_login", 30, 10*time.Minute), authHandler.Login)
+	api.Post("/auth/telegram/miniapp/login", middleware.RateLimitByIP("auth_telegram_miniapp_login", 60, 10*time.Minute), authHandler.TelegramMiniAppLogin)
+	api.Post("/auth/telegram/miniapp/link", middleware.RateLimitByIP("auth_telegram_miniapp_link", 60, 10*time.Minute), authHandler.TelegramMiniAppLink)
 	api.Post("/auth/refresh", middleware.RateLimitByIdentity("auth_refresh", 90, 5*time.Minute), authHandler.Refresh)
 	api.Post("/auth/logout", middleware.OptionalAuth(), middleware.RateLimitByIdentity("auth_logout", 120, 5*time.Minute), authHandler.Logout)
 	api.Post("/integrations/telegram/support/webhook", supportHandler.TelegramWebhook)

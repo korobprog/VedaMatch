@@ -172,6 +172,22 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "TELEGRAM_AUTH_ENABLED",
+			Value: "true",
+		},
+		{
+			Key:   "TELEGRAM_AUTH_BOT_TOKEN",
+			Value: "",
+		},
+		{
+			Key:   "TELEGRAM_AUTH_MAX_AGE_SEC",
+			Value: "300",
+		},
+		{
+			Key:   "TELEGRAM_AUTH_CIS_LANG_CODES",
+			Value: "ru,uk,be,kk,uz,ky,tg,hy,az,mo",
+		},
+		{
 			Key:   "SUPPORT_TELEGRAM_BOT_TOKEN",
 			Value: "",
 		},
@@ -186,6 +202,14 @@ func SeedSystemSettings() {
 		{
 			Key:   "SUPPORT_TELEGRAM_BOT_URL",
 			Value: "",
+		},
+		{
+			Key:   "SUPPORT_LKM_WEBAPP_URL_RU",
+			Value: "https://lkm.vedamatch.ru/?tg=1",
+		},
+		{
+			Key:   "SUPPORT_LKM_WEBAPP_URL_GLOBAL",
+			Value: "https://lkm.vedamatch.com/?tg=1",
 		},
 		{
 			Key:   "SUPPORT_DOWNLOAD_IOS_URL",

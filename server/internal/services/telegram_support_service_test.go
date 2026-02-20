@@ -205,6 +205,7 @@ func (s *memorySupportStore) ResolveConversation(conversationID uint, now time.T
 type fakeTelegramClient struct {
 	nextMessageID int64
 	sentMessages  []fakeSentMessage
+	menuButtons   []fakeMenuButtonCall
 	copyCalls     []fakeCopyCall
 	files         map[string]*TelegramFileInfo
 	downloads     map[string]*DownloadedTelegramFile
@@ -223,6 +224,12 @@ type fakeCopyCall struct {
 	NewMessageID  int64
 }
 
+type fakeMenuButtonCall struct {
+	ChatID int64
+	Text   string
+	URL    string
+}
+
 func newFakeTelegramClient() *fakeTelegramClient {
 	return &fakeTelegramClient{
 		nextMessageID: 1000,
@@ -239,6 +246,15 @@ func (c *fakeTelegramClient) nextID() int64 {
 func (c *fakeTelegramClient) SendMessage(_ context.Context, chatID int64, text string, options TelegramSendMessageOptions) (int64, error) {
 	c.sentMessages = append(c.sentMessages, fakeSentMessage{ChatID: chatID, Text: text, Options: options})
 	return c.nextID(), nil
+}
+
+func (c *fakeTelegramClient) SetChatMenuButton(_ context.Context, chatID int64, text string, webAppURL string) error {
+	c.menuButtons = append(c.menuButtons, fakeMenuButtonCall{
+		ChatID: chatID,
+		Text:   text,
+		URL:    webAppURL,
+	})
+	return nil
 }
 
 func (c *fakeTelegramClient) CopyMessage(_ context.Context, toChatID, fromChatID, messageID int64) (int64, error) {
@@ -491,8 +507,105 @@ func TestSupportStartMessage_IncludesUsageGuide(t *testing.T) {
 		t.Fatalf("expected /start buttons to be in russian")
 	}
 
+	if len(client.menuButtons) == 0 {
+		t.Fatalf("expected setChatMenuButton to be called for /start")
+	}
+	lastMenuButton := client.menuButtons[len(client.menuButtons)-1]
+	if lastMenuButton.ChatID != 77 {
+		t.Fatalf("menu button chat id = %d, want 77", lastMenuButton.ChatID)
+	}
+	if lastMenuButton.Text != "LKM кабинет" {
+		t.Fatalf("menu button text = %q, want %q", lastMenuButton.Text, "LKM кабинет")
+	}
+	if lastMenuButton.URL != "https://lkm.vedamatch.ru/?tg=1" {
+		t.Fatalf("menu button URL = %q, want %q", lastMenuButton.URL, "https://lkm.vedamatch.ru/?tg=1")
+	}
+
 	if ai.calls != 0 {
 		t.Fatalf("expected AI not to be called for /start, got %d", ai.calls)
+	}
+}
+
+func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) {
+	cases := []struct {
+		name         string
+		languageCode string
+		wantText     string
+		wantURL      string
+	}{
+		{
+			name:         "english default",
+			languageCode: "en",
+			wantText:     "LKM Cabinet",
+			wantURL:      "https://lkm.vedamatch.com/?tg=1",
+		},
+		{
+			name:         "hindi label",
+			languageCode: "hi",
+			wantText:     "LKM कैबिनेट",
+			wantURL:      "https://lkm.vedamatch.com/?tg=1",
+		},
+		{
+			name:         "russian cis domain",
+			languageCode: "ru",
+			wantText:     "LKM кабинет",
+			wantURL:      "https://lkm.vedamatch.ru/?tg=1",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			store := newMemorySupportStore()
+			client := newFakeTelegramClient()
+			ai := &fakeSupportAIResponder{}
+			storage := &fakeMediaStorage{}
+
+			service := NewTelegramSupportServiceWithDeps(
+				store,
+				client,
+				storage,
+				ai,
+				newSettingsProvider(map[string]string{
+					"SUPPORT_DOWNLOAD_IOS_URL":     "https://apps.apple.com/app/id123",
+					"SUPPORT_DOWNLOAD_ANDROID_URL": "https://play.google.com/store/apps/details?id=app",
+					"SUPPORT_CHANNEL_URL":          "https://t.me/vedamatch",
+				}),
+			)
+
+			update := &TelegramUpdate{
+				UpdateID: 100 + int64(len(tc.name)),
+				Message: &TelegramMessage{
+					MessageID: 700,
+					Date:      time.Now().Unix(),
+					Text:      "/start",
+					From: &TelegramUser{
+						ID:           707,
+						FirstName:    "Starter",
+						LanguageCode: tc.languageCode,
+					},
+					Chat: &TelegramChat{
+						ID:   707,
+						Type: "private",
+					},
+				},
+			}
+
+			if err := service.ProcessUpdate(context.Background(), update); err != nil {
+				t.Fatalf("start update failed: %v", err)
+			}
+
+			if len(client.menuButtons) == 0 {
+				t.Fatalf("expected setChatMenuButton call")
+			}
+			got := client.menuButtons[len(client.menuButtons)-1]
+			if got.Text != tc.wantText {
+				t.Fatalf("menu button text = %q, want %q", got.Text, tc.wantText)
+			}
+			if got.URL != tc.wantURL {
+				t.Fatalf("menu button URL = %q, want %q", got.URL, tc.wantURL)
+			}
+		})
 	}
 }
 

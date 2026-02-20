@@ -33,6 +33,7 @@ type DownloadedTelegramFile struct {
 
 type TelegramSupportClient interface {
 	SendMessage(ctx context.Context, chatID int64, text string, options TelegramSendMessageOptions) (int64, error)
+	SetChatMenuButton(ctx context.Context, chatID int64, text string, webAppURL string) error
 	CopyMessage(ctx context.Context, toChatID, fromChatID, messageID int64) (int64, error)
 	GetFile(ctx context.Context, fileID string) (*TelegramFileInfo, error)
 	DownloadFile(ctx context.Context, filePath string) (*DownloadedTelegramFile, error)
@@ -127,6 +128,58 @@ func (c *TelegramSupportHTTPClient) SendMessage(ctx context.Context, chatID int6
 		return 0, fmt.Errorf("telegram sendMessage failed: %s", tgResp.Description)
 	}
 	return tgResp.Result.MessageID, nil
+}
+
+func (c *TelegramSupportHTTPClient) SetChatMenuButton(ctx context.Context, chatID int64, text string, webAppURL string) error {
+	url, err := c.botURL("setChatMenuButton")
+	if err != nil {
+		return err
+	}
+
+	payload := map[string]interface{}{
+		"chat_id": chatID,
+		"menu_button": map[string]interface{}{
+			"type": "web_app",
+			"text": strings.TrimSpace(text),
+			"web_app": map[string]string{
+				"url": strings.TrimSpace(webAppURL),
+			},
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var tgResp struct {
+		OK          bool   `json:"ok"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal(respBody, &tgResp); err != nil {
+		return fmt.Errorf("telegram setChatMenuButton decode failed: %w", err)
+	}
+	if !tgResp.OK {
+		return fmt.Errorf("telegram setChatMenuButton failed: %s", tgResp.Description)
+	}
+	return nil
 }
 
 func (c *TelegramSupportHTTPClient) CopyMessage(ctx context.Context, toChatID, fromChatID, messageID int64) (int64, error) {

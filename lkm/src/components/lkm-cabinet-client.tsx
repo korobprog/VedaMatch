@@ -99,6 +99,20 @@ type LoginResponse = {
   };
 };
 
+type TelegramMiniAppUser = {
+  id?: number;
+  language_code?: string;
+};
+
+type TelegramWebApp = {
+  initData?: string;
+  initDataUnsafe?: {
+    user?: TelegramMiniAppUser;
+  };
+  ready?: () => void;
+  expand?: () => void;
+};
+
 type Props = {
   initialHost: string;
   initialRegion: LKMRegion;
@@ -110,6 +124,7 @@ type Props = {
 const TOKEN_KEY = 'lkm_access_token';
 const HISTORY_PAGE_LIMIT = 8;
 const HISTORY_LIMIT_OPTIONS = [8, 20, 50] as const;
+const CIS_LANGUAGE_CODES = new Set(['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'mo']);
 const HISTORY_STATUS_OPTIONS: ReadonlyArray<TopupStatusFilter> = [
   'all',
   'pending_payment',
@@ -167,6 +182,38 @@ function buildErrorMessage(error: unknown): string {
   return 'Unknown error';
 }
 
+function getTelegramWebApp(): TelegramWebApp | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const maybeTelegram = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram;
+  return maybeTelegram?.WebApp || null;
+}
+
+function normalizeLanguageCode(raw: string | undefined): string {
+  const value = (raw || '').trim().toLowerCase();
+  if (!value) {
+    return '';
+  }
+  const separatorIndex = value.search(/[-_]/);
+  if (separatorIndex > 0) {
+    return value.slice(0, separatorIndex);
+  }
+  return value;
+}
+
+function resolveMiniAppTargetHost(languageCode: string): string {
+  if (CIS_LANGUAGE_CODES.has(normalizeLanguageCode(languageCode))) {
+    return 'lkm.vedamatch.ru';
+  }
+  return 'lkm.vedamatch.com';
+}
+
+function isLkmVedamatchHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().trim();
+  return host === 'lkm.vedamatch.ru' || host === 'lkm.vedamatch.com';
+}
+
 function humanTopupStatus(status: string): string {
   switch (status) {
     case 'pending_payment':
@@ -195,6 +242,11 @@ export default function LkmCabinetClient({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
+  const [telegramInitData, setTelegramInitData] = useState('');
+  const [isTelegramAuthLoading, setIsTelegramAuthLoading] = useState(false);
+  const [telegramLinkRequired, setTelegramLinkRequired] = useState(false);
+  const [telegramAuthAttempted, setTelegramAuthAttempted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -220,6 +272,7 @@ export default function LkmCabinetClient({
   const [isCreatingTopup, setIsCreatingTopup] = useState(false);
   const [isBlockedInApp, setIsBlockedInApp] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
 
   const canTopup = !!token && !isBlockedInApp;
 
@@ -257,10 +310,86 @@ export default function LkmCabinetClient({
     setHistoryPage(initialPage);
     setHistoryLimit(initialLimit);
 
+    const telegramWebApp = getTelegramWebApp();
+    const telegramInitDataValue = telegramWebApp?.initData?.trim() || '';
+    const telegramLanguageCode = normalizeLanguageCode(telegramWebApp?.initDataUnsafe?.user?.language_code);
+    if (telegramInitDataValue) {
+      setIsTelegramMiniApp(true);
+      setTelegramInitData(telegramInitDataValue);
+
+      const currentHost = window.location.hostname.toLowerCase();
+      if (isLkmVedamatchHost(currentHost)) {
+        const targetHost = resolveMiniAppTargetHost(telegramLanguageCode);
+        if (targetHost !== currentHost) {
+          const nextURL = new URL(window.location.href);
+          nextURL.hostname = targetHost;
+          window.location.replace(nextURL.toString());
+          return;
+        }
+      }
+
+      telegramWebApp?.ready?.();
+      telegramWebApp?.expand?.();
+    }
+
     if (channelBlockedByUA(window.navigator.userAgent)) {
       setIsBlockedInApp(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!isTelegramMiniApp || !telegramInitData || token || telegramAuthAttempted) {
+      return;
+    }
+
+    let cancelled = false;
+    const loginViaTelegramMiniApp = async () => {
+      setTelegramAuthAttempted(true);
+      setIsTelegramAuthLoading(true);
+      setError('');
+      setSuccess('');
+      try {
+        const response = await apiRequest<LoginResponse>('/auth/telegram/miniapp/login', {
+          method: 'POST',
+          body: {
+            initData: telegramInitData,
+            deviceId: `lkm-tg-${Math.random().toString(36).slice(2, 10)}`,
+          },
+        });
+        const accessToken = response.accessToken || response.token;
+        if (!accessToken) {
+          throw new Error('Не удалось получить access token');
+        }
+        if (cancelled) {
+          return;
+        }
+        localStorage.setItem(TOKEN_KEY, accessToken);
+        setToken(accessToken);
+        setTelegramLinkRequired(false);
+        setSuccess('Вход через Telegram выполнен');
+      } catch (telegramLoginError) {
+        if (cancelled) {
+          return;
+        }
+        const message = buildErrorMessage(telegramLoginError);
+        if (message.includes('TELEGRAM_LINK_REQUIRED')) {
+          setTelegramLinkRequired(true);
+          setError('Аккаунт Telegram не привязан. Выполните разовый вход email/пароль для привязки.');
+        } else {
+          setError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsTelegramAuthLoading(false);
+        }
+      }
+    };
+
+    void loginViaTelegramMiniApp();
+    return () => {
+      cancelled = true;
+    };
+  }, [isTelegramMiniApp, telegramInitData, token, telegramAuthAttempted]);
 
   useEffect(() => {
     if (!token) {
@@ -372,6 +501,8 @@ export default function LkmCabinetClient({
     setToken('');
     setEmail('');
     setPassword('');
+    setTelegramLinkRequired(false);
+    setTelegramAuthAttempted(false);
     setSuccess('');
     setError('');
   };
@@ -419,22 +550,34 @@ export default function LkmCabinetClient({
     setSuccess('');
     setIsLoggingIn(true);
     try {
-      const payload = {
-        email: email.trim(),
-        password,
-        deviceId: `lkm-web-${Math.random().toString(36).slice(2, 10)}`,
-      };
-      const response = await apiRequest<LoginResponse>('/login', {
-        method: 'POST',
-        body: payload,
-      });
+      const isTelegramLinkFlow = isTelegramMiniApp && telegramLinkRequired && !!telegramInitData;
+      const payload = isTelegramLinkFlow
+        ? {
+            initData: telegramInitData,
+            email: email.trim(),
+            password,
+            deviceId: `lkm-tg-link-${Math.random().toString(36).slice(2, 10)}`,
+          }
+        : {
+            email: email.trim(),
+            password,
+            deviceId: `lkm-web-${Math.random().toString(36).slice(2, 10)}`,
+          };
+      const response = await apiRequest<LoginResponse>(
+        isTelegramLinkFlow ? '/auth/telegram/miniapp/link' : '/login',
+        {
+          method: 'POST',
+          body: payload,
+        },
+      );
       const accessToken = response.accessToken || response.token;
       if (!accessToken) {
         throw new Error('Не удалось получить access token');
       }
       localStorage.setItem(TOKEN_KEY, accessToken);
       setToken(accessToken);
-      setSuccess('Авторизация успешна');
+      setTelegramLinkRequired(false);
+      setSuccess(isTelegramLinkFlow ? 'Telegram успешно привязан и авторизация выполнена' : 'Авторизация успешна');
     } catch (loginError) {
       setError(buildErrorMessage(loginError));
     } finally {
@@ -499,7 +642,7 @@ export default function LkmCabinetClient({
         method: 'POST',
         token,
         headers: {
-          'X-Client-Channel': 'web',
+          'X-Client-Channel': topupChannel,
         },
         body: {
           lkmAmount: amountToQuote,
@@ -507,7 +650,7 @@ export default function LkmCabinetClient({
           paymentMethod,
           region,
           currency,
-          channel: 'web',
+          channel: topupChannel,
         },
       });
       setQuote(response);
@@ -538,11 +681,11 @@ export default function LkmCabinetClient({
         method: 'POST',
         token,
         headers: {
-          'X-Client-Channel': 'web',
+          'X-Client-Channel': topupChannel,
         },
         body: {
           quoteId: quote.quoteId,
-          channel: 'web',
+          channel: topupChannel,
         },
       });
       setTopup(response);
@@ -583,6 +726,14 @@ export default function LkmCabinetClient({
           <h2>1. Авторизация</h2>
           {!token ? (
             <form className="stack" onSubmit={onLogin}>
+              {isTelegramMiniApp && isTelegramAuthLoading && !telegramLinkRequired ? (
+                <p className="note">Проверяем вход через Telegram Mini App...</p>
+              ) : null}
+              {isTelegramMiniApp && telegramLinkRequired ? (
+                <p className="note">
+                  Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch.
+                </p>
+              ) : null}
               <label>
                 Email
                 <input
@@ -602,7 +753,13 @@ export default function LkmCabinetClient({
                 />
               </label>
               <button type="submit" disabled={isLoggingIn}>
-                {isLoggingIn ? 'Вход...' : 'Войти'}
+                {isLoggingIn
+                  ? telegramLinkRequired && isTelegramMiniApp
+                    ? 'Привязываем...'
+                    : 'Вход...'
+                  : telegramLinkRequired && isTelegramMiniApp
+                    ? 'Привязать Telegram'
+                    : 'Войти'}
               </button>
             </form>
           ) : (

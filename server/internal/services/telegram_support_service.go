@@ -66,6 +66,12 @@ type TelegramSupportService struct {
 
 const telegramMaxMessageRunes = 4096
 
+const (
+	defaultLKMWebAppURLRU      = "https://lkm.vedamatch.ru/?tg=1"
+	defaultLKMWebAppURLGlobal  = "https://lkm.vedamatch.com/?tg=1"
+	defaultSupportCISLanguages = "ru,uk,be,kk,uz,ky,tg,hy,az,mo"
+)
+
 func NewTelegramSupportService(db *gorm.DB) *TelegramSupportService {
 	svc := &TelegramSupportService{
 		store:        NewGormSupportStore(db),
@@ -162,7 +168,7 @@ func (s *TelegramSupportService) handleUserMessage(ctx context.Context, msg *Tel
 
 	text := strings.TrimSpace(msg.Text)
 	if strings.HasPrefix(strings.ToLower(text), "/start") {
-		return s.sendStartMessage(ctx, conversation.ID, msg.Chat.ID)
+		return s.sendStartMessage(ctx, conversation.ID, msg.Chat.ID, msg.From.LanguageCode)
 	}
 
 	if len(msg.Photo) > 0 {
@@ -487,10 +493,12 @@ func (s *TelegramSupportService) sendTextToUserFromOperator(ctx context.Context,
 	return s.store.MarkConversationFirstResponse(conversationID, now)
 }
 
-func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversationID uint, chatID int64) error {
+func (s *TelegramSupportService) sendStartMessage(ctx context.Context, conversationID uint, chatID int64, languageCode string) error {
 	if s.client == nil {
 		return errors.New("telegram support client is not configured")
 	}
+
+	s.configureMiniAppMenuButtonBestEffort(ctx, chatID, languageCode)
 
 	message := strings.Join([]string{
 		"Добро пожаловать в поддержку VedaMatch.",
@@ -781,6 +789,87 @@ func (s *TelegramSupportService) sendMessageBestEffort(ctx context.Context, chat
 	}
 	if _, err := s.client.SendMessage(ctx, chatID, outgoingText, TelegramSendMessageOptions{}); err != nil {
 		log.Printf("[Support] send message to chat %d failed: %v", chatID, err)
+	}
+}
+
+func normalizeTelegramLanguageCode(code string) string {
+	value := strings.ToLower(strings.TrimSpace(code))
+	if value == "" {
+		return ""
+	}
+	if sep := strings.IndexAny(value, "-_"); sep > 0 {
+		return value[:sep]
+	}
+	return value
+}
+
+func parseCSVLowerSet(raw string) map[string]struct{} {
+	values := make(map[string]struct{})
+	for _, item := range strings.Split(strings.ToLower(strings.TrimSpace(raw)), ",") {
+		key := normalizeTelegramLanguageCode(item)
+		if key == "" {
+			continue
+		}
+		values[key] = struct{}{}
+	}
+	return values
+}
+
+func (s *TelegramSupportService) isCISLanguage(code string) bool {
+	language := normalizeTelegramLanguageCode(code)
+	if language == "" {
+		return false
+	}
+
+	raw := s.getSetting("TELEGRAM_AUTH_CIS_LANG_CODES")
+	if strings.TrimSpace(raw) == "" {
+		raw = defaultSupportCISLanguages
+	}
+	_, ok := parseCSVLowerSet(raw)[language]
+	return ok
+}
+
+func (s *TelegramSupportService) miniAppMenuButtonText(languageCode string) string {
+	switch normalizeTelegramLanguageCode(languageCode) {
+	case "ru":
+		return "LKM кабинет"
+	case "hi":
+		return "LKM कैबिनेट"
+	default:
+		return "LKM Cabinet"
+	}
+}
+
+func (s *TelegramSupportService) miniAppURLByLanguage(languageCode string) string {
+	ruURL := strings.TrimSpace(s.getSetting("SUPPORT_LKM_WEBAPP_URL_RU"))
+	if ruURL == "" {
+		ruURL = defaultLKMWebAppURLRU
+	}
+
+	globalURL := strings.TrimSpace(s.getSetting("SUPPORT_LKM_WEBAPP_URL_GLOBAL"))
+	if globalURL == "" {
+		globalURL = defaultLKMWebAppURLGlobal
+	}
+
+	if s.isCISLanguage(languageCode) {
+		return ruURL
+	}
+	return globalURL
+}
+
+func (s *TelegramSupportService) configureMiniAppMenuButtonBestEffort(ctx context.Context, chatID int64, languageCode string) {
+	if s.client == nil || chatID == 0 {
+		return
+	}
+
+	buttonText := s.miniAppMenuButtonText(languageCode)
+	webAppURL := s.miniAppURLByLanguage(languageCode)
+	if strings.TrimSpace(buttonText) == "" || strings.TrimSpace(webAppURL) == "" {
+		return
+	}
+
+	if err := s.client.SetChatMenuButton(ctx, chatID, buttonText, webAppURL); err != nil {
+		log.Printf("[Support] setChatMenuButton failed for chat %d: %v", chatID, err)
 	}
 }
 

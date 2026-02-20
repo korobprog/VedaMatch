@@ -63,6 +63,9 @@ func isSensitiveSystemSettingKey(key string) bool {
 	if normalized == "SUPPORT_TELEGRAM_BOT_TOKEN" || normalized == "SUPPORT_TELEGRAM_WEBHOOK_SECRET" {
 		return true
 	}
+	if normalized == "TELEGRAM_AUTH_BOT_TOKEN" {
+		return true
+	}
 	return false
 }
 
@@ -505,6 +508,7 @@ func (h *AdminHandler) UpdateSystemSettings(c *fiber.Ctx) error {
 			strings.HasPrefix(k, "SUPPORT_AI_") ||
 			strings.HasPrefix(k, "SUPPORT_APP_") ||
 			strings.HasPrefix(k, "SUPPORT_SLA_") ||
+			strings.HasPrefix(k, "TELEGRAM_AUTH_") ||
 			k == "SUPPORT_LANG_MODE" ||
 			k == "SUPPORT_DOWNLOAD_IOS_URL" ||
 			k == "SUPPORT_DOWNLOAD_ANDROID_URL" ||

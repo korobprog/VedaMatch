@@ -24,18 +24,20 @@ import (
 )
 
 type AuthHandler struct {
-	ragService      *services.RAGService
-	mapService      *services.MapService
-	walletService   *services.WalletService
-	referralService *services.ReferralService
+	ragService          *services.RAGService
+	mapService          *services.MapService
+	walletService       *services.WalletService
+	referralService     *services.ReferralService
+	telegramAuthService *services.TelegramAuthService
 }
 
 func NewAuthHandler(walletService *services.WalletService, referralService *services.ReferralService) *AuthHandler {
 	return &AuthHandler{
-		ragService:      services.NewRAGService(),
-		mapService:      services.NewMapService(database.DB),
-		walletService:   walletService,
-		referralService: referralService,
+		ragService:          services.NewRAGService(),
+		mapService:          services.NewMapService(database.DB),
+		walletService:       walletService,
+		referralService:     referralService,
+		telegramAuthService: services.NewTelegramAuthService(database.DB),
 	}
 }
 
@@ -158,6 +160,120 @@ func buildTokenPairResponse(message string, user models.User, sessionID uint, ac
 	return response
 }
 
+func issueAuthResponse(c *fiber.Ctx, statusCode int, message string, user models.User, deviceID string) error {
+	authNow := time.Now().UTC()
+	if config.AuthRefreshV1Enabled() {
+		session, refreshToken, sessionErr := createAuthSession(user.ID, deviceID, authNow)
+		if sessionErr != nil {
+			log.Printf("[AUTH] Failed to create auth session: %v", sessionErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not create auth session",
+			})
+		}
+
+		accessToken, accessExpiresAt, tokenErr := buildAccessToken(user, session.ID, authNow)
+		if tokenErr != nil {
+			log.Printf("[AUTH] Failed to generate access token: %v", tokenErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not generate token",
+			})
+		}
+
+		return c.Status(statusCode).JSON(buildTokenPairResponse(
+			message,
+			user,
+			session.ID,
+			accessToken,
+			accessExpiresAt,
+			refreshToken,
+			session.ExpiresAt,
+		))
+	}
+
+	// Legacy auth flow when refresh sessions are disabled.
+	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if secret == "" {
+		log.Println("[AUTH] JWT_SECRET not configured")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Server configuration error",
+		})
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userId": user.ID,
+		"email":  user.Email,
+		"role":   user.Role,
+		"exp":    authNow.Add(time.Hour * 24 * 7).Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		log.Printf("[AUTH] Failed to generate token: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not generate token",
+		})
+	}
+
+	return c.Status(statusCode).JSON(fiber.Map{
+		"message": message,
+		"token":   tokenString,
+		"user":    user,
+	})
+}
+
+func respondTelegramAuthError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, services.ErrTelegramAuthDisabled):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error":     "Telegram auth is disabled",
+			"errorCode": "TELEGRAM_AUTH_DISABLED",
+		})
+	case errors.Is(err, services.ErrTelegramAuthBotTokenMissing):
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":     "Telegram auth bot token is not configured",
+			"errorCode": "TELEGRAM_AUTH_BOT_TOKEN_MISSING",
+		})
+	case errors.Is(err, services.ErrTelegramInitDataExpired):
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":     "Telegram initData is expired",
+			"errorCode": "TELEGRAM_INIT_DATA_EXPIRED",
+		})
+	case errors.Is(err, services.ErrTelegramInitDataReplay):
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":     "Telegram initData replay detected",
+			"errorCode": "TELEGRAM_INIT_DATA_REPLAY",
+		})
+	case errors.Is(err, services.ErrTelegramInitDataInvalid):
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":     "Telegram initData is invalid",
+			"errorCode": "TELEGRAM_INIT_DATA_INVALID",
+		})
+	default:
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":     "Telegram auth failed",
+			"errorCode": "TELEGRAM_AUTH_FAILED",
+		})
+	}
+}
+
+func validateAuthCredentials(email, password string) bool {
+	return strings.TrimSpace(email) != "" && strings.TrimSpace(password) != ""
+}
+
+func updateUserDeviceID(user *models.User, deviceID string) {
+	if user == nil {
+		return
+	}
+	value := strings.TrimSpace(deviceID)
+	if value == "" || value == user.DeviceID {
+		return
+	}
+	user.DeviceID = value
+	if err := database.DB.Model(user).Update("device_id", user.DeviceID).Error; err != nil {
+		log.Printf("[AUTH] Failed to update device_id for user %d: %v", user.ID, err)
+	}
+}
+
 func validateRegistrationCredentials(email, password string) error {
 	email = strings.TrimSpace(strings.ToLower(email))
 	password = strings.TrimSpace(password)
@@ -231,7 +347,6 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	authNow := time.Now().UTC()
 	user.Password = ""
 
 	// Create wallet for the new user (initial 0 Active / 50 Pending LKM)
@@ -249,63 +364,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	}
 
-	if config.AuthRefreshV1Enabled() {
-		session, refreshToken, sessionErr := createAuthSession(user.ID, registerData.DeviceID, authNow)
-		if sessionErr != nil {
-			log.Printf("[AUTH] Failed to create auth session: %v", sessionErr)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not create auth session",
-			})
-		}
-
-		accessToken, accessExpiresAt, tokenErr := buildAccessToken(user, session.ID, authNow)
-		if tokenErr != nil {
-			log.Printf("[AUTH] Failed to generate access token: %v", tokenErr)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not generate token",
-			})
-		}
-
-		return c.Status(fiber.StatusCreated).JSON(buildTokenPairResponse(
-			"User registered successfully",
-			user,
-			session.ID,
-			accessToken,
-			accessExpiresAt,
-			refreshToken,
-			session.ExpiresAt,
-		))
-	}
-
-	// Legacy auth flow when refresh sessions are disabled.
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		log.Println("[AUTH] JWT_SECRET not configured")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Server configuration error",
-		})
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userId": user.ID,
-		"email":  user.Email,
-		"role":   user.Role,
-		"exp":    authNow.Add(time.Hour * 24 * 7).Unix(),
-	})
-
-	tokenString, err := token.SignedString([]byte(secret))
-	if err != nil {
-		log.Printf("[AUTH] Failed to generate token: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not generate token",
-		})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "User registered successfully",
-		"token":   tokenString,
-		"user":    user,
-	})
+	return issueAuthResponse(c, fiber.StatusCreated, "User registered successfully", user, registerData.DeviceID)
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
@@ -323,7 +382,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	loginData.Email = strings.TrimSpace(strings.ToLower(loginData.Email))
 
-	if loginData.Email == "" || loginData.Password == "" {
+	if !validateAuthCredentials(loginData.Email, loginData.Password) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Email and password are required",
 		})
@@ -350,74 +409,192 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Update DeviceID if provided
-	if loginData.DeviceID != "" && loginData.DeviceID != user.DeviceID {
-		user.DeviceID = loginData.DeviceID
-		if err := database.DB.Model(&user).Update("device_id", user.DeviceID).Error; err != nil {
-			log.Printf("[AUTH] Failed to update device_id for user %d: %v", user.ID, err)
-		}
-	}
+	updateUserDeviceID(&user, loginData.DeviceID)
 
 	user.Password = ""
+	return issueAuthResponse(c, fiber.StatusOK, "Login successful", user, loginData.DeviceID)
+}
 
-	authNow := time.Now().UTC()
-	if config.AuthRefreshV1Enabled() {
-		session, refreshToken, sessionErr := createAuthSession(user.ID, loginData.DeviceID, authNow)
-		if sessionErr != nil {
-			log.Printf("[AUTH] Failed to create auth session: %v", sessionErr)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not create auth session",
-			})
-		}
-
-		accessToken, accessExpiresAt, tokenErr := buildAccessToken(user, session.ID, authNow)
-		if tokenErr != nil {
-			log.Printf("[AUTH] Failed to generate access token: %v", tokenErr)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Could not generate token",
-			})
-		}
-
-		return c.Status(fiber.StatusOK).JSON(buildTokenPairResponse(
-			"Login successful",
-			user,
-			session.ID,
-			accessToken,
-			accessExpiresAt,
-			refreshToken,
-			session.ExpiresAt,
-		))
+func (h *AuthHandler) TelegramMiniAppLogin(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
 	}
 
-	// Legacy auth flow when refresh sessions are disabled.
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		log.Println("[AUTH] JWT_SECRET not configured")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Server configuration error",
+	var req struct {
+		InitData string `json:"initData"`
+		DeviceID string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+	if strings.TrimSpace(req.InitData) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "initData is required",
 		})
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userId": user.ID,
-		"email":  user.Email,
-		"role":   user.Role,
-		"exp":    authNow.Add(time.Hour * 24 * 7).Unix(),
-	})
-
-	tokenString, err := token.SignedString([]byte(secret))
+	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitData(req.InitData)
 	if err != nil {
-		log.Printf("[AUTH] Failed to generate token: %v", err)
+		return respondTelegramAuthError(c, err)
+	}
+
+	var user models.User
+	if err := database.DB.Where("telegram_user_id = ?", telegramUser.ID).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error":     "Telegram account is not linked to any VedaMatch account",
+				"errorCode": "TELEGRAM_LINK_REQUIRED",
+			})
+		}
+		log.Printf("[AUTH] Telegram miniapp login lookup failed telegram_user_id=%d: %v", telegramUser.ID, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not generate token",
+			"error": "Could not resolve Telegram account",
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Login successful",
-		"token":   tokenString,
-		"user":    user,
-	})
+	if user.IsBlocked {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User is blocked",
+		})
+	}
+
+	now := time.Now().UTC()
+	updates := map[string]interface{}{
+		"telegram_username":   telegramUser.Username,
+		"telegram_first_name": telegramUser.FirstName,
+		"telegram_last_name":  telegramUser.LastName,
+		"telegram_linked_at":  now,
+	}
+	if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+		log.Printf("[AUTH] Telegram miniapp login profile sync failed user=%d: %v", user.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not update Telegram profile",
+		})
+	}
+
+	user.TelegramUsername = telegramUser.Username
+	user.TelegramFirstName = telegramUser.FirstName
+	user.TelegramLastName = telegramUser.LastName
+	user.TelegramLinkedAt = &now
+
+	updateUserDeviceID(&user, req.DeviceID)
+	user.Password = ""
+	return issueAuthResponse(c, fiber.StatusOK, "Telegram login successful", user, req.DeviceID)
+}
+
+func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {
+	if h.telegramAuthService == nil {
+		h.telegramAuthService = services.NewTelegramAuthService(database.DB)
+	}
+
+	var req struct {
+		InitData string `json:"initData"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		DeviceID string `json:"deviceId"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+	if strings.TrimSpace(req.InitData) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "initData is required",
+		})
+	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if !validateAuthCredentials(req.Email, req.Password) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Email and password are required",
+		})
+	}
+
+	telegramUser, err := h.telegramAuthService.VerifyMiniAppInitData(req.InitData)
+	if err != nil {
+		return respondTelegramAuthError(c, err)
+	}
+
+	var user models.User
+	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid credentials",
+			})
+		}
+		log.Printf("[AUTH] Telegram miniapp link user lookup failed email=%s: %v", req.Email, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load user",
+		})
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid credentials",
+		})
+	}
+
+	if user.IsBlocked {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User is blocked",
+		})
+	}
+
+	var existing models.User
+	err = database.DB.Where("telegram_user_id = ?", telegramUser.ID).First(&existing).Error
+	if err == nil && existing.ID != user.ID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "Telegram account is already linked to another user",
+			"errorCode": "TELEGRAM_LINK_CONFLICT",
+		})
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("[AUTH] Telegram miniapp link conflict lookup failed telegram_user_id=%d: %v", telegramUser.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not validate Telegram link",
+		})
+	}
+
+	if user.TelegramUserID != nil && *user.TelegramUserID != telegramUser.ID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":     "User is linked to another Telegram account",
+			"errorCode": "TELEGRAM_ALREADY_LINKED",
+		})
+	}
+
+	now := time.Now().UTC()
+	telegramUserID := telegramUser.ID
+	updates := map[string]interface{}{
+		"telegram_user_id":    telegramUserID,
+		"telegram_username":   telegramUser.Username,
+		"telegram_first_name": telegramUser.FirstName,
+		"telegram_last_name":  telegramUser.LastName,
+		"telegram_linked_at":  now,
+	}
+
+	deviceID := strings.TrimSpace(req.DeviceID)
+	if deviceID != "" && deviceID != user.DeviceID {
+		updates["device_id"] = deviceID
+		user.DeviceID = deviceID
+	}
+
+	if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
+		log.Printf("[AUTH] Telegram miniapp link update failed user=%d: %v", user.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not link Telegram account",
+		})
+	}
+
+	user.TelegramUserID = &telegramUserID
+	user.TelegramUsername = telegramUser.Username
+	user.TelegramFirstName = telegramUser.FirstName
+	user.TelegramLastName = telegramUser.LastName
+	user.TelegramLinkedAt = &now
+	user.Password = ""
+
+	return issueAuthResponse(c, fiber.StatusOK, "Telegram linked and login successful", user, req.DeviceID)
 }
 
 func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
