@@ -9,6 +9,7 @@ import (
 	"os"
 	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,9 +17,33 @@ import (
 )
 
 const (
-	accessTokenTTL  = 15 * time.Minute
-	refreshTokenTTL = 30 * 24 * time.Hour
+	defaultAccessTokenTTLMinutes = 15
+	defaultRefreshTokenTTLDays   = 30
 )
+
+func resolveAccessTokenTTL() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("AUTH_ACCESS_TOKEN_TTL_MINUTES"))
+	if raw == "" {
+		return defaultAccessTokenTTLMinutes * time.Minute
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < 5 {
+		return defaultAccessTokenTTLMinutes * time.Minute
+	}
+	return time.Duration(parsed) * time.Minute
+}
+
+func resolveRefreshTokenTTL() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("AUTH_REFRESH_TOKEN_TTL_DAYS"))
+	if raw == "" {
+		return defaultRefreshTokenTTLDays * 24 * time.Hour
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < 7 {
+		return defaultRefreshTokenTTLDays * 24 * time.Hour
+	}
+	return time.Duration(parsed) * 24 * time.Hour
+}
 
 func sanitizeDeviceID(deviceID string) string {
 	deviceID = strings.TrimSpace(deviceID)
@@ -60,7 +85,7 @@ func buildAccessToken(user models.User, sessionID uint, now time.Time) (string, 
 		return "", time.Time{}, err
 	}
 
-	expiresAt := now.Add(accessTokenTTL)
+	expiresAt := now.Add(resolveAccessTokenTTL())
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId":    user.ID,
 		"email":     user.Email,
@@ -83,6 +108,7 @@ func createAuthSession(userID uint, deviceID string, now time.Time) (*models.Aut
 	if err != nil {
 		return nil, "", err
 	}
+	refreshTokenTTL := resolveRefreshTokenTTL()
 
 	lastUsedAt := now
 	session := &models.AuthSession{
@@ -104,6 +130,7 @@ func rotateAuthSession(session *models.AuthSession, deviceID string, now time.Ti
 	if session == nil || session.ID == 0 {
 		return "", fmt.Errorf("invalid auth session")
 	}
+	refreshTokenTTL := resolveRefreshTokenTTL()
 
 	newRefreshToken, newRefreshHash, err := generateRefreshToken()
 	if err != nil {

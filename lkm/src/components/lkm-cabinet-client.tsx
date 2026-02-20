@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LKMRegion } from '@/lib/host-config';
 
 type WalletBalance = {
@@ -91,6 +91,10 @@ type TopupStatusFilter =
 type LoginResponse = {
   token?: string;
   accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpiresAt?: string;
+  refreshTokenExpiresAt?: string;
+  sessionId?: number;
   user?: {
     id?: number;
     email?: string;
@@ -122,6 +126,11 @@ type Props = {
 };
 
 const TOKEN_KEY = 'lkm_access_token';
+const REFRESH_TOKEN_KEY = 'lkm_refresh_token';
+const SESSION_ID_KEY = 'lkm_session_id';
+const ACCESS_EXPIRES_AT_KEY = 'lkm_access_expires_at';
+const REFRESH_EXPIRES_AT_KEY = 'lkm_refresh_expires_at';
+const DEVICE_ID_KEY = 'lkm_device_id';
 const HISTORY_PAGE_LIMIT = 8;
 const HISTORY_LIMIT_OPTIONS = [8, 20, 50] as const;
 const CIS_LANGUAGE_CODES = new Set(['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'mo']);
@@ -214,6 +223,24 @@ function isLkmVedamatchHost(hostname: string): boolean {
   return host === 'lkm.vedamatch.ru' || host === 'lkm.vedamatch.com';
 }
 
+function normalizeSessionID(value: string | null): number | null {
+  const parsed = Number(value || '');
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.trunc(parsed);
+}
+
+function getOrCreateLkmDeviceID(): string {
+  const existing = localStorage.getItem(DEVICE_ID_KEY)?.trim() || '';
+  if (existing) {
+    return existing;
+  }
+  const next = `lkm-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+  localStorage.setItem(DEVICE_ID_KEY, next);
+  return next;
+}
+
 function humanTopupStatus(status: string): string {
   switch (status) {
     case 'pending_payment':
@@ -239,6 +266,10 @@ export default function LkmCabinetClient({
   apiBaseUrl,
 }: Props) {
   const [token, setToken] = useState('');
+  const [refreshToken, setRefreshToken] = useState('');
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [deviceId, setDeviceId] = useState('');
+  const [sessionRestoreAttempted, setSessionRestoreAttempted] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -272,9 +303,157 @@ export default function LkmCabinetClient({
   const [isCreatingTopup, setIsCreatingTopup] = useState(false);
   const [isBlockedInApp, setIsBlockedInApp] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
+  const tokenRef = useRef('');
+  const refreshTokenRef = useRef('');
+  const sessionIdRef = useRef<number | null>(null);
+  const deviceIdRef = useRef('');
   const topupChannel = isTelegramMiniApp ? 'bot' : 'web';
 
   const canTopup = !!token && !isBlockedInApp;
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
+  useEffect(() => {
+    refreshTokenRef.current = refreshToken;
+  }, [refreshToken]);
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    deviceIdRef.current = deviceId;
+  }, [deviceId]);
+
+  const clearAuthSession = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(SESSION_ID_KEY);
+    localStorage.removeItem(ACCESS_EXPIRES_AT_KEY);
+    localStorage.removeItem(REFRESH_EXPIRES_AT_KEY);
+    setToken('');
+    setRefreshToken('');
+    setSessionId(null);
+    tokenRef.current = '';
+    refreshTokenRef.current = '';
+    sessionIdRef.current = null;
+    refreshPromiseRef.current = null;
+  }, []);
+
+  const applyAuthSession = useCallback((payload: LoginResponse): string => {
+    const accessToken = (payload.accessToken || payload.token || '').trim();
+    if (!accessToken) {
+      throw new Error('Не удалось получить access token');
+    }
+
+    const normalizedRefreshToken = (payload.refreshToken || '').trim();
+    const normalizedSessionID =
+      typeof payload.sessionId === 'number' && Number.isFinite(payload.sessionId) && payload.sessionId > 0
+        ? Math.trunc(payload.sessionId)
+        : null;
+
+    localStorage.setItem(TOKEN_KEY, accessToken);
+    setToken(accessToken);
+    tokenRef.current = accessToken;
+
+    if (normalizedRefreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, normalizedRefreshToken);
+      setRefreshToken(normalizedRefreshToken);
+      refreshTokenRef.current = normalizedRefreshToken;
+    } else {
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      setRefreshToken('');
+      refreshTokenRef.current = '';
+    }
+
+    if (normalizedSessionID) {
+      localStorage.setItem(SESSION_ID_KEY, String(normalizedSessionID));
+      setSessionId(normalizedSessionID);
+      sessionIdRef.current = normalizedSessionID;
+    } else {
+      localStorage.removeItem(SESSION_ID_KEY);
+      setSessionId(null);
+      sessionIdRef.current = null;
+    }
+
+    const accessExpiresAt = (payload.accessTokenExpiresAt || '').trim();
+    const refreshExpiresAt = (payload.refreshTokenExpiresAt || '').trim();
+
+    if (accessExpiresAt) {
+      localStorage.setItem(ACCESS_EXPIRES_AT_KEY, accessExpiresAt);
+    } else {
+      localStorage.removeItem(ACCESS_EXPIRES_AT_KEY);
+    }
+
+    if (refreshExpiresAt) {
+      localStorage.setItem(REFRESH_EXPIRES_AT_KEY, refreshExpiresAt);
+    } else {
+      localStorage.removeItem(REFRESH_EXPIRES_AT_KEY);
+    }
+
+    const resolvedDeviceID = deviceIdRef.current || getOrCreateLkmDeviceID();
+    if (resolvedDeviceID && resolvedDeviceID !== deviceIdRef.current) {
+      deviceIdRef.current = resolvedDeviceID;
+      setDeviceId(resolvedDeviceID);
+    }
+
+    return accessToken;
+  }, []);
+
+  const refreshAuthSession = useCallback(async (): Promise<string | null> => {
+    if (refreshPromiseRef.current) {
+      return refreshPromiseRef.current;
+    }
+
+    const currentRefreshToken = refreshTokenRef.current.trim();
+    if (!currentRefreshToken) {
+      return null;
+    }
+
+    const currentSessionID = sessionIdRef.current;
+    const currentDeviceID = deviceIdRef.current || getOrCreateLkmDeviceID();
+    if (currentDeviceID && currentDeviceID !== deviceIdRef.current) {
+      deviceIdRef.current = currentDeviceID;
+      setDeviceId(currentDeviceID);
+    }
+
+    const refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            refreshToken: currentRefreshToken,
+            sessionId: currentSessionID || undefined,
+            deviceId: currentDeviceID || undefined,
+          }),
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          if (response.status === 400 || response.status === 401) {
+            clearAuthSession();
+          }
+          return null;
+        }
+
+        const payload = (await response.json()) as LoginResponse;
+        return applyAuthSession(payload);
+      } catch {
+        return null;
+      } finally {
+        refreshPromiseRef.current = null;
+      }
+    })();
+
+    refreshPromiseRef.current = refreshPromise;
+    return refreshPromise;
+  }, [apiBaseUrl, applyAuthSession, clearAuthSession]);
 
   const amountToQuote = useMemo(() => {
     if (selectedAmount && selectedAmount > 0) {
@@ -294,12 +473,43 @@ export default function LkmCabinetClient({
 
   useEffect(() => {
     const savedToken = localStorage.getItem(TOKEN_KEY) || '';
+    const savedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)?.trim() || '';
+    const savedSessionID = normalizeSessionID(localStorage.getItem(SESSION_ID_KEY));
+    const savedDeviceID = getOrCreateLkmDeviceID();
     const params = new URLSearchParams(window.location.search);
     const queryToken = params.get('token') || '';
-    const bootToken = queryToken || savedToken;
+    const normalizedQueryToken = queryToken.trim();
+    const bootToken = normalizedQueryToken || savedToken.trim();
+
+    if (savedDeviceID) {
+      setDeviceId(savedDeviceID);
+      deviceIdRef.current = savedDeviceID;
+    }
+
+    if (normalizedQueryToken) {
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(SESSION_ID_KEY);
+      localStorage.removeItem(ACCESS_EXPIRES_AT_KEY);
+      localStorage.removeItem(REFRESH_EXPIRES_AT_KEY);
+      setRefreshToken('');
+      refreshTokenRef.current = '';
+      setSessionId(null);
+      sessionIdRef.current = null;
+    } else {
+      if (savedRefreshToken) {
+        setRefreshToken(savedRefreshToken);
+        refreshTokenRef.current = savedRefreshToken;
+      }
+
+      if (savedSessionID) {
+        setSessionId(savedSessionID);
+        sessionIdRef.current = savedSessionID;
+      }
+    }
 
     if (bootToken) {
       setToken(bootToken);
+      tokenRef.current = bootToken;
       localStorage.setItem(TOKEN_KEY, bootToken);
     }
 
@@ -361,11 +571,26 @@ export default function LkmCabinetClient({
   }, []);
 
   useEffect(() => {
-    if (!isTelegramMiniApp || !telegramInitData || token || telegramAuthAttempted) {
+    if (
+      !isTelegramMiniApp ||
+      !telegramInitData ||
+      token ||
+      telegramAuthAttempted ||
+      (!!refreshToken && !sessionRestoreAttempted)
+    ) {
       return;
     }
 
     let cancelled = false;
+    const watchdogId = window.setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+      setIsTelegramAuthLoading(false);
+      setTelegramLinkRequired(true);
+      setError('Проверка Telegram заняла слишком много времени. Выполните разовый вход email/пароль для привязки.');
+    }, 12000);
+
     const loginViaTelegramMiniApp = async () => {
       setTelegramAuthAttempted(true);
       setIsTelegramAuthLoading(true);
@@ -377,18 +602,15 @@ export default function LkmCabinetClient({
           timeoutMs: 10000,
           body: {
             initData: telegramInitData,
-            deviceId: `lkm-tg-${Math.random().toString(36).slice(2, 10)}`,
+            deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
           },
+          skipAuthRefresh: true,
         });
-        const accessToken = response.accessToken || response.token;
-        if (!accessToken) {
-          throw new Error('Не удалось получить access token');
-        }
+        applyAuthSession(response);
         if (cancelled) {
           return;
         }
-        localStorage.setItem(TOKEN_KEY, accessToken);
-        setToken(accessToken);
+        setSessionRestoreAttempted(true);
         setTelegramLinkRequired(false);
         setSuccess('Вход через Telegram выполнен');
       } catch (telegramLoginError) {
@@ -408,6 +630,7 @@ export default function LkmCabinetClient({
           setError(message);
         }
       } finally {
+        window.clearTimeout(watchdogId);
         if (!cancelled) {
           setIsTelegramAuthLoading(false);
         }
@@ -417,8 +640,31 @@ export default function LkmCabinetClient({
     void loginViaTelegramMiniApp();
     return () => {
       cancelled = true;
+      window.clearTimeout(watchdogId);
     };
-  }, [isTelegramMiniApp, telegramInitData, token, telegramAuthAttempted]);
+  }, [isTelegramMiniApp, telegramInitData, token, telegramAuthAttempted, refreshToken, sessionRestoreAttempted, applyAuthSession]);
+
+  useEffect(() => {
+    if (token || !refreshToken || sessionRestoreAttempted) {
+      return;
+    }
+
+    let cancelled = false;
+    setSessionRestoreAttempted(true);
+
+    const restoreSession = async () => {
+      const refreshedToken = await refreshAuthSession();
+      if (cancelled || !refreshedToken) {
+        return;
+      }
+      setError('');
+    };
+
+    void restoreSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, refreshToken, sessionRestoreAttempted, refreshAuthSession]);
 
   useEffect(() => {
     if (!token) {
@@ -525,9 +771,28 @@ export default function LkmCabinetClient({
 
   const regionLabel = region === 'cis' ? 'CIS / СНГ' : 'non-CIS / Global';
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken('');
+  const logout = async () => {
+    const currentRefreshToken = refreshTokenRef.current.trim();
+    const currentSessionID = sessionIdRef.current;
+    if (tokenRef.current && (currentRefreshToken || currentSessionID)) {
+      try {
+        await apiRequest('/auth/logout', {
+          method: 'POST',
+          token: tokenRef.current,
+          skipAuthRefresh: true,
+          body: {
+            refreshToken: currentRefreshToken || undefined,
+            sessionId: currentSessionID || undefined,
+            deviceId: deviceIdRef.current || undefined,
+          },
+        });
+      } catch {
+        // Logout is best-effort. Local cleanup still proceeds.
+      }
+    }
+
+    clearAuthSession();
+    setSessionRestoreAttempted(false);
     setEmail('');
     setPassword('');
     setTelegramLinkRequired(false);
@@ -585,26 +850,23 @@ export default function LkmCabinetClient({
             initData: telegramInitData,
             email: email.trim(),
             password,
-            deviceId: `lkm-tg-link-${Math.random().toString(36).slice(2, 10)}`,
+            deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
           }
         : {
             email: email.trim(),
             password,
-            deviceId: `lkm-web-${Math.random().toString(36).slice(2, 10)}`,
+            deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
           };
       const response = await apiRequest<LoginResponse>(
         isTelegramLinkFlow ? '/auth/telegram/miniapp/link' : '/login',
         {
           method: 'POST',
           body: payload,
+          skipAuthRefresh: true,
         },
       );
-      const accessToken = response.accessToken || response.token;
-      if (!accessToken) {
-        throw new Error('Не удалось получить access token');
-      }
-      localStorage.setItem(TOKEN_KEY, accessToken);
-      setToken(accessToken);
+      applyAuthSession(response);
+      setSessionRestoreAttempted(true);
       setTelegramLinkRequired(false);
       setSuccess(isTelegramLinkFlow ? 'Telegram успешно привязан и авторизация выполнена' : 'Авторизация успешна');
     } catch (loginError) {
@@ -759,6 +1021,17 @@ export default function LkmCabinetClient({
               <div className="stack">
                 <p className="note">Проверяем вход через Telegram Mini App...</p>
                 <p className="note">Обычно это занимает до 10 секунд.</p>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    setIsTelegramAuthLoading(false);
+                    setTelegramLinkRequired(true);
+                    setError('Выберите разовый вход email/пароль для привязки Telegram.');
+                  }}
+                >
+                  Продолжить вручную
+                </button>
               </div>
             ) : (
               <form className="stack" onSubmit={onLogin}>
@@ -794,12 +1067,22 @@ export default function LkmCabinetClient({
                       ? 'Привязать Telegram'
                       : 'Войти'}
                 </button>
+                <p className="note">
+                  После первого входа сессия сохраняется, повторный вход обычно не требуется.
+                </p>
               </form>
             )
           ) : (
             <div className="stack">
               <p className="ok">Авторизовано</p>
-              <button type="button" className="secondary" onClick={logout}>
+              <p className="note">Сессия продлевается автоматически, пока действует refresh-сессия.</p>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  void logout();
+                }}
+              >
                 Выйти
               </button>
             </div>
@@ -1078,53 +1361,80 @@ export default function LkmCabinetClient({
       token?: string;
       headers?: Record<string, string>;
       timeoutMs?: number;
+      skipAuthRefresh?: boolean;
     } = {},
   ): Promise<T> {
     const method = options.method || 'GET';
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    };
-    if (options.token) {
-      headers.Authorization = `Bearer ${options.token}`;
-    }
-
-    const controller = new AbortController();
     const timeoutMs = typeof options.timeoutMs === 'number' && options.timeoutMs > 0 ? options.timeoutMs : 0;
-    let timeoutId = 0;
-    if (timeoutMs > 0) {
-      timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-    }
+    const requestBody = options.body ? JSON.stringify(options.body) : undefined;
+    const requestUrl = `${apiBaseUrl}${path}`;
 
-    let response: Response;
-    try {
-      response = await fetch(`${apiBaseUrl}${path}`, {
-        method,
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-    } catch (fetchError) {
+    const performRequest = async (accessToken: string | undefined) => {
+      const requestHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      };
+      if (accessToken) {
+        requestHeaders.Authorization = `Bearer ${accessToken}`;
+      }
+
+      const controller = new AbortController();
+      let timeoutId = 0;
+      if (timeoutMs > 0) {
+        timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(requestUrl, {
+          method,
+          headers: requestHeaders,
+          body: requestBody,
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+      } catch (fetchError) {
+        if (timeoutId > 0) {
+          window.clearTimeout(timeoutId);
+        }
+        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+          throw new Error(`Запрос превысил таймаут ${Math.round(timeoutMs / 1000)}с`);
+        }
+        throw fetchError;
+      }
       if (timeoutId > 0) {
         window.clearTimeout(timeoutId);
       }
-      if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-        throw new Error(`Запрос превысил таймаут ${Math.round(timeoutMs / 1000)}с`);
-      }
-      throw fetchError;
-    }
-    if (timeoutId > 0) {
-      window.clearTimeout(timeoutId);
-    }
 
-    const raw = await response.text();
-    let payload: unknown = {};
-    if (raw) {
-      try {
-        payload = JSON.parse(raw);
-      } catch {
-        payload = { error: raw };
+      const raw = await response.text();
+      let payload: unknown = {};
+      if (raw) {
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          payload = { error: raw };
+        }
+      }
+
+      return { response, payload };
+    };
+
+    const initialAccessToken = options.token?.trim() || '';
+    let { response, payload } = await performRequest(initialAccessToken || undefined);
+
+    const canRetryWithRefresh =
+      response.status === 401 &&
+      initialAccessToken !== '' &&
+      !options.skipAuthRefresh &&
+      path !== '/auth/refresh' &&
+      path !== '/auth/logout';
+
+    if (canRetryWithRefresh) {
+      const refreshedAccessToken = await refreshAuthSession();
+      if (refreshedAccessToken) {
+        ({ response, payload } = await performRequest(refreshedAccessToken));
+      } else {
+        clearAuthSession();
       }
     }
 
