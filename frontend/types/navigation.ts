@@ -15,6 +15,7 @@ export type VideoCirclePlayerPayload = {
 
 export type RootStackParamList = {
     Preview: undefined;
+    LegalDocument: { type: 'terms' | 'privacy' | 'account-deletion'; language?: 'en' | 'ru' | 'hi' };
     Ads: undefined;
     CreateAd: { adId?: number } | undefined;
     AdDetail: { adId: number };

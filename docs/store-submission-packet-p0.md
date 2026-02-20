@@ -27,6 +27,10 @@ Account deletion is supported in-app:
 - Optional request endpoint: POST /api/account/deletion-request
 - Public deletion info page: https://vedamatch.ru/delete-account
 
+Operator/legal model:
+- Current operator: self-employed individual in the Russian Federation (NPD tax regime).
+- If operations move to a Kazakhstan legal entity, legal documents will be updated before rollout.
+
 Permissions usage:
 - Camera/Photos: profile and media attachments
 - Microphone: voice/call features
@@ -35,7 +39,7 @@ Permissions usage:
 
 Registration legal consent:
 - Registration requires explicit agreement plus opening Terms and Privacy links before sign-up.
-- Legal docs are available in English/Hindi/Russian:
+- Legal docs are available in English/Hindi/Russian and open directly from in-app legal screens (no login required):
   - Terms: https://vedamatch.ru/terms?lang=en|hi|ru
   - Privacy: https://vedamatch.ru/privacy?lang=en|hi|ru
 ```

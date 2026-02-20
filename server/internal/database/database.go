@@ -186,6 +186,7 @@ func Connect() {
 
 	InitializeSuperAdmin()
 	SeedMarket()
+	SeedServices()
 	SeedEducation()
 	SeedMultimedia()
 	FixMultimediaLiveSources()

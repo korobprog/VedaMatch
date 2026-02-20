@@ -15,6 +15,7 @@ import LoginScreen from './screens/LoginScreen';
 import PlansScreen from './screens/PlansScreen';
 import { RootStackParamList } from './types/navigation';
 import { linking } from './navigation/linking';
+import LegalDocumentScreen from './screens/legal/LegalDocumentScreen';
 // Portal Main Screen
 import { PortalMainScreen } from './screens/portal/PortalMainScreen';
 import WidgetSelectionScreen from './screens/portal/WidgetSelectionScreen';
@@ -417,6 +418,7 @@ const AppContent = () => {
                   <Stack.Screen name="CallScreen" component={CallScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="Plans" component={PlansScreen} />
                   <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+                  <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportHome" component={SupportHomeScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportTicketForm" component={SupportTicketFormScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportInbox" component={SupportInboxScreen} options={{ headerShown: false }} />
@@ -559,6 +561,7 @@ const AppContent = () => {
                   <Stack.Screen name="RoomInviteEntry" component={RoomInviteEntryScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
                   <Stack.Screen name="Registration" component={RegistrationScreen} />
+                  <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportHome" component={SupportHomeScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="SupportTicketForm" component={SupportTicketFormScreen} options={{ headerShown: false }} />
                 </Stack.Group>

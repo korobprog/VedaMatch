@@ -22,6 +22,12 @@ Backend deletion endpoints:
 - `DELETE /api/account` (immediate deletion)
 - `POST /api/account/deletion-request` (optional scheduled deletion)
 
+## 0.1) Operator identity strategy (current state: no legal entity yet)
+
+- Use current operator model consistently: self-employed individual in the Russian Federation (NPD).
+- In legal docs/review notes, do not claim a Kazakhstan legal entity until it is formally created and store account metadata is updated.
+- When migration to Kazakhstan legal entity is complete, update legal docs first, then store metadata/review notes, then submit new build.
+
 ## 1) App Store Connect: what to fill
 
 ### A. App Information
@@ -215,4 +221,3 @@ Capture and archive:
 - Google Play User Data policy: `https://support.google.com/googleplay/android-developer/answer/10144311`
 - Google Play Payments policy: `https://support.google.com/googleplay/android-developer/answer/9858738`
 - Google Play Data safety form guide: `https://support.google.com/googleplay/android-developer/answer/10787469`
-

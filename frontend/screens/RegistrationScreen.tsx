@@ -14,7 +14,6 @@ import {
     StatusBar,
     TextInput,
     ImageBackground,
-    Linking,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
@@ -35,7 +34,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { API_PATH } from '../config/api.config';
 import {
-    getLegalDocumentUrl,
     normalizeLanguageCode,
 } from '../config/legal.config';
 import type { LegalLanguage } from '../config/legal.config';
@@ -155,25 +153,17 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         setLegalLanguage(normalizeLanguageCode(i18n.language));
     }, [i18n.language]);
 
-    const openLegalDocument = useCallback(async (documentType: 'terms' | 'privacy') => {
-        const url = getLegalDocumentUrl(documentType, legalLanguage);
-        try {
-            const canOpen = await Linking.canOpenURL(url);
-            if (!canOpen) {
-                Alert.alert(t('common.error'), t('common.tryAgain') || 'Please try again later');
-                return;
-            }
-            await Linking.openURL(url);
-            if (documentType === 'terms') {
-                setHasOpenedTerms(true);
-            } else {
-                setHasOpenedPrivacy(true);
-            }
-        } catch (error) {
-            console.error('[Legal] Failed to open legal document:', error);
-            Alert.alert(t('common.error'), t('common.tryAgain') || 'Please try again later');
+    const openLegalDocument = useCallback((documentType: 'terms' | 'privacy') => {
+        if (documentType === 'terms') {
+            setHasOpenedTerms(true);
+        } else {
+            setHasOpenedPrivacy(true);
         }
-    }, [legalLanguage, t]);
+        navigation.navigate('LegalDocument', {
+            type: documentType,
+            language: legalLanguage,
+        });
+    }, [legalLanguage, navigation]);
 
     const handleCountrySelect = async (cData: CountryData) => {
         setCountry(cData.name.common);

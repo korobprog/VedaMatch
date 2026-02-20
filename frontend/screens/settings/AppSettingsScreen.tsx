@@ -10,7 +10,6 @@ import {
     ScrollView,
     Switch,
     Alert,
-    Linking,
     Image as RNImage,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,11 +26,7 @@ import { useWallet } from '../../context/WalletContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../hooks/usePressFeedback';
 import { AIModelsSection, AIModel } from './components/AIModelsSection';
-import {
-    ACCOUNT_DELETION_URL,
-    getLegalDocumentUrl,
-    normalizeLanguageCode,
-} from '../../config/legal.config';
+import { normalizeLanguageCode } from '../../config/legal.config';
 
 type AssistantType = 'feather' | 'smiley' | 'feather2';
 type SettingsPanelKey = 'quick' | 'appearance' | 'background' | 'ai' | 'location' | 'models';
@@ -292,20 +287,6 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             [panel]: !prev[panel],
         }));
     }, [triggerTapFeedback]);
-
-    const openExternalLink = useCallback(async (url: string, tag: string) => {
-        try {
-            const supported = await Linking.canOpenURL(url);
-            if (!supported) {
-                Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
-                return;
-            }
-            await Linking.openURL(url);
-        } catch (error) {
-            console.warn(`[Settings] failed to open ${tag}:`, error);
-            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
-        }
-    }, [t]);
 
     useEffect(() => {
         let isMounted = true;
@@ -1051,7 +1032,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         ]}
                         onPress={() => {
                             triggerTapFeedback();
-                            void openExternalLink(getLegalDocumentUrl('privacy', i18n.language), 'privacy-policy');
+                            navigation.navigate('LegalDocument', {
+                                type: 'privacy',
+                                language: normalizeLanguageCode(i18n.language),
+                            });
                         }}
                     >
                         <Text style={themedStyles.legalLinkText}>
@@ -1068,7 +1052,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         ]}
                         onPress={() => {
                             triggerTapFeedback();
-                            void openExternalLink(getLegalDocumentUrl('terms', i18n.language), 'terms-of-use');
+                            navigation.navigate('LegalDocument', {
+                                type: 'terms',
+                                language: normalizeLanguageCode(i18n.language),
+                            });
                         }}
                     >
                         <Text style={themedStyles.legalLinkText}>
@@ -1085,7 +1072,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         ]}
                         onPress={() => {
                             triggerTapFeedback();
-                            void openExternalLink(ACCOUNT_DELETION_URL, 'account-deletion-page');
+                            navigation.navigate('LegalDocument', {
+                                type: 'account-deletion',
+                                language: normalizeLanguageCode(i18n.language),
+                            });
                         }}
                     >
                         <Text style={themedStyles.legalLinkText}>

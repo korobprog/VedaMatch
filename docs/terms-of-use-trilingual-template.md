@@ -1,13 +1,14 @@
-# Terms of Use Template (EN/RU/HI) — VedaMatch
+# Terms of Use (EN/RU/HI) — VedaMatch
 
-Version: `1.0`  
-Effective date: `[YYYY-MM-DD]`  
-Operator: `[Legal Entity Name]`  
-Support contact: `[support@yourdomain.com]`
+Version: `1.1`  
+Effective date: `2026-02-20`  
+Operator: `VedaMatch service operator (self-employed individual, Russian Federation, NPD tax regime)`  
+Support contact: `support@vedamatch.ru`
 
 Important:
 
-- Replace placeholders before publishing.
+- This version is ready for the current operator model (self-employed RF).
+- If operations move to a Kazakhstan legal entity, publish an updated version with a new effective date before rollout.
 - Align this document with real product behavior and moderation rules.
 
 ---
@@ -84,12 +85,12 @@ We may update these Terms. Continued use after effective date means acceptance o
 
 ### 13. Governing law and disputes
 
-These Terms are governed by laws of `[Jurisdiction]`.  
-Dispute forum: `[Court/Arbitration Venue]`, unless mandatory law provides otherwise.
+These Terms are governed by applicable law based on the user location and mandatory conflict-of-law rules.  
+For users in the Russian Federation, disputes are handled under applicable Russian law unless mandatory law provides otherwise.
 
 ### 14. Contact
 
-For legal questions: `[legal@yourdomain.com]`.
+For legal questions: `legal@vedamatch.ru`.
 
 ---
 
@@ -165,12 +166,12 @@ LKM не являются внешним способом оплаты и не �
 
 ### 13. Применимое право и споры
 
-Условия регулируются правом `[Jurisdiction]`.  
-Подсудность/арбитраж: `[Court/Arbitration Venue]`, если иное не требуется императивным правом.
+К Условиям применяется право, определяемое применимыми коллизионными нормами и императивными требованиями.  
+Для пользователей в Российской Федерации споры рассматриваются по применимому праву РФ, если иное не требуется императивным правом.
 
 ### 14. Контакты
 
-Юридические вопросы: `[legal@yourdomain.com]`.
+Юридические вопросы: `legal@vedamatch.ru`.
 
 ---
 
@@ -246,10 +247,9 @@ LKM कोई बाहरी भुगतान माध्यम नहीं
 
 ### 13. लागू कानून और विवाद
 
-ये Terms `[Jurisdiction]` के कानूनों द्वारा संचालित होंगे।  
-विवाद मंच: `[Court/Arbitration Venue]`, जब तक अनिवार्य कानून अन्यथा न कहे।
+इन Terms पर लागू कानून उपयोगकर्ता के स्थान और अनिवार्य conflict-of-law नियमों के आधार पर निर्धारित होगा।  
+रूसी संघ के उपयोगकर्ताओं के लिए विवाद लागू रूसी कानून के अनुसार संभाले जाएंगे, जब तक अनिवार्य कानून अन्यथा न कहे।
 
 ### 14. संपर्क
 
-कानूनी संपर्क: `[legal@yourdomain.com]`।
-
+कानूनी संपर्क: `legal@vedamatch.ru`।

@@ -1,13 +1,14 @@
-# Privacy Policy Template (EN/RU/HI) — VedaMatch
+# Privacy Policy (EN/RU/HI) — VedaMatch
 
-Version: `1.0`  
-Effective date: `[YYYY-MM-DD]`  
-Controller: `[Legal Entity Name]`  
-Contact: `[support@yourdomain.com]`
+Version: `1.1`  
+Effective date: `2026-02-20`  
+Controller: `VedaMatch service operator (self-employed individual, Russian Federation, NPD tax regime)`  
+Contact: `privacy@vedamatch.ru`, `support@vedamatch.ru`
 
 Important:
 
-- Replace all placeholders before publication.
+- This version is publication-ready for the current operator model (self-employed RF).
+- If operator changes to a Kazakhstan legal entity, publish an updated version with a new effective date before rollout.
 - Keep this policy consistent with actual app behavior and store declarations.
 
 ---
@@ -16,8 +17,8 @@ Important:
 
 ### 1. Who we are
 
-VedaMatch ("we", "us", "our") is operated by `[Legal Entity Name]`.  
-Contact for privacy questions: `[support@yourdomain.com]`.
+VedaMatch ("we", "us", "our") is currently operated by a self-employed individual in the Russian Federation (NPD tax regime).  
+Contact for privacy questions: `privacy@vedamatch.ru` (or `support@vedamatch.ru`).
 
 ### 2. Scope
 
@@ -98,7 +99,7 @@ Subject to local law, you may request:
 - restriction or objection to certain processing
 - data portability (where applicable)
 
-To exercise rights, contact: `[privacy@yourdomain.com]`.
+To exercise rights, contact: `privacy@vedamatch.ru`.
 
 ### 12. Children
 
@@ -114,14 +115,18 @@ No system is absolutely secure; we continuously improve safeguards.
 
 We may update this policy. Material changes will be communicated in-app or via website update notice.
 
+### 15. Operator change notice
+
+If VedaMatch operations are transferred to a Kazakhstan legal entity, we will publish updated legal documents with the new operator details and effective date before those changes apply.
+
 ---
 
 ## Русский
 
 ### 1. Кто мы
 
-VedaMatch ("мы", "нас", "наш сервис") управляется `[Legal Entity Name]`.  
-Контакт по вопросам приватности: `[support@yourdomain.com]`.
+VedaMatch ("мы", "нас", "наш сервис") сейчас управляется самозанятым лицом в Российской Федерации (режим НПД).  
+Контакт по вопросам приватности: `privacy@vedamatch.ru` (или `support@vedamatch.ru`).
 
 ### 2. Сфера действия
 
@@ -201,7 +206,7 @@ LKM — внутренняя неплатежная единица активн�
 - ограничение/возражение против обработки
 - переносимость (где применимо)
 
-Контакт: `[privacy@yourdomain.com]`.
+Контакт: `privacy@vedamatch.ru`.
 
 ### 12. Дети
 
@@ -215,14 +220,18 @@ LKM — внутренняя неплатежная единица активн�
 
 Политика может обновляться. Существенные изменения публикуются в приложении или на сайте.
 
+### 15. Уведомление о смене оператора
+
+Если операционная модель VedaMatch будет переведена на юридическое лицо в Казахстане, мы заранее опубликуем обновленную версию документов с новыми реквизитами и датой вступления в силу.
+
 ---
 
 ## हिंदी
 
 ### 1. हम कौन हैं
 
-VedaMatch का संचालन `[Legal Entity Name]` द्वारा किया जाता है।  
-गोपनीयता संबंधी प्रश्नों के लिए संपर्क: `[support@yourdomain.com]`।
+VedaMatch वर्तमान में रूसी संघ के स्व-नियोजित ऑपरेटर (NPD टैक्स मोड) द्वारा संचालित है।  
+गोपनीयता संबंधी प्रश्नों के लिए संपर्क: `privacy@vedamatch.ru` (या `support@vedamatch.ru`)।
 
 ### 2. दायरा
 
@@ -302,7 +311,7 @@ LKM, ऐप के भीतर एंगेजमेंट/फीचर एक�
 - प्रोसेसिंग प्रतिबंध/आपत्ति
 - डेटा पोर्टेबिलिटी (जहां लागू)
 
-संपर्क: `[privacy@yourdomain.com]`।
+संपर्क: `privacy@vedamatch.ru`।
 
 ### 12. बच्चे
 
@@ -316,3 +325,6 @@ LKM, ऐप के भीतर एंगेजमेंट/फीचर एक�
 
 यह नीति समय-समय पर अपडेट हो सकती है। महत्वपूर्ण बदलाव ऐप/वेबसाइट पर प्रकाशित किए जाएंगे।
 
+### 15. ऑपरेटर परिवर्तन सूचना
+
+यदि VedaMatch संचालन को कज़ाखस्तान की कानूनी इकाई में स्थानांतरित किया जाता है, तो हम नई प्रभावी तिथि के साथ अपडेटेड कानूनी दस्तावेज पहले से प्रकाशित करेंगे।
