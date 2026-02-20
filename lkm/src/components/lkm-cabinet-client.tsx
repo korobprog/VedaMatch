@@ -1419,6 +1419,9 @@ export default function LkmCabinetClient({
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
           throw new Error(`Запрос превысил таймаут ${Math.round(timeoutMs / 1000)}с`);
         }
+        if (fetchError instanceof TypeError) {
+          throw new Error(`Сетевая ошибка при обращении к ${requestUrl}`);
+        }
         throw fetchError;
       }
       if (timeoutId > 0) {
