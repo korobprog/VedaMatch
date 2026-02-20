@@ -951,9 +951,6 @@ export default function LkmCabinetClient({
       const response = await apiRequest<QuoteResponse>('/lkm/quote', {
         method: 'POST',
         token,
-        headers: {
-          'X-Client-Channel': topupChannel,
-        },
         body: {
           lkmAmount: amountToQuote,
           gatewayCode,
@@ -990,9 +987,6 @@ export default function LkmCabinetClient({
       const response = await apiRequest<TopupResponse>('/lkm/topups', {
         method: 'POST',
         token,
-        headers: {
-          'X-Client-Channel': topupChannel,
-        },
         body: {
           quoteId: quote.quoteId,
           channel: topupChannel,
