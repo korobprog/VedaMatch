@@ -3,6 +3,8 @@
 // ==================== YATRA (TOUR) ====================
 
 export type YatraStatus = 'draft' | 'open' | 'full' | 'active' | 'completed' | 'cancelled';
+export type YatraBillingState = 'active' | 'paused_insufficient' | 'stopped';
+export type YatraBillingPauseReason = 'insufficient_lkm' | 'organizer_stopped' | 'none';
 
 export type YatraTheme =
     | 'vrindavan'
@@ -53,6 +55,14 @@ export interface Yatra {
     coverImageUrl?: string;
     photos?: string; // JSON array
     status: YatraStatus;
+    billingState?: YatraBillingState;
+    billingPaused?: boolean;
+    billingPauseReason?: YatraBillingPauseReason;
+    billingConsentAt?: string;
+    billingNextChargeAt?: string;
+    billingLastChargedAt?: string;
+    billingStoppedAt?: string;
+    dailyFeeLkm?: number;
     chatRoomId?: number;
     viewsCount: number;
     participantCount: number;
@@ -272,6 +282,10 @@ export interface ShelterReviewCreateData {
 export interface YatraJoinData {
     message?: string;
     emergencyContact?: string;
+}
+
+export interface YatraPublishData {
+    billingConsent?: boolean;
 }
 
 // ==================== RESPONSE TYPES ====================

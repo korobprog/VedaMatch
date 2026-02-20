@@ -36,6 +36,7 @@ const YatraDetailScreen: React.FC = () => {
     const [joining, setJoining] = useState(false);
     const [myParticipation, setMyParticipation] = useState<YatraParticipant | null>(null);
     const [decisionInProgressId, setDecisionInProgressId] = useState<number | null>(null);
+    const [stoppingTour, setStoppingTour] = useState(false);
     const latestLoadRequestRef = useRef(0);
     const latestJoinRequestRef = useRef(0);
     const latestDecisionRequestRef = useRef(0);
@@ -47,6 +48,10 @@ const YatraDetailScreen: React.FC = () => {
     const styles = React.useMemo(() => createStyles(colors), [colors]);
     const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
     const isOrganizer = (yatra && user && user.ID && yatra.organizerId === user.ID) || isAdmin;
+    const isDraft = yatra?.status === 'draft';
+    const isBillingPaused = !!yatra?.billingPaused && yatra?.billingPauseReason === 'insufficient_lkm';
+    const canJoinNow = !!yatra && yatra.status === 'open' && !isBillingPaused;
+    const canModerateRequests = !isBillingPaused;
 
     const [pendingParticipants, setPendingParticipants] = useState<YatraParticipant[]>([]);
 
@@ -114,6 +119,10 @@ const YatraDetailScreen: React.FC = () => {
 
     const handleJoin = async () => {
         if (!yatra || joining || !yatraId) return;
+        if (!canJoinNow) {
+            Alert.alert('Недоступно', 'Тур временно недоступен для новых заявок.');
+            return;
+        }
 
         const requestId = ++latestJoinRequestRef.current;
         try {
@@ -138,7 +147,7 @@ const YatraDetailScreen: React.FC = () => {
     };
 
     const handleApprove = async (participantId: number) => {
-        if (decisionInProgressId !== null || !yatraId) {
+        if (decisionInProgressId !== null || !yatraId || !canModerateRequests) {
             return;
         }
         const requestId = ++latestDecisionRequestRef.current;
@@ -162,7 +171,7 @@ const YatraDetailScreen: React.FC = () => {
     };
 
     const handleReject = async (participantId: number) => {
-        if (decisionInProgressId !== null || !yatraId) {
+        if (decisionInProgressId !== null || !yatraId || !canModerateRequests) {
             return;
         }
         const requestId = ++latestDecisionRequestRef.current;
@@ -198,6 +207,35 @@ const YatraDetailScreen: React.FC = () => {
         }
     };
 
+    const handleStopTour = async () => {
+        if (!yatra || stoppingTour || !isOrganizer) {
+            return;
+        }
+        Alert.alert(
+            'Остановить тур',
+            'Тур будет отменен, новые списания LKM остановятся.',
+            [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                    text: 'Остановить',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setStoppingTour(true);
+                            await yatraService.stopYatra(yatra.id);
+                            Alert.alert('Тур остановлен');
+                            await loadYatra();
+                        } catch (error: any) {
+                            Alert.alert('Ошибка', error?.response?.data?.error || 'Не удалось остановить тур');
+                        } finally {
+                            setStoppingTour(false);
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
     useEffect(() => {
         isMountedRef.current = true;
         return () => {
@@ -224,7 +262,7 @@ const YatraDetailScreen: React.FC = () => {
     const duration = yatraService.getTripDuration(yatra.startDate, yatra.endDate);
 
     return (
-            <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }}>
                 {/* Header Image */}
                 <View style={styles.imageContainer}>
@@ -289,6 +327,26 @@ const YatraDetailScreen: React.FC = () => {
                     </View>
                 </View>
 
+                {(yatra.billingState === 'active' || yatra.billingState === 'paused_insufficient' || yatra.billingState === 'stopped') && (
+                    <View style={styles.section}>
+                        <View style={[
+                            styles.billingBanner,
+                            yatra.billingState === 'active' && { backgroundColor: colors.surfaceElevated, borderColor: colors.success },
+                            yatra.billingState === 'paused_insufficient' && { backgroundColor: colors.surfaceElevated, borderColor: colors.danger },
+                            yatra.billingState === 'stopped' && { backgroundColor: colors.surfaceElevated, borderColor: colors.warning },
+                        ]}>
+                            <Text style={[styles.billingBannerTitle, { color: colors.textPrimary }]}>
+                                {yatra.billingState === 'active' && 'Продвижение активно'}
+                                {yatra.billingState === 'paused_insufficient' && 'Продвижение на паузе (недостаточно LKM)'}
+                                {yatra.billingState === 'stopped' && 'Продвижение остановлено'}
+                            </Text>
+                            <Text style={[styles.billingBannerText, { color: colors.textSecondary }]}>
+                                {yatra.dailyFeeLkm ? `Ежедневное списание: ${yatra.dailyFeeLkm} LKM` : 'Списание начнется после публикации'}
+                            </Text>
+                        </View>
+                    </View>
+                )}
+
                 {/* Organizer Pending Requests & Control Panel */}
                 {isOrganizer && (
                     <View style={styles.section}>
@@ -301,6 +359,11 @@ const YatraDetailScreen: React.FC = () => {
                                 ) : (
                                     <>
                                         <Text style={[styles.infoText, { marginBottom: 8 }]}>Новые заявки: {pendingParticipants.length}</Text>
+                                        {isBillingPaused && (
+                                            <Text style={[styles.infoText, { color: colors.danger, marginBottom: 8 }]}>
+                                                Заявки временно заблокированы, пополните баланс LKM.
+                                            </Text>
+                                        )}
                                         {pendingParticipants.map(participant => (
                                             <View key={participant.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 8 }}>
                                                 <View style={{ flex: 1 }}>
@@ -309,16 +372,16 @@ const YatraDetailScreen: React.FC = () => {
                                                 </View>
                                                 <View style={{ flexDirection: 'row', gap: 12 }}>
                                                     <TouchableOpacity
-                                                        disabled={decisionInProgressId !== null}
+                                                        disabled={decisionInProgressId !== null || !canModerateRequests}
                                                         onPress={() => handleApprove(participant.id)}
-                                                        style={decisionInProgressId !== null ? { opacity: 0.6 } : undefined}
+                                                        style={decisionInProgressId !== null || !canModerateRequests ? { opacity: 0.6 } : undefined}
                                                     >
                                                         <CheckCircle size={24} color={colors.success} />
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
-                                                        disabled={decisionInProgressId !== null}
+                                                        disabled={decisionInProgressId !== null || !canModerateRequests}
                                                         onPress={() => handleReject(participant.id)}
-                                                        style={decisionInProgressId !== null ? { opacity: 0.6 } : undefined}
+                                                        style={decisionInProgressId !== null || !canModerateRequests ? { opacity: 0.6 } : undefined}
                                                     >
                                                         <XCircle size={24} color={colors.danger} />
                                                     </TouchableOpacity>
@@ -331,11 +394,35 @@ const YatraDetailScreen: React.FC = () => {
                                 {/* Group Chat Button */}
                                 {yatra.chatRoomId && (
                                     <TouchableOpacity
-                                        style={styles.chatButton}
+                                        style={[styles.chatButton, isBillingPaused && { opacity: 0.6 }]}
+                                        disabled={isBillingPaused}
                                         onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: yatra.title + ' - Чат', isYatraChat: true })}
                                     >
                                         <MessageCircle size={20} color={colors.background} />
                                         <Text style={[styles.chatButtonText, { color: colors.background }]}>Открыть групповой чат</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {isDraft && (
+                                    <View style={{ marginTop: 12 }}>
+                                        <TouchableOpacity
+                                            style={[styles.publishButton, { backgroundColor: colors.success }]}
+                                            onPress={() => navigation.navigate('YatraPublish', { yatraId: yatra.id })}
+                                        >
+                                            <Text style={[styles.publishButtonText, { color: colors.background }]}>
+                                                Перейти к публикации
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                {!isDraft && yatra.status !== 'cancelled' && (
+                                    <TouchableOpacity
+                                        style={[styles.stopButton, { borderColor: colors.danger }, stoppingTour && { opacity: 0.6 }]}
+                                        disabled={stoppingTour}
+                                        onPress={handleStopTour}
+                                    >
+                                        <Text style={[styles.stopButtonText, { color: colors.danger }]}>
+                                            {stoppingTour ? 'Остановка...' : 'Остановить тур'}
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -347,7 +434,8 @@ const YatraDetailScreen: React.FC = () => {
                 {!isOrganizer && myParticipation?.status === 'approved' && yatra.chatRoomId && (
                     <View style={styles.section}>
                         <TouchableOpacity
-                            style={styles.participantChatButton}
+                            style={[styles.participantChatButton, isBillingPaused && { opacity: 0.6 }]}
+                            disabled={isBillingPaused}
                             onPress={() => navigation.navigate('RoomChat', { roomId: yatra.chatRoomId, roomName: yatra.title + ' - Чат', isYatraChat: true })}
                         >
                             <MessageCircle size={24} color={colors.textPrimary} />
@@ -501,14 +589,20 @@ const YatraDetailScreen: React.FC = () => {
                     </View>
                 ) : (
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: colors.accent }, joining && styles.actionButtonDisabled]}
+                        style={[
+                            styles.actionButton,
+                            { backgroundColor: canJoinNow ? colors.accent : colors.surface },
+                            (joining || !canJoinNow) && styles.actionButtonDisabled,
+                        ]}
                         onPress={handleJoin}
-                        disabled={joining}
+                        disabled={joining || !canJoinNow}
                     >
                         {joining ? (
                             <ActivityIndicator color={colors.background} />
                         ) : (
-                            <Text style={[styles.actionButtonText, { color: colors.background }]}>Присоединиться</Text>
+                            <Text style={[styles.actionButtonText, { color: canJoinNow ? colors.background : colors.textSecondary }]}>
+                                {isBillingPaused ? 'Временно недоступно' : 'Присоединиться'}
+                            </Text>
                         )}
                     </TouchableOpacity>
                 )}
@@ -689,6 +783,20 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         marginTop: 24,
         paddingHorizontal: 20,
     },
+    billingBanner: {
+        borderWidth: 1,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+    },
+    billingBannerTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    billingBannerText: {
+        marginTop: 4,
+        fontSize: 13,
+    },
     sectionHeader: {
         fontSize: 22,
         fontWeight: 'bold',
@@ -855,6 +963,26 @@ const createStyles = (colors: SemanticColorTokens) => StyleSheet.create({
         color: colors.background,
         fontSize: 16,
         fontWeight: '600',
+    },
+    publishButton: {
+        borderRadius: 10,
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    publishButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    stopButton: {
+        marginTop: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    stopButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
     participantChatButton: {
         flexDirection: 'row',

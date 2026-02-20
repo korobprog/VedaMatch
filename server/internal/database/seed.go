@@ -239,6 +239,66 @@ func SeedSystemSettings() {
 			Key:   "SUPPORT_AUTO_REPLY_EN",
 			Value: "Thanks! We received your request and are already working on a response.",
 		},
+		{
+			Key:   "support.rooms.enabled",
+			Value: "true",
+		},
+		{
+			Key:   "support.seva.enabled",
+			Value: "true",
+		},
+		{
+			Key:   "support.rooms.default_amount",
+			Value: "20",
+		},
+		{
+			Key:   "support.seva.default_amount",
+			Value: "20",
+		},
+		{
+			Key:   "support.rooms.cooldown_hours",
+			Value: "24",
+		},
+		{
+			Key:   "support.seva.cooldown_hours",
+			Value: "24",
+		},
+		{
+			Key:   "support.rooms.platform_contribution_enabled",
+			Value: "true",
+		},
+		{
+			Key:   "support.seva.platform_contribution_enabled",
+			Value: "true",
+		},
+		{
+			Key:   "support.rooms.platform_contribution_default",
+			Value: "5",
+		},
+		{
+			Key:   "support.seva.platform_contribution_default",
+			Value: "5",
+		},
+		{
+			Key:   "support.rooms.project_id",
+			Value: "",
+		},
+		{
+			Key:   "support.seva.project_id",
+			Value: "",
+		},
+		{
+			Key:   "lkm.expense.single_approval_limit",
+			Value: "500",
+		},
+		{
+			Key:   "YATRA_BILLING_ENABLED",
+			Value: "false",
+		},
+		{
+			Key:   "YATRA_DAILY_FEE_LKM",
+			Value: "10",
+		},
 	}
 
 	for _, s := range settings {
@@ -246,6 +306,28 @@ func SeedSystemSettings() {
 		if err := DB.Where("key = ?", s.Key).First(&existing).Error; err != nil {
 			DB.Create(&s)
 			log.Printf("[Seed] Created system setting: %s", s.Key)
+		}
+	}
+}
+
+func SeedLKMAccounts() {
+	accounts := []models.LKMAccount{
+		{Code: "rooms_fund", Name: "Rooms Fund", IsActive: true},
+		{Code: "seva_fund", Name: "Seva Fund", IsActive: true},
+		{Code: "platform_fund", Name: "Platform Fund", IsActive: true},
+		{Code: "refund_reserve", Name: "Refund Reserve", IsActive: true},
+		{Code: "user_wallet", Name: "User Wallet (Virtual)", IsActive: true},
+		{Code: "external_expense", Name: "External Expense Sink", IsActive: true},
+	}
+
+	for _, account := range accounts {
+		var existing models.LKMAccount
+		if err := DB.Where("code = ?", account.Code).First(&existing).Error; err != nil {
+			if err := DB.Create(&account).Error; err != nil {
+				log.Printf("[Seed] Error creating LKM account %s: %v", account.Code, err)
+			} else {
+				log.Printf("[Seed] Created LKM account: %s", account.Code)
+			}
 		}
 	}
 }

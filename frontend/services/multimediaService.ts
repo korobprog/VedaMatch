@@ -45,6 +45,8 @@ export interface TVChannel {
     streamType: 'youtube' | 'vimeo' | 'rtmp';
     isLive: boolean;
     viewerCount: number;
+    status?: 'online' | 'offline' | 'unknown';
+    lastCheckedAt?: string;
 }
 
 export interface MediaCategory {
@@ -73,6 +75,34 @@ export interface TrackListResponse {
     total: number;
     page: number;
     totalPages: number;
+}
+
+export interface Playlist {
+    ID: number;
+    userId: number;
+    name: string;
+    description?: string;
+    isPublic: boolean;
+}
+
+export interface PlaylistItem {
+    ID: number;
+    playlistId: number;
+    mediaTrackId: number;
+    sortOrder: number;
+    track?: MediaTrack;
+}
+
+export interface PlaylistListResponse {
+    playlists: Playlist[];
+    total: number;
+    page: number;
+    totalPages: number;
+}
+
+export interface PlaylistDetailResponse {
+    playlist: Playlist;
+    items: PlaylistItem[];
 }
 
 class MultimediaService {
@@ -193,6 +223,50 @@ class MultimediaService {
             body: JSON.stringify(data),
         });
         if (!response.ok) throw new Error('Failed to submit suggestion');
+    }
+
+    async getPlaylists(page = 1, limit = 20): Promise<PlaylistListResponse> {
+        const response = await authorizedFetch(
+            `${this.baseUrl}/multimedia/playlists?page=${page}&limit=${limit}`
+        );
+        if (!response.ok) throw new Error('Failed to fetch playlists');
+        return response.json();
+    }
+
+    async createPlaylist(payload: { name: string; description?: string; isPublic?: boolean }): Promise<Playlist> {
+        const headers = await getAuthHeaders();
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create playlist');
+        return response.json();
+    }
+
+    async getPlaylistDetails(playlistId: number): Promise<PlaylistDetailResponse> {
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists/${playlistId}`);
+        if (!response.ok) throw new Error('Failed to fetch playlist details');
+        return response.json();
+    }
+
+    async addTrackToPlaylist(playlistId: number, trackId: number): Promise<void> {
+        const headers = await getAuthHeaders();
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists/${playlistId}/items`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trackId }),
+        });
+        if (!response.ok) throw new Error('Failed to add track to playlist');
+    }
+
+    async removeTrackFromPlaylist(playlistId: number, trackId: number): Promise<void> {
+        const headers = await getAuthHeaders();
+        const response = await authorizedFetch(`${this.baseUrl}/multimedia/playlists/${playlistId}/items/${trackId}`, {
+            method: 'DELETE',
+            headers,
+        });
+        if (!response.ok) throw new Error('Failed to remove track from playlist');
     }
 
     formatDuration(seconds: number): string {

@@ -75,6 +75,8 @@ interface SettingsState {
     EDU_TUTOR_RETENTION_DAYS: string;
     EDU_TUTOR_RETENTION_SWEEP_MINUTES: string;
     EDU_TUTOR_ALLOWED_DOMAINS: string;
+    YATRA_BILLING_ENABLED: string;
+    YATRA_DAILY_FEE_LKM: string;
     GEMINI_CORPUS_ID?: string;
     [key: string]: string | undefined;
 }
@@ -132,6 +134,8 @@ const DEFAULT_SETTINGS: SettingsState = {
     EDU_TUTOR_RETENTION_DAYS: '180',
     EDU_TUTOR_RETENTION_SWEEP_MINUTES: '360',
     EDU_TUTOR_ALLOWED_DOMAINS: 'education',
+    YATRA_BILLING_ENABLED: 'false',
+    YATRA_DAILY_FEE_LKM: '10',
     GEMINI_CORPUS_ID: '',
 };
 
@@ -247,6 +251,7 @@ export default function SettingsPage() {
         { label: 'AI & API', icon: Cpu },
         { label: 'News Integration', icon: Newspaper },
         { label: 'Notifications', icon: Bell },
+        { label: 'Travel Billing', icon: Route },
         { label: 'Appearance', icon: Sun },
         { label: 'System', icon: SettingsIcon },
         { label: 'Database & RAG', icon: Database },
@@ -831,6 +836,60 @@ export default function SettingsPage() {
                                                 <option value="auto_ru_en">auto_ru_en</option>
                                                 <option value="ru">ru</option>
                                             </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        {activeTab === 'Travel Billing' && (
+                            <section className="space-y-4">
+                                <h2 className="text-xl font-bold">Travel Billing</h2>
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-[var(--secondary)] rounded-2xl space-y-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-emerald-100 rounded-lg">
+                                                <Route className="w-4 h-4 text-emerald-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold">Yatra Daily Billing</p>
+                                                <p className="text-xs text-[var(--muted-foreground)]">
+                                                    Управление ежедневным списанием LKM для организаторов Ятры
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">YATRA_BILLING_ENABLED</label>
+                                                <select
+                                                    value={settings.YATRA_BILLING_ENABLED || 'false'}
+                                                    onChange={(e) => setSettings({ ...settings, YATRA_BILLING_ENABLED: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                >
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase">YATRA_DAILY_FEE_LKM</label>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    step={1}
+                                                    value={settings.YATRA_DAILY_FEE_LKM || '10'}
+                                                    onChange={(e) => setSettings({ ...settings, YATRA_DAILY_FEE_LKM: e.target.value })}
+                                                    className="w-full bg-[var(--background)] border-none rounded-lg py-2.5 px-3 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                    placeholder="10"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 rounded-xl bg-[var(--background)] border border-[var(--border)]">
+                                            <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">
+                                                При включенном биллинге публикация Ятры требует согласия организатора и успешного первого списания.
+                                                При нехватке LKM тур автоматически ставится на паузу до следующего успешного списания.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>

@@ -427,6 +427,52 @@ func (s *MultimediaService) CheckRadioStatus() {
 	wg.Wait()
 }
 
+func (s *MultimediaService) CheckTVStatus() {
+	var channels []models.TVChannel
+	if err := s.db.Where("is_active = ?", true).Find(&channels).Error; err != nil {
+		log.Printf("[MultimediaService] Failed to fetch tv channels for health check: %v", err)
+		return
+	}
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	var wg sync.WaitGroup
+	for i := range channels {
+		wg.Add(1)
+		go func(channel *models.TVChannel) {
+			defer wg.Done()
+
+			status := "offline"
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, "GET", channel.StreamURL, nil)
+			if err == nil {
+				req.Header.Set("User-Agent", "Mozilla/5.0 (VedaMatch TV Status Checker)")
+				resp, err := client.Do(req)
+				if err == nil {
+					if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+						status = "online"
+					} else if resp.StatusCode == 401 || resp.StatusCode == 403 {
+						// Restricted embed still means upstream is reachable.
+						status = "online"
+					}
+					_ = resp.Body.Close()
+				}
+			}
+
+			now := time.Now().UTC()
+			if err := s.db.Model(channel).Updates(map[string]interface{}{
+				"status":          status,
+				"last_checked_at": &now,
+			}).Error; err != nil {
+				log.Printf("[MultimediaService] Failed to update tv status for %s: %v", channel.Name, err)
+			}
+			log.Printf("[MultimediaService] Checked tv channel %s: %s", channel.Name, status)
+		}(&channels[i])
+	}
+	wg.Wait()
+}
+
 // --- TV Channels ---
 
 func (s *MultimediaService) GetTVChannels(madh string) ([]models.TVChannel, error) {
@@ -750,6 +796,132 @@ func (s *MultimediaService) GetUserFavorites(userID uint, page, limit int) ([]mo
 
 	err := query.Preload("Category").Offset(offset).Limit(limit).Find(&tracks).Error
 	return tracks, total, err
+}
+
+// --- Playlists ---
+
+type PlaylistFilter struct {
+	Page  int
+	Limit int
+}
+
+type PlaylistListResponse struct {
+	Playlists  []models.UserPlaylist `json:"playlists"`
+	Total      int64                 `json:"total"`
+	Page       int                   `json:"page"`
+	TotalPages int                   `json:"totalPages"`
+}
+
+type PlaylistDetailResponse struct {
+	Playlist models.UserPlaylist       `json:"playlist"`
+	Items    []models.UserPlaylistItem `json:"items"`
+}
+
+func (s *MultimediaService) GetUserPlaylists(userID uint, filter PlaylistFilter) (*PlaylistListResponse, error) {
+	var playlists []models.UserPlaylist
+	var total int64
+
+	query := s.db.Model(&models.UserPlaylist{}).Where("user_id = ?", userID)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	filter.Limit = normalizeLimit(filter.Limit)
+	offset := (filter.Page - 1) * filter.Limit
+
+	if err := query.Order("updated_at DESC").Offset(offset).Limit(filter.Limit).Find(&playlists).Error; err != nil {
+		return nil, err
+	}
+
+	return &PlaylistListResponse{
+		Playlists:  playlists,
+		Total:      total,
+		Page:       filter.Page,
+		TotalPages: calculateMultimediaTotalPages(total, filter.Limit),
+	}, nil
+}
+
+func (s *MultimediaService) CreatePlaylist(playlist *models.UserPlaylist) error {
+	playlist.Name = strings.TrimSpace(playlist.Name)
+	if playlist.Name == "" {
+		return errors.New("playlist name is required")
+	}
+	return s.db.Create(playlist).Error
+}
+
+func (s *MultimediaService) GetPlaylistDetails(userID, playlistID uint) (*PlaylistDetailResponse, error) {
+	var playlist models.UserPlaylist
+	if err := s.db.Where("id = ? AND user_id = ?", playlistID, userID).First(&playlist).Error; err != nil {
+		return nil, err
+	}
+
+	var items []models.UserPlaylistItem
+	if err := s.db.Preload("Track").Where("playlist_id = ?", playlistID).
+		Order("sort_order ASC, created_at ASC").Find(&items).Error; err != nil {
+		return nil, err
+	}
+
+	return &PlaylistDetailResponse{
+		Playlist: playlist,
+		Items:    items,
+	}, nil
+}
+
+func (s *MultimediaService) AddTrackToPlaylist(userID, playlistID, trackID uint) error {
+	var playlist models.UserPlaylist
+	if err := s.db.Where("id = ? AND user_id = ?", playlistID, userID).First(&playlist).Error; err != nil {
+		return err
+	}
+
+	var track models.MediaTrack
+	if err := s.db.Select("id", "is_active").First(&track, trackID).Error; err != nil {
+		return err
+	}
+	if !track.IsActive {
+		return errors.New("track is inactive")
+	}
+
+	var existing models.UserPlaylistItem
+	if err := s.db.Where("playlist_id = ? AND media_track_id = ?", playlistID, trackID).First(&existing).Error; err == nil {
+		return nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	var maxSortOrder int
+	if err := s.db.Model(&models.UserPlaylistItem{}).
+		Where("playlist_id = ?", playlistID).
+		Select("COALESCE(MAX(sort_order), 0)").
+		Scan(&maxSortOrder).Error; err != nil {
+		return err
+	}
+
+	item := models.UserPlaylistItem{
+		PlaylistID:   playlistID,
+		MediaTrackID: trackID,
+		SortOrder:    maxSortOrder + 1,
+	}
+	return s.db.Create(&item).Error
+}
+
+func (s *MultimediaService) RemoveTrackFromPlaylist(userID, playlistID, trackID uint) error {
+	var playlist models.UserPlaylist
+	if err := s.db.Where("id = ? AND user_id = ?", playlistID, userID).First(&playlist).Error; err != nil {
+		return err
+	}
+
+	tx := s.db.Where("playlist_id = ? AND media_track_id = ?", playlistID, trackID).
+		Delete(&models.UserPlaylistItem{})
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // --- Playback History ---

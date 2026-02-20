@@ -9,6 +9,7 @@ import {
     RefreshControl,
     ImageBackground,
     Platform,
+    Alert,
 } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +29,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { GodModeStatusBanner } from '../../components/portal/god-mode/GodModeStatusBanner';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { multimediaSupportService, MultimediaSupportConfig } from '../../services/multimediaSupportService';
 
 interface MultimediaHubScreenProps {
     onBack?: () => void;
@@ -43,6 +45,9 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
     const [radioStations, setRadioStations] = useState<RadioStation[]>([]);
     const [tvChannels, setTVChannels] = useState<TVChannel[]>([]);
     const [featuredTracks, setFeaturedTracks] = useState<MediaTrack[]>([]);
+    const [supportConfig, setSupportConfig] = useState<MultimediaSupportConfig | null>(null);
+    const [showSupportPrompt, setShowSupportPrompt] = useState(false);
+    const [supportSubmitting, setSupportSubmitting] = useState(false);
 
     const loadData = async () => {
         try {
@@ -66,6 +71,29 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
         loadData();
     }, []);
 
+    useEffect(() => {
+        let cancelled = false;
+        const loadSupport = async () => {
+            if (!user?.ID) return;
+            try {
+                const cfg = await multimediaSupportService.getSupportConfig();
+                if (cancelled) return;
+                setSupportConfig(cfg);
+                if (!cfg.enabled || cfg.projectId <= 0) return;
+
+                const lastPromptTs = await multimediaSupportService.getPromptCooldown(user.ID);
+                const cooldownMs = Math.max(1, cfg.cooldownHours) * 60 * 60 * 1000;
+                if (Date.now() - lastPromptTs >= cooldownMs) {
+                    setShowSupportPrompt(true);
+                }
+            } catch (error) {
+                console.warn('Failed to load multimedia support config', error);
+            }
+        };
+        void loadSupport();
+        return () => { cancelled = true; };
+    }, [user?.ID]);
+
     const onRefresh = () => {
         setRefreshing(true);
         loadData();
@@ -79,7 +107,40 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
         { id: 'series', title: 'Сериалы', icon: Clapperboard, color: roleColors.accent, screen: 'SeriesScreen' },
         { id: 'tv', title: 'ТВ', icon: TvIcon, color: roleColors.success, screen: 'TVScreen' },
         { id: 'favorites', title: 'Избранное', icon: Heart, color: roleColors.danger, screen: 'FavoritesScreen' },
+        { id: 'playlists', title: 'Плейлисты', icon: Music, color: roleColors.success, screen: 'PlaylistsScreen' },
+        { id: 'offline', title: 'Оффлайн', icon: PlayCircle, color: roleColors.accent, screen: 'OfflineMedia' },
     ];
+
+    const onSupportLater = async () => {
+        if (user?.ID) {
+            await multimediaSupportService.setPromptCooldown(user.ID);
+        }
+        setShowSupportPrompt(false);
+    };
+
+    const onSupportDonate = async () => {
+        if (!user?.ID || !supportConfig || supportSubmitting) return;
+        if (!supportConfig.enabled || supportConfig.projectId <= 0) return;
+        setSupportSubmitting(true);
+        try {
+            await multimediaSupportService.donateToMultimedia(
+                supportConfig.projectId,
+                Math.max(1, supportConfig.defaultAmount || 20),
+                false,
+                'Поддержка развития Sattva Media',
+                'support_prompt',
+                'MultimediaHubScreen',
+            );
+            await multimediaSupportService.setPromptCooldown(user.ID);
+            await multimediaSupportService.resetInteractions(user.ID);
+            setShowSupportPrompt(false);
+            Alert.alert('Спасибо', 'Ваш донат поддерживает развитие Sattva Media');
+        } catch (error: any) {
+            Alert.alert('Ошибка', error?.message || 'Не удалось выполнить донат');
+        } finally {
+            setSupportSubmitting(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -115,6 +176,27 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                     </View>
                 </View>
             </ImageBackground>
+
+            {showSupportPrompt && supportConfig?.enabled && supportConfig.projectId > 0 && (
+                <View style={[styles.supportCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Поддержать Sattva Media</Text>
+                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>
+                        Мы сохраняем контент бесплатным. Добровольный донат: {Math.max(1, supportConfig.defaultAmount || 20)} LKM.
+                    </Text>
+                    <View style={styles.supportActions}>
+                        <TouchableOpacity style={[styles.supportBtn, { borderColor: roleColors.border }]} onPress={onSupportLater}>
+                            <Text style={{ color: roleColors.textSecondary }}>Позже</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.supportBtn, { backgroundColor: roleColors.accent, borderColor: roleColors.accent }]}
+                            onPress={onSupportDonate}
+                            disabled={supportSubmitting}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Поддержать'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
 
             {/* Menu Grid */}
             <View style={styles.menuGrid}>
@@ -341,6 +423,34 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         padding: 16,
         justifyContent: 'space-between',
+    },
+    supportCard: {
+        marginHorizontal: 16,
+        marginTop: 14,
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 14,
+    },
+    supportTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    supportText: {
+        marginTop: 6,
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    supportActions: {
+        marginTop: 12,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 8,
+    },
+    supportBtn: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
     menuItem: {
         width: '48%',

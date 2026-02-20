@@ -319,3 +319,30 @@ func TestIsYatraAtCapacity(t *testing.T) {
 		t.Fatalf("expected non-positive max participants to be treated as full")
 	}
 }
+
+func TestNormalizeYatraBroadcastTarget(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeYatraBroadcastTarget(YatraBroadcastTarget("approved")); got != YatraBroadcastTargetApproved {
+		t.Fatalf("approved target normalized to %q", got)
+	}
+	if got := normalizeYatraBroadcastTarget(YatraBroadcastTarget("pending")); got != YatraBroadcastTargetPending {
+		t.Fatalf("pending target normalized to %q", got)
+	}
+	if got := normalizeYatraBroadcastTarget(YatraBroadcastTarget("all")); got != YatraBroadcastTargetAll {
+		t.Fatalf("all target normalized to %q", got)
+	}
+	if got := normalizeYatraBroadcastTarget(YatraBroadcastTarget("  unknown  ")); got != YatraBroadcastTargetApproved {
+		t.Fatalf("unknown target must default to approved, got %q", got)
+	}
+}
+
+func TestBuildYatraEventKey(t *testing.T) {
+	t.Parallel()
+
+	got := buildYatraEventKey("yatra_join_approved", 12, 99, 7, 555)
+	want := "yatra_join_approved:yatra:12:actor:99:target:7:entity:555"
+	if got != want {
+		t.Fatalf("event key mismatch: got %q want %q", got, want)
+	}
+}

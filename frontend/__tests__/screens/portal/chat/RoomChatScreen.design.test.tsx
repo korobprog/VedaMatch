@@ -4,6 +4,7 @@ import { RoomChatScreen } from '../../../../screens/portal/chat/RoomChatScreen';
 
 const mockAuthorizedFetch = jest.fn();
 const mockGetRoomMessagesHistory = jest.fn();
+const mockGetSupportConfig = jest.fn();
 const mockSetOptions = jest.fn();
 const mockAddListener = jest.fn(() => () => undefined);
 const originalConsoleError = console.error;
@@ -63,6 +64,13 @@ jest.mock('../../../../services/authSessionService', () => ({
 jest.mock('../../../../services/messageService', () => ({
   messageService: {
     getRoomMessagesHistory: (...args: any[]) => mockGetRoomMessagesHistory(...args),
+  },
+}));
+
+jest.mock('../../../../services/roomSupportService', () => ({
+  roomSupportService: {
+    getSupportConfig: (...args: any[]) => mockGetSupportConfig(...args),
+    donateToRooms: jest.fn(),
   },
 }));
 
@@ -136,6 +144,7 @@ describe('RoomChatScreen design contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetRoomMessagesHistory.mockResolvedValue({ items: [], hasMore: false, nextBeforeId: null });
+    mockGetSupportConfig.mockResolvedValue({ enabled: false, projectId: 0, defaultAmount: 20, cooldownHours: 24 });
   });
 
   it('renders key zones and header container', async () => {
@@ -234,5 +243,35 @@ describe('RoomChatScreen design contract', () => {
       expect(screen.getByTestId('roomchat-reader-card')).toBeTruthy();
       expect(screen.getByTestId('roomchat-input-bar')).toBeTruthy();
     });
+  });
+
+  it('shows listener banner and hides join call button in listener mode', async () => {
+    mockAuthorizedFetch.mockResolvedValue(jsonResponse({
+      id: 42,
+      bookCode: '',
+      myRole: 'member',
+    }));
+
+    (global as any).fetch = jest.fn().mockResolvedValue(jsonResponse([]));
+
+    const navigation = createNavigation();
+    const routeWithListener = {
+      ...baseRoute,
+      params: {
+        ...baseRoute.params,
+        listenerMode: true,
+      },
+    };
+    const screen = render(
+      <RoomChatScreen
+        route={routeWithListener as any}
+        navigation={navigation as any}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('chat.listenerMode')).toBeTruthy();
+    });
+    expect(screen.queryByText('chat.joinCall')).toBeNull();
   });
 });

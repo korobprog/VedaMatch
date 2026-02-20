@@ -90,6 +90,12 @@ export interface DonateRequest {
     karmaMessage?: string;
     isAnonymous: boolean;
     wantsCertificate: boolean;
+    sourceService?: 'rooms' | 'seva' | 'travel' | 'multimedia' | 'other' | 'unknown';
+    sourceTrigger?: 'support_prompt' | 'donate_modal' | 'campaign_banner' | 'manual' | 'unknown';
+    sourceRoomId?: number;
+    sourceContext?: string;
+    platformContributionEnabled?: boolean;
+    platformContributionPercent?: number;
 }
 
 export interface DonateResponse {

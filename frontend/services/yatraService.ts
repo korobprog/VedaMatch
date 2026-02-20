@@ -5,7 +5,7 @@ import {
     YatraListResponse, MyYatrasResponse, YatraParticipant,
     Shelter, ShelterFilters, ShelterCreateData, ShelterListResponse,
     ShelterReview, ShelterReviewCreateData,
-    YatraReview, YatraReviewCreateData
+    YatraReview, YatraReviewCreateData, YatraPublishData
 } from '../types/yatra';
 import { yatraCacheService } from './yatraCacheService';
 import { getGodModeQueryParams } from './godModeService';
@@ -131,12 +131,22 @@ class YatraService {
         }
     }
 
-    async publishYatra(id: number): Promise<void> {
+    async publishYatra(id: number, data?: YatraPublishData): Promise<void> {
         try {
             const headers = await this.getHeaders();
-            await axios.post(`${API_PATH}/yatra/${id}/publish`, {}, { headers });
+            await axios.post(`${API_PATH}/yatra/${id}/publish`, data || {}, { headers });
         } catch (error) {
             console.error(`Error publishing yatra ${id}:`, error);
+            throw error;
+        }
+    }
+
+    async stopYatra(id: number): Promise<void> {
+        try {
+            const headers = await this.getHeaders();
+            await axios.post(`${API_PATH}/yatra/${id}/stop`, {}, { headers });
+        } catch (error) {
+            console.error(`Error stopping yatra ${id}:`, error);
             throw error;
         }
     }
@@ -424,6 +434,10 @@ class YatraService {
             id: yatra.id ?? yatra.ID ?? 0,
             participantCount: yatra.participantCount ?? 0,
             viewsCount: yatra.viewsCount ?? 0,
+            billingState: yatra.billingState ?? 'active',
+            billingPaused: !!yatra.billingPaused,
+            billingPauseReason: yatra.billingPauseReason ?? 'none',
+            dailyFeeLkm: typeof yatra.dailyFeeLkm === 'number' ? yatra.dailyFeeLkm : 0,
         };
     }
 

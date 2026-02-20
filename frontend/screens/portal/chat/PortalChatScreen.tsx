@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getMediaUrl } from '../../../utils/url';
@@ -12,6 +12,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { CreateRoomModal } from './CreateRoomModal';
 import { InviteFriendModal } from './InviteFriendModal';
 import { EditRoomImageModal } from './EditRoomImageModal';
+import { OpenRoomJoinModal } from './OpenRoomJoinModal';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
@@ -40,7 +41,7 @@ export const PortalChatScreen: React.FC = () => {
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
     const { user } = useUser();
-    const { colors, components } = useRoleTheme(user?.role, isDarkMode);
+    const { colors } = useRoleTheme(user?.role, isDarkMode);
 
     const [rooms, setRooms] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -51,8 +52,15 @@ export const PortalChatScreen: React.FC = () => {
     const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
     const [selectedRoomImageUrl, setSelectedRoomImageUrl] = useState<string>('');
     const [joiningRoomId, setJoiningRoomId] = useState<number | null>(null);
+    const [activeTab, setActiveTab] = useState<'my' | 'open'>('my');
+    const [openJoinRoom, setOpenJoinRoom] = useState<any | null>(null);
+    const [joinAsListener, setJoinAsListener] = useState(false);
+    const [preJoinLoading, setPreJoinLoading] = useState(false);
     const isPhotoBg = portalBackgroundType === 'image';
     const triggerTapFeedback = usePressFeedback();
+    const myRooms = useMemo(() => rooms.filter((room) => room?.isMember === true), [rooms]);
+    const openRooms = useMemo(() => rooms.filter((room) => room?.isPublic === true), [rooms]);
+    const visibleRooms = activeTab === 'my' ? myRooms : openRooms;
 
     const fetchRooms = async () => {
         if (!user?.ID) {
@@ -88,7 +96,7 @@ export const PortalChatScreen: React.FC = () => {
         fetchRooms();
     };
 
-    const openRoom = async (room: any) => {
+    const openRoom = async (room: any, listenerMode = false) => {
         const roomID = Number(room?.ID);
         if (!Number.isFinite(roomID) || roomID <= 0) {
             return;
@@ -116,7 +124,32 @@ export const PortalChatScreen: React.FC = () => {
             }
         }
 
-        navigation.navigate('RoomChat', { roomId: roomID, roomName: room.name });
+        navigation.navigate('RoomChat', {
+            roomId: roomID,
+            roomName: room.name,
+            listenerMode,
+            showSupportPrompt: true,
+        });
+    };
+
+    const handleRoomPress = (room: any) => {
+        if (activeTab === 'open') {
+            setJoinAsListener(false);
+            setOpenJoinRoom(room);
+            return;
+        }
+        void openRoom(room, false);
+    };
+
+    const handleConfirmOpenJoin = async () => {
+        if (!openJoinRoom || preJoinLoading) return;
+        setPreJoinLoading(true);
+        try {
+            await openRoom(openJoinRoom, joinAsListener);
+            setOpenJoinRoom(null);
+        } finally {
+            setPreJoinLoading(false);
+        }
     };
 
     const renderItem = ({ item }: { item: any }) => {
@@ -137,13 +170,13 @@ export const PortalChatScreen: React.FC = () => {
                 style={[
                     styles.chatItem,
                     {
-                        backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surfaceElevated,
-                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.32)' : colors.border,
+                        backgroundColor: isPhotoBg ? 'rgba(0,0,0,0.5)' : colors.surfaceElevated,
+                        borderColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : colors.border,
                     },
                 ]}
                 onPress={() => {
                     triggerTapFeedback();
-                    void openRoom(item);
+                    handleRoomPress(item);
                 }}
                 onLongPress={() => {
                     const actions: Array<{ text: string; onPress?: () => void; style?: 'cancel' | 'default' | 'destructive' }> = [];
@@ -208,6 +241,11 @@ export const PortalChatScreen: React.FC = () => {
                                 {roomMembers}
                             </Text>
                         </View>
+                        <View style={[styles.visibilityBadge, { backgroundColor: item.isPublic ? 'rgba(34,197,94,0.18)' : 'rgba(148,163,184,0.24)' }]}>
+                            <Text style={[styles.visibilityText, { color: item.isPublic ? '#15803d' : (isPhotoBg ? '#FFFFFF' : colors.textSecondary) }]}>
+                                {item.isPublic ? (t('chat.publicRoom') || 'Публичная') : (t('chat.privateRoom') || 'Приватная')}
+                            </Text>
+                        </View>
                         <Text style={[styles.metaDate, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : colors.textSecondary }]}>
                             {createdAt.toLocaleDateString(i18n.language)}
                         </Text>
@@ -236,10 +274,10 @@ export const PortalChatScreen: React.FC = () => {
         <ProtectedScreen>
             <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : colors.background }]}>
                 <FlatList
-                    data={rooms}
+                    data={visibleRooms}
                     keyExtractor={item => item.ID.toString()}
                     renderItem={renderItem}
-                    contentContainerStyle={rooms.length ? styles.list : styles.listEmpty}
+                    contentContainerStyle={visibleRooms.length ? styles.list : styles.listEmpty}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.accent]} />
                     }
@@ -248,12 +286,42 @@ export const PortalChatScreen: React.FC = () => {
                             <View>
                                 <Text style={[styles.title, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>Комнаты</Text>
                                 <Text style={[styles.subtitle, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                    {rooms.length ? `Доступно комнат: ${rooms.length}` : 'Обсуждения, круги и сообщества'}
+                                    {visibleRooms.length
+                                        ? `${t(activeTab === 'my' ? 'chat.myRoomsTab' : 'chat.openRoomsTab')}: ${visibleRooms.length}`
+                                        : (activeTab === 'my' ? (t('chat.noRooms') || 'Комнаты не найдены') : (t('chat.openRoomsEmpty') || 'Открытых комнат пока нет'))}
                                 </Text>
                             </View>
                             <View style={[styles.countBadge, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.accentSoft, borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border }]}>
                                 <MessageCircle size={14} color={isPhotoBg ? '#FFFFFF' : colors.accent} />
-                                <Text style={[styles.countText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{rooms.length}</Text>
+                                <Text style={[styles.countText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{visibleRooms.length}</Text>
+                            </View>
+                            <View style={[styles.tabBar, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surfaceElevated, borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border }]}>
+                                <TouchableOpacity
+                                    testID="rooms-tab-my"
+                                    activeOpacity={0.9}
+                                    onPress={() => setActiveTab('my')}
+                                    style={[
+                                        styles.tabButton,
+                                        activeTab === 'my' && { backgroundColor: colors.accent },
+                                    ]}
+                                >
+                                    <Text style={[styles.tabButtonText, { color: activeTab === 'my' ? '#fff' : (isPhotoBg ? '#fff' : colors.textSecondary) }]}>
+                                        {t('chat.myRoomsTab')}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    testID="rooms-tab-open"
+                                    activeOpacity={0.9}
+                                    onPress={() => setActiveTab('open')}
+                                    style={[
+                                        styles.tabButton,
+                                        activeTab === 'open' && { backgroundColor: colors.accent },
+                                    ]}
+                                >
+                                    <Text style={[styles.tabButtonText, { color: activeTab === 'open' ? '#fff' : (isPhotoBg ? '#fff' : colors.textSecondary) }]}>
+                                        {t('chat.openRoomsTab')}
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
                     }
@@ -261,8 +329,8 @@ export const PortalChatScreen: React.FC = () => {
                         <View style={[
                             styles.emptyContainer,
                             {
-                                backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.14)' : colors.surfaceElevated,
-                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.3)' : colors.border,
+                                backgroundColor: isPhotoBg ? 'rgba(0,0,0,0.5)' : colors.surfaceElevated,
+                                borderColor: isPhotoBg ? 'rgba(255,255,255,0.15)' : colors.border,
                             },
                         ]}>
                             <View style={[styles.emptyIcon, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.2)' : colors.accentSoft }]}>
@@ -270,19 +338,23 @@ export const PortalChatScreen: React.FC = () => {
                             </View>
                             <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('chat.noRooms')}</Text>
                             <Text style={[styles.emptySub, { color: isPhotoBg ? 'rgba(255,255,255,0.84)' : colors.textSecondary }]}>
-                                Создайте первую комнату и пригласите друзей
+                                {activeTab === 'my'
+                                    ? 'Создайте первую комнату и пригласите друзей'
+                                    : (t('chat.openRoomsEmpty') || 'Открытых комнат пока нет')}
                             </Text>
-                            <TouchableOpacity
-                                activeOpacity={0.88}
-                                style={[styles.emptyButton, { backgroundColor: colors.accent }]}
-                                onPress={() => {
-                                    triggerTapFeedback();
-                                    setModalVisible(true);
-                                }}
-                            >
-                                <Plus size={16} color="#fff" />
-                                <Text style={styles.emptyButtonText}>Новая комната</Text>
-                            </TouchableOpacity>
+                            {activeTab === 'my' && (
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[styles.emptyButton, { backgroundColor: colors.accent }]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        setModalVisible(true);
+                                    }}
+                                >
+                                    <Plus size={16} color="#fff" />
+                                    <Text style={styles.emptyButtonText}>Новая комната</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     }
                 />
@@ -327,6 +399,19 @@ export const PortalChatScreen: React.FC = () => {
                         />
                     </>
                 )}
+
+                <OpenRoomJoinModal
+                    visible={Boolean(openJoinRoom)}
+                    roomName={openJoinRoom?.name}
+                    joinAsListener={joinAsListener}
+                    onChangeJoinAsListener={setJoinAsListener}
+                    onCancel={() => setOpenJoinRoom(null)}
+                    onConfirm={handleConfirmOpenJoin}
+                    loading={preJoinLoading}
+                    isPhotoBg={isPhotoBg}
+                    colors={colors}
+                    t={t}
+                />
             </View>
         </ProtectedScreen>
     );
@@ -339,9 +424,26 @@ const styles = StyleSheet.create({
     listEmpty: { flexGrow: 1, padding: 16, paddingBottom: 120 },
     headerBlock: {
         marginBottom: 14,
+        gap: 10,
+    },
+    tabBar: {
+        minHeight: 46,
+        borderRadius: 14,
+        borderWidth: 1,
+        padding: 4,
         flexDirection: 'row',
+        gap: 6,
+    },
+    tabButton: {
+        flex: 1,
+        minHeight: 36,
+        borderRadius: 10,
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
+    },
+    tabButtonText: {
+        fontSize: 13,
+        fontWeight: '700',
     },
     title: {
         fontSize: 28,
@@ -418,8 +520,8 @@ const styles = StyleSheet.create({
     metaRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
         marginTop: 8,
+        gap: 8,
     },
     metaChip: {
         minHeight: 24,
@@ -436,6 +538,17 @@ const styles = StyleSheet.create({
     metaDate: {
         fontSize: 12,
         fontWeight: '600',
+        marginLeft: 'auto',
+    },
+    visibilityBadge: {
+        paddingHorizontal: 8,
+        minHeight: 24,
+        borderRadius: 999,
+        justifyContent: 'center',
+    },
+    visibilityText: {
+        fontSize: 11,
+        fontWeight: '700',
     },
     chevronWrap: {
         width: 32,

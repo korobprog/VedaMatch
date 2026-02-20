@@ -117,6 +117,29 @@ func isAllowedAvatarContentType(contentType string) bool {
 	return strings.HasPrefix(contentType, "image/")
 }
 
+func buildDeletedUserPlaceholder(userID uint, now time.Time) string {
+	return fmt.Sprintf("deleted_%d_%d", userID, now.Unix())
+}
+
+func removeLocalUploadByURL(mediaURL string) error {
+	url := strings.TrimSpace(mediaURL)
+	if url == "" {
+		return nil
+	}
+	if !strings.HasPrefix(url, "/uploads/") {
+		return nil
+	}
+	relative := strings.TrimPrefix(url, "/")
+	localPath := filepath.Clean("./" + relative)
+	if !strings.HasPrefix(localPath, "uploads"+string(filepath.Separator)) {
+		return fmt.Errorf("unsafe local upload path: %s", mediaURL)
+	}
+	if err := os.Remove(localPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func buildTokenPairResponse(message string, user models.User, sessionID uint, accessToken string, accessTokenExpiresAt time.Time, refreshToken string, refreshTokenExpiresAt time.Time) fiber.Map {
 	response := fiber.Map{
 		"message": message,
@@ -588,6 +611,165 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		"ok":              true,
 		"revoked":         result.RowsAffected,
 		"pushInvalidated": pushInvalidated,
+	})
+}
+
+func (h *AuthHandler) RequestAccountDeletion(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+			"code":  "unauthorized",
+		})
+	}
+
+	effectiveAt := time.Now().UTC().Format(time.RFC3339)
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"success":     true,
+		"status":      "scheduled",
+		"effectiveAt": effectiveAt,
+	})
+}
+
+func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+			"code":  "unauthorized",
+		})
+	}
+
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User not found",
+				"code":  "user_not_found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not load user",
+			"code":  "user_load_failed",
+		})
+	}
+
+	var userMedia []models.Media
+	if err := database.DB.Where("user_id = ?", userID).Find(&userMedia).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not prepare account deletion",
+			"code":  "media_load_failed",
+		})
+	}
+
+	now := time.Now().UTC()
+	placeholder := buildDeletedUserPlaceholder(userID, now)
+	deletedEmail := fmt.Sprintf("%s@deleted.local", placeholder)
+
+	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.AuthSession{}).
+			Where("user_id = ? AND revoked_at IS NULL", userID).
+			Updates(map[string]interface{}{"revoked_at": now, "updated_at": now}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.UserDeviceToken{}).
+			Where("user_id = ? AND invalidated_at IS NULL", userID).
+			Updates(map[string]interface{}{"invalidated_at": now, "updated_at": now}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("user_id = ? OR friend_id = ?", userID, userID).Delete(&models.Friend{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? OR blocked_id = ?", userID, userID).Delete(&models.Block{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&models.UserTag{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&models.UserPortalLayout{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&models.UserNewsSubscription{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&models.UserNewsFavorite{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? OR candidate_id = ?", userID, userID).Delete(&models.DatingFavorite{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", userID).Delete(&models.Media{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+			"karmic_name":          placeholder,
+			"spiritual_name":       "",
+			"email":                deletedEmail,
+			"password":             "",
+			"gender":               "",
+			"country":              "",
+			"city":                 "",
+			"latitude":             nil,
+			"longitude":            nil,
+			"identity":             "",
+			"diet":                 "",
+			"madh":                 "",
+			"yoga_style":           "",
+			"guna":                 "",
+			"mentor":               "",
+			"dob":                  "",
+			"bio":                  "",
+			"interests":            "",
+			"looking_for":          "",
+			"intentions":           "",
+			"skills":               "",
+			"industry":             "",
+			"looking_for_business": "",
+			"marital_status":       "",
+			"birth_time":           "",
+			"birth_place_link":     "",
+			"dating_enabled":       false,
+			"is_profile_complete":  false,
+			"rag_file_id":          "",
+			"avatar_url":           "",
+			"push_token":           "",
+			"device_id":            "",
+			"yatra":                "",
+			"timezone":             "",
+			"updated_at":           now,
+		}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Delete(&user).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if txErr != nil {
+		log.Printf("[AUTH] account deletion failed for user=%d: %v", userID, txErr)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not delete account",
+			"code":  "account_deletion_failed",
+		})
+	}
+
+	for _, media := range userMedia {
+		if err := removeLocalUploadByURL(media.URL); err != nil {
+			log.Printf("[AUTH] failed to remove local media after account deletion user=%d url=%s err=%v", userID, media.URL, err)
+		}
+	}
+	if err := removeLocalUploadByURL(user.AvatarURL); err != nil {
+		log.Printf("[AUTH] failed to remove avatar after account deletion user=%d url=%s err=%v", userID, user.AvatarURL, err)
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"status":  "deleted",
 	})
 }
 

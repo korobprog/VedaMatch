@@ -18,12 +18,14 @@ import {
     PlayCircle,
     Loader2,
     ArrowLeft,
-    Heart
+    Heart,
+    ListPlus,
 } from 'lucide-react-native';
 import { multimediaService, MediaTrack, MediaCategory } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { multimediaSupportService, MultimediaSupportConfig } from '../../services/multimediaSupportService';
 
 export const AudioScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -39,6 +41,9 @@ export const AudioScreen: React.FC = () => {
     const [search, setSearch] = useState('');
     const [favorites, setFavorites] = useState<Set<number>>(new Set());
     const [togglingFavorite, setTogglingFavorite] = useState<number | null>(null);
+    const [supportConfig, setSupportConfig] = useState<MultimediaSupportConfig | null>(null);
+    const [showSupportPrompt, setShowSupportPrompt] = useState(false);
+    const [supportSubmitting, setSupportSubmitting] = useState(false);
 
     const MADH_OPTIONS = [
         { id: 'iskcon', label: 'ISKCON' },
@@ -111,6 +116,29 @@ export const AudioScreen: React.FC = () => {
         loadData();
     }, [selectedCategory, selectedMadh]);
 
+    useEffect(() => {
+        let cancelled = false;
+        const loadSupport = async () => {
+            if (!user?.ID) return;
+            try {
+                const cfg = await multimediaSupportService.getSupportConfig();
+                if (cancelled) return;
+                setSupportConfig(cfg);
+                if (!cfg.enabled || cfg.projectId <= 0) return;
+                const lastPrompt = await multimediaSupportService.getPromptCooldown(user.ID);
+                const cooldownMs = Math.max(1, cfg.cooldownHours) * 60 * 60 * 1000;
+                if (Date.now() - lastPrompt >= cooldownMs) {
+                    const interactions = await multimediaSupportService.incrementInteractions(user.ID);
+                    if (interactions >= 5) setShowSupportPrompt(true);
+                }
+            } catch (e) {
+                console.warn('Failed to load multimedia support', e);
+            }
+        };
+        void loadSupport();
+        return () => { cancelled = true; };
+    }, [user?.ID]);
+
     const handleSearch = () => {
         setLoading(true);
         loadData();
@@ -123,7 +151,12 @@ export const AudioScreen: React.FC = () => {
         return (
             <TouchableOpacity
                 style={[styles.trackCard, { borderBottomColor: roleColors.border }]}
-                onPress={() => navigation.navigate('AudioPlayer', { track: item })}
+                onPress={async () => {
+                    if (user?.ID) {
+                        await multimediaSupportService.incrementInteractions(user.ID);
+                    }
+                    navigation.navigate('AudioPlayer', { track: item });
+                }}
             >
                 <View style={styles.thumbContainer}>
                     {item.thumbnailUrl ? (
@@ -144,23 +177,73 @@ export const AudioScreen: React.FC = () => {
                     <Text style={[styles.duration, { color: roleColors.textSecondary }]}>{multimediaService.formatDuration(item.duration)}</Text>
                 </View>
 
-                <TouchableOpacity
-                    style={styles.favButton}
-                    onPress={() => toggleFavorite(item.ID)}
-                    disabled={isToggling}
-                >
-                    {isToggling ? (
-                        <Loader2 size={20} color={roleColors.accent} />
-                    ) : (
-                        <Heart
-                            size={20}
-                            color={isFavorite ? roleColors.danger : roleColors.textSecondary}
-                            fill={isFavorite ? roleColors.danger : 'transparent'}
-                        />
-                    )}
-                </TouchableOpacity>
+                <View style={styles.rightActions}>
+                    <TouchableOpacity
+                        style={styles.favButton}
+                        onPress={async () => {
+                            try {
+                                const playlists = await multimediaService.getPlaylists(1, 100);
+                                if (!playlists.playlists.length) {
+                                    Alert.alert('Плейлисты', 'Сначала создайте плейлист в разделе Плейлисты');
+                                    return;
+                                }
+                                await multimediaService.addTrackToPlaylist(playlists.playlists[0].ID, item.ID);
+                                Alert.alert('Плейлисты', `Добавлено в "${playlists.playlists[0].name}"`);
+                            } catch {
+                                Alert.alert('Ошибка', 'Не удалось добавить в плейлист');
+                            }
+                        }}
+                    >
+                        <ListPlus size={20} color={roleColors.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.favButton}
+                        onPress={() => toggleFavorite(item.ID)}
+                        disabled={isToggling}
+                    >
+                        {isToggling ? (
+                            <Loader2 size={20} color={roleColors.accent} />
+                        ) : (
+                            <Heart
+                                size={20}
+                                color={isFavorite ? roleColors.danger : roleColors.textSecondary}
+                                fill={isFavorite ? roleColors.danger : 'transparent'}
+                            />
+                        )}
+                    </TouchableOpacity>
+                </View>
             </TouchableOpacity>
         );
+    };
+
+    const supportLater = async () => {
+        if (user?.ID) {
+            await multimediaSupportService.setPromptCooldown(user.ID);
+        }
+        setShowSupportPrompt(false);
+    };
+
+    const supportDonate = async () => {
+        if (!user?.ID || !supportConfig || supportSubmitting) return;
+        setSupportSubmitting(true);
+        try {
+            await multimediaSupportService.donateToMultimedia(
+                supportConfig.projectId,
+                Math.max(1, supportConfig.defaultAmount || 20),
+                false,
+                'Поддержка Audio',
+                'support_prompt',
+                'AudioScreen',
+            );
+            await multimediaSupportService.setPromptCooldown(user.ID);
+            await multimediaSupportService.resetInteractions(user.ID);
+            setShowSupportPrompt(false);
+            Alert.alert('Спасибо', 'Ваш донат принят');
+        } catch (e: any) {
+            Alert.alert('Ошибка', e?.message || 'Не удалось выполнить донат');
+        } finally {
+            setSupportSubmitting(false);
+        }
     };
 
     return (
@@ -189,6 +272,21 @@ export const AudioScreen: React.FC = () => {
                     />
                 </View>
             </View>
+
+            {showSupportPrompt && supportConfig?.enabled && supportConfig.projectId > 0 && (
+                <View style={[styles.supportCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Поддержать медиа</Text>
+                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>Добровольный донат {Math.max(1, supportConfig.defaultAmount || 20)} LKM</Text>
+                    <View style={styles.supportRow}>
+                        <TouchableOpacity style={[styles.supportBtn, { borderColor: roleColors.border }]} onPress={supportLater}>
+                            <Text style={{ color: roleColors.textSecondary }}>Позже</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.supportBtn, { backgroundColor: roleColors.accent, borderColor: roleColors.accent }]} onPress={supportDonate}>
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Поддержать'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
 
             {/* Matth Filter */}
             <View style={[styles.categoriesSection, { paddingTop: 0 }]}>
@@ -391,6 +489,37 @@ const styles = StyleSheet.create({
     },
     favButton: {
         padding: 8,
+    },
+    rightActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    supportCard: {
+        marginHorizontal: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+    },
+    supportTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    supportText: {
+        marginTop: 4,
+        fontSize: 12,
+    },
+    supportRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginTop: 10,
+        gap: 8,
+    },
+    supportBtn: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
     },
     center: {
         flex: 1,

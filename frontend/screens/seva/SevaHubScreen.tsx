@@ -6,6 +6,7 @@ import { CharityProject } from '../../types/charity';
 import { charityService } from '../../services/charityService';
 import { useWallet } from '../../context/WalletContext';
 import { DonateModal } from '../../components/seva/DonateModal';
+import { supportAttributionService } from '../../services/supportAttributionService';
 
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
@@ -84,7 +85,16 @@ const SevaHubScreen: React.FC = () => {
                 isAnonymous,
                 karmaMessage: message,
                 includeTips: tips,
-                wantsCertificate: false
+                wantsCertificate: false,
+                sourceService: 'seva',
+                sourceTrigger: 'donate_modal',
+                sourceContext: supportAttributionService.serializeContext(
+                    supportAttributionService.build('seva', 'donate_modal', {
+                        screen: 'SevaHub',
+                        projectId: selectedProject.id,
+                    }).sourceContext,
+                ),
+                platformContributionEnabled: tips,
             });
 
             // Success

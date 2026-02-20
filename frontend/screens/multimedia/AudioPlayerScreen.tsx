@@ -8,6 +8,7 @@ import {
     Dimensions,
     SafeAreaView,
     StatusBar,
+    Alert,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
@@ -21,7 +22,10 @@ import {
     Volume2,
     MoreHorizontal,
     Heart,
-    Music
+    Music,
+    Download,
+    Timer,
+    Gauge,
 } from 'lucide-react-native';
 import Slider from '@react-native-community/slider';
 import TrackPlayer, {
@@ -35,6 +39,7 @@ import { MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { multimediaOfflineService } from '../../services/multimediaOfflineService';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +53,9 @@ export const AudioPlayerScreen: React.FC = () => {
     const progress = useProgress();
     const { track } = route.params as { track: MediaTrack };
     const [volume, setVolume] = useState(0.7);
+    const [rate, setRate] = useState(1);
+    const [sleepTimer, setSleepTimer] = useState<NodeJS.Timeout | null>(null);
+    const [offlineProgress, setOfflineProgress] = useState<number | null>(null);
 
     const isPlaying = playbackState.state === State.Playing;
 
@@ -79,6 +87,49 @@ export const AudioPlayerScreen: React.FC = () => {
         setVolume(value);
         await TrackPlayer.setVolume(value);
     };
+
+    const changeRate = async () => {
+        const rates = [0.5, 1, 1.25, 1.5, 2];
+        const currentIndex = rates.findIndex((r) => r === rate);
+        const nextRate = rates[(currentIndex + 1) % rates.length];
+        setRate(nextRate);
+        await TrackPlayer.setRate(nextRate);
+    };
+
+    const setSleepTimerMinutes = (minutes: number) => {
+        if (sleepTimer) {
+            clearTimeout(sleepTimer);
+        }
+        if (minutes <= 0) {
+            setSleepTimer(null);
+            Alert.alert('Sleep timer', 'Таймер выключен');
+            return;
+        }
+        const timer = setTimeout(async () => {
+            await audioPlayerService.pause();
+            Alert.alert('Sleep timer', 'Воспроизведение остановлено по таймеру');
+        }, minutes * 60 * 1000);
+        setSleepTimer(timer);
+        Alert.alert('Sleep timer', `Таймер установлен на ${minutes} мин`);
+    };
+
+    const downloadOffline = async () => {
+        try {
+            setOfflineProgress(0);
+            await multimediaOfflineService.downloadTrack(track, (p) => setOfflineProgress(p));
+            setOfflineProgress(null);
+            Alert.alert('Оффлайн', 'Трек сохранён для оффлайн-прослушивания');
+        } catch (e: any) {
+            setOfflineProgress(null);
+            Alert.alert('Оффлайн', e?.message || 'Не удалось скачать трек');
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            if (sleepTimer) clearTimeout(sleepTimer);
+        };
+    }, [sleepTimer]);
 
     return (
         <View style={styles.container}>
@@ -128,6 +179,39 @@ export const AudioPlayerScreen: React.FC = () => {
                         </View>
                         <TouchableOpacity style={styles.favButton}>
                             <Heart size={28} color={colors.textPrimary} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.utilityRow}>
+                        <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={downloadOffline}>
+                            <Download size={16} color={colors.textPrimary} />
+                            <Text style={[styles.utilityText, { color: colors.textPrimary }]}>
+                                {offlineProgress !== null ? `${Math.round(offlineProgress * 100)}%` : 'Оффлайн'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={changeRate}>
+                            <Gauge size={16} color={colors.textPrimary} />
+                            <Text style={[styles.utilityText, { color: colors.textPrimary }]}>{rate}x</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={() => setSleepTimerMinutes(20)}>
+                            <Timer size={16} color={colors.textPrimary} />
+                            <Text style={[styles.utilityText, { color: colors.textPrimary }]}>20m</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.sleepPresetsRow}>
+                        {[10, 20, 30, 60].map((minutes) => (
+                            <TouchableOpacity
+                                key={minutes}
+                                style={[styles.sleepPresetBtn, { borderColor: colors.border }]}
+                                onPress={() => setSleepTimerMinutes(minutes)}
+                            >
+                                <Text style={[styles.sleepPresetText, { color: colors.textSecondary }]}>{minutes}m</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <TouchableOpacity
+                            style={[styles.sleepPresetBtn, { borderColor: colors.border }]}
+                            onPress={() => setSleepTimerMinutes(0)}
+                        >
+                            <Text style={[styles.sleepPresetText, { color: colors.textSecondary }]}>off</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -273,6 +357,39 @@ const styles = StyleSheet.create({
     },
     favButton: {
         padding: 5,
+    },
+    utilityRow: {
+        marginTop: 12,
+        flexDirection: 'row',
+        gap: 8,
+    },
+    utilityBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+    },
+    utilityText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    sleepPresetsRow: {
+        marginTop: 8,
+        flexDirection: 'row',
+        gap: 8,
+        flexWrap: 'wrap',
+    },
+    sleepPresetBtn: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    sleepPresetText: {
+        fontSize: 11,
+        fontWeight: '600',
     },
     progressContainer: {
         paddingHorizontal: 25,

@@ -41,6 +41,18 @@ type roomMemberUserSummary struct {
 	AvatarURL     string `json:"avatarUrl"`
 }
 
+type roomSupportConfigResponse struct {
+	Enabled                     bool   `json:"enabled"`
+	ProjectID                   int    `json:"projectId"`
+	DefaultAmount               int    `json:"defaultAmount"`
+	CooldownHours               int    `json:"cooldownHours"`
+	PlatformContributionEnabled bool   `json:"platformContributionEnabled"`
+	PlatformContributionDefault int    `json:"platformContributionDefault"`
+	ConfigSource                string `json:"configSource"`
+	TitleKey                    string `json:"titleKey"`
+	DescriptionKey              string `json:"descriptionKey"`
+}
+
 func NewRoomHandler() *RoomHandler {
 	return &RoomHandler{}
 }
@@ -557,6 +569,36 @@ func (h *RoomHandler) LeaveRoom(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"ok": true})
+}
+
+func (h *RoomHandler) GetSupportConfig(c *fiber.Ctx) error {
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	cfg := services.ResolveSupportConfig("rooms")
+
+	return c.JSON(roomSupportConfigResponse{
+		Enabled:                     cfg.Enabled,
+		ProjectID:                   cfg.ProjectID,
+		DefaultAmount:               cfg.DefaultAmount,
+		CooldownHours:               cfg.CooldownHours,
+		PlatformContributionEnabled: cfg.PlatformContributionEnabled,
+		PlatformContributionDefault: cfg.PlatformContributionDefault,
+		ConfigSource:                cfg.ConfigSource,
+		TitleKey:                    "chat.roomsSupportTitle",
+		DescriptionKey:              "chat.roomsSupportBenefit1",
+	})
+}
+
+func (h *RoomHandler) GetUnifiedSupportConfig(c *fiber.Ctx) error {
+	actorID := middleware.GetUserID(c)
+	if actorID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	service := strings.TrimSpace(c.Query("service"))
+	cfg := services.ResolveSupportConfig(service)
+	return c.JSON(cfg)
 }
 
 func (h *RoomHandler) CreateInviteLink(c *fiber.Ctx) error {

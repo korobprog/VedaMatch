@@ -86,6 +86,9 @@ func main() {
 	// Start Charity Report Worker (monitors reporting deadlines and sends warnings)
 	workers.StartCharityReportWorker()
 
+	// Start Yatra billing worker (daily LKM charging, pause/resume).
+	workers.StartYatraBillingWorker()
+
 	// Start Video Transcoding Worker (background job for video processing)
 	transcodingWorker := workers.StartWorkerInBackground(2) // 2 concurrent workers
 	defer transcodingWorker.Stop()
@@ -202,6 +205,7 @@ func main() {
 	roomSFUHandler := handlers.NewRoomSFUHandler()
 	adminHandler := handlers.NewAdminHandler()
 	adminFinancialHandler := handlers.NewAdminFinancialHandler()
+	adminFinanceRBACHandler := handlers.NewAdminFinanceRBACHandler()
 	aiHandler := handlers.NewAiHandler()
 	mediaHandler := handlers.NewMediaHandler(hub)
 	datingHandler := handlers.NewDatingHandler(aiChatService)
@@ -404,9 +408,21 @@ func main() {
 	admin.Post("/settings", adminHandler.UpdateSystemSettings)
 	admin.Post("/push/test", adminHandler.SendTestPush)
 	admin.Get("/push/health", adminHandler.GetPushHealth)
+	admin.Get("/push/health/yatra", adminHandler.GetYatraPushHealth)
 	admin.Get("/platform/health", adminHandler.GetPlatformHealth)
 	admin.Get("/education/tutor/metrics", adminHandler.GetEducationTutorMetrics)
 	admin.Get("/financials/stats", adminFinancialHandler.GetFinancialStats)
+	admin.Get("/funds/summary", adminFinancialHandler.GetFundsSummary)
+	admin.Get("/funds/ledger", adminFinancialHandler.GetFundsLedger)
+	admin.Get("/funds/ledger/export.csv", adminFinancialHandler.ExportFundsLedgerCSV)
+	admin.Get("/funds/expenses", adminFinancialHandler.ListExpenseRequests)
+	admin.Post("/funds/expenses", adminFinancialHandler.CreateExpenseRequest)
+	admin.Post("/funds/expenses/:id/approve", adminFinancialHandler.ApproveExpenseRequest)
+	admin.Post("/funds/expenses/:id/reject", adminFinancialHandler.RejectExpenseRequest)
+	admin.Get("/funds/permissions", adminFinanceRBACHandler.ListFinancePermissions)
+	admin.Get("/funds/permissions/me", adminFinanceRBACHandler.GetMyFinancePermissions)
+	admin.Post("/funds/permissions/grant", adminFinanceRBACHandler.GrantFinancePermission)
+	admin.Post("/funds/permissions/revoke", adminFinanceRBACHandler.RevokeFinancePermission)
 
 	// RAG Management
 	admin.Get("/rag/corpora", adminHandler.ListGeminiCorpora)
@@ -625,6 +641,8 @@ func main() {
 	protected.Delete("/education/tutor/memory", educationTutorHandler.ClearMemory)
 
 	protected.Put("/update-profile", authHandler.UpdateProfile)
+	protected.Post("/account/deletion-request", authHandler.RequestAccountDeletion)
+	protected.Delete("/account", authHandler.DeleteAccount)
 	protected.Put("/update-push-token", authHandler.UpdatePushToken)
 	protected.Post("/push-tokens/register", authHandler.RegisterPushToken)
 	protected.Post("/push-tokens/unregister", authHandler.UnregisterPushToken)
@@ -677,6 +695,8 @@ func main() {
 	// Room Routes
 	protected.Post("/rooms", roomHandler.CreateRoom)
 	protected.Get("/rooms", roomHandler.GetRooms)
+	protected.Get("/rooms/support-config", roomHandler.GetSupportConfig)
+	protected.Get("/support/config", roomHandler.GetUnifiedSupportConfig)
 	protected.Get("/rooms/:id", roomHandler.GetRoom)
 	protected.Post("/rooms/:id/join", roomHandler.JoinRoom)
 	protected.Post("/rooms/leave", roomHandler.LeaveRoom)
@@ -755,6 +775,11 @@ func main() {
 	protected.Get("/multimedia/favorites", multimediaHandler.GetFavorites)
 	protected.Post("/multimedia/tracks/:id/favorite", multimediaHandler.AddToFavorites)
 	protected.Delete("/multimedia/tracks/:id/favorite", multimediaHandler.RemoveFromFavorites)
+	protected.Get("/multimedia/playlists", multimediaHandler.GetPlaylists)
+	protected.Post("/multimedia/playlists", multimediaHandler.CreatePlaylist)
+	protected.Get("/multimedia/playlists/:id", multimediaHandler.GetPlaylistDetails)
+	protected.Post("/multimedia/playlists/:id/items", multimediaHandler.AddTrackToPlaylist)
+	protected.Delete("/multimedia/playlists/:id/items/:trackId", multimediaHandler.RemoveTrackFromPlaylist)
 
 	// Video Circles
 	protected.Post("/video-circles", videoCircleHandler.CreateVideoCircle)
@@ -852,7 +877,10 @@ func main() {
 	protected.Put("/yatra/:id", yatraHandler.UpdateYatra)
 	protected.Delete("/yatra/:id", yatraHandler.DeleteYatra)
 	protected.Post("/yatra/:id/publish", yatraHandler.PublishYatra)
+	protected.Post("/yatra/:id/stop", yatraHandler.StopYatra)
 	protected.Post("/yatra/:id/join", yatraHandler.JoinYatra)
+	protected.Get("/yatra/:id/chat", yatraHandler.GetYatraChatAccess)
+	protected.Post("/yatra/:id/broadcast", yatraHandler.BroadcastYatra)
 	protected.Get("/yatra/:id/my-participation", yatraHandler.GetMyParticipation)
 	protected.Get("/yatra/:id/participants/pending", yatraHandler.GetPendingParticipants)
 	protected.Post("/yatra/:id/participants/:participantId/approve", yatraHandler.ApproveParticipant)

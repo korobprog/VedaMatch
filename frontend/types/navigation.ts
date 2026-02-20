@@ -34,7 +34,13 @@ export type RootStackParamList = {
     SupportInbox: undefined;
     SupportConversation: { conversationId: number };
     EditProfile: undefined;
-    RoomChat: { roomId: number, roomName: string, isYatraChat?: boolean };
+    RoomChat: {
+        roomId: number;
+        roomName: string;
+        isYatraChat?: boolean;
+        listenerMode?: boolean;
+        showSupportPrompt?: boolean;
+    };
     RoomInviteEntry: { token: string };
     MediaLibrary: { userId: number; readOnly?: boolean };
     EditDatingProfile: { userId: number };
@@ -107,6 +113,9 @@ export type RootStackParamList = {
     VideoTariffsAdminScreen: undefined;
     TVScreen: undefined;
     FavoritesScreen: undefined;
+    PlaylistsScreen: undefined;
+    PlaylistDetail: { playlistId: number; playlistName?: string };
+    OfflineMedia: undefined;
     SeriesScreen: undefined;
     SeriesDetail: { series: any };
     RadioPlayer: { station: any };
@@ -116,6 +125,7 @@ export type RootStackParamList = {
 
     // Travel Routes
     YatraDetail: { yatraId: number };
+    YatraPublish: { yatraId: number };
     ShelterDetail: { shelterId: number };
     CreateYatra: { yatraId?: number } | undefined;
     CreateShelter: { shelterId?: number } | undefined;

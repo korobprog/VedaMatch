@@ -191,6 +191,15 @@ type CharityDonation struct {
 	// Karma message (optional)
 	KarmaMessage string `json:"karmaMessage" gorm:"size:500"`
 
+	// Source attribution for cross-service accounting
+	SourceService string `json:"sourceService" gorm:"size:40;index;default:'unknown'"`
+	SourceTrigger string `json:"sourceTrigger" gorm:"size:60;index;default:'unknown'"`
+	SourceRoomID  *uint  `json:"sourceRoomId" gorm:"index"`
+	SourceContext string `json:"sourceContext" gorm:"type:text"`
+
+	PlatformContributionEnabled bool `json:"platformContributionEnabled" gorm:"default:false"`
+	PlatformContributionAmount  int  `json:"platformContributionAmount" gorm:"default:0"`
+
 	// Status and refund period
 	Status         DonationStatus `json:"status" gorm:"type:varchar(20);default:'pending'"`
 	CanRefundUntil *time.Time     `json:"canRefundUntil"` // 24 hours from creation
@@ -345,10 +354,18 @@ type DonateRequest struct {
 	ProjectID        uint    `json:"projectId" binding:"required"`
 	Amount           int     `json:"amount" binding:"required,min=10"`
 	IncludeTips      bool    `json:"includeTips"`
-	TipsPercent      float32 `json:"tipsPercent"` // Custom tips %
+	TipsPercent      float32 `json:"tipsPercent"` // Legacy custom tips %
 	KarmaMessage     string  `json:"karmaMessage"`
 	IsAnonymous      bool    `json:"isAnonymous"`
 	WantsCertificate bool    `json:"wantsCertificate"`
+
+	SourceService string `json:"sourceService"`
+	SourceTrigger string `json:"sourceTrigger"`
+	SourceContext string `json:"sourceContext"`
+	SourceRoomID  *uint  `json:"sourceRoomId"`
+
+	PlatformContributionEnabled *bool    `json:"platformContributionEnabled"`
+	PlatformContributionPercent *float32 `json:"platformContributionPercent"`
 }
 
 // DonateResponse after successful donation

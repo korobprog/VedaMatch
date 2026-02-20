@@ -48,6 +48,9 @@ import { TVPlayerScreen } from './screens/multimedia/TVPlayerScreen';
 import { FavoritesScreen } from './screens/multimedia/FavoritesScreen';
 import { SeriesScreen } from './screens/multimedia/SeriesScreen';
 import { SeriesDetailScreen } from './screens/multimedia/SeriesDetailScreen';
+import { PlaylistsScreen } from './screens/multimedia/PlaylistsScreen';
+import { PlaylistDetailScreen } from './screens/multimedia/PlaylistDetailScreen';
+import { OfflineMediaScreen } from './screens/multimedia/OfflineMediaScreen';
 
 
 let VoipPushNotification: any;
@@ -128,6 +131,7 @@ import { CafeCartProvider } from './contexts/CafeCartContext';
 import {
   TravelHomeScreen,
   YatraDetailScreen,
+  YatraPublishScreen,
   ShelterDetailScreen,
   CreateYatraScreen,
   CreateShelterScreen,
@@ -496,11 +500,15 @@ const AppContent = () => {
                   <Stack.Screen name="VideoTariffsAdminScreen" component={VideoTariffsAdminScreen} />
                   <Stack.Screen name="TVScreen" component={TVScreen} />
                   <Stack.Screen name="FavoritesScreen" component={FavoritesScreen} />
+                  <Stack.Screen name="PlaylistsScreen" component={PlaylistsScreen} />
+                  <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
+                  <Stack.Screen name="OfflineMedia" component={OfflineMediaScreen} />
                   <Stack.Screen name="SeriesScreen" component={SeriesScreen} />
                   <Stack.Screen name="SeriesDetail" component={SeriesDetailScreen} />
 
                   {/* Travel Routes */}
                   <Stack.Screen name="YatraDetail" component={YatraDetailScreen} options={{ headerShown: false }} />
+                  <Stack.Screen name="YatraPublish" component={YatraPublishScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="ShelterDetail" component={ShelterDetailScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="CreateYatra" component={CreateYatraScreen} options={{ headerShown: true, title: 'Создать тур' }} />
                   <Stack.Screen name="CreateShelter" component={CreateShelterScreen} options={{ headerShown: true, title: 'Добавить жильё' }} />

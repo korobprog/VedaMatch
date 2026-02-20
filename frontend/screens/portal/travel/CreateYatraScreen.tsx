@@ -167,11 +167,25 @@ const CreateYatraScreen = () => {
             if (isEditing) {
                 await yatraService.updateYatra(yatraId, data);
                 Alert.alert('Успех', 'Тур обновлен');
+                navigation.goBack();
             } else {
-                await yatraService.createYatra(data);
-                Alert.alert('Успех', 'Тур создан');
+                const created = await yatraService.createYatra(data);
+                Alert.alert(
+                    'Успех',
+                    'Тур создан. Перейти к публикации?',
+                    [
+                        {
+                            text: 'Позже',
+                            onPress: () => navigation.goBack(),
+                            style: 'cancel',
+                        },
+                        {
+                            text: 'К публикации',
+                            onPress: () => navigation.replace('YatraPublish', { yatraId: created.id }),
+                        },
+                    ]
+                );
             }
-            navigation.goBack();
         } catch (error) {
             Alert.alert('Ошибка', 'Не удалось сохранить тур');
         } finally {

@@ -50,6 +50,7 @@ func Connect() {
 	err = DB.AutoMigrate(
 		// Core models
 		&models.User{}, &models.AuthSession{}, &models.Friend{}, &models.Message{}, &models.Block{},
+		&models.AdminPermissionGrant{},
 		&models.Room{}, &models.RoomMember{}, &models.RoomInviteToken{}, &models.AiModel{}, &models.Media{},
 		&models.Channel{}, &models.ChannelMember{}, &models.ChannelPost{}, &models.ChannelShowcase{},
 		&models.ChannelPostDelivery{},
@@ -97,6 +98,7 @@ func Connect() {
 		// Multimedia Hub models
 		&models.MediaCategory{}, &models.MediaTrack{},
 		&models.RadioStation{}, &models.TVChannel{},
+		&models.UserPlaylist{}, &models.UserPlaylistItem{},
 		&models.UserMediaSuggestion{}, &models.UserMediaFavorite{},
 		&models.UserMediaHistory{},
 		&models.VideoCircle{}, &models.VideoCircleInteraction{},
@@ -109,7 +111,7 @@ func Connect() {
 		// Yatra Travel models (pilgrimage service)
 		&models.Yatra{}, &models.YatraParticipant{},
 		&models.Shelter{}, &models.ShelterReview{},
-		&models.YatraReview{},
+		&models.YatraReview{}, &models.YatraBillingEvent{},
 		// Yatra Admin models (moderation)
 		&models.YatraReport{}, &models.OrganizerBlock{},
 		&models.AdminNotification{}, &models.ModerationTemplate{},
@@ -122,6 +124,9 @@ func Connect() {
 		&models.CharityOrganization{}, &models.CharityProject{},
 		&models.CharityDonation{}, &models.CharityEvidence{},
 		&models.CharityKarmaNote{}, &models.CharitySettings{},
+		// Unified service support ledger
+		&models.LKMAccount{}, &models.LKMLedgerEntry{},
+		&models.LKMExpenseRequest{}, &models.LKMApprovalEvent{},
 		// Path Tracker
 		&models.DailyCheckin{}, &models.DailyStep{},
 		&models.DailyStepEvent{}, &models.PathTrackerAlertEvent{}, &models.PathTrackerUnlock{}, &models.PathTrackerState{},
@@ -178,9 +183,11 @@ func Connect() {
 	SeedMarket()
 	SeedEducation()
 	SeedMultimedia()
+	FixMultimediaLiveSources()
 	SeedTravel()
 	SeedWallets()
 	SeedCharity() // Initialize platform wallet and charity settings
+	SeedLKMAccounts()
 }
 
 func InitializeSuperAdmin() {

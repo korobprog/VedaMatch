@@ -1096,10 +1096,10 @@ export const VideoCirclesScreen: React.FC = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionBtn, user?.ID && item.authorId === user.ID && styles.disabledAction]}
+                  style={[styles.actionBtn, (user?.ID != null && item.authorId === user.ID) ? styles.disabledAction : undefined]}
                   onPress={() => handleChatPress(item)}
                   activeOpacity={0.7}
-                  disabled={!!(user?.ID && item.authorId === user.ID)}
+                  disabled={Boolean(user?.ID != null && item.authorId === user.ID)}
                 >
                   <Send size={19} color={roleColors.textSecondary} />
                   <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.chatCount}</Text>

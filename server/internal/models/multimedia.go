@@ -98,9 +98,30 @@ type TVChannel struct {
 	Schedule    string `json:"schedule"` // JSON schedule or description
 	IsLive      bool   `json:"isLive" gorm:"default:false"`
 	ViewerCount int    `json:"viewerCount" gorm:"default:0"`
-	SortOrder   int    `json:"sortOrder" gorm:"default:0"`
-	IsActive    bool   `json:"isActive" gorm:"default:true"`
-	CreatedByID uint   `json:"createdById"`
+	Status      string `json:"status" gorm:"default:'unknown'"` // online, offline, unknown
+	// TV check may be unavailable for some stream types, keep nullable timestamp.
+	LastCheckedAt *time.Time `json:"lastCheckedAt"`
+	SortOrder     int        `json:"sortOrder" gorm:"default:0"`
+	IsActive      bool       `json:"isActive" gorm:"default:true"`
+	CreatedByID   uint       `json:"createdById"`
+}
+
+// UserPlaylist represents a user's saved multimedia playlist.
+type UserPlaylist struct {
+	gorm.Model
+	UserID      uint   `json:"userId" gorm:"index;not null"`
+	Name        string `json:"name" gorm:"not null"`
+	Description string `json:"description"`
+	IsPublic    bool   `json:"isPublic" gorm:"default:false"`
+}
+
+// UserPlaylistItem maps tracks into user playlists.
+type UserPlaylistItem struct {
+	gorm.Model
+	PlaylistID   uint        `json:"playlistId" gorm:"index;not null"`
+	MediaTrackID uint        `json:"mediaTrackId" gorm:"index;not null"`
+	SortOrder    int         `json:"sortOrder" gorm:"default:0"`
+	Track        *MediaTrack `json:"track,omitempty" gorm:"foreignKey:MediaTrackID"`
 }
 
 // UserMediaSuggestion represents user-submitted content for moderation
@@ -139,6 +160,8 @@ func (MediaCategory) TableName() string       { return "media_categories" }
 func (MediaTrack) TableName() string          { return "media_tracks" }
 func (RadioStation) TableName() string        { return "radio_stations" }
 func (TVChannel) TableName() string           { return "tv_channels" }
+func (UserPlaylist) TableName() string        { return "user_playlists" }
+func (UserPlaylistItem) TableName() string    { return "user_playlist_items" }
 func (UserMediaSuggestion) TableName() string { return "user_media_suggestions" }
 func (UserMediaFavorite) TableName() string   { return "user_media_favorites" }
 func (UserMediaHistory) TableName() string    { return "user_media_history" }

@@ -5,6 +5,7 @@ import DeviceInfo from 'react-native-device-info';
 import { contactService } from '../services/contactService';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
 import { clearAuthTokens, getAccessToken, logoutAuthSession, saveAuthTokens } from '../services/authSessionService';
+import { accountService } from '../services/accountService';
 
 interface UserProfile {
     karmicName: string;
@@ -36,6 +37,7 @@ interface UserContextType {
     activeMathId: string | null;
     login: (profile: UserProfile, authPayload?: any) => Promise<void>;
     logout: () => Promise<void>;
+    deleteAccount: () => Promise<void>;
     setTourCompleted: () => Promise<void>;
     setRoleDescriptor: (descriptor: PortalBlueprint | null) => void;
     setGodModeFilters: (filters: MathFilter[]) => void;
@@ -146,6 +148,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setUser(profile);
     };
 
+    const clearLocalSession = async () => {
+        setUser(null);
+        setRoleDescriptor(null);
+        setGodModeFilters([]);
+        setActiveMathId(null);
+        await clearAuthTokens();
+        await AsyncStorage.multiRemove(['user', 'pushToken']);
+    };
+
     const logout = async () => {
         try {
             const rawPushToken = await AsyncStorage.getItem('pushToken');
@@ -174,13 +185,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.warn('[UserContext] Failed to sync logout session:', error);
         }
-        setUser(null);
-        setRoleDescriptor(null);
-        setGodModeFilters([]);
-        setActiveMathId(null);
-        await clearAuthTokens();
-        await AsyncStorage.multiRemove(['user', 'pushToken']);
+        await clearLocalSession();
         console.log('[UserContext] Session cleared (Logged out)');
+    };
+
+    const deleteAccount = async () => {
+        await accountService.deleteAccountNow();
+        await clearLocalSession();
+        console.log('[UserContext] Session cleared (Account deleted)');
     };
 
     const setTourCompleted = async () => {
@@ -201,6 +213,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             activeMathId,
             login,
             logout,
+            deleteAccount,
             setTourCompleted,
             setRoleDescriptor,
             setGodModeFilters,

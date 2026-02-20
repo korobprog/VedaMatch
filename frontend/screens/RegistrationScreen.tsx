@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     View,
@@ -14,6 +14,7 @@ import {
     StatusBar,
     TextInput,
     ImageBackground,
+    Linking,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
@@ -33,6 +34,11 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { API_PATH } from '../config/api.config';
+import {
+    getLegalDocumentUrl,
+    normalizeLanguageCode,
+} from '../config/legal.config';
+import type { LegalLanguage } from '../config/legal.config';
 import { contactService } from '../services/contactService';
 import DeviceInfo from 'react-native-device-info';
 import { authorizedAxiosRequest, getAccessToken, saveAuthTokens } from '../services/authSessionService';
@@ -58,7 +64,7 @@ type CountryData = { name: { common: string }; capital?: string[] };
 type Props = NativeStackScreenProps<RootStackParamList, 'Registration'>;
 
 const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { login } = useUser();
     const params = route.params ?? { isDarkMode: false, phase: 'initial' as const };
     const { phase = 'initial', inviteCode: paramInviteCode } = params;
@@ -84,6 +90,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [guna, setGuna] = useState('');
     const [diet, setDiet] = useState(DIET_OPTIONS[2]);
     const [agreement, setAgreement] = useState(false);
+    const [legalLanguage, setLegalLanguage] = useState<LegalLanguage>('en');
+    const [hasOpenedTerms, setHasOpenedTerms] = useState(false);
+    const [hasOpenedPrivacy, setHasOpenedPrivacy] = useState(false);
     const [loading, setLoading] = useState(false);
     const [detectingLocation, setDetectingLocation] = useState(false);
     const [role, setRole] = useState<PortalRole>('user');
@@ -141,6 +150,30 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             setDiet(DIET_OPTIONS[2]);
         }
     }, [isLiteProfileRole, isSeekerRole]);
+
+    useEffect(() => {
+        setLegalLanguage(normalizeLanguageCode(i18n.language));
+    }, [i18n.language]);
+
+    const openLegalDocument = useCallback(async (documentType: 'terms' | 'privacy') => {
+        const url = getLegalDocumentUrl(documentType, legalLanguage);
+        try {
+            const canOpen = await Linking.canOpenURL(url);
+            if (!canOpen) {
+                Alert.alert(t('common.error'), t('common.tryAgain') || 'Please try again later');
+                return;
+            }
+            await Linking.openURL(url);
+            if (documentType === 'terms') {
+                setHasOpenedTerms(true);
+            } else {
+                setHasOpenedPrivacy(true);
+            }
+        } catch (error) {
+            console.error('[Legal] Failed to open legal document:', error);
+            Alert.alert(t('common.error'), t('common.tryAgain') || 'Please try again later');
+        }
+    }, [legalLanguage, t]);
 
     const handleCountrySelect = async (cData: CountryData) => {
         setCountry(cData.name.common);
@@ -234,6 +267,14 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
         if (!agreement && phase === 'initial') {
             Alert.alert(t('registration.required'), t('registration.agreementRequired'));
+            return;
+        }
+        if (phase === 'initial' && !hasOpenedTerms) {
+            Alert.alert(t('registration.required'), t('registration.legalReadTermsRequired') || 'Please open Terms of Use before registering');
+            return;
+        }
+        if (phase === 'initial' && !hasOpenedPrivacy) {
+            Alert.alert(t('registration.required'), t('registration.legalReadPrivacyRequired') || 'Please open Privacy Policy before registering');
             return;
         }
         const requestId = ++latestSubmitRequestRef.current;
@@ -781,18 +822,81 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                 </>
                             )}
 
-                            {/* Terms */}
-                            <View style={styles.checkboxContainer}>
-                                <Switch
-                                    value={agreement}
-                                    onValueChange={setAgreement}
-                                    trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FFB74D' }}
-                                    thumbColor={agreement ? '#fff' : '#f4f3f4'}
-                                />
-                                <Text style={[styles.checkboxLabel, { color: '#F8FAFC' }]}>
-                                    {t('registration.agreement')}
-                                </Text>
-                            </View>
+                            {phase === 'initial' && (
+                                <>
+                                    <View style={styles.checkboxContainer}>
+                                        <Switch
+                                            value={agreement}
+                                            onValueChange={setAgreement}
+                                            trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FFB74D' }}
+                                            thumbColor={agreement ? '#fff' : '#f4f3f4'}
+                                        />
+                                        <Text style={[styles.checkboxLabel, { color: '#F8FAFC' }]}>
+                                            {t('registration.agreement')}
+                                        </Text>
+                                    </View>
+
+                                    <Text style={styles.legalCaption}>
+                                        {t('registration.agreementPrefix') || 'By continuing, you accept the'}{' '}
+                                        <Text style={styles.legalLink}>{t('registration.termsOfUse') || 'Terms of Use'}</Text>{' '}
+                                        {t('registration.and') || 'and'}{' '}
+                                        <Text style={styles.legalLink}>{t('registration.privacyPolicy') || 'Privacy Policy'}</Text>.
+                                    </Text>
+
+                                    <Text style={styles.legalLanguageLabel}>
+                                        {t('registration.legalLanguage') || 'Legal document language'}
+                                    </Text>
+                                    <View style={styles.legalLanguageRow}>
+                                        {(['en', 'ru', 'hi'] as LegalLanguage[]).map((lang) => {
+                                            const isActive = legalLanguage === lang;
+                                            const label = lang === 'ru' ? 'Русский' : (lang === 'hi' ? 'हिंदी' : 'English');
+                                            return (
+                                                <TouchableOpacity
+                                                    key={lang}
+                                                    style={[
+                                                        styles.legalLanguageButton,
+                                                        isActive && styles.legalLanguageButtonActive,
+                                                    ]}
+                                                    onPress={() => setLegalLanguage(lang)}
+                                                >
+                                                    <Text style={isActive ? styles.legalLanguageTextActive : styles.legalLanguageText}>
+                                                        {label}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+
+                                    <View style={styles.legalButtonsRow}>
+                                        <TouchableOpacity
+                                            style={styles.legalDocButton}
+                                            onPress={() => {
+                                                void openLegalDocument('terms');
+                                            }}
+                                        >
+                                            <Text style={styles.legalDocButtonText}>
+                                                {t('registration.termsOfUse') || 'Terms of Use'} {hasOpenedTerms ? '✓' : ''}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={styles.legalDocButton}
+                                            onPress={() => {
+                                                void openLegalDocument('privacy');
+                                            }}
+                                        >
+                                            <Text style={styles.legalDocButtonText}>
+                                                {t('registration.privacyPolicy') || 'Privacy Policy'} {hasOpenedPrivacy ? '✓' : ''}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {(!hasOpenedTerms || !hasOpenedPrivacy) && (
+                                        <Text style={styles.legalWarning}>
+                                            {t('registration.legalReadRequired') || 'Open Terms and Privacy Policy before registering'}
+                                        </Text>
+                                    )}
+                                </>
+                            )}
 
                             {/* Submit */}
                             <TouchableOpacity
@@ -938,6 +1042,78 @@ const styles = StyleSheet.create({
         marginLeft: 12,
         fontSize: 13,
         lineHeight: 18,
+    },
+    legalCaption: {
+        marginTop: -12,
+        marginBottom: 18,
+        color: 'rgba(248,250,252,0.76)',
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    legalLink: {
+        color: '#FFD166',
+        textDecorationLine: 'underline',
+        fontWeight: '600',
+    },
+    legalLanguageLabel: {
+        color: 'rgba(248,250,252,0.9)',
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 8,
+    },
+    legalLanguageRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 10,
+    },
+    legalLanguageButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    legalLanguageButtonActive: {
+        borderColor: '#FFD166',
+        backgroundColor: 'rgba(255,209,102,0.18)',
+    },
+    legalLanguageText: {
+        color: 'rgba(248,250,252,0.85)',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    legalLanguageTextActive: {
+        color: '#FFD166',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    legalButtonsRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 10,
+    },
+    legalDocButton: {
+        flex: 1,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+    },
+    legalDocButtonText: {
+        color: '#F8FAFC',
+        fontSize: 12,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    legalWarning: {
+        color: '#FFD166',
+        fontSize: 12,
+        lineHeight: 17,
+        marginBottom: 18,
     },
     submitButton: {
         height: 56,

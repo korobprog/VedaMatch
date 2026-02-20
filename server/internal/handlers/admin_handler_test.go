@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"rag-agent-server/internal/services"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -118,5 +119,53 @@ func TestParsePositiveAdminParamInt(t *testing.T) {
 	}
 	if respZero.StatusCode != fiber.StatusBadRequest {
 		t.Fatalf("expected 400 for zero userId, got %d", respZero.StatusCode)
+	}
+}
+
+func TestBuildPushHealthAlerts_DefaultThresholds(t *testing.T) {
+	summary := services.PushHealthSummary{
+		TotalEvents:         100,
+		DeliverySuccessRate: 89.5,
+		RetryRate:           14.0,
+		InvalidTokenRate:    16.0,
+		FailedEvents:        12,
+	}
+	alerts := buildPushHealthAlerts(summary, false)
+	if len(alerts) != 4 {
+		t.Fatalf("expected 4 alerts, got %d", len(alerts))
+	}
+	if status := getPushHealthStatus(alerts); status != "critical" {
+		t.Fatalf("expected status critical, got %q", status)
+	}
+}
+
+func TestBuildPushHealthAlerts_StrictThresholds(t *testing.T) {
+	summary := services.PushHealthSummary{
+		TotalEvents:         20,
+		DeliverySuccessRate: 96.5,
+		RetryRate:           6.0,
+		InvalidTokenRate:    11.0,
+		FailedEvents:        3,
+	}
+	alerts := buildPushHealthAlerts(summary, true)
+	if len(alerts) != 4 {
+		t.Fatalf("expected 4 strict alerts, got %d", len(alerts))
+	}
+	if status := getPushHealthStatus(alerts); status != "critical" {
+		t.Fatalf("expected status critical for strict alerts, got %q", status)
+	}
+}
+
+func TestGetPushHealthStatus(t *testing.T) {
+	if got := getPushHealthStatus(nil); got != "healthy" {
+		t.Fatalf("expected healthy with no alerts, got %q", got)
+	}
+	mediumOnly := []fiber.Map{{"severity": "medium"}}
+	if got := getPushHealthStatus(mediumOnly); got != "degraded" {
+		t.Fatalf("expected degraded with medium alerts, got %q", got)
+	}
+	highPresent := []fiber.Map{{"severity": "medium"}, {"severity": "high"}}
+	if got := getPushHealthStatus(highPresent); got != "critical" {
+		t.Fatalf("expected critical when high alert is present, got %q", got)
 	}
 }

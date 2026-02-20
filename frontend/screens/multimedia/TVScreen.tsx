@@ -64,6 +64,14 @@ export const TVScreen: React.FC = () => {
                 <Text style={[styles.type, { color: roleColors.textSecondary }]}>
                     {item.streamType === 'youtube' ? 'YouTube Трансляция' : 'Прямой эфир'}
                 </Text>
+                <Text
+                    style={[
+                        styles.statusText,
+                        { color: item.status === 'online' ? roleColors.success : item.status === 'offline' ? roleColors.danger : roleColors.textSecondary },
+                    ]}
+                >
+                    {item.status === 'online' ? 'В сети' : item.status === 'offline' ? 'Оффлайн' : 'Статус неизвестен'}
+                </Text>
             </View>
             <View style={styles.playIcon}>
                 <Play size={24} color={roleColors.accent} fill={roleColors.accent} />
@@ -181,6 +189,11 @@ const styles = StyleSheet.create({
     },
     type: {
         fontSize: 13,
+    },
+    statusText: {
+        marginTop: 4,
+        fontSize: 12,
+        fontWeight: '600',
     },
     playIcon: {
         padding: 8,

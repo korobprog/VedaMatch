@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"rag-agent-server/internal/models"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ type YatraAdminService struct {
 	db                  *gorm.DB
 	yatraService        *YatraService
 	notificationService *AdminNotificationService
+	push                *PushNotificationService
 }
 
 // NewYatraAdminService creates a new yatra admin service
@@ -23,6 +25,7 @@ func NewYatraAdminService(db *gorm.DB, yatraService *YatraService, notificationS
 		db:                  db,
 		yatraService:        yatraService,
 		notificationService: notificationService,
+		push:                GetPushService(),
 	}
 }
 
@@ -185,9 +188,26 @@ func (s *YatraAdminService) ApproveYatra(yatraID, adminID uint, notes string) er
 	}
 
 	log.Printf("[YatraAdminService] Admin %d approved yatra %d", adminID, yatraID)
-
-	// TODO: Send notification to organizer
-	// template: "yatra_approved"
+	if s.push != nil {
+		params := fmt.Sprintf(`{"yatraId":%d}`, yatraID)
+		msg := PushMessage{
+			Title:    "Ятра одобрена",
+			Body:     fmt.Sprintf("Ваша Ятра \"%s\" одобрена и опубликована", strings.TrimSpace(yatra.Title)),
+			Priority: "high",
+			EventKey: fmt.Sprintf("yatra_approved:yatra:%d:actor:%d:target:%d", yatraID, adminID, yatra.OrganizerID),
+			Data: map[string]string{
+				"type":         "yatra_approved",
+				"yatraId":      fmt.Sprintf("%d", yatraID),
+				"actorId":      fmt.Sprintf("%d", adminID),
+				"targetUserId": fmt.Sprintf("%d", yatra.OrganizerID),
+				"screen":       "YatraDetail",
+				"params":       params,
+			},
+		}
+		if err := s.push.SendToUser(yatra.OrganizerID, msg); err != nil {
+			log.Printf("[YatraAdminService] failed to send yatra_approved push yatra_id=%d organizer_id=%d: %v", yatraID, yatra.OrganizerID, err)
+		}
+	}
 
 	return nil
 }
@@ -205,9 +225,30 @@ func (s *YatraAdminService) RejectYatra(yatraID, adminID uint, reason string) er
 	}
 
 	log.Printf("[YatraAdminService] Admin %d rejected yatra %d: %s", adminID, yatraID, reason)
-
-	// TODO: Send notification to organizer
-	// template: "yatra_rejected" with {{reason}}
+	if s.push != nil {
+		body := fmt.Sprintf("Ятра \"%s\" отклонена", strings.TrimSpace(yatra.Title))
+		if strings.TrimSpace(reason) != "" {
+			body = body + ": " + strings.TrimSpace(reason)
+		}
+		params := fmt.Sprintf(`{"yatraId":%d}`, yatraID)
+		msg := PushMessage{
+			Title:    "Ятра отклонена",
+			Body:     body,
+			Priority: "high",
+			EventKey: fmt.Sprintf("yatra_rejected:yatra:%d:actor:%d:target:%d", yatraID, adminID, yatra.OrganizerID),
+			Data: map[string]string{
+				"type":         "yatra_rejected",
+				"yatraId":      fmt.Sprintf("%d", yatraID),
+				"actorId":      fmt.Sprintf("%d", adminID),
+				"targetUserId": fmt.Sprintf("%d", yatra.OrganizerID),
+				"screen":       "YatraDetail",
+				"params":       params,
+			},
+		}
+		if err := s.push.SendToUser(yatra.OrganizerID, msg); err != nil {
+			log.Printf("[YatraAdminService] failed to send yatra_rejected push yatra_id=%d organizer_id=%d: %v", yatraID, yatra.OrganizerID, err)
+		}
+	}
 
 	return nil
 }
@@ -229,8 +270,49 @@ func (s *YatraAdminService) ForceCancelYatra(yatraID, adminID uint, reason strin
 
 	log.Printf("[YatraAdminService] Admin %d force-cancelled yatra %d: %s", adminID, yatraID, reason)
 
-	// Notify organizer and all participants
-	// TODO: Send bulk notification
+	if s.push != nil {
+		body := fmt.Sprintf("Ятра \"%s\" отменена", strings.TrimSpace(yatra.Title))
+		if strings.TrimSpace(reason) != "" {
+			body = body + ": " + strings.TrimSpace(reason)
+		}
+		params := fmt.Sprintf(`{"yatraId":%d}`, yatraID)
+
+		notify := func(targetUserID uint, entityID string) {
+			msg := PushMessage{
+				Title:    "Ятра отменена",
+				Body:     body,
+				Priority: "high",
+				EventKey: fmt.Sprintf("yatra_cancelled:yatra:%d:actor:%d:target:%d:entity:%s", yatraID, adminID, targetUserID, entityID),
+				Data: map[string]string{
+					"type":         "yatra_cancelled",
+					"yatraId":      fmt.Sprintf("%d", yatraID),
+					"actorId":      fmt.Sprintf("%d", adminID),
+					"targetUserId": fmt.Sprintf("%d", targetUserID),
+					"entityId":     entityID,
+					"screen":       "YatraDetail",
+					"params":       params,
+				},
+			}
+			if err := s.push.SendToUser(targetUserID, msg); err != nil {
+				log.Printf("[YatraAdminService] failed to send yatra_cancelled push yatra_id=%d target_user_id=%d: %v", yatraID, targetUserID, err)
+			}
+		}
+
+		notify(yatra.OrganizerID, "organizer")
+
+		var participantUserIDs []uint
+		if err := s.db.Model(&models.YatraParticipant{}).
+			Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
+			Distinct("user_id").
+			Pluck("user_id", &participantUserIDs).Error; err == nil {
+			for _, userID := range participantUserIDs {
+				if userID == 0 || userID == yatra.OrganizerID {
+					continue
+				}
+				notify(userID, "participant")
+			}
+		}
+	}
 
 	// Check if cancelled close to start date
 	daysUntilStart := int(time.Until(yatra.StartDate).Hours() / 24)

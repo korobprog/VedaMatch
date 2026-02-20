@@ -59,7 +59,9 @@ export const EditRoomImageModal: React.FC<EditRoomImageModalProps> = ({
         try {
             const result = await launchImageLibrary({
                 mediaType: 'photo',
-                quality: 0.8,
+                quality: 0.6,
+                maxWidth: 1024,
+                maxHeight: 1024,
                 includeBase64: false,
             });
 

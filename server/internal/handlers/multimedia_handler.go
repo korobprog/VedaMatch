@@ -733,6 +733,126 @@ func (h *MultimediaHandler) GetFavorites(c *fiber.Ctx) error {
 	})
 }
 
+// --- Playlists ---
+
+// GetPlaylists godoc
+// @Summary Get user playlists
+// @Tags Multimedia
+// @Success 200 {object} services.PlaylistListResponse
+// @Router /api/multimedia/playlists [get]
+func (h *MultimediaHandler) GetPlaylists(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	result, err := h.service.GetUserPlaylists(userID, services.PlaylistFilter{
+		Page:  boundedQueryInt(c, "page", 1, 1, 100000),
+		Limit: boundedQueryInt(c, "limit", 20, 1, 100),
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(result)
+}
+
+// CreatePlaylist godoc
+// @Summary Create user playlist
+// @Tags Multimedia
+// @Success 201 {object} models.UserPlaylist
+// @Router /api/multimedia/playlists [post]
+func (h *MultimediaHandler) CreatePlaylist(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var playlist models.UserPlaylist
+	if err := c.BodyParser(&playlist); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	playlist.UserID = userID
+	if err := h.service.CreatePlaylist(&playlist); err != nil {
+		return respondMultimediaDomainError(c, err, "Playlist not found")
+	}
+	return c.Status(201).JSON(playlist)
+}
+
+// GetPlaylistDetails godoc
+// @Summary Get playlist details with tracks
+// @Tags Multimedia
+// @Success 200 {object} services.PlaylistDetailResponse
+// @Router /api/multimedia/playlists/{id} [get]
+func (h *MultimediaHandler) GetPlaylistDetails(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid playlist ID")
+	if err != nil {
+		return err
+	}
+	details, err := h.service.GetPlaylistDetails(userID, id)
+	if err != nil {
+		return respondMultimediaDomainError(c, err, "Playlist not found")
+	}
+	return c.JSON(details)
+}
+
+// AddTrackToPlaylist godoc
+// @Summary Add track to user playlist
+// @Tags Multimedia
+// @Success 200 {object} fiber.Map
+// @Router /api/multimedia/playlists/{id}/items [post]
+func (h *MultimediaHandler) AddTrackToPlaylist(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	id, err := parsePositiveMultimediaParam(c, "id", "Invalid playlist ID")
+	if err != nil {
+		return err
+	}
+	var body struct {
+		TrackID uint `json:"trackId"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.TrackID == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "trackId is required"})
+	}
+
+	if err := h.service.AddTrackToPlaylist(userID, id, body.TrackID); err != nil {
+		return respondMultimediaDomainError(c, err, "Playlist or track not found")
+	}
+	return c.JSON(fiber.Map{"message": "Track added to playlist"})
+}
+
+// RemoveTrackFromPlaylist godoc
+// @Summary Remove track from user playlist
+// @Tags Multimedia
+// @Success 200 {object} fiber.Map
+// @Router /api/multimedia/playlists/{id}/items/{trackId} [delete]
+func (h *MultimediaHandler) RemoveTrackFromPlaylist(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	playlistID, err := parsePositiveMultimediaParam(c, "id", "Invalid playlist ID")
+	if err != nil {
+		return err
+	}
+	trackID, err := parsePositiveMultimediaParam(c, "trackId", "Invalid track ID")
+	if err != nil {
+		return err
+	}
+	if err := h.service.RemoveTrackFromPlaylist(userID, playlistID, trackID); err != nil {
+		return respondMultimediaDomainError(c, err, "Playlist item not found")
+	}
+	return c.JSON(fiber.Map{"message": "Track removed from playlist"})
+}
+
 // --- Stats ---
 
 // GetStats godoc
@@ -829,8 +949,11 @@ func (h *MultimediaHandler) DeleteCategory(c *fiber.Ctx) error {
 }
 
 func (h *MultimediaHandler) RestoreRadioScheduler() {
-	log.Println("[Scheduler] Initializing Radio Health Check task...")
+	log.Println("[Scheduler] Initializing multimedia health check tasks...")
 	services.GlobalScheduler.RegisterTask("radio_health_check", 10, func() {
 		h.service.CheckRadioStatus()
+	})
+	services.GlobalScheduler.RegisterTask("tv_health_check", 10, func() {
+		h.service.CheckTVStatus()
 	})
 }

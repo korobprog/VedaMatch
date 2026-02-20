@@ -1091,3 +1091,57 @@ LiveKit SFU
 3. Rollback:
 - Достаточно выключить `ROOM_SFU_ENABLED` на backend.
 - Клиент покажет controlled unavailable state без краша.
+
+## Unified Service Support Collection (Ledger Standard) (Февраль 2026)
+
+### 1. Принцип
+- Любой сервисный сбор (`Rooms`, `Seva`, и будущие сервисы) проходит через единый donation pipeline (`/api/charity/donate`) и обязательно получает атрибуцию источника.
+- Баланс не хранится как "одно число": источник и движение фиксируются в проводках `lkm_ledger_entries`.
+
+### 2. Обязательные атрибуты источника
+- `sourceService` — откуда пришел сбор (`rooms|seva|travel|other`).
+- `sourceTrigger` — каким UX-сценарием инициирован сбор (`support_prompt|donate_modal|campaign_banner|manual`).
+- `sourceContext` — сериализованный контекст (например `roomId`, `screen`, `feature`).
+
+Если старый клиент не прислал атрибуты, backend нормализует значения в `unknown` и не ломает совместимость.
+
+### 3. Routing rule (service -> fund account)
+- `rooms` -> `rooms_fund`
+- `seva` -> `seva_fund`
+- fallback -> `platform_fund`
+
+Для platform contribution по донату создаются двойные проводки:
+1. debit `user_wallet`
+2. credit `<service>_fund`
+
+Возврат (refund) пишет обратные проводки, чтобы аналитика по сервисам оставалась консистентной.
+
+### 4. Config resolution и fallback
+- Канонический источник конфигурации поддержки сервиса: `system_settings` (`support.<service>.*`).
+- Fallback: env (`<SERVICE>_SUPPORT_*`), например:
+  - `ROOMS_SUPPORT_PROJECT_ID`
+  - `SEVA_SUPPORT_PROJECT_ID`
+- Приоритет: **DB settings -> env -> disabled**.
+
+### 5. Idempotency и reconciliation
+- Бизнес-идентификатор для donation проводок: `tx_group_id = donation:<donationId>`.
+- Для refund: `tx_group_id = donation_refund:<donationId>`.
+- Сверка выполняется через admin ledger API с фильтрами по `service/trigger/project/account`.
+
+### 6. Onboarding checklist для нового сервиса
+1. Создать charity project для сервиса (projectId выбирается в админке).
+2. Заполнить `support.<service>.project_id` и базовые `support.<service>.*` настройки.
+3. Передавать `sourceService + sourceTrigger + sourceContext` в `/charity/donate`.
+4. Проверить, что проводки пишутся в нужный service fund.
+5. Прогнать интеграционные тесты (`support config`, donation attribution, ledger filters/export).
+
+### 7. Finance RBAC
+- Введены granular admin permissions:
+  - `finance_manager` — создание заявок на списание, просмотр сводки/журнала.
+  - `finance_approver` — подтверждение/отклонение заявок, просмотр сводки/журнала.
+- `superadmin` имеет implicit bypass и может управлять выдачей/отзывом permissions.
+- Назначения хранятся в `admin_permission_grants` и управляются через:
+  - `GET /api/admin/funds/permissions`
+  - `GET /api/admin/funds/permissions/me`
+  - `POST /api/admin/funds/permissions/grant`
+  - `POST /api/admin/funds/permissions/revoke`

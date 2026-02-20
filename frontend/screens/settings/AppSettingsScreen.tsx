@@ -10,6 +10,7 @@ import {
     ScrollView,
     Switch,
     Alert,
+    Linking,
     Image as RNImage,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -26,6 +27,11 @@ import { useWallet } from '../../context/WalletContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../hooks/usePressFeedback';
 import { AIModelsSection, AIModel } from './components/AIModelsSection';
+import {
+    ACCOUNT_DELETION_URL,
+    getLegalDocumentUrl,
+    normalizeLanguageCode,
+} from '../../config/legal.config';
 
 type AssistantType = 'feather' | 'smiley' | 'feather2';
 type SettingsPanelKey = 'quick' | 'appearance' | 'background' | 'ai' | 'location' | 'models';
@@ -112,7 +118,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
-    const { logout, user } = useUser();
+    const { logout, deleteAccount, user } = useUser();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const triggerTapFeedback = usePressFeedback();
     const { refreshLocationData } = useLocation();
@@ -264,6 +270,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                 sectionNoDividerSpaced: { borderBottomWidth: 0, marginTop: 20, marginBottom: 40 },
                 logoutBtnLayout: { alignItems: 'center', paddingVertical: 15 },
                 logoutText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+                legalLinkText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
             }),
         [theme.text, vTheme.colors.divider, vTheme.colors.text]
     );
@@ -285,6 +292,20 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
             [panel]: !prev[panel],
         }));
     }, [triggerTapFeedback]);
+
+    const openExternalLink = useCallback(async (url: string, tag: string) => {
+        try {
+            const supported = await Linking.canOpenURL(url);
+            if (!supported) {
+                Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+                return;
+            }
+            await Linking.openURL(url);
+        } catch (error) {
+            console.warn(`[Settings] failed to open ${tag}:`, error);
+            Alert.alert(t('common.error'), t('common.tryAgain') || 'Попробуйте позже');
+        }
+    }, [t]);
 
     useEffect(() => {
         let isMounted = true;
@@ -317,7 +338,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         };
     }, []);
 
-    const changeLanguageSafely = useCallback(async (language: 'ru' | 'en') => {
+    const selectedLanguage = normalizeLanguageCode(i18n.language);
+
+    const changeLanguageSafely = useCallback(async (language: 'ru' | 'en' | 'hi') => {
         triggerTapFeedback();
         try {
             await i18n.changeLanguage(language);
@@ -435,6 +458,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                                 +{wallet?.pendingBalance.toLocaleString('ru-RU')} в ожидании
                                             </Text>
                                         )}
+                                        <Text style={[styles.walletLegalHint, { color: vTheme.colors.textSecondary }]}>
+                                            {t('settings.currencyLegalHint') || 'LKM are internal non-monetary points and not a payment instrument.'}
+                                        </Text>
                                     </View>
                                 </View>
                                 <ChevronRight size={20} color={vTheme.colors.textSecondary} />
@@ -540,30 +566,45 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     style={[
                                         styles.sizeBtn,
                                         {
-                                            backgroundColor: i18n.language === 'ru' ? colors.accent : theme.inputBackground,
-                                            borderColor: i18n.language === 'ru' ? colors.accent : theme.borderColor
+                                            backgroundColor: selectedLanguage === 'ru' ? colors.accent : theme.inputBackground,
+                                            borderColor: selectedLanguage === 'ru' ? colors.accent : theme.borderColor
                                         }
                                     ]}
                                     onPress={() => {
                                         void changeLanguageSafely('ru');
                                     }}
                                 >
-                                    <Text style={i18n.language === 'ru' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>Русский</Text>
+                                    <Text style={selectedLanguage === 'ru' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>Русский</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
                                     style={[
                                         styles.sizeBtn,
                                         {
-                                            backgroundColor: i18n.language === 'en' ? colors.accent : theme.inputBackground,
-                                            borderColor: i18n.language === 'en' ? colors.accent : theme.borderColor
+                                            backgroundColor: selectedLanguage === 'en' ? colors.accent : theme.inputBackground,
+                                            borderColor: selectedLanguage === 'en' ? colors.accent : theme.borderColor
                                         }
                                     ]}
                                     onPress={() => {
                                         void changeLanguageSafely('en');
                                     }}
                                 >
-                                    <Text style={i18n.language === 'en' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>English</Text>
+                                    <Text style={selectedLanguage === 'en' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>English</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.sizeBtn,
+                                        {
+                                            backgroundColor: selectedLanguage === 'hi' ? colors.accent : theme.inputBackground,
+                                            borderColor: selectedLanguage === 'hi' ? colors.accent : theme.borderColor
+                                        }
+                                    ]}
+                                    onPress={() => {
+                                        void changeLanguageSafely('hi');
+                                    }}
+                                >
+                                    <Text style={selectedLanguage === 'hi' ? themedStyles.optionTextOnAccentNoWeight : themedStyles.optionTextRegular}>हिंदी</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -1005,6 +1046,102 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                         activeOpacity={0.88}
                         style={[
                             styles.sizeBtn,
+                            styles.legalButton,
+                            { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
+                        ]}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            void openExternalLink(getLegalDocumentUrl('privacy', i18n.language), 'privacy-policy');
+                        }}
+                    >
+                        <Text style={themedStyles.legalLinkText}>
+                            {t('settings.privacyPolicy') || 'Privacy Policy'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={[
+                            styles.sizeBtn,
+                            styles.legalButton,
+                            { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+                        ]}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            void openExternalLink(getLegalDocumentUrl('terms', i18n.language), 'terms-of-use');
+                        }}
+                    >
+                        <Text style={themedStyles.legalLinkText}>
+                            {t('settings.termsOfUse') || 'Terms of Use'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={[
+                            styles.sizeBtn,
+                            styles.legalButton,
+                            { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
+                        ]}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            void openExternalLink(ACCOUNT_DELETION_URL, 'account-deletion-page');
+                        }}
+                    >
+                        <Text style={themedStyles.legalLinkText}>
+                            {t('settings.deleteAccountPolicy') || 'Account deletion policy'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={[
+                            styles.sizeBtn,
+                            styles.legalButton,
+                            { backgroundColor: '#DC2626', borderColor: '#DC2626' },
+                        ]}
+                        onPress={() => {
+                            triggerTapFeedback();
+                            Alert.alert(
+                                t('settings.deleteAccountTitle') || 'Delete account',
+                                t('settings.deleteAccountConfirm') || 'Your account and personal data will be deleted. This action cannot be undone.',
+                                [
+                                    { text: t('common.cancel') || 'Cancel', style: 'cancel' },
+                                    {
+                                        text: t('settings.deleteAccountAction') || 'Delete account',
+                                        style: 'destructive',
+                                        onPress: async () => {
+                                            try {
+                                                await deleteAccount();
+                                                Alert.alert(
+                                                    t('settings.deleteAccountDoneTitle') || 'Account deleted',
+                                                    t('settings.deleteAccountDoneMsg') || 'Your account has been deleted.'
+                                                );
+                                            } catch (error: any) {
+                                                Alert.alert(
+                                                    t('common.error'),
+                                                    error?.message || (t('settings.deleteAccountError') || 'Failed to delete account')
+                                                );
+                                            }
+                                        },
+                                    },
+                                ]
+                            );
+                        }}
+                    >
+                        <Text style={themedStyles.legalLinkText}>
+                            {t('settings.deleteAccountAction') || 'Delete account'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <Text style={[styles.legalHint, { color: theme.subText }]}>
+                        {t('settings.legalLanguageHint') || 'Legal documents open in the selected language: English, Hindi, or Russian.'}
+                    </Text>
+
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={[
+                            styles.sizeBtn,
                             themedStyles.logoutBtnLayout,
                             {
                                 backgroundColor: theme.error || '#FF4444',
@@ -1131,6 +1268,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    legalButton: {
+        marginBottom: 10,
+    },
+    legalHint: {
+        fontSize: 12,
+        lineHeight: 17,
+        marginBottom: 12,
     },
     actionButton: {
         flexDirection: 'row',
@@ -1280,6 +1425,12 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#9CA3AF',
         fontWeight: '500',
+    },
+    walletLegalHint: {
+        fontSize: 11,
+        lineHeight: 15,
+        marginTop: 4,
+        maxWidth: 260,
     },
     assistantSelection: {
         flexDirection: 'row',

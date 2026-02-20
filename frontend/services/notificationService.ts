@@ -214,6 +214,51 @@ export const notificationService = {
             return;
         }
 
+        if (
+            data.type === 'yatra_join_requested' ||
+            data.type === 'yatra_join_approved' ||
+            data.type === 'yatra_join_rejected' ||
+            data.type === 'yatra_approved' ||
+            data.type === 'yatra_rejected' ||
+            data.type === 'yatra_cancelled'
+        ) {
+            const yatraRaw = data.yatraId || params.yatraId;
+            const yatraId = Number.parseInt(String(yatraRaw || ''), 10);
+            if (Number.isFinite(yatraId) && yatraId > 0) {
+                // @ts-ignore
+                navigationRef.navigate('YatraDetail', { yatraId });
+            } else {
+                // @ts-ignore
+                navigationRef.navigate('Portal', { initialTab: 'travel' });
+            }
+            return;
+        }
+
+        if (data.type === 'yatra_broadcast') {
+            const roomIDRaw = data.roomId || params.roomId;
+            const roomID = Number.parseInt(String(roomIDRaw || ''), 10);
+            if (Number.isFinite(roomID) && roomID > 0) {
+                const roomNameRaw = data.roomName || params.roomName;
+                const roomName = typeof roomNameRaw === 'string' && roomNameRaw.trim()
+                    ? roomNameRaw.trim()
+                    : 'Yatra Chat';
+                // @ts-ignore
+                navigationRef.navigate('RoomChat', { roomId: roomID, roomName, isYatraChat: true });
+                return;
+            }
+
+            const yatraRaw = data.yatraId || params.yatraId;
+            const yatraId = Number.parseInt(String(yatraRaw || ''), 10);
+            if (Number.isFinite(yatraId) && yatraId > 0) {
+                // @ts-ignore
+                navigationRef.navigate('YatraDetail', { yatraId });
+            } else {
+                // @ts-ignore
+                navigationRef.navigate('Portal', { initialTab: 'travel' });
+            }
+            return;
+        }
+
         if (data.type === 'news') {
             // @ts-ignore
             navigationRef.navigate('News');

@@ -78,7 +78,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
             <View style={styles.overlay}>
                 <View style={styles.container}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Support Seva</Text>
+                        <Text style={styles.title}>Поддержать Seva</Text>
                         <TouchableOpacity onPress={onClose}>
                             <X size={24} color="#FFF" />
                         </TouchableOpacity>
@@ -88,7 +88,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                         <Text style={styles.projectTitle}>{project.title}</Text>
                         <Text style={styles.orgName}>{project.organization?.name}</Text>
 
-                        <Text style={styles.label}>Select LKM amount</Text>
+                        <Text style={styles.label}>Выберите сумму LKM</Text>
                         <View style={styles.presetsRow}>
                             {PRESET_AMOUNTS.map((val) => (
                                 <TouchableOpacity
@@ -114,7 +114,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
 
                         <View style={styles.summaryBox}>
                             <View style={styles.row}>
-                                <Text style={styles.summaryLabel}>Support points:</Text>
+                                <Text style={styles.summaryLabel}>Пожертвование:</Text>
                                 <Text style={styles.summaryValue}>{selectedAmount} LKM</Text>
                             </View>
 
@@ -125,7 +125,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                 <View style={styles.checkbox}>
                                     {includeTips && <Check size={16} color="#000" />}
                                 </View>
-                                <Text style={styles.tipsText}>Add 5% support bonus ({tipsAmount} LKM)</Text>
+                                <Text style={styles.tipsText}>Поддержать платформу VedaMatch (+5%, {tipsAmount} LKM)</Text>
                             </TouchableOpacity>
 
                             <View style={[styles.row, styles.totalRow]}>
@@ -135,7 +135,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                         </View>
 
                         <Text style={styles.balanceText}>
-                            Your LKM points: <Text style={{ color: canAfford ? '#4CAF50' : '#FF4444' }}>{userBalance} LKM</Text>
+                            Ваш баланс LKM: <Text style={{ color: canAfford ? '#4CAF50' : '#FF4444' }}>{userBalance} LKM</Text>
                         </Text>
 
                         <View style={styles.optionsContainer}>
@@ -146,13 +146,13 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                 <View style={[styles.checkbox, isAnonymous && styles.activeCheckbox]}>
                                     {isAnonymous && <Check size={16} color="#000" />}
                                 </View>
-                                <Text style={styles.optionText}>Support anonymously</Text>
+                                <Text style={styles.optionText}>Поддержать анонимно</Text>
                             </TouchableOpacity>
                         </View>
 
                         <TextInput
                             style={[styles.input, styles.messageInput]}
-                            placeholder="Leave a message (optional)"
+                            placeholder="Сообщение (необязательно)"
                             placeholderTextColor="#666"
                             multiline
                             value={message}
@@ -214,7 +214,7 @@ export const DonateModal: React.FC<DonateModalProps> = ({
                                 <ActivityIndicator color="#000" />
                             ) : (
                                 <Text style={styles.donateBtnText}>
-                                    Support {totalAmount > 0 ? `${totalAmount} LKM` : ''}
+                                    Поддержать {totalAmount > 0 ? `${totalAmount} LKM` : ''}
                                 </Text>
                             )}
                         </TouchableOpacity>

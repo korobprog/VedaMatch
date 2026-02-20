@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { motion } from 'framer-motion';
 import {
@@ -23,6 +23,14 @@ const fetcher = (url: string) => api.get(url).then(res => res.data);
 
 export default function FinancialsPage() {
     const { data: stats, error, isLoading } = useSWR('/admin/financials/stats', fetcher);
+    const { data: roomsFund } = useSWR('/admin/funds/summary?service=rooms', fetcher);
+    const { data: sevaFund } = useSWR('/admin/funds/summary?service=seva', fetcher);
+    const { data: ledgerData } = useSWR('/admin/funds/ledger?service=all&limit=12&page=1', fetcher);
+    const { data: permissionsData, mutate: mutatePermissions } = useSWR('/admin/funds/permissions', fetcher);
+
+    const [selectedUserId, setSelectedUserId] = useState<number>(0);
+    const [selectedPermission, setSelectedPermission] = useState('finance_manager');
+    const [permLoading, setPermLoading] = useState(false);
 
     const financialCards = useMemo(() => [
         {
@@ -68,6 +76,33 @@ export default function FinancialsPage() {
             </div>
         );
     }
+
+    const handleGrantPermission = async () => {
+        if (!selectedUserId || !selectedPermission) return;
+        setPermLoading(true);
+        try {
+            await api.post('/admin/funds/permissions/grant', {
+                userId: selectedUserId,
+                permission: selectedPermission,
+            });
+            await mutatePermissions();
+        } finally {
+            setPermLoading(false);
+        }
+    };
+
+    const handleRevokePermission = async (userId: number, permission: string) => {
+        setPermLoading(true);
+        try {
+            await api.post('/admin/funds/permissions/revoke', {
+                userId,
+                permission,
+            });
+            await mutatePermissions();
+        } finally {
+            setPermLoading(false);
+        }
+    };
 
     return (
         <div className="space-y-10 pb-10">
@@ -205,6 +240,154 @@ export default function FinancialsPage() {
                     </button>
                 </div>
             </div>
+
+            <section className="space-y-6">
+                <div className="flex items-center gap-2">
+                    <Coins className="w-5 h-5 text-[var(--primary)]" />
+                    <h2 className="text-xl font-bold">Касса сервисов</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-[var(--card)] p-6 rounded-3xl border border-[var(--border)] shadow-sm">
+                        <h3 className="text-lg font-bold">Rooms Fund</h3>
+                        <p className="text-sm text-[var(--muted-foreground)] mt-1">Баланс по сервису Комнаты</p>
+                        <div className="mt-4 space-y-2 text-sm">
+                            <p>Income: <span className="font-semibold text-emerald-500">{(roomsFund?.income || 0).toLocaleString('ru-RU')} LKM</span></p>
+                            <p>Expense: <span className="font-semibold text-red-500">{(roomsFund?.expense || 0).toLocaleString('ru-RU')} LKM</span></p>
+                            <p>Net: <span className="font-semibold">{(roomsFund?.net || 0).toLocaleString('ru-RU')} LKM</span></p>
+                        </div>
+                    </div>
+
+                    <div className="bg-[var(--card)] p-6 rounded-3xl border border-[var(--border)] shadow-sm">
+                        <h3 className="text-lg font-bold">Seva Fund</h3>
+                        <p className="text-sm text-[var(--muted-foreground)] mt-1">Баланс по сервису Seva</p>
+                        <div className="mt-4 space-y-2 text-sm">
+                            <p>Income: <span className="font-semibold text-emerald-500">{(sevaFund?.income || 0).toLocaleString('ru-RU')} LKM</span></p>
+                            <p>Expense: <span className="font-semibold text-red-500">{(sevaFund?.expense || 0).toLocaleString('ru-RU')} LKM</span></p>
+                            <p>Net: <span className="font-semibold">{(sevaFund?.net || 0).toLocaleString('ru-RU')} LKM</span></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold">Журнал операций (последние 12)</h2>
+                    <a
+                        href="/api/admin/funds/ledger/export.csv?service=all"
+                        className="text-sm text-[var(--primary)] hover:underline"
+                    >
+                        Экспорт CSV
+                    </a>
+                </div>
+                <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-[var(--secondary)]/40">
+                            <tr>
+                                <th className="text-left px-4 py-3">Дата</th>
+                                <th className="text-left px-4 py-3">Сервис</th>
+                                <th className="text-left px-4 py-3">Trigger</th>
+                                <th className="text-left px-4 py-3">Счет</th>
+                                <th className="text-left px-4 py-3">Тип</th>
+                                <th className="text-right px-4 py-3">Сумма</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {(ledgerData?.items || []).map((row: any) => (
+                                <tr key={row.id} className="border-t border-[var(--border)]">
+                                    <td className="px-4 py-3 whitespace-nowrap">{new Date(row.createdAt).toLocaleString('ru-RU')}</td>
+                                    <td className="px-4 py-3">{row.sourceService}</td>
+                                    <td className="px-4 py-3">{row.sourceTrigger}</td>
+                                    <td className="px-4 py-3">{row.accountCode}</td>
+                                    <td className="px-4 py-3">{row.entryType}</td>
+                                    <td className="px-4 py-3 text-right font-semibold">{Number(row.amount || 0).toLocaleString('ru-RU')} LKM</td>
+                                </tr>
+                            ))}
+                            {(ledgerData?.items || []).length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--muted-foreground)]">
+                                        Операции пока отсутствуют.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section className="space-y-4">
+                <h2 className="text-xl font-bold">RBAC финансов</h2>
+                <div className="bg-[var(--card)] rounded-3xl border border-[var(--border)] p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <select
+                            className="rounded-xl border border-[var(--border)] bg-transparent px-3 py-2"
+                            value={selectedUserId || ''}
+                            onChange={(e) => setSelectedUserId(Number(e.target.value))}
+                        >
+                            <option value="">Выберите админа</option>
+                            {(permissionsData?.admins || []).map((admin: any) => (
+                                <option key={admin.id} value={admin.id}>
+                                    {admin.email} ({admin.role})
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            className="rounded-xl border border-[var(--border)] bg-transparent px-3 py-2"
+                            value={selectedPermission}
+                            onChange={(e) => setSelectedPermission(e.target.value)}
+                        >
+                            <option value="finance_manager">finance_manager</option>
+                            <option value="finance_approver">finance_approver</option>
+                        </select>
+
+                        <button
+                            className="rounded-xl bg-[var(--primary)] text-white px-4 py-2 disabled:opacity-50"
+                            disabled={permLoading || !selectedUserId}
+                            onClick={handleGrantPermission}
+                        >
+                            Выдать право
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-[var(--secondary)]/40">
+                                <tr>
+                                    <th className="text-left px-4 py-3">User ID</th>
+                                    <th className="text-left px-4 py-3">Permission</th>
+                                    <th className="text-left px-4 py-3">Granted By</th>
+                                    <th className="text-left px-4 py-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(permissionsData?.grants || []).map((grant: any) => (
+                                    <tr key={grant.id} className="border-t border-[var(--border)]">
+                                        <td className="px-4 py-3">{grant.userId}</td>
+                                        <td className="px-4 py-3">{grant.permission}</td>
+                                        <td className="px-4 py-3">{grant.grantedBy}</td>
+                                        <td className="px-4 py-3">
+                                            <button
+                                                className="text-red-500 hover:underline disabled:opacity-50"
+                                                disabled={permLoading}
+                                                onClick={() => handleRevokePermission(grant.userId, grant.permission)}
+                                            >
+                                                Отозвать
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {(permissionsData?.grants || []).length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="px-4 py-8 text-center text-[var(--muted-foreground)]">
+                                            Нет выданных permission.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </div>
     );
 }

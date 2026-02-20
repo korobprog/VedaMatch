@@ -10,7 +10,7 @@ import {
     View,
 } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { ArrowLeft, MessageSquare, Pause, Play, Share2 } from 'lucide-react-native';
+import { ArrowLeft, MessageSquare, Pause, Play, Share2, Download, Gauge } from 'lucide-react-native';
 import Video from 'react-native-video';
 import { WebView } from 'react-native-webview';
 import { MediaTrack } from '../../services/multimediaService';
@@ -19,6 +19,7 @@ import { videoCirclesService } from '../../services/videoCirclesService';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { multimediaOfflineService } from '../../services/multimediaOfflineService';
 
 type VideoPlayerRouteProp = RouteProp<RootStackParamList, 'VideoPlayer'>;
 
@@ -47,6 +48,8 @@ export const VideoPlayerScreen: React.FC = () => {
     const [showControls, setShowControls] = useState(true);
     const [commentCount, setCommentCount] = useState(circle?.commentCount ?? 0);
     const [commentSending, setCommentSending] = useState(false);
+    const [playbackRate, setPlaybackRate] = useState(1);
+    const [offlineProgress, setOfflineProgress] = useState<number | null>(null);
 
     const isYouTube = useMemo(
         () => mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be'),
@@ -135,6 +138,7 @@ export const VideoPlayerScreen: React.FC = () => {
                     style={styles.video}
                     controls={false}
                     paused={paused}
+                    rate={playbackRate}
                     resizeMode="contain"
                     onLoad={() => setLoading(false)}
                     onBuffer={({ isBuffering }) => setLoading(isBuffering)}
@@ -177,6 +181,39 @@ export const VideoPlayerScreen: React.FC = () => {
             </View>
         );
     }
+
+    const changeRate = () => {
+        const rates = [0.5, 1, 1.25, 1.5, 2];
+        const currentIndex = rates.findIndex((r) => r === playbackRate);
+        setPlaybackRate(rates[(currentIndex + 1) % rates.length]);
+    };
+
+    const downloadOffline = async () => {
+        try {
+            setOfflineProgress(0);
+            await multimediaOfflineService.downloadTrack(
+                {
+                    ID: Number(media?.ID || 0),
+                    title: media?.title || 'Video',
+                    artist: media?.artist || '',
+                    mediaType: 'video',
+                    url: mediaUrl,
+                    thumbnailUrl: media?.thumbnailUrl,
+                    duration: Number(media?.duration || 0),
+                    viewCount: Number(media?.viewCount || 0),
+                    likeCount: Number(media?.likeCount || 0),
+                    isFeatured: Boolean(media?.isFeatured),
+                    isActive: true,
+                } as MediaTrack,
+                (p) => setOfflineProgress(p),
+            );
+            setOfflineProgress(null);
+            Alert.alert('Оффлайн', 'Видео сохранено оффлайн');
+        } catch (error: any) {
+            setOfflineProgress(null);
+            Alert.alert('Оффлайн', error?.message || 'Не удалось скачать видео');
+        }
+    };
 
     if (isCircleMode && circle) {
         return (
@@ -296,6 +333,20 @@ export const VideoPlayerScreen: React.FC = () => {
 
             <View style={[styles.details, { backgroundColor: colors.surfaceElevated }]}>
                 <Text style={[styles.description, { color: colors.textPrimary }]}>{media.description || 'Нет описания'}</Text>
+                {!isYouTube && (
+                    <View style={styles.utilityRow}>
+                        <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={downloadOffline}>
+                            <Download size={16} color={colors.textPrimary} />
+                            <Text style={[styles.utilityText, { color: colors.textPrimary }]}>
+                                {offlineProgress !== null ? `${Math.round(offlineProgress * 100)}%` : 'Оффлайн'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.utilityBtn, { backgroundColor: colors.accentSoft }]} onPress={changeRate}>
+                            <Gauge size={16} color={colors.textPrimary} />
+                            <Text style={[styles.utilityText, { color: colors.textPrimary }]}>{playbackRate}x</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
                 <View style={styles.statsRow}>
                     <Text style={[styles.statsText, { color: colors.textSecondary }]}>👁️ {media.viewCount || 0} просмотров</Text>
                     <Text style={[styles.statsText, { color: colors.textSecondary }]}>❤️ {media.likeCount || 0} отметок</Text>
@@ -308,6 +359,25 @@ export const VideoPlayerScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    utilityRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 10,
+        marginBottom: 6,
+    },
+    utilityBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+    },
+    utilityText: {
+        fontSize: 12,
+        fontWeight: '600',
     },
     header: {
         flexDirection: 'row',

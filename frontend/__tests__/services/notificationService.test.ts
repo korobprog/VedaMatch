@@ -98,4 +98,28 @@ describe('notificationService video circle publish push', () => {
       roomName: 'Japa',
     });
   });
+
+  it('routes yatra approval payload to YatraDetail', () => {
+    notificationService.handleNotificationAction({
+      type: 'yatra_join_approved',
+      yatraId: '51',
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('YatraDetail', { yatraId: 51 });
+  });
+
+  it('routes yatra broadcast payload with roomId to RoomChat', () => {
+    notificationService.handleNotificationAction({
+      type: 'yatra_broadcast',
+      yatraId: '51',
+      roomId: '33',
+      roomName: 'Mayapur Yatra',
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('RoomChat', {
+      roomId: 33,
+      roomName: 'Mayapur Yatra',
+      isYatraChat: true,
+    });
+  });
 });

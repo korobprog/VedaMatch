@@ -8,14 +8,16 @@ import {
     Image,
     RefreshControl,
     TextInput,
+    Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Film, Search, Play, Loader2, ArrowLeft } from 'lucide-react-native';
+import { Film, Search, Play, Loader2, ArrowLeft, ListPlus } from 'lucide-react-native';
 import { ScrollView } from 'react-native';
 import { multimediaService, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
+import { multimediaSupportService, MultimediaSupportConfig } from '../../services/multimediaSupportService';
 
 export const VideoScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -27,6 +29,9 @@ export const VideoScreen: React.FC = () => {
     const [videos, setVideos] = useState<MediaTrack[]>([]);
     const [selectedMadh, setSelectedMadh] = useState<string | undefined>();
     const [search, setSearch] = useState('');
+    const [supportConfig, setSupportConfig] = useState<MultimediaSupportConfig | null>(null);
+    const [showSupportPrompt, setShowSupportPrompt] = useState(false);
+    const [supportSubmitting, setSupportSubmitting] = useState(false);
 
     const MADH_OPTIONS = [
         { id: 'iskcon', label: 'ISKCON' },
@@ -55,10 +60,38 @@ export const VideoScreen: React.FC = () => {
         loadVideos();
     }, [selectedMadh]);
 
+    useEffect(() => {
+        let cancelled = false;
+        const loadSupport = async () => {
+            if (!user?.ID) return;
+            try {
+                const cfg = await multimediaSupportService.getSupportConfig();
+                if (cancelled) return;
+                setSupportConfig(cfg);
+                if (!cfg.enabled || cfg.projectId <= 0) return;
+                const lastPrompt = await multimediaSupportService.getPromptCooldown(user.ID);
+                const cooldownMs = Math.max(1, cfg.cooldownHours) * 60 * 60 * 1000;
+                if (Date.now() - lastPrompt >= cooldownMs) {
+                    const interactions = await multimediaSupportService.incrementInteractions(user.ID);
+                    if (interactions >= 5) setShowSupportPrompt(true);
+                }
+            } catch (error) {
+                console.warn('Failed to load multimedia support in video', error);
+            }
+        };
+        void loadSupport();
+        return () => { cancelled = true; };
+    }, [user?.ID]);
+
     const renderVideo = ({ item }: { item: MediaTrack }) => (
         <TouchableOpacity
             style={[styles.videoCard, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
-            onPress={() => navigation.navigate('VideoPlayer', { video: item })}
+            onPress={async () => {
+                if (user?.ID) {
+                    await multimediaSupportService.incrementInteractions(user.ID);
+                }
+                navigation.navigate('VideoPlayer', { video: item });
+            }}
         >
             <View style={styles.thumbnailContainer}>
                 {item.thumbnailUrl ? (
@@ -79,9 +112,56 @@ export const VideoScreen: React.FC = () => {
                 <Text style={[styles.title, { color: roleColors.textPrimary }]} numberOfLines={2}>{item.title}</Text>
                 <Text style={[styles.artist, { color: roleColors.textSecondary }]}>{item.artist || 'Неизвестный автор'}</Text>
                 <Text style={[styles.stats, { color: roleColors.textSecondary, opacity: 0.72 }]}>👁️ {item.viewCount} просмотров</Text>
+                <TouchableOpacity
+                    style={styles.playlistBtn}
+                    onPress={async () => {
+                        try {
+                            const playlists = await multimediaService.getPlaylists(1, 100);
+                            if (!playlists.playlists.length) {
+                                Alert.alert('Плейлисты', 'Сначала создайте плейлист в разделе Плейлисты');
+                                return;
+                            }
+                            await multimediaService.addTrackToPlaylist(playlists.playlists[0].ID, item.ID);
+                            Alert.alert('Плейлисты', `Добавлено в "${playlists.playlists[0].name}"`);
+                        } catch {
+                            Alert.alert('Ошибка', 'Не удалось добавить в плейлист');
+                        }
+                    }}
+                >
+                    <ListPlus size={16} color={roleColors.accent} />
+                    <Text style={[styles.playlistBtnText, { color: roleColors.accent }]}>В плейлист</Text>
+                </TouchableOpacity>
             </View>
         </TouchableOpacity>
     );
+
+    const supportLater = async () => {
+        if (user?.ID) await multimediaSupportService.setPromptCooldown(user.ID);
+        setShowSupportPrompt(false);
+    };
+
+    const supportDonate = async () => {
+        if (!user?.ID || !supportConfig || supportSubmitting) return;
+        setSupportSubmitting(true);
+        try {
+            await multimediaSupportService.donateToMultimedia(
+                supportConfig.projectId,
+                Math.max(1, supportConfig.defaultAmount || 20),
+                false,
+                'Поддержка Video',
+                'support_prompt',
+                'VideoScreen',
+            );
+            await multimediaSupportService.setPromptCooldown(user.ID);
+            await multimediaSupportService.resetInteractions(user.ID);
+            setShowSupportPrompt(false);
+            Alert.alert('Спасибо', 'Ваш донат принят');
+        } catch (e: any) {
+            Alert.alert('Ошибка', e?.message || 'Не удалось выполнить донат');
+        } finally {
+            setSupportSubmitting(false);
+        }
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: roleColors.background }]}>
@@ -92,6 +172,21 @@ export const VideoScreen: React.FC = () => {
                 <Text style={[styles.headerTitle, { color: roleColors.textPrimary }]}>Кинотеатр</Text>
                 <View style={{ width: 40 }} />
             </View>
+
+            {showSupportPrompt && supportConfig?.enabled && supportConfig.projectId > 0 && (
+                <View style={[styles.supportCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
+                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Поддержать медиа</Text>
+                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>Добровольный донат {Math.max(1, supportConfig.defaultAmount || 20)} LKM</Text>
+                    <View style={styles.supportRow}>
+                        <TouchableOpacity style={[styles.supportBtn, { borderColor: roleColors.border }]} onPress={supportLater}>
+                            <Text style={{ color: roleColors.textSecondary }}>Позже</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.supportBtn, { backgroundColor: roleColors.accent, borderColor: roleColors.accent }]} onPress={supportDonate}>
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>{supportSubmitting ? '...' : 'Поддержать'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
 
             <View style={[styles.searchContainer, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border, ...vTheme.shadows.soft }]}>
                 <Search size={20} color={roleColors.textSecondary} />
@@ -278,6 +373,43 @@ const styles = StyleSheet.create({
     },
     stats: {
         fontSize: 12,
+    },
+    playlistBtn: {
+        marginTop: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    playlistBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    supportCard: {
+        marginHorizontal: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+    },
+    supportTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    supportText: {
+        marginTop: 4,
+        fontSize: 12,
+    },
+    supportRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginTop: 10,
+        gap: 8,
+    },
+    supportBtn: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
     },
     center: {
         flex: 1,

@@ -111,6 +111,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const [activeTab, setActiveTab] = useState<ServiceTab | null>(initialServiceTab);
     const [showRoleInfo, setShowRoleInfo] = useState(false);
     const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+    const seekerTravelLocked = (user?.role || 'user') === 'user' && !user?.godModeEnabled && !user?.isProfileComplete;
 
     const refreshSupportUnread = useCallback(async () => {
         if (!user?.ID) {
@@ -638,6 +639,12 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             onSelectMath={(mathId) => setActiveMath(mathId)}
                         />
                     )}
+                    {seekerTravelLocked && (
+                        <View style={styles.lockedServiceHint}>
+                            <Text style={styles.lockedServiceHintTitle}>Ятра откроется после завершения профиля</Text>
+                            <Text style={styles.lockedServiceHintBody}>Завершите регистрацию, чтобы увидеть сервис в основной сетке портала.</Text>
+                        </View>
+                    )}
 
                     <PortalGrid
                         onServicePress={handleServicePress}
@@ -950,6 +957,28 @@ const styles = StyleSheet.create({
     roleDescriptorDescription: {
         fontSize: 12,
         color: '#374151',
+    },
+    lockedServiceHint: {
+        marginHorizontal: 14,
+        marginTop: 6,
+        marginBottom: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.45)',
+        backgroundColor: 'rgba(20,29,44,0.38)',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    lockedServiceHintTitle: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    lockedServiceHintBody: {
+        color: 'rgba(255,255,255,0.92)',
+        fontSize: 12,
+        lineHeight: 16,
     },
     roleStatusDot: {
         ...StyleSheet.absoluteFillObject,

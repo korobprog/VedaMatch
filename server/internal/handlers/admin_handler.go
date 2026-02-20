@@ -104,6 +104,75 @@ func parsePositiveAdminParamInt(c *fiber.Ctx, key string, invalidMessage string)
 	return value, nil
 }
 
+func buildPushHealthAlerts(summary services.PushHealthSummary, strict bool) []fiber.Map {
+	minEvents := int64(30)
+	successRateThreshold := 95.0
+	retryRateThreshold := 10.0
+	invalidRateThreshold := 15.0
+	failedEventsThreshold := int64(10)
+
+	if strict {
+		minEvents = 15
+		successRateThreshold = 97.0
+		retryRateThreshold = 5.0
+		invalidRateThreshold = 10.0
+		failedEventsThreshold = 3
+	}
+
+	alerts := make([]fiber.Map, 0)
+	if summary.TotalEvents >= minEvents && summary.DeliverySuccessRate < successRateThreshold {
+		alerts = append(alerts, fiber.Map{
+			"key":       "push_success_rate_low",
+			"severity":  "high",
+			"threshold": successRateThreshold,
+			"value":     summary.DeliverySuccessRate,
+			"message":   "Push delivery success rate is below the target threshold.",
+		})
+	}
+	if summary.TotalEvents >= minEvents && summary.RetryRate > retryRateThreshold {
+		alerts = append(alerts, fiber.Map{
+			"key":       "push_retry_rate_high",
+			"severity":  "medium",
+			"threshold": retryRateThreshold,
+			"value":     summary.RetryRate,
+			"message":   "Push retry rate exceeded baseline threshold.",
+		})
+	}
+	if summary.TotalEvents >= minEvents && summary.InvalidTokenRate > invalidRateThreshold {
+		alerts = append(alerts, fiber.Map{
+			"key":       "push_invalid_token_rate_high",
+			"severity":  "medium",
+			"threshold": invalidRateThreshold,
+			"value":     summary.InvalidTokenRate,
+			"message":   "Invalid token rate exceeded baseline threshold.",
+		})
+	}
+	if summary.FailedEvents >= failedEventsThreshold {
+		alerts = append(alerts, fiber.Map{
+			"key":       "push_failed_events_high",
+			"severity":  "high",
+			"threshold": failedEventsThreshold,
+			"value":     summary.FailedEvents,
+			"message":   "Push failed events exceeded threshold in selected window.",
+		})
+	}
+	return alerts
+}
+
+func getPushHealthStatus(alerts []fiber.Map) string {
+	status := "healthy"
+	for _, alert := range alerts {
+		severity := strings.TrimSpace(fmt.Sprintf("%v", alert["severity"]))
+		switch severity {
+		case "high":
+			return "critical"
+		case "medium":
+			status = "degraded"
+		}
+	}
+	return status
+}
+
 func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {
 		return err
@@ -592,15 +661,27 @@ func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
 	}
 
 	windowHours := parseAdminQueryInt(c.Query("window_hours"), 24, 1, 24*30)
+	eventPrefix := strings.TrimSpace(c.Query("event_prefix"))
+	scope := strings.TrimSpace(strings.ToLower(c.Query("scope")))
+	if eventPrefix == "" && scope == "yatra" {
+		eventPrefix = "yatra_"
+	}
+	strict := scope == "yatra" || strings.HasPrefix(eventPrefix, "yatra_")
 
 	pushService := services.GetPushService()
-	summary, err := pushService.GetHealthSummary(time.Duration(windowHours) * time.Hour)
+	summary, err := pushService.GetHealthSummaryByEventPrefix(time.Duration(windowHours)*time.Hour, eventPrefix)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to calculate push health"})
 	}
+	alerts := buildPushHealthAlerts(summary, strict)
+	status := getPushHealthStatus(alerts)
 
 	runtimeStatus := pushService.GetFCMRuntimeStatus()
 	return c.JSON(fiber.Map{
+		"scope":                   scope,
+		"event_prefix":            eventPrefix,
+		"status":                  status,
+		"alerts":                  alerts,
 		"windowHours":             summary.WindowHours,
 		"delivery_success_rate":   summary.DeliverySuccessRate,
 		"invalid_token_rate":      summary.InvalidTokenRate,
@@ -610,6 +691,7 @@ func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
 		"success_events":          summary.SuccessEvents,
 		"invalid_events":          summary.InvalidEvents,
 		"retry_events":            summary.RetryEvents,
+		"failed_events":           summary.FailedEvents,
 		"fcmConfigured":           runtimeStatus.HasAvailableFCMSender,
 		"fcmKeySource":            runtimeStatus.LegacyKeySource,
 		"fcmSenderMode":           runtimeStatus.SenderMode,
@@ -625,6 +707,11 @@ func (h *AdminHandler) GetPushHealth(c *fiber.Ctx) error {
 		"fcmV1TokenUri":           runtimeStatus.V1TokenURI,
 		"fcmV1ConfigurationIssue": runtimeStatus.V1ConfigurationIssue,
 	})
+}
+
+func (h *AdminHandler) GetYatraPushHealth(c *fiber.Ctx) error {
+	c.Request().URI().SetQueryString("scope=yatra&event_prefix=yatra_&" + string(c.Request().URI().QueryString()))
+	return h.GetPushHealth(c)
 }
 
 func (h *AdminHandler) GetPlatformHealth(c *fiber.Ctx) error {

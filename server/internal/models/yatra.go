@@ -20,6 +20,22 @@ const (
 	YatraStatusCancelled YatraStatus = "cancelled" // Tour cancelled
 )
 
+type YatraBillingState string
+
+const (
+	YatraBillingStateActive             YatraBillingState = "active"
+	YatraBillingStatePausedInsufficient YatraBillingState = "paused_insufficient"
+	YatraBillingStateStopped            YatraBillingState = "stopped"
+)
+
+type YatraBillingPauseReason string
+
+const (
+	YatraBillingPauseReasonNone             YatraBillingPauseReason = "none"
+	YatraBillingPauseReasonInsufficientLKM  YatraBillingPauseReason = "insufficient_lkm"
+	YatraBillingPauseReasonOrganizerStopped YatraBillingPauseReason = "organizer_stopped"
+)
+
 // YatraTheme represents popular pilgrimage destinations
 type YatraTheme string
 
@@ -88,6 +104,16 @@ type Yatra struct {
 
 	// Status
 	Status YatraStatus `json:"status" gorm:"type:varchar(20);default:'draft';index"`
+
+	// Billing
+	BillingState         YatraBillingState       `json:"billingState" gorm:"type:varchar(32);default:'active';index"`
+	BillingPaused        bool                    `json:"billingPaused" gorm:"default:false;index"`
+	BillingPauseReason   YatraBillingPauseReason `json:"billingPauseReason" gorm:"type:varchar(32);default:'none'"`
+	BillingConsentAt     *time.Time              `json:"billingConsentAt"`
+	BillingNextChargeAt  *time.Time              `json:"billingNextChargeAt" gorm:"index"`
+	BillingLastChargedAt *time.Time              `json:"billingLastChargedAt"`
+	BillingStoppedAt     *time.Time              `json:"billingStoppedAt"`
+	DailyFeeLkm          int                     `json:"dailyFeeLkm" gorm:"-"`
 
 	// Chat Room (auto-created when first participant joins)
 	ChatRoomID *uint `json:"chatRoomId" gorm:"index"`
@@ -304,6 +330,10 @@ type YatraCreateRequest struct {
 type YatraJoinRequest struct {
 	Message          string `json:"message"`
 	EmergencyContact string `json:"emergencyContact"`
+}
+
+type YatraPublishRequest struct {
+	BillingConsent bool `json:"billingConsent"`
 }
 
 // ShelterCreateRequest for creating a shelter

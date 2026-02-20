@@ -3,8 +3,11 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"hash/crc32"
 	"log"
 	"math"
+	"rag-agent-server/internal/database"
 	"rag-agent-server/internal/models"
 	"strconv"
 	"strings"
@@ -19,11 +22,23 @@ import (
 type YatraService struct {
 	db         *gorm.DB
 	mapService *MapService
+	push       *PushNotificationService
+	wallet     *WalletService
 }
 
 const (
 	defaultYatraMaxParticipants = 20
 	defaultYatraMinParticipants = 1
+	defaultYatraDailyFeeLkm     = 10
+
+	yatraBillingEnabledSettingKey = "YATRA_BILLING_ENABLED"
+	yatraDailyFeeSettingKey       = "YATRA_DAILY_FEE_LKM"
+)
+
+var (
+	ErrYatraBillingConsentRequired = errors.New("billing consent required")
+	ErrYatraInsufficientLKM        = errors.New("insufficient lkm")
+	ErrYatraBillingPaused          = errors.New("yatra billing paused")
 )
 
 var validYatraThemes = map[models.YatraTheme]struct{}{
@@ -44,7 +59,29 @@ func NewYatraService(db *gorm.DB, mapService *MapService) *YatraService {
 	return &YatraService{
 		db:         db,
 		mapService: mapService,
+		push:       GetPushService(),
+		wallet:     NewWalletService(),
 	}
+}
+
+type YatraBroadcastTarget string
+
+const (
+	YatraBroadcastTargetApproved YatraBroadcastTarget = "approved"
+	YatraBroadcastTargetPending  YatraBroadcastTarget = "pending"
+	YatraBroadcastTargetAll      YatraBroadcastTarget = "all"
+)
+
+type YatraBroadcastRequest struct {
+	Title  string
+	Body   string
+	Target YatraBroadcastTarget
+}
+
+type YatraChatAccess struct {
+	ChatRoomID *uint  `json:"chatRoomId"`
+	CanAccess  bool   `json:"canAccess"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 func defaultYatraStatusForCreate() models.YatraStatus {
@@ -144,6 +181,167 @@ func validateOptionalCoordinates(startLat, startLng, endLat, endLng *float64) er
 	return nil
 }
 
+type yatraBillingConfig struct {
+	Enabled     bool
+	DailyFeeLkm int
+}
+
+func parseSystemSettingBool(value string, fallback bool) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	if trimmed == "" {
+		return fallback
+	}
+	switch trimmed {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func parseSystemSettingPositiveInt(value string, fallback int) int {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(trimmed)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func (s *YatraService) getSystemSettingValueTx(tx *gorm.DB, key string) string {
+	if tx == nil {
+		return ""
+	}
+	var setting models.SystemSetting
+	if err := tx.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).
+		Select("value").
+		Where("key = ?", key).
+		First(&setting).Error; err != nil {
+		return ""
+	}
+	return strings.TrimSpace(setting.Value)
+}
+
+func (s *YatraService) loadYatraBillingConfigTx(tx *gorm.DB) yatraBillingConfig {
+	cfg := yatraBillingConfig{
+		Enabled:     false,
+		DailyFeeLkm: defaultYatraDailyFeeLkm,
+	}
+	if tx == nil {
+		return cfg
+	}
+	cfg.Enabled = parseSystemSettingBool(s.getSystemSettingValueTx(tx, yatraBillingEnabledSettingKey), false)
+	cfg.DailyFeeLkm = parseSystemSettingPositiveInt(s.getSystemSettingValueTx(tx, yatraDailyFeeSettingKey), defaultYatraDailyFeeLkm)
+	return cfg
+}
+
+func (s *YatraService) loadYatraBillingConfig() yatraBillingConfig {
+	return s.loadYatraBillingConfigTx(s.db)
+}
+
+func normalizeYatraBillingState(state models.YatraBillingState) models.YatraBillingState {
+	switch state {
+	case models.YatraBillingStateActive, models.YatraBillingStatePausedInsufficient, models.YatraBillingStateStopped:
+		return state
+	default:
+		return models.YatraBillingStateActive
+	}
+}
+
+func normalizeYatraBillingPauseReason(reason models.YatraBillingPauseReason) models.YatraBillingPauseReason {
+	switch reason {
+	case models.YatraBillingPauseReasonNone, models.YatraBillingPauseReasonInsufficientLKM, models.YatraBillingPauseReasonOrganizerStopped:
+		return reason
+	default:
+		return models.YatraBillingPauseReasonNone
+	}
+}
+
+func applyYatraBillingPresentation(yatra *models.Yatra, dailyFee int) {
+	if yatra == nil {
+		return
+	}
+	yatra.BillingState = normalizeYatraBillingState(yatra.BillingState)
+	yatra.BillingPauseReason = normalizeYatraBillingPauseReason(yatra.BillingPauseReason)
+	if yatra.BillingPaused && yatra.BillingPauseReason == models.YatraBillingPauseReasonNone {
+		yatra.BillingPauseReason = models.YatraBillingPauseReasonInsufficientLKM
+	}
+	yatra.DailyFeeLkm = dailyFee
+}
+
+func applyYatraBillingPresentationSlice(yatras []models.Yatra, dailyFee int) {
+	for idx := range yatras {
+		applyYatraBillingPresentation(&yatras[idx], dailyFee)
+	}
+}
+
+func yatraNextUTCMidnight(now time.Time) time.Time {
+	utcNow := now.UTC()
+	startOfDay := time.Date(utcNow.Year(), utcNow.Month(), utcNow.Day(), 0, 0, 0, 0, time.UTC)
+	return startOfDay.Add(24 * time.Hour)
+}
+
+func yatraChargeDateUTC(value time.Time) time.Time {
+	utc := value.UTC()
+	return time.Date(utc.Year(), utc.Month(), utc.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func yatraWalletDedupKey(yatraID uint, chargeDate time.Time) string {
+	return fmt.Sprintf("yatra_daily_fee:yatra:%d:date:%s", yatraID, chargeDate.UTC().Format("2006-01-02"))
+}
+
+func yatraBillingEventDedupKey(status models.YatraBillingEventStatus, yatraID uint, chargeDate time.Time) string {
+	return fmt.Sprintf("yatra_billing:%s:yatra:%d:date:%s", status, yatraID, chargeDate.UTC().Format("2006-01-02"))
+}
+
+func isInsufficientBalanceError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "insufficient")
+}
+
+func isYatraBillingUsagePaused(yatra models.Yatra) bool {
+	return yatra.BillingPaused &&
+		normalizeYatraBillingPauseReason(yatra.BillingPauseReason) == models.YatraBillingPauseReasonInsufficientLKM &&
+		normalizeYatraBillingState(yatra.BillingState) == models.YatraBillingStatePausedInsufficient
+}
+
+func ensureYatraBillingUsageAllowed(yatra models.Yatra) error {
+	if isYatraBillingUsagePaused(yatra) {
+		return ErrYatraBillingPaused
+	}
+	return nil
+}
+
+func (s *YatraService) appendYatraBillingEventTx(
+	tx *gorm.DB,
+	yatra models.Yatra,
+	chargeDate time.Time,
+	amount int,
+	status models.YatraBillingEventStatus,
+	reason string,
+) error {
+	if tx == nil {
+		return nil
+	}
+	event := models.YatraBillingEvent{
+		YatraID:       yatra.ID,
+		OrganizerID:   yatra.OrganizerID,
+		ChargeDateUTC: yatraChargeDateUTC(chargeDate),
+		AmountLkm:     amount,
+		Status:        status,
+		DedupKey:      yatraBillingEventDedupKey(status, yatra.ID, chargeDate),
+		Reason:        strings.TrimSpace(reason),
+	}
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&event).Error
+}
+
 // ==================== YATRA CRUD ====================
 
 // CreateYatra creates a new yatra/tour
@@ -239,6 +437,7 @@ func (s *YatraService) CreateYatra(organizerID uint, req models.YatraCreateReque
 	if err := s.db.Create(yatra).Error; err != nil {
 		return nil, err
 	}
+	applyYatraBillingPresentation(yatra, s.loadYatraBillingConfig().DailyFeeLkm)
 
 	return yatra, nil
 }
@@ -258,6 +457,7 @@ func (s *YatraService) GetYatra(yatraID uint) (*models.Yatra, error) {
 	if err := s.db.Model(&yatra).UpdateColumn("views_count", gorm.Expr("views_count + 1")).Error; err != nil {
 		log.Printf("[YatraService] Failed to increment yatra views yatra_id=%d: %v", yatraID, err)
 	}
+	applyYatraBillingPresentation(&yatra, s.loadYatraBillingConfig().DailyFeeLkm)
 
 	return &yatra, nil
 }
@@ -332,6 +532,9 @@ func (s *YatraService) ListYatras(filters models.YatraFilters) ([]models.Yatra, 
 		Order("start_date ASC").
 		Offset(offset).Limit(limit).
 		Find(&yatras).Error
+	if err == nil {
+		applyYatraBillingPresentationSlice(yatras, s.loadYatraBillingConfig().DailyFeeLkm)
+	}
 
 	return yatras, total, err
 }
@@ -362,6 +565,7 @@ func (s *YatraService) UpdateYatra(yatraID uint, organizerID uint, updates map[s
 	if err := s.db.First(&yatra, yatraID).Error; err != nil {
 		return nil, err
 	}
+	applyYatraBillingPresentation(&yatra, s.loadYatraBillingConfig().DailyFeeLkm)
 
 	return &yatra, nil
 }
@@ -711,22 +915,117 @@ func validateYatraReviewRequest(req models.YatraReviewCreateRequest) error {
 	return nil
 }
 
-// PublishYatra changes status from draft to open
-func (s *YatraService) PublishYatra(yatraID uint, organizerID uint) error {
+// PublishYatra changes status from draft to open and starts daily billing when enabled.
+func (s *YatraService) PublishYatra(yatraID uint, organizerID uint, req models.YatraPublishRequest) error {
+	if s.wallet == nil {
+		s.wallet = NewWalletService()
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var yatra models.Yatra
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
+			return err
+		}
+
+		if yatra.OrganizerID != organizerID {
+			return errors.New("not authorized")
+		}
+		if yatra.Status != models.YatraStatusDraft {
+			return errors.New("yatra is not in draft status")
+		}
+
+		now := time.Now().UTC()
+		cfg := s.loadYatraBillingConfigTx(tx)
+		updates := map[string]interface{}{
+			"status":               models.YatraStatusOpen,
+			"billing_state":        models.YatraBillingStateActive,
+			"billing_paused":       false,
+			"billing_pause_reason": models.YatraBillingPauseReasonNone,
+			"billing_stopped_at":   nil,
+		}
+
+		if cfg.Enabled {
+			if !req.BillingConsent {
+				return ErrYatraBillingConsentRequired
+			}
+			chargeDate := yatraChargeDateUTC(now)
+			dedupKey := yatraWalletDedupKey(yatra.ID, chargeDate)
+			description := fmt.Sprintf("Yatra daily fee #%d (%s)", yatra.ID, chargeDate.Format("2006-01-02"))
+			if _, _, err := s.wallet.spendTxWithOptions(tx, organizerID, cfg.DailyFeeLkm, dedupKey, description, SpendOptions{
+				AllowBonus: false,
+			}); err != nil {
+				if isInsufficientBalanceError(err) {
+					return ErrYatraInsufficientLKM
+				}
+				return err
+			}
+
+			updates["billing_consent_at"] = now
+			updates["billing_last_charged_at"] = now
+			updates["billing_next_charge_at"] = yatraNextUTCMidnight(now)
+			if err := s.appendYatraBillingEventTx(tx, yatra, chargeDate, cfg.DailyFeeLkm, models.YatraBillingEventCharged, "publish"); err != nil {
+				return err
+			}
+		} else {
+			updates["billing_next_charge_at"] = gorm.Expr("NULL")
+			updates["billing_last_charged_at"] = gorm.Expr("NULL")
+			if req.BillingConsent {
+				updates["billing_consent_at"] = now
+			}
+		}
+
+		return tx.Model(&yatra).Updates(updates).Error
+	})
+}
+
+// StopYatra cancels a yatra and permanently stops daily billing for it.
+func (s *YatraService) StopYatra(yatraID uint, actorID uint, actorRole string) error {
 	var yatra models.Yatra
-	if err := s.db.First(&yatra, yatraID).Error; err != nil {
+	approvedUserIDs := make([]uint, 0)
+	isAdmin := models.IsAdminRole(strings.TrimSpace(strings.ToLower(actorRole)))
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
+			return err
+		}
+		if yatra.OrganizerID != actorID && !isAdmin {
+			return errors.New("not authorized")
+		}
+		if yatra.Status == models.YatraStatusCompleted {
+			return errors.New("completed yatra cannot be stopped")
+		}
+		if yatra.Status == models.YatraStatusCancelled && normalizeYatraBillingState(yatra.BillingState) == models.YatraBillingStateStopped {
+			return nil
+		}
+
+		now := time.Now().UTC()
+		if err := tx.Model(&yatra).Updates(map[string]interface{}{
+			"status":               models.YatraStatusCancelled,
+			"billing_state":        models.YatraBillingStateStopped,
+			"billing_paused":       true,
+			"billing_pause_reason": models.YatraBillingPauseReasonOrganizerStopped,
+			"billing_stopped_at":   now,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE yatras SET billing_next_charge_at = NULL WHERE id = ?", yatra.ID).Error; err != nil {
+			return err
+		}
+
+		if err := s.appendYatraBillingEventTx(tx, yatra, now, 0, models.YatraBillingEventSkippedStopped, "organizer_stopped"); err != nil {
+			return err
+		}
+
+		return tx.Model(&models.YatraParticipant{}).
+			Where("yatra_id = ? AND status = ?", yatraID, models.YatraParticipantApproved).
+			Distinct("user_id").
+			Pluck("user_id", &approvedUserIDs).Error
+	})
+	if err != nil {
 		return err
 	}
 
-	if yatra.OrganizerID != organizerID {
-		return errors.New("not authorized")
-	}
-
-	if yatra.Status != models.YatraStatusDraft {
-		return errors.New("yatra is not in draft status")
-	}
-
-	return s.db.Model(&yatra).Update("status", models.YatraStatusOpen).Error
+	s.notifyYatraCancelled(yatra, actorID, approvedUserIDs)
+	return nil
 }
 
 // DeleteYatra soft deletes a yatra
@@ -748,9 +1047,16 @@ func (s *YatraService) DeleteYatra(yatraID uint, organizerID uint) error {
 // JoinYatra creates a join request for a yatra
 func (s *YatraService) JoinYatra(yatraID uint, userID uint, req models.YatraJoinRequest) (*models.YatraParticipant, error) {
 	var participant models.YatraParticipant
+	var organizerID uint
+	var yatraTitle string
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var yatra models.Yatra
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
+			return err
+		}
+		organizerID = yatra.OrganizerID
+		yatraTitle = strings.TrimSpace(yatra.Title)
+		if err := ensureYatraBillingUsageAllowed(yatra); err != nil {
 			return err
 		}
 
@@ -800,6 +1106,7 @@ func (s *YatraService) JoinYatra(yatraID uint, userID uint, req models.YatraJoin
 	if err != nil {
 		return nil, err
 	}
+	s.notifyYatraJoinRequested(yatraID, organizerID, userID, participant.ID, yatraTitle)
 
 	return &participant, nil
 }
@@ -807,14 +1114,22 @@ func (s *YatraService) JoinYatra(yatraID uint, userID uint, req models.YatraJoin
 // ApproveParticipant approves a participant request
 func (s *YatraService) ApproveParticipant(yatraID uint, participantID uint, organizerID uint) error {
 	var approvedUserID uint
+	var yatraTitle string
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var yatra models.Yatra
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
 			return err
 		}
+		yatraTitle = strings.TrimSpace(yatra.Title)
 
 		if yatra.OrganizerID != organizerID {
 			return errors.New("not authorized")
+		}
+		if err := ensureYatraBillingUsageAllowed(yatra); err != nil {
+			return err
+		}
+		if yatra.Status != models.YatraStatusOpen && yatra.Status != models.YatraStatusFull {
+			return errors.New("yatra is not accepting participant moderation")
 		}
 
 		var participant models.YatraParticipant
@@ -865,6 +1180,12 @@ func (s *YatraService) ApproveParticipant(yatraID uint, participantID uint, orga
 	// Create or add to chat room
 	if approvedUserID != 0 {
 		s.addParticipantToChat(yatraID, approvedUserID)
+		var yatra models.Yatra
+		if err := s.db.First(&yatra, yatraID).Error; err == nil {
+			s.notifyYatraJoinApproved(yatra, organizerID, approvedUserID, participantID, yatraTitle)
+		} else {
+			log.Printf("[YatraService] Failed to load yatra for approval push yatra_id=%d participant_id=%d: %v", yatraID, participantID, err)
+		}
 	}
 
 	return nil
@@ -872,14 +1193,24 @@ func (s *YatraService) ApproveParticipant(yatraID uint, participantID uint, orga
 
 // RejectParticipant rejects a participant request
 func (s *YatraService) RejectParticipant(yatraID uint, participantID uint, organizerID uint) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	var rejectedUserID uint
+	var yatraTitle string
+	var updated bool
+	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var yatra models.Yatra
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
 			return err
 		}
+		yatraTitle = strings.TrimSpace(yatra.Title)
 
 		if yatra.OrganizerID != organizerID {
 			return errors.New("not authorized")
+		}
+		if err := ensureYatraBillingUsageAllowed(yatra); err != nil {
+			return err
+		}
+		if yatra.Status != models.YatraStatusOpen && yatra.Status != models.YatraStatusFull {
+			return errors.New("yatra is not accepting participant moderation")
 		}
 
 		var participant models.YatraParticipant
@@ -895,14 +1226,26 @@ func (s *YatraService) RejectParticipant(yatraID uint, participantID uint, organ
 		if participant.Status != models.YatraParticipantPending {
 			return errors.New("only pending participants can be rejected")
 		}
+		rejectedUserID = participant.UserID
 
 		now := time.Now().UTC()
-		return tx.Model(&participant).Updates(map[string]interface{}{
+		if err := tx.Model(&participant).Updates(map[string]interface{}{
 			"status":      models.YatraParticipantRejected,
 			"reviewed_at": now,
 			"reviewed_by": organizerID,
-		}).Error
+		}).Error; err != nil {
+			return err
+		}
+		updated = true
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if updated && rejectedUserID != 0 {
+		s.notifyYatraJoinRejected(yatraID, organizerID, rejectedUserID, participantID, yatraTitle)
+	}
+	return nil
 }
 
 // RemoveParticipant removes a participant from the yatra
@@ -979,6 +1322,9 @@ func (s *YatraService) GetMyYatras(userID uint) (organized []models.Yatra, parti
 			Order("start_date DESC").
 			Find(&participating).Error
 	}
+	fee := s.loadYatraBillingConfig().DailyFeeLkm
+	applyYatraBillingPresentationSlice(organized, fee)
+	applyYatraBillingPresentationSlice(participating, fee)
 
 	return
 }
@@ -1308,4 +1654,515 @@ func (s *YatraService) GetUserParticipation(yatraID uint, userID uint) (*models.
 		return nil, err
 	}
 	return &participant, nil
+}
+
+func normalizeYatraBroadcastTarget(target YatraBroadcastTarget) YatraBroadcastTarget {
+	switch strings.ToLower(strings.TrimSpace(string(target))) {
+	case string(YatraBroadcastTargetPending):
+		return YatraBroadcastTargetPending
+	case string(YatraBroadcastTargetAll):
+		return YatraBroadcastTargetAll
+	default:
+		return YatraBroadcastTargetApproved
+	}
+}
+
+func (s *YatraService) GetYatraChatAccess(yatraID uint, userID uint, userRole string) (*YatraChatAccess, error) {
+	var yatra models.Yatra
+	if err := s.db.First(&yatra, yatraID).Error; err != nil {
+		return nil, err
+	}
+	applyYatraBillingPresentation(&yatra, s.loadYatraBillingConfig().DailyFeeLkm)
+
+	access := &YatraChatAccess{
+		ChatRoomID: yatra.ChatRoomID,
+		CanAccess:  false,
+	}
+	if yatra.ChatRoomID == nil {
+		access.Reason = "chat_not_ready"
+		return access, nil
+	}
+
+	isAdmin := models.IsAdminRole(strings.TrimSpace(strings.ToLower(userRole)))
+	if isYatraBillingUsagePaused(yatra) && !isAdmin {
+		access.Reason = "billing_paused"
+		return access, nil
+	}
+	if yatra.OrganizerID == userID || isAdmin {
+		access.CanAccess = true
+		return access, nil
+	}
+
+	var participant models.YatraParticipant
+	err := s.db.Where("yatra_id = ? AND user_id = ? AND status = ?", yatraID, userID, models.YatraParticipantApproved).
+		First(&participant).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			access.Reason = "membership_required"
+			return access, nil
+		}
+		return nil, err
+	}
+
+	if err := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.RoomMember{
+		RoomID: *yatra.ChatRoomID,
+		UserID: userID,
+		Role:   models.RoomRoleMember,
+	}).Error; err != nil {
+		log.Printf("[YatraService] Failed to upsert room membership for chat access yatra_id=%d room_id=%d user_id=%d: %v", yatraID, *yatra.ChatRoomID, userID, err)
+	}
+
+	access.CanAccess = true
+	return access, nil
+}
+
+func (s *YatraService) BroadcastYatra(yatraID uint, actorID uint, actorRole string, req YatraBroadcastRequest) (int, error) {
+	req.Title = strings.TrimSpace(req.Title)
+	req.Body = strings.TrimSpace(req.Body)
+	if req.Title == "" {
+		return 0, errors.New("title is required")
+	}
+	if req.Body == "" {
+		return 0, errors.New("body is required")
+	}
+	target := normalizeYatraBroadcastTarget(req.Target)
+
+	var yatra models.Yatra
+	if err := s.db.First(&yatra, yatraID).Error; err != nil {
+		return 0, err
+	}
+	applyYatraBillingPresentation(&yatra, s.loadYatraBillingConfig().DailyFeeLkm)
+
+	isAdmin := models.IsAdminRole(strings.TrimSpace(strings.ToLower(actorRole)))
+	if yatra.OrganizerID != actorID && !isAdmin {
+		return 0, errors.New("not authorized")
+	}
+	if isYatraBillingUsagePaused(yatra) && !isAdmin {
+		return 0, ErrYatraBillingPaused
+	}
+
+	query := s.db.Model(&models.YatraParticipant{}).
+		Where("yatra_id = ?", yatraID)
+	switch target {
+	case YatraBroadcastTargetApproved:
+		query = query.Where("status = ?", models.YatraParticipantApproved)
+	case YatraBroadcastTargetPending:
+		query = query.Where("status = ?", models.YatraParticipantPending)
+	case YatraBroadcastTargetAll:
+		query = query.Where("status IN ?", []models.YatraParticipantStatus{
+			models.YatraParticipantApproved,
+			models.YatraParticipantPending,
+		})
+	}
+
+	var userIDs []uint
+	if err := query.Distinct("user_id").Pluck("user_id", &userIDs).Error; err != nil {
+		return 0, err
+	}
+	if len(userIDs) == 0 {
+		return 0, nil
+	}
+
+	entityID := fmt.Sprintf("broadcast-%08x", crc32.ChecksumIEEE([]byte(req.Title+"|"+req.Body+"|"+string(target))))
+	params := map[string]interface{}{"yatraId": yatraID}
+	screen := "YatraDetail"
+	if yatra.ChatRoomID != nil {
+		screen = "RoomChat"
+		params = map[string]interface{}{
+			"roomId":      *yatra.ChatRoomID,
+			"roomName":    yatra.Title + " - Чат",
+			"isYatraChat": true,
+		}
+	}
+	paramsJSON, _ := json.Marshal(params)
+
+	delivered := 0
+	var sendErr error
+	for _, userID := range userIDs {
+		msg := PushMessage{
+			Title:    req.Title,
+			Body:     req.Body,
+			Priority: "high",
+			EventKey: buildYatraEventKey("yatra_broadcast", yatraID, actorID, userID, entityID),
+			Data: map[string]string{
+				"type":         "yatra_broadcast",
+				"yatraId":      fmt.Sprintf("%d", yatraID),
+				"target":       string(target),
+				"actorId":      fmt.Sprintf("%d", actorID),
+				"targetUserId": fmt.Sprintf("%d", userID),
+				"entityId":     entityID,
+				"screen":       screen,
+				"params":       string(paramsJSON),
+			},
+		}
+		if yatra.ChatRoomID != nil {
+			msg.Data["roomId"] = fmt.Sprintf("%d", *yatra.ChatRoomID)
+		}
+		if err := s.push.SendToUser(userID, msg); err != nil {
+			sendErr = err
+			log.Printf("[YatraService] Broadcast push failed yatra_id=%d actor_id=%d recipient_id=%d target=%s: %v", yatraID, actorID, userID, target, err)
+			continue
+		}
+		delivered++
+	}
+	if delivered == 0 && sendErr != nil {
+		return 0, sendErr
+	}
+	return delivered, nil
+}
+
+func canChargeYatraDailyFee(yatra models.Yatra, now time.Time) bool {
+	if yatra.Status != models.YatraStatusOpen &&
+		yatra.Status != models.YatraStatusFull &&
+		yatra.Status != models.YatraStatusActive {
+		return false
+	}
+	if normalizeYatraBillingState(yatra.BillingState) == models.YatraBillingStateStopped {
+		return false
+	}
+	if yatra.BillingNextChargeAt == nil {
+		return false
+	}
+	return !yatra.BillingNextChargeAt.UTC().After(now.UTC())
+}
+
+// ProcessDueBillingCharges handles overdue yatra daily charges.
+func (s *YatraService) ProcessDueBillingCharges(now time.Time) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	cfg := s.loadYatraBillingConfig()
+	if !cfg.Enabled {
+		return nil
+	}
+	if s.wallet == nil {
+		s.wallet = NewWalletService()
+	}
+
+	utcNow := now.UTC()
+	var dueIDs []uint
+	if err := s.db.Model(&models.Yatra{}).
+		Where("status IN ?", []models.YatraStatus{
+			models.YatraStatusOpen,
+			models.YatraStatusFull,
+			models.YatraStatusActive,
+		}).
+		Where("billing_next_charge_at IS NOT NULL AND billing_next_charge_at <= ?", utcNow).
+		Where("billing_state <> ?", models.YatraBillingStateStopped).
+		Order("billing_next_charge_at ASC").
+		Limit(500).
+		Pluck("id", &dueIDs).Error; err != nil {
+		return err
+	}
+
+	for _, yatraID := range dueIDs {
+		if err := s.processSingleYatraBillingCharge(yatraID, utcNow, cfg.DailyFeeLkm); err != nil {
+			log.Printf("[YatraBilling] process failed yatra_id=%d: %v", yatraID, err)
+		}
+	}
+	return nil
+}
+
+func (s *YatraService) processSingleYatraBillingCharge(yatraID uint, now time.Time, dailyFee int) error {
+	var yatra models.Yatra
+	sendPaused := false
+	sendResumed := false
+	sendCharged := false
+	chargedAmount := dailyFee
+	chargeDate := yatraChargeDateUTC(now)
+	nextChargeAt := yatraNextUTCMidnight(now)
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&yatra, yatraID).Error; err != nil {
+			return err
+		}
+		if !canChargeYatraDailyFee(yatra, now) {
+			return nil
+		}
+
+		cfg := s.loadYatraBillingConfigTx(tx)
+		if !cfg.Enabled {
+			return nil
+		}
+		fee := dailyFee
+		if fee <= 0 {
+			fee = cfg.DailyFeeLkm
+		}
+		if fee <= 0 {
+			fee = defaultYatraDailyFeeLkm
+		}
+		chargedAmount = fee
+		if yatra.BillingNextChargeAt != nil {
+			chargeDate = yatraChargeDateUTC(*yatra.BillingNextChargeAt)
+		}
+		wasPaused := isYatraBillingUsagePaused(yatra)
+
+		dedupKey := yatraWalletDedupKey(yatra.ID, chargeDate)
+		description := fmt.Sprintf("Yatra daily fee #%d (%s)", yatra.ID, chargeDate.Format("2006-01-02"))
+		if _, _, spendErr := s.wallet.spendTxWithOptions(tx, yatra.OrganizerID, fee, dedupKey, description, SpendOptions{
+			AllowBonus: false,
+		}); spendErr != nil {
+			if isInsufficientBalanceError(spendErr) {
+				if err := tx.Model(&yatra).Updates(map[string]interface{}{
+					"billing_paused":       true,
+					"billing_state":        models.YatraBillingStatePausedInsufficient,
+					"billing_pause_reason": models.YatraBillingPauseReasonInsufficientLKM,
+				}).Error; err != nil {
+					return err
+				}
+				if err := s.appendYatraBillingEventTx(tx, yatra, chargeDate, fee, models.YatraBillingEventFailedInsufficient, "insufficient_lkm"); err != nil {
+					return err
+				}
+				sendPaused = !wasPaused
+				return nil
+			}
+			return spendErr
+		}
+
+		if err := tx.Model(&yatra).Updates(map[string]interface{}{
+			"billing_paused":          false,
+			"billing_state":           models.YatraBillingStateActive,
+			"billing_pause_reason":    models.YatraBillingPauseReasonNone,
+			"billing_last_charged_at": now,
+			"billing_next_charge_at":  nextChargeAt,
+		}).Error; err != nil {
+			return err
+		}
+		if err := s.appendYatraBillingEventTx(tx, yatra, chargeDate, fee, models.YatraBillingEventCharged, "daily_charge"); err != nil {
+			return err
+		}
+		if wasPaused {
+			if err := s.appendYatraBillingEventTx(tx, yatra, chargeDate, fee, models.YatraBillingEventResumed, "auto_resumed"); err != nil {
+				return err
+			}
+			sendResumed = true
+		}
+		sendCharged = true
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if sendPaused {
+		s.notifyYatraBillingPaused(yatra)
+	}
+	if sendResumed {
+		s.notifyYatraBillingResumed(yatra)
+	}
+	if sendCharged {
+		s.notifyYatraBillingCharged(yatra, chargedAmount, nextChargeAt)
+	}
+	return nil
+}
+
+func RunYatraBillingWorkerCycle() {
+	if database.DB == nil {
+		return
+	}
+	service := NewYatraService(database.DB, nil)
+	if err := service.ProcessDueBillingCharges(time.Now().UTC()); err != nil {
+		log.Printf("[YatraBilling] worker cycle failed: %v", err)
+	}
+}
+
+func buildYatraEventKey(eventType string, yatraID, actorID, targetUserID uint, entityID interface{}) string {
+	return fmt.Sprintf("%s:yatra:%d:actor:%d:target:%d:entity:%v", eventType, yatraID, actorID, targetUserID, entityID)
+}
+
+func (s *YatraService) notifyYatraJoinRequested(yatraID, organizerID, actorUserID, participantID uint, yatraTitle string) {
+	if s == nil || s.push == nil || organizerID == 0 {
+		return
+	}
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"yatraId": yatraID})
+	msg := PushMessage{
+		Title:    "Новая заявка в Ятру",
+		Body:     fmt.Sprintf("Пользователь подал заявку на \"%s\"", strings.TrimSpace(yatraTitle)),
+		Priority: "high",
+		EventKey: buildYatraEventKey("yatra_join_requested", yatraID, actorUserID, organizerID, participantID),
+		Data: map[string]string{
+			"type":          "yatra_join_requested",
+			"yatraId":       fmt.Sprintf("%d", yatraID),
+			"participantId": fmt.Sprintf("%d", participantID),
+			"actorId":       fmt.Sprintf("%d", actorUserID),
+			"targetUserId":  fmt.Sprintf("%d", organizerID),
+			"entityId":      fmt.Sprintf("%d", participantID),
+			"screen":        "YatraDetail",
+			"params":        string(paramsJSON),
+		},
+	}
+	if err := s.push.SendToUser(organizerID, msg); err != nil {
+		log.Printf("[YatraService] join-requested push failed yatra_id=%d organizer_id=%d participant_id=%d: %v", yatraID, organizerID, participantID, err)
+	}
+}
+
+func (s *YatraService) notifyYatraJoinApproved(yatra models.Yatra, actorUserID, approvedUserID, participantID uint, yatraTitle string) {
+	if s == nil || s.push == nil || approvedUserID == 0 {
+		return
+	}
+	params := map[string]interface{}{"yatraId": yatra.ID}
+	screen := "YatraDetail"
+	if yatra.ChatRoomID != nil {
+		screen = "RoomChat"
+		params = map[string]interface{}{
+			"roomId":      *yatra.ChatRoomID,
+			"roomName":    yatra.Title + " - Чат",
+			"isYatraChat": true,
+		}
+	}
+	paramsJSON, _ := json.Marshal(params)
+	msg := PushMessage{
+		Title:    "Заявка одобрена",
+		Body:     fmt.Sprintf("Вас одобрили в \"%s\"", strings.TrimSpace(yatraTitle)),
+		Priority: "high",
+		EventKey: buildYatraEventKey("yatra_join_approved", yatra.ID, actorUserID, approvedUserID, participantID),
+		Data: map[string]string{
+			"type":          "yatra_join_approved",
+			"yatraId":       fmt.Sprintf("%d", yatra.ID),
+			"participantId": fmt.Sprintf("%d", participantID),
+			"actorId":       fmt.Sprintf("%d", actorUserID),
+			"targetUserId":  fmt.Sprintf("%d", approvedUserID),
+			"entityId":      fmt.Sprintf("%d", participantID),
+			"screen":        screen,
+			"params":        string(paramsJSON),
+		},
+	}
+	if yatra.ChatRoomID != nil {
+		msg.Data["roomId"] = fmt.Sprintf("%d", *yatra.ChatRoomID)
+	}
+	if err := s.push.SendToUser(approvedUserID, msg); err != nil {
+		log.Printf("[YatraService] join-approved push failed yatra_id=%d approved_user_id=%d participant_id=%d: %v", yatra.ID, approvedUserID, participantID, err)
+	}
+}
+
+func (s *YatraService) notifyYatraJoinRejected(yatraID, actorUserID, rejectedUserID, participantID uint, yatraTitle string) {
+	if s == nil || s.push == nil || rejectedUserID == 0 {
+		return
+	}
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"yatraId": yatraID})
+	msg := PushMessage{
+		Title:    "Заявка отклонена",
+		Body:     fmt.Sprintf("Ваша заявка в \"%s\" отклонена", strings.TrimSpace(yatraTitle)),
+		Priority: "high",
+		EventKey: buildYatraEventKey("yatra_join_rejected", yatraID, actorUserID, rejectedUserID, participantID),
+		Data: map[string]string{
+			"type":          "yatra_join_rejected",
+			"yatraId":       fmt.Sprintf("%d", yatraID),
+			"participantId": fmt.Sprintf("%d", participantID),
+			"actorId":       fmt.Sprintf("%d", actorUserID),
+			"targetUserId":  fmt.Sprintf("%d", rejectedUserID),
+			"entityId":      fmt.Sprintf("%d", participantID),
+			"screen":        "YatraDetail",
+			"params":        string(paramsJSON),
+		},
+	}
+	if err := s.push.SendToUser(rejectedUserID, msg); err != nil {
+		log.Printf("[YatraService] join-rejected push failed yatra_id=%d rejected_user_id=%d participant_id=%d: %v", yatraID, rejectedUserID, participantID, err)
+	}
+}
+
+func (s *YatraService) notifyYatraCancelled(yatra models.Yatra, actorUserID uint, targetUserIDs []uint) {
+	if s == nil || s.push == nil || yatra.ID == 0 {
+		return
+	}
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"yatraId": yatra.ID})
+	seen := make(map[uint]struct{}, len(targetUserIDs))
+	for _, targetUserID := range targetUserIDs {
+		if targetUserID == 0 || targetUserID == yatra.OrganizerID {
+			continue
+		}
+		if _, exists := seen[targetUserID]; exists {
+			continue
+		}
+		seen[targetUserID] = struct{}{}
+		msg := PushMessage{
+			Title:    "Ятра отменена",
+			Body:     fmt.Sprintf("Организатор остановил \"%s\"", strings.TrimSpace(yatra.Title)),
+			Priority: "high",
+			EventKey: buildYatraEventKey("yatra_cancelled", yatra.ID, actorUserID, targetUserID, "participant"),
+			Data: map[string]string{
+				"type":         "yatra_cancelled",
+				"yatraId":      fmt.Sprintf("%d", yatra.ID),
+				"actorId":      fmt.Sprintf("%d", actorUserID),
+				"targetUserId": fmt.Sprintf("%d", targetUserID),
+				"entityId":     "participant",
+				"screen":       "YatraDetail",
+				"params":       string(paramsJSON),
+			},
+		}
+		if err := s.push.SendToUser(targetUserID, msg); err != nil {
+			log.Printf("[YatraService] yatra-cancelled push failed yatra_id=%d target_user_id=%d: %v", yatra.ID, targetUserID, err)
+		}
+	}
+}
+
+func (s *YatraService) notifyYatraBillingCharged(yatra models.Yatra, amount int, nextChargeAt time.Time) {
+	if s == nil || s.push == nil || yatra.OrganizerID == 0 || amount <= 0 {
+		return
+	}
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"yatraId": yatra.ID})
+	msg := PushMessage{
+		Title:    "Списание за Ятру",
+		Body:     fmt.Sprintf("Списано %d LKM за \"%s\"", amount, strings.TrimSpace(yatra.Title)),
+		Priority: "normal",
+		EventKey: buildYatraEventKey("yatra_billing_charged", yatra.ID, yatra.OrganizerID, yatra.OrganizerID, nextChargeAt.Format(time.RFC3339)),
+		Data: map[string]string{
+			"type":         "yatra_billing_charged",
+			"yatraId":      fmt.Sprintf("%d", yatra.ID),
+			"targetUserId": fmt.Sprintf("%d", yatra.OrganizerID),
+			"amountLkm":    fmt.Sprintf("%d", amount),
+			"screen":       "YatraDetail",
+			"params":       string(paramsJSON),
+		},
+	}
+	if err := s.push.SendToUser(yatra.OrganizerID, msg); err != nil {
+		log.Printf("[YatraService] billing-charged push failed yatra_id=%d organizer_id=%d: %v", yatra.ID, yatra.OrganizerID, err)
+	}
+}
+
+func (s *YatraService) notifyYatraBillingPaused(yatra models.Yatra) {
+	if s == nil || s.push == nil || yatra.OrganizerID == 0 {
+		return
+	}
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"yatraId": yatra.ID})
+	msg := PushMessage{
+		Title:    "Ятра на паузе",
+		Body:     fmt.Sprintf("Недостаточно LKM для \"%s\". Пополните баланс.", strings.TrimSpace(yatra.Title)),
+		Priority: "high",
+		EventKey: buildYatraEventKey("yatra_billing_paused", yatra.ID, yatra.OrganizerID, yatra.OrganizerID, "insufficient_lkm"),
+		Data: map[string]string{
+			"type":         "yatra_billing_paused",
+			"yatraId":      fmt.Sprintf("%d", yatra.ID),
+			"targetUserId": fmt.Sprintf("%d", yatra.OrganizerID),
+			"reason":       "insufficient_lkm",
+			"screen":       "YatraDetail",
+			"params":       string(paramsJSON),
+		},
+	}
+	if err := s.push.SendToUser(yatra.OrganizerID, msg); err != nil {
+		log.Printf("[YatraService] billing-paused push failed yatra_id=%d organizer_id=%d: %v", yatra.ID, yatra.OrganizerID, err)
+	}
+}
+
+func (s *YatraService) notifyYatraBillingResumed(yatra models.Yatra) {
+	if s == nil || s.push == nil || yatra.OrganizerID == 0 {
+		return
+	}
+	paramsJSON, _ := json.Marshal(map[string]interface{}{"yatraId": yatra.ID})
+	msg := PushMessage{
+		Title:    "Ятра возобновлена",
+		Body:     fmt.Sprintf("Доступ к \"%s\" снова активен", strings.TrimSpace(yatra.Title)),
+		Priority: "high",
+		EventKey: buildYatraEventKey("yatra_billing_resumed", yatra.ID, yatra.OrganizerID, yatra.OrganizerID, "resumed"),
+		Data: map[string]string{
+			"type":         "yatra_billing_resumed",
+			"yatraId":      fmt.Sprintf("%d", yatra.ID),
+			"targetUserId": fmt.Sprintf("%d", yatra.OrganizerID),
+			"screen":       "YatraDetail",
+			"params":       string(paramsJSON),
+		},
+	}
+	if err := s.push.SendToUser(yatra.OrganizerID, msg); err != nil {
+		log.Printf("[YatraService] billing-resumed push failed yatra_id=%d organizer_id=%d: %v", yatra.ID, yatra.OrganizerID, err)
+	}
 }

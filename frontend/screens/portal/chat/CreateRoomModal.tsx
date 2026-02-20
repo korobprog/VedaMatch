@@ -13,6 +13,7 @@ import {
     ScrollView,
     Animated,
     Easing,
+    ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Bell, Clock, Info, Camera, Image as ImageIcon, X } from 'lucide-react-native';
@@ -147,7 +148,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
     const handleUploadImage = async () => {
         const result = await launchImageLibrary({
             mediaType: 'photo',
-            quality: 0.8,
+            quality: 0.6,
+            maxWidth: 1024,
+            maxHeight: 1024,
             includeBase64: false,
         });
 
@@ -246,7 +249,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                                             handleUploadImage();
                                         }}
                                     >
-                                        {customImageUri ? (
+                                        {uploadingImage ? (
+                                            <ActivityIndicator size="small" color={isPhotoBg ? '#FFFFFF' : colors.accent} />
+                                        ) : customImageUri ? (
                                             <Image source={{ uri: customImageUri }} style={styles.customImagePreview} />
                                         ) : (
                                             <>
@@ -316,6 +321,24 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                                 onChangeText={setDescription}
                                 multiline
                             />
+
+                            <View style={[styles.switchRow, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface, borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border }]}>
+                                <View style={styles.switchLabelWrap}>
+                                    <Text style={[styles.switchLabel, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>
+                                        {t('chat.publicRoom')}
+                                    </Text>
+                                    <Text style={[styles.switchHint, { color: isPhotoBg ? 'rgba(255,255,255,0.74)' : colors.textSecondary }]}>
+                                        {isPublic ? (t('chat.publicRoomDesc') || 'Комнату видят все пользователи') : (t('chat.privateRoomDesc') || 'Вход только по приглашению')}
+                                    </Text>
+                                </View>
+                                <Switch
+                                    testID="create-room-public-switch"
+                                    style={styles.switchControl}
+                                    value={isPublic}
+                                    onValueChange={setIsPublic}
+                                    trackColor={{ false: colors.border, true: colors.accent }}
+                                />
+                            </View>
 
                             <View style={[styles.switchRow, { backgroundColor: isPhotoBg ? 'rgba(255,255,255,0.12)' : colors.surface, borderColor: isPhotoBg ? 'rgba(255,255,255,0.26)' : colors.border }]}>
                                 <View style={styles.switchLabelWrap}>
@@ -445,6 +468,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ visible, onClo
                                     <Text style={[styles.buttonText, { color: isPhotoBg ? '#FFFFFF' : colors.textPrimary }]}>{t('common.cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
+                                    testID="create-room-submit-button"
                                     activeOpacity={0.88}
                                     style={[styles.button, { backgroundColor: colors.accent, borderColor: colors.accent }]}
                                     onPress={() => {
@@ -520,6 +544,11 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '500',
         flexShrink: 1,
+    },
+    switchHint: {
+        marginTop: 4,
+        fontSize: 12,
+        lineHeight: 16,
     },
     switchControl: {
         marginLeft: 10,

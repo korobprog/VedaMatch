@@ -18,7 +18,6 @@ export const API_BASE_URL = (rawUrl && rawUrl !== 'undefined' && rawUrl !== 'nul
 
 // Базовый путь для API запросов
 export const API_PATH = `${API_BASE_URL}/api`;
-console.log('📡 [API Config] API_PATH:', API_PATH);
 export const WS_PATH = API_PATH.replace('http', 'ws');
 
 let appEnv;
@@ -28,5 +27,4 @@ try {
     appEnv = 'development';
 }
 export const APP_ENV = appEnv || 'development';
-
 

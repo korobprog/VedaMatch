@@ -109,6 +109,7 @@ type PushHealthSummary struct {
 	SuccessEvents       int64   `json:"success_events"`
 	InvalidEvents       int64   `json:"invalid_events"`
 	RetryEvents         int64   `json:"retry_events"`
+	FailedEvents        int64   `json:"failed_events"`
 }
 
 // FCMMessage represents the FCM message format
@@ -508,6 +509,12 @@ func (s *PushNotificationService) UnregisterUserDeviceToken(userID uint, token s
 
 // GetHealthSummary calculates delivery metrics over a rolling time window.
 func (s *PushNotificationService) GetHealthSummary(window time.Duration) (PushHealthSummary, error) {
+	return s.GetHealthSummaryByEventPrefix(window, "")
+}
+
+// GetHealthSummaryByEventPrefix calculates delivery metrics over a rolling
+// window and optionally limits events to event_type LIKE "<prefix>%".
+func (s *PushNotificationService) GetHealthSummaryByEventPrefix(window time.Duration, eventPrefix string) (PushHealthSummary, error) {
 	summary := PushHealthSummary{}
 	if window <= 0 {
 		window = 24 * time.Hour
@@ -520,7 +527,12 @@ func (s *PushNotificationService) GetHealthSummary(window time.Duration) (PushHe
 
 	cutoff := time.Now().Add(-window)
 	var events []models.PushDeliveryEvent
-	if err := s.db.Where("created_at >= ?", cutoff).Find(&events).Error; err != nil {
+	query := s.db.Where("created_at >= ?", cutoff)
+	prefix := strings.TrimSpace(eventPrefix)
+	if prefix != "" {
+		query = query.Where("event_type LIKE ?", prefix+"%")
+	}
+	if err := query.Find(&events).Error; err != nil {
 		return summary, err
 	}
 
@@ -537,6 +549,8 @@ func (s *PushNotificationService) GetHealthSummary(window time.Duration) (PushHe
 			summary.InvalidEvents++
 		case deliveryStatusRetry:
 			summary.RetryEvents++
+		case deliveryStatusFailed:
+			summary.FailedEvents++
 		}
 	}
 

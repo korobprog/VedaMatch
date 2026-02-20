@@ -27,6 +27,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { usePressFeedback } from '../../../hooks/usePressFeedback';
 import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareContainer';
 import { authorizedFetch } from '../../../services/authSessionService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface RoomSettingsModalProps {
     visible: boolean;
@@ -83,7 +84,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     const [roomImage, setRoomImage] = useState<string | null>(null);
     const [uploadingImage, setUploadingImage] = useState(false);
     const modalOpacity = useRef(new Animated.Value(0)).current;
-    const modalScale = useRef(new Animated.Value(0.96)).current;
+    const modalTranslateY = useRef(new Animated.Value(400)).current;
     const isMountedRef = useRef(true);
     const latestSettingsRequestRef = useRef(0);
     const latestUpdateRequestRef = useRef(0);
@@ -187,7 +188,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
     useEffect(() => {
         if (!visible) return;
         modalOpacity.setValue(0);
-        modalScale.setValue(0.96);
+        modalTranslateY.setValue(400);
         Animated.parallel([
             Animated.timing(modalOpacity, {
                 toValue: 1,
@@ -195,14 +196,15 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                 easing: Easing.out(Easing.cubic),
                 useNativeDriver: true,
             }),
-            Animated.timing(modalScale, {
-                toValue: 1,
-                duration: 240,
-                easing: Easing.out(Easing.cubic),
+            Animated.spring(modalTranslateY, {
+                toValue: 0,
+                damping: 24,
+                stiffness: 240,
+                mass: 0.8,
                 useNativeDriver: true,
             }),
         ]).start();
-    }, [visible, modalOpacity, modalScale]);
+    }, [visible, modalOpacity, modalTranslateY]);
 
     const saveFontSettings = async (size: number, bold: boolean) => {
         try {
@@ -416,10 +418,12 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
         }
     };
 
+    const insets = useSafeAreaInsets();
+
     return (
         <Modal
             visible={visible}
-            animationType="slide"
+            animationType="fade"
             transparent={true}
             onRequestClose={onClose}
         >
@@ -431,10 +435,11 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({ visible, o
                             {
                                 backgroundColor: modalSurface,
                                 borderColor: modalBorder,
+                                paddingBottom: Math.max(insets.bottom, 16) + 16,
                             },
                             {
                                 opacity: modalOpacity,
-                                transform: [{ scale: modalScale }],
+                                transform: [{ translateY: modalTranslateY }],
                             },
                         ]}
                     >
@@ -872,35 +877,41 @@ const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(2,6,23,0.6)',
-        justifyContent: 'center',
+        justifyContent: 'flex-end',
         alignItems: 'center',
-        padding: 20,
+        paddingHorizontal: 0,
+        paddingBottom: 0,
     },
     modalContent: {
         width: '100%',
-        maxHeight: '90%',
-        borderRadius: 24,
+        maxHeight: '92%',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
         borderWidth: 1,
-        padding: 24,
+        borderBottomWidth: 0,
+        padding: 16,
+        paddingTop: 24,
     },
     modalTitle: {
-        fontSize: 22,
+        fontSize: 19,
         fontWeight: '800',
-        lineHeight: 28,
+        lineHeight: 24,
         textAlign: 'center',
         flex: 1,
-        paddingHorizontal: 10,
+        paddingHorizontal: 8,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 24,
+        marginBottom: 20,
     },
     headerIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
+        width: 38,
+        height: 38,
+        borderRadius: 12,
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
@@ -912,26 +923,26 @@ const styles = StyleSheet.create({
     settingItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        paddingVertical: 16,
-        paddingHorizontal: 4,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#ccc',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingLeft: 4,
+        paddingRight: 8,
     },
     switchRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        paddingHorizontal: 4,
+        alignItems: 'center',
+        paddingLeft: 4,
+        paddingRight: 8,
     },
     settingTextBlock: {
         flex: 1,
-        paddingRight: 16,
+        paddingRight: 10,
+        justifyContent: 'center',
     },
     switchControl: {
-        marginLeft: 12,
-        marginRight: 0,
-        alignSelf: 'center',
+        marginRight: 8,
+        transform: [{ scale: 0.9 }],
     },
     settingLabel: {
         fontSize: 16,
@@ -946,21 +957,21 @@ const styles = StyleSheet.create({
     actionButton: {
         marginTop: 24,
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 16,
         borderWidth: 1,
         alignItems: 'center',
         flexDirection: 'row',
         justifyContent: 'center',
     },
     actionButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 15,
+        fontWeight: '700',
     },
     scheduleButton: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 16,
         borderWidth: 1,
         marginBottom: 16,
     },
@@ -970,16 +981,16 @@ const styles = StyleSheet.create({
     },
     scheduleSubLabel: {
         fontSize: 12,
-        marginTop: 2,
+        marginTop: 4,
     },
     imageSection: {
         alignItems: 'center',
         marginBottom: 24,
     },
     imagePreviewContainer: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+        width: 104,
+        height: 104,
+        borderRadius: 52,
         borderWidth: 2,
         justifyContent: 'center',
         alignItems: 'center',
@@ -991,16 +1002,16 @@ const styles = StyleSheet.create({
         height: '100%',
     },
     roomImageEmoji: {
-        fontSize: 50,
+        fontSize: 52,
     },
     cameraIconBadge: {
         position: 'absolute',
-        bottom: 5,
-        right: 5,
+        bottom: 4,
+        right: 4,
         backgroundColor: COLORS.dark.accent,
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
@@ -1008,21 +1019,20 @@ const styles = StyleSheet.create({
     },
     presetContainer: {
         width: '100%',
-        paddingHorizontal: 10,
+        paddingHorizontal: 0,
     },
     presetItem: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
         borderWidth: 1,
         borderColor: 'transparent',
         justifyContent: 'center',
         alignItems: 'center',
-        marginHorizontal: 5,
-        backgroundColor: 'rgba(0,0,0,0.05)',
+        marginHorizontal: 6,
     },
     presetEmoji: {
-        fontSize: 24,
+        fontSize: 26,
     },
     closeButton: {
         alignItems: 'center',
@@ -1034,10 +1044,11 @@ const styles = StyleSheet.create({
     },
     // New Styles
     sectionHeader: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '700',
-        marginTop: 10,
-        marginBottom: 12,
+        marginTop: 12,
+        marginBottom: 10,
+        paddingLeft: 4,
     },
     bookList: {
         flexDirection: 'row',
@@ -1045,7 +1056,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     bookItem: {
-        paddingVertical: 8,
+        paddingVertical: 10,
         paddingHorizontal: 16,
         borderWidth: 1,
         borderColor: '#ccc',
@@ -1059,9 +1070,9 @@ const styles = StyleSheet.create({
     },
     textInput: {
         borderWidth: 1,
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 16,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 8,
         fontSize: 16,
         lineHeight: 22,
     },
@@ -1079,31 +1090,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         width: '100%',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 16,
         borderWidth: 1,
         borderColor: 'rgba(148,163,184,0.5)',
         marginTop: 8,
     },
     saveButton: {
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 16,
         alignItems: 'center',
         marginBottom: 20,
     },
     divider: {
         height: 1,
         backgroundColor: '#ccc',
-        marginVertical: 10,
-        opacity: 0.5,
+        marginVertical: 12,
+        opacity: 0.3,
     },
     langButton: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        minWidth: 52,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        minWidth: 56,
         alignItems: 'center',
-        borderRadius: 8,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: '#ccc',
     },
@@ -1118,8 +1129,8 @@ const styles = StyleSheet.create({
     },
     boldButton: {
         width: '100%',
-        paddingVertical: 10,
-        borderRadius: 12,
+        paddingVertical: 12,
+        borderRadius: 16,
         borderWidth: 1,
         borderColor: 'rgba(148,163,184,0.5)',
         alignItems: 'center',
@@ -1127,6 +1138,6 @@ const styles = StyleSheet.create({
     },
     boldButtonText: {
         fontWeight: '700',
-        fontSize: 14,
+        fontSize: 15,
     }
 });

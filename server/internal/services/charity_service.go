@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -17,6 +18,29 @@ import (
 // CharityService handles charity operations
 type CharityService struct {
 	WalletService *WalletService
+}
+
+func normalizeDonationSourceService(raw string) string {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	switch value {
+	case "rooms", "seva", "travel", "multimedia", "other":
+		return value
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeDonationSourceTrigger(raw string) string {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	if value == "" {
+		return "unknown"
+	}
+	switch value {
+	case "support_prompt", "donate_modal", "campaign_banner", "manual":
+		return value
+	default:
+		return "unknown"
+	}
 }
 
 // NewCharityService creates a new charity service
@@ -258,10 +282,17 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		baseAmount := req.Amount
 		tipsAmount := 0
 
-		// Calculate tips
-		if req.IncludeTips && settings.TipsEnabled {
+		platformContributionEnabled := req.IncludeTips
+		if req.PlatformContributionEnabled != nil {
+			platformContributionEnabled = *req.PlatformContributionEnabled
+		}
+
+		// Calculate platform contribution (legacy includeTips compatible)
+		if platformContributionEnabled && settings.TipsEnabled {
 			percent := float32(5.0)
-			if req.TipsPercent > 0 {
+			if req.PlatformContributionPercent != nil && *req.PlatformContributionPercent > 0 {
+				percent = *req.PlatformContributionPercent
+			} else if req.TipsPercent > 0 {
 				percent = req.TipsPercent
 			} else if settings.DefaultTipsPercent > 0 {
 				percent = settings.DefaultTipsPercent
@@ -364,20 +395,30 @@ func (s *CharityService) Donate(donorUserID uint, req models.DonateRequest) (*mo
 		refundDeadline := nowUTC.Add(24 * time.Hour)
 
 		donation := models.CharityDonation{
-			DonorUserID:      donorUserID,
-			ProjectID:        project.ID,
-			Amount:           baseAmount,
-			TipsAmount:       tipsAmount,
-			TotalPaid:        totalAmount,
-			TransactionID:    &walletTx.ID,
-			KarmaMessage:     req.KarmaMessage,
-			IsAnonymous:      req.IsAnonymous,
-			WantsCertificate: req.WantsCertificate,
-			ImpactSnapshot:   impactSnapshot,
-			Status:           models.DonationStatusPending, // Pending for 24 hours
-			CanRefundUntil:   &refundDeadline,
+			DonorUserID:                 donorUserID,
+			ProjectID:                   project.ID,
+			Amount:                      baseAmount,
+			TipsAmount:                  tipsAmount,
+			TotalPaid:                   totalAmount,
+			TransactionID:               &walletTx.ID,
+			KarmaMessage:                req.KarmaMessage,
+			IsAnonymous:                 req.IsAnonymous,
+			WantsCertificate:            req.WantsCertificate,
+			ImpactSnapshot:              impactSnapshot,
+			Status:                      models.DonationStatusPending, // Pending for 24 hours
+			CanRefundUntil:              &refundDeadline,
+			SourceService:               normalizeDonationSourceService(req.SourceService),
+			SourceTrigger:               normalizeDonationSourceTrigger(req.SourceTrigger),
+			SourceRoomID:                req.SourceRoomID,
+			SourceContext:               strings.TrimSpace(req.SourceContext),
+			PlatformContributionEnabled: platformContributionEnabled,
+			PlatformContributionAmount:  tipsAmount,
 		}
 		if err := tx.Create(&donation).Error; err != nil {
+			return err
+		}
+
+		if err := createDonationLedgerEntries(tx, donation, donorUserID); err != nil {
 			return err
 		}
 
@@ -541,6 +582,45 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 			return err
 		}
 
+		if donation.PlatformContributionAmount > 0 {
+			txGroupID := fmt.Sprintf("donation_refund:%d", donation.ID)
+			serviceFund := SupportFundAccountCode(donation.SourceService)
+			if err := tx.Create([]models.LKMLedgerEntry{
+				{
+					TxGroupID:         txGroupID,
+					EntryType:         models.LKMLedgerEntryTypeDebit,
+					Amount:            donation.PlatformContributionAmount,
+					AccountCode:       serviceFund,
+					Status:            "posted",
+					SourceService:     donation.SourceService,
+					SourceTrigger:     "refund",
+					SourceContextJSON: donation.SourceContext,
+					DonationID:        &donation.ID,
+					ProjectID:         &donation.ProjectID,
+					UserID:            &donation.DonorUserID,
+					RoomID:            donation.SourceRoomID,
+					Note:              "Donation refund reversed platform contribution",
+				},
+				{
+					TxGroupID:         txGroupID,
+					EntryType:         models.LKMLedgerEntryTypeCredit,
+					Amount:            donation.PlatformContributionAmount,
+					AccountCode:       "user_wallet",
+					Status:            "posted",
+					SourceService:     donation.SourceService,
+					SourceTrigger:     "refund",
+					SourceContextJSON: donation.SourceContext,
+					DonationID:        &donation.ID,
+					ProjectID:         &donation.ProjectID,
+					UserID:            &donation.DonorUserID,
+					RoomID:            donation.SourceRoomID,
+					Note:              "Refund credited back to user wallet",
+				},
+			}).Error; err != nil {
+				return err
+			}
+		}
+
 		// 7. Update donation status
 		now := time.Now().UTC()
 		if err := tx.Model(&donation).Updates(map[string]interface{}{
@@ -590,6 +670,63 @@ func (s *CharityService) RefundDonation(userID uint, donationID uint) error {
 		log.Printf("[Charity] Refund success: Donation %d refunded to User %d (Amount: %d)", donationID, userID, donation.TotalPaid)
 		return nil
 	})
+}
+
+func createDonationLedgerEntries(tx *gorm.DB, donation models.CharityDonation, donorUserID uint) error {
+	if donation.PlatformContributionAmount <= 0 {
+		return nil
+	}
+
+	sourceContext := strings.TrimSpace(donation.SourceContext)
+	if sourceContext == "" {
+		payload := map[string]interface{}{
+			"projectId": donation.ProjectID,
+		}
+		if donation.SourceRoomID != nil {
+			payload["roomId"] = *donation.SourceRoomID
+		}
+		if raw, err := json.Marshal(payload); err == nil {
+			sourceContext = string(raw)
+		}
+	}
+
+	txGroupID := fmt.Sprintf("donation:%d", donation.ID)
+	serviceFund := SupportFundAccountCode(donation.SourceService)
+
+	entries := []models.LKMLedgerEntry{
+		{
+			TxGroupID:         txGroupID,
+			EntryType:         models.LKMLedgerEntryTypeDebit,
+			Amount:            donation.PlatformContributionAmount,
+			AccountCode:       "user_wallet",
+			Status:            "posted",
+			SourceService:     donation.SourceService,
+			SourceTrigger:     donation.SourceTrigger,
+			SourceContextJSON: sourceContext,
+			ProjectID:         &donation.ProjectID,
+			DonationID:        &donation.ID,
+			UserID:            &donorUserID,
+			RoomID:            donation.SourceRoomID,
+			Note:              "Platform contribution debit from user wallet",
+		},
+		{
+			TxGroupID:         txGroupID,
+			EntryType:         models.LKMLedgerEntryTypeCredit,
+			Amount:            donation.PlatformContributionAmount,
+			AccountCode:       serviceFund,
+			Status:            "posted",
+			SourceService:     donation.SourceService,
+			SourceTrigger:     donation.SourceTrigger,
+			SourceContextJSON: sourceContext,
+			ProjectID:         &donation.ProjectID,
+			DonationID:        &donation.ID,
+			UserID:            &donorUserID,
+			RoomID:            donation.SourceRoomID,
+			Note:              "Platform contribution credited to service fund",
+		},
+	}
+
+	return tx.Create(&entries).Error
 }
 
 // GetUserDonations returns user's donation history

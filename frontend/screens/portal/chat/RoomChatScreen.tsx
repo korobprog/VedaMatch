@@ -14,6 +14,8 @@ import {
     ScrollView,
     Animated,
     Platform,
+    Modal,
+    Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from '@react-native-community/blur';
@@ -38,6 +40,7 @@ import { KeyboardAwareContainer } from '../../../components/ui/KeyboardAwareCont
 import { authorizedFetch } from '../../../services/authSessionService';
 import { messageService } from '../../../services/messageService';
 import { roomCallService } from '../../../services/roomCallService';
+import { roomSupportService, RoomSupportConfig } from '../../../services/roomSupportService';
 import { appendLiveMessage, prependHistoryPage } from './roomChatMessageUtils';
 import { createRoomChatStyles } from './roomChatStyles';
 import { getRoomChatVisualTokens, ROOM_CHAT_DENSITY } from './roomChatVisualTokens';
@@ -62,7 +65,7 @@ interface ChatMessage {
 
 export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
-    const { roomId, roomName, isYatraChat } = route.params;
+    const { roomId, roomName, isYatraChat, listenerMode = false, showSupportPrompt = true } = route.params;
     const { t, i18n } = useTranslation();
     const { isDarkMode, assistantType } = useSettings();
     const { user } = useUser();
@@ -89,6 +92,12 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const [readerFontSize, setReaderFontSize] = useState(16);
     const [readerFontBold, setReaderFontBold] = useState(false);
     const [roomSfuEnabled, setRoomSfuEnabled] = useState(false);
+    const [supportConfig, setSupportConfig] = useState<RoomSupportConfig | null>(null);
+    const [supportPromptVisible, setSupportPromptVisible] = useState(false);
+    const [supportChecked, setSupportChecked] = useState(false);
+    const [supportAmount, setSupportAmount] = useState(20);
+    const [supportAmountInput, setSupportAmountInput] = useState('20');
+    const [supportSubmitting, setSupportSubmitting] = useState(false);
     const latestMessagesRequestRef = useRef(0);
     const latestRoomRequestRef = useRef(0);
     const latestChaptersRequestRef = useRef(0);
@@ -104,6 +113,7 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const panelTranslateY = useRef(new Animated.Value(10)).current;
     const inputFade = useRef(new Animated.Value(0)).current;
     const inputTranslateY = useRef(new Animated.Value(12)).current;
+    const supportPulse = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
         if (roomDetails?.bookCode) {
@@ -128,6 +138,10 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
 
     const normalizeBookCode = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+    const toQueryString = (params: Record<string, string | undefined>) => Object.entries(params)
+        .filter(([, value]) => typeof value === 'string' && value.length > 0)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+        .join('&');
 
     const getVerseText = useCallback((verse: any) => {
         if (!verse) {
@@ -162,15 +176,13 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
         try {
             let selectedVerses: any[] = [];
             for (const language of languagePriority) {
-                const params = new URLSearchParams({
+                const query = toQueryString({
                     bookCode: normalizedBookCode,
                     chapter: String(chapter),
+                    language: language || undefined,
                 });
-                if (language) {
-                    params.set('language', language);
-                }
 
-                const response = await fetch(`${API_PATH}/library/verses?${params.toString()}`);
+                const response = await fetch(`${API_PATH}/library/verses?${query}`);
                 if (!response.ok) {
                     continue;
                 }
@@ -274,6 +286,25 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
             setRoomSfuEnabled(false);
         }
     }, [roomId, user?.ID]);
+
+    const handleJoinCallPress = useCallback(() => {
+        if (listenerMode) {
+            Alert.alert(
+                t('chat.listenerMode') || 'Режим слушателя',
+                t('chat.listenerVoiceVideoDisabled') || 'Аудио и видео отключены для этого входа'
+            );
+            return;
+        }
+        if (!roomSfuEnabled) {
+            Alert.alert(
+                t('common.error'),
+                t('chat.videoUnavailable') || 'Видеосвязь временно недоступна'
+            );
+            return;
+        }
+        triggerTapFeedback();
+        setIsCallActive(true);
+    }, [listenerMode, roomSfuEnabled, t]);
 
     const fetchFontSettings = useCallback(async () => {
         const requestId = ++latestFontSettingsRequestRef.current;
@@ -433,6 +464,52 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     }, [fetchRoomSfuAvailability]);
 
     useEffect(() => {
+        let isCancelled = false;
+        if (!showSupportPrompt || !user?.ID) {
+            return;
+        }
+
+        const maybeShowPrompt = async () => {
+            try {
+                const cfg = await roomSupportService.getSupportConfig();
+                if (isCancelled) return;
+                setSupportConfig(cfg);
+                const defaultAmount = cfg.defaultAmount > 0 ? cfg.defaultAmount : 20;
+                setSupportAmount(defaultAmount);
+                setSupportAmountInput(String(defaultAmount));
+                if (!cfg.enabled || cfg.projectId <= 0) {
+                    return;
+                }
+
+                const cooldownKey = `rooms_support_prompt:${user.ID}:${roomId}`;
+                const cooldownMs = Math.max(1, cfg.cooldownHours) * 60 * 60 * 1000;
+                const lastSeenRaw = await AsyncStorage.getItem(cooldownKey);
+                const lastSeen = Number.parseInt(lastSeenRaw || '0', 10);
+                if (Number.isFinite(lastSeen) && lastSeen > 0 && (Date.now() - lastSeen) < cooldownMs) {
+                    return;
+                }
+
+                if (isCancelled) return;
+                setSupportChecked(false);
+                setSupportPromptVisible(true);
+                Animated.sequence([
+                    Animated.timing(supportPulse, { toValue: 1.08, duration: 220, useNativeDriver: true }),
+                    Animated.timing(supportPulse, { toValue: 1, duration: 220, useNativeDriver: true }),
+                    Animated.timing(supportPulse, { toValue: 1.08, duration: 220, useNativeDriver: true }),
+                    Animated.timing(supportPulse, { toValue: 1, duration: 220, useNativeDriver: true }),
+                ]).start();
+            } catch (error) {
+                console.error('Error loading room support config:', error);
+            }
+        };
+
+        void maybeShowPrompt();
+        return () => {
+            isCancelled = true;
+        };
+    }, [roomId, showSupportPrompt, supportPulse, user?.ID]);
+
+    useEffect(() => {
         const removeListener = addListener((msg: any) => {
             if (!isMountedRef.current) {
                 return;
@@ -458,6 +535,49 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
     const myRole = String(roomDetails?.myRole || '').toLowerCase();
     const canInvite = !isYatraChatRoom && (myRole === 'owner' || myRole === 'admin');
     const canOpenSettings = myRole === 'owner';
+    const markSupportPromptCooldown = useCallback(async () => {
+        if (!user?.ID) return;
+        const key = `rooms_support_prompt:${user.ID}:${roomId}`;
+        await AsyncStorage.setItem(key, String(Date.now()));
+    }, [roomId, user?.ID]);
+
+    const handleSupportLater = useCallback(async () => {
+        await markSupportPromptCooldown();
+        setSupportPromptVisible(false);
+    }, [markSupportPromptCooldown]);
+
+    const handleSupportDonate = useCallback(async () => {
+        if (!supportConfig || !supportChecked || supportSubmitting) return;
+        if (supportAmount <= 0) {
+            Alert.alert(t('common.error'), 'Введите корректную сумму');
+            return;
+        }
+        setSupportSubmitting(true);
+        try {
+            await roomSupportService.donateToRooms(
+                supportConfig.projectId,
+                supportAmount,
+                false,
+                'Поддержка развития сервиса Комнаты',
+                Number(roomId),
+            );
+            await markSupportPromptCooldown();
+            setSupportPromptVisible(false);
+            Alert.alert(t('common.success'), t('chat.roomsSupportThanks') || 'Спасибо за поддержку!');
+        } catch (error: any) {
+            Alert.alert(t('common.error'), error?.message || 'Не удалось выполнить пожертвование');
+        } finally {
+            if (isMountedRef.current) {
+                setSupportSubmitting(false);
+            }
+        }
+    }, [markSupportPromptCooldown, supportAmount, supportChecked, supportConfig, supportSubmitting, t]);
+
+    const changeSupportAmount = useCallback((next: number) => {
+        const normalized = Math.max(1, Math.floor(next));
+        setSupportAmount(normalized);
+        setSupportAmountInput(String(normalized));
+    }, []);
 
     const handleNextVerse = async () => {
         if (!roomDetails || !versesInChapter) return;
@@ -708,7 +828,17 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                     <RoomVideoBar
                         roomId={roomId}
                         onClose={() => setIsCallActive(false)}
+                        blockedByListener={listenerMode}
                     />
+                )}
+
+                {listenerMode && (
+                    <View style={styles.listenerModeBanner}>
+                        <Text style={styles.listenerModeBannerTitle}>{t('chat.listenerMode') || 'Режим слушателя'}</Text>
+                        <Text style={styles.listenerModeBannerText}>
+                            {t('chat.listenerVoiceVideoDisabled') || 'Аудио и видео отключены, чат доступен'}
+                        </Text>
+                    </View>
                 )}
 
                 {roomDetails?.bookCode ? (
@@ -753,16 +883,11 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                     )}
                                 </TouchableOpacity>
                             </View>
-                            {!isCallActive && (
+                            {!isCallActive && !listenerMode && (
                                 <TouchableOpacity
                                     activeOpacity={0.88}
                                     style={[styles.joinCallButton, styles.joinCallButtonFullWidth]}
-                                    disabled={!roomSfuEnabled}
-                                    onPress={() => {
-                                        if (!roomSfuEnabled) return;
-                                        triggerTapFeedback();
-                                        setIsCallActive(true);
-                                    }}
+                                    onPress={handleJoinCallPress}
                                 >
                                     <Video size={18} color={tokens.accentTextOnPrimary} />
                                     <Text style={styles.joinCallButtonText}>
@@ -949,16 +1074,11 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                                 </Text>
                             ) : null}
                         </View>
-                        {!isCallActive && (
+                        {!isCallActive && !listenerMode && (
                             <TouchableOpacity
                                 activeOpacity={0.88}
                                 style={styles.joinCallButton}
-                                disabled={!roomSfuEnabled}
-                                onPress={() => {
-                                    if (!roomSfuEnabled) return;
-                                    triggerTapFeedback();
-                                    setIsCallActive(true);
-                                }}
+                                onPress={handleJoinCallPress}
                             >
                                 <Video size={18} color={tokens.accentTextOnPrimary} />
                                 <Text style={styles.joinCallButtonText}>
@@ -1076,6 +1196,116 @@ export const RoomChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 roomId={roomId}
                 roomName={roomName}
             />
+
+            <Modal
+                transparent
+                animationType="fade"
+                visible={supportPromptVisible}
+                onRequestClose={() => {
+                    void handleSupportLater();
+                }}
+            >
+                <View style={styles.supportOverlay}>
+                    <View style={styles.supportCard}>
+                        <Animated.Text style={[styles.supportBlink, { transform: [{ scale: supportPulse }] }]}>😉</Animated.Text>
+                        <Text style={styles.supportTitle}>{t('chat.roomsSupportTitle') || 'Поддержка Комнат'}</Text>
+                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit1') || 'Поддержка серверов звонков и стабильности комнат.'}</Text>
+                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit2') || 'Развитие совместного чтения и новых функций.'}</Text>
+                        <Text style={styles.supportBenefitText}>{t('chat.roomsSupportBenefit3') || 'Ваш вклад ускоряет улучшения для всех участников.'}</Text>
+
+                        <View style={styles.supportCheckRow}>
+                            <Text style={styles.supportCheckLabel}>{t('chat.roomsSupportCheckbox') || 'Поддержать сейчас'}</Text>
+                            <Switch
+                                value={supportChecked}
+                                onValueChange={setSupportChecked}
+                                trackColor={{ false: tokens.inputFieldBorder, true: tokens.accent }}
+                            />
+                        </View>
+
+                        <View style={styles.supportAmountRow}>
+                            <TouchableOpacity
+                                onPress={() => changeSupportAmount(supportAmount - 5)}
+                                style={styles.supportAmountButton}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={styles.supportAmountButtonText}>-5</Text>
+                            </TouchableOpacity>
+                            <View style={styles.supportAmountInputWrap}>
+                                <TextInput
+                                    value={supportAmountInput}
+                                    onChangeText={(value) => {
+                                        const digits = value.replace(/[^\d]/g, '');
+                                        setSupportAmountInput(digits);
+                                        if (!digits) {
+                                            setSupportAmount(0);
+                                            return;
+                                        }
+                                        const parsed = Number.parseInt(digits, 10);
+                                        if (Number.isFinite(parsed)) {
+                                            setSupportAmount(parsed);
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        if (!supportAmountInput.trim()) {
+                                            changeSupportAmount(20);
+                                            return;
+                                        }
+                                        const parsed = Number.parseInt(supportAmountInput, 10);
+                                        if (!Number.isFinite(parsed) || parsed <= 0) {
+                                            changeSupportAmount(20);
+                                        } else {
+                                            changeSupportAmount(parsed);
+                                        }
+                                    }}
+                                    keyboardType="number-pad"
+                                    style={styles.supportAmountInput}
+                                    placeholder="20"
+                                    placeholderTextColor={tokens.inputPlaceholder}
+                                    maxLength={5}
+                                />
+                                <Text style={styles.supportAmountSuffix}>LKM</Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => changeSupportAmount(supportAmount + 5)}
+                                style={styles.supportAmountButton}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={styles.supportAmountButtonText}>+5</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.supportActions}>
+                            <TouchableOpacity
+                                style={styles.supportLaterButton}
+                                onPress={() => {
+                                    void handleSupportLater();
+                                }}
+                                activeOpacity={0.85}
+                                disabled={supportSubmitting}
+                            >
+                                <Text style={styles.supportLaterButtonText}>{t('chat.roomsSupportLater') || 'Позже'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.supportConfirmButton,
+                                    { opacity: supportChecked ? 1 : 0.7 },
+                                ]}
+                                onPress={() => {
+                                    void handleSupportDonate();
+                                }}
+                                activeOpacity={0.9}
+                                disabled={!supportChecked || supportSubmitting}
+                            >
+                                {supportSubmitting ? (
+                                    <ActivityIndicator size="small" color={tokens.accentTextOnPrimary} />
+                                ) : (
+                                    <Text style={styles.supportConfirmButtonText}>{t('chat.roomsSupportConfirm') || 'Поддержать'}</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };

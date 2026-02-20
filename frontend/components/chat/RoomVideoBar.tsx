@@ -9,13 +9,14 @@ import { RoomSfuClient, RoomSfuConnectionState, RoomSfuParticipant } from '../..
 interface RoomVideoBarProps {
   roomId: number;
   onClose: () => void;
+  blockedByListener?: boolean;
 }
 
 const MAX_VISIBLE_PARTICIPANTS = 9;
 const PARTICIPANT_LABEL_BG = 'rgba(0,0,0,0.55)';
 const DANGER_BG = '#ff4444';
 
-export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) => {
+export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose, blockedByListener = false }) => {
   const { vTheme } = useSettings();
   const sfuClient = useMemo(() => new RoomSfuClient(), []);
   const [participants, setParticipants] = useState<RoomSfuParticipant[]>([]);
@@ -49,6 +50,10 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
     let mounted = true;
 
     const connect = async () => {
+      if (blockedByListener) {
+        setStatus('Listener mode: voice/video disabled');
+        return;
+      }
       try {
         setStatus('Checking room video config...');
         const nextConfig = await roomCallService.getRoomSfuConfig(roomId);
@@ -101,7 +106,7 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
         console.error('[RoomVideoBar] disconnect effect failed', error);
       });
     };
-  }, [roomId, sfuClient]);
+  }, [blockedByListener, roomId, sfuClient]);
 
   const toggleAudio = async () => {
     const next = !isPublishingAudio;
@@ -181,11 +186,11 @@ export const RoomVideoBar: React.FC<RoomVideoBarProps> = ({ roomId, onClose }) =
           {`participants: ${participants.length} · state: ${connectionState}`}
         </Text>
 
-        <TouchableOpacity onPress={toggleVideo} style={styles.iconButton}>
+        <TouchableOpacity onPress={toggleVideo} style={styles.iconButton} disabled={blockedByListener}>
           {isPublishingVideo ? <Video size={20} color={vTheme.colors.text} /> : <VideoOff size={20} color={'#ff4444'} />}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={toggleAudio} style={styles.iconButton}>
+        <TouchableOpacity onPress={toggleAudio} style={styles.iconButton} disabled={blockedByListener}>
           {isPublishingAudio ? <Mic size={20} color={vTheme.colors.text} /> : <MicOff size={20} color={'#ff4444'} />}
         </TouchableOpacity>
 
