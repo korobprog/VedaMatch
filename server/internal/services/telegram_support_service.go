@@ -626,24 +626,38 @@ func (s *TelegramSupportService) escalateToOperator(
 }
 
 func (s *TelegramSupportService) buildStartButtons(languageCode string) map[string]interface{} {
-	rows := make([][]map[string]string, 0, 4)
-	addButton := func(text, url string) {
+	rows := make([][]map[string]interface{}, 0, 4)
+	addURLButton := func(text, url string) {
 		url = strings.TrimSpace(url)
 		if url == "" {
 			return
 		}
-		rows = append(rows, []map[string]string{
+		rows = append(rows, []map[string]interface{}{
 			{
 				"text": text,
 				"url":  url,
 			},
 		})
 	}
+	addWebAppButton := func(text, webAppURL string) {
+		webAppURL = strings.TrimSpace(webAppURL)
+		if webAppURL == "" {
+			return
+		}
+		rows = append(rows, []map[string]interface{}{
+			{
+				"text": text,
+				"web_app": map[string]string{
+					"url": webAppURL,
+				},
+			},
+		})
+	}
 
-	addButton(s.buttonLabel("SUPPORT_DOWNLOAD_IOS_TEXT", "Скачать iOS"), s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
-	addButton(s.buttonLabel("SUPPORT_DOWNLOAD_ANDROID_TEXT", "Скачать Android"), s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
-	addButton(s.buttonLabel("SUPPORT_CHANNEL_TEXT", "Наш канал"), s.getSetting("SUPPORT_CHANNEL_URL"))
-	addButton(s.lkmInlineButtonText(languageCode), s.miniAppURLByLanguage(languageCode))
+	addURLButton(s.buttonLabel("SUPPORT_DOWNLOAD_IOS_TEXT", "Скачать iOS"), s.getSetting("SUPPORT_DOWNLOAD_IOS_URL"))
+	addURLButton(s.buttonLabel("SUPPORT_DOWNLOAD_ANDROID_TEXT", "Скачать Android"), s.getSetting("SUPPORT_DOWNLOAD_ANDROID_URL"))
+	addURLButton(s.buttonLabel("SUPPORT_CHANNEL_TEXT", "Наш канал"), s.getSetting("SUPPORT_CHANNEL_URL"))
+	addWebAppButton(s.lkmInlineButtonText(languageCode), s.miniAppURLByLanguage(languageCode))
 
 	if len(rows) == 0 {
 		return nil

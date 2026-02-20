@@ -224,6 +224,46 @@ type fakeCopyCall struct {
 	NewMessageID  int64
 }
 
+func extractInlineKeyboardButtons(replyMarkup map[string]interface{}) []map[string]string {
+	if replyMarkup == nil {
+		return nil
+	}
+	rawRows, ok := replyMarkup["inline_keyboard"]
+	if !ok || rawRows == nil {
+		return nil
+	}
+
+	rows, ok := rawRows.([][]map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	result := make([]map[string]string, 0, len(rows))
+	for _, row := range rows {
+		for _, button := range row {
+			if button == nil {
+				continue
+			}
+			entry := map[string]string{
+				"text": strings.TrimSpace(fmt.Sprintf("%v", button["text"])),
+			}
+			if rawURL, ok := button["url"]; ok {
+				entry["url"] = strings.TrimSpace(fmt.Sprintf("%v", rawURL))
+			}
+			if rawWebApp, ok := button["web_app"]; ok {
+				if webAppMap, ok := rawWebApp.(map[string]string); ok {
+					entry["web_app_url"] = strings.TrimSpace(webAppMap["url"])
+				} else if webAppMapAny, ok := rawWebApp.(map[string]interface{}); ok {
+					entry["web_app_url"] = strings.TrimSpace(fmt.Sprintf("%v", webAppMapAny["url"]))
+				}
+			}
+			result = append(result, entry)
+		}
+	}
+
+	return result
+}
+
 type fakeMenuButtonCall struct {
 	ChatID int64
 	Text   string
@@ -482,19 +522,9 @@ func TestSupportStartMessage_IncludesUsageGuide(t *testing.T) {
 		if sent.ChatID != 77 || sent.Options.ReplyMarkup == nil {
 			continue
 		}
-		rawRows, ok := sent.Options.ReplyMarkup["inline_keyboard"]
-		if !ok {
-			continue
-		}
-		rows, ok := rawRows.([][]map[string]string)
-		if !ok {
-			continue
-		}
 		var buttonTexts []string
-		for _, row := range rows {
-			for _, button := range row {
-				buttonTexts = append(buttonTexts, button["text"])
-			}
+		for _, button := range extractInlineKeyboardButtons(sent.Options.ReplyMarkup) {
+			buttonTexts = append(buttonTexts, button["text"])
 		}
 		hasRuButtons = strings.Contains(strings.Join(buttonTexts, "|"), "Скачать iOS") &&
 			strings.Contains(strings.Join(buttonTexts, "|"), "Скачать Android") &&
@@ -616,31 +646,15 @@ func TestSupportStartMessage_LocalizesMiniAppMenuButtonByLanguage(t *testing.T) 
 				if sent.ChatID != 707 || sent.Options.ReplyMarkup == nil {
 					continue
 				}
-				rawRows, ok := sent.Options.ReplyMarkup["inline_keyboard"]
-				if !ok {
-					continue
-				}
-				rows, ok := rawRows.([][]map[string]string)
-				if !ok {
-					continue
-				}
-				for _, row := range rows {
-					for _, button := range row {
-						if button["text"] == tc.wantInline && button["url"] == tc.wantURL {
-							hasInlineLKM = true
-							break
-						}
-					}
-					if hasInlineLKM {
+				for _, button := range extractInlineKeyboardButtons(sent.Options.ReplyMarkup) {
+					if button["text"] == tc.wantInline && button["web_app_url"] == tc.wantURL {
+						hasInlineLKM = true
 						break
 					}
 				}
-				if hasInlineLKM {
-					break
-				}
 			}
 			if !hasInlineLKM {
-				t.Fatalf("expected inline LKM button %q -> %q", tc.wantInline, tc.wantURL)
+				t.Fatalf("expected inline LKM web_app button %q -> %q", tc.wantInline, tc.wantURL)
 			}
 		})
 	}
