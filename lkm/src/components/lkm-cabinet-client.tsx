@@ -266,6 +266,13 @@ function humanTopupStatus(status: string): string {
   }
 }
 
+const IconGlobe = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" x2="22" y1="12" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>;
+const IconLock = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>;
+const IconWallet = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>;
+const IconZap = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>;
+const IconCalculator = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><path d="M16 10h.01" /><path d="M12 10h.01" /><path d="M8 10h.01" /><path d="M12 14h.01" /><path d="M8 14h.01" /><path d="M12 18h.01" /><path d="M8 18h.01" /></svg>;
+const IconHistory = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
+
 export default function LkmCabinetClient({
   initialHost,
   initialRegion,
@@ -892,16 +899,16 @@ export default function LkmCabinetClient({
       const isTelegramLinkFlow = isTelegramMiniApp && telegramLinkRequired && !!telegramInitData;
       const payload = isTelegramLinkFlow
         ? {
-            initData: telegramInitData,
-            email: email.trim(),
-            password,
-            deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
-          }
+          initData: telegramInitData,
+          email: email.trim(),
+          password,
+          deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
+        }
         : {
-            email: email.trim(),
-            password,
-            deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
-          };
+          email: email.trim(),
+          password,
+          deviceId: deviceIdRef.current || getOrCreateLkmDeviceID(),
+        };
       const response = await apiRequest<LoginResponse>(
         isTelegramLinkFlow ? '/auth/telegram/miniapp/link' : '/login',
         {
@@ -1053,14 +1060,14 @@ export default function LkmCabinetClient({
   return (
     <main className="page-shell">
       <section className="hero-card">
-        <p className="hero-domain">{initialHost || 'lkm.vedamatch'}</p>
-        <h1>Кабинет LKM пополнений</h1>
+        <p className="hero-domain"><IconGlobe /> {initialHost || 'lkm.vedamatch'}</p>
+        <h1>Кабинет LKM</h1>
         <p className="hero-subtitle">
-          Пополнение доступно на сайте и в Telegram-боте. В мобильных приложениях кнопки пополнения отключены.
+          Пополнение баланса LKM для экосистемы VedaMatch. Доступно на сайте и в Telegram-боте.
         </p>
         <div className="hero-meta">
           <span>Регион: {regionLabel}</span>
-          <span>Платежный шлюз: {gatewayCode}</span>
+          <span>Шлюз оплаты: {gatewayCode}</span>
           <span>Валюта: {currency}</span>
         </div>
       </section>
@@ -1068,7 +1075,7 @@ export default function LkmCabinetClient({
       <section className="grid-two">
         <article className="panel">
           <div className="panel-heading">
-            <h2>1. Авторизация</h2>
+            <h2><IconLock /> Авторизация</h2>
             {isTelegramMiniApp && telegramUser ? (
               <div className="tg-user-badge" title={telegramDisplayName || 'Telegram'}>
                 {telegramUser.photo_url ? (
@@ -1156,7 +1163,7 @@ export default function LkmCabinetClient({
         </article>
 
         <article className="panel">
-          <h2>2. Баланс и правила</h2>
+          <h2><IconWallet /> Кошелек</h2>
           <div className="stack">
             <p>
               Текущий активный баланс:{' '}
@@ -1178,7 +1185,7 @@ export default function LkmCabinetClient({
       </section>
 
       <section className="panel">
-        <h2>3. Пакеты и произвольная сумма</h2>
+        <h2><IconZap /> Пополнение счета</h2>
         {isLoading ? <p>Загрузка пакетов...</p> : null}
 
         {packages ? (
@@ -1258,7 +1265,7 @@ export default function LkmCabinetClient({
       </section>
 
       <section className="panel">
-        <h2>4. Расчет и создание пополнения</h2>
+        <h2><IconCalculator /> Расчет и создание</h2>
         {isBlockedInApp ? (
           <p className="warn">
             Обнаружен встроенный канал приложения. Пополнение в приложении запрещено. Используйте сайт или Telegram-бот.
@@ -1308,7 +1315,7 @@ export default function LkmCabinetClient({
       </section>
 
       <section className="panel">
-        <h2>5. История пополнений</h2>
+        <h2><IconHistory /> История пополнений</h2>
         {!token ? <p className="note">История доступна после авторизации.</p> : null}
 
         {token ? (
