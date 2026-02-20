@@ -895,7 +895,14 @@ export default function LkmCabinetClient({
     if (packages.customStepLkm <= 1) {
       return true;
     }
-    return amount % packages.customStepLkm === 0;
+    return (amount - packages.customMinLkm) % packages.customStepLkm === 0;
+  };
+
+  const isValidFixedPackageAmount = (amount: number): boolean => {
+    if (!packages) {
+      return false;
+    }
+    return packages.packages.some((item) => item.lkmAmount === amount);
   };
 
   const onCustomAmountChange = (value: string) => {
@@ -920,9 +927,16 @@ export default function LkmCabinetClient({
       setError('Пакеты не загружены');
       return;
     }
-    if (!amountToQuote || !isValidCustomAmount(amountToQuote)) {
-      setError(`Введите корректную сумму: ${packages.customMinLkm}..${packages.customMaxLkm}, шаг ${packages.customStepLkm}`);
-      return;
+    if (selectedAmount && selectedAmount > 0) {
+      if (!isValidFixedPackageAmount(selectedAmount)) {
+        setError('Выбранный пакет недоступен. Обновите страницу и выберите пакет заново.');
+        return;
+      }
+    } else {
+      if (!amountToQuote || !isValidCustomAmount(amountToQuote)) {
+        setError(`Введите корректную сумму: ${packages.customMinLkm}..${packages.customMaxLkm}, шаг ${packages.customStepLkm}`);
+        return;
+      }
     }
 
     setIsCreatingQuote(true);
