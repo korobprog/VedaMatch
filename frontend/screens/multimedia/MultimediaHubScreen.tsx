@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { MultimediaMenuItem } from '../../components/multimedia/MultimediaMenuItem';
 import {
     Radio,
     Music,
@@ -23,6 +24,9 @@ import {
     Loader2,
     Heart,
     Clapperboard,
+    ListMusic,
+    Download,
+    MonitorPlay,
 } from 'lucide-react-native';
 import { multimediaService, RadioStation, TVChannel, MediaTrack } from '../../services/multimediaService';
 import { useSettings } from '../../context/SettingsContext';
@@ -40,6 +44,10 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
     const { vTheme, isDarkMode } = useSettings();
     const { user } = useUser();
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
+    const cardBgColor = isDarkMode ? '#1C1C1E' : '#FFFFFF';
+    const screenBgColor = isDarkMode ? '#000000' : '#F2F2F7';
+    const textColorPrimary = isDarkMode ? '#FFFFFF' : '#000000';
+    const textColorSecondary = isDarkMode ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [radioStations, setRadioStations] = useState<RadioStation[]>([]);
@@ -103,12 +111,12 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
         { id: 'radio', title: 'Радио', icon: Radio, color: roleColors.accent, screen: 'RadioScreen' },
         { id: 'audio', title: 'Аудио', icon: Music, color: roleColors.accent, screen: 'AudioScreen' },
         { id: 'video', title: 'Видео', icon: Film, color: roleColors.warning, screen: 'VideoScreen' },
-        { id: 'circles', title: 'Кружки', icon: PlayCircle, color: roleColors.warning, screen: 'VideoCirclesScreen' },
+        { id: 'circles', title: 'Кружки', icon: MonitorPlay, color: roleColors.warning, screen: 'VideoCirclesScreen' },
         { id: 'series', title: 'Сериалы', icon: Clapperboard, color: roleColors.accent, screen: 'SeriesScreen' },
         { id: 'tv', title: 'ТВ', icon: TvIcon, color: roleColors.success, screen: 'TVScreen' },
         { id: 'favorites', title: 'Избранное', icon: Heart, color: roleColors.danger, screen: 'FavoritesScreen' },
-        { id: 'playlists', title: 'Плейлисты', icon: Music, color: roleColors.success, screen: 'PlaylistsScreen' },
-        { id: 'offline', title: 'Оффлайн', icon: PlayCircle, color: roleColors.accent, screen: 'OfflineMedia' },
+        { id: 'playlists', title: 'Плейлисты', icon: ListMusic, color: roleColors.success, screen: 'PlaylistsScreen' },
+        { id: 'offline', title: 'Оффлайн', icon: Download, color: roleColors.accent, screen: 'OfflineMedia' },
     ];
 
     const onSupportLater = async () => {
@@ -144,16 +152,16 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
 
     if (loading) {
         return (
-            <View style={[styles.loadingContainer, { backgroundColor: roleColors.background }]}>
+            <View style={[styles.loadingContainer, { backgroundColor: screenBgColor }]}>
                 <Loader2 size={32} color={roleColors.accent} />
-                <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>Загрузка...</Text>
+                <Text style={[styles.loadingText, { color: textColorSecondary }]}>Загрузка...</Text>
             </View>
         );
     }
 
     return (
         <ScrollView
-            style={[styles.container, { backgroundColor: roleColors.background }]}
+            style={[styles.container, { backgroundColor: screenBgColor }]}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={roleColors.accent} />}
         >
             <GodModeStatusBanner />
@@ -178,14 +186,14 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
             </ImageBackground>
 
             {showSupportPrompt && supportConfig?.enabled && supportConfig.projectId > 0 && (
-                <View style={[styles.supportCard, { backgroundColor: roleColors.surfaceElevated, borderColor: roleColors.border }]}>
-                    <Text style={[styles.supportTitle, { color: roleColors.textPrimary }]}>Поддержать Sattva Media</Text>
-                    <Text style={[styles.supportText, { color: roleColors.textSecondary }]}>
+                <View style={[styles.supportCard, { backgroundColor: cardBgColor, borderColor: roleColors.border }]}>
+                    <Text style={[styles.supportTitle, { color: textColorPrimary }]}>Поддержать Sattva Media</Text>
+                    <Text style={[styles.supportText, { color: textColorSecondary }]}>
                         Мы сохраняем контент бесплатным. Добровольный донат: {Math.max(1, supportConfig.defaultAmount || 20)} LKM.
                     </Text>
                     <View style={styles.supportActions}>
                         <TouchableOpacity style={[styles.supportBtn, { borderColor: roleColors.border }]} onPress={onSupportLater}>
-                            <Text style={{ color: roleColors.textSecondary }}>Позже</Text>
+                            <Text style={{ color: textColorSecondary }}>Позже</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.supportBtn, { backgroundColor: roleColors.accent, borderColor: roleColors.accent }]}
@@ -198,28 +206,21 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                 </View>
             )}
 
-            {/* Menu Grid */}
-            <View style={styles.menuGrid}>
-                {menuItems.map((item) => (
-                    <TouchableOpacity
-                        key={item.id}
-                        activeOpacity={0.8}
-                        style={[
-                            styles.menuItem,
-                            {
-                                backgroundColor: isDarkMode ? `${item.color}33` : `${item.color}15`,
-                                borderColor: isDarkMode ? `${item.color}66` : `${item.color}33`,
-                                borderWidth: 1,
-                            }
-                        ]}
-                        onPress={() => navigation.navigate(item.screen)}
-                    >
-                        <View style={[styles.iconBox, { backgroundColor: item.color }]}>
-                            <item.icon size={26} color="white" />
-                        </View>
-                        <Text style={[styles.menuItemText, { color: roleColors.textPrimary }]}>{item.title}</Text>
-                    </TouchableOpacity>
-                ))}
+            {/* Menu Grid - Updated to new iOS-style grid */}
+            <View style={styles.menuGridContainer}>
+                <View style={styles.menuGrid}>
+                    {menuItems.map((item, index) => (
+                        <MultimediaMenuItem
+                            key={item.id}
+                            id={item.id}
+                            title={item.title}
+                            icon={item.icon}
+                            color={item.color}
+                            onPress={() => navigation.navigate(item.screen)}
+                            index={index}
+                        />
+                    ))}
+                </View>
             </View>
 
             {/* Radio Stations Section */}
@@ -230,7 +231,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                             <View style={[styles.headerIconContainer, { backgroundColor: roleColors.accentSoft }]}>
                                 <Radio size={18} color={roleColors.accent} />
                             </View>
-                            <Text style={[styles.sectionTitle, { color: roleColors.textPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
+                            <Text style={[styles.sectionTitle, { color: textColorPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
                                 Онлайн-радио
                             </Text>
                         </View>
@@ -243,7 +244,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                         {radioStations.slice(0, 5).map((station) => (
                             <TouchableOpacity
                                 key={station.ID}
-                                style={[styles.radioCard, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
+                                style={[styles.radioCard, { backgroundColor: cardBgColor, ...vTheme.shadows.soft }]}
                                 onPress={() => navigation.navigate('RadioPlayer', { station })}
                             >
                                 {station.logoUrl ? (
@@ -253,7 +254,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                                         <Radio size={24} color={roleColors.accent} />
                                     </View>
                                 )}
-                                <Text style={[styles.radioName, { color: roleColors.textPrimary }]} numberOfLines={1}>{station.name}</Text>
+                                <Text style={[styles.radioName, { color: textColorPrimary }]} numberOfLines={1}>{station.name}</Text>
                                 <View style={[
                                     styles.liveBadge,
                                     { backgroundColor: station.status === 'online' ? `${roleColors.success}33` : `${roleColors.danger}33` }
@@ -279,7 +280,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                             <View style={[styles.headerIconContainer, { backgroundColor: `${roleColors.accent}15` }]}>
                                 <Music size={18} color={roleColors.accent} />
                             </View>
-                            <Text style={[styles.sectionTitle, { color: roleColors.textPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
+                            <Text style={[styles.sectionTitle, { color: textColorPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
                                 Рекомендуем
                             </Text>
                         </View>
@@ -291,7 +292,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                     {featuredTracks.map((track) => (
                         <TouchableOpacity
                             key={track.ID}
-                            style={[styles.trackItem, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
+                            style={[styles.trackItem, { backgroundColor: cardBgColor, ...vTheme.shadows.soft }]}
                             onPress={() => navigation.navigate('AudioPlayer', { track })}
                         >
                             {track.thumbnailUrl ? (
@@ -302,8 +303,8 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                                 </View>
                             )}
                             <View style={styles.trackInfo}>
-                                <Text style={[styles.trackTitle, { color: roleColors.textPrimary }]} numberOfLines={1}>{track.title}</Text>
-                                <Text style={[styles.trackArtist, { color: roleColors.textSecondary }]} numberOfLines={1}>{track.artist || 'Неизвестный исполнитель'}</Text>
+                                <Text style={[styles.trackTitle, { color: textColorPrimary }]} numberOfLines={1}>{track.title}</Text>
+                                <Text style={[styles.trackArtist, { color: textColorSecondary }]} numberOfLines={1}>{track.artist || 'Неизвестный исполнитель'}</Text>
                             </View>
                             <PlayCircle size={28} color={roleColors.accent} />
                         </TouchableOpacity>
@@ -319,7 +320,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                             <View style={[styles.headerIconContainer, { backgroundColor: `${roleColors.accent}15` }]}>
                                 <TvIcon size={18} color={roleColors.accent} />
                             </View>
-                            <Text style={[styles.sectionTitle, { color: roleColors.textPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
+                            <Text style={[styles.sectionTitle, { color: textColorPrimary, fontFamily: vTheme.typography.subHeader.fontFamily }]}>
                                 Духовное ТВ
                             </Text>
                         </View>
@@ -332,7 +333,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                         {tvChannels.slice(0, 5).map((channel) => (
                             <TouchableOpacity
                                 key={channel.ID}
-                                style={[styles.tvCard, { backgroundColor: roleColors.surfaceElevated, ...vTheme.shadows.soft }]}
+                                style={[styles.tvCard, { backgroundColor: cardBgColor, ...vTheme.shadows.soft }]}
                                 onPress={() => navigation.navigate('TVPlayer', { channel })}
                             >
                                 {channel.logoUrl ? (
@@ -342,7 +343,7 @@ export const MultimediaHubScreen: React.FC<MultimediaHubScreenProps> = ({ onBack
                                         <TvIcon size={32} color={roleColors.accent} />
                                     </View>
                                 )}
-                                <Text style={[styles.tvName, { color: roleColors.textPrimary }]} numberOfLines={1}>{channel.name}</Text>
+                                <Text style={[styles.tvName, { color: textColorPrimary }]} numberOfLines={1}>{channel.name}</Text>
                                 {channel.isLive && (
                                     <View style={[styles.liveBadge, { backgroundColor: roleColors.accent }]}>
                                         <Text style={styles.liveBadgeText}>LIVE</Text>
@@ -418,12 +419,6 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 5,
     },
-    menuGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        padding: 16,
-        justifyContent: 'space-between',
-    },
     supportCard: {
         marginHorizontal: 16,
         marginTop: 14,
@@ -452,25 +447,18 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
     },
-    menuItem: {
-        width: '48%',
-        padding: 16,
-        borderRadius: 20,
-        marginBottom: 12,
+    menuGridContainer: {
+        width: '100%',
+        alignItems: 'center', // Centers the grid on tablet
+        paddingTop: 16,
+    },
+    menuGrid: {
         flexDirection: 'row',
-        alignItems: 'center',
-    },
-    iconBox: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    menuItemText: {
-        fontSize: 16,
-        fontWeight: '600',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16, // Matching the SPACING from the item component
+        width: '100%',
+        maxWidth: 600, // Important: keep the grid from getting too wide on iPads
     },
     section: {
         marginTop: 12,
