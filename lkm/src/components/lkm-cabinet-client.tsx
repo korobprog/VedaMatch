@@ -399,6 +399,11 @@ export default function LkmCabinetClient({
         if (message.includes('TELEGRAM_LINK_REQUIRED')) {
           setTelegramLinkRequired(true);
           setError('Аккаунт Telegram не привязан. Выполните разовый вход email/пароль для привязки.');
+        } else if (message.includes('TELEGRAM_INIT_DATA_REPLAY')) {
+          setTelegramLinkRequired(true);
+          setError('Telegram-сессия уже проверена. Выполните разовый вход email/пароль для привязки.');
+        } else if (message.includes('TELEGRAM_INIT_DATA_EXPIRED')) {
+          setError('Данные Telegram устарели. Закройте Mini App и откройте снова из бота.');
         } else {
           setError(message);
         }
