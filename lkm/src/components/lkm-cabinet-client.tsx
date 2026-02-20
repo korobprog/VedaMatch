@@ -106,6 +106,10 @@ type LoginResponse = {
 type TelegramMiniAppUser = {
   id?: number;
   language_code?: string;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  photo_url?: string;
 };
 
 type TelegramWebApp = {
@@ -188,7 +192,7 @@ function buildErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  return 'Unknown error';
+  return 'Неизвестная ошибка';
 }
 
 function getTelegramWebApp(): TelegramWebApp | null {
@@ -280,6 +284,7 @@ export default function LkmCabinetClient({
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
   const [telegramInitData, setTelegramInitData] = useState('');
+  const [telegramUser, setTelegramUser] = useState<TelegramMiniAppUser | null>(null);
   const [isTelegramAuthLoading, setIsTelegramAuthLoading] = useState(false);
   const [telegramLinkRequired, setTelegramLinkRequired] = useState(false);
   const [telegramAuthAttempted, setTelegramAuthAttempted] = useState(false);
@@ -528,13 +533,15 @@ export default function LkmCabinetClient({
     const bootstrapTelegramContext = () => {
       const telegramWebApp = getTelegramWebApp();
       const telegramInitDataValue = telegramWebApp?.initData?.trim() || '';
-      const telegramLanguageCode = normalizeLanguageCode(telegramWebApp?.initDataUnsafe?.user?.language_code);
+      const telegramMiniAppUser = telegramWebApp?.initDataUnsafe?.user;
+      const telegramLanguageCode = normalizeLanguageCode(telegramMiniAppUser?.language_code);
       if (!telegramInitDataValue) {
         return false;
       }
 
       setIsTelegramMiniApp(true);
       setTelegramInitData(telegramInitDataValue);
+      setTelegramUser(telegramMiniAppUser || null);
       setIsBlockedInApp(false);
 
       const currentHost = window.location.hostname.toLowerCase();
@@ -774,7 +781,40 @@ export default function LkmCabinetClient({
     window.history.replaceState(null, '', nextUrl);
   }, [historyStatus, historyPage, historyLimit]);
 
-  const regionLabel = region === 'cis' ? 'CIS / СНГ' : 'non-CIS / Global';
+  const regionLabel = region === 'cis' ? 'СНГ' : 'вне СНГ';
+  const isTelegramAuthorizedSession = isTelegramMiniApp && !!token;
+  const telegramDisplayName = useMemo(() => {
+    if (!telegramUser) {
+      return '';
+    }
+    const fullName = `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim();
+    if (fullName) {
+      return fullName;
+    }
+    if (telegramUser.username) {
+      return `@${telegramUser.username}`;
+    }
+    if (telegramUser.id) {
+      return `ID ${telegramUser.id}`;
+    }
+    return 'Telegram';
+  }, [telegramUser]);
+  const telegramInitials = useMemo(() => {
+    if (!telegramDisplayName) {
+      return 'TG';
+    }
+    const parts = telegramDisplayName
+      .replace(/^@/, '')
+      .split(/\s+/)
+      .filter(Boolean);
+    if (parts.length === 0) {
+      return 'TG';
+    }
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }, [telegramDisplayName]);
 
   const logout = async () => {
     const currentRefreshToken = refreshTokenRef.current.trim();
@@ -962,7 +1002,7 @@ export default function LkmCabinetClient({
       });
       setQuote(response);
       setTopup(null);
-      setSuccess('Quote сформирован');
+      setSuccess('Расчет сформирован');
     } catch (quoteError) {
       setError(buildErrorMessage(quoteError));
     } finally {
@@ -1002,7 +1042,7 @@ export default function LkmCabinetClient({
           // Top-up creation should not fail because history refresh failed.
         }
       }
-      setSuccess('Top-up создан, ожидается оплата через подключенный gateway');
+      setSuccess('Пополнение создано, ожидается оплата через выбранный платежный шлюз');
     } catch (topupError) {
       setError(buildErrorMessage(topupError));
     } finally {
@@ -1020,14 +1060,27 @@ export default function LkmCabinetClient({
         </p>
         <div className="hero-meta">
           <span>Регион: {regionLabel}</span>
-          <span>Gateway: {gatewayCode}</span>
+          <span>Платежный шлюз: {gatewayCode}</span>
           <span>Валюта: {currency}</span>
         </div>
       </section>
 
       <section className="grid-two">
         <article className="panel">
-          <h2>1. Авторизация</h2>
+          <div className="panel-heading">
+            <h2>1. Авторизация</h2>
+            {isTelegramMiniApp && telegramUser ? (
+              <div className="tg-user-badge" title={telegramDisplayName || 'Telegram'}>
+                {telegramUser.photo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={telegramUser.photo_url} alt="Telegram avatar" className="tg-avatar" />
+                ) : (
+                  <span className="tg-avatar-fallback">{telegramInitials}</span>
+                )}
+                <span className="tg-user-label">{telegramDisplayName || 'Telegram'}</span>
+              </div>
+            ) : null}
+          </div>
           {!token && error ? <p className="warn">{error}</p> : null}
           {!token ? (
             isTelegramMiniApp && isTelegramAuthLoading && !telegramLinkRequired ? (
@@ -1087,7 +1140,7 @@ export default function LkmCabinetClient({
             )
           ) : (
             <div className="stack">
-              <p className="ok">Авторизовано</p>
+              <p className="ok">{isTelegramAuthorizedSession ? 'Авторизовано через Telegram' : 'Авторизовано'}</p>
               <p className="note">Сессия продлевается автоматически, пока действует refresh-сессия.</p>
               <button
                 type="button"
@@ -1109,22 +1162,23 @@ export default function LkmCabinetClient({
               Текущий активный баланс:{' '}
               <strong>{wallet ? `${wallet.balance} LKM` : '—'}</strong>
             </p>
-            <p>Бонусы в MVP: <strong>отключены</strong></p>
             <p>
               Номинальный курс:{' '}
               <strong>
                 1 LKM = {packages?.nominalRubPerLkm?.toFixed(2) ?? '1.00'} RUB
               </strong>
             </p>
-            <p className="note">
-              Для верификации можно использовать bot: <code>@vedamatch_bot</code>
-            </p>
+            {!isTelegramAuthorizedSession ? (
+              <p className="note">
+                Для верификации можно использовать бота: <code>@vedamatch_bot</code>
+              </p>
+            ) : null}
           </div>
         </article>
       </section>
 
       <section className="panel">
-        <h2>3. Пакеты и custom сумма</h2>
+        <h2>3. Пакеты и произвольная сумма</h2>
         {isLoading ? <p>Загрузка пакетов...</p> : null}
 
         {packages ? (
@@ -1151,7 +1205,7 @@ export default function LkmCabinetClient({
 
             <div className="custom-row">
               <label>
-                Custom сумма
+                Произвольная сумма
                 <input
                   type="number"
                   value={customAmount}
@@ -1170,7 +1224,7 @@ export default function LkmCabinetClient({
 
             <div className="selectors">
               <label>
-                Gateway
+                Платежный шлюз
                 <select
                   value={gatewayCode}
                   onChange={(event) => {
@@ -1185,7 +1239,7 @@ export default function LkmCabinetClient({
                 </select>
               </label>
               <label>
-                Currency
+                Валюта
                 <input
                   value={currency}
                   onChange={(event) => {
@@ -1204,10 +1258,10 @@ export default function LkmCabinetClient({
       </section>
 
       <section className="panel">
-        <h2>4. Quote и создание top-up</h2>
+        <h2>4. Расчет и создание пополнения</h2>
         {isBlockedInApp ? (
           <p className="warn">
-            Обнаружен in-app/mobile канал. Пополнение в приложении запрещено. Используйте сайт или Telegram-бот.
+            Обнаружен встроенный канал приложения. Пополнение в приложении запрещено. Используйте сайт или Telegram-бот.
           </p>
         ) : null}
 
@@ -1229,10 +1283,10 @@ export default function LkmCabinetClient({
               </p>
               <p className="note">{quote.disclaimer}</p>
               <p className="note">
-                Quote действует до: {new Date(quote.quoteExpiresAt).toLocaleString()}
+                Расчет действует до: {new Date(quote.quoteExpiresAt).toLocaleString()}
               </p>
               <button type="button" onClick={createTopup} disabled={isCreatingTopup}>
-                {isCreatingTopup ? 'Создаем...' : 'Создать top-up'}
+                {isCreatingTopup ? 'Создаем...' : 'Создать пополнение'}
               </button>
             </div>
           ) : null}
@@ -1240,13 +1294,13 @@ export default function LkmCabinetClient({
           {topup ? (
             <div className="topup-box">
               <p>
-                Top-up ID: <code>{topup.topupId}</code>
+                ID пополнения: <code>{topup.topupId}</code>
               </p>
               <p>
-                Status: <strong>{topup.status}</strong> · Risk route: <strong>{topup.riskAction}</strong>
+                Статус: <strong>{topup.status}</strong> · Риск-маршрут: <strong>{topup.riskAction}</strong>
               </p>
               <p className="note">
-                После валидного webhook начисляется ровно {topup.receiveLkm} LKM в кошелек.
+                После подтвержденного webhook начисляется ровно {topup.receiveLkm} LKM в кошелек.
               </p>
             </div>
           ) : null}
@@ -1348,7 +1402,7 @@ export default function LkmCabinetClient({
                 </div>
                 <div className="history-meta">
                   <span className="status-pill">{humanTopupStatus(item.status)}</span>
-                  <span className="note">Risk: {item.riskAction}</span>
+                  <span className="note">Риск: {item.riskAction}</span>
                   <span className="note">{new Date(item.createdAt).toLocaleString()}</span>
                 </div>
               </div>

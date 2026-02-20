@@ -105,6 +105,60 @@ code {
   font-size: 1.05rem;
 }
 
+.panel-heading {
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-heading h2 {
+  margin: 0;
+}
+
+.tg-user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 4px 9px 4px 5px;
+}
+
+.tg-avatar,
+.tg-avatar-fallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  flex: 0 0 24px;
+}
+
+.tg-avatar {
+  object-fit: cover;
+}
+
+.tg-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.tg-user-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  max-width: 165px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .stack {
   display: grid;
   gap: 10px;
@@ -347,6 +401,12 @@ button.secondary {
   .hero-card {
     border-radius: 16px;
     padding: 14px;
+  }
+
+  .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .selectors {
