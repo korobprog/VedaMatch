@@ -77,6 +77,14 @@ interface SettingsState {
     EDU_TUTOR_ALLOWED_DOMAINS: string;
     YATRA_BILLING_ENABLED: string;
     YATRA_DAILY_FEE_LKM: string;
+    LEGAL_OPERATOR_FULL_NAME: string;
+    LEGAL_SUPPORT_EMAIL: string;
+    LEGAL_PRIVACY_EMAIL: string;
+    LEGAL_LEGAL_EMAIL: string;
+    LEGAL_RETENTION_ACCOUNT_DAYS: string;
+    LEGAL_RETENTION_MEDIA_DAYS: string;
+    LEGAL_RETENTION_LOG_DAYS: string;
+    LEGAL_RETENTION_LEGAL_TAX_DAYS: string;
     GEMINI_CORPUS_ID?: string;
     [key: string]: string | undefined;
 }
@@ -136,6 +144,14 @@ const DEFAULT_SETTINGS: SettingsState = {
     EDU_TUTOR_ALLOWED_DOMAINS: 'education',
     YATRA_BILLING_ENABLED: 'false',
     YATRA_DAILY_FEE_LKM: '10',
+    LEGAL_OPERATOR_FULL_NAME: 'Self-employed service operator (RF, NPD)',
+    LEGAL_SUPPORT_EMAIL: 'support@vedamatch.ru',
+    LEGAL_PRIVACY_EMAIL: 'privacy@vedamatch.ru',
+    LEGAL_LEGAL_EMAIL: 'legal@vedamatch.ru',
+    LEGAL_RETENTION_ACCOUNT_DAYS: '30',
+    LEGAL_RETENTION_MEDIA_DAYS: '30',
+    LEGAL_RETENTION_LOG_DAYS: '365',
+    LEGAL_RETENTION_LEGAL_TAX_DAYS: '1825',
     GEMINI_CORPUS_ID: '',
 };
 
@@ -305,6 +321,102 @@ export default function SettingsPage() {
                                             className="w-full bg-[var(--secondary)] border-none rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20 opacity-60"
                                             disabled
                                         />
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-[var(--secondary)]/50 rounded-2xl border border-[var(--border)] space-y-4">
+                                    <div>
+                                        <h3 className="text-sm font-bold uppercase text-[var(--muted-foreground)]">Legal & Store Compliance</h3>
+                                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                            Эти поля используются для legal pack (Privacy/Terms) и мобильного endpoint `GET /api/legal/config`.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_OPERATOR_FULL_NAME</label>
+                                        <input
+                                            type="text"
+                                            value={settings.LEGAL_OPERATOR_FULL_NAME || ''}
+                                            onChange={(e) => setSettings({ ...settings, LEGAL_OPERATOR_FULL_NAME: e.target.value })}
+                                            placeholder="ФИО оператора (как в developer account)"
+                                            className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_SUPPORT_EMAIL</label>
+                                            <input
+                                                type="email"
+                                                value={settings.LEGAL_SUPPORT_EMAIL || ''}
+                                                onChange={(e) => setSettings({ ...settings, LEGAL_SUPPORT_EMAIL: e.target.value })}
+                                                placeholder="support@domain.com"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_PRIVACY_EMAIL</label>
+                                            <input
+                                                type="email"
+                                                value={settings.LEGAL_PRIVACY_EMAIL || ''}
+                                                onChange={(e) => setSettings({ ...settings, LEGAL_PRIVACY_EMAIL: e.target.value })}
+                                                placeholder="privacy@domain.com"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_LEGAL_EMAIL</label>
+                                            <input
+                                                type="email"
+                                                value={settings.LEGAL_LEGAL_EMAIL || ''}
+                                                onChange={(e) => setSettings({ ...settings, LEGAL_LEGAL_EMAIL: e.target.value })}
+                                                placeholder="legal@domain.com"
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_RETENTION_ACCOUNT_DAYS</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={settings.LEGAL_RETENTION_ACCOUNT_DAYS || ''}
+                                                onChange={(e) => setSettings({ ...settings, LEGAL_RETENTION_ACCOUNT_DAYS: e.target.value })}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_RETENTION_MEDIA_DAYS</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={settings.LEGAL_RETENTION_MEDIA_DAYS || ''}
+                                                onChange={(e) => setSettings({ ...settings, LEGAL_RETENTION_MEDIA_DAYS: e.target.value })}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_RETENTION_LOG_DAYS</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={settings.LEGAL_RETENTION_LOG_DAYS || ''}
+                                                onChange={(e) => setSettings({ ...settings, LEGAL_RETENTION_LOG_DAYS: e.target.value })}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)]">LEGAL_RETENTION_LEGAL_TAX_DAYS</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={settings.LEGAL_RETENTION_LEGAL_TAX_DAYS || ''}
+                                                onChange={(e) => setSettings({ ...settings, LEGAL_RETENTION_LEGAL_TAX_DAYS: e.target.value })}
+                                                className="w-full bg-[var(--background)] border-none rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </section>

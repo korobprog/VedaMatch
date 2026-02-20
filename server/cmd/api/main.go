@@ -362,6 +362,7 @@ func main() {
 	api.Post("/channels/promoted-ads/:adId/click", middleware.OptionalAuth(), channelHandler.TrackPromotedAdClick)
 	api.Get("/channels/:id/showcases", middleware.OptionalAuth(), channelHandler.ListShowcases)
 	api.Get("/support/config", middleware.OptionalAuth(), supportHandler.GetPublicConfig)
+	api.Get("/legal/config", middleware.OptionalAuth(), adminHandler.GetPublicLegalConfig)
 	api.Post("/support/uploads", middleware.OptionalAuth(), supportHandler.UploadAttachment)
 	api.Post("/support/tickets", middleware.OptionalAuth(), supportHandler.CreateTicket)
 

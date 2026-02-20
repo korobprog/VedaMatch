@@ -107,6 +107,32 @@ func parsePositiveAdminParamInt(c *fiber.Ctx, key string, invalidMessage string)
 	return value, nil
 }
 
+func getSettingWithFallback(key string, fallback string) string {
+	value := strings.TrimSpace(getSystemSettingOrEnv(key))
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func parseSettingPositiveInt(key string, fallback int, min int, max int) int {
+	raw := strings.TrimSpace(getSystemSettingOrEnv(key))
+	if raw == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	if parsed < min {
+		return min
+	}
+	if max > 0 && parsed > max {
+		return max
+	}
+	return parsed
+}
+
 func buildPushHealthAlerts(summary services.PushHealthSummary, strict bool) []fiber.Map {
 	minEvents := int64(30)
 	successRateThreshold := 95.0
@@ -421,6 +447,21 @@ func (h *AdminHandler) FlagDatingProfile(c *fiber.Ctx) error {
 }
 
 // System Settings
+
+func (h *AdminHandler) GetPublicLegalConfig(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"operatorFullName": getSettingWithFallback("LEGAL_OPERATOR_FULL_NAME", "Self-employed service operator (RF, NPD)"),
+		"supportEmail":     getSettingWithFallback("LEGAL_SUPPORT_EMAIL", "support@vedamatch.ru"),
+		"privacyEmail":     getSettingWithFallback("LEGAL_PRIVACY_EMAIL", "privacy@vedamatch.ru"),
+		"legalEmail":       getSettingWithFallback("LEGAL_LEGAL_EMAIL", "legal@vedamatch.ru"),
+		"retentionDays": fiber.Map{
+			"account":  parseSettingPositiveInt("LEGAL_RETENTION_ACCOUNT_DAYS", 30, 1, 3650),
+			"media":    parseSettingPositiveInt("LEGAL_RETENTION_MEDIA_DAYS", 30, 1, 3650),
+			"logs":     parseSettingPositiveInt("LEGAL_RETENTION_LOG_DAYS", 365, 1, 3650),
+			"legalTax": parseSettingPositiveInt("LEGAL_RETENTION_LEGAL_TAX_DAYS", 1825, 1, 3650),
+		},
+	})
+}
 
 func (h *AdminHandler) GetSystemSettings(c *fiber.Ctx) error {
 	if _, err := requireAdminUserID(c); err != nil {

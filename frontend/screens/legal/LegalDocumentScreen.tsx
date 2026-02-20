@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -15,11 +15,16 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { useSettings } from '../../context/SettingsContext';
-import { getLocalLegalDocument } from '../../content/legalDocuments';
+import {
+  DEFAULT_LEGAL_RUNTIME_CONFIG,
+  getLocalLegalDocument,
+  type LegalRuntimeConfig,
+} from '../../content/legalDocuments';
 import {
   getLegalDocumentUrl,
   normalizeLanguageCode,
 } from '../../config/legal.config';
+import { legalConfigService } from '../../services/legalConfigService';
 import type { RootStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LegalDocument'>;
@@ -34,10 +39,28 @@ export const LegalDocumentScreen: React.FC<Props> = ({ route, navigation }) => {
   const { t, i18n } = useTranslation();
   const { isDarkMode } = useSettings();
   const theme = isDarkMode ? COLORS.dark : COLORS.light;
+  const [runtimeConfig, setRuntimeConfig] = useState<LegalRuntimeConfig>(DEFAULT_LEGAL_RUNTIME_CONFIG);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadConfig = async () => {
+      const config = await legalConfigService.getPublicConfig();
+      if (mounted) {
+        setRuntimeConfig(config);
+      }
+    };
+    void loadConfig();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const language = normalizeLanguageCode(route.params?.language || i18n.language);
   const docType = route.params.type;
-  const document = useMemo(() => getLocalLegalDocument(docType, language), [docType, language]);
+  const document = useMemo(
+    () => getLocalLegalDocument(docType, language, runtimeConfig),
+    [docType, language, runtimeConfig],
+  );
 
   const openWebVersion = async () => {
     const url = getLegalDocumentUrl(docType, language);

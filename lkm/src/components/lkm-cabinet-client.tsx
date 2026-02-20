@@ -374,6 +374,7 @@ export default function LkmCabinetClient({
       try {
         const response = await apiRequest<LoginResponse>('/auth/telegram/miniapp/login', {
           method: 'POST',
+          timeoutMs: 10000,
           body: {
             initData: telegramInitData,
             deviceId: `lkm-tg-${Math.random().toString(36).slice(2, 10)}`,
@@ -747,44 +748,49 @@ export default function LkmCabinetClient({
       <section className="grid-two">
         <article className="panel">
           <h2>1. Авторизация</h2>
+          {!token && error ? <p className="warn">{error}</p> : null}
           {!token ? (
-            <form className="stack" onSubmit={onLogin}>
-              {isTelegramMiniApp && isTelegramAuthLoading && !telegramLinkRequired ? (
+            isTelegramMiniApp && isTelegramAuthLoading && !telegramLinkRequired ? (
+              <div className="stack">
                 <p className="note">Проверяем вход через Telegram Mini App...</p>
-              ) : null}
-              {isTelegramMiniApp && telegramLinkRequired ? (
-                <p className="note">
-                  Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch.
-                </p>
-              ) : null}
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                />
-              </label>
-              <label>
-                Пароль
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="••••••••"
-                />
-              </label>
-              <button type="submit" disabled={isLoggingIn}>
-                {isLoggingIn
-                  ? telegramLinkRequired && isTelegramMiniApp
-                    ? 'Привязываем...'
-                    : 'Вход...'
-                  : telegramLinkRequired && isTelegramMiniApp
-                    ? 'Привязать Telegram'
-                    : 'Войти'}
-              </button>
-            </form>
+                <p className="note">Обычно это занимает до 10 секунд.</p>
+              </div>
+            ) : (
+              <form className="stack" onSubmit={onLogin}>
+                {isTelegramMiniApp && telegramLinkRequired ? (
+                  <p className="note">
+                    Разовый вход email/пароль нужен, чтобы привязать Telegram к вашему аккаунту VedaMatch.
+                  </p>
+                ) : null}
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                  />
+                </label>
+                <label>
+                  Пароль
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="••••••••"
+                  />
+                </label>
+                <button type="submit" disabled={isLoggingIn}>
+                  {isLoggingIn
+                    ? telegramLinkRequired && isTelegramMiniApp
+                      ? 'Привязываем...'
+                      : 'Вход...'
+                    : telegramLinkRequired && isTelegramMiniApp
+                      ? 'Привязать Telegram'
+                      : 'Войти'}
+                </button>
+              </form>
+            )
           ) : (
             <div className="stack">
               <p className="ok">Авторизовано</p>
@@ -1066,6 +1072,7 @@ export default function LkmCabinetClient({
       body?: unknown;
       token?: string;
       headers?: Record<string, string>;
+      timeoutMs?: number;
     } = {},
   ): Promise<T> {
     const method = options.method || 'GET';
@@ -1077,12 +1084,34 @@ export default function LkmCabinetClient({
       headers.Authorization = `Bearer ${options.token}`;
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      method,
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      cache: 'no-store',
-    });
+    const controller = new AbortController();
+    const timeoutMs = typeof options.timeoutMs === 'number' && options.timeoutMs > 0 ? options.timeoutMs : 0;
+    let timeoutId = 0;
+    if (timeoutMs > 0) {
+      timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`${apiBaseUrl}${path}`, {
+        method,
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      if (timeoutId > 0) {
+        window.clearTimeout(timeoutId);
+      }
+      if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+        throw new Error(`Запрос превысил таймаут ${Math.round(timeoutMs / 1000)}с`);
+      }
+      throw fetchError;
+    }
+    if (timeoutId > 0) {
+      window.clearTimeout(timeoutId);
+    }
 
     const raw = await response.text();
     let payload: unknown = {};

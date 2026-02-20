@@ -11,7 +11,94 @@ export type LocalLegalDocument = {
   sections: LocalLegalSection[];
 };
 
+type LegalRetentionDays = {
+  account: number;
+  media: number;
+  logs: number;
+  legalTax: number;
+};
+
+export type LegalRuntimeConfig = {
+  operatorFullName: string;
+  supportEmail: string;
+  privacyEmail: string;
+  legalEmail: string;
+  retentionDays: LegalRetentionDays;
+};
+
+export const DEFAULT_LEGAL_RUNTIME_CONFIG: LegalRuntimeConfig = {
+  operatorFullName: 'Self-employed service operator (RF, NPD)',
+  supportEmail: 'support@vedamatch.ru',
+  privacyEmail: 'privacy@vedamatch.ru',
+  legalEmail: 'legal@vedamatch.ru',
+  retentionDays: {
+    account: 30,
+    media: 30,
+    logs: 365,
+    legalTax: 1825,
+  },
+};
+
+const toNonEmptyString = (value: unknown, fallback: string): string => {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  return trimmed || fallback;
+};
+
+const toPositiveInt = (value: unknown, fallback: number): number => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return fallback;
+};
+
+export const normalizeLegalRuntimeConfig = (value: unknown): LegalRuntimeConfig => {
+  const source = (value && typeof value === 'object') ? (value as Record<string, unknown>) : {};
+  const retentionSource =
+    source.retentionDays && typeof source.retentionDays === 'object'
+      ? (source.retentionDays as Record<string, unknown>)
+      : {};
+
+  return {
+    operatorFullName: toNonEmptyString(source.operatorFullName, DEFAULT_LEGAL_RUNTIME_CONFIG.operatorFullName),
+    supportEmail: toNonEmptyString(source.supportEmail, DEFAULT_LEGAL_RUNTIME_CONFIG.supportEmail),
+    privacyEmail: toNonEmptyString(source.privacyEmail, DEFAULT_LEGAL_RUNTIME_CONFIG.privacyEmail),
+    legalEmail: toNonEmptyString(source.legalEmail, DEFAULT_LEGAL_RUNTIME_CONFIG.legalEmail),
+    retentionDays: {
+      account: toPositiveInt(retentionSource.account, DEFAULT_LEGAL_RUNTIME_CONFIG.retentionDays.account),
+      media: toPositiveInt(retentionSource.media, DEFAULT_LEGAL_RUNTIME_CONFIG.retentionDays.media),
+      logs: toPositiveInt(retentionSource.logs, DEFAULT_LEGAL_RUNTIME_CONFIG.retentionDays.logs),
+      legalTax: toPositiveInt(retentionSource.legalTax, DEFAULT_LEGAL_RUNTIME_CONFIG.retentionDays.legalTax),
+    },
+  };
+};
+
 type LocalLegalDocumentMap = Record<LegalDocumentType, Record<LegalLanguage, LocalLegalDocument>>;
+
+const applyTemplate = (text: string, config: LegalRuntimeConfig): string => {
+  const replacements: Record<string, string> = {
+    '{{operatorFullName}}': config.operatorFullName,
+    '{{supportEmail}}': config.supportEmail,
+    '{{privacyEmail}}': config.privacyEmail,
+    '{{legalEmail}}': config.legalEmail,
+    '{{retentionAccountDays}}': String(config.retentionDays.account),
+    '{{retentionMediaDays}}': String(config.retentionDays.media),
+    '{{retentionLogDays}}': String(config.retentionDays.logs),
+    '{{retentionLegalTaxDays}}': String(config.retentionDays.legalTax),
+  };
+
+  return Object.keys(replacements).reduce((result, token) => {
+    return result.split(token).join(replacements[token]);
+  }, text);
+};
 
 const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
   privacy: {
@@ -22,8 +109,8 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '1. Operator and contact',
           paragraphs: [
-            'VedaMatch is currently operated by a self-employed individual in the Russian Federation (NPD tax regime).',
-            'Privacy contact: privacy@vedamatch.ru. General support: support@vedamatch.ru.',
+            'VedaMatch is currently operated by {{operatorFullName}}.',
+            'Privacy contact: {{privacyEmail}}. General support: {{supportEmail}}.',
           ],
         },
         {
@@ -52,6 +139,7 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
             'You can request deletion in app: Settings -> Delete account.',
             'You can also use the deletion page on the website.',
             'On deletion, active sessions are revoked and personal data is deleted or anonymized according to retention policy.',
+            'Default retention windows: account {{retentionAccountDays}} days, media {{retentionMediaDays}} days, logs {{retentionLogDays}} days, legal/tax records {{retentionLegalTaxDays}} days.',
           ],
         },
         {
@@ -69,8 +157,8 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '1. Оператор и контакты',
           paragraphs: [
-            'VedaMatch сейчас управляется самозанятым лицом в Российской Федерации (режим НПД).',
-            'Контакт по приватности: privacy@vedamatch.ru. Общая поддержка: support@vedamatch.ru.',
+            'VedaMatch сейчас управляется оператором: {{operatorFullName}}.',
+            'Контакт по приватности: {{privacyEmail}}. Общая поддержка: {{supportEmail}}.',
           ],
         },
         {
@@ -99,6 +187,7 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
             'Запросить удаление можно в приложении: Settings -> Delete account.',
             'Также можно использовать страницу удаления на сайте.',
             'После удаления активные сессии отзываются, а персональные данные удаляются или анонимизируются по правилам хранения.',
+            'Базовые сроки хранения: аккаунт {{retentionAccountDays}} дней, медиа {{retentionMediaDays}} дней, логи {{retentionLogDays}} дней, legal/tax {{retentionLegalTaxDays}} дней.',
           ],
         },
         {
@@ -116,8 +205,8 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '1. ऑपरेटर और संपर्क',
           paragraphs: [
-            'VedaMatch वर्तमान में रूसी संघ में पंजीकृत स्व-नियोजित ऑपरेटर (NPD टैक्स मोड) द्वारा संचालित है।',
-            'प्राइवेसी संपर्क: privacy@vedamatch.ru. सामान्य सपोर्ट: support@vedamatch.ru.',
+            'VedaMatch वर्तमान में इस ऑपरेटर द्वारा संचालित है: {{operatorFullName}}.',
+            'प्राइवेसी संपर्क: {{privacyEmail}}. सामान्य सपोर्ट: {{supportEmail}}.',
           ],
         },
         {
@@ -146,6 +235,7 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
             'डिलीशन अनुरोध ऐप में उपलब्ध है: Settings -> Delete account.',
             'वेबसाइट डिलीशन पेज भी उपलब्ध है।',
             'डिलीशन के बाद सक्रिय सेशन रद्द होते हैं और व्यक्तिगत डेटा को नीति के अनुसार हटाया या anonymize किया जाता है।',
+            'डिफ़ॉल्ट प्रतिधारण अवधि: अकाउंट {{retentionAccountDays}} दिन, मीडिया {{retentionMediaDays}} दिन, लॉग्स {{retentionLogDays}} दिन, legal/tax रिकॉर्ड {{retentionLegalTaxDays}} दिन।',
           ],
         },
         {
@@ -171,8 +261,9 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '2. Operator status',
           paragraphs: [
-            'VedaMatch is currently operated by a self-employed individual in the Russian Federation (NPD tax regime).',
+            'VedaMatch is currently operated by {{operatorFullName}}.',
             'If operation is migrated to a Kazakhstan legal entity, updated Terms will be published in advance with a new effective date.',
+            'Legal contact: {{legalEmail}}.',
           ],
         },
         {
@@ -210,8 +301,9 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '2. Статус оператора',
           paragraphs: [
-            'VedaMatch сейчас управляется самозанятым лицом в Российской Федерации (режим НПД).',
+            'VedaMatch сейчас управляется оператором: {{operatorFullName}}.',
             'При переходе оператора на юридическое лицо в Казахстане обновленные Условия будут опубликованы заранее с новой датой вступления в силу.',
+            'Юридический контакт: {{legalEmail}}.',
           ],
         },
         {
@@ -249,8 +341,9 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '2. ऑपरेटर स्थिति',
           paragraphs: [
-            'VedaMatch वर्तमान में रूसी संघ के स्व-नियोजित ऑपरेटर (NPD टैक्स मोड) द्वारा संचालित है।',
+            'VedaMatch वर्तमान में इस ऑपरेटर द्वारा संचालित है: {{operatorFullName}}.',
             'यदि ऑपरेशन बाद में कज़ाखस्तान की कानूनी इकाई में स्थानांतरित होता है, तो नई प्रभावी तिथि के साथ अपडेटेड Terms पहले प्रकाशित किए जाएंगे।',
+            'कानूनी संपर्क: {{legalEmail}}.',
           ],
         },
         {
@@ -296,7 +389,7 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '3. Contact',
           paragraphs: [
-            'For deletion/privacy requests: privacy@vedamatch.ru.',
+            'For deletion/privacy requests: {{privacyEmail}}.',
           ],
         },
       ],
@@ -320,7 +413,7 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '3. Контакт',
           paragraphs: [
-            'По запросам удаления и приватности: privacy@vedamatch.ru.',
+            'По запросам удаления и приватности: {{privacyEmail}}.',
           ],
         },
       ],
@@ -344,7 +437,7 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
         {
           title: '3. संपर्क',
           paragraphs: [
-            'डिलीशन/प्राइवेसी अनुरोध के लिए: privacy@vedamatch.ru.',
+            'डिलीशन/प्राइवेसी अनुरोध के लिए: {{privacyEmail}}.',
           ],
         },
       ],
@@ -355,6 +448,15 @@ const LOCAL_LEGAL_DOCUMENTS: LocalLegalDocumentMap = {
 export const getLocalLegalDocument = (
   type: LegalDocumentType,
   language: LegalLanguage,
+  runtimeConfig: LegalRuntimeConfig = DEFAULT_LEGAL_RUNTIME_CONFIG,
 ): LocalLegalDocument => {
-  return LOCAL_LEGAL_DOCUMENTS[type][language] || LOCAL_LEGAL_DOCUMENTS[type].en;
+  const baseDocument = LOCAL_LEGAL_DOCUMENTS[type][language] || LOCAL_LEGAL_DOCUMENTS[type].en;
+
+  return {
+    ...baseDocument,
+    sections: baseDocument.sections.map((section) => ({
+      ...section,
+      paragraphs: section.paragraphs.map((paragraph) => applyTemplate(paragraph, runtimeConfig)),
+    })),
+  };
 };

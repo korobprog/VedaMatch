@@ -324,6 +324,38 @@ func SeedSystemSettings() {
 			Value: "",
 		},
 		{
+			Key:   "LEGAL_OPERATOR_FULL_NAME",
+			Value: "Self-employed service operator (RF, NPD)",
+		},
+		{
+			Key:   "LEGAL_SUPPORT_EMAIL",
+			Value: "support@vedamatch.ru",
+		},
+		{
+			Key:   "LEGAL_PRIVACY_EMAIL",
+			Value: "privacy@vedamatch.ru",
+		},
+		{
+			Key:   "LEGAL_LEGAL_EMAIL",
+			Value: "legal@vedamatch.ru",
+		},
+		{
+			Key:   "LEGAL_RETENTION_ACCOUNT_DAYS",
+			Value: "30",
+		},
+		{
+			Key:   "LEGAL_RETENTION_MEDIA_DAYS",
+			Value: "30",
+		},
+		{
+			Key:   "LEGAL_RETENTION_LOG_DAYS",
+			Value: "365",
+		},
+		{
+			Key:   "LEGAL_RETENTION_LEGAL_TAX_DAYS",
+			Value: "1825",
+		},
+		{
 			Key:   "lkm.expense.single_approval_limit",
 			Value: "500",
 		},

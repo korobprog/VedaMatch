@@ -132,3 +132,4 @@ Checks:
 - LKM legal wording variants (EN/RU/HI): `docs/lkm-legal-variants-trilingual.md`
 - Privacy Policy template (EN/RU/HI): `docs/privacy-policy-trilingual-template.md`
 - Terms of Use template (EN/RU/HI): `docs/terms-of-use-trilingual-template.md`
+- Operator model and migration (RF -> KZ): `docs/operator-legal-model-rf-to-kz.md`
