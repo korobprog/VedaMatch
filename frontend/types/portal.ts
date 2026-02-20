@@ -49,7 +49,7 @@ export interface ServiceDefinition {
 
 // Default services available in portal
 export const DEFAULT_SERVICES: ServiceDefinition[] = [
-    { id: 'path_tracker', label: 'Путь дня', icon: 'Compass', color: '#0F766E' },
+    { id: 'path_tracker', label: 'Путь дня', icon: 'Sun', color: '#0F766E' },
     { id: 'contacts', label: 'Контакты', icon: 'Contact', color: '#3B82F6' },
     { id: 'chat', label: 'Чат', icon: 'MessageCircle', color: '#6B5B53' },
     { id: 'rooms', label: 'Комнаты', icon: 'Users', color: '#6366F1' },

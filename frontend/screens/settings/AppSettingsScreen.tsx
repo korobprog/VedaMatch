@@ -625,32 +625,48 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     style={[
                                         styles.sizeBtn,
                                         {
-                                            backgroundColor: portalIconStyle === 'default' ? colors.accent : vTheme.colors.backgroundSecondary,
-                                            borderColor: portalIconStyle === 'default' ? colors.accent : vTheme.colors.divider
+                                            backgroundColor: portalIconStyle === 'minimal' ? colors.accent : vTheme.colors.backgroundSecondary,
+                                            borderColor: portalIconStyle === 'minimal' ? colors.accent : vTheme.colors.divider
                                         }
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
-                                        setPortalIconStyle('default');
+                                        setPortalIconStyle('minimal');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'default' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Стандарт</Text>
+                                    <Text style={portalIconStyle === 'minimal' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Контур</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
                                     style={[
                                         styles.sizeBtn,
                                         {
-                                            backgroundColor: portalIconStyle === 'colored' ? colors.accent : vTheme.colors.backgroundSecondary,
-                                            borderColor: portalIconStyle === 'colored' ? colors.accent : vTheme.colors.divider
+                                            backgroundColor: portalIconStyle === 'solid' ? colors.accent : vTheme.colors.backgroundSecondary,
+                                            borderColor: portalIconStyle === 'solid' ? colors.accent : vTheme.colors.divider
                                         }
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
-                                        setPortalIconStyle('colored');
+                                        setPortalIconStyle('solid');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'colored' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Цветные</Text>
+                                    <Text style={portalIconStyle === 'solid' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Заливка</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.sizeBtn,
+                                        {
+                                            backgroundColor: portalIconStyle === 'premium3d' ? colors.accent : vTheme.colors.backgroundSecondary,
+                                            borderColor: portalIconStyle === 'premium3d' ? colors.accent : vTheme.colors.divider
+                                        }
+                                    ]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        setPortalIconStyle('premium3d');
+                                    }}
+                                >
+                                    <Text style={portalIconStyle === 'premium3d' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Премиум 3D</Text>
                                 </TouchableOpacity>
                             </View>
 

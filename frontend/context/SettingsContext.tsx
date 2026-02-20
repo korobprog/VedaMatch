@@ -8,7 +8,7 @@ import { VedicLightTheme, VedicDarkTheme } from '../theme/ModernVedicTheme';
 import { getPresetUris, DEFAULT_SLIDESHOW_INTERVAL } from '../config/wallpaperPresets';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type PortalIconStyle = 'default' | 'colored';
+export type PortalIconStyle = 'minimal' | 'solid' | 'premium3d';
 
 interface Model {
     id: string;
@@ -79,7 +79,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [portalBackground, setPortalBackgroundState] = useState<string>(defaultBgImage);
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
-    const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('default');
+    const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('premium3d');
 
     // Wallpaper slideshow state
     const [wallpaperSlides, setWallpaperSlides] = useState<string[]>(getPresetUris());
@@ -205,8 +205,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 }
 
                 const savedIconStyle = await AsyncStorage.getItem('portal_icon_style');
-                if (savedIconStyle === 'default' || savedIconStyle === 'colored') {
-                    setPortalIconStyleState(savedIconStyle);
+                if (savedIconStyle === 'premium3d' || savedIconStyle === 'solid' || savedIconStyle === 'minimal') {
+                    setPortalIconStyleState(savedIconStyle as PortalIconStyle);
+                } else if (savedIconStyle === 'default') {
+                    setPortalIconStyleState('minimal');
+                } else if (savedIconStyle === 'colored') {
+                    setPortalIconStyleState('solid');
                 }
 
                 // Wallpaper slideshow settings

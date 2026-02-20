@@ -41,6 +41,7 @@ import {
     Clapperboard,
     Radio,
     LifeBuoy,
+    Sun,
 } from 'lucide-react-native';
 import { ServiceDefinition } from '../../types/portal';
 import { useSettings } from '../../context/SettingsContext';
@@ -91,6 +92,32 @@ const IconComponents: Record<string, any> = {
     Clapperboard,
     Radio,
     LifeBuoy,
+    Sun,
+};
+
+const SERVICE_EMOJIS: Record<string, string> = {
+    'path_tracker': '🧭',
+    'contacts': '📇',
+    'chat': '💬',
+    'rooms': '👥',
+    'calls': '📞',
+    'dating': '💖',
+    'cafe': '☕️',
+    'shops': '🛍️',
+    'ads': '📢',
+    'library': '📚',
+    'education': '🎓',
+    'multimedia': '🎵',
+    'video_circles': '📹',
+    'channels': '📻',
+    'news': '📰',
+    'map': '🗺️',
+    'support': '🛟',
+    'history': '🕰️',
+    'settings': '⚙️',
+    'travel': '✈️',
+    'services': '💼',
+    'seva': '❤️',
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({
@@ -172,17 +199,17 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: portalIconStyle === 'colored'
+                            backgroundColor: portalIconStyle === 'solid'
                                 ? service.color
-                                : portalBackgroundType === 'image'
-                                    ? 'rgba(30,30,30,0.45)'
+                                : portalBackgroundType === 'image' || portalIconStyle === 'premium3d'
+                                    ? (isDarkMode ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)') // Frost glass
                                     : isDarkMode
-                                        ? `${service.color}25`
-                                        : `${service.color}15`,
-                            borderColor: portalIconStyle === 'colored'
+                                        ? 'rgba(30,30,30,0.85)'
+                                        : 'rgba(255,255,255,0.9)',
+                            borderColor: portalIconStyle === 'solid'
                                 ? 'rgba(255,255,255,0.25)'
-                                : portalBackgroundType === 'image' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
-                            borderWidth: roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'colored' ? 1.5 : 1,
+                                : portalBackgroundType === 'image' || portalIconStyle === 'premium3d' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
+                            borderWidth: roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'solid' || portalIconStyle === 'premium3d' ? 1.5 : 1,
                             ...(roleHighlight ? {
                                 shadowColor: service.color,
                                 shadowOpacity: 0.35,
@@ -194,11 +221,17 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         },
                     ]}
                 >
-                    <IconComponent
-                        size={sizeConfig.icon}
-                        color={portalIconStyle === 'colored' || portalBackgroundType === 'image' ? '#ffffff' : service.color}
-                        strokeWidth={2}
-                    />
+                    {portalIconStyle === 'premium3d' ? (
+                        <Text style={{ fontSize: sizeConfig.icon + 4, lineHeight: sizeConfig.icon + 8, marginTop: 4 }}>
+                            {SERVICE_EMOJIS[service.id] || '✨'}
+                        </Text>
+                    ) : (
+                        <IconComponent
+                            size={sizeConfig.icon}
+                            color={portalIconStyle === 'solid' || portalBackgroundType === 'image' ? '#ffffff' : service.color}
+                            strokeWidth={portalIconStyle === 'solid' ? 2.5 : 2}
+                        />
+                    )}
                     {badge != null && badge > 0 && (
                         <View style={[styles.badge, { backgroundColor: '#EF4444' }]}>
                             <Text style={styles.badgeText}>
@@ -206,7 +239,7 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                             </Text>
                         </View>
                     )}
-                    {mathBadge ? (
+                    {false && mathBadge ? (
                         <View style={styles.proBadge}>
                             <Text style={styles.proBadgeText}>PRO</Text>
                         </View>
@@ -234,9 +267,9 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                                         ...(portalBackgroundType === 'image'
                                             ? {
                                                 color: '#ffffff',
-                                                textShadowColor: 'rgba(0,0,0,0.75)',
-                                                textShadowOffset: { width: 0, height: 1 },
-                                                textShadowRadius: 4,
+                                                textShadowColor: 'rgba(0,0,0,0.95)',
+                                                textShadowOffset: { width: 0, height: 2 },
+                                                textShadowRadius: 6,
                                             }
                                             : portalBackgroundType === 'gradient'
                                                 ? {
@@ -311,15 +344,15 @@ const styles = StyleSheet.create({
     labelPill: {
         backgroundColor: 'rgba(0,0,0,0.45)',
         borderRadius: 8,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        marginTop: 1,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        marginTop: 4,
     },
     labelPillGradient: {
         borderRadius: 8,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        marginTop: 1,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        marginTop: 4,
     },
     badge: {
         position: 'absolute',
