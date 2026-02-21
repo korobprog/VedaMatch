@@ -26,8 +26,8 @@ func (c *Client) ReadPump() {
 			Payload  interface{} `json:"payload"`
 		}
 		if err := c.Conn.ReadJSON(&msg); err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error for User %d: %v", c.UserID, err)
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
+				log.Printf("WebSocket unexpected close for User %d: %v", c.UserID, err)
 			}
 			break
 		}
@@ -60,16 +60,10 @@ func (c *Client) WritePump() {
 	defer func() {
 		c.Conn.Close()
 	}()
-	for {
-		select {
-		case message, ok := <-c.Send:
-			if !ok {
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-			if err := c.Conn.WriteJSON(message); err != nil {
-				return
-			}
+	for message := range c.Send {
+		if err := c.Conn.WriteJSON(message); err != nil {
+			return
 		}
 	}
+	c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 }

@@ -451,7 +451,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-					PRODUCT_BUNDLE_IDENTIFIER = "com.vedicai.vedamatchTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.vedicai.vedamatchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/vedamatch.app/vedamatch";
 			};
@@ -475,7 +475,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-					PRODUCT_BUNDLE_IDENTIFIER = "com.vedicai.vedamatchTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.vedicai.vedamatchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/vedamatch.app/vedamatch";
 			};
@@ -487,7 +487,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-					CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = CVW85BZU5Z;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = vedamatch/Info.plist;
@@ -496,13 +496,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-					MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-					PRODUCT_BUNDLE_IDENTIFIER = "com.vedicai.vedamatch";
+				PRODUCT_BUNDLE_IDENTIFIER = com.vedicai.vedamatch;
 				PRODUCT_NAME = vedamatch;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -516,7 +516,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-					CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = CVW85BZU5Z;
 				INFOPLIST_FILE = vedamatch/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -524,13 +524,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-					MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-					PRODUCT_BUNDLE_IDENTIFIER = "com.vedicai.vedamatch";
+				PRODUCT_BUNDLE_IDENTIFIER = com.vedicai.vedamatch;
 				PRODUCT_NAME = vedamatch;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";

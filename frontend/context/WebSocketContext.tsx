@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { useUser } from './UserContext';
 import { WebSocketService } from '../services/websocketService';
 import { webRTCService } from '../services/webRTCService';
@@ -50,21 +50,26 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
     }, [user?.ID, logout]);
 
-    const addListener = (listener: (msg: any) => void) => {
+    const addListener = useCallback((listener: (msg: any) => void) => {
         listenersRef.current.add(listener);
         return () => {
             listenersRef.current.delete(listener);
         };
-    };
+    }, []);
 
-    const sendTypingIndicator = (recipientId: number, isTyping: boolean) => {
+    const sendTypingIndicator = useCallback((recipientId: number, isTyping: boolean) => {
         if (wsServiceRef.current) {
             wsServiceRef.current.sendTypingIndicator(recipientId, isTyping);
         }
-    };
+    }, []);
+
+    const contextValue = useMemo(
+        () => ({ addListener, sendTypingIndicator }),
+        [addListener, sendTypingIndicator],
+    );
 
     return (
-        <WebSocketContext.Provider value={{ addListener, sendTypingIndicator }}>
+        <WebSocketContext.Provider value={contextValue}>
             {children}
         </WebSocketContext.Provider>
     );

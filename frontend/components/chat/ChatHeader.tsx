@@ -33,15 +33,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     const navigation = useNavigation<any>();
     const { recipientUser } = useChat();
     const { user } = useUser();
-    const { isDarkMode, portalBackgroundType } = useSettings();
+    const { isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
     const { colors } = useRoleTheme(user?.role, isDarkMode);
     const isPhotoBg = portalBackgroundType === 'image';
-    const titleColor = isPhotoBg ? '#F8FAFC' : colors.textPrimary;
-    const subTitleColor = isPhotoBg ? 'rgba(248,250,252,0.82)' : colors.textSecondary;
-    const headerBg = isPhotoBg ? 'rgba(15,23,42,0.64)' : colors.surfaceElevated;
-    const headerBorder = isPhotoBg ? 'rgba(255,255,255,0.22)' : colors.border;
-    const iconColor = isPhotoBg ? '#F8FAFC' : colors.textPrimary;
-    const iconButtonBg = isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface;
+    const isVedaMatch = portalIconStyle === 'vedamatch';
+    const titleColor = isVedaMatch ? '#FFDF00' : isPhotoBg ? '#F8FAFC' : colors.textPrimary;
+    const subTitleColor = isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(248,250,252,0.82)' : colors.textSecondary;
+    const headerBg = isVedaMatch ? '#121212' : isPhotoBg ? 'rgba(15,23,42,0.64)' : colors.surfaceElevated;
+    const headerBorder = isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.22)' : colors.border;
+    const iconColor = isVedaMatch ? '#D4AF37' : isPhotoBg ? '#F8FAFC' : colors.textPrimary;
+    const iconButtonBg = isVedaMatch ? '#121212' : isPhotoBg ? 'rgba(255,255,255,0.16)' : colors.surface;
 
     const displayTitle = recipientUser
         ? (recipientUser.spiritualName || recipientUser.karmicName)
@@ -56,17 +57,35 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
     return (
         <View style={styles.shell}>
-            <View style={[styles.header, { borderColor: headerBorder }]}>
-                <BlurView
-                    style={StyleSheet.absoluteFill}
-                    blurType={isDarkMode ? 'dark' : 'light'}
-                    blurAmount={18}
-                    reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated}
-                />
+            <View style={[styles.header, {
+                borderColor: headerBorder,
+                borderWidth: isVedaMatch ? 1 : 1.2,
+                ...(isVedaMatch ? {
+                    shadowColor: '#D4AF37',
+                    shadowOpacity: 0.5,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 2 },
+                    elevation: 6,
+                } : {}),
+            }]}>
+                {isVedaMatch && (
+                    <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
+                        <View style={{ position: 'absolute', top: -20, left: -20, right: -20, bottom: -20, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 80, opacity: 0.2 }} />
+                        <View style={{ position: 'absolute', top: 10, left: 10, right: 10, bottom: 10, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 80, opacity: 0.3 }} />
+                    </View>
+                )}
+                {!isVedaMatch && (
+                    <BlurView
+                        style={StyleSheet.absoluteFill}
+                        blurType={isDarkMode ? 'dark' : 'light'}
+                        blurAmount={18}
+                        reducedTransparencyFallbackColor={isPhotoBg ? 'rgba(15,23,42,0.95)' : colors.surfaceElevated}
+                    />
+                )}
                 <View style={[
                     StyleSheet.absoluteFill,
                     {
-                        backgroundColor: headerBg,
+                        backgroundColor: isVedaMatch ? 'transparent' : headerBg,
                     }
                 ]} />
 
@@ -113,12 +132,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                 style={[
                                     styles.aiTitleWrap,
                                     {
-                                        backgroundColor: isPhotoBg ? 'rgba(255, 183, 77, 0.15)' : colors.accentSoft,
-                                        borderColor: isPhotoBg ? 'rgba(255, 183, 77, 0.35)' : colors.border,
+                                        backgroundColor: isVedaMatch ? 'transparent' : isPhotoBg ? 'rgba(255, 183, 77, 0.15)' : colors.accentSoft,
+                                        borderColor: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255, 183, 77, 0.35)' : colors.border,
                                     },
                                 ]}
                             >
-                                <Sparkles size={12} color={isPhotoBg ? '#FFB74D' : colors.accent} />
+                                <Sparkles size={12} color={isVedaMatch ? '#FFDF00' : isPhotoBg ? '#FFB74D' : colors.accent} />
                                 <Text style={[styles.aiTitle, { color: titleColor }]}>AI-чат</Text>
                             </TouchableOpacity>
                         )}
@@ -126,7 +145,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
                     <View style={styles.rightActions}>
                         <View style={{ marginRight: recipientUser ? 10 : 0 }}>
-                            <BalancePill size="small" lightMode={isPhotoBg || isDarkMode} />
+                            <BalancePill size="small" lightMode={isPhotoBg || isDarkMode || isVedaMatch} />
                         </View>
                         {recipientUser && onCallPress && (
                             <TouchableOpacity onPress={onCallPress} style={[styles.actionButton, { backgroundColor: iconButtonBg, borderColor: headerBorder }]} activeOpacity={0.86}>

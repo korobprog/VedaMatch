@@ -6,7 +6,7 @@ export const FALLBACK_PORTAL_BLUEPRINTS: Record<string, PortalBlueprint> = {
     title: 'Искатель',
     description: 'Базовый портал для повседневной практики.',
     highlightColor: '#6B7280',
-    quickAccess: ['path_tracker', 'rooms', 'multimedia'],
+    quickAccess: ['calls', 'history', 'rooms'],
     heroServices: ['path_tracker', 'rooms', 'multimedia', 'news', 'library'],
     servicesHint: [
       { serviceId: 'path_tracker', title: 'Путь дня', filters: ['daily_step', 'gentle_onboarding'] },
@@ -21,7 +21,7 @@ export const FALLBACK_PORTAL_BLUEPRINTS: Record<string, PortalBlueprint> = {
     title: 'В благости',
     description: 'Сервисы для саттвичного образа жизни.',
     highlightColor: '#22C55E',
-    quickAccess: ['path_tracker', 'education', 'news'],
+    quickAccess: ['calls', 'history', 'rooms'],
     heroServices: ['path_tracker', 'cafe', 'education', 'services'],
     servicesHint: [
       { serviceId: 'path_tracker', title: 'Путь дня', filters: ['routine', 'stability'] },
@@ -35,7 +35,7 @@ export const FALLBACK_PORTAL_BLUEPRINTS: Record<string, PortalBlueprint> = {
     title: 'Йог',
     description: 'Практики, поездки и обучение в режиме йоги.',
     highlightColor: '#0EA5E9',
-    quickAccess: ['path_tracker', 'travel', 'education'],
+    quickAccess: ['calls', 'history', 'rooms'],
     heroServices: ['path_tracker', 'services', 'travel', 'multimedia'],
     servicesHint: [
       { serviceId: 'path_tracker', title: 'Путь дня', filters: ['technique', 'progress'] },
@@ -49,7 +49,7 @@ export const FALLBACK_PORTAL_BLUEPRINTS: Record<string, PortalBlueprint> = {
     title: 'Преданный',
     description: 'Сева, ятры и жизнь в общине.',
     highlightColor: '#F97316',
-    quickAccess: ['path_tracker', 'seva', 'news'],
+    quickAccess: ['calls', 'history', 'rooms'],
     heroServices: ['path_tracker', 'seva', 'travel', 'news'],
     servicesHint: [
       { serviceId: 'path_tracker', title: 'Путь дня', filters: ['service_focus', 'community'] },

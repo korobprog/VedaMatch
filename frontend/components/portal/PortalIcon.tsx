@@ -101,7 +101,7 @@ const SERVICE_EMOJIS: Record<string, string> = {
     'chat': '💬',
     'rooms': '👥',
     'calls': '📞',
-    'dating': '💖',
+    'dating': '💍',
     'cafe': '☕️',
     'shops': '🛍️',
     'ads': '📢',
@@ -117,7 +117,7 @@ const SERVICE_EMOJIS: Record<string, string> = {
     'settings': '⚙️',
     'travel': '✈️',
     'services': '💼',
-    'seva': '❤️',
+    'seva': '🤲',
 };
 
 export const PortalIcon: React.FC<PortalIconProps> = ({
@@ -199,21 +199,27 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         {
                             width: sizeConfig.container,
                             height: sizeConfig.container,
-                            backgroundColor: portalIconStyle === 'solid'
-                                ? service.color
-                                : portalBackgroundType === 'image' || portalIconStyle === 'premium3d'
-                                    ? (isDarkMode ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)') // Frost glass
-                                    : isDarkMode
-                                        ? 'rgba(30,30,30,0.85)'
-                                        : 'rgba(255,255,255,0.9)',
-                            borderColor: portalIconStyle === 'solid'
-                                ? 'rgba(255,255,255,0.25)'
-                                : portalBackgroundType === 'image' || portalIconStyle === 'premium3d' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
-                            borderWidth: roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'solid' || portalIconStyle === 'premium3d' ? 1.5 : 1,
-                            ...(roleHighlight ? {
-                                shadowColor: service.color,
-                                shadowOpacity: 0.35,
-                                shadowRadius: 8,
+                            backgroundColor: portalIconStyle === 'vedamatch'
+                                ? '#121212'
+                                : portalIconStyle === 'solid'
+                                    ? service.color
+                                    : portalBackgroundType === 'image' || portalIconStyle === 'premium3d'
+                                        ? (isDarkMode ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)') // Frost glass
+                                        : isDarkMode
+                                            ? 'rgba(30,30,30,0.85)'
+                                            : 'rgba(255,255,255,0.9)',
+                            borderColor: portalIconStyle === 'vedamatch'
+                                ? '#D4AF37'
+                                : portalIconStyle === 'solid'
+                                    ? 'rgba(255,255,255,0.25)'
+                                    : portalBackgroundType === 'image' || portalIconStyle === 'premium3d' ? 'rgba(255,255,255,0.3)' : `${service.color}30`,
+                            borderWidth: portalIconStyle === 'vedamatch'
+                                ? 1
+                                : roleHighlight ? 2 : portalBackgroundType === 'image' || portalIconStyle === 'solid' || portalIconStyle === 'premium3d' ? 1.5 : 1,
+                            ...(roleHighlight || portalIconStyle === 'vedamatch' ? {
+                                shadowColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : service.color,
+                                shadowOpacity: portalIconStyle === 'vedamatch' ? 0.5 : 0.35,
+                                shadowRadius: portalIconStyle === 'vedamatch' ? 10 : 8,
                                 shadowOffset: { width: 0, height: 2 },
                                 elevation: 6,
                             } : {}),
@@ -221,14 +227,20 @@ export const PortalIcon: React.FC<PortalIconProps> = ({
                         },
                     ]}
                 >
+                    {portalIconStyle === 'vedamatch' && (
+                        <View style={[StyleSheet.absoluteFill, { borderRadius: 22, overflow: 'hidden' }]}>
+                            <View style={{ position: 'absolute', top: -10, left: -10, right: -10, bottom: -10, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 50, opacity: 0.2 }} />
+                            <View style={{ position: 'absolute', top: 5, left: 5, right: 5, bottom: 5, borderWidth: 1, borderColor: '#FFDF00', borderRadius: 50, opacity: 0.3 }} />
+                        </View>
+                    )}
                     {portalIconStyle === 'premium3d' ? (
                         <Text style={{ fontSize: sizeConfig.icon + 4, lineHeight: sizeConfig.icon + 8, marginTop: 4 }}>
                             {SERVICE_EMOJIS[service.id] || '✨'}
                         </Text>
                     ) : (
                         <IconComponent
-                            size={sizeConfig.icon}
-                            color={portalIconStyle === 'solid' || portalBackgroundType === 'image' ? '#ffffff' : service.color}
+                            size={portalIconStyle === 'vedamatch' ? sizeConfig.icon - 2 : sizeConfig.icon}
+                            color={portalIconStyle === 'vedamatch' ? '#FFDF00' : portalIconStyle === 'solid' || portalBackgroundType === 'image' ? '#ffffff' : service.color}
                             strokeWidth={portalIconStyle === 'solid' ? 2.5 : 2}
                         />
                     )}

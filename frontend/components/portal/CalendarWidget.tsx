@@ -25,10 +25,11 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     size = '2x2',
     onDatePress
 }) => {
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const today = useMemo(() => new Date(), []);
     const isPhotoBg = portalBackgroundType === 'image';
+    const isVedaMatch = portalIconStyle === 'vedamatch';
 
     const getDaysInMonth = (date: Date): (number | null)[] => {
         const year = date.getFullYear();
@@ -86,23 +87,36 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     const days = getDaysInMonth(currentMonth);
 
     // Text style helpers
-    const primaryTextStyle = { color: isPhotoBg ? '#ffffff' : vTheme.colors.text };
+    const primaryTextStyle = { color: isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text };
 
     return (
         <View
             style={[
                 styles.container,
                 {
-                    backgroundColor: isPhotoBg
-                        ? 'transparent'
-                        : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
-                    borderColor: isPhotoBg
-                        ? 'rgba(255,255,255,0.3)'
-                        : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+                    backgroundColor: isVedaMatch
+                        ? '#121212'
+                        : isPhotoBg
+                            ? 'transparent'
+                            : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
+                    borderColor: isVedaMatch
+                        ? '#D4AF37'
+                        : isPhotoBg
+                            ? 'rgba(255,255,255,0.3)'
+                            : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+                    borderWidth: isVedaMatch ? 1 : 1,
+                    ...(isVedaMatch ? {
+                        shadowColor: '#D4AF37',
+                        shadowOpacity: 0.5,
+                        shadowRadius: 10,
+                        shadowOffset: { width: 0, height: 2 },
+                        elevation: 6,
+                    } : {}),
                 },
             ]}
         >
-            {(isPhotoBg || isDarkMode) && (
+
+            {(isPhotoBg || isDarkMode) && !isVedaMatch && (
                 <BlurView
                     style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
                     blurType={isDarkMode ? "dark" : "light"}
@@ -114,13 +128,13 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigateMonth(-1)} style={styles.navButton}>
-                    <ChevronLeft size={16} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
+                    <ChevronLeft size={16} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
                 </TouchableOpacity>
                 <Text style={[styles.monthYear, primaryTextStyle]}>
                     {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </Text>
                 <TouchableOpacity onPress={() => navigateMonth(1)} style={styles.navButton}>
-                    <ChevronRight size={16} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
+                    <ChevronRight size={16} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
                 </TouchableOpacity>
             </View>
 
@@ -133,8 +147,8 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
                                 styles.weekDayText,
                                 {
                                     color: index >= 5
-                                        ? vTheme.colors.primary
-                                        : (isPhotoBg ? 'rgba(255,255,255,0.6)' : vTheme.colors.textSecondary)
+                                        ? (isVedaMatch ? '#EF4444' : vTheme.colors.primary)
+                                        : (isVedaMatch ? 'rgba(255,223,0,0.6)' : isPhotoBg ? 'rgba(255,255,255,0.6)' : vTheme.colors.textSecondary)
                                 }
                             ]}
                         >
@@ -157,7 +171,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
                             style={[
                                 styles.dayCircle,
                                 isToday(day) && {
-                                    backgroundColor: vTheme.colors.primary,
+                                    backgroundColor: isVedaMatch ? '#D4AF37' : vTheme.colors.primary,
                                 },
                             ]}
                         >
@@ -166,9 +180,9 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
                                     styles.dayText,
                                     {
                                         color: isToday(day)
-                                            ? '#FFF'
+                                            ? (isVedaMatch ? '#121212' : '#FFF')
                                             : day
-                                                ? (isPhotoBg ? '#ffffff' : vTheme.colors.text)
+                                                ? (isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text)
                                                 : 'transparent',
                                     },
                                 ]}

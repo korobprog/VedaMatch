@@ -15,11 +15,12 @@ import { VideoCircle, videoCirclesService } from '../../services/videoCirclesSer
 
 export const CirclesPanelWidget: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+  const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
   const [circles, setCircles] = useState<VideoCircle[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'friends'>('all');
   const isPhotoBg = portalBackgroundType === 'image';
+  const isVedaMatch = portalIconStyle === 'vedamatch';
 
   useEffect(() => {
     let mounted = true;
@@ -48,24 +49,37 @@ export const CirclesPanelWidget: React.FC = () => {
     setFilter(prev => prev === 'all' ? 'friends' : 'all');
   };
 
-  const primaryTextStyle = { color: isPhotoBg ? '#ffffff' : vTheme.colors.text };
-  const secondaryTextStyle = { color: isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary };
+  const primaryTextStyle = { color: isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text };
+  const secondaryTextStyle = { color: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary };
 
   return (
     <View
       style={[
         styles.container,
         {
-          backgroundColor: isPhotoBg
-            ? 'transparent'
-            : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
-          borderColor: isPhotoBg
-            ? 'rgba(255,255,255,0.3)'
-            : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+          backgroundColor: isVedaMatch
+            ? '#121212'
+            : isPhotoBg
+              ? 'transparent'
+              : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
+          borderColor: isVedaMatch
+            ? '#D4AF37'
+            : isPhotoBg
+              ? 'rgba(255,255,255,0.3)'
+              : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+          borderWidth: isVedaMatch ? 1 : 1,
+          ...(isVedaMatch ? {
+            shadowColor: '#D4AF37',
+            shadowOpacity: 0.5,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 6,
+          } : {}),
         },
       ]}
     >
-      {(isPhotoBg || isDarkMode) && (
+
+      {(isPhotoBg || isDarkMode) && !isVedaMatch && (
         <BlurView
           style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
           blurType={isDarkMode ? "dark" : "light"}
@@ -77,13 +91,13 @@ export const CirclesPanelWidget: React.FC = () => {
       {/* Header matches CalendarWidget layout */}
       <View style={styles.header}>
         <TouchableOpacity onPress={toggleFilter} style={styles.navButton}>
-          <ChevronLeft size={16} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
+          <ChevronLeft size={16} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
         </TouchableOpacity>
         <Text style={[styles.titleText, primaryTextStyle]}>
           {filter === 'all' ? 'Кружки: Лента' : 'Кружки: Друзья'}
         </Text>
         <TouchableOpacity onPress={toggleFilter} style={styles.navButton}>
-          <ChevronRight size={16} color={isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
+          <ChevronRight size={16} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? '#ffffff' : vTheme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -94,10 +108,11 @@ export const CirclesPanelWidget: React.FC = () => {
           onPress={() => navigation.navigate('VideoCirclesScreen', { openPublish: true })}
         >
           <View style={[styles.createIcon, {
-            backgroundColor: '#EA580C20',
-            borderColor: isPhotoBg ? 'rgba(255,255,255,0.4)' : '#EA580C40'
+            backgroundColor: isVedaMatch ? '#121212' : '#EA580C20',
+            borderColor: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.4)' : '#EA580C40',
+            borderStyle: isVedaMatch ? 'solid' as any : 'dashed' as any,
           }]}>
-            <Camera size={18} color={isPhotoBg ? '#ffffff' : '#EA580C'} />
+            <Camera size={18} color={isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : '#EA580C'} />
           </View>
           <Text style={[styles.slotLabel, secondaryTextStyle]}>Снять</Text>
         </TouchableOpacity>
@@ -114,13 +129,14 @@ export const CirclesPanelWidget: React.FC = () => {
               onPress={() => navigation.navigate('VideoCirclesScreen', { initialCircleId: circle.id })}
             >
               <View style={[styles.avatarContainer, {
-                borderColor: circle.premiumBoostActive ? '#FFD700' : (isPhotoBg ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)')
+                borderColor: circle.premiumBoostActive ? '#FFD700' : isVedaMatch ? '#D4AF37' : (isPhotoBg ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)'),
+                backgroundColor: isVedaMatch ? '#121212' : 'transparent',
               }]}>
                 {circle.thumbnailUrl ? (
                   <Image source={{ uri: circle.thumbnailUrl }} style={styles.avatar} />
                 ) : (
-                  <View style={[styles.placeholderAvatar, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                    <Film size={14} color={isPhotoBg ? '#ffffff' : '#EA580C'} />
+                  <View style={[styles.placeholderAvatar, { backgroundColor: isVedaMatch ? 'transparent' : isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                    <Film size={14} color={isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : '#EA580C'} />
                   </View>
                 )}
               </View>
@@ -135,7 +151,7 @@ export const CirclesPanelWidget: React.FC = () => {
           </View>
         )}
       </View>
-    </View>
+    </View >
   );
 };
 

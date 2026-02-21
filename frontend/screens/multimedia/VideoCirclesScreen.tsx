@@ -41,7 +41,9 @@ import {
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { Asset, launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import LinearGradient from 'react-native-linear-gradient';
+import { BlurView } from '@react-native-community/blur';
 import RNVideo from 'react-native-video';
+import { VideoCirclesHeaderArt } from '../../components/multimedia/VideoCirclesHeaderArt';
 import { useSettings } from '../../context/SettingsContext';
 import { useRoleTheme } from '../../hooks/useRoleTheme';
 import { useUser } from '../../context/UserContext';
@@ -832,6 +834,9 @@ export const VideoCirclesScreen: React.FC = () => {
     });
   };
 
+  const GLASS_BACKGROUND = isDarkMode ? 'rgba(30, 30, 30, 0.45)' : 'rgba(255, 255, 255, 0.7)';
+  const GLASS_BORDER = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)';
+
   const renderTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -840,93 +845,117 @@ export const VideoCirclesScreen: React.FC = () => {
 
   const listHeader = useMemo(
     () => (
-      <View style={styles.headerWrap}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={22} color={roleColors.textPrimary} />
-          </TouchableOpacity>
-          <View style={styles.titleRow}>
-            <Video size={20} color={roleColors.accent} />
-            <Text style={[styles.title, { color: roleColors.textPrimary }]}>{t('videoCircles.title')}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            {isTariffAdmin && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate('VideoTariffsAdminScreen')}
-                style={styles.myBtn}
-                testID="video-circles-promotion-btn"
-              >
-                <Text style={[styles.myBtnTariffText, myBtnTariffTextStyle]}>{t('videoCircles.tariffs')}</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('MyVideoCirclesScreen')}
-              style={[styles.myBtn, myBtnAccentSoftStyle]}
-            >
-              <Text style={[styles.myBtnText, myBtnTariffTextStyle]}>{t('videoCircles.myCircles')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setFiltersOpen(true)} style={styles.iconBtn}>
-              <SlidersHorizontal size={18} color={roleColors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={styles.headerContainer}>
+        <VideoCirclesHeaderArt />
 
-        <View style={styles.scopeRow}>
-          {(['all', 'friends'] as const).map((scope) => {
-            const active = feedScope === scope;
-            return (
-              <TouchableOpacity
-                key={scope}
-                style={[
-                  styles.scopePill,
-                  {
-                    backgroundColor: active ? roleColors.accent : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
-                    borderColor: active ? roleColors.accent : roleColors.border,
-                    ...(active && Platform.OS === 'ios' ? {
-                      shadowColor: roleColors.accent,
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 8,
-                    } : {}),
-                  },
-                ]}
-                onPress={() => setFeedScope(scope)}
-                activeOpacity={0.7}
-              >
-                <Text style={active ? styles.scopePillTextActive : [styles.scopePillText, roleTextPrimaryStyle]}>
-                  {scope === 'all' ? t('videoCircles.feed') || 'Лента' : t('videoCircles.friendsCircles') || 'Кружки друзей'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <View style={styles.headerContentWrapper}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <View style={[styles.glassBtnWrap, { backgroundColor: GLASS_BACKGROUND, borderColor: GLASS_BORDER }]}>
+                <ArrowLeft size={22} color={isDarkMode ? '#ffffff' : roleColors.textPrimary} />
+              </View>
+            </TouchableOpacity>
 
-        <View style={styles.roleScopeRow}>
-          {ROLE_FILTER_OPTIONS.map((option) => {
-            const selected = roleScope.includes(option.value);
-            const dotColor = ROLE_DOT_COLORS[option.value];
-            return (
+            <View style={styles.titleRow}>
+              <View style={[styles.titleIconBox, { backgroundColor: isDarkMode ? 'rgba(234, 88, 12, 0.2)' : 'rgba(234, 88, 12, 0.1)' }]}>
+                <Video size={18} color="#EA580C" strokeWidth={2.5} />
+              </View>
+              <Text style={[styles.title, { color: isDarkMode ? '#ffffff' : roleColors.textPrimary }]}>{t('videoCircles.title')}</Text>
+            </View>
+
+            <View style={styles.headerActions}>
+              {isTariffAdmin && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('VideoTariffsAdminScreen')}
+                  style={styles.myBtn}
+                >
+                  <Text style={[styles.myBtnTariffText, myBtnTariffTextStyle]}>{t('videoCircles.tariffs')}</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.roleScopeChip,
-                  {
-                    borderColor: selected ? dotColor : roleColors.border,
-                    backgroundColor: selected
-                      ? (isDarkMode ? `${dotColor}22` : `${dotColor}18`)
-                      : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)'),
-                  },
-                ]}
-                onPress={() => toggleRoleScope(option.value)}
-                activeOpacity={0.7}
+                onPress={() => navigation.navigate('MyVideoCirclesScreen')}
+                style={[styles.glassBtnWrap, { backgroundColor: GLASS_BACKGROUND, borderColor: GLASS_BORDER, paddingHorizontal: 16 }]}
               >
-                <View style={[styles.roleDot, getRoleDotStyle(selected, dotColor)]} />
-                <Text style={getRoleScopeTextStyle(selected, dotColor)}>
-                  {option.label}
-                </Text>
+                <Text style={{ fontWeight: '700', fontSize: 13, color: isDarkMode ? '#fff' : roleColors.textPrimary }}>Мои</Text>
               </TouchableOpacity>
-            );
-          })}
+              <TouchableOpacity onPress={() => setFiltersOpen(true)} style={[styles.glassBtnWrap, { backgroundColor: GLASS_BACKGROUND, borderColor: GLASS_BORDER }]}>
+                <SlidersHorizontal size={18} color={isDarkMode ? '#ffffff' : roleColors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.glassTogglesWrapper}>
+            <BlurView style={StyleSheet.absoluteFill} blurType={isDarkMode ? 'dark' : 'light'} blurAmount={20} reducedTransparencyFallbackColor="transparent" />
+            <View style={[styles.glassTogglesInner, { backgroundColor: GLASS_BACKGROUND, borderColor: GLASS_BORDER }]}>
+              {(['all', 'friends'] as const).map((scope) => {
+                const active = feedScope === scope;
+                return (
+                  <TouchableOpacity
+                    key={scope}
+                    style={[
+                      styles.glassToggleBtn,
+                      active && {
+                        backgroundColor: '#EA580C',
+                        ...(Platform.OS === 'ios' && {
+                          shadowColor: '#EA580C',
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.4,
+                          shadowRadius: 8,
+                        }),
+                      }
+                    ]}
+                    onPress={() => setFeedScope(scope)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.glassToggleText,
+                      {
+                        color: active ? '#ffffff' : (isDarkMode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)'),
+                        fontWeight: active ? '800' : '600'
+                      }
+                    ]}>
+                      {scope === 'all' ? t('videoCircles.feed') || 'Лента' : t('videoCircles.friendsCircles') || 'Кружки друзей'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.roleScopeRowWrap}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.roleScopeList}
+              data={ROLE_FILTER_OPTIONS}
+              keyExtractor={(opt) => opt.value}
+              renderItem={({ item: option }) => {
+                const selected = roleScope.includes(option.value);
+                const dotColor = ROLE_DOT_COLORS[option.value];
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.roleScopeGlassChip,
+                      {
+                        borderColor: selected ? dotColor : GLASS_BORDER,
+                        backgroundColor: selected
+                          ? `${dotColor}25`
+                          : GLASS_BACKGROUND,
+                      },
+                    ]}
+                    onPress={() => toggleRoleScope(option.value)}
+                    activeOpacity={0.7}
+                  >
+                    {selected && <BlurView style={StyleSheet.absoluteFill} blurType={isDarkMode ? 'dark' : 'light'} blurAmount={10} reducedTransparencyFallbackColor="transparent" />}
+                    <View style={[styles.roleDot, getRoleDotStyle(selected, dotColor)]} />
+                    <Text style={getRoleScopeTextStyle(selected, dotColor)}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
         </View>
       </View>
     ),
@@ -937,13 +966,13 @@ export const VideoCirclesScreen: React.FC = () => {
       getRoleScopeTextStyle,
       isDarkMode,
       isTariffAdmin,
-      myBtnAccentSoftStyle,
       myBtnTariffTextStyle,
       navigation,
-      roleColors,
+      roleColors.textPrimary,
       roleScope,
-      roleTextPrimaryStyle,
       t,
+      GLASS_BACKGROUND,
+      GLASS_BORDER
     ]
   );
 
@@ -1054,79 +1083,79 @@ export const VideoCirclesScreen: React.FC = () => {
               </TouchableOpacity>
 
               <View style={styles.cardBody}>
-              {(!!item.city || !!item.matha || !!item.category) && (
-                <View style={styles.metaRow}>
-                  {!!item.city && (
-                    <View style={[styles.metaPill, metaPillStyle]}>
-                      <MapPin size={11} color={roleColors.textSecondary} />
-                      <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.city}</Text>
-                    </View>
-                  )}
-                  {!!item.matha && (
-                    <View style={[styles.metaPill, metaPillStyle]}>
-                      <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.matha}</Text>
-                    </View>
-                  )}
-                  {!!item.category && (
-                    <View style={[styles.metaPill, metaPillStyle]}>
-                      <Tag size={11} color={roleColors.textSecondary} />
-                      <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
-                        {t(`videoCircles.categories.${item.category}`, { defaultValue: item.category })}
-                      </Text>
-                    </View>
-                  )}
+                {(!!item.city || !!item.matha || !!item.category) && (
+                  <View style={styles.metaRow}>
+                    {!!item.city && (
+                      <View style={[styles.metaPill, metaPillStyle]}>
+                        <MapPin size={11} color={roleColors.textSecondary} />
+                        <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.city}</Text>
+                      </View>
+                    )}
+                    {!!item.matha && (
+                      <View style={[styles.metaPill, metaPillStyle]}>
+                        <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>{item.matha}</Text>
+                      </View>
+                    )}
+                    {!!item.category && (
+                      <View style={[styles.metaPill, metaPillStyle]}>
+                        <Tag size={11} color={roleColors.textSecondary} />
+                        <Text style={[styles.metaText, { color: roleColors.textSecondary }]}>
+                          {t(`videoCircles.categories.${item.category}`, { defaultValue: item.category })}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.actionsRow}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleInteraction(item, 'like')} activeOpacity={0.7}>
+                    <Heart
+                      size={20}
+                      color={likedMap[item.id] ? '#EF4444' : roleColors.textSecondary}
+                      fill={likedMap[item.id] ? '#EF4444' : 'transparent'}
+                    />
+                    <Text style={likedMap[item.id] ? styles.actionCountLiked : [styles.actionCount, roleTextSecondaryStyle]}>
+                      {item.likeCount}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => openCommentModal(item)} activeOpacity={0.7}>
+                    <MessageSquare size={20} color={roleColors.textSecondary} />
+                    <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.commentCount}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, (user?.ID != null && item.authorId === user.ID) ? styles.disabledAction : undefined]}
+                    onPress={() => handleChatPress(item)}
+                    activeOpacity={0.7}
+                    disabled={Boolean(user?.ID != null && item.authorId === user.ID)}
+                  >
+                    <Send size={19} color={roleColors.textSecondary} />
+                    <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.chatCount}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.boostBtn,
+                      { backgroundColor: roleColors.accent },
+                      boostingCircleIds.includes(item.id) && styles.disabledAction,
+                    ]}
+                    onPress={() => handleBoost(item.id)}
+                    activeOpacity={0.8}
+                    disabled={boostingCircleIds.includes(item.id)}
+                  >
+                    {boostingCircleIds.includes(item.id) ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Sparkles size={14} color="#fff" />
+                    )}
+                    <Text style={styles.boostText}>
+                      {premiumPrice !== null ? `${premiumPrice} LKM` : t('videoCircles.premiumBoost')}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              )}
-
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleInteraction(item, 'like')} activeOpacity={0.7}>
-                  <Heart
-                    size={20}
-                    color={likedMap[item.id] ? '#EF4444' : roleColors.textSecondary}
-                    fill={likedMap[item.id] ? '#EF4444' : 'transparent'}
-                  />
-                  <Text style={likedMap[item.id] ? styles.actionCountLiked : [styles.actionCount, roleTextSecondaryStyle]}>
-                    {item.likeCount}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.actionBtn} onPress={() => openCommentModal(item)} activeOpacity={0.7}>
-                  <MessageSquare size={20} color={roleColors.textSecondary} />
-                  <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.commentCount}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionBtn, (user?.ID != null && item.authorId === user.ID) ? styles.disabledAction : undefined]}
-                  onPress={() => handleChatPress(item)}
-                  activeOpacity={0.7}
-                  disabled={Boolean(user?.ID != null && item.authorId === user.ID)}
-                >
-                  <Send size={19} color={roleColors.textSecondary} />
-                  <Text style={[styles.actionCount, { color: roleColors.textSecondary }]}>{item.chatCount}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.boostBtn,
-                    { backgroundColor: roleColors.accent },
-                    boostingCircleIds.includes(item.id) && styles.disabledAction,
-                  ]}
-                  onPress={() => handleBoost(item.id)}
-                  activeOpacity={0.8}
-                  disabled={boostingCircleIds.includes(item.id)}
-                >
-                  {boostingCircleIds.includes(item.id) ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Sparkles size={14} color="#fff" />
-                  )}
-                  <Text style={styles.boostText}>
-                    {premiumPrice !== null ? `${premiumPrice} LKM` : t('videoCircles.premiumBoost')}
-                  </Text>
-                </TouchableOpacity>
               </View>
             </View>
-          </View>
           );
         }}
       />
@@ -1440,29 +1469,50 @@ const styles = StyleSheet.create({
   },
 
   // Header Styles
-  headerWrap: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+  headerContainer: {
+    paddingBottom: 24,
+    marginBottom: 8,
+  },
+  headerContentWrapper: {
+    paddingTop: Platform.OS === 'ios' ? 56 : 20,
+    zIndex: 2,
+  },
+  glassBtnWrap: {
+    height: 40,
+    minWidth: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'ios' && {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+    }),
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    marginBottom: 20,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    marginRight: 10,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flex: 1,
+  },
+  titleIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 22,
@@ -1472,14 +1522,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 8,
   },
   myBtn: {
     paddingHorizontal: 12,
@@ -1492,47 +1535,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 11,
   },
-  myBtnText: {
-    fontWeight: '700',
-    fontSize: 12,
-  },
-
-  // Scope & Role Chips
-  scopeRow: {
-    flexDirection: 'row',
-    gap: 10,
+  glassTogglesWrapper: {
+    marginHorizontal: 20,
     marginBottom: 16,
+    borderRadius: 18,
+    overflow: 'hidden',
   },
-  scopePill: {
+  glassTogglesInner: {
+    flexDirection: 'row',
+    padding: 6,
+    borderWidth: 1,
+    borderRadius: 18,
+  },
+  glassToggleBtn: {
     flex: 1,
     height: 44,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
   },
-  scopePillText: {
-    fontSize: 14,
+  glassToggleText: {
+    fontSize: 15,
     fontWeight: '700',
   },
-  scopePillTextActive: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
+  roleScopeRowWrap: {
+    marginTop: 8,
   },
-  roleScopeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  roleScopeList: {
+    paddingHorizontal: 20,
+    gap: 10,
+    paddingBottom: 10,
   },
-  roleScopeChip: {
+  roleScopeGlassChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    gap: 6,
+    gap: 8,
+    overflow: 'hidden',
   },
   roleDot: {
     width: 6,
@@ -1542,10 +1584,11 @@ const styles = StyleSheet.create({
   roleScopeText: {
     fontSize: 13,
     letterSpacing: 0.2,
+    fontWeight: '600',
   },
   roleScopeTextSelectedDark: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   // Video Card Styles

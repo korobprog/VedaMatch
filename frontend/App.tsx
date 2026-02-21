@@ -164,8 +164,10 @@ import { PathTrackerHomeScreen, PathCheckinScreen, PathStepScreen, PathReflectio
 import { StatusBar, useColorScheme, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NotificationManager } from './components/NotificationManager';
+import { NotificationProvider } from './context/NotificationContext';
 import { crashReportingService } from './services/crashReportingService';
 import { PENDING_ROOM_INVITE_TOKEN_KEY } from './screens/portal/chat/roomInviteStorage';
+import { serializeAndroidPermissionRequest } from './utils/permissionRequestQueue';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 import { navigationRef } from './navigation/navigationRef';
@@ -190,6 +192,7 @@ const AppContent = () => {
   const [showPreview, setShowPreview] = useState(true);
   const [minLoadTime, setMinLoadTime] = useState(false); // Force min loading time to hide flashes
   const pendingRoomInviteTokenRef = React.useRef('');
+  const voipSetupRef = React.useRef(false);
   // Keep sipUser ref or state if needed to manage connection
 
   // Use WebSocket to listen for incoming WebRTC calls
@@ -225,16 +228,26 @@ const AppContent = () => {
   }, [user?.ID]);
 
   React.useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
+
     // 1. Setup VoIP (CallKeep)
     const setupVoIP = async () => {
       try {
+        if (voipSetupRef.current) {
+          return;
+        }
+
         if (Platform.OS === 'android') {
-          await PermissionsAndroid.requestMultiple([
-            PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS,
-            PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
-            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-            PermissionsAndroid.PERMISSIONS.CAMERA
-          ]);
+          await serializeAndroidPermissionRequest(async () => {
+            await PermissionsAndroid.requestMultiple([
+              PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS,
+              PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
+              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+              PermissionsAndroid.PERMISSIONS.CAMERA
+            ]);
+          });
         }
 
         const options = {
@@ -257,6 +270,7 @@ const AppContent = () => {
         };
         await RNCallKeep.setup(options);
         RNCallKeep.setAvailable(true);
+        voipSetupRef.current = true;
       } catch (err) {
         console.error('CallKeep setup failed', err);
       }
@@ -306,7 +320,7 @@ const AppContent = () => {
       RNCallKeep.removeEventListener('endCall');
       removeLisener();
     };
-  }, [addListener]);
+  }, [addListener, isLoggedIn]);
 
   // Handle Multimedia Player Setup
   React.useEffect(() => {
@@ -614,15 +628,17 @@ function App(): React.JSX.Element {
     <SafeAreaProvider>
       <UserProvider>
         <SettingsProvider>
-          <WebSocketProvider>
-            <ChatProvider>
-              <CafeCartProvider>
-                <WalletProvider>
-                  <AppContent />
-                </WalletProvider>
-              </CafeCartProvider>
-            </ChatProvider>
-          </WebSocketProvider>
+          <NotificationProvider>
+            <WebSocketProvider>
+              <ChatProvider>
+                <CafeCartProvider>
+                  <WalletProvider>
+                    <AppContent />
+                  </WalletProvider>
+                </CafeCartProvider>
+              </ChatProvider>
+            </WebSocketProvider>
+          </NotificationProvider>
         </SettingsProvider>
       </UserProvider>
     </SafeAreaProvider>

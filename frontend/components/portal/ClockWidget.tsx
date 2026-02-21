@@ -27,12 +27,13 @@ const WIDGET_SIZES = {
 };
 
 export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
     const [time, setTime] = useState(new Date());
     const colonOpacity = useSharedValue(1);
 
     const sizeConfig = WIDGET_SIZES[size];
     const isPhotoBg = portalBackgroundType === 'image';
+    const isVedaMatch = portalIconStyle === 'vedamatch';
 
     // Update time every second
     useEffect(() => {
@@ -77,14 +78,14 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
     // Photo-optimized text style
     const textStyle = [
         styles.time,
-        { fontSize: sizeConfig.timeSize, color: isPhotoBg ? '#ffffff' : vTheme.colors.text },
-        isPhotoBg && styles.textShadow
+        { fontSize: sizeConfig.timeSize, color: isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text },
+        (isPhotoBg || isVedaMatch) && styles.textShadow
     ];
 
     const dateStyle = [
         styles.date,
-        { fontSize: sizeConfig.dateSize, color: isPhotoBg ? 'rgba(255,255,255,0.8)' : vTheme.colors.textSecondary },
-        isPhotoBg && styles.textShadow
+        { fontSize: sizeConfig.dateSize, color: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.8)' : vTheme.colors.textSecondary },
+        (isPhotoBg || isVedaMatch) && styles.textShadow
     ];
 
     return (
@@ -94,16 +95,29 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
                 {
                     width: sizeConfig.width,
                     height: sizeConfig.height,
-                    backgroundColor: isPhotoBg
-                        ? 'transparent'
-                        : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
-                    borderColor: isPhotoBg
-                        ? 'rgba(255,255,255,0.3)'
-                        : (isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
+                    backgroundColor: isVedaMatch
+                        ? '#121212'
+                        : isPhotoBg
+                            ? 'transparent'
+                            : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                    borderColor: isVedaMatch
+                        ? '#D4AF37'
+                        : isPhotoBg
+                            ? 'rgba(255,255,255,0.3)'
+                            : (isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
+                    borderWidth: isVedaMatch ? 1 : 1,
+                    ...(isVedaMatch ? {
+                        shadowColor: '#D4AF37',
+                        shadowOpacity: 0.5,
+                        shadowRadius: 10,
+                        shadowOffset: { width: 0, height: 2 },
+                        elevation: 6,
+                    } : {}),
                 },
             ]}
         >
-            {(isPhotoBg || isDarkMode) && (
+
+            {(isPhotoBg || isDarkMode) && !isVedaMatch && (
                 <BlurView
                     style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
                     blurType={isDarkMode ? "dark" : "light"}
@@ -120,7 +134,7 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
                     style={[
                         ...textStyle,
                         colonStyle,
-                        { color: isPhotoBg ? '#ffffff' : vTheme.colors.primary },
+                        { color: isVedaMatch ? '#D4AF37' : isPhotoBg ? '#ffffff' : vTheme.colors.primary },
                     ]}
                 >
                     :

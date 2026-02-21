@@ -7,6 +7,7 @@ import { TouchableOpacity, Text, StyleSheet, View, ActivityIndicator } from 'rea
 import { Sparkles } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useWallet } from '../../context/WalletContext';
+import { useSettings } from '../../context/SettingsContext';
 
 interface BalancePillProps {
     size?: 'small' | 'medium';
@@ -38,15 +39,17 @@ export const BalancePill: React.FC<BalancePillProps> = ({
 }) => {
     const navigation = useNavigation<any>();
     const { wallet, loading, regularBalance, bonusBalance } = useWallet();
+    const { portalIconStyle } = useSettings();
+    const isVedaMatch = portalIconStyle === 'vedamatch';
 
     const handlePress = () => {
         navigation.navigate('Wallet');
     };
 
     const isSmall = size === 'small';
-    const textColor = lightMode ? '#FFFFFF' : '#FFB02E';
-    const bgColor = lightMode ? 'rgba(255,255,255,0.22)' : 'rgba(255,176,46,0.12)';
-    const borderColor = lightMode ? 'rgba(255,255,255,0.4)' : 'rgba(255,176,46,0.25)';
+    const textColor = isVedaMatch ? '#FFDF00' : lightMode ? '#FFFFFF' : '#FFB02E';
+    const bgColor = isVedaMatch ? '#121212' : lightMode ? 'rgba(255,255,255,0.22)' : 'rgba(255,176,46,0.12)';
+    const borderColor = isVedaMatch ? '#D4AF37' : lightMode ? 'rgba(255,255,255,0.4)' : 'rgba(255,176,46,0.25)';
     const pendingBalance = wallet?.pendingBalance ?? 0;
 
     const regularText = formatPillAmount(regularBalance, isSmall);
@@ -92,7 +95,7 @@ export const BalancePill: React.FC<BalancePillProps> = ({
                             numberOfLines={1}
                             style={[
                                 styles.bonusText,
-                                { color: lightMode ? 'rgba(255,255,255,0.85)' : '#10B981' },
+                                { color: isVedaMatch ? '#D4AF37' : lightMode ? 'rgba(255,255,255,0.85)' : '#10B981' },
                                 isSmall && styles.bonusTextSmall
                             ]}
                         >

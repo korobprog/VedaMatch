@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, ActivityIndicator, Keyboard } from 'react-native';
 import { locationService } from '../../services/locationService';
 import { AutoLocationButton } from './AutoLocationButton';
 import { COLORS } from '../chat/ChatConstants';
@@ -44,6 +44,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 	}, []);
 
 	const handleLocationDetected = (detectedCountry: string, detectedCity: string, lat?: number, lon?: number) => {
+		Keyboard.dismiss();
+		setShowCountryPicker(false);
+		setShowCityPicker(false);
+		setCityInputMode(false);
 		onCountryChange(detectedCountry);
 		onCityChange(detectedCity);
 		if (lat !== undefined && lon !== undefined) {
@@ -96,7 +100,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 
 	return (
 		<>
-			{showAutoDetect && !country && (
+			{showAutoDetect && (
 				<AutoLocationButton
 					onLocationDetected={handleLocationDetected}
 					theme={theme}
@@ -107,7 +111,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 				<Text style={[styles.label, { color: theme.text }]}>Country</Text>
 				<TouchableOpacity
 					style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-					onPress={() => setShowCountryPicker(true)}
+					onPress={() => {
+						Keyboard.dismiss();
+						setShowCountryPicker(true);
+					}}
 				>
 					<Text style={[styles.inputText, { color: country ? theme.inputText : theme.subText }]}>
 						{country || 'Select Country'}
@@ -119,7 +126,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 				{!cityInputMode ? (
 					<TouchableOpacity
 						style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.borderColor }]}
-						onPress={() => setShowCityPicker(true)}
+						onPress={() => {
+							Keyboard.dismiss();
+							setShowCityPicker(true);
+						}}
 					>
 						<Text style={[styles.inputText, { color: city ? theme.inputText : theme.subText }]}>
 							{city || 'Select City'}

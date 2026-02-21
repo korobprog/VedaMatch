@@ -33,7 +33,7 @@ type SettingsPanelKey = 'quick' | 'appearance' | 'background' | 'ai' | 'location
 const SETTINGS_PANELS_STORAGE_KEY = 'settings_screen_expanded_panels_v1';
 
 const IMAGE_SIZE_OPTIONS = [200, 240, 280, 320, 360];
-const THEME_MODE_OPTIONS: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
+const THEME_MODE_OPTIONS: Array<'system' | 'light' | 'dark'> = ['system', 'light', 'dark'];
 const PRESET_COLORS = ['#ffffff', '#f5f5f5', '#1a1a1a', '#2c3e50', '#8e44ad', '#e67e22'];
 const PRESET_GRADIENTS = [
     '#FF9D6C|#FF4D4D',
@@ -625,16 +625,32 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     style={[
                                         styles.sizeBtn,
                                         {
-                                            backgroundColor: portalIconStyle === 'minimal' ? colors.accent : vTheme.colors.backgroundSecondary,
-                                            borderColor: portalIconStyle === 'minimal' ? colors.accent : vTheme.colors.divider
+                                            backgroundColor: portalIconStyle === 'vedamatch' ? colors.accent : vTheme.colors.backgroundSecondary,
+                                            borderColor: portalIconStyle === 'vedamatch' ? colors.accent : vTheme.colors.divider
                                         }
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
-                                        setPortalIconStyle('minimal');
+                                        setPortalIconStyle('vedamatch');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'minimal' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Контур</Text>
+                                    <Text style={portalIconStyle === 'vedamatch' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>VedaMatch</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    style={[
+                                        styles.sizeBtn,
+                                        {
+                                            backgroundColor: portalIconStyle === 'premium3d' ? colors.accent : vTheme.colors.backgroundSecondary,
+                                            borderColor: portalIconStyle === 'premium3d' ? colors.accent : vTheme.colors.divider
+                                        }
+                                    ]}
+                                    onPress={() => {
+                                        triggerTapFeedback();
+                                        setPortalIconStyle('premium3d');
+                                    }}
+                                >
+                                    <Text style={portalIconStyle === 'premium3d' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Премиум 3D</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={0.88}
@@ -657,16 +673,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     style={[
                                         styles.sizeBtn,
                                         {
-                                            backgroundColor: portalIconStyle === 'premium3d' ? colors.accent : vTheme.colors.backgroundSecondary,
-                                            borderColor: portalIconStyle === 'premium3d' ? colors.accent : vTheme.colors.divider
+                                            backgroundColor: portalIconStyle === 'minimal' ? colors.accent : vTheme.colors.backgroundSecondary,
+                                            borderColor: portalIconStyle === 'minimal' ? colors.accent : vTheme.colors.divider
                                         }
                                     ]}
                                     onPress={() => {
                                         triggerTapFeedback();
-                                        setPortalIconStyle('premium3d');
+                                        setPortalIconStyle('minimal');
                                     }}
                                 >
-                                    <Text style={portalIconStyle === 'premium3d' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Премиум 3D</Text>
+                                    <Text style={portalIconStyle === 'minimal' ? themedStyles.optionTextOnAccent : themedStyles.optionTextVTheme}>Контур</Text>
                                 </TouchableOpacity>
                             </View>
 

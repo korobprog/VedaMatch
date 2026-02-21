@@ -14,6 +14,7 @@ import {
     StatusBar,
     TextInput,
     ImageBackground,
+    Keyboard,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
@@ -183,7 +184,18 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     };
 
+    const closeAllPickers = () => {
+        setShowCountryPicker(false);
+        setShowCityPicker(false);
+        setShowMadhPicker(false);
+        setShowYogaPicker(false);
+        setShowGunaPicker(false);
+        setCityInputMode(false);
+    };
+
     const handleAutoDetect = async () => {
+        Keyboard.dismiss();
+        closeAllPickers();
         const requestId = ++latestDetectRequestRef.current;
         if (isMountedRef.current) {
             setDetectingLocation(true);
@@ -601,6 +613,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                         placeholder={t('registration.selectCountry')}
                                         theme={theme}
                                         onPress={() => {
+                                            Keyboard.dismiss();
                                             if (loadingCountries) {
                                                 Alert.alert('Loading', 'Please wait, countries are being loaded...');
                                                 return;
@@ -657,6 +670,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                                                 <TouchableOpacity
                                                     style={[styles.input, { flex: 1, backgroundColor: theme.inputBackground, borderColor: theme.borderColor, justifyContent: 'center' }]}
                                                     onPress={() => {
+                                                        Keyboard.dismiss();
                                                         if (country) {
                                                             setShowCityPicker(!showCityPicker);
                                                         } else {

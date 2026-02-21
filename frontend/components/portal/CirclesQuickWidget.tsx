@@ -7,11 +7,12 @@ import { useSettings } from '../../context/SettingsContext';
 
 export const CirclesQuickWidget: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+  const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
   const isPhotoBg = portalBackgroundType === 'image';
+  const isVedaMatch = portalIconStyle === 'vedamatch';
 
-  const primaryTextStyle = { color: isPhotoBg ? '#ffffff' : vTheme.colors.text };
-  const secondaryTextStyle = { color: isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary };
+  const primaryTextStyle = { color: isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text };
+  const secondaryTextStyle = { color: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary };
 
   return (
     <TouchableOpacity
@@ -19,18 +20,31 @@ export const CirclesQuickWidget: React.FC = () => {
       style={[
         styles.container,
         {
-          backgroundColor: isPhotoBg
-            ? 'transparent'
-            : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
-          borderColor: isPhotoBg
-            ? 'rgba(255,255,255,0.3)'
-            : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+          backgroundColor: isVedaMatch
+            ? '#121212'
+            : isPhotoBg
+              ? 'transparent'
+              : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)'),
+          borderColor: isVedaMatch
+            ? '#D4AF37'
+            : isPhotoBg
+              ? 'rgba(255,255,255,0.3)'
+              : (isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+          borderWidth: isVedaMatch ? 1 : 1,
+          ...(isVedaMatch ? {
+            shadowColor: '#D4AF37',
+            shadowOpacity: 0.5,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 6,
+          } : {}),
         },
       ]}
       onPress={() => navigation.navigate('VideoCirclesScreen')}
       onLongPress={() => navigation.navigate('VideoCirclesScreen', { openPublish: true })}
     >
-      {(isPhotoBg || isDarkMode) && (
+
+      {(isPhotoBg || isDarkMode) && !isVedaMatch && (
         <BlurView
           style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
           blurType={isDarkMode ? "dark" : "light"}
@@ -39,8 +53,12 @@ export const CirclesQuickWidget: React.FC = () => {
         />
       )}
 
-      <View style={[styles.iconWrap, { backgroundColor: '#EA580C' }]}>
-        <Film size={18} color="#ffffff" />
+      <View style={[styles.iconWrap, {
+        backgroundColor: isVedaMatch ? '#121212' : '#EA580C',
+        borderColor: isVedaMatch ? '#D4AF37' : 'transparent',
+        borderWidth: isVedaMatch ? 1 : 0
+      }]}>
+        <Film size={18} color={isVedaMatch ? '#FFDF00' : "#ffffff"} />
       </View>
 
       <View style={styles.titleContainer}>
@@ -48,7 +66,7 @@ export const CirclesQuickWidget: React.FC = () => {
       </View>
 
       <View style={styles.footer}>
-        <Camera size={11} color={isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary} />
+        <Camera size={11} color={isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary} />
         <Text style={[styles.footerText, secondaryTextStyle]} numberOfLines={1}>
           Запись
         </Text>

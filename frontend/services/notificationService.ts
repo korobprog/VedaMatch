@@ -11,11 +11,17 @@ import {
     onTokenRefresh,
     AuthorizationStatus
 } from '@react-native-firebase/messaging';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
 import { navigationRef } from '../navigation/navigationRef';
 import { contactService } from './contactService';
+import { serializeAndroidPermissionRequest } from '../utils/permissionRequestQueue';
+
+// External addNotification hook — wired at runtime from NotificationProvider
+type AddNotificationFn = (notif: { type: string; title: string; body: string; data: Record<string, any> }) => void;
+let _addNotification: AddNotificationFn | null = null;
+export const setNotificationAdder = (fn: AddNotificationFn) => { _addNotification = fn; };
 
 // Lazy-loaded messaging instance to prevent initialization race conditions.
 let messagingInstance: any = null;
@@ -80,18 +86,20 @@ const registerTokenOnServer = async (token: string) => {
 
 export const notificationService = {
     requestUserPermission: async () => {
-        const messaging = getMessagingInstance();
-        const authStatus = await requestPermission(messaging);
-        const enabled =
-            authStatus === AuthorizationStatus.AUTHORIZED ||
-            authStatus === AuthorizationStatus.PROVISIONAL;
+        return serializeAndroidPermissionRequest(async () => {
+            const messaging = getMessagingInstance();
+            const authStatus = await requestPermission(messaging);
+            const enabled =
+                authStatus === AuthorizationStatus.AUTHORIZED ||
+                authStatus === AuthorizationStatus.PROVISIONAL;
 
-        logPushTelemetry('permission_status', {
-            enabled,
-            authStatus,
+            logPushTelemetry('permission_status', {
+                enabled,
+                authStatus,
+            });
+
+            return enabled;
         });
-
-        return enabled;
     },
 
     getFcmToken: async () => {
@@ -127,18 +135,17 @@ export const notificationService = {
         const isCirclePublishResult = data?.type === 'video_circle_publish_result';
         const fallback = isCirclePublishResult ? getVideoCirclePublishCopy(data) : null;
 
-        if (message?.notification || isCirclePublishResult) {
-            Alert.alert(
-                message?.notification?.title || fallback?.title || 'Notification',
-                message?.notification?.body || fallback?.body || '',
-                [
-                    {
-                        text: 'View',
-                        onPress: () => notificationService.handleNotificationAction(data)
-                    },
-                    { text: 'Close', style: 'cancel' }
-                ]
-            );
+        const title = message?.notification?.title || fallback?.title || 'Уведомление';
+        const body = message?.notification?.body || fallback?.body || '';
+
+        // Save to in-app notification history (no Alert)
+        if (_addNotification) {
+            _addNotification({
+                type: data?.type || 'general',
+                title,
+                body,
+                data,
+            });
         }
     },
 
@@ -273,10 +280,18 @@ export const notificationService = {
         });
 
         try {
-            await AsyncStorage.setItem('lastBackgroundNotification', JSON.stringify({
-                receivedAt: Date.now(),
+            // Persist for history: background messages arrive before JS context is
+            // fully up, so we store them in a staging key and flush later.
+            const raw = await AsyncStorage.getItem('pending_notifications');
+            const pending: any[] = raw ? JSON.parse(raw) : [];
+            pending.push({
+                type: data?.type || 'general',
+                title: remoteMessage?.notification?.title || 'Уведомление',
+                body: remoteMessage?.notification?.body || '',
                 data,
-            }));
+                receivedAt: Date.now(),
+            });
+            await AsyncStorage.setItem('pending_notifications', JSON.stringify(pending));
         } catch (error) {
             console.error('[NotificationService] Failed to persist background notification:', error);
         }

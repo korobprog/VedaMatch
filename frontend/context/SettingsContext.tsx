@@ -7,8 +7,8 @@ import { COLORS } from '../components/chat/ChatConstants';
 import { VedicLightTheme, VedicDarkTheme } from '../theme/ModernVedicTheme';
 import { getPresetUris, DEFAULT_SLIDESHOW_INTERVAL } from '../config/wallpaperPresets';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
-export type PortalIconStyle = 'minimal' | 'solid' | 'premium3d';
+export type ThemeMode = 'system' | 'light' | 'dark';
+export type PortalIconStyle = 'vedamatch' | 'premium3d' | 'solid' | 'minimal';
 
 interface Model {
     id: string;
@@ -79,7 +79,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [portalBackground, setPortalBackgroundState] = useState<string>(defaultBgImage);
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
-    const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('premium3d');
+    const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('vedamatch');
 
     // Wallpaper slideshow state
     const [wallpaperSlides, setWallpaperSlides] = useState<string[]>(getPresetUris());
@@ -205,12 +205,14 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 }
 
                 const savedIconStyle = await AsyncStorage.getItem('portal_icon_style');
-                if (savedIconStyle === 'premium3d' || savedIconStyle === 'solid' || savedIconStyle === 'minimal') {
+                if (savedIconStyle === 'vedamatch' || savedIconStyle === 'premium3d' || savedIconStyle === 'solid' || savedIconStyle === 'minimal') {
                     setPortalIconStyleState(savedIconStyle as PortalIconStyle);
                 } else if (savedIconStyle === 'default') {
                     setPortalIconStyleState('minimal');
                 } else if (savedIconStyle === 'colored') {
                     setPortalIconStyleState('solid');
+                } else if (!savedIconStyle) {
+                    setPortalIconStyleState('vedamatch');
                 }
 
                 // Wallpaper slideshow settings

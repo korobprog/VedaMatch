@@ -13,6 +13,7 @@ import {
     Switch,
     Modal,
     ImageBackground,
+    Keyboard,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSettings as usePortalSettings } from '../../context/SettingsContext';
@@ -568,7 +569,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 <Text style={styles.label}>{t('dating.madh') || 'Tradition (Madh)'}</Text>
                                 <TouchableOpacity
                                     style={[styles.input, { justifyContent: 'center' }]}
-                                    onPress={() => setShowMadhPicker(true)}
+                                    onPress={() => {
+                                        Keyboard.dismiss();
+                                        setShowMadhPicker(true);
+                                    }}
                                 >
                                     <Text style={{ color: madh ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
                                         {madh || t('dating.selectTradition')}
@@ -578,7 +582,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 <Text style={styles.label}>{t('dating.yogaStyle') || 'Yoga Style'}</Text>
                                 <TouchableOpacity
                                     style={[styles.input, { justifyContent: 'center' }]}
-                                    onPress={() => setShowYogaPicker(true)}
+                                    onPress={() => {
+                                        Keyboard.dismiss();
+                                        setShowYogaPicker(true);
+                                    }}
                                 >
                                     <Text style={{ color: yogaStyle ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
                                         {yogaStyle || t('dating.selectStyle')}
@@ -588,7 +595,10 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 <Text style={styles.label}>{t('dating.guna') || 'Mode of Nature (Guna)'}</Text>
                                 <TouchableOpacity
                                     style={[styles.input, { justifyContent: 'center' }]}
-                                    onPress={() => setShowGunaPicker(true)}
+                                    onPress={() => {
+                                        Keyboard.dismiss();
+                                        setShowGunaPicker(true);
+                                    }}
                                 >
                                     <Text style={{ color: guna ? roleColors.textPrimary : roleColors.textSecondary, fontSize: 16 }}>
                                         {guna || t('dating.selectGuna')}

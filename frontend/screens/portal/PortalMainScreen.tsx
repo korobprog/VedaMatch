@@ -17,7 +17,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import {
-    Bell,
     List,
     Settings,
     MessageSquare,
@@ -45,6 +44,8 @@ import { useUser } from '../../context/UserContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useChat } from '../../context/ChatContext';
 import { CallHistoryScreen } from '../calls/CallHistoryScreen';
+import { BellButton } from '../../components/portal/BellButton';
+import { NotificationPanel } from '../../components/portal/NotificationPanel';
 import { PortalGrid } from '../../components/portal';
 import { BalancePill } from '../../components/wallet/BalancePill';
 import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
@@ -81,6 +82,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         removeWallpaperSlide,
         wallpaperSlides,
         setPortalBackground,
+        portalIconStyle,
     } = useSettings();
     const { handleNewChat } = useChat();
 
@@ -455,19 +457,21 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 style={[
                                     styles.headerCircularButton,
                                     {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                                        borderColor: 'rgba(255, 255, 255, 0.4)',
+                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
                                     },
                                 ]}
                             >
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType="light"
-                                    blurAmount={12}
-                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                                />
+                                {portalIconStyle !== 'vedamatch' && (
+                                    <BlurView
+                                        style={StyleSheet.absoluteFill}
+                                        blurType="light"
+                                        blurAmount={12}
+                                        reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                    />
+                                )}
                                 <Animated.View style={{ transform: [{ scale: giftAnim }] }}>
-                                    <Gift size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                    <Gift size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                                 </Animated.View>
                             </TouchableOpacity>
                             <TouchableOpacity
@@ -476,20 +480,22 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 style={[
                                     styles.headerCircularButton,
                                     {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                                        borderColor: 'rgba(255, 255, 255, 0.4)',
+                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
                                     },
                                 ]}
                             >
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType="light"
-                                    blurAmount={12}
-                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                                />
-                                <Film size={16} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
+                                {portalIconStyle !== 'vedamatch' && (
+                                    <BlurView
+                                        style={StyleSheet.absoluteFill}
+                                        blurType="light"
+                                        blurAmount={12}
+                                        reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                    />
+                                )}
+                                <Film size={16} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={effectiveBgType === 'image'} />
+                            <BalancePill size="small" lightMode={effectiveBgType === 'image' || portalIconStyle === 'vedamatch'} />
                         </View>
                     </View>
 
@@ -546,78 +552,92 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             style={[
                                 styles.headerCircularButton,
                                 {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
                                 },
                             ]}
                         >
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType="light"
-                                blurAmount={12}
-                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                            />
-                            <MessageSquare size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            {portalIconStyle !== 'vedamatch' && (
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="light"
+                                    blurAmount={12}
+                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                />
+                            )}
+                            <MessageSquare size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('AppSettings')}
                             style={[
                                 styles.headerCircularButton,
                                 {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
                                 },
                             ]}
                         >
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType="light"
-                                blurAmount={12}
-                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
-                            />
-                            <Settings size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
+                            {portalIconStyle !== 'vedamatch' && (
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="light"
+                                    blurAmount={12}
+                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                />
+                            )}
+                            <Settings size={18} color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
-                        <TouchableOpacity
+                        <View
                             style={[
                                 styles.headerCircularButton,
                                 {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                                    borderColor: 'rgba(255, 255, 255, 0.4)',
+                                    backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.25)',
+                                    borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : 'rgba(255, 255, 255, 0.4)',
                                 },
                             ]}
                         >
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType="light"
-                                blurAmount={12}
-                                reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                            {portalIconStyle !== 'vedamatch' && (
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="light"
+                                    blurAmount={12}
+                                    reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
+                                />
+                            )}
+                            <BellButton
+                                size={18}
+                                color={portalIconStyle === 'vedamatch' ? '#FFDF00' : effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary}
+                                circularStyle
                             />
-                            <Bell size={18} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                        </TouchableOpacity>
+                        </View>
                         {roleDescriptor && (
                             <TouchableOpacity
                                 onPress={() => setShowRoleInfo(true)}
                                 style={[
                                     styles.headerCircularButton,
                                     {
-                                        borderColor: '#ffffff',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                        borderColor: portalIconStyle === 'vedamatch' ? '#D4AF37' : '#ffffff',
+                                        backgroundColor: portalIconStyle === 'vedamatch' ? '#121212' : 'rgba(255, 255, 255, 0.2)',
                                     }
                                 ]}
                             >
-                                <BlurView
-                                    style={StyleSheet.absoluteFill}
-                                    blurType="light"
-                                    blurAmount={8}
-                                />
-                                <View style={[
-                                    styles.roleStatusDot,
-                                    { backgroundColor: roleDescriptor.highlightColor }
-                                ]} />
+                                {portalIconStyle !== 'vedamatch' && (
+                                    <BlurView
+                                        style={StyleSheet.absoluteFill}
+                                        blurType="light"
+                                        blurAmount={8}
+                                    />
+                                )}
+                                {portalIconStyle !== 'vedamatch' && (
+                                    <View style={[
+                                        styles.roleStatusDot,
+                                        { backgroundColor: roleDescriptor.highlightColor }
+                                    ]} />
+                                )}
                                 {(() => {
                                     const role = roleDescriptor.role;
-                                    const size = 14;
-                                    const color = "#ffffff";
+                                    const size = portalIconStyle === 'vedamatch' ? 18 : 14;
+                                    const color = portalIconStyle === 'vedamatch' ? '#FFDF00' : "#ffffff";
 
                                     if (role === 'in_goodness') return <Leaf size={size} color={color} />;
                                     if (role === 'yogi') return <Infinity size={size} color={color} />;
@@ -673,6 +693,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         navigation.navigate('EditProfile');
                     }}
                 />
+                <NotificationPanel />
             </>
         );
     }
@@ -749,7 +770,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                             >
                                 <Gift size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.primary} />
                             </TouchableOpacity>
-                            <BalancePill size="small" lightMode={effectiveBgType === 'image'} />
+                            <BalancePill size="small" lightMode={effectiveBgType === 'image' || portalIconStyle === 'vedamatch'} />
                         </View>
                     </View>
 
@@ -813,9 +834,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                         >
                             <Settings size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Bell size={22} color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary} />
-                        </TouchableOpacity>
+                        <BellButton
+                            size={22}
+                            color={effectiveBgType === 'image' ? '#ffffff' : vTheme.colors.textSecondary}
+                        />
                     </View>
                 </View>
             )}

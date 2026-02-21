@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "425899875420",
+    "project_id": "vedamathai",
+    "storage_bucket": "vedamathai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:425899875420:android:c4aa30218d153ba1f11a99",
+        "android_client_info": {
+          "package_name": "com.ragagent"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCFipO88EX0xchqWqBOt3ODNx7YyjZLQHg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
