@@ -568,7 +568,6 @@ const AppContent = () => {
                   <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false }} />
                   <Stack.Screen name="TVPlayer" component={TVPlayerScreen} options={{ headerShown: false }} />
 
-                  <Stack.Screen name="Registration" component={RegistrationScreen} />
                 </Stack.Group>
               ) : (
                 <Stack.Group>

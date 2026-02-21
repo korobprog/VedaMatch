@@ -446,7 +446,11 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             <View style={[StyleSheet.absoluteFill, { backgroundColor: roleColors.overlay }]}>
                 <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-                <KeyboardAwareContainer style={{ flex: 1 }}>
+                <KeyboardAwareContainer
+                    style={{ flex: 1 }}
+                    behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+                    useTopInset={false}
+                >
                     <View style={{ flex: 1 }}>
                         <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
                             {portalBackgroundType === 'image' && (
@@ -478,6 +482,9 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                             contentContainerStyle={styles.content}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
+                            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                            nestedScrollEnabled
                         >
                             <View style={styles.logoHeaderContainer}>
                                 <View style={styles.logoWrapper}>
@@ -981,7 +988,7 @@ const styles = StyleSheet.create({
     },
     content: {
         padding: 20,
-        paddingBottom: 60,
+        paddingBottom: 120,
     },
     logoHeaderContainer: {
         alignItems: 'center',
