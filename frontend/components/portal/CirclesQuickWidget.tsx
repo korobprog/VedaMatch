@@ -1,10 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Camera, Film } from 'lucide-react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
-import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
 export const CirclesQuickWidget: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -12,6 +12,9 @@ export const CirclesQuickWidget: React.FC = () => {
   const isPhotoBg = portalBackgroundType === 'image';
   const isVedaMatch = portalIconStyle === 'vedamatch';
   const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
+  const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+  const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+  const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
 
   const primaryTextStyle = { color: isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text };
   const secondaryTextStyle = { color: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary };
@@ -46,7 +49,7 @@ export const CirclesQuickWidget: React.FC = () => {
       onLongPress={() => navigation.navigate('VideoCirclesScreen', { openPublish: true })}
     >
 
-      {(isPhotoBg || isDarkMode) && !isVedaMatch && androidVisualPolicy.enableBlur && (
+      {(isPhotoBg || isDarkMode) && !isVedaMatch && allowWidgetBlur && (
         <BlurView
           style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
           blurType={isDarkMode ? "dark" : "light"}

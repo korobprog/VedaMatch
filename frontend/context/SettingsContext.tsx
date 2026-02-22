@@ -449,9 +449,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         let lastTick = Date.now();
         let lagBurstCount = 0;
         let stableSeconds = 0;
-        const lagThresholdMs = 350;
-        const degradeBurstThreshold = 3;
-        const recoverWindowSeconds = 90;
+        const lagThresholdMs = 240;
+        const degradeBurstThreshold = 2;
+        const recoverWindowSeconds = 120;
 
         const interval = setInterval(() => {
             const now = Date.now();

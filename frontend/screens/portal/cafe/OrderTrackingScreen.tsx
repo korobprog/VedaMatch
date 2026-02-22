@@ -10,7 +10,7 @@ import {
     Alert,
     Animated,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -97,17 +97,28 @@ const OrderTrackingScreen: React.FC = () => {
     }, [orderId, t, navigation]);
 
     useEffect(() => {
-        void loadOrder();
-        const interval = setInterval(() => {
-            void loadOrder(true);
-        }, 10000);
         return () => {
-            clearInterval(interval);
             isMountedRef.current = false;
             latestLoadRequestRef.current += 1;
             actionInProgressRef.current = false;
         };
-    }, [loadOrder]);
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            isMountedRef.current = true;
+            void loadOrder();
+
+            const interval = setInterval(() => {
+                void loadOrder(true);
+            }, 20000);
+
+            return () => {
+                clearInterval(interval);
+                latestLoadRequestRef.current += 1;
+            };
+        }, [loadOrder])
+    );
 
     useEffect(() => {
         if (order) {

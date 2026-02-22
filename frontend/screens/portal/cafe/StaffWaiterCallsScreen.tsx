@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,7 @@ import {
     Alert,
     Vibration,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, RefreshCw, UtensilsCrossed, AlertCircle, FileText, CreditCard, Hand, MessageCircle, Check, CheckCheck } from 'lucide-react-native';
 import { cafeService } from '../../../services/cafeService';
@@ -43,23 +43,9 @@ const StaffWaiterCallsScreen: React.FC = () => {
 
     const pollInterval = useRef<NodeJS.Timeout | null>(null);
     const previousCallsCount = useRef(0);
+    const isScreenActiveRef = useRef(false);
 
-    useEffect(() => {
-        loadCalls();
-
-        // Poll for updates every 3 seconds
-        pollInterval.current = setInterval(() => {
-            loadCalls(true);
-        }, 3000);
-
-        return () => {
-            if (pollInterval.current) {
-                clearInterval(pollInterval.current);
-            }
-        };
-    }, [cafeId]);
-
-    const loadCalls = async (silent = false) => {
+    const loadCalls = useCallback(async (silent = false) => {
         try {
             if (!silent) setLoading(true);
 
@@ -73,17 +59,41 @@ const StaffWaiterCallsScreen: React.FC = () => {
             }
             previousCallsCount.current = pendingCalls.length;
 
-            setCalls(data);
+            if (isScreenActiveRef.current) {
+                setCalls(data);
+            }
         } catch (error) {
             console.error('Error loading waiter calls:', error);
             if (!silent) {
                 Alert.alert(t('common.error'), t('cafe.staff.waiterCalls.loadError'));
             }
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (isScreenActiveRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
-    };
+    }, [cafeId, t]);
+
+    useFocusEffect(
+        useCallback(() => {
+            isScreenActiveRef.current = true;
+            void loadCalls();
+
+            // Poll only while screen is focused.
+            pollInterval.current = setInterval(() => {
+                void loadCalls(true);
+            }, 10000);
+
+            return () => {
+                isScreenActiveRef.current = false;
+                if (pollInterval.current) {
+                    clearInterval(pollInterval.current);
+                    pollInterval.current = null;
+                }
+            };
+        }, [loadCalls])
+    );
 
     const handleRefresh = () => {
         setRefreshing(true);

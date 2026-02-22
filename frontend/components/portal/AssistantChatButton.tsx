@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { TouchableOpacity, StyleSheet, Image, Animated, StyleProp, ViewStyle } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { TouchableOpacity, StyleSheet, Image, Animated, StyleProp, ViewStyle, AppState, Platform } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,6 +7,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useChat } from '../../context/ChatContext';
 import { useSettings } from '../../context/SettingsContext';
 import { RootStackParamList } from '../../types/navigation';
+import { resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 import peacockAssistant from '../../assets/peacockAssistant.png';
 import krishnaAssistant from '../../assets/krishnaAssistant.png';
 import nanoBanano from '../../assets/nano_banano.png';
@@ -19,10 +20,28 @@ interface AssistantChatButtonProps {
 export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size = 40, style }) => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { handleNewChat } = useChat();
-    const { assistantType } = useSettings();
+    const { assistantType, performanceMode, runtimePerformanceState } = useSettings();
     const shimmerAnim = useRef(new Animated.Value(-60)).current;
+    const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+    const effectivePerformanceMode = useMemo(
+        () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const enableShimmer =
+        !(Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality') && isAppActive;
 
     useEffect(() => {
+        const sub = AppState.addEventListener('change', (nextState) => {
+            setIsAppActive(nextState === 'active');
+        });
+        return () => sub.remove();
+    }, []);
+
+    useEffect(() => {
+        if (!enableShimmer) {
+            shimmerAnim.setValue(-60);
+            return;
+        }
         const loop = Animated.loop(
             Animated.timing(shimmerAnim, {
                 toValue: 60,
@@ -35,7 +54,7 @@ export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size =
             loop.stop();
             shimmerAnim.stopAnimation();
         };
-    }, [shimmerAnim]);
+    }, [shimmerAnim, enableShimmer]);
 
     const assistantImage = useMemo(() => {
         if (assistantType === 'feather2') {
@@ -69,27 +88,29 @@ export const AssistantChatButton: React.FC<AssistantChatButtonProps> = ({ size =
                 style={StyleSheet.absoluteFill}
             />
 
-            <Animated.View
-                style={[
-                    styles.shimmer,
-                    {
-                        width: size * 1.2,
-                        transform: [{
-                            translateX: shimmerAnim.interpolate({
-                                inputRange: [-60, 60],
-                                outputRange: [-size * 1.8, size * 1.8],
-                            }),
-                        }],
-                    },
-                ]}
-            >
-                <LinearGradient
-                    colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={StyleSheet.absoluteFill}
-                />
-            </Animated.View>
+            {enableShimmer && (
+                <Animated.View
+                    style={[
+                        styles.shimmer,
+                        {
+                            width: size * 1.2,
+                            transform: [{
+                                translateX: shimmerAnim.interpolate({
+                                    inputRange: [-60, 60],
+                                    outputRange: [-size * 1.8, size * 1.8],
+                                }),
+                            }],
+                        },
+                    ]}
+                >
+                    <LinearGradient
+                        colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={StyleSheet.absoluteFill}
+                    />
+                </Animated.View>
+            )}
 
             <Image
                 source={assistantImage}

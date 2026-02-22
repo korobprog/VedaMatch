@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     StyleSheet,
     Dimensions,
+    Platform,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
@@ -26,6 +27,7 @@ import Animated, {
 import { useUser } from '../context/UserContext';
 import { useChat } from '../context/ChatContext';
 import { useSettings } from '../context/SettingsContext';
+import { resolveEffectivePerformanceMode } from '../utils/androidVisualPolicy';
 import peacockAssistant from '../assets/peacockAssistant.png';
 import krishnaAssistant from '../assets/krishnaAssistant.png';
 import nanoBanano from '../assets/nano_banano.png';
@@ -48,7 +50,7 @@ export const KrishnaAssistant: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { user, setTourCompleted } = useUser();
     const { handleNewChat } = useChat();
-    const { assistantType } = useSettings();
+    const { assistantType, performanceMode, runtimePerformanceState } = useSettings();
     const [isVisible, setIsVisible] = useState(false);
     const [isRollingOut, setIsRollingOut] = useState(false);
     const [currentStep, setCurrentStep] = useState(-1); // -1 means no tour active
@@ -62,6 +64,8 @@ export const KrishnaAssistant: React.FC = () => {
     const rotation = useSharedValue(0);
     const translateY = useSharedValue(0);
     const shimmerX = useSharedValue(-100);
+    const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
 
     // Rolling In from right
     const rollIn = useCallback(() => {
@@ -88,6 +92,12 @@ export const KrishnaAssistant: React.FC = () => {
             rollIn();
         }
 
+        if (isAndroidReducedEffects) {
+            translateY.value = withTiming(0, { duration: 120 });
+            shimmerX.value = withTiming(-100, { duration: 120 });
+            return;
+        }
+
         // Floating effect
         translateY.value = withRepeat(
             withSequence(
@@ -104,7 +114,7 @@ export const KrishnaAssistant: React.FC = () => {
             -1,
             false
         );
-    }, [isVisible, rollIn]);
+    }, [isVisible, rollIn, isAndroidReducedEffects]);
 
     const prevRoute = React.useRef<string | undefined>(undefined);
 
@@ -196,14 +206,16 @@ export const KrishnaAssistant: React.FC = () => {
                     end={{ x: 1, y: 1 }}
                     style={styles.callButtonGradient}
                 >
-                    <Animated.View style={[styles.shimmer, shimmerStyle]}>
-                        <LinearGradient
-                            colors={['transparent', 'rgba(255, 255, 255, 0.2)', 'transparent']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={StyleSheet.absoluteFill}
-                        />
-                    </Animated.View>
+                    {!isAndroidReducedEffects && (
+                        <Animated.View style={[styles.shimmer, shimmerStyle]}>
+                            <LinearGradient
+                                colors={['transparent', 'rgba(255, 255, 255, 0.2)', 'transparent']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={StyleSheet.absoluteFill}
+                            />
+                        </Animated.View>
+                    )}
                     <Image
                         source={assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant)}
                         style={styles.miniIcon}
@@ -229,18 +241,22 @@ export const KrishnaAssistant: React.FC = () => {
                         isAuthScreen ? { flexDirection: 'column', alignItems: 'flex-end' } : { alignItems: 'center' }
                     ]}
                 >
-                    <View style={styles.shadowWrapper}>
+                    <View style={[styles.shadowWrapper, isAndroidReducedEffects && styles.shadowWrapperReduced]}>
                         <View style={styles.bubbleContainer}>
-                            <BlurView
-                                style={StyleSheet.absoluteFill}
-                                blurType="dark"
-                                blurAmount={15}
-                                reducedTransparencyFallbackColor="rgba(15, 15, 25, 0.9)"
-                            />
-                            <LinearGradient
-                                colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.03)']}
-                                style={StyleSheet.absoluteFill}
-                            />
+                            {!isAndroidReducedEffects && (
+                                <BlurView
+                                    style={StyleSheet.absoluteFill}
+                                    blurType="dark"
+                                    blurAmount={15}
+                                    reducedTransparencyFallbackColor="rgba(15, 15, 25, 0.9)"
+                                />
+                            )}
+                            {!isAndroidReducedEffects && (
+                                <LinearGradient
+                                    colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.03)']}
+                                    style={StyleSheet.absoluteFill}
+                                />
+                            )}
                             <TouchableOpacity style={styles.closeBtn} onPress={rollOut}>
                                 <Text style={styles.closeBtnText}>✕</Text>
                             </TouchableOpacity>
@@ -256,7 +272,7 @@ export const KrishnaAssistant: React.FC = () => {
                     </View>
 
                     <View style={styles.imageContainer}>
-                        <View style={styles.glow} />
+                        {!isAndroidReducedEffects && <View style={styles.glow} />}
                         <Image
                             source={assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant)}
                             style={styles.image}
@@ -356,6 +372,11 @@ const styles = StyleSheet.create({
         elevation: 15,
         marginBottom: 10,
         marginRight: 20,
+    },
+    shadowWrapperReduced: {
+        shadowOpacity: 0,
+        shadowRadius: 0,
+        elevation: 0,
     },
     bubbleContainer: {
         paddingHorizontal: 20,

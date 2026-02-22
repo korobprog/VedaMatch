@@ -43,7 +43,7 @@ export const getAndroidVisualPolicy = (
   if (effective === 'high_quality') {
     return {
       enableBlur: true,
-      maxBlurAmount: 20,
+      maxBlurAmount: 16,
       allowShimmer: true,
       allowGiftPulse: true,
       allowCrossfade: true,
@@ -54,11 +54,11 @@ export const getAndroidVisualPolicy = (
   if (effective === 'adaptive') {
     return {
       enableBlur: true,
-      maxBlurAmount: 10,
-      allowShimmer: true,
+      maxBlurAmount: 6,
+      allowShimmer: false,
       allowGiftPulse: false,
-      allowCrossfade: true,
-      crossfadeDurationMs: 450,
+      allowCrossfade: false,
+      crossfadeDurationMs: 0,
     };
   }
 
@@ -74,4 +74,3 @@ export const getAndroidVisualPolicy = (
 
 export const getBlurAmountForPolicy = (policy: AndroidVisualPolicy, requestedAmount: number): number =>
   Math.min(Math.max(requestedAmount, 0), policy.maxBlurAmount);
-

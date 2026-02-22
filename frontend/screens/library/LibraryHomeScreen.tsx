@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform, Animated } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
@@ -23,6 +23,7 @@ export const LibraryHomeScreen = () => {
     const { colors: roleColors } = useRoleTheme(user?.role, isDarkMode);
     const [books, setBooks] = useState<ScriptureBook[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [savedBooks, setSavedBooks] = useState<string[]>([]);
     const [bookSizes, setBookSizes] = useState<{ [code: string]: number }>({});
     const [savingBook, setSavingBook] = useState<string | null>(null);
@@ -44,11 +45,17 @@ export const LibraryHomeScreen = () => {
     const loadBooks = async () => {
         try {
             setLoading(true);
+            setLoadError(null);
             const data = await libraryService.getBooks();
-            setBooks(data);
+            const normalizedBooks = Array.isArray(data)
+                ? data
+                : (Array.isArray((data as any)?.items) ? (data as any).items : []);
+            setBooks(normalizedBooks);
             await loadSavedBooksInfo();
         } catch (error) {
             console.error('Failed to load books', error);
+            setBooks([]);
+            setLoadError(t('library.load_error', 'Не удалось загрузить библиотеку. Проверьте интернет и попробуйте снова.'));
         } finally {
             setLoading(false);
         }
@@ -161,29 +168,8 @@ export const LibraryHomeScreen = () => {
             : roleColors.border;
         const accentColor = roleColors.accent;
 
-        // Animation for entrance
-        const translateY = useRef(new Animated.Value(20)).current;
-        const opacity = useRef(new Animated.Value(0)).current;
-
-        useEffect(() => {
-            Animated.parallel([
-                Animated.timing(translateY, {
-                    toValue: 0,
-                    duration: 400,
-                    delay: index * 100,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(opacity, {
-                    toValue: 1,
-                    duration: 400,
-                    delay: index * 100,
-                    useNativeDriver: true,
-                })
-            ]).start();
-        }, []);
-
         return (
-            <Animated.View style={{ transform: [{ translateY }], opacity }}>
+            <View>
                 <TouchableOpacity
                     style={[styles.card, { backgroundColor: cardBackground, borderColor: cardBorder }]}
                     onPress={() => handleBookPress(item)}
@@ -255,7 +241,7 @@ export const LibraryHomeScreen = () => {
                         )}
                     </View>
                 </TouchableOpacity>
-            </Animated.View>
+            </View>
         );
     };
 
@@ -278,13 +264,41 @@ export const LibraryHomeScreen = () => {
                     </Text>
                 </View>
             </View>
-            <FlatList<ScriptureBook>
-                data={books}
-                renderItem={renderBookItem}
-                keyExtractor={(item: ScriptureBook) => item.code}
-                contentContainerStyle={styles.list}
-                showsVerticalScrollIndicator={false}
-            />
+            {loadError ? (
+                <View style={[styles.emptyState, { paddingHorizontal: 20 }]}>
+                    <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
+                        {t('library.unavailable', 'Библиотека временно недоступна')}
+                    </Text>
+                    <Text style={[styles.emptyMessage, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : roleColors.textSecondary }]}>
+                        {loadError}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={loadBooks}
+                        style={[styles.retryButton, { backgroundColor: roleColors.accent }]}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={styles.retryButtonText}>{t('common.retry', 'Повторить')}</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <FlatList<ScriptureBook>
+                    data={books}
+                    renderItem={renderBookItem}
+                    keyExtractor={(item: ScriptureBook) => item.code}
+                    contentContainerStyle={books.length === 0 ? styles.emptyListContainer : styles.list}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <View style={styles.emptyState}>
+                            <Text style={[styles.emptyTitle, { color: isPhotoBg ? '#FFFFFF' : roleColors.textPrimary }]}>
+                                {t('library.empty_title', 'Пока нет книг')}
+                            </Text>
+                            <Text style={[styles.emptyMessage, { color: isPhotoBg ? 'rgba(255,255,255,0.78)' : roleColors.textSecondary }]}>
+                                {t('library.empty_message', 'Книги появятся здесь после синхронизации с сервером.')}
+                            </Text>
+                        </View>
+                    }
+                />
+            )}
         </View>
     );
 
@@ -323,6 +337,40 @@ const styles = StyleSheet.create({
     list: {
         padding: 16,
         paddingBottom: 40,
+    },
+    emptyListContainer: {
+        flexGrow: 1,
+        paddingHorizontal: 16,
+        paddingBottom: 40,
+    },
+    emptyState: {
+        flex: 1,
+        minHeight: 280,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emptyMessage: {
+        fontSize: 14,
+        lineHeight: 20,
+        textAlign: 'center',
+        maxWidth: 320,
+    },
+    retryButton: {
+        marginTop: 16,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
     },
     card: {
         flexDirection: 'row',

@@ -28,7 +28,7 @@ import Animated, {
 import LinearGradient from 'react-native-linear-gradient';
 import { Plus, FolderPlus, LayoutGrid } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
-import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { DEFAULT_SERVICES, PortalItem, PortalFolder as PortalFolderType, FOLDER_COLORS } from '../../types/portal';
 import { RootStackParamList } from '../../types/navigation';
@@ -54,11 +54,15 @@ interface CylinderRowProps {
     scrollY: SharedValue<number>;
     containerHeight: number;
     gridTopOffset: number;
+    enableEffects: boolean;
     children: React.ReactNode;
 }
 
-const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY, containerHeight, gridTopOffset, children }) => {
+const CylinderRow: React.FC<CylinderRowProps> = React.memo(({ rowIndex, scrollY, containerHeight, gridTopOffset, enableEffects, children }) => {
     const animatedStyle = useAnimatedStyle(() => {
+        if (!enableEffects) {
+            return { opacity: 1, transform: [{ perspective: 1000 }] };
+        }
         if (containerHeight <= 0) {
             return { opacity: 1, transform: [{ perspective: 1000 }] };
         }
@@ -142,6 +146,12 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
         () => getAndroidVisualPolicy(performanceMode, runtimePerformanceState),
         [performanceMode, runtimePerformanceState],
     );
+    const effectivePerformanceMode = useMemo(
+        () => resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+    const allowHeavyPortalEffects = !isAndroidReducedEffects;
     const {
         layout,
         isEditMode,
@@ -658,11 +668,11 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 ]}
             >
                 {/* BlurView как в CalendarWidget - показываем на фото или в dark mode */}
-                {(isPhotoBg || isDarkMode) && androidVisualPolicy.enableBlur && (
+                {(isPhotoBg || isDarkMode) && androidVisualPolicy.enableBlur && allowHeavyPortalEffects && (
                     <BlurView
                         style={[StyleSheet.absoluteFill, { borderRadius: 32 }]}
                         blurType={isDarkMode ? "dark" : "light"}
-                        blurAmount={getBlurAmountForPolicy(androidVisualPolicy, Platform.OS === 'android' ? 20 : 10)}
+                        blurAmount={getBlurAmountForPolicy(androidVisualPolicy, Platform.OS === 'android' ? 12 : 10)}
                         reducedTransparencyFallbackColor={isDarkMode ? "rgba(30,30,30,0.8)" : "rgba(0,0,0,0.5)"}
                         pointerEvents="none"
                     />
@@ -725,7 +735,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                     contentContainerStyle={[styles.scrollContent, widgetsHeight > 0 && { paddingTop: widgetsHeight + 8 }]}
                     showsVerticalScrollIndicator={false}
                     onScroll={scrollHandler}
-                    scrollEventThrottle={16}
+                    scrollEventThrottle={allowHeavyPortalEffects ? 16 : 32}
                     onLayout={(e) => setScrollContainerHeight(e.nativeEvent.layout.height)}
                 >
                     <Pressable
@@ -745,6 +755,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                                     scrollY={scrollY}
                                     containerHeight={scrollContainerHeight}
                                     gridTopOffset={widgetsHeight > 0 ? widgetsHeight + 8 : 10}
+                                    enableEffects={allowHeavyPortalEffects}
                                 >
                                     {row.map(item => renderItem(item))}
                                 </CylinderRow>
@@ -760,11 +771,11 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                             borderColor: 'transparent',
                         }
                     ]}>
-                        {androidVisualPolicy.enableBlur && (
+                        {androidVisualPolicy.enableBlur && allowHeavyPortalEffects && (
                         <BlurView
                             style={Platform.OS === 'ios' ? { ...StyleSheet.absoluteFillObject, borderRadius: 32 } : { position: 'absolute', top: 0, left: 0, bottom: 0, right: 0, borderRadius: 32 }}
                             blurType={isDarkMode ? "dark" : "light"}
-                            blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 20)}
+                            blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 12)}
                             reducedTransparencyFallbackColor={isDarkMode ? "#1E1E1E" : "#FFFFFF"}
                         />
                         )}
@@ -804,7 +815,7 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
             {/* Floating Dock Area */}
             <View style={styles.quickAccessDock}>
-                {androidVisualPolicy.enableBlur && (
+                {androidVisualPolicy.enableBlur && allowHeavyPortalEffects && (
                     <BlurView
                         style={styles.dockBlur}
                         blurType={isDarkMode ? "dark" : "light"}

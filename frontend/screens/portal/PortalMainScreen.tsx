@@ -10,6 +10,7 @@ import {
     ImageBackground,
     Image,
     Animated,
+    AppState,
 } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useTranslation } from 'react-i18next';
@@ -99,9 +100,17 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
     // Animations for assistant button
     const shimmerAnim = useRef(new Animated.Value(-60)).current;
+    const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
 
     useEffect(() => {
-        if (!androidVisualPolicy.allowShimmer) {
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            setIsAppActive(nextState === 'active');
+        });
+        return () => subscription.remove();
+    }, []);
+
+    useEffect(() => {
+        if (!androidVisualPolicy.allowShimmer || !isAppActive) {
             shimmerAnim.setValue(-60);
             return;
         }
@@ -117,7 +126,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             loop.stop();
             shimmerAnim.stopAnimation();
         };
-    }, [shimmerAnim, androidVisualPolicy.allowShimmer]);
+    }, [shimmerAnim, androidVisualPolicy.allowShimmer, isAppActive]);
 
     const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
     const initialTab = route.params?.initialTab;
@@ -166,7 +175,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const giftAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
-        if (!androidVisualPolicy.allowGiftPulse) {
+        if (!androidVisualPolicy.allowGiftPulse || !isAppActive) {
             giftAnim.setValue(1);
             return;
         }
@@ -188,30 +197,38 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
         startGiftPulse();
         return () => giftAnim.stopAnimation();
-    }, [giftAnim, androidVisualPolicy.allowGiftPulse]);
+    }, [giftAnim, androidVisualPolicy.allowGiftPulse, isAppActive]);
 
     useEffect(() => {
-        if (Platform.OS !== 'android' || performanceMode !== 'adaptive') return;
+        if (Platform.OS !== 'android' || performanceMode !== 'adaptive' || !isAppActive) return;
         let lastTick = Date.now();
         let lagBursts = 0;
         const interval = setInterval(() => {
             const now = Date.now();
             const drift = now - lastTick - 1000;
             lastTick = now;
-            if (drift > 350) {
+            if (drift > 240) {
                 lagBursts += 1;
             } else {
                 lagBursts = Math.max(0, lagBursts - 1);
             }
-            if (lagBursts >= 3) {
+            if (lagBursts >= 2) {
                 reportRuntimeStress('render');
                 lagBursts = 0;
             }
         }, 1000);
         return () => clearInterval(interval);
-    }, [performanceMode, reportRuntimeStress]);
+    }, [performanceMode, reportRuntimeStress, isAppActive]);
 
     useEffect(() => {
+        if (!isAppActive) {
+            isTransitioning.current = false;
+            setDisplayedBg(effectiveBg);
+            setNextBg(null);
+            fadeAnim.setValue(1);
+            return;
+        }
+
         if (!isSlideshowEnabled || effectiveBg === displayedBg || isTransitioning.current) return;
 
         if (!androidVisualPolicy.allowCrossfade) {
@@ -251,7 +268,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         } else {
             startTransition();
         }
-    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim, androidVisualPolicy.allowCrossfade, androidVisualPolicy.crossfadeDurationMs]);
+    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim, androidVisualPolicy.allowCrossfade, androidVisualPolicy.crossfadeDurationMs, isAppActive]);
 
     // When slideshow disabled, update immediately without animation
     useEffect(() => {

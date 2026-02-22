@@ -10,6 +10,7 @@ import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext'; // Added useSettings
 import { BlurView } from '@react-native-community/blur'; // Added BlurView
 import LinearGradient from 'react-native-linear-gradient'; // Added LinearGradient
+import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
 import { ChevronLeft, Mail, MapPin, User, Shield, MessageCircle, UserPlus, UserMinus } from 'lucide-react-native'; // Icons
 
 import { useTranslation } from 'react-i18next';
@@ -21,7 +22,7 @@ const { width } = Dimensions.get('window');
 
 export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => {
     const { userId } = route.params;
-    const { vTheme, isDarkMode, portalBackground, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackground, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
     const isPhotoBg = portalBackgroundType === 'image';
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
     const { user: currentUser } = useUser();
@@ -31,6 +32,9 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const [contact, setContact] = useState<UserContact | null>(null);
     const [loading, setLoading] = useState(true);
     const [isFriend, setIsFriend] = useState(false);
+    const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+    const allowBlurEffects = !isAndroidReducedEffects;
 
     useEffect(() => {
         fetchContactData();
@@ -102,12 +106,14 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                     style={styles.container}
                     resizeMode="cover"
                 >
-                    <BlurView
-                        style={StyleSheet.absoluteFill}
-                        blurType="dark"
-                        blurAmount={10}
-                        reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
-                    />
+                    {allowBlurEffects && (
+                        <BlurView
+                            style={StyleSheet.absoluteFill}
+                            blurType="dark"
+                            blurAmount={10}
+                            reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                        />
+                    )}
                     <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}>
                         {children}
                     </View>
@@ -161,7 +167,6 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     const subTextColor = isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary;
     const cardBg = isPhotoBg ? 'rgba(255,255,255,0.1)' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.6)');
     const cardBorder = isPhotoBg ? 'rgba(255,255,255,0.2)' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)');
-
     return (
         <BackgroundWrapper>
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -181,18 +186,18 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                 {/* Profile Card */}
-                <View style={styles.cardContainer}>
-                    <View style={[styles.glassCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                        {(isPhotoBg || isDarkMode) && (
+                <View style={[styles.cardContainer, isAndroidReducedEffects && { elevation: 2 }]}>
+                    <View style={[styles.glassCard, isAndroidReducedEffects && styles.glassCardReduced, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+                        {(isPhotoBg || isDarkMode) && allowBlurEffects && (
                             <BlurView
                                 style={StyleSheet.absoluteFill}
                                 blurType={isDarkMode ? "dark" : "light"}
-                                blurAmount={20}
+                                blurAmount={10}
                                 reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
                             />
                         )}
 
-                        <View style={styles.avatarWrapper}>
+                        <View style={[styles.avatarWrapper, isAndroidReducedEffects && { elevation: 2 }]}>
                             <View style={styles.avatarContainer}>
                                 {avatarUrl ? (
                                     <Image source={{ uri: avatarUrl }} style={styles.avatar} />
@@ -235,6 +240,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         bg={cardBg}
                         border={cardBorder}
                         isDark={isDarkMode || isPhotoBg}
+                        allowBlur={allowBlurEffects}
                     />
                     <InfoItem
                         icon={<MapPin size={20} color={vTheme.colors.primary} />}
@@ -246,6 +252,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         bg={cardBg}
                         border={cardBorder}
                         isDark={isDarkMode || isPhotoBg}
+                        allowBlur={allowBlurEffects}
                     />
                     <InfoItem
                         icon={<Mail size={20} color={vTheme.colors.primary} />}
@@ -257,6 +264,7 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
                         bg={cardBg}
                         border={cardBorder}
                         isDark={isDarkMode || isPhotoBg}
+                        allowBlur={allowBlurEffects}
                     />
                 </View>
 
@@ -304,9 +312,9 @@ export const ContactProfileScreen: React.FC<Props> = ({ route, navigation }) => 
     );
 };
 
-const InfoItem = ({ icon, label, value, theme, textColor, subTextColor, bg, border, isDark }: any) => (
+const InfoItem = ({ icon, label, value, theme, textColor, subTextColor, bg, border, isDark, allowBlur = true }: any) => (
     <View style={[styles.infoItemContainer, { backgroundColor: bg, borderColor: border }]}>
-        {isDark && (
+        {isDark && allowBlur && (
             <BlurView
                 style={StyleSheet.absoluteFill}
                 blurType="light"
@@ -372,6 +380,9 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         borderWidth: 1,
         overflow: 'hidden',
+    },
+    glassCardReduced: {
+        borderWidth: 0.5,
     },
     avatarWrapper: {
         marginBottom: 16,

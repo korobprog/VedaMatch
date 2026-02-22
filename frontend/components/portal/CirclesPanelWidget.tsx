@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,7 +13,7 @@ import { Film, ChevronLeft, ChevronRight, Camera } from 'lucide-react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
 import { VideoCircle, videoCirclesService } from '../../services/videoCirclesService';
-import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
 export const CirclesPanelWidget: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -23,6 +24,9 @@ export const CirclesPanelWidget: React.FC = () => {
   const isPhotoBg = portalBackgroundType === 'image';
   const isVedaMatch = portalIconStyle === 'vedamatch';
   const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
+  const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+  const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+  const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
 
   useEffect(() => {
     let mounted = true;
@@ -81,7 +85,7 @@ export const CirclesPanelWidget: React.FC = () => {
       ]}
     >
 
-      {(isPhotoBg || isDarkMode) && !isVedaMatch && androidVisualPolicy.enableBlur && (
+      {(isPhotoBg || isDarkMode) && !isVedaMatch && allowWidgetBlur && (
         <BlurView
           style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
           blurType={isDarkMode ? "dark" : "light"}

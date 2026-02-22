@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
     Image,
     Dimensions,
+    Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import {
@@ -21,6 +22,7 @@ import { formatBalance } from '../../../../services/walletService';
 import { useUser } from '../../../../context/UserContext';
 import { useRoleTheme } from '../../../../hooks/useRoleTheme';
 import { useSettings } from '../../../../context/SettingsContext';
+import { resolveEffectivePerformanceMode } from '../../../../utils/androidVisualPolicy';
 import {
     Star,
     Crown,
@@ -58,8 +60,11 @@ interface ServiceCardProps {
 
 export default function ServiceCard({ service, onPress, compact = false }: ServiceCardProps) {
     const { user } = useUser();
-    const { isDarkMode } = useSettings();
+    const { isDarkMode, performanceMode, runtimePerformanceState } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+    const overlayAlpha = isAndroidReducedEffects ? 0.6 : 0.8;
     const iconName = CATEGORY_ICON_NAMES[service.category] || 'Sparkles';
     const categoryLabel = CATEGORY_LABELS[service.category] || service.category;
 
@@ -111,7 +116,11 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
 
     return (
         <TouchableOpacity
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+                styles.card,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                isAndroidReducedEffects && styles.cardReducedAndroid,
+            ]}
             onPress={() => onPress(service)}
             activeOpacity={0.9}
         >
@@ -132,7 +141,7 @@ export default function ServiceCard({ service, onPress, compact = false }: Servi
                 )}
 
                 <LinearGradient
-                    colors={['transparent', 'rgba(10, 10, 20, 0.8)']}
+                    colors={['transparent', `rgba(10, 10, 20, ${overlayAlpha})`]}
                     style={styles.imageOverlay}
                 />
 
@@ -195,6 +204,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 12,
         elevation: 5,
+    },
+    cardReducedAndroid: {
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
     },
     imageContainer: {
         width: '100%',

@@ -24,7 +24,7 @@ import { X, Check, Palette } from 'lucide-react-native';
 import { PortalFolder, PortalItem, DEFAULT_SERVICES, FOLDER_COLORS } from '../../types/portal';
 import { PortalIcon } from './PortalIcon';
 import { useSettings } from '../../context/SettingsContext';
-import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
 interface FolderModalProps {
     visible: boolean;
@@ -50,6 +50,9 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     const [editName, setEditName] = useState(folder.name);
     const isPhotoBg = portalBackgroundType === 'image';
     const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
+    const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+    const allowModalBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
     const [showColorPicker, setShowColorPicker] = useState(false);
 
     const scale = useSharedValue(0.8);
@@ -121,7 +124,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                             ]}
                             onPress={(e) => e.stopPropagation()}
                         >
-                            {(isPhotoBg || isDarkMode) && androidVisualPolicy.enableBlur && (
+                            {(isPhotoBg || isDarkMode) && allowModalBlur && (
                                 <BlurView
                                     style={[RNStyleSheet.absoluteFill, { borderRadius: 32 }]}
                                     blurType={isDarkMode ? "dark" : "light"}
@@ -168,7 +171,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                             </View>
 
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                                {androidVisualPolicy.enableBlur && (
+                                {allowModalBlur && (
                                     <BlurView
                                         style={RNStyleSheet.absoluteFill}
                                         blurType={isDarkMode ? "light" : "dark"}

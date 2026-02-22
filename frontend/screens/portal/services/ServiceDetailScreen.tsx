@@ -13,6 +13,7 @@ import {
     ActivityIndicator,
     Share,
     Alert,
+    Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -50,6 +51,7 @@ import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
+import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
 
 const CategoryIcon = ({ name, color, size }: { name: string, color: string, size: number }) => {
     switch (name) {
@@ -85,8 +87,10 @@ export default function ServiceDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'params'>>();
     const { user } = useUser();
-    const { isDarkMode } = useSettings();
+    const { isDarkMode, performanceMode, runtimePerformanceState } = useSettings();
     const { colors, roleTheme } = useRoleTheme(user?.role, isDarkMode);
+    const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
 
     const serviceId = route.params?.serviceId;
 
@@ -235,7 +239,7 @@ export default function ServiceDetailScreen() {
                     }
                 >
                     {/* Immersive Cover Section */}
-                    <View style={styles.coverSection}>
+                    <View style={[styles.coverSection, isAndroidReducedEffects && styles.coverSectionReducedAndroid]}>
                         {service.coverImageUrl ? (
                             <Image source={{ uri: getMediaUrl(service.coverImageUrl) || '' }} style={styles.coverImage} />
                         ) : (
@@ -247,7 +251,11 @@ export default function ServiceDetailScreen() {
                             </LinearGradient>
                         )}
                         <LinearGradient
-                            colors={['rgba(10, 10, 20, 0.3)', 'transparent', 'rgba(10,10,20,1)']}
+                            colors={
+                                isAndroidReducedEffects
+                                    ? ['rgba(10, 10, 20, 0.2)', 'transparent', 'rgba(10,10,20,0.9)']
+                                    : ['rgba(10, 10, 20, 0.3)', 'transparent', 'rgba(10,10,20,1)']
+                            }
                             style={styles.coverOverlay}
                         />
                         <View style={styles.categoryBadgeContainer}>
@@ -334,7 +342,11 @@ export default function ServiceDetailScreen() {
                                 <Text style={styles.sectionHeading}>Формат взаимодействия</Text>
                             </View>
                             <LinearGradient
-                                colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+                                colors={
+                                    isAndroidReducedEffects
+                                        ? ['rgba(255,255,255,0.03)', 'rgba(255,255,255,0.02)']
+                                        : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']
+                                }
                                 style={styles.logisticsCard}
                             >
                                 <View style={styles.logisticsRow}>
@@ -411,7 +423,7 @@ export default function ServiceDetailScreen() {
                 <View style={styles.footerContainer}>
                     <LinearGradient
                         colors={['rgba(10, 10, 20, 0.95)', 'rgba(10,10,20,1)']}
-                        style={styles.footer}
+                        style={[styles.footer, isAndroidReducedEffects && styles.footerReducedAndroid]}
                     >
                         <View style={styles.priceColumn}>
                             <Text style={styles.priceLabel}>Начиная от</Text>
@@ -484,6 +496,9 @@ const styles = StyleSheet.create({
         width: '100%',
         height: 400,
         position: 'relative',
+    },
+    coverSectionReducedAndroid: {
+        height: 320,
     },
     coverImage: {
         width: '100%',
@@ -797,6 +812,11 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.5,
         shadowRadius: 20,
+    },
+    footerReducedAndroid: {
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 2,
     },
     priceColumn: {
         flex: 1,

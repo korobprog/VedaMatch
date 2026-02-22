@@ -13,7 +13,6 @@ import {
     Bookmark,
     Settings,
     Trash2,
-    Share2,
     Star,
     ChevronLeft,
     ChevronRight,
@@ -21,7 +20,6 @@ import {
     ArrowRight,
     X,
     MessageCircle,
-    Copy,
     Share as ShareIcon,
     Sparkles
 } from 'lucide-react-native';
@@ -46,16 +44,15 @@ export const ReaderScreen = () => {
     const { bookCode, title } = route.params;
 
     const isPhotoBg = portalBackgroundType === 'image';
-    const glassSurface = isPhotoBg || isDarkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.85)';
-    const glassBorder = isPhotoBg || isDarkMode ? 'rgba(255, 255, 255, 0.22)' : 'rgba(15, 23, 42, 0.1)';
-    const accentColor = roleColors.accent;
 
     const [chapters, setChapters] = useState<ChapterInfo[]>([]);
     const [currentChapter, setCurrentChapter] = useState<number>(1);
     const [currentCanto, setCurrentCanto] = useState<number>(0);
     const [verses, setVerses] = useState<ScriptureVerse[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [activeVerseIndex, setActiveVerseIndex] = useState(0);
+    const [showChapterPicker, setShowChapterPicker] = useState(false);
 
     const mainScrollRef = useRef<ScrollView>(null);
     const verseSelectorRef = useRef<ScrollView>(null);
@@ -208,6 +205,82 @@ export const ReaderScreen = () => {
 
     const [language, setLanguage] = useState<'ru' | 'en'>(getDefaultLanguage());
 
+    const readerVisual = useMemo(() => {
+        if (readerTheme === 'sepia') {
+            return {
+                screenBg: '#EFE4CF',
+                cardBg: '#F6EEDC',
+                border: '#D6C2A2',
+                textPrimary: '#3E2F1F',
+                textSecondary: '#6E5A43',
+                subtleActionBg: 'rgba(62, 47, 31, 0.06)',
+                topBarBg: '#E6D8BE',
+            };
+        }
+        if (readerTheme === 'paper') {
+            return {
+                screenBg: '#F8F1E2',
+                cardBg: '#FFF9EC',
+                border: '#D9CDB7',
+                textPrimary: '#1F2937',
+                textSecondary: '#5B6472',
+                subtleActionBg: 'rgba(31, 41, 55, 0.06)',
+                topBarBg: '#EEE5D4',
+            };
+        }
+        if (readerTheme === 'ancient') {
+            return {
+                screenBg: '#E7D8B5',
+                cardBg: 'rgba(255, 248, 229, 0.88)',
+                border: '#C7AF79',
+                textPrimary: '#322513',
+                textSecondary: '#5D482A',
+                subtleActionBg: 'rgba(50, 37, 19, 0.08)',
+                topBarBg: 'rgba(231, 216, 181, 0.92)',
+            };
+        }
+        return {
+            screenBg: roleColors.background,
+            cardBg: isPhotoBg ? 'rgba(255, 255, 255, 0.12)' : 'rgba(20, 26, 38, 0.92)',
+            border: isPhotoBg ? 'rgba(255, 255, 255, 0.22)' : roleColors.border,
+            textPrimary: roleColors.textPrimary,
+            textSecondary: roleColors.textSecondary,
+            subtleActionBg: 'rgba(255,255,255,0.08)',
+            topBarBg: isPhotoBg ? 'rgba(15, 23, 42, 0.62)' : 'rgba(15, 23, 42, 0.95)',
+        };
+    }, [readerTheme, roleColors, isPhotoBg]);
+
+    const glassSurface = readerVisual.cardBg;
+    const glassBorder = readerVisual.border;
+    const accentColor = roleColors.accent;
+
+    const normalizeVerse = useCallback((raw: any): ScriptureVerse => {
+        const pick = (...values: any[]): string => {
+            for (const value of values) {
+                if (typeof value === 'string' && value.trim().length > 0) return value;
+            }
+            return '';
+        };
+
+        return {
+            id: Number(raw?.id || 0),
+            book_code: String(raw?.book_code || raw?.bookCode || bookCode),
+            canto: Number(raw?.canto || 0),
+            chapter: Number(raw?.chapter || currentChapter),
+            verse: String(raw?.verse || raw?.number || ''),
+            language: String(raw?.language || language),
+            devanagari: pick(raw?.devanagari, raw?.text_sanskrit),
+            transliteration: pick(raw?.transliteration, raw?.translit),
+            synonyms: String(raw?.synonyms || ''),
+            translation: pick(raw?.translation, raw?.translation_ru, raw?.translation_en, raw?.text),
+            purport: pick(raw?.purport, raw?.purport_ru, raw?.purport_en, raw?.commentary),
+            source_url: String(raw?.source_url || ''),
+            verse_reference: String(raw?.verse_reference || ''),
+            created_at: String(raw?.created_at || ''),
+            updated_at: String(raw?.updated_at || ''),
+        };
+    }, [bookCode, currentChapter, language]);
+
     // Update language when app language changes in settings
     useEffect(() => {
         const newLang = i18n.language.startsWith('ru') ? 'ru' : 'en';
@@ -247,17 +320,34 @@ export const ReaderScreen = () => {
         const requestId = ++latestVersesRequestRef.current;
         if (isMountedRef.current) {
             setLoading(true);
+            setLoadError(null);
             Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
         }
         try {
-            const data = await libraryService.getVerses(bookCode, chapter, canto || undefined, language);
+            const primaryData = await libraryService.getVerses(bookCode, chapter, canto || undefined, language);
+            let normalized = (Array.isArray(primaryData) ? primaryData : []).map(normalizeVerse);
+
+            // Fallback chain for inconsistent `language` column in legacy data.
+            if (normalized.length === 0) {
+                const fallbackLang = language === 'ru' ? 'en' : 'ru';
+                const fallbackLangData = await libraryService.getVerses(bookCode, chapter, canto || undefined, fallbackLang);
+                normalized = (Array.isArray(fallbackLangData) ? fallbackLangData : []).map(normalizeVerse);
+            }
+            if (normalized.length === 0) {
+                const noLangData = await libraryService.getVerses(bookCode, chapter, canto || undefined);
+                normalized = (Array.isArray(noLangData) ? noLangData : []).map(normalizeVerse);
+            }
+
             if (requestId === latestVersesRequestRef.current && isMountedRef.current) {
-                setVerses(Array.isArray(data) ? data : []);
+                setVerses(normalized);
                 setCurrentChapter(chapter);
                 setCurrentCanto(canto);
                 setActiveVerseIndex(0);
                 versePositions.current = {};
                 mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+                if (normalized.length === 0) {
+                    setLoadError(t('reader.empty_chapter', 'В этой главе пока нет текста или он не загружен.'));
+                }
                 Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
             }
         } catch (error) {
@@ -267,7 +357,7 @@ export const ReaderScreen = () => {
                 return;
             }
             if (offlineData.length > 0) {
-                setVerses(offlineData);
+                setVerses(offlineData.map(normalizeVerse));
                 setCurrentChapter(chapter);
                 setCurrentCanto(canto);
                 setActiveVerseIndex(0);
@@ -276,13 +366,14 @@ export const ReaderScreen = () => {
                 Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
             } else {
                 setVerses([]);
+                setLoadError(t('reader.load_error', 'Не удалось загрузить текст главы. Проверьте интернет и попробуйте снова.'));
             }
         } finally {
             if (requestId === latestVersesRequestRef.current && isMountedRef.current) {
                 setLoading(false);
             }
         }
-    }, [bookCode, language, fadeAnim]);
+    }, [bookCode, language, fadeAnim, normalizeVerse, t]);
 
     useEffect(() => {
         loadChapters();
@@ -290,29 +381,20 @@ export const ReaderScreen = () => {
 
     useEffect(() => {
         navigation.setOptions({
-            headerTitle: () => (
-                <View style={styles.headerTitleWrap}>
-                    <Text style={[styles.headerTitleText, { color: roleColors.textPrimary }]}>{title}</Text>
-                    {chapters.length > 0 && (
-                        <Text style={[styles.headerSubtitleText, { color: roleColors.textSecondary }]}>
-                            {t('reader.chapter')} {currentChapter}
-                        </Text>
-                    )}
-                </View>
-            ),
+            headerTitle: title,
             headerRight: () => (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <TouchableOpacity
                         onPress={() => setShowBookmarksList(true)}
                         style={[styles.headerIconBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
                     >
-                        <Bookmark size={20} color={roleColors.textPrimary} />
+                        <Bookmark size={20} color={readerVisual.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setShowSettings(true)}
                         style={[styles.headerIconBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
                     >
-                        <Settings size={20} color={roleColors.textPrimary} />
+                        <Settings size={20} color={readerVisual.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={toggleLanguage}
@@ -325,14 +407,20 @@ export const ReaderScreen = () => {
                 </View>
             ),
             headerStyle: {
-                backgroundColor: isPhotoBg ? 'transparent' : roleColors.background,
+                backgroundColor: readerVisual.topBarBg,
                 elevation: 0,
                 shadowOpacity: 0,
             },
-            headerTransparent: isPhotoBg,
-            headerTintColor: roleColors.textPrimary,
+            headerBackTitleVisible: false,
+            headerTitleAlign: 'center',
+            headerTintColor: readerVisual.textPrimary,
+            headerTitleStyle: {
+                color: readerVisual.textPrimary,
+                fontSize: 19,
+                fontWeight: '800',
+            },
         });
-    }, [language, navigation, title, toggleLanguage, roleColors, glassSurface, glassBorder, accentColor, currentChapter, chapters.length, isPhotoBg]);
+    }, [language, navigation, title, toggleLanguage, glassSurface, glassBorder, accentColor, readerVisual]);
 
     useEffect(() => {
         if (chapters.length === 0) {
@@ -435,7 +523,7 @@ export const ReaderScreen = () => {
         const bgSource = readerTheme === 'ancient' ? require('../../assets/ancient_parchment.png') : null;
 
         return (
-            <View style={[styles.container, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
+            <View style={[styles.container, { backgroundColor: readerVisual.screenBg }]}>
                 {bgSource ? (
                     <ImageBackground
                         source={bgSource}
@@ -445,7 +533,7 @@ export const ReaderScreen = () => {
                         {content}
                     </ImageBackground>
                 ) : (
-                    <View style={[styles.container, styles[readerTheme]]}>
+                    <View style={[styles.container, { backgroundColor: readerVisual.screenBg }]}>
                         {content}
                     </View>
                 )}
@@ -619,21 +707,14 @@ export const ReaderScreen = () => {
                 </View>
             </Modal>
 
-            <View style={[styles.navigationHeader, { backgroundColor: isPhotoBg ? 'transparent' : roleColors.background }]}>
-                {isPhotoBg && (
-                    <BlurView
-                        style={StyleSheet.absoluteFill}
-                        blurType={isDarkMode ? 'dark' : 'light'}
-                        blurAmount={12}
-                    />
-                )}
+            <View style={[styles.navigationHeader, { backgroundColor: readerVisual.topBarBg }]}>
                 <View style={styles.chapterSelector}>
                     <TouchableOpacity
                         onPress={goToPreviousChapter}
                         disabled={!canGoPrevious()}
                         style={[styles.navButton, { backgroundColor: glassSurface, borderColor: glassBorder }, !canGoPrevious() && styles.navButtonDisabled]}
                     >
-                        <ChevronLeft size={20} color={roleColors.textPrimary} />
+                        <ChevronLeft size={20} color={readerVisual.textPrimary} />
                     </TouchableOpacity>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll} contentContainerStyle={{ alignItems: 'center', paddingHorizontal: 10 }}>
                         {chapters.map((ch) => {
@@ -647,24 +728,33 @@ export const ReaderScreen = () => {
                                     ]}
                                     onPress={() => loadVerses(ch.chapter, ch.canto)}
                                 >
-                                    <Text style={[styles.chapterText, { color: isActive ? '#FFF' : roleColors.textPrimary }]}>
+                                    <Text style={[styles.chapterText, { color: isActive ? '#FFF' : readerVisual.textPrimary }]}>
                                         {ch.chapter}
                                     </Text>
-                                    {isActive && ch.chapter_title && (
-                                        <Text style={styles.activeTitleLabel} numberOfLines={1}>{ch.chapter_title}</Text>
-                                    )}
                                 </TouchableOpacity>
                             );
                         })}
                     </ScrollView>
                     <TouchableOpacity
+                        onPress={() => setShowChapterPicker(true)}
+                        style={[styles.chapterListBtn, { backgroundColor: glassSurface, borderColor: glassBorder }]}
+                        accessibilityLabel={t('reader.choose_chapter', 'Выбрать главу')}
+                    >
+                        <Text style={[styles.chapterListBtnText, { color: readerVisual.textPrimary }]}>#</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
                         onPress={goToNextChapter}
                         disabled={!canGoNext()}
                         style={[styles.navButton, { backgroundColor: glassSurface, borderColor: glassBorder }, !canGoNext() && styles.navButtonDisabled]}
                     >
-                        <ChevronRight size={20} color={roleColors.textPrimary} />
+                        <ChevronRight size={20} color={readerVisual.textPrimary} />
                     </TouchableOpacity>
                 </View>
+                {chapters.length > 0 && (
+                    <Text style={[styles.currentChapterTitle, { color: readerVisual.textSecondary }]}>
+                        {chapters.find((ch) => ch.chapter === currentChapter && (ch.canto || 0) === currentCanto)?.chapter_title || ''}
+                    </Text>
+                )}
 
                 {verses.length > 0 && (
                     <View style={styles.verseSelector}>
@@ -686,7 +776,7 @@ export const ReaderScreen = () => {
                                         ]}
                                         onPress={() => handleVersePress(index)}
                                     >
-                                        <Text style={[styles.verseBtnText, { color: isActive ? '#FFF' : roleColors.textPrimary }]}>
+                                        <Text style={[styles.verseBtnText, { color: isActive ? '#FFF' : readerVisual.textPrimary }]}>
                                             {v.verse}
                                         </Text>
                                     </TouchableOpacity>
@@ -700,7 +790,7 @@ export const ReaderScreen = () => {
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={accentColor} />
-                    <Text style={[styles.loadingText, { color: roleColors.textSecondary }]}>{t('common.loading', 'Загрузка...')}</Text>
+                    <Text style={[styles.loadingText, { color: readerVisual.textSecondary }]}>{t('common.loading', 'Загрузка...')}</Text>
                 </View>
             ) : (
                 <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
@@ -726,25 +816,25 @@ export const ReaderScreen = () => {
                                         <View style={{ flexDirection: 'row', gap: 8 }}>
                                             <TouchableOpacity
                                                 onPress={() => { }}
-                                                style={[styles.verseActionBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}
+                                                style={[styles.verseActionBtn, { backgroundColor: readerVisual.subtleActionBg }]}
                                             >
-                                                <MessageCircle size={18} color={roleColors.textSecondary} />
+                                                <MessageCircle size={18} color={readerVisual.textSecondary} />
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 onPress={() => toggleBookmark(v)}
-                                                style={[styles.verseActionBtn, { backgroundColor: isBookmarked ? accentColor + '20' : 'rgba(255,255,255,0.05)' }]}
+                                                style={[styles.verseActionBtn, { backgroundColor: isBookmarked ? accentColor + '20' : readerVisual.subtleActionBg }]}
                                             >
                                                 <Star
                                                     size={18}
-                                                    color={isBookmarked ? accentColor : roleColors.textSecondary}
+                                                    color={isBookmarked ? accentColor : readerVisual.textSecondary}
                                                     fill={isBookmarked ? accentColor : 'transparent'}
                                                 />
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 onPress={() => shareVerse(v)}
-                                                style={[styles.verseActionBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}
+                                                style={[styles.verseActionBtn, { backgroundColor: readerVisual.subtleActionBg }]}
                                             >
-                                                <ShareIcon size={18} color={roleColors.textSecondary} />
+                                                <ShareIcon size={18} color={readerVisual.textSecondary} />
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -752,36 +842,36 @@ export const ReaderScreen = () => {
                                     {v.devanagari && showSanskrit && (
                                         <Text style={[
                                             styles.sanskrit,
-                                            { fontSize: fontSizeBase + 4, fontWeight: fontBold ? 'bold' : 'normal', color: roleColors.textPrimary }
+                                            { fontSize: fontSizeBase + 4, fontWeight: fontBold ? 'bold' : 'normal', color: readerVisual.textPrimary }
                                         ]}>
                                             {v.devanagari}
                                         </Text>
                                     )}
-                                    {showTransliteration && (
+                                    {showTransliteration && !!v.transliteration && (
                                         <Text style={[
                                             styles.transliteration,
-                                            { fontSize: fontSizeBase, fontWeight: fontBold ? 'bold' : 'normal', color: roleColors.textSecondary }
+                                            { fontSize: fontSizeBase, fontWeight: fontBold ? 'bold' : 'normal', color: readerVisual.textSecondary }
                                         ]}>
                                             {v.transliteration}
                                         </Text>
                                     )}
-                                    {showTranslation && (
+                                    {showTranslation && !!v.translation && (
                                         <Text style={[
                                             styles.translation,
-                                            { fontSize: fontSizeBase + 2, fontWeight: fontBold ? 'bold' : '700', color: roleColors.textPrimary }
+                                            { fontSize: fontSizeBase + 2, fontWeight: fontBold ? 'bold' : '700', color: readerVisual.textPrimary }
                                         ]}>
                                             {v.translation}
                                         </Text>
                                     )}
                                     {v.purport && showPurport && (
-                                        <View style={[styles.purportGlassBox, { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: glassBorder }]}>
+                                        <View style={[styles.purportGlassBox, { backgroundColor: readerVisual.subtleActionBg, borderColor: glassBorder }]}>
                                             <Text style={[
                                                 styles.purport,
                                                 {
                                                     fontSize: fontSizeBase,
                                                     fontWeight: fontBold ? 'bold' : '400',
                                                     fontFamily: isSerif ? (Platform.OS === 'ios' ? 'Georgia' : 'serif') : undefined,
-                                                    color: roleColors.textSecondary
+                                                    color: readerVisual.textSecondary
                                                 }
                                             ]}>
                                                 {v.purport}
@@ -791,14 +881,30 @@ export const ReaderScreen = () => {
                                 </View>
                             );
                         })}
+                        {verses.length === 0 && (
+                            <View style={[styles.emptyChapterCard, { backgroundColor: glassSurface, borderColor: glassBorder }]}>
+                                <Text style={[styles.emptyChapterTitle, { color: readerVisual.textPrimary }]}>
+                                    {t('reader.no_verses_title', 'Текст главы не найден')}
+                                </Text>
+                                <Text style={[styles.emptyChapterText, { color: readerVisual.textSecondary }]}>
+                                    {loadError || t('reader.no_verses_hint', 'Попробуйте другую главу или обновите загрузку.')}
+                                </Text>
+                                <TouchableOpacity
+                                    style={[styles.emptyChapterButton, { backgroundColor: accentColor }]}
+                                    onPress={() => loadVerses(currentChapter, currentCanto)}
+                                >
+                                    <Text style={styles.emptyChapterButtonText}>{t('common.retry', 'Повторить')}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                         <View style={styles.footerNav}>
                             <TouchableOpacity
                                 onPress={goToPreviousChapter}
                                 disabled={!canGoPrevious()}
                                 style={[styles.footerBtn, { backgroundColor: glassSurface, borderColor: glassBorder }, !canGoPrevious() && styles.footerBtnDisabled]}
                             >
-                                <ArrowLeft size={18} color={canGoPrevious() ? roleColors.textPrimary : roleColors.textSecondary} />
-                                <Text style={[styles.footerBtnText, { color: canGoPrevious() ? roleColors.textPrimary : roleColors.textSecondary }]}>
+                                <ArrowLeft size={18} color={canGoPrevious() ? readerVisual.textPrimary : readerVisual.textSecondary} />
+                                <Text style={[styles.footerBtnText, { color: canGoPrevious() ? readerVisual.textPrimary : readerVisual.textSecondary }]}>
                                     {t('reader.prev', 'Back')}
                                 </Text>
                             </TouchableOpacity>
@@ -816,6 +922,51 @@ export const ReaderScreen = () => {
                     </ScrollView>
                 </Animated.View>
             )}
+
+            <Modal
+                transparent={true}
+                visible={showChapterPicker}
+                animationType="fade"
+                onRequestClose={() => setShowChapterPicker(false)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' }]}>
+                    <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowChapterPicker(false)} />
+                    <View style={[styles.chapterPickerContainer, { backgroundColor: roleColors.background, borderColor: roleColors.border }]}>
+                        <Text style={[styles.chapterPickerTitle, { color: readerVisual.textPrimary }]}>
+                            {t('reader.choose_chapter', 'Выберите главу')}
+                        </Text>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <View style={styles.chapterPickerGrid}>
+                                {chapters.map((ch) => {
+                                    const active = currentChapter === ch.chapter && (ch.canto || 0) === currentCanto;
+                                    return (
+                                        <TouchableOpacity
+                                            key={`picker-${ch.canto}-${ch.chapter}`}
+                                            style={[
+                                                styles.chapterPickerItem,
+                                                { backgroundColor: active ? accentColor : glassSurface, borderColor: active ? accentColor : glassBorder }
+                                            ]}
+                                            onPress={() => {
+                                                setShowChapterPicker(false);
+                                                loadVerses(ch.chapter, ch.canto || 0);
+                                            }}
+                                        >
+                                            <Text style={[styles.chapterPickerItemNumber, { color: active ? '#FFF' : readerVisual.textPrimary }]}>
+                                                {ch.chapter}
+                                            </Text>
+                                            {!!ch.chapter_title && (
+                                                <Text style={[styles.chapterPickerItemTitle, { color: active ? 'rgba(255,255,255,0.9)' : readerVisual.textSecondary }]} numberOfLines={2}>
+                                                    {ch.chapter_title}
+                                                </Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </>
     );
 
@@ -829,13 +980,14 @@ const styles = StyleSheet.create({
     // Navigation Header (Chapter/Verse Selector)
     navigationHeader: {
         borderBottomWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: 'rgba(0,0,0,0.12)',
         overflow: 'hidden',
+        paddingTop: 4,
     },
     chapterSelector: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 8,
         paddingHorizontal: 8,
     },
     navButton: {
@@ -851,10 +1003,11 @@ const styles = StyleSheet.create({
     },
     chapterScroll: {
         flex: 1,
+        marginHorizontal: 6,
     },
     chapterBtn: {
         minWidth: 40,
-        height: 48,
+        height: 40,
         borderRadius: 24,
         borderWidth: 1,
         justifyContent: 'center',
@@ -866,16 +1019,30 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
     },
-    activeTitleLabel: {
-        fontSize: 10,
-        color: '#FFF',
-        marginTop: 2,
-        maxWidth: 100,
+    chapterListBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 8,
+    },
+    chapterListBtnText: {
+        fontSize: 15,
+        fontWeight: '800',
+    },
+    currentChapterTitle: {
+        fontSize: 12,
+        lineHeight: 16,
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+        paddingTop: 2,
     },
     verseSelector: {
-        paddingVertical: 10,
+        paddingVertical: 8,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.05)',
+        borderTopColor: 'rgba(0,0,0,0.10)',
     },
     verseScroll: {
         maxHeight: 40,
@@ -939,6 +1106,35 @@ const styles = StyleSheet.create({
     },
     loadingText: {
         marginTop: 10,
+        fontSize: 14,
+    },
+    emptyChapterCard: {
+        borderWidth: 1,
+        borderRadius: 18,
+        padding: 16,
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    emptyChapterTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emptyChapterText: {
+        fontSize: 14,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    emptyChapterButton: {
+        marginTop: 14,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+    },
+    emptyChapterButtonText: {
+        color: '#FFF',
+        fontWeight: '700',
         fontSize: 14,
     },
     verseContainer: {
@@ -1027,6 +1223,41 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
         shadowRadius: 20,
+    },
+    chapterPickerContainer: {
+        width: '90%',
+        maxHeight: '78%',
+        borderRadius: 24,
+        borderWidth: 1,
+        padding: 16,
+    },
+    chapterPickerTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 12,
+    },
+    chapterPickerGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        gap: 10,
+        paddingBottom: 10,
+    },
+    chapterPickerItem: {
+        width: '48%',
+        borderRadius: 16,
+        borderWidth: 1,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+    },
+    chapterPickerItemNumber: {
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 4,
+    },
+    chapterPickerItemTitle: {
+        fontSize: 12,
+        lineHeight: 16,
     },
     settingsHeader: {
         flexDirection: 'row',

@@ -4,6 +4,7 @@ import {
     View,
     Text,
     StyleSheet,
+    Platform,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -15,7 +16,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
-import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy, resolveEffectivePerformanceMode } from '../../utils/androidVisualPolicy';
 
 interface ClockWidgetProps {
     size?: '1x1' | '2x1' | '2x2';
@@ -36,6 +37,10 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
     const isPhotoBg = portalBackgroundType === 'image';
     const isVedaMatch = portalIconStyle === 'vedamatch';
     const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
+    const effectivePerformanceMode = resolveEffectivePerformanceMode(performanceMode, runtimePerformanceState);
+    const isAndroidReducedEffects = Platform.OS === 'android' && effectivePerformanceMode !== 'high_quality';
+    const allowWidgetBlur = androidVisualPolicy.enableBlur && !isAndroidReducedEffects;
+    const allowColonAnimation = !isAndroidReducedEffects;
 
     // Update time every second
     useEffect(() => {
@@ -43,18 +48,22 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
             setTime(new Date());
         }, 1000);
 
-        // Blinking colon animation
-        colonOpacity.value = withRepeat(
-            withTiming(0.3, { duration: 500, easing: Easing.inOut(Easing.ease) }),
-            -1,
-            true
-        );
+        if (allowColonAnimation) {
+            // Blinking colon animation
+            colonOpacity.value = withRepeat(
+                withTiming(0.3, { duration: 500, easing: Easing.inOut(Easing.ease) }),
+                -1,
+                true
+            );
+        } else {
+            colonOpacity.value = withTiming(1, { duration: 120 });
+        }
 
         return () => {
             clearInterval(timer);
             cancelAnimation(colonOpacity);
         };
-    }, []);
+    }, [allowColonAnimation, colonOpacity]);
 
     const colonStyle = useAnimatedStyle(() => ({
         opacity: colonOpacity.value,
@@ -119,7 +128,7 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
             ]}
         >
 
-            {(isPhotoBg || isDarkMode) && !isVedaMatch && androidVisualPolicy.enableBlur && (
+            {(isPhotoBg || isDarkMode) && !isVedaMatch && allowWidgetBlur && (
                 <BlurView
                     style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
                     blurType={isDarkMode ? "dark" : "light"}

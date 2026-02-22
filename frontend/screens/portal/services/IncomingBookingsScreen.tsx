@@ -6,7 +6,7 @@ import {
     View,
     Text,
     StyleSheet,
-    ScrollView,
+    FlatList,
     TouchableOpacity,
     RefreshControl,
     ActivityIndicator,
@@ -289,7 +289,7 @@ export default function IncomingBookingsScreen() {
         const past = isPast(booking);
 
         return (
-            <View key={booking.id} style={[styles.bookingCard, soon && styles.bookingCardSoon]}>
+            <View style={[styles.bookingCard, soon && styles.bookingCardSoon]}>
                 <View style={styles.cardHeader}>
                     <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
                         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -479,17 +479,26 @@ export default function IncomingBookingsScreen() {
                         <ActivityIndicator size="large" color={colors.accent} />
                     </View>
                 ) : (
-                    <ScrollView
+                    <FlatList
+                        data={bookings}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={({ item }) => renderBookingCard(item)}
                         style={styles.content}
-                        contentContainerStyle={styles.contentContainer}
+                        contentContainerStyle={[
+                            styles.contentContainer,
+                            bookings.length === 0 && styles.contentContainerEmpty,
+                        ]}
                         showsVerticalScrollIndicator={false}
                         refreshControl={
                             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />
                         }
-                    >
-                        {bookings.length === 0 ? renderEmptyState() : bookings.map(renderBookingCard)}
-                        <View style={{ height: 40 }} />
-                    </ScrollView>
+                        ListEmptyComponent={renderEmptyState}
+                        ListFooterComponent={<View style={{ height: 40 }} />}
+                        initialNumToRender={8}
+                        maxToRenderPerBatch={8}
+                        windowSize={5}
+                        removeClippedSubviews
+                    />
                 )}
             </SafeAreaView>
         </LinearGradient>
@@ -545,6 +554,7 @@ const styles = StyleSheet.create({
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: { flex: 1 },
     contentContainer: { padding: 20 },
+    contentContainerEmpty: { flexGrow: 1, justifyContent: 'center' },
     bookingCard: {
         backgroundColor: 'rgba(255, 255, 255, 0.02)',
         borderRadius: 28,
