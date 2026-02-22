@@ -27,6 +27,7 @@ import {
     Bar,
     Legend,
 } from 'recharts';
+import { getAuthToken } from '@/lib/auth';
 
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
@@ -40,14 +41,16 @@ export default function DashboardPage() {
     const [alertsPage, setAlertsPage] = useState(1);
     const [tutorWindowHours, setTutorWindowHours] = useState(24);
     const alertsPageSize = 12;
+    const token = getAuthToken();
+    const hasToken = !!token;
 
-    const { data: stats, error } = useSWR('/admin/stats', fetcher);
-    const { data: trackerMetrics } = useSWR('/admin/path-tracker/metrics', fetcher);
-    const { data: trackerAnalytics } = useSWR('/admin/path-tracker/analytics?days=14', fetcher);
-    const { data: trackerOps } = useSWR('/admin/path-tracker/ops', fetcher);
-    const { data: tutorMetrics } = useSWR(`/admin/education/tutor/metrics?window_hours=${tutorWindowHours}`, fetcher);
+    const { data: stats, error } = useSWR(hasToken ? '/admin/stats' : null, fetcher);
+    const { data: trackerMetrics } = useSWR(hasToken ? '/admin/path-tracker/metrics' : null, fetcher);
+    const { data: trackerAnalytics } = useSWR(hasToken ? '/admin/path-tracker/analytics?days=14' : null, fetcher);
+    const { data: trackerOps } = useSWR(hasToken ? '/admin/path-tracker/ops' : null, fetcher);
+    const { data: tutorMetrics } = useSWR(hasToken ? `/admin/education/tutor/metrics?window_hours=${tutorWindowHours}` : null, fetcher);
     const alertsKey = `/admin/path-tracker/alerts?page=${alertsPage}&pageSize=${alertsPageSize}&status=${encodeURIComponent(alertStatusFilter)}&type=${encodeURIComponent(alertTypeFilter)}&sortBy=${encodeURIComponent(alertSortBy)}&sortDir=${encodeURIComponent(alertSortDir)}`;
-    const { data: trackerAlerts, mutate: mutateTrackerAlerts } = useSWR(alertsKey, fetcher);
+    const { data: trackerAlerts, mutate: mutateTrackerAlerts } = useSWR(hasToken ? alertsKey : null, fetcher);
 
     const retryAlert = async (id: number) => {
         setRetryBusyId(id);

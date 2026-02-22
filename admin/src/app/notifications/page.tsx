@@ -49,9 +49,13 @@ export default function NotificationsPage() {
         setLoading(true);
         try {
             const token = getAuthToken();
+            if (!token) {
+                setNotifications([]);
+                return;
+            }
             const response = await fetch(`${getApiBaseURL()}/admin/notifications?page=${page}&limit=20`, {
                 headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
@@ -86,10 +90,11 @@ export default function NotificationsPage() {
     const markAsRead = async (id: number) => {
         try {
             const token = getAuthToken();
+            if (!token) return;
             await fetch(`${getApiBaseURL()}/admin/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
