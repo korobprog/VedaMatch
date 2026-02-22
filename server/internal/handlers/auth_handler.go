@@ -13,6 +13,7 @@ import (
 	"rag-agent-server/internal/middleware"
 	"rag-agent-server/internal/models"
 	"rag-agent-server/internal/services"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -554,13 +555,6 @@ func (h *AuthHandler) TelegramMiniAppLink(c *fiber.Ctx) error {
 		log.Printf("[AUTH] Telegram miniapp link conflict lookup failed telegram_user_id=%d: %v", telegramUser.ID, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not validate Telegram link",
-		})
-	}
-
-	if user.TelegramUserID != nil && *user.TelegramUserID != telegramUser.ID {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"error":     "User is linked to another Telegram account",
-			"errorCode": "TELEGRAM_ALREADY_LINKED",
 		})
 	}
 
@@ -1444,17 +1438,177 @@ func (h *AuthHandler) GetContacts(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	var users []models.User
-	if err := database.DB.Find(&users).Error; err != nil {
-		log.Printf("[Contacts] Error fetching contacts: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Could not fetch contacts",
-		})
+	// Legacy behavior: when no query params are provided, return full list as before.
+	// Contacts V2 behavior is activated only when at least one query param is present.
+	hasV2Query := c.Query("limit") != "" ||
+		c.Query("cursor") != "" ||
+		c.Query("tab") != "" ||
+		c.Query("q") != "" ||
+		c.Query("city") != "" ||
+		c.Query("cities") != ""
+	if !hasV2Query {
+		var users []models.User
+		if err := database.DB.Find(&users).Error; err != nil {
+			log.Printf("[Contacts] Error fetching contacts: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Could not fetch contacts",
+			})
+		}
+		log.Printf("[Contacts] Returning %d contacts to client", len(users))
+		sanitizeUsers(users)
+
+		return c.Status(fiber.StatusOK).JSON(users)
 	}
-	log.Printf("[Contacts] Returning %d contacts to client", len(users))
+
+	const (
+		defaultLimit = 50
+		maxLimit     = 100
+	)
+	limit := defaultLimit
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			if parsed > 0 {
+				if parsed > maxLimit {
+					limit = maxLimit
+				} else {
+					limit = parsed
+				}
+			}
+		}
+	}
+
+	var cursor uint
+	if rawCursor := strings.TrimSpace(c.Query("cursor")); rawCursor != "" {
+		parsed, err := strconv.ParseUint(rawCursor, 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid cursor"})
+		}
+		cursor = uint(parsed)
+	}
+
+	tab := strings.ToLower(strings.TrimSpace(c.Query("tab", "all")))
+	if tab != "all" && tab != "friends" && tab != "blocked" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid tab. Supported values: all, friends, blocked"})
+	}
+
+	q := strings.ToLower(strings.TrimSpace(c.Query("q")))
+	var cities []string
+	if city := strings.TrimSpace(c.Query("city")); city != "" {
+		cities = append(cities, strings.ToLower(city))
+	}
+	if cityList := strings.TrimSpace(c.Query("cities")); cityList != "" {
+		for _, city := range strings.Split(cityList, ",") {
+			normalized := strings.ToLower(strings.TrimSpace(city))
+			if normalized == "" {
+				continue
+			}
+			cities = append(cities, normalized)
+		}
+	}
+	if len(cities) > 1 {
+		unique := make(map[string]struct{}, len(cities))
+		deduped := make([]string, 0, len(cities))
+		for _, city := range cities {
+			if _, ok := unique[city]; ok {
+				continue
+			}
+			unique[city] = struct{}{}
+			deduped = append(deduped, city)
+		}
+		cities = deduped
+	}
+
+	var friendIDs []uint
+	var blockedIDs []uint
+
+	if tab == "friends" {
+		if err := database.DB.Model(&models.Friend{}).
+			Where("user_id = ?", userId).
+			Pluck("friend_id", &friendIDs).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch friends"})
+		}
+		if len(friendIDs) == 0 {
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{
+				"items":      []models.User{},
+				"hasMore":    false,
+				"nextCursor": nil,
+				"total":      0,
+			})
+		}
+	}
+	if tab == "blocked" {
+		if err := database.DB.Model(&models.Block{}).
+			Where("user_id = ?", userId).
+			Pluck("blocked_id", &blockedIDs).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch blocked users"})
+		}
+		if len(blockedIDs) == 0 {
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{
+				"items":      []models.User{},
+				"hasMore":    false,
+				"nextCursor": nil,
+				"total":      0,
+			})
+		}
+	}
+
+	applyFilters := func(query *gorm.DB, includeCursor bool) *gorm.DB {
+		query = query.Where("id <> ?", userId)
+
+		switch tab {
+		case "friends":
+			query = query.Where("id IN ?", friendIDs)
+		case "blocked":
+			query = query.Where("id IN ?", blockedIDs)
+		}
+
+		if q != "" {
+			like := "%" + q + "%"
+			query = query.Where(
+				"LOWER(karmic_name) LIKE ? OR LOWER(spiritual_name) LIKE ? OR LOWER(city) LIKE ? OR LOWER(country) LIKE ? OR LOWER(yatra) LIKE ?",
+				like, like, like, like, like,
+			)
+		}
+		if len(cities) > 0 {
+			query = query.Where("LOWER(city) IN ?", cities)
+		}
+		if includeCursor && cursor > 0 {
+			query = query.Where("id < ?", cursor)
+		}
+		return query
+	}
+
+	totalQuery := applyFilters(database.DB.Model(&models.User{}), false)
+	var total int64
+	if err := totalQuery.Count(&total).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not count contacts"})
+	}
+
+	var users []models.User
+	query := applyFilters(database.DB.Model(&models.User{}), true).
+		Order("id DESC").
+		Limit(limit + 1)
+	if err := query.Find(&users).Error; err != nil {
+		log.Printf("[ContactsV2] Error fetching contacts page: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch contacts"})
+	}
+
+	hasMore := len(users) > limit
+	if hasMore {
+		users = users[:limit]
+	}
+	var nextCursor interface{}
+	if hasMore && len(users) > 0 {
+		nextCursor = users[len(users)-1].ID
+	}
 	sanitizeUsers(users)
 
-	return c.Status(fiber.StatusOK).JSON(users)
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"items":      users,
+		"hasMore":    hasMore,
+		"nextCursor": nextCursor,
+		"total":      total,
+	})
 }
 
 func (h *AuthHandler) BlockUser(c *fiber.Ctx) error {

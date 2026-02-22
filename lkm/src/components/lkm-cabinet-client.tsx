@@ -190,7 +190,17 @@ function channelBlockedByUA(userAgent: string): boolean {
 
 function buildErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    return error.message;
+    const message = error.message || '';
+    if (message.includes('TELEGRAM_ALREADY_LINKED')) {
+      return 'К этому аккаунту уже был привязан другой Telegram. Выполните вход еще раз: привязка будет обновлена.';
+    }
+    if (message.includes('TELEGRAM_LINK_CONFLICT')) {
+      return 'Этот Telegram уже привязан к другому аккаунту VedaMatch.';
+    }
+    if (message.includes('TELEGRAM_LINK_REQUIRED')) {
+      return 'Аккаунт Telegram не привязан. Выполните разовый вход email/пароль для привязки.';
+    }
+    return message;
   }
   return 'Неизвестная ошибка';
 }

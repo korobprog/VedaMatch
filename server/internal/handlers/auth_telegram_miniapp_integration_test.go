@@ -231,6 +231,48 @@ func TestAuthTelegramMiniAppLink_Conflict(t *testing.T) {
 	require.Equal(t, "TELEGRAM_LINK_CONFLICT", body["errorCode"])
 }
 
+func TestAuthTelegramMiniAppLink_RebindForSameUser(t *testing.T) {
+	setupAuthTelegramMiniAppIntegrationDB(t)
+	app := newAuthTelegramMiniAppTestApp()
+
+	oldTelegramID := int64(704444)
+	email := fmt.Sprintf("rebind-%d@vedicai.local", time.Now().UnixNano())
+	user := createAuthTelegramTestUser(t, authTelegramTestUserAttrs{
+		Email:          email,
+		Password:       "password123",
+		TelegramUserID: &oldTelegramID,
+	})
+
+	newTelegramID := int64(704445)
+	initData := buildHandlerTelegramInitData(t, "test-telegram-auth-token", time.Now().UTC().Unix()-10, map[string]string{
+		"query_id": "AAH7V6YAAAAAb8R1mQ",
+		"user":     fmt.Sprintf(`{"id":%d,"first_name":"Re","last_name":"Bind","username":"rebind_user","language_code":"ru"}`, newTelegramID),
+	})
+
+	payload, _ := json.Marshal(map[string]string{
+		"initData": initData,
+		"email":    email,
+		"password": "password123",
+		"deviceId": "tg-miniapp-device-rebind",
+	})
+	req := httptest.NewRequest("POST", "/api/auth/telegram/miniapp/link", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var body map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.NotEmpty(t, body["token"])
+
+	var refreshed models.User
+	require.NoError(t, database.DB.First(&refreshed, user.ID).Error)
+	require.NotNil(t, refreshed.TelegramUserID)
+	require.EqualValues(t, newTelegramID, *refreshed.TelegramUserID)
+	require.Equal(t, "rebind_user", refreshed.TelegramUsername)
+}
+
 func buildHandlerTelegramInitData(t *testing.T, botToken string, authDate int64, fields map[string]string) string {
 	t.Helper()
 
