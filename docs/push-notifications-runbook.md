@@ -58,3 +58,13 @@ Interpretation:
 - Keep dual-write/dual-read enabled during mobile rollout.
 - Enable retry/invalid cleanup gradually and monitor `invalid_token_rate`.
 - Promote to 100% only after stable booking/news/wallet smoke tests.
+
+## 7. Android operational note (important)
+- On Android, if the app is **force-stopped** (`Force stop` in system settings or `adb am force-stop`), FCM delivery can be suppressed until the user launches the app manually again.
+- This is expected platform behavior and should not be treated as backend push failure.
+- For QA smoke tests of notification shade delivery:
+  1. Ensure notification permission is enabled.
+  2. Launch app at least once after install/login.
+  3. Move app to background (do not force-stop).
+  4. Send `/api/admin/push/test` by userId or direct token.
+  5. Verify `NotificationService`/launcher logs or visible notification in shade.

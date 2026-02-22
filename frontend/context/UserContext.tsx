@@ -1,10 +1,10 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 import { contactService } from '../services/contactService';
 import { MathFilter, PortalBlueprint } from '../types/portalBlueprint';
-import { clearAuthTokens, getAccessToken, logoutAuthSession, saveAuthTokens } from '../services/authSessionService';
+import { clearAuthTokens, getAccessToken, logoutAuthSession, refreshAuthTokens, saveAuthTokens } from '../services/authSessionService';
 import { accountService } from '../services/accountService';
 
 interface UserProfile {
@@ -54,110 +54,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [activeMathId, setActiveMathId] = useState<string | null>(null);
 
 
-    useEffect(() => {
-        loadUser();
-    }, []);
-
-    useEffect(() => {
-        let heartbeatInterval: NodeJS.Timeout;
-        if (user?.ID) {
-            const runHeartbeat = async () => {
-                try {
-                    await contactService.sendHeartbeat(user.ID!);
-                } catch (error: any) {
-                    if (error.message === 'UNAUTHORIZED' || error.status === 401) {
-                        console.error('[UserContext] Heartbeat failed with 401, logging out');
-                        logout();
-                    }
-                }
-            };
-
-            // Initial heartbeat
-            runHeartbeat();
-
-            // Register push token
-            AsyncStorage.getItem('pushToken').then(async token => {
-                if (token && token !== 'undefined' && token !== 'null') {
-                    try {
-                        const deviceId = await DeviceInfo.getUniqueId();
-                        const appVersion = DeviceInfo.getVersion();
-                        await contactService.registerPushToken({
-                            token,
-                            provider: 'fcm',
-                            platform: Platform.OS,
-                            deviceId,
-                            appVersion,
-                        });
-                    } catch (error) {
-                        console.error('[UserContext] Failed to register push token:', error);
-                    }
-                }
-            });
-
-            // Set up interval (every 3 minutes)
-            heartbeatInterval = setInterval(runHeartbeat, 3 * 60 * 1000);
-        }
-        return () => {
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
-        };
-    }, [user?.ID]);
-
-    useEffect(() => {
-        if (activeMathId) {
-            AsyncStorage.setItem('active_math_id', activeMathId).catch(() => undefined);
-        } else {
-            AsyncStorage.removeItem('active_math_id').catch(() => undefined);
-        }
-    }, [activeMathId]);
-
-    const loadUser = async () => {
-        try {
-            const savedUser = await AsyncStorage.getItem('user');
-            const savedToken = await getAccessToken();
-            const savedActiveMath = await AsyncStorage.getItem('active_math_id');
-
-            if (savedUser && savedUser !== 'undefined' && savedUser !== 'null' &&
-                savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
-                try {
-                    const parsedUser = JSON.parse(savedUser);
-                    setUser(parsedUser);
-                } catch (parseError) {
-                    console.warn('[UserContext] Failed to parse saved user, clearing storage');
-                    await logout();
-                }
-            } else {
-                setUser(null);
-            }
-            if (savedActiveMath && savedActiveMath !== 'undefined' && savedActiveMath !== 'null') {
-                setActiveMathId(savedActiveMath);
-            }
-        } catch (e) {
-            console.warn('[UserContext] Failed to load user from storage');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const login = async (profile: UserProfile, authPayload?: any) => {
-        if (typeof authPayload === 'string' && authPayload.trim()) {
-            await saveAuthTokens({ accessToken: authPayload, token: authPayload });
-        } else if (authPayload && typeof authPayload === 'object') {
-            await saveAuthTokens(authPayload);
-        }
-        await AsyncStorage.setItem('user', JSON.stringify(profile));
-        setUser(profile);
-    };
-
-    const clearLocalSession = async () => {
+    const clearLocalSession = useCallback(async () => {
         setUser(null);
         setRoleDescriptor(null);
         setGodModeFilters([]);
         setActiveMathId(null);
         await clearAuthTokens();
         await AsyncStorage.multiRemove(['user', 'pushToken']);
-    };
+    }, []);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         try {
             const rawPushToken = await AsyncStorage.getItem('pushToken');
             const pushToken = rawPushToken && rawPushToken !== 'undefined' && rawPushToken !== 'null'
@@ -187,24 +93,126 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
         await clearLocalSession();
         console.log('[UserContext] Session cleared (Logged out)');
-    };
+    }, [clearLocalSession]);
 
-    const deleteAccount = async () => {
+    const loadUser = useCallback(async () => {
+        try {
+            const savedUser = await AsyncStorage.getItem('user');
+            const savedToken = await getAccessToken();
+            const savedActiveMath = await AsyncStorage.getItem('active_math_id');
+
+            if (savedUser && savedUser !== 'undefined' && savedUser !== 'null' &&
+                savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
+                try {
+                    const parsedUser = JSON.parse(savedUser);
+                    setUser(parsedUser);
+                } catch (parseError) {
+                    console.warn('[UserContext] Failed to parse saved user, clearing storage');
+                    await clearLocalSession();
+                }
+            } else {
+                setUser(null);
+            }
+            if (savedActiveMath && savedActiveMath !== 'undefined' && savedActiveMath !== 'null') {
+                setActiveMathId(savedActiveMath);
+            }
+        } catch (e) {
+            console.warn('[UserContext] Failed to load user from storage');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [clearLocalSession]);
+
+    useEffect(() => {
+        void loadUser();
+    }, [loadUser]);
+
+    useEffect(() => {
+        let heartbeatInterval: NodeJS.Timeout;
+        if (user?.ID) {
+            const runHeartbeat = async () => {
+                try {
+                    await contactService.sendHeartbeat(user.ID!);
+                } catch (error: any) {
+                    if (error.message === 'UNAUTHORIZED' || error.status === 401) {
+                        const refreshed = await refreshAuthTokens();
+                        if (refreshed?.accessToken) {
+                            console.log('[UserContext] Heartbeat recovered via refresh');
+                            return;
+                        }
+
+                        console.error('[UserContext] Heartbeat auth refresh failed, logging out');
+                        await logout();
+                    }
+                }
+            };
+
+            // Initial heartbeat
+            void runHeartbeat();
+
+            // Register push token
+            AsyncStorage.getItem('pushToken').then(async token => {
+                if (token && token !== 'undefined' && token !== 'null') {
+                    try {
+                        const deviceId = await DeviceInfo.getUniqueId();
+                        const appVersion = DeviceInfo.getVersion();
+                        await contactService.registerPushToken({
+                            token,
+                            provider: 'fcm',
+                            platform: Platform.OS,
+                            deviceId,
+                            appVersion,
+                        });
+                    } catch (error) {
+                        console.error('[UserContext] Failed to register push token:', error);
+                    }
+                }
+            });
+
+            // Set up interval (every 3 minutes)
+            heartbeatInterval = setInterval(() => {
+                void runHeartbeat();
+            }, 3 * 60 * 1000);
+        }
+        return () => {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+        };
+    }, [user?.ID, logout]);
+
+    useEffect(() => {
+        if (activeMathId) {
+            AsyncStorage.setItem('active_math_id', activeMathId).catch(() => undefined);
+        } else {
+            AsyncStorage.removeItem('active_math_id').catch(() => undefined);
+        }
+    }, [activeMathId]);
+
+    const login = useCallback(async (profile: UserProfile, authPayload?: any) => {
+        if (typeof authPayload === 'string' && authPayload.trim()) {
+            await saveAuthTokens({ accessToken: authPayload, token: authPayload });
+        } else if (authPayload && typeof authPayload === 'object') {
+            await saveAuthTokens(authPayload);
+        }
+        await AsyncStorage.setItem('user', JSON.stringify(profile));
+        setUser(profile);
+    }, []);
+
+    const deleteAccount = useCallback(async () => {
         await accountService.deleteAccountNow();
         await clearLocalSession();
         console.log('[UserContext] Session cleared (Account deleted)');
-    };
+    }, [clearLocalSession]);
 
-    const setTourCompleted = async () => {
+    const setTourCompleted = useCallback(async () => {
         if (user) {
             const updatedUser = { ...user, isTourCompleted: true };
             setUser(updatedUser);
             await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
         }
-    };
+    }, [user]);
 
-    return (
-        <UserContext.Provider value={{
+    const contextValue = useMemo(
+        () => ({
             user,
             isLoggedIn: !!user,
             isLoading,
@@ -217,8 +225,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setTourCompleted,
             setRoleDescriptor,
             setGodModeFilters,
-            setActiveMath: setActiveMathId
-        }}>
+            setActiveMath: setActiveMathId,
+        }),
+        [
+            user,
+            isLoading,
+            roleDescriptor,
+            godModeFilters,
+            activeMathId,
+            login,
+            logout,
+            deleteAccount,
+            setTourCompleted,
+        ],
+    );
+
+    return (
+        <UserContext.Provider value={contextValue}>
             {children}
         </UserContext.Provider>
     );

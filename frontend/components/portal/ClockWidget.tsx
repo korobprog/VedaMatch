@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 
 interface ClockWidgetProps {
     size?: '1x1' | '2x1' | '2x2';
@@ -27,13 +28,14 @@ const WIDGET_SIZES = {
 };
 
 export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
-    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
     const [time, setTime] = useState(new Date());
     const colonOpacity = useSharedValue(1);
 
     const sizeConfig = WIDGET_SIZES[size];
     const isPhotoBg = portalBackgroundType === 'image';
     const isVedaMatch = portalIconStyle === 'vedamatch';
+    const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
 
     // Update time every second
     useEffect(() => {
@@ -117,11 +119,11 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({ size = '2x1' }) => {
             ]}
         >
 
-            {(isPhotoBg || isDarkMode) && !isVedaMatch && (
+            {(isPhotoBg || isDarkMode) && !isVedaMatch && androidVisualPolicy.enableBlur && (
                 <BlurView
                     style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
                     blurType={isDarkMode ? "dark" : "light"}
-                    blurAmount={10}
+                    blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 10)}
                     reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
                 />
             )}

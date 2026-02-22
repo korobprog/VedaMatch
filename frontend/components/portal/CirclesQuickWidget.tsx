@@ -4,12 +4,14 @@ import { useNavigation } from '@react-navigation/native';
 import { Camera, Film } from 'lucide-react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 
 export const CirclesQuickWidget: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
+  const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
   const isPhotoBg = portalBackgroundType === 'image';
   const isVedaMatch = portalIconStyle === 'vedamatch';
+  const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
 
   const primaryTextStyle = { color: isVedaMatch ? '#FFDF00' : isPhotoBg ? '#ffffff' : vTheme.colors.text };
   const secondaryTextStyle = { color: isVedaMatch ? '#D4AF37' : isPhotoBg ? 'rgba(255,255,255,0.7)' : vTheme.colors.textSecondary };
@@ -44,11 +46,11 @@ export const CirclesQuickWidget: React.FC = () => {
       onLongPress={() => navigation.navigate('VideoCirclesScreen', { openPublish: true })}
     >
 
-      {(isPhotoBg || isDarkMode) && !isVedaMatch && (
+      {(isPhotoBg || isDarkMode) && !isVedaMatch && androidVisualPolicy.enableBlur && (
         <BlurView
           style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
           blurType={isDarkMode ? "dark" : "light"}
-          blurAmount={10}
+          blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 10)}
           reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
         />
       )}
@@ -117,4 +119,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

@@ -12,15 +12,17 @@ import { Film, ChevronLeft, ChevronRight, Camera } from 'lucide-react-native';
 import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../context/SettingsContext';
 import { VideoCircle, videoCirclesService } from '../../services/videoCirclesService';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 
 export const CirclesPanelWidget: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle } = useSettings();
+  const { vTheme, isDarkMode, portalBackgroundType, portalIconStyle, performanceMode, runtimePerformanceState } = useSettings();
   const [circles, setCircles] = useState<VideoCircle[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'friends'>('all');
   const isPhotoBg = portalBackgroundType === 'image';
   const isVedaMatch = portalIconStyle === 'vedamatch';
+  const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
 
   useEffect(() => {
     let mounted = true;
@@ -79,11 +81,11 @@ export const CirclesPanelWidget: React.FC = () => {
       ]}
     >
 
-      {(isPhotoBg || isDarkMode) && !isVedaMatch && (
+      {(isPhotoBg || isDarkMode) && !isVedaMatch && androidVisualPolicy.enableBlur && (
         <BlurView
           style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
           blurType={isDarkMode ? "dark" : "light"}
-          blurAmount={10}
+          blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 10)}
           reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
         />
       )}
@@ -239,4 +241,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   }
 });
-

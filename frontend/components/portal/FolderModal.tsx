@@ -24,6 +24,7 @@ import { X, Check, Palette } from 'lucide-react-native';
 import { PortalFolder, PortalItem, DEFAULT_SERVICES, FOLDER_COLORS } from '../../types/portal';
 import { PortalIcon } from './PortalIcon';
 import { useSettings } from '../../context/SettingsContext';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 
 interface FolderModalProps {
     visible: boolean;
@@ -44,10 +45,11 @@ export const FolderModal: React.FC<FolderModalProps> = ({
     onItemPress,
     onRemoveItem,
 }) => {
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(folder.name);
     const isPhotoBg = portalBackgroundType === 'image';
+    const androidVisualPolicy = getAndroidVisualPolicy(performanceMode, runtimePerformanceState);
     const [showColorPicker, setShowColorPicker] = useState(false);
 
     const scale = useSharedValue(0.8);
@@ -119,11 +121,11 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                             ]}
                             onPress={(e) => e.stopPropagation()}
                         >
-                            {(isPhotoBg || isDarkMode) && (
+                            {(isPhotoBg || isDarkMode) && androidVisualPolicy.enableBlur && (
                                 <BlurView
                                     style={[RNStyleSheet.absoluteFill, { borderRadius: 32 }]}
                                     blurType={isDarkMode ? "dark" : "light"}
-                                    blurAmount={15}
+                                    blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 15)}
                                     reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
                                 />
                             )}
@@ -166,11 +168,13 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                             </View>
 
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                                <BlurView
-                                    style={RNStyleSheet.absoluteFill}
-                                    blurType={isDarkMode ? "light" : "dark"}
-                                    blurAmount={10}
-                                />
+                                {androidVisualPolicy.enableBlur && (
+                                    <BlurView
+                                        style={RNStyleSheet.absoluteFill}
+                                        blurType={isDarkMode ? "light" : "dark"}
+                                        blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 10)}
+                                    />
+                                )}
                                 <X size={18} color="#ffffff" />
                             </TouchableOpacity>
 

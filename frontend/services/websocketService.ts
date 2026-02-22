@@ -13,6 +13,9 @@ export class WebSocketService {
     private isDisposed = false;
     private isAuthRecoveryInProgress = false;
     private authRecoveryTriggered = false;
+    private connectInFlightPromise: Promise<void> | null = null;
+    private lastAuthRecoverAt = 0;
+    private reconnectEvents: number[] = [];
 
     private onAuthError?: AuthRecoverHandler;
 
@@ -43,6 +46,19 @@ export class WebSocketService {
     }
 
     async connect() {
+        if (this.connectInFlightPromise) {
+            return this.connectInFlightPromise;
+        }
+
+        this.connectInFlightPromise = this.connectInternal();
+        try {
+            await this.connectInFlightPromise;
+        } finally {
+            this.connectInFlightPromise = null;
+        }
+    }
+
+    private async connectInternal() {
         if (this.isDisposed || this.isAuthRecoveryInProgress) {
             return;
         }
@@ -61,6 +77,7 @@ export class WebSocketService {
         }
 
         const url = `${WS_PATH}/ws/${this.userId}?token=${token}`;
+        console.log(`[ws_connect_attempt] user_id=${this.userId} attempt=${this.reconnectAttempts + 1}`);
         console.log('[WebSocket] Connecting to bridge...');
 
         this.socket = new WebSocket(url);
@@ -135,7 +152,17 @@ export class WebSocketService {
             const cappedAttempt = Math.min(this.reconnectAttempts, 6);
             const backoffMs = Math.min(Math.pow(2, cappedAttempt) * 1000, 30000);
             const jitterMs = Math.floor(Math.random() * 700);
-            const timeout = backoffMs + jitterMs;
+            const recoverCooldownMs = 1500;
+            const sinceAuthRecover = Date.now() - this.lastAuthRecoverAt;
+            const timeoutFloor = sinceAuthRecover < recoverCooldownMs ? (recoverCooldownMs - sinceAuthRecover) : 0;
+            const timeout = Math.max(backoffMs + jitterMs, timeoutFloor);
+            console.log(`[ws_reconnect_backoff_ms] value=${timeout} attempt=${this.reconnectAttempts}`);
+            this.reconnectEvents.push(Date.now());
+            const windowStart = Date.now() - 30000;
+            this.reconnectEvents = this.reconnectEvents.filter((ts) => ts >= windowStart);
+            if (this.reconnectEvents.length >= 6) {
+                console.warn(`[ws_reconnect_storm_detected] user_id=${this.userId} count=${this.reconnectEvents.length}`);
+            }
             console.log(`[WebSocket] Reconnecting in ${timeout}ms...`);
             this.reconnectTimer = setTimeout(() => {
                 this.reconnectTimer = null;
@@ -168,6 +195,8 @@ export class WebSocketService {
 
             const recovered = await this.onAuthError();
             if (recovered && !this.isDisposed) {
+                this.lastAuthRecoverAt = Date.now();
+                console.log(`[ws_auth_recover] source=${source} user_id=${this.userId}`);
                 console.log(`[WebSocket] Auth recovered (${source}), reconnecting...`);
                 this.reconnectAttempts = 0;
                 this.authRecoveryTriggered = false;

@@ -15,9 +15,25 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const { user, logout } = useUser();
     const wsServiceRef = useRef<WebSocketService | null>(null);
     const listenersRef = useRef<Set<(msg: any) => void>>(new Set());
+    const logoutRef = useRef(logout);
+    const isInitializingRef = useRef(false);
+
+    useEffect(() => {
+        logoutRef.current = logout;
+    }, [logout]);
 
     useEffect(() => {
         if (user?.ID) {
+            if (isInitializingRef.current) {
+                return;
+            }
+            isInitializingRef.current = true;
+
+            if (wsServiceRef.current) {
+                wsServiceRef.current.disconnect();
+                wsServiceRef.current = null;
+            }
+
             wsServiceRef.current = new WebSocketService(
                 user.ID,
                 (msg) => {
@@ -34,21 +50,26 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                     }
 
                     console.error('[WebSocketContext] Auth refresh failed, logging out...');
-                    await logout();
+                    await logoutRef.current();
                     return false;
                 }
             );
             void wsServiceRef.current.connect();
             webRTCService.setWebSocketService(wsServiceRef.current);
+            isInitializingRef.current = false;
+        } else if (wsServiceRef.current) {
+            wsServiceRef.current.disconnect();
+            wsServiceRef.current = null;
         }
 
         return () => {
+            isInitializingRef.current = false;
             if (wsServiceRef.current) {
                 wsServiceRef.current.disconnect();
                 wsServiceRef.current = null;
             }
         };
-    }, [user?.ID, logout]);
+    }, [user?.ID]);
 
     const addListener = useCallback((listener: (msg: any) => void) => {
         listenersRef.current.add(listener);

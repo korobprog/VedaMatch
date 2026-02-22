@@ -28,6 +28,7 @@ import Animated, {
 import LinearGradient from 'react-native-linear-gradient';
 import { Plus, FolderPlus, LayoutGrid } from 'lucide-react-native';
 import { useSettings } from '../../context/SettingsContext';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 import { usePortalLayout } from '../../context/PortalLayoutContext';
 import { DEFAULT_SERVICES, PortalItem, PortalFolder as PortalFolderType, FOLDER_COLORS } from '../../types/portal';
 import { RootStackParamList } from '../../types/navigation';
@@ -136,7 +137,11 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
     serviceBadges = {},
 }) => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const { vTheme, isDarkMode, portalBackgroundType } = useSettings();
+    const { vTheme, isDarkMode, portalBackgroundType, performanceMode, runtimePerformanceState } = useSettings();
+    const androidVisualPolicy = useMemo(
+        () => getAndroidVisualPolicy(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
     const {
         layout,
         isEditMode,
@@ -653,11 +658,11 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                 ]}
             >
                 {/* BlurView как в CalendarWidget - показываем на фото или в dark mode */}
-                {(isPhotoBg || isDarkMode) && (
+                {(isPhotoBg || isDarkMode) && androidVisualPolicy.enableBlur && (
                     <BlurView
                         style={[StyleSheet.absoluteFill, { borderRadius: 32 }]}
                         blurType={isDarkMode ? "dark" : "light"}
-                        blurAmount={Platform.OS === 'android' ? 20 : 10}
+                        blurAmount={getBlurAmountForPolicy(androidVisualPolicy, Platform.OS === 'android' ? 20 : 10)}
                         reducedTransparencyFallbackColor={isDarkMode ? "rgba(30,30,30,0.8)" : "rgba(0,0,0,0.5)"}
                         pointerEvents="none"
                     />
@@ -755,12 +760,14 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
                             borderColor: 'transparent',
                         }
                     ]}>
+                        {androidVisualPolicy.enableBlur && (
                         <BlurView
                             style={Platform.OS === 'ios' ? { ...StyleSheet.absoluteFillObject, borderRadius: 32 } : { position: 'absolute', top: 0, left: 0, bottom: 0, right: 0, borderRadius: 32 }}
                             blurType={isDarkMode ? "dark" : "light"}
-                            blurAmount={20}
+                            blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 20)}
                             reducedTransparencyFallbackColor={isDarkMode ? "#1E1E1E" : "#FFFFFF"}
                         />
+                        )}
                         <TextInput
                             style={[styles.newFolderInput, { color: vTheme.colors.text }]}
                             placeholder="Название папки..."
@@ -797,13 +804,15 @@ export const PortalGrid: React.FC<PortalGridProps> = ({
 
             {/* Floating Dock Area */}
             <View style={styles.quickAccessDock}>
-                <BlurView
-                    style={styles.dockBlur}
-                    blurType={isDarkMode ? "dark" : "light"}
-                    blurAmount={12}
-                    reducedTransparencyFallbackColor="transparent"
-                    pointerEvents="none"
-                />
+                {androidVisualPolicy.enableBlur && (
+                    <BlurView
+                        style={styles.dockBlur}
+                        blurType={isDarkMode ? "dark" : "light"}
+                        blurAmount={getBlurAmountForPolicy(androidVisualPolicy, 12)}
+                        reducedTransparencyFallbackColor="transparent"
+                        pointerEvents="none"
+                    />
+                )}
                 <View
                     pointerEvents="none"
                     style={[

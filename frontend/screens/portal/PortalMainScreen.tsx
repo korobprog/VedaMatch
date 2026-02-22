@@ -52,6 +52,7 @@ import { RoleInfoModal } from '../../components/roles/RoleInfoModal';
 import { GodModeFiltersPanel } from '../../components/portal/god-mode/GodModeFiltersPanel';
 import { RootStackParamList } from '../../types/navigation';
 import { supportService } from '../../services/supportService';
+import { getAndroidVisualPolicy, getBlurAmountForPolicy } from '../../utils/androidVisualPolicy';
 
 // Assistant avatar images
 import peacockAssistant from '../../assets/peacockAssistant.png';
@@ -83,18 +84,31 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         wallpaperSlides,
         setPortalBackground,
         portalIconStyle,
+        performanceMode,
+        runtimePerformanceState,
+        reportRuntimeStress,
     } = useSettings();
     const { handleNewChat } = useChat();
+    const androidVisualPolicy = useMemo(
+        () => getAndroidVisualPolicy(performanceMode, runtimePerformanceState),
+        [performanceMode, runtimePerformanceState],
+    );
+    const headerBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 12);
+    const roleBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 8);
+    const backButtonBlurAmount = getBlurAmountForPolicy(androidVisualPolicy, 10);
 
     // Animations for assistant button
     const shimmerAnim = useRef(new Animated.Value(-60)).current;
 
     useEffect(() => {
-        // Shimmer loop
+        if (!androidVisualPolicy.allowShimmer) {
+            shimmerAnim.setValue(-60);
+            return;
+        }
         const loop = Animated.loop(
             Animated.timing(shimmerAnim, {
                 toValue: 60,
-                duration: 2500,
+                duration: 3200,
                 useNativeDriver: true,
             })
         );
@@ -103,7 +117,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             loop.stop();
             shimmerAnim.stopAnimation();
         };
-    }, [shimmerAnim]);
+    }, [shimmerAnim, androidVisualPolicy.allowShimmer]);
 
     const assistantImage = assistantType === 'feather2' ? nanoBanano : (assistantType === 'feather' ? peacockAssistant : krishnaAssistant);
     const initialTab = route.params?.initialTab;
@@ -152,6 +166,10 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
     const giftAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
+        if (!androidVisualPolicy.allowGiftPulse) {
+            giftAnim.setValue(1);
+            return;
+        }
         const startGiftPulse = () => {
             Animated.sequence([
                 Animated.timing(giftAnim, {
@@ -170,10 +188,40 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
 
         startGiftPulse();
         return () => giftAnim.stopAnimation();
-    }, [giftAnim]);
+    }, [giftAnim, androidVisualPolicy.allowGiftPulse]);
+
+    useEffect(() => {
+        if (Platform.OS !== 'android' || performanceMode !== 'adaptive') return;
+        let lastTick = Date.now();
+        let lagBursts = 0;
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const drift = now - lastTick - 1000;
+            lastTick = now;
+            if (drift > 350) {
+                lagBursts += 1;
+            } else {
+                lagBursts = Math.max(0, lagBursts - 1);
+            }
+            if (lagBursts >= 3) {
+                reportRuntimeStress('render');
+                lagBursts = 0;
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [performanceMode, reportRuntimeStress]);
 
     useEffect(() => {
         if (!isSlideshowEnabled || effectiveBg === displayedBg || isTransitioning.current) return;
+
+        if (!androidVisualPolicy.allowCrossfade) {
+            console.warn('[portal_animation_dropped] reason=policy_crossfade_disabled');
+            setDisplayedBg(effectiveBg);
+            setNextBg(null);
+            fadeAnim.setValue(1);
+            isTransitioning.current = false;
+            return;
+        }
 
         // Preload image before starting transition
         const startTransition = () => {
@@ -182,7 +230,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
             fadeAnim.setValue(0);
             Animated.timing(fadeAnim, {
                 toValue: 1,
-                duration: 1000,
+                duration: androidVisualPolicy.crossfadeDurationMs,
                 useNativeDriver: true,
             }).start(() => {
                 // First update displayed bg (bottom layer now shows new image)
@@ -203,7 +251,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
         } else {
             startTransition();
         }
-    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim]);
+    }, [effectiveBg, isSlideshowEnabled, displayedBg, fadeAnim, androidVisualPolicy.allowCrossfade, androidVisualPolicy.crossfadeDurationMs]);
 
     // When slideshow disabled, update immediately without animation
     useEffect(() => {
@@ -279,6 +327,7 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 resizeMode="cover"
                                 fadeDuration={0}
                                 onError={() => {
+                                    console.warn('[portal_animation_dropped] reason=next_bg_load_error');
                                     handleWallpaperLoadError(nextBg);
                                     setNextBg(null);
                                     fadeAnim.setValue(1);
@@ -462,11 +511,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     },
                                 ]}
                             >
-                                {portalIconStyle !== 'vedamatch' && (
+                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
                                     <BlurView
                                         style={StyleSheet.absoluteFill}
                                         blurType="light"
-                                        blurAmount={12}
+                                        blurAmount={headerBlurAmount}
                                         reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                     />
                                 )}
@@ -485,11 +534,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     },
                                 ]}
                             >
-                                {portalIconStyle !== 'vedamatch' && (
+                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
                                     <BlurView
                                         style={StyleSheet.absoluteFill}
                                         blurType="light"
-                                        blurAmount={12}
+                                        blurAmount={headerBlurAmount}
                                         reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                     />
                                 )}
@@ -520,20 +569,22 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     style={StyleSheet.absoluteFill}
                                 />
 
-                                <Animated.View style={[
-                                    styles.assistantShimmer,
-                                    {
-                                        width: 100,
-                                        transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
-                                    }
-                                ]}>
-                                    <LinearGradient
-                                        colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={StyleSheet.absoluteFill}
-                                    />
-                                </Animated.View>
+                                {androidVisualPolicy.allowShimmer && (
+                                    <Animated.View style={[
+                                        styles.assistantShimmer,
+                                        {
+                                            width: 100,
+                                            transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
+                                        }
+                                    ]}>
+                                        <LinearGradient
+                                            colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={StyleSheet.absoluteFill}
+                                        />
+                                    </Animated.View>
+                                )}
 
                                 <Image
                                     source={assistantImage}
@@ -557,11 +608,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 },
                             ]}
                         >
-                            {portalIconStyle !== 'vedamatch' && (
+                            {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
                                 <BlurView
                                     style={StyleSheet.absoluteFill}
                                     blurType="light"
-                                    blurAmount={12}
+                                    blurAmount={headerBlurAmount}
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
                             )}
@@ -577,11 +628,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 },
                             ]}
                         >
-                            {portalIconStyle !== 'vedamatch' && (
+                            {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
                                 <BlurView
                                     style={StyleSheet.absoluteFill}
                                     blurType="light"
-                                    blurAmount={12}
+                                    blurAmount={headerBlurAmount}
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
                             )}
@@ -596,11 +647,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                 },
                             ]}
                         >
-                            {portalIconStyle !== 'vedamatch' && (
+                            {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
                                 <BlurView
                                     style={StyleSheet.absoluteFill}
                                     blurType="light"
-                                    blurAmount={12}
+                                    blurAmount={headerBlurAmount}
                                     reducedTransparencyFallbackColor="rgba(255,255,255,0.5)"
                                 />
                             )}
@@ -621,11 +672,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     }
                                 ]}
                             >
-                                {portalIconStyle !== 'vedamatch' && (
+                                {portalIconStyle !== 'vedamatch' && androidVisualPolicy.enableBlur && (
                                     <BlurView
                                         style={StyleSheet.absoluteFill}
                                         blurType="light"
-                                        blurAmount={8}
+                                        blurAmount={roleBlurAmount}
                                     />
                                 )}
                                 {portalIconStyle !== 'vedamatch' && (
@@ -740,11 +791,11 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                         alignItems: 'center',
                                     }}
                                 >
-                                    {effectiveBgType === 'image' && (
+                                    {effectiveBgType === 'image' && androidVisualPolicy.enableBlur && (
                                         <BlurView
                                             style={StyleSheet.absoluteFill}
                                             blurType={isDarkMode ? "dark" : "light"}
-                                            blurAmount={10}
+                                            blurAmount={backButtonBlurAmount}
                                             reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
                                         />
                                     )}
@@ -795,20 +846,22 @@ const PortalContent: React.FC<PortalMainProps> = ({ navigation, route }) => {
                                     style={StyleSheet.absoluteFill}
                                 />
 
-                                <Animated.View style={[
-                                    styles.assistantShimmer,
-                                    {
-                                        width: 100,
-                                        transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
-                                    }
-                                ]}>
-                                    <LinearGradient
-                                        colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={StyleSheet.absoluteFill}
-                                    />
-                                </Animated.View>
+                                {androidVisualPolicy.allowShimmer && (
+                                    <Animated.View style={[
+                                        styles.assistantShimmer,
+                                        {
+                                            width: 100,
+                                            transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [-60, 60], outputRange: [-100, 100] }) }]
+                                        }
+                                    ]}>
+                                        <LinearGradient
+                                            colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={StyleSheet.absoluteFill}
+                                        />
+                                    </Animated.View>
+                                )}
 
                                 <Image
                                     source={assistantImage}

@@ -1,14 +1,16 @@
-import React, { createContext, useState, useContext, useEffect, useRef, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback, ReactNode, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { modelsConfig } from '../config/models.config';
 import { useUser } from './UserContext';
-import { Alert, useColorScheme, Image, AppState } from 'react-native';
+import { useColorScheme, Image, AppState, Platform } from 'react-native';
 import { COLORS } from '../components/chat/ChatConstants';
 import { VedicLightTheme, VedicDarkTheme } from '../theme/ModernVedicTheme';
 import { getPresetUris, DEFAULT_SLIDESHOW_INTERVAL } from '../config/wallpaperPresets';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type PortalIconStyle = 'vedamatch' | 'premium3d' | 'solid' | 'minimal';
+export type PerformanceMode = 'adaptive' | 'high_quality' | 'battery_saver';
+export type PerformanceDegradeReason = 'render' | 'ws_storm' | 'battery';
 
 interface Model {
     id: string;
@@ -37,9 +39,9 @@ interface SettingsContextType {
     vTheme: typeof VedicLightTheme;
     isDarkMode: boolean;
     themeMode: ThemeMode;
-    setThemeMode: (mode: ThemeMode) => void;
+    setThemeMode: (mode: ThemeMode) => Promise<void>;
     isAutoMagicEnabled: boolean;
-    toggleAutoMagic: () => void;
+    toggleAutoMagic: () => Promise<void>;
     isMenuOpen: boolean;
     setIsMenuOpen: (isOpen: boolean) => void;
     portalBackground: string;
@@ -58,9 +60,15 @@ interface SettingsContextType {
     activeWallpaper: string;
     portalIconStyle: PortalIconStyle;
     setPortalIconStyle: (style: PortalIconStyle) => Promise<void>;
+    performanceMode: PerformanceMode;
+    setPerformanceMode: (mode: PerformanceMode) => Promise<void>;
+    runtimePerformanceState: { isAutoDegraded: boolean; reason?: PerformanceDegradeReason };
+    reportRuntimeStress: (reason: PerformanceDegradeReason) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+const PERFORMANCE_MODE_STORAGE_KEY = 'performance_mode_v1';
+const ANDROID_AUTO_DEGRADE_KEY = 'android_auto_degrade_v1';
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [models, setModels] = useState<Model[]>([]);
@@ -80,6 +88,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [portalBackgroundType, setPortalBackgroundType] = useState<'color' | 'gradient' | 'image'>('image');
     const [assistantType, setAssistantTypeState] = useState<'feather' | 'smiley' | 'feather2'>('feather2');
     const [portalIconStyle, setPortalIconStyleState] = useState<PortalIconStyle>('vedamatch');
+    const [performanceMode, setPerformanceModeState] = useState<PerformanceMode>(
+        Platform.OS === 'android' ? 'adaptive' : 'high_quality',
+    );
+    const [runtimePerformanceState, setRuntimePerformanceState] = useState<{ isAutoDegraded: boolean; reason?: PerformanceDegradeReason }>({
+        isAutoDegraded: false,
+    });
 
     // Wallpaper slideshow state
     const [wallpaperSlides, setWallpaperSlides] = useState<string[]>(getPresetUris());
@@ -87,6 +101,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const [slideshowInterval, setSlideshowIntervalState] = useState<number>(DEFAULT_SLIDESHOW_INTERVAL);
     const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
     const slideshowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const runtimePerformanceRef = useRef(runtimePerformanceState);
 
     const colorScheme = useColorScheme();
 
@@ -102,7 +117,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 
-    const fetchModels = async (force: boolean = false) => {
+    const fetchModels = useCallback(async (force: boolean = false) => {
         const now = Date.now();
         // Cache check: if we have models and not forcing update, check if cache is valid (10 min)
         if (models.length > 0 && !force && (now - lastFetchTime < CACHE_DURATION)) {
@@ -146,15 +161,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             setLoadingModels(false);
         }
-    };
+    }, [models.length, lastFetchTime, isLoggedIn]);
 
-    const selectModel = (modelId: string, provider: string) => {
+    const selectModel = useCallback((modelId: string, provider: string) => {
         setCurrentModel(modelId);
         setCurrentProvider(provider);
         console.log(`Model switched to: ${modelId} (${provider})`);
-    };
+    }, []);
 
-    const toggleAutoMagic = async () => {
+    const toggleAutoMagic = useCallback(async () => {
         const newValue = !isAutoMagicEnabled;
         setIsAutoMagicEnabled(newValue);
         try {
@@ -162,7 +177,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         } catch (e) {
             console.error('Failed to save auto magic settings', e);
         }
-    };
+    }, [isAutoMagicEnabled]);
 
     // Initial fetch on mount? 
     // Maybe better to lazy load when drawer opens, but user asked for "cached list".
@@ -215,6 +230,20 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                     setPortalIconStyleState('vedamatch');
                 }
 
+                const savedPerformanceMode = await AsyncStorage.getItem(PERFORMANCE_MODE_STORAGE_KEY);
+                if (savedPerformanceMode === 'adaptive' || savedPerformanceMode === 'high_quality' || savedPerformanceMode === 'battery_saver') {
+                    setPerformanceModeState(savedPerformanceMode as PerformanceMode);
+                } else if (Platform.OS === 'android') {
+                    setPerformanceModeState('adaptive');
+                } else {
+                    setPerformanceModeState('high_quality');
+                }
+
+                const savedAutoDegrade = await AsyncStorage.getItem(ANDROID_AUTO_DEGRADE_KEY);
+                if (savedAutoDegrade === 'true') {
+                    setRuntimePerformanceState({ isAutoDegraded: true, reason: 'render' });
+                }
+
                 // Wallpaper slideshow settings
                 const savedSlides = await AsyncStorage.getItem('wallpaper_slides');
                 if (savedSlides) {
@@ -253,20 +282,20 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         if (isLoggedIn) {
-            fetchModels();
+            void fetchModels();
         }
-    }, [isLoggedIn]);
+    }, [isLoggedIn, fetchModels]);
 
-    const setThemeMode = async (mode: ThemeMode) => {
+    const setThemeMode = useCallback(async (mode: ThemeMode) => {
         setThemeModeState(mode);
         try {
             await AsyncStorage.setItem('theme_mode', mode);
         } catch (e) {
             console.error('Failed to save theme setting', e);
         }
-    };
+    }, []);
 
-    const setPortalBackground = async (bg: string, type: 'color' | 'gradient' | 'image') => {
+    const setPortalBackground = useCallback(async (bg: string, type: 'color' | 'gradient' | 'image') => {
         setPortalBackgroundState(bg);
         setPortalBackgroundType(type);
         try {
@@ -275,25 +304,47 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         } catch (e) {
             console.error('Failed to save portal background', e);
         }
-    };
+    }, []);
 
-    const setAssistantType = async (type: 'feather' | 'smiley' | 'feather2') => {
+    const setAssistantType = useCallback(async (type: 'feather' | 'smiley' | 'feather2') => {
         setAssistantTypeState(type);
         try {
             await AsyncStorage.setItem('assistant_type', type);
         } catch (e) {
             console.error('Failed to save assistant type', e);
         }
-    };
+    }, []);
 
-    const setPortalIconStyle = async (style: PortalIconStyle) => {
+    const setPortalIconStyle = useCallback(async (style: PortalIconStyle) => {
         setPortalIconStyleState(style);
         try {
             await AsyncStorage.setItem('portal_icon_style', style);
         } catch (e) {
             console.error('Failed to save portal icon style', e);
         }
-    };
+    }, []);
+
+    const setPerformanceMode = useCallback(async (mode: PerformanceMode) => {
+        setPerformanceModeState(mode);
+        try {
+            await AsyncStorage.setItem(PERFORMANCE_MODE_STORAGE_KEY, mode);
+        } catch (e) {
+            console.error('Failed to save performance mode', e);
+        }
+    }, []);
+
+    const reportRuntimeStress = useCallback((reason: PerformanceDegradeReason) => {
+        if (Platform.OS !== 'android' || performanceMode !== 'adaptive') {
+            return;
+        }
+
+        setRuntimePerformanceState((prev) => {
+            if (prev.isAutoDegraded) return prev;
+            console.warn(`[adaptive_degrade_on] reason=${reason}`);
+            AsyncStorage.setItem(ANDROID_AUTO_DEGRADE_KEY, 'true').catch(() => undefined);
+            return { isAutoDegraded: true, reason };
+        });
+    }, [performanceMode]);
 
     // Wallpaper slideshow functions
     const setIsSlideshowEnabled = useCallback(async (enabled: boolean) => {
@@ -358,12 +409,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         if (!isSlideshowEnabled || wallpaperSlides.length < 2) return;
 
         slideshowTimerRef.current = setInterval(() => {
-            setCurrentSlideIndex(prev => {
-                const nextIdx = (prev + 1) % wallpaperSlides.length;
-                setPortalBackgroundState(wallpaperSlides[nextIdx]);
-                setPortalBackgroundType('image');
-                return nextIdx;
-            });
+            setCurrentSlideIndex(prev => (prev + 1) % wallpaperSlides.length);
         }, slideshowInterval * 1000);
 
         return () => {
@@ -385,6 +431,59 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         return () => sub.remove();
     }, []);
 
+    useEffect(() => {
+        runtimePerformanceRef.current = runtimePerformanceState;
+    }, [runtimePerformanceState]);
+
+    // Adaptive Android degrade/recovery by JS lag heuristics.
+    useEffect(() => {
+        if (Platform.OS !== 'android' || performanceMode !== 'adaptive') {
+            if (runtimePerformanceRef.current.isAutoDegraded) {
+                setRuntimePerformanceState({ isAutoDegraded: false });
+                AsyncStorage.setItem(ANDROID_AUTO_DEGRADE_KEY, 'false').catch(() => undefined);
+                console.log('[adaptive_degrade_off] reason=mode_change');
+            }
+            return;
+        }
+
+        let lastTick = Date.now();
+        let lagBurstCount = 0;
+        let stableSeconds = 0;
+        const lagThresholdMs = 350;
+        const degradeBurstThreshold = 3;
+        const recoverWindowSeconds = 90;
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const drift = now - lastTick - 1000;
+            lastTick = now;
+
+            if (drift > lagThresholdMs) {
+                lagBurstCount += 1;
+                stableSeconds = 0;
+            } else {
+                lagBurstCount = Math.max(0, lagBurstCount - 1);
+                if (runtimePerformanceRef.current.isAutoDegraded) {
+                    stableSeconds += 1;
+                }
+            }
+
+            if (!runtimePerformanceRef.current.isAutoDegraded && lagBurstCount >= degradeBurstThreshold) {
+                console.warn(`[render_heavy_mode_entered] drift_ms=${Math.round(drift)}`);
+                console.warn('[adaptive_degrade_on] reason=render');
+                setRuntimePerformanceState({ isAutoDegraded: true, reason: 'render' });
+                AsyncStorage.setItem(ANDROID_AUTO_DEGRADE_KEY, 'true').catch(() => undefined);
+            } else if (runtimePerformanceRef.current.isAutoDegraded && stableSeconds >= recoverWindowSeconds) {
+                console.log('[adaptive_degrade_off] reason=recovered');
+                setRuntimePerformanceState({ isAutoDegraded: false });
+                AsyncStorage.setItem(ANDROID_AUTO_DEGRADE_KEY, 'false').catch(() => undefined);
+                stableSeconds = 0;
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [performanceMode]);
+
     // Derived values used by UI
     const activeWallpaper = isSlideshowEnabled && wallpaperSlides.length > 0
         ? wallpaperSlides[currentSlideIndex % wallpaperSlides.length]
@@ -392,8 +491,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const effectivePortalBackgroundType: 'color' | 'gradient' | 'image' =
         isSlideshowEnabled ? 'image' : portalBackgroundType;
 
-    return (
-        <SettingsContext.Provider value={{
+    const contextValue = useMemo(
+        () => ({
             models,
             currentModel,
             currentProvider,
@@ -404,7 +503,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             imagePosition,
             setImageSize,
             setImagePosition,
-
             theme,
             vTheme,
             isDarkMode,
@@ -431,7 +529,54 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             activeWallpaper,
             portalIconStyle,
             setPortalIconStyle,
-        }}>
+            performanceMode,
+            setPerformanceMode,
+            runtimePerformanceState,
+            reportRuntimeStress,
+        }),
+        [
+            models,
+            currentModel,
+            currentProvider,
+            loadingModels,
+            fetchModels,
+            selectModel,
+            imageSize,
+            imagePosition,
+            theme,
+            vTheme,
+            isDarkMode,
+            themeMode,
+            setThemeMode,
+            isAutoMagicEnabled,
+            toggleAutoMagic,
+            isMenuOpen,
+            portalBackground,
+            effectivePortalBackgroundType,
+            setPortalBackground,
+            assistantType,
+            setAssistantType,
+            isSettingsLoaded,
+            wallpaperSlides,
+            isSlideshowEnabled,
+            slideshowInterval,
+            currentSlideIndex,
+            setIsSlideshowEnabled,
+            setSlideshowInterval,
+            addWallpaperSlide,
+            removeWallpaperSlide,
+            activeWallpaper,
+            portalIconStyle,
+            setPortalIconStyle,
+            performanceMode,
+            setPerformanceMode,
+            runtimePerformanceState,
+            reportRuntimeStress,
+        ],
+    );
+
+    return (
+        <SettingsContext.Provider value={contextValue}>
             {children}
         </SettingsContext.Provider>
     );

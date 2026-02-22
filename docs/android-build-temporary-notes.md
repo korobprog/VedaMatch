@@ -46,3 +46,13 @@ Impact:
 3. Keep Firebase files consistent:
 - `applicationId` in Gradle == `package_name` in `google-services.json`
 - server Firebase Admin credentials and project id must be from the same Firebase project.
+
+## Push verification memory (2026-02-21)
+- Backend test push endpoint confirms delivery path is healthy (`/api/admin/push/test` -> `ok=true`).
+- Notification channel for app package `com.ragagent` exists and is enabled.
+- Practical QA rule for Android:
+  - test in background/foreground states, but avoid `force-stop` during delivery checks;
+  - after any force-stop, relaunch app once before push test.
+
+Related checklist:
+- `/Users/mamu/Documents/vedicai/docs/android-stability-visual-smoke-checklist.md`

@@ -19,7 +19,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { Image as ImageIcon, Sparkles, Trash2, Plus, Clock, Users, ChevronRight, LifeBuoy } from 'lucide-react-native';
 import { COLORS } from '../../components/chat/ChatConstants';
 import { SLIDESHOW_INTERVALS } from '../../config/wallpaperPresets';
-import { useSettings } from '../../context/SettingsContext';
+import { PerformanceMode, useSettings } from '../../context/SettingsContext';
 import { useUser } from '../../context/UserContext';
 import { useLocation } from '../../hooks/useLocation';
 import { useWallet } from '../../context/WalletContext';
@@ -29,7 +29,7 @@ import { AIModelsSection, AIModel } from './components/AIModelsSection';
 import { normalizeLanguageCode } from '../../config/legal.config';
 
 type AssistantType = 'feather' | 'smiley' | 'feather2';
-type SettingsPanelKey = 'quick' | 'appearance' | 'background' | 'ai' | 'location' | 'models';
+type SettingsPanelKey = 'quick' | 'appearance' | 'performance' | 'background' | 'ai' | 'location' | 'models';
 const SETTINGS_PANELS_STORAGE_KEY = 'settings_screen_expanded_panels_v1';
 
 const IMAGE_SIZE_OPTIONS = [200, 240, 280, 320, 360];
@@ -41,6 +41,23 @@ const PRESET_GRADIENTS = [
     '#43e97b|#38f9d7',
     '#fa709a|#fee140',
     '#6a11cb|#2575fc',
+];
+const PERFORMANCE_MODE_OPTIONS: Array<{ key: PerformanceMode; title: string; subtitle: string }> = [
+    {
+        key: 'adaptive',
+        title: 'Adaptive',
+        subtitle: 'Баланс качества и стабильности. На Android автоматически снижает нагрузку при лагах.',
+    },
+    {
+        key: 'high_quality',
+        title: 'High Quality',
+        subtitle: 'Максимум визуальных эффектов и анимаций.',
+    },
+    {
+        key: 'battery_saver',
+        title: 'Battery Saver',
+        subtitle: 'Минимум blur/анимаций для плавности и экономии батареи.',
+    },
 ];
 const ASSISTANT_OPTIONS: Array<{
     key: AssistantType;
@@ -110,6 +127,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
         removeWallpaperSlide,
         portalIconStyle,
         setPortalIconStyle,
+        performanceMode,
+        setPerformanceMode,
+        runtimePerformanceState,
     } = useSettings();
     const theme = isDarkMode ? COLORS.dark : COLORS.light;
 
@@ -273,6 +293,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
     const [expandedPanels, setExpandedPanels] = useState<Record<SettingsPanelKey, boolean>>({
         quick: true,
         appearance: false,
+        performance: false,
         background: false,
         ai: false,
         location: false,
@@ -710,6 +731,69 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ navigation
                                     </TouchableOpacity>
                                 ))}
                             </View>
+                        </>
+                    )}
+                </View>
+
+                {/* Performance Section */}
+                <View style={[styles.section, themedStyles.sectionDivider, { borderBottomColor: vTheme.colors.divider }]}>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        style={styles.sectionToggleHeader}
+                        onPress={() => togglePanel('performance')}
+                    >
+                        <View style={styles.sectionToggleTextWrap}>
+                            <Text style={[styles.sectionTitle, { color: vTheme.colors.text }]}>Производительность</Text>
+                            <Text style={[styles.sectionHint, { color: vTheme.colors.textSecondary }]}>
+                                Режим рендера и энергопотребления для Android/iOS
+                            </Text>
+                        </View>
+                        <Text style={[styles.sectionToggleIcon, { color: vTheme.colors.textSecondary }]}>
+                            {expandedPanels.performance ? '▾' : '▸'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {expandedPanels.performance && (
+                        <>
+                            <View style={styles.performanceModeList}>
+                                {PERFORMANCE_MODE_OPTIONS.map((modeOption) => {
+                                    const active = performanceMode === modeOption.key;
+                                    return (
+                                        <TouchableOpacity
+                                            key={modeOption.key}
+                                            activeOpacity={0.88}
+                                            onPress={() => {
+                                                triggerTapFeedback();
+                                                void setPerformanceMode(modeOption.key);
+                                            }}
+                                            style={[
+                                                styles.performanceModeCard,
+                                                {
+                                                    backgroundColor: active ? colors.accentSoft : vTheme.colors.backgroundSecondary,
+                                                    borderColor: active ? colors.accent : vTheme.colors.divider,
+                                                },
+                                            ]}
+                                        >
+                                            <View style={styles.performanceModeHeader}>
+                                                <Text style={[styles.performanceModeTitle, { color: active ? colors.accent : vTheme.colors.text }]}>
+                                                    {modeOption.title}
+                                                </Text>
+                                                {active && <Text style={[styles.performanceModeActiveMark, { color: colors.accent }]}>✓</Text>}
+                                            </View>
+                                            <Text style={[styles.performanceModeSubtitle, { color: vTheme.colors.textSecondary }]}>
+                                                {modeOption.subtitle}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                            {performanceMode === 'adaptive' && runtimePerformanceState.isAutoDegraded && (
+                                <View style={[styles.performanceBadge, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }]}>
+                                    <Text style={styles.performanceBadgeText}>
+                                        Adaptive сейчас временно снижен до battery profile ({runtimePerformanceState.reason || 'render'})
+                                    </Text>
+                                </View>
+                            )}
                         </>
                     )}
                 </View>
@@ -1572,5 +1656,45 @@ const styles = StyleSheet.create({
     addSlideText: {
         fontSize: 11,
         fontWeight: '500',
+    },
+    performanceModeList: {
+        marginTop: 4,
+        gap: 10,
+    },
+    performanceModeCard: {
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+    },
+    performanceModeHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    performanceModeTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    performanceModeActiveMark: {
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    performanceModeSubtitle: {
+        marginTop: 5,
+        fontSize: 12,
+        lineHeight: 17,
+    },
+    performanceBadge: {
+        marginTop: 12,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+    },
+    performanceBadgeText: {
+        fontSize: 12,
+        color: '#B45309',
+        fontWeight: '600',
     },
 });
