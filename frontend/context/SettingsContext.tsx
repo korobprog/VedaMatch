@@ -21,6 +21,15 @@ interface Model {
     category?: string;
 }
 
+const POLZA_ONLY_MODEL: Model = {
+    id: 'auto',
+    object: 'model',
+    created: 0,
+    owned_by: 'polza',
+    provider: 'PolzaAI',
+    category: 'text',
+};
+
 interface SettingsContextType {
     models: Model[];
     currentModel: string;
@@ -71,11 +80,10 @@ const PERFORMANCE_MODE_STORAGE_KEY = 'performance_mode_v1';
 const ANDROID_AUTO_DEGRADE_KEY = 'android_auto_degrade_v1';
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
-    const [models, setModels] = useState<Model[]>([]);
-    const [currentModel, setCurrentModel] = useState<string>(modelsConfig.text.model);
-    const [currentProvider, setCurrentProvider] = useState<string>(modelsConfig.text.provider || '');
+    const [models, setModels] = useState<Model[]>([POLZA_ONLY_MODEL]);
+    const [currentModel, setCurrentModel] = useState<string>(modelsConfig.text.model || POLZA_ONLY_MODEL.id);
+    const [currentProvider, setCurrentProvider] = useState<string>(modelsConfig.text.provider || POLZA_ONLY_MODEL.provider);
     const [loadingModels, setLoadingModels] = useState<boolean>(false);
-    const [lastFetchTime, setLastFetchTime] = useState<number>(0);
     const [imageSize, setImageSize] = useState<number>(280);
     const [imagePosition, setImagePosition] = useState<'left' | 'center' | 'right'>('left');
 
@@ -115,13 +123,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const { isLoggedIn } = useUser();
 
-    const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
+    const modelsFetchInFlightRef = useRef(false);
 
     const fetchModels = useCallback(async (force: boolean = false) => {
-        const now = Date.now();
-        // Cache check: if we have models and not forcing update, check if cache is valid (10 min)
-        if (models.length > 0 && !force && (now - lastFetchTime < CACHE_DURATION)) {
-            console.log('Using cached models list (valid for 10 min)');
+        if (modelsFetchInFlightRef.current || loadingModels) {
             return;
         }
 
@@ -131,37 +136,25 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
 
         setLoadingModels(true);
+        modelsFetchInFlightRef.current = true;
         try {
-            // Lazy import to avoid potential circular dependencies and ensure we have auth headers
-            const { getAvailableModels } = require('../services/openaiService');
-            const data = await getAvailableModels();
-
-            // Store ALL unique models, let UI handle categorization
-            const allModels = data.data || [];
-
-            // Deduplicate by ID
-            const uniqueModels = allModels.filter((model: any, index: number, self: any[]) =>
-                index === self.findIndex((t) => t.id === model.id)
-            );
-
-            // Sort by ID
-            const sortedModels = uniqueModels.sort((a: any, b: any) =>
-                a.id.localeCompare(b.id)
-            );
-
-            setModels(sortedModels);
-            setLastFetchTime(Date.now());
-            console.log('Models loaded and cached:', sortedModels.length);
-
-            // Validate current model exists in new list, if not, fallback or warn
-            // (Optional: logic to reset if current model disappears)
+            // MVP: force single provider/model to PolzaAI to avoid heavy model list fetch.
+            setModels([POLZA_ONLY_MODEL]);
+            if (currentModel !== POLZA_ONLY_MODEL.id) {
+                setCurrentModel(POLZA_ONLY_MODEL.id);
+            }
+            if (currentProvider !== POLZA_ONLY_MODEL.provider) {
+                setCurrentProvider(POLZA_ONLY_MODEL.provider);
+            }
+            console.log('Models fixed to PolzaAI only');
         } catch (error: any) {
             console.warn('Failed to fetch models:', error?.message || 'Unknown error');
             // Silent failure, UI will show empty list or use defaults
         } finally {
             setLoadingModels(false);
+            modelsFetchInFlightRef.current = false;
         }
-    }, [models.length, lastFetchTime, isLoggedIn]);
+    }, [isLoggedIn, currentModel, currentProvider, loadingModels]);
 
     const selectModel = useCallback((modelId: string, provider: string) => {
         setCurrentModel(modelId);
@@ -280,11 +273,16 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         loadSettings();
     }, []);
 
+    const fetchModelsRef = useRef(fetchModels);
+    useEffect(() => {
+        fetchModelsRef.current = fetchModels;
+    }, [fetchModels]);
+
     useEffect(() => {
         if (isLoggedIn) {
-            void fetchModels();
+            void fetchModelsRef.current();
         }
-    }, [isLoggedIn, fetchModels]);
+    }, [isLoggedIn]);
 
     const setThemeMode = useCallback(async (mode: ThemeMode) => {
         setThemeModeState(mode);

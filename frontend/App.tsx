@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import RNCallKeep from 'react-native-callkeep';
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform, PermissionsAndroid, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -33,7 +33,6 @@ import { SettingsDrawer } from './SettingsDrawer';
 import { GlobalGestureHandler } from './components/GlobalGestureHandler';
 import { PortalLayoutProvider } from './context/PortalLayoutContext';
 import { MiniPlayer } from './components/MiniPlayer';
-import { audioPlayerService } from './services/audioPlayerService';
 import { MultimediaHubScreen } from './screens/multimedia/MultimediaHubScreen';
 import { RadioScreen } from './screens/multimedia/RadioScreen';
 import { AudioScreen } from './screens/multimedia/AudioScreen';
@@ -232,10 +231,14 @@ const AppContent = () => {
       return;
     }
 
-    // 1. Setup VoIP (CallKeep)
+    // 1. Setup VoIP (CallKeep) only when app is active to avoid Android Activity attach errors
     const setupVoIP = async () => {
       try {
         if (voipSetupRef.current) {
+          return;
+        }
+
+        if (AppState.currentState !== 'active') {
           return;
         }
 
@@ -276,7 +279,12 @@ const AppContent = () => {
       }
     };
 
-    setupVoIP();
+    void setupVoIP();
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && !voipSetupRef.current) {
+        void setupVoIP();
+      }
+    });
 
     const onAnswerCall = ({ callUUID }: { callUUID: string }) => {
       if (navigationRef.isReady()) {
@@ -316,19 +324,12 @@ const AppContent = () => {
     });
 
     return () => {
+      appStateSub.remove();
       RNCallKeep.removeEventListener('answerCall');
       RNCallKeep.removeEventListener('endCall');
       removeLisener();
     };
   }, [addListener, isLoggedIn]);
-
-  // Handle Multimedia Player Setup
-  React.useEffect(() => {
-    const initPlayer = async () => {
-      await audioPlayerService.setup();
-    };
-    initPlayer();
-  }, []);
 
   // Force minimum load time to prevent white flashes
   React.useEffect(() => {

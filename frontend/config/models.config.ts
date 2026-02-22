@@ -22,8 +22,8 @@ export interface ModelsConfig {
 export const modelsConfig: ModelsConfig = {
   // Модель для текстовых ответов
   text: {
-    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-    provider: 'DeepInfra',
+    model: 'auto',
+    provider: 'PolzaAI',
   },
   // Модель для генерации аудио
   audio: {
@@ -43,4 +43,3 @@ export const modelsConfig: ModelsConfig = {
 export function getModelConfig(type: keyof ModelsConfig): ModelConfig {
   return modelsConfig[type];
 }
-
