@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 const (
@@ -1962,10 +1963,16 @@ func (s *DomainAssistantService) getBoolConfig(key string, fallback bool) bool {
 func (s *DomainAssistantService) getConfigValue(key string) string {
 	if s.db != nil {
 		var setting models.SystemSetting
-		if err := s.db.Where("key = ?", key).First(&setting).Error; err == nil {
+		err := s.db.
+			Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)}).
+			Where("key = ?", key).
+			First(&setting).Error
+		if err == nil {
 			if strings.TrimSpace(setting.Value) != "" {
 				return strings.TrimSpace(setting.Value)
 			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[DomainAssistant] failed to read system setting %s: %v", key, err)
 		}
 	}
 	return strings.TrimSpace(os.Getenv(key))

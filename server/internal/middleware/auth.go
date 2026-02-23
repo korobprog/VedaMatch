@@ -7,6 +7,8 @@ import (
 	"rag-agent-server/internal/models"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -17,6 +19,24 @@ type AccessClaims struct {
 	UserRole  string
 	SessionID uint
 }
+
+const (
+	authLogSuppressionWindow       = time.Minute
+	authLogSuppressionTTL          = 10 * time.Minute
+	authLogSuppressionCleanupEvery = time.Minute
+)
+
+type authLogSuppressionState struct {
+	windowStart time.Time
+	lastSeenAt  time.Time
+	suppressed  int
+}
+
+var (
+	authLogSuppressionMu        sync.Mutex
+	authLogSuppressionByReqKey  = make(map[string]*authLogSuppressionState)
+	authLogSuppressionCleanupAt time.Time
+)
 
 func parseBearerToken(raw string) string {
 	token := strings.TrimSpace(raw)
@@ -150,7 +170,7 @@ func Protected() fiber.Handler {
 		}
 
 		if tokenString == "" {
-			log.Println("[Auth] Missing authorization header")
+			logAuthFailure(c, "missing_authorization_header", "")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Missing authorization header",
 			})
@@ -158,7 +178,7 @@ func Protected() fiber.Handler {
 
 		claims, err := ParseAccessToken(tokenString)
 		if err != nil {
-			log.Printf("[Auth] Invalid token: %v", err)
+			logAuthFailure(c, "invalid_token", err.Error())
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid or expired token",
 			})
@@ -266,4 +286,73 @@ func GetUserRole(c *fiber.Ctx) string {
 		return r
 	}
 	return models.RoleUser
+}
+
+func logAuthFailure(c *fiber.Ctx, reason, details string) {
+	route := c.Path()
+	clientIP := strings.TrimSpace(c.IP())
+	now := time.Now()
+
+	shouldLog, suppressedPrev := shouldLogAuthFailure(reason, route, clientIP, now)
+	if !shouldLog {
+		return
+	}
+
+	if suppressedPrev > 0 {
+		log.Printf(
+			"[Auth] auth_error_suppressed route=%s reason=%s ip=%s suppressed=%d",
+			route, reason, clientIP, suppressedPrev,
+		)
+	}
+
+	if details == "" {
+		log.Printf("[Auth] %s route=%s ip=%s", reason, route, clientIP)
+		return
+	}
+	log.Printf("[Auth] %s route=%s ip=%s details=%s", reason, route, clientIP, details)
+}
+
+func shouldLogAuthFailure(reason, route, clientIP string, now time.Time) (bool, int) {
+	key := fmt.Sprintf("%s|%s|%s", reason, route, clientIP)
+
+	authLogSuppressionMu.Lock()
+	defer authLogSuppressionMu.Unlock()
+
+	if authLogSuppressionCleanupAt.IsZero() || now.After(authLogSuppressionCleanupAt) {
+		for stateKey, state := range authLogSuppressionByReqKey {
+			if now.Sub(state.lastSeenAt) > authLogSuppressionTTL {
+				delete(authLogSuppressionByReqKey, stateKey)
+			}
+		}
+		authLogSuppressionCleanupAt = now.Add(authLogSuppressionCleanupEvery)
+	}
+
+	state, exists := authLogSuppressionByReqKey[key]
+	if !exists {
+		authLogSuppressionByReqKey[key] = &authLogSuppressionState{
+			windowStart: now,
+			lastSeenAt:  now,
+			suppressed:  0,
+		}
+		return true, 0
+	}
+
+	state.lastSeenAt = now
+	if now.Sub(state.windowStart) < authLogSuppressionWindow {
+		state.suppressed++
+		return false, 0
+	}
+
+	suppressedPrev := state.suppressed
+	state.windowStart = now
+	state.suppressed = 0
+	return true, suppressedPrev
+}
+
+func resetAuthLogSuppressionState() {
+	authLogSuppressionMu.Lock()
+	defer authLogSuppressionMu.Unlock()
+
+	authLogSuppressionByReqKey = make(map[string]*authLogSuppressionState)
+	authLogSuppressionCleanupAt = time.Time{}
 }

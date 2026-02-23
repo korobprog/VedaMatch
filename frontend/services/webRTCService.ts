@@ -5,6 +5,7 @@ import {
     MediaStream,
     mediaDevices,
 } from 'react-native-webrtc';
+import { PermissionsAndroid, Platform, type Permission } from 'react-native';
 import { WebSocketService } from './websocketService';
 import InCallManager from 'react-native-incall-manager';
 import { getAccessToken } from './authSessionService';
@@ -55,25 +56,103 @@ class WebRTCService {
         this.onIceStateChange = callback;
     }
 
-    async startLocalStream(isVideo: boolean = true) {
-        const isFront = true;
-        // Basic device enumeration logic...
-        const devices = await mediaDevices.enumerateDevices() as any[];
-        let videoSourceId;
-        for (const source of devices) {
-            if (source.kind === "videoinput" && source.facing === (isFront ? "user" : "environment")) {
-                videoSourceId = source.deviceId;
+    private async ensureAndroidMediaPermissions() {
+        if (Platform.OS !== 'android') {
+            return;
+        }
+
+        const requiredPermissions = [
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        ];
+
+        const missingPermissions: Permission[] = [];
+        for (const permission of requiredPermissions) {
+            const granted = await PermissionsAndroid.check(permission);
+            if (!granted) {
+                missingPermissions.push(permission);
             }
         }
 
-        const stream = await mediaDevices.getUserMedia({
-            audio: true,
-            video: isVideo ? {
-                facingMode: (isFront ? "user" : "environment"),
-                deviceId: videoSourceId,
-                frameRate: 30,
-            } : false,
+        if (missingPermissions.length === 0) {
+            return;
+        }
+
+        const requestResult = await PermissionsAndroid.requestMultiple(missingPermissions);
+        const deniedPermissions: Permission[] = missingPermissions.filter(
+            permission => requestResult[permission] !== PermissionsAndroid.RESULTS.GRANTED
+        );
+
+        if (deniedPermissions.length > 0) {
+            throw new Error(`Missing media permissions: ${deniedPermissions.join(', ')}`);
+        }
+    }
+
+    private getPreferredVideoSource(devices: Array<{ kind?: string; facing?: string; deviceId?: string }>, isFront: boolean) {
+        const preferredFacingValues = isFront ? ['user', 'front'] : ['environment', 'back'];
+        const preferred = devices.find(source => {
+            if (source.kind !== 'videoinput') {
+                return false;
+            }
+            const facing = String(source.facing || '').toLowerCase();
+            return preferredFacingValues.includes(facing);
         });
+
+        if (preferred?.deviceId) {
+            return preferred.deviceId;
+        }
+
+        return devices.find(source => source.kind === 'videoinput')?.deviceId;
+    }
+
+    async startLocalStream(isVideo: boolean = true) {
+        await this.ensureAndroidMediaPermissions();
+
+        const isFront = true;
+        const devices = await mediaDevices.enumerateDevices() as Array<{ kind?: string; facing?: string; deviceId?: string }>;
+        const videoSourceId = this.getPreferredVideoSource(devices, isFront);
+
+        const videoConstraintsCandidates = isVideo
+            ? [
+                {
+                    facingMode: isFront ? 'user' : 'environment',
+                    ...(videoSourceId ? { deviceId: videoSourceId } : {}),
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 24, max: 30 },
+                },
+                {
+                    facingMode: isFront ? 'user' : 'environment',
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                },
+                true,
+            ]
+            : [false];
+
+        let stream: MediaStream | null = null;
+        let lastError: unknown = null;
+        for (const videoConstraints of videoConstraintsCandidates) {
+            try {
+                stream = await mediaDevices.getUserMedia({
+                    audio: true,
+                    video: videoConstraints,
+                });
+                break;
+            } catch (error) {
+                lastError = error;
+                console.warn('[WebRTC] getUserMedia attempt failed, trying fallback constraints', error);
+            }
+        }
+
+        if (!stream) {
+            throw lastError ?? new Error('Failed to initialize local media stream');
+        }
+
+        if (isVideo && stream.getVideoTracks().length === 0) {
+            stream.getTracks().forEach(track => track.stop());
+            throw new Error('Camera track is unavailable');
+        }
 
         console.log('Local stream obtained. Audio tracks:', stream.getAudioTracks().length, 'Video tracks:', stream.getVideoTracks().length);
         this.localStream = stream;

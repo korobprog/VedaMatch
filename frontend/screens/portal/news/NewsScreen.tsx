@@ -11,7 +11,6 @@ import {
     LayoutAnimation,
     Platform,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
 import { newsService, NewsItem } from '../../../services/newsService';
 import { useNavigation } from '@react-navigation/native';
@@ -40,6 +39,7 @@ import { GodModeFiltersPanel } from '../../../components/portal/god-mode/GodMode
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { SemanticColorTokens } from '../../../theme/semanticTokens';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
+import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 import {
     flattenNewsPages,
     useNewsFeedQuery,
@@ -89,7 +89,7 @@ export const NewsScreen = () => {
     const preferencesQuery = useNewsPreferencesQuery();
 
     const news = useMemo(() => flattenNewsPages(newsQuery.data), [newsQuery.data]);
-    const NewsListComponent: any = FEATURE_FLAGS.flashlistNews ? FlashList : FlatList;
+    const NewsListComponent: any = shouldUseFlashList(FEATURE_FLAGS.flashlistNews) ? FlashList : FlatList;
     const loading = newsQuery.isLoading;
     const loadingMore = newsQuery.isFetchingNextPage;
     const hasMore = Boolean(newsQuery.hasNextPage);

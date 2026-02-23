@@ -3,9 +3,11 @@ package middleware
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"rag-agent-server/internal/services"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,6 +16,22 @@ import (
 const (
 	requestIDLocalKey = "requestID"
 	errorCodeLocalKey = "errorCode"
+
+	errorLogSuppressionWindow       = time.Minute
+	errorLogSuppressionTTL          = 10 * time.Minute
+	errorLogSuppressionCleanupEvery = time.Minute
+)
+
+type errorLogSuppressionState struct {
+	windowStart time.Time
+	lastSeenAt  time.Time
+	suppressed  int
+}
+
+var (
+	errorLogSuppressionMu        sync.Mutex
+	errorLogSuppressionByReqKey  = make(map[string]*errorLogSuppressionState)
+	errorLogSuppressionCleanupAt time.Time
 )
 
 func RequestID() fiber.Handler {
@@ -61,10 +79,23 @@ func ErrorLog() fiber.Handler {
 			route := c.Path()
 			latencyMs := time.Since(startedAt).Milliseconds()
 			userID := GetUserID(c)
+			clientIP := strings.TrimSpace(c.IP())
+			now := time.Now()
+
+			shouldLog, suppressedPrev := shouldLogRequestError(status, route, clientIP, errorCode, now)
+			if !shouldLog {
+				return err
+			}
+			if suppressedPrev > 0 {
+				log.Printf(
+					"[HTTP] request_error_suppressed route=%s status=%d userId=%d errorCode=%s ip=%s suppressed=%d",
+					route, status, userID, errorCode, clientIP, suppressedPrev,
+				)
+			}
 
 			log.Printf(
-				"[HTTP] request_error route=%s status=%d userId=%d errorCode=%s requestId=%s latency_ms=%d",
-				route, status, userID, errorCode, requestID, latencyMs,
+				"[HTTP] request_error route=%s status=%d userId=%d errorCode=%s requestId=%s ip=%s latency_ms=%d",
+				route, status, userID, errorCode, requestID, clientIP, latencyMs,
 			)
 		}
 
@@ -127,4 +158,54 @@ func generateRequestID() string {
 		return hex.EncodeToString([]byte(time.Now().UTC().Format("20060102150405.000000000")))
 	}
 	return hex.EncodeToString(bytes[:])
+}
+
+func shouldLogRequestError(status int, route, clientIP, errorCode string, now time.Time) (bool, int) {
+	// Suppress only repeating unauthorized errors which are the most spammy.
+	if status != fiber.StatusUnauthorized {
+		return true, 0
+	}
+
+	key := fmt.Sprintf("%d|%s|%s|%s", status, route, clientIP, errorCode)
+
+	errorLogSuppressionMu.Lock()
+	defer errorLogSuppressionMu.Unlock()
+
+	if errorLogSuppressionCleanupAt.IsZero() || now.After(errorLogSuppressionCleanupAt) {
+		for stateKey, state := range errorLogSuppressionByReqKey {
+			if now.Sub(state.lastSeenAt) > errorLogSuppressionTTL {
+				delete(errorLogSuppressionByReqKey, stateKey)
+			}
+		}
+		errorLogSuppressionCleanupAt = now.Add(errorLogSuppressionCleanupEvery)
+	}
+
+	state, exists := errorLogSuppressionByReqKey[key]
+	if !exists {
+		errorLogSuppressionByReqKey[key] = &errorLogSuppressionState{
+			windowStart: now,
+			lastSeenAt:  now,
+			suppressed:  0,
+		}
+		return true, 0
+	}
+
+	state.lastSeenAt = now
+	if now.Sub(state.windowStart) < errorLogSuppressionWindow {
+		state.suppressed++
+		return false, 0
+	}
+
+	suppressedPrev := state.suppressed
+	state.windowStart = now
+	state.suppressed = 0
+	return true, suppressedPrev
+}
+
+func resetErrorLogSuppressionState() {
+	errorLogSuppressionMu.Lock()
+	defer errorLogSuppressionMu.Unlock()
+
+	errorLogSuppressionByReqKey = make(map[string]*errorLogSuppressionState)
+	errorLogSuppressionCleanupAt = time.Time{}
 }

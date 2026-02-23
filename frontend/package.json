@@ -55,6 +55,7 @@
     "react-native-linear-gradient": "^2.8.3",
     "react-native-markdown-display": "^7.0.2",
     "react-native-mmkv": "^4.1.2",
+    "react-native-nitro-modules": "0.33.9",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "^3.16.2",
     "react-native-safe-area-context": "^4.14.1",

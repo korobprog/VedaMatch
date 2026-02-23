@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Dimensions, ActivityIndicator, ImageBackground, Platform, StatusBar } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
 import { webRTCService } from '../../services/webRTCService';
@@ -14,7 +14,7 @@ const { width, height } = Dimensions.get('window');
 export const CallScreen = () => {
     const route = useRoute();
     const navigation = useNavigation();
-    const { vTheme, isDarkMode, portalBackground, portalBackgroundType } = useSettings();
+    const { vTheme, portalBackground, portalBackgroundType } = useSettings();
     // @ts-ignore
     const { targetId, isIncoming, callerName } = route.params || {};
 
@@ -26,6 +26,7 @@ export const CallScreen = () => {
     const [iceState, setIceState] = useState<string>('new');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const hasVideoTrack = (stream: MediaStream | null) => Boolean(stream && stream.getVideoTracks().length > 0);
 
     // Initial setup - only start camera preview, don't connect yet if incoming
     useEffect(() => {
@@ -38,11 +39,20 @@ export const CallScreen = () => {
                 }
                 if (mounted) {
                     setLocalStream(stream);
+                    const streamHasVideo = hasVideoTrack(stream);
+                    setIsVideoEnabled(streamHasVideo);
+                    if (!streamHasVideo) {
+                        setStatus('Камера недоступна');
+                    }
                     const tracks = stream.getTracks().map(t => t.kind[0].toUpperCase()).join('/');
                     console.log(`Local stream ready: ${tracks}`);
                 }
             } catch (e) {
                 console.error("Camera preview failed", e);
+                if (mounted) {
+                    setIsVideoEnabled(false);
+                    setStatus('Нет доступа к камере/микрофону');
+                }
             }
         };
         startPreview();
@@ -63,6 +73,9 @@ export const CallScreen = () => {
                     console.log('Local stream not ready, starting now...');
                     currentLocalStream = await webRTCService.startLocalStream(true);
                     if (mounted) setLocalStream(currentLocalStream);
+                }
+                if (mounted) {
+                    setIsVideoEnabled(hasVideoTrack(currentLocalStream));
                 }
 
                 // Setup Callbacks
@@ -117,16 +130,23 @@ export const CallScreen = () => {
 
 
     const handleAnswer = async () => {
-        // Ensure local stream is ready before accepting
-        let stream = webRTCService.localStream;
-        if (!stream) {
-            stream = await webRTCService.startLocalStream(true);
-            setLocalStream(stream);
-        }
+        try {
+            // Ensure local stream is ready before accepting
+            let stream = webRTCService.localStream;
+            if (!stream) {
+                stream = await webRTCService.startLocalStream(true);
+                setLocalStream(stream);
+            }
+            setIsVideoEnabled(hasVideoTrack(stream));
 
-        setHasAccepted(true);
-        setStatus('Connecting...');
-        await webRTCService.acceptCall();
+            setHasAccepted(true);
+            setStatus('Connecting...');
+            await webRTCService.acceptCall();
+        } catch (error) {
+            console.error('Failed to accept incoming call', error);
+            setIsVideoEnabled(false);
+            setStatus('Не удалось включить камеру');
+        }
     };
 
     const handleHangup = () => {
@@ -147,7 +167,13 @@ export const CallScreen = () => {
     const toggleVideo = () => {
         const stream = webRTCService.localStream;
         if (stream) {
-            stream.getVideoTracks().forEach(track => {
+            const videoTracks = stream.getVideoTracks();
+            if (!videoTracks.length) {
+                setIsVideoEnabled(false);
+                setStatus('Камера недоступна');
+                return;
+            }
+            videoTracks.forEach(track => {
                 track.enabled = !track.enabled;
             });
             setIsVideoEnabled(!isVideoEnabled);
@@ -157,7 +183,12 @@ export const CallScreen = () => {
     const switchCamera = () => {
         const stream = webRTCService.localStream;
         if (stream) {
-            stream.getVideoTracks().forEach(track => {
+            const videoTracks = stream.getVideoTracks();
+            if (!videoTracks.length) {
+                setStatus('Камера недоступна');
+                return;
+            }
+            videoTracks.forEach(track => {
                 // @ts-ignore
                 if (track._switchCamera) track._switchCamera();
             });
@@ -191,7 +222,7 @@ export const CallScreen = () => {
 
         return (
             <LinearGradient
-                colors={[vTheme.colors.background, '#000000']}
+                colors={['#101A2A', '#02050C']}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -273,21 +304,21 @@ export const CallScreen = () => {
                 <View style={styles.controlsInner}>
                     <BlurView
                         style={StyleSheet.absoluteFill}
-                        blurType="light"
+                        blurType="dark"
                         blurAmount={20}
-                        reducedTransparencyFallbackColor="rgba(0,0,0,0.5)"
+                        reducedTransparencyFallbackColor="rgba(8,12,22,0.85)"
                     />
                     <View style={styles.controlsContent}>
                         <TouchableOpacity onPress={toggleMute} style={[styles.controlBtn, isMuted && styles.controlBtnActive]}>
-                            {isMuted ? <MicOff color={isMuted ? "white" : "#333"} size={22} /> : <Mic color="#333" size={22} />}
+                            {isMuted ? <MicOff color={"white"} size={22} /> : <Mic color="#fff" size={22} />}
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={toggleVideo} style={[styles.controlBtn, !isVideoEnabled && styles.controlBtnActive]}>
-                            {!isVideoEnabled ? <VideoOff color={!isVideoEnabled ? "white" : "#333"} size={22} /> : <Video color="#333" size={22} />}
+                            {!isVideoEnabled ? <VideoOff color={"white"} size={22} /> : <Video color="#fff" size={22} />}
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={switchCamera} style={styles.controlBtn}>
-                            <Camera color="#333" size={22} />
+                            <Camera color="#fff" size={22} />
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={handleHangup} style={[styles.controlBtn, styles.hangupBtn]}>
@@ -307,7 +338,7 @@ const styles = StyleSheet.create({
     },
     backgroundOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        backgroundColor: 'rgba(0,0,0,0.52)',
     },
     remoteVideo: {
         width: width,
@@ -380,7 +411,7 @@ const styles = StyleSheet.create({
     },
     localVideo: {
         flex: 1,
-        opacity: 0.9, // Slight transparency might look cool, but usually we want clear video. Let's keep it opaque but maybe add filter later.
+        opacity: 1,
     },
 
     // Controls styling
@@ -416,13 +447,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-evenly',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)', // Subtle tint
+        backgroundColor: 'rgba(9,14,24,0.64)',
     },
     controlBtn: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: 'rgba(255,255,255,0.8)',
+        backgroundColor: 'rgba(22,32,47,0.95)',
         justifyContent: 'center',
         alignItems: 'center',
     },

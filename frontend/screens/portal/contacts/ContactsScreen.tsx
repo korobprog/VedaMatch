@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Modal, ScrollView, Platform, FlatList } from 'react-native';
 import { BlurView } from '@react-native-community/blur';
 import LinearGradient from 'react-native-linear-gradient';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -21,6 +20,7 @@ import { useChat } from '../../../context/ChatContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { Phone, MessageCircle, Search, X, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
 import apiClient from '../../../lib/apiClient';
+import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 
 const CONTACTS_PAGE_LIMIT = 50;
 const CONTACT_ITEM_HEIGHT = 92;
@@ -533,6 +533,7 @@ export const ContactsScreen: React.FC = () => {
     const allCount = allContactsQuery.data?.pages?.[0]?.total ?? allContacts.length;
     const friendsCount = friendsContactsQuery.data?.pages?.[0]?.total ?? friendRelations.length;
     const blockedCount = blockedContactsQuery.data?.pages?.[0]?.total ?? blockedRelations.length;
+    const ContactsListComponent: any = shouldUseFlashList(true) ? FlashList : FlatList;
 
     return (
         <ProtectedScreen requireCompleteProfile={false}>
@@ -617,9 +618,9 @@ export const ContactsScreen: React.FC = () => {
                         </TouchableOpacity>
                     ) : null}
                 </View>
-                <FlashList
+                <ContactsListComponent
                     data={displayedContacts}
-                    keyExtractor={item => item.ID.toString()}
+                    keyExtractor={(item: UserContact) => item.ID.toString()}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
                     refreshing={activeRefreshing}

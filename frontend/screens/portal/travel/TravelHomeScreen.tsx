@@ -8,8 +8,8 @@ import {
     ActivityIndicator,
     RefreshControl,
     ScrollView,
+    FlatList,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import FastImage from 'react-native-fast-image';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,7 @@ import { useUser } from '../../../context/UserContext';
 import { useRoleTheme } from '../../../hooks/useRoleTheme';
 import { useSettings } from '../../../context/SettingsContext';
 import { useSheltersQuery, useYatrasQuery } from '../../../hooks/queries/useTravelQueries';
+import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 
 type TabType = 'yatras' | 'shelters';
 
@@ -248,6 +249,7 @@ const TravelHomeScreen: React.FC = () => {
 
     const yatras = yatrasQuery.data?.yatras || [];
     const shelters = sheltersQuery.data?.shelters || [];
+    const TravelListComponent: any = shouldUseFlashList(true) ? FlashList : FlatList;
     const isLoading = activeTab === 'yatras' ? yatrasQuery.isLoading : sheltersQuery.isLoading;
     const isRefreshing = activeTab === 'yatras'
         ? (yatrasQuery.isRefetching && !yatrasQuery.isLoading)
@@ -304,10 +306,10 @@ const TravelHomeScreen: React.FC = () => {
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             {activeTab === 'yatras' ? (
-                <FlashList<Yatra>
+                <TravelListComponent
                     data={yatras}
                     renderItem={renderYatraCard}
-                    keyExtractor={item => `yatra-${item.id}`}
+                    keyExtractor={(item: Yatra) => `yatra-${item.id}`}
                     ListHeaderComponent={
                         <>
                             <GodModeStatusBanner />
@@ -319,10 +321,10 @@ const TravelHomeScreen: React.FC = () => {
                     ListEmptyComponent={emptyComponent}
                 />
             ) : (
-                <FlashList<Shelter>
+                <TravelListComponent
                     data={shelters}
                     renderItem={renderShelterCard}
-                    keyExtractor={item => `shelter-${item.id}`}
+                    keyExtractor={(item: Shelter) => `shelter-${item.id}`}
                     ListHeaderComponent={
                         <>
                             <GodModeStatusBanner />

@@ -16,7 +16,6 @@ import {
     ImageBackground,
     Platform,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -54,6 +53,7 @@ import { BalancePill } from '../../../components/wallet/BalancePill';
 import { AssistantChatButton } from '../../../components/portal/AssistantChatButton';
 import { resolveEffectivePerformanceMode } from '../../../utils/androidVisualPolicy';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
+import { FlashList, shouldUseFlashList } from '../../../lib/flashListCompat';
 
 const { width } = Dimensions.get('window');
 
@@ -122,7 +122,7 @@ const ServicesHomeScreen: React.FC<ServicesHomeScreenProps> = ({ onBack }) => {
         limit: 20,
     });
     const services = useMemo(() => flattenServicesPages(servicesQuery.data), [servicesQuery.data]);
-    const ServicesListComponent: any = FEATURE_FLAGS.flashlistServices ? FlashList : FlatList;
+    const ServicesListComponent: any = shouldUseFlashList(FEATURE_FLAGS.flashlistServices) ? FlashList : FlatList;
     const loading = servicesQuery.isLoading;
     const refreshing = servicesQuery.isRefetching && !servicesQuery.isFetchingNextPage;
     const loadingMore = servicesQuery.isFetchingNextPage;
